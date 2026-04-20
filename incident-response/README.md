@@ -1,39 +1,40 @@
 # Multi-Platform Incident Response Workspace (Counter-Terrorist Mode)
 
-This workspace is a high-fidelity toolkit for identifying "parasites" (session hijackers, infostealers, and backdoors) across Windows, macOS, and Linux.
+This workspace is a high-fidelity toolkit for identifying "parasites" (session hijackers, infostealers, and backdoors) across Windows, macOS, and Linux, powered by Deno for secure artifact analysis.
 
 ## 1. Workspace Layout
 
-- `/artifacts/`: Drop point for forensic data.
-  - Subfolders: `persistence/`, `browser-extensions/`, `network/`
+- `/artifacts/`: Drop point for raw forensic data collected from hosts.
 - `/analysis/`: AI Triage center.
   - `targeted-context.md`: The condensed forensic summary.
-- `/reports/`: Investigation outcomes.
+  - `/quarantine/`: A "shrinked" collection of suspicious binaries and scripts for deep AI inspection.
+- `/reports/`: Investigation outcomes and mitigation plans.
 
 ## 2. Platform Collectors
 
-### Windows (`collect-windows.ps1`)
-Run as Administrator. Collects Registry, WMI Event Consumers, Scheduled Tasks, Hashed Startup items, Alternate Data Streams, and Browser Extensions.
-
-### macOS (`collect-mac.sh`)
-Run via Terminal. Collects LaunchAgents/Daemons (listing and content), Login Items, Crontabs, Browser Extensions, and recently modified files in drop zones.
-
-### Linux (`collect-linux.sh`)
-Run via Bash. Collects `systemd` units (system/user), Crontabs, XDG Autostart, `LD_PRELOAD` status, Browser Extensions, and `/dev/shm` / `/tmp` recently modified files.
+- **Windows:** `collect-windows.ps1` (Registry, WMI, Tasks, ADS, Extensions)
+- **macOS:** `collect-mac.sh` (LaunchAgents, Login Items, Crontabs, Extensions)
+- **Linux:** `collect-linux.sh` (systemd, Cron, Autostart, LD_PRELOAD, Extensions)
 
 ## 3. The "Counter-Terrorist" Workflow
 
-1. **Collect:** Run the appropriate script on each suspected machine.
-2. **Transfer:** Move the resulting folders into this workspace under `incident-response/artifacts/`.
-3. **Triage:** Run the aggregator to flag suspicious items:
+1. **Collect:** Run the appropriate script on each suspected machine and move the folders to `incident-response/artifacts/`.
+2. **Triage & Quarantine (Powered by Deno):**
+   Run the Deno aggregator to flag suspicious items and quarantine suspected malware:
    ```bash
-   python3 triage-context.py
+   deno run --allow-read --allow-write incident-response/triage-context.ts
    ```
-4. **Analyze:** Open `analysis/targeted-context.md` in your AI-enabled editor. Use the `analysis-system-prompt.md` to guide the AI in identifying specific parasites and generating removal steps.
+   *Note: This generates `analysis/targeted-context.md` and populates `analysis/quarantine/`.*
+3. **Analyze:** Use the `analysis-system-prompt.md` in your AI-enabled editor. Provide it with the triage report and allow it to request specific files from the `quarantine` folder.
 
-## 4. Key Detection Capabilities
+## 4. Professional-Grade Forensics
 
-- **Session Hijacking:** Automated flagging of high-risk browser extension permissions.
-- **Fileless Malware:** Detection of encoded commands and WMI-based persistence.
-- **Rootkits/Hooks:** Detection of `LD_PRELOAD` on Linux and rogue MDM profiles on Mac.
-- **Shadow Files:** Alternate Data Stream (ADS) detection on Windows.
+For deep parsing of complex binary artifacts (e.g., Windows MFT, Registry Hives, macOS Unified Logs), this toolkit is designed to be compatible with **[Artemis](https://puffycid.github.io/artemis-book/)**.
+
+You can extend the `triage-context.ts` logic using `artemis-core` (available as a Deno-compatible library) for enterprise-level forensic requirements.
+
+## 5. Security & Isolation
+
+- **Deno Security:** The triage script runs in Deno's secure sandbox.
+- **Quarantine:** Suspicious files are moved to a controlled folder to avoid accidental execution.
+- **Clean Machine:** ALWAYS perform the analysis on a clean machine, never on the infected host.
