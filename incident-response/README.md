@@ -1,50 +1,39 @@
-# Incident Response Workspace Setup (Counter-Terrorist Mode)
+# Multi-Platform Incident Response Workspace (Counter-Terrorist Mode)
 
-This workspace is a multi-platform toolkit designed to identify and remove "parasites" (session hijackers, infostealers, etc.) by collecting and analyzing targeted context.
+This workspace is a high-fidelity toolkit for identifying "parasites" (session hijackers, infostealers, and backdoors) across Windows, macOS, and Linux.
 
-## 1. Folder Structure
+## 1. Workspace Layout
 
-- `/artifacts/`: Collection point for host and network data.
-  - `/windows-host-1/`, `/macbook-1/`, etc.
-  - Subdirectories: `persistence/`, `browser-extensions/`
-- `/analysis/`: AI analysis workspace.
-  - `targeted-context.md`: The "shrinked" context for the AI agent.
-- `/reports/`: Final investigation reports.
+- `/artifacts/`: Drop point for forensic data.
+  - Subfolders: `persistence/`, `browser-extensions/`, `network/`
+- `/analysis/`: AI Triage center.
+  - `targeted-context.md`: The condensed forensic summary.
+- `/reports/`: Investigation outcomes.
 
-## 2. Artifact Collection (The "Collectors")
+## 2. Platform Collectors
 
-### Windows
-Run `collect-windows.ps1` as Administrator.
-It collects:
-- Registry Run/RunOnce keys.
-- Startup item hashes.
-- Browser extension manifests (Chrome, Edge, Firefox).
-- Recently modified files in AppData/Temp.
+### Windows (`collect-windows.ps1`)
+Run as Administrator. Collects Registry, WMI Event Consumers, Scheduled Tasks, Hashed Startup items, Alternate Data Streams, and Browser Extensions.
 
-### macOS
-Run `collect-mac.sh`.
-It collects:
-- LaunchAgent/Daemon plist contents.
-- Crontabs.
-- Browser extension manifests.
-- Recently modified files in `/tmp` and `LaunchAgents`.
+### macOS (`collect-mac.sh`)
+Run via Terminal. Collects LaunchAgents/Daemons (listing and content), Login Items, Crontabs, Browser Extensions, and recently modified files in drop zones.
 
-## 3. Triage & AI Analysis (The "Analyzer")
+### Linux (`collect-linux.sh`)
+Run via Bash. Collects `systemd` units (system/user), Crontabs, XDG Autostart, `LD_PRELOAD` status, Browser Extensions, and `/dev/shm` / `/tmp` recently modified files.
 
-Once artifacts are collected and placed in the `/artifacts/` folder:
+## 3. The "Counter-Terrorist" Workflow
 
-1. **Generate Targeted Context:**
-   Run the triage script to shrink the data for the AI agent:
+1. **Collect:** Run the appropriate script on each suspected machine.
+2. **Transfer:** Move the resulting folders into this workspace under `incident-response/artifacts/`.
+3. **Triage:** Run the aggregator to flag suspicious items:
    ```bash
    python3 triage-context.py
    ```
-   This creates `analysis/targeted-context.md`.
+4. **Analyze:** Open `analysis/targeted-context.md` in your AI-enabled editor. Use the `analysis-system-prompt.md` to guide the AI in identifying specific parasites and generating removal steps.
 
-2. **Run AI Agent:**
-   Use the `analysis-system-prompt.md` in your local AI-enabled editor (e.g., Cursor, VS Code with Copilot/Cody) and provide it with `analysis/targeted-context.md` as context.
+## 4. Key Detection Capabilities
 
-## 4. Critical Operational Rules
-
-- **Isolate:** DO NOT analyze artifacts on suspected infected machines.
-- **Precision:** Focus on specific file paths and extension IDs identified by the agent.
-- **Remediate:** Use the agent's "Actionable Removal Steps" to clean the host.
+- **Session Hijacking:** Automated flagging of high-risk browser extension permissions.
+- **Fileless Malware:** Detection of encoded commands and WMI-based persistence.
+- **Rootkits/Hooks:** Detection of `LD_PRELOAD` on Linux and rogue MDM profiles on Mac.
+- **Shadow Files:** Alternate Data Stream (ADS) detection on Windows.

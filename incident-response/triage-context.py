@@ -1,10 +1,28 @@
 import os
 import json
 import glob
+import re
+
+RED_FLAG_KEYWORDS = [
+    r"base64", r"eval\(", r"exec\(", r"shell", r"curl", r"wget", r"http",
+    r"powershell", r"-enc", r"hidden", r"bypass", r"NoProfile"
+]
+
+HIGH_RISK_PERMISSIONS = [
+    "<all_urls>", "webRequest", "webRequestBlocking", "cookies",
+    "management", "debugger", "proxy"
+]
+
+def check_red_flags(text):
+    flags = []
+    for pattern in RED_FLAG_KEYWORDS:
+        if re.search(pattern, text, re.IGNORECASE):
+            flags.append(pattern)
+    return flags
 
 def generate_triage_report(artifacts_dir):
     report = []
-    report.append("# Targeted Triage Report\n")
+    report.append("# Targeted Triage Report (Multi-Platform)\n")
 
     # 1. Summarize Persistence
     report.append("## Persistence Mechanisms")
@@ -13,20 +31,22 @@ def generate_triage_report(artifacts_dir):
 
     found_persistence = False
     for f in persistence_files:
-        if os.path.isfile(f) and (f.endswith(".plist") or f.endswith(".txt")):
+        if os.path.isfile(f) and (f.endswith(".plist") or f.endswith(".txt") or f.endswith(".json") or f.endswith(".service")):
             found_persistence = True
-            report.append(f"### {os.path.relpath(f, artifacts_dir)}")
+            file_rel_path = os.path.relpath(f, artifacts_dir)
+
             try:
                 with open(f, 'r', errors='ignore') as content:
                     text = content.read().strip()
                     if text:
+                        flags = check_red_flags(text)
+                        flag_header = f" [RED FLAGS: {', '.join(flags)}]" if flags else ""
+                        report.append(f"### {file_rel_path}{flag_header}")
                         report.append("```")
-                        report.append(text[:1500]) # Slightly more context
+                        report.append(text[:1500])
                         report.append("```")
-                    else:
-                        report.append("*Empty file*")
             except Exception as e:
-                report.append(f"Error reading file: {e}")
+                report.append(f"### {file_rel_path} (Error reading: {e})")
 
     if not found_persistence:
         report.append("No persistence artifacts found.")
@@ -43,19 +63,18 @@ def generate_triage_report(artifacts_dir):
                 with open(m, 'r') as f:
                     data = json.load(f)
                     name = data.get('name', 'Unknown')
-                    version = data.get('version', 'Unknown')
                     permissions = data.get('permissions', [])
+
+                    risky = [p for p in permissions if p in HIGH_RISK_PERMISSIONS]
+                    risk_header = f" [RISKY PERMISSIONS: {', '.join(risky)}]" if risky else ""
+
                     id_folder = os.path.basename(os.path.dirname(m))
-                    report.append(f"- **{name}** (v{version}) [ID: {id_folder}]")
-                    if permissions:
-                        report.append(f"  - Permissions: {', '.join(permissions)}")
-                    else:
-                        report.append("  - No special permissions.")
+                    report.append(f"- **{name}** [ID: {id_folder}]{risk_header}")
             except:
                 pass
 
-    # 3. Suspicious Network Connections
-    report.append("\n## Suspicious Network Connections (Established)")
+    # 3. Network Connections
+    report.append("\n## External Network Connections")
     netstat_files = glob.glob(os.path.join(artifacts_dir, "**/netstat.txt"), recursive=True)
     for n in netstat_files:
         host_label = os.path.basename(os.path.dirname(n))
@@ -64,14 +83,12 @@ def generate_triage_report(artifacts_dir):
             lines = f.readlines()
             for line in lines:
                 if "ESTABLISHED" in line:
-                    # Basic filter to ignore common local noise if possible
                     if not ("127.0.0.1" in line or "::1" in line):
                         report.append(f"- `{line.strip()}`")
 
     return "\n".join(report)
 
 if __name__ == "__main__":
-    # Check current directory and its parent for artifacts
     artifacts_candidates = ["incident-response/artifacts", "artifacts"]
     artifacts_path = None
     for cand in artifacts_candidates:

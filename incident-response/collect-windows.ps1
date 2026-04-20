@@ -10,16 +10,17 @@ systeminfo > "$OUT\systeminfo.txt"
 tasklist /v > "$OUT\processes.txt"
 netstat -ano > "$OUT\netstat.txt"
 ipconfig /all > "$OUT\ipconfig.txt"
-arp -a > "$OUT\arp.txt"
 
 # Persistence - Registry
 reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /s > "$OUT\persistence\registry_run_hklm.txt"
 reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /s > "$OUT\persistence\registry_run_hkcu.txt"
-reg query "HKLM\Software\Microsoft\Windows\CurrentVersion\RunOnce" /s > "$OUT\persistence\registry_runonce_hklm.txt"
-reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce" /s > "$OUT\persistence\registry_runonce_hkcu.txt"
 
-# Persistence - Scheduled Tasks (Verbose)
+# Persistence - Scheduled Tasks
 schtasks /query /fo LIST /v > "$OUT\persistence\schtasks.txt"
+
+# Persistence - WMI Event Consumers (Advanced)
+Get-WmiObject -Namespace root\subscription -Class __EventConsumer | Select-Object Name, CommandLineTemplate, ExecutablePath > "$OUT\persistence\wmi_consumers.txt"
+Get-WmiObject -Namespace root\subscription -Class __EventFilter | Select-Object Name, Query > "$OUT\persistence\wmi_filters.txt"
 
 # Persistence - Startup Items Hashing
 $startupItems = wmic startup get caption,command /format:list
@@ -34,7 +35,7 @@ $startupItems | Select-String "Command=" | ForEach-Object {
     }
 }
 
-# Browser Extensions (Preserve ID to prevent overwrite)
+# Browser Extensions
 $browserPaths = @{
     "Chrome" = "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Extensions";
     "Edge"   = "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Extensions";
@@ -49,7 +50,6 @@ foreach ($browser in $browserPaths.Keys) {
         if ($browser -eq "Firefox") {
              Get-ChildItem -Path $path -Recurse -Filter "extensions.json" | Copy-Item -Destination $dest -ErrorAction SilentlyContinue
         } else {
-             # Chromium: Extensions/{ID}/{Version}/manifest.json
              Get-ChildItem -Path $path -Recurse -Filter "manifest.json" | ForEach-Object {
                  $id = $_.Directory.Parent.Name
                  $extDest = "$dest\$id"
@@ -60,11 +60,11 @@ foreach ($browser in $browserPaths.Keys) {
     }
 }
 
-# Hosts file
+# Hosts & DNS
 type C:\Windows\System32\drivers\etc\hosts > "$OUT\hosts.txt"
-
-# DNS Cache
 Get-DnsClientCache > "$OUT\dns_cache.txt"
 
-# Recent modified files
+# Recent modified files + ADS Check (Alternate Data Streams)
 Get-ChildItem -Path $env:TEMP, $env:LOCALAPPDATA -Recurse -File | Sort-Object LastWriteTime -Descending | Select-Object -First 50 | Select-Object FullName, LastWriteTime, Length > "$OUT\recent_files.txt"
+# Check Downloads for ADS (common for zone identifier/malware notes)
+Get-Item "$env:USERPROFILE\Downloads\*" -Stream * | Where-Object Stream -ne ':$DATA' > "$OUT\downloads_ads.txt" 2>$null
