@@ -1,50 +1,50 @@
-# Incident Response Workspace Setup
+# Incident Response Workspace Setup (Counter-Terrorist Mode)
 
-This workspace is tailored for investigating suspected session hijacking and router compromise across Windows and macOS environments.
+This workspace is a multi-platform toolkit designed to identify and remove "parasites" (session hijackers, infostealers, etc.) by collecting and analyzing targeted context.
 
 ## 1. Folder Structure
 
 - `/artifacts/`: Collection point for host and network data.
-  - `/windows-host-1/`, `/windows-host-2/`
-  - `/macbook-1/`, `/macbook-2/`
-  - `/network/`: Nmap scans and packet captures.
-  - `/router/`: Manual inspection notes.
-- `/analysis/`: Centralized analysis workspace.
+  - `/windows-host-1/`, `/macbook-1/`, etc.
+  - Subdirectories: `persistence/`, `browser-extensions/`
+- `/analysis/`: AI analysis workspace.
+  - `targeted-context.md`: The "shrinked" context for the AI agent.
 - `/reports/`: Final investigation reports.
 
-## 2. Artifact Collection
+## 2. Artifact Collection (The "Collectors")
 
 ### Windows
-Run `collect-windows.ps1` as Administrator on each Windows machine. Artifacts will be collected in `C:\incident-artifacts`.
+Run `collect-windows.ps1` as Administrator.
+It collects:
+- Registry Run/RunOnce keys.
+- Startup item hashes.
+- Browser extension manifests (Chrome, Edge, Firefox).
+- Recently modified files in AppData/Temp.
 
 ### macOS
-Run `collect-mac.sh` on each Mac. Artifacts will be collected in `~/incident-artifacts`.
+Run `collect-mac.sh`.
+It collects:
+- LaunchAgent/Daemon plist contents.
+- Crontabs.
+- Browser extension manifests.
+- Recently modified files in `/tmp` and `LaunchAgents`.
 
-### Network Scan
-From a clean machine, run:
-```bash
-# Discovery scan
-nmap -sn 192.168.1.0/24 -oN artifacts/network/hosts.txt
+## 3. Triage & AI Analysis (The "Analyzer")
 
-# Deeper scan of suspicious devices
-nmap -A <IP> -oN artifacts/network/device_<IP>.txt
-```
+Once artifacts are collected and placed in the `/artifacts/` folder:
 
-### Packet Capture
-From a clean machine:
-```bash
-sudo tcpdump -i <interface> -w artifacts/network/capture.pcap
-```
+1. **Generate Targeted Context:**
+   Run the triage script to shrink the data for the AI agent:
+   ```bash
+   python3 triage-context.py
+   ```
+   This creates `analysis/targeted-context.md`.
 
-### Router Inspection
-Document the findings in `artifacts/router/notes.txt`.
-
-## 3. Analysis
-
-Use the system prompt provided in `analysis-system-prompt.md` for the LLM agent tasked with correlating findings across the collected artifacts.
+2. **Run AI Agent:**
+   Use the `analysis-system-prompt.md` in your local AI-enabled editor (e.g., Cursor, VS Code with Copilot/Cody) and provide it with `analysis/targeted-context.md` as context.
 
 ## 4. Critical Operational Rules
 
-- **DO NOT** analyze artifacts directly on suspected infected machines.
-- **DO NOT** trust browser state on compromised hosts.
-- **DO** prioritize rotating passwords and session tokens immediately.
+- **Isolate:** DO NOT analyze artifacts on suspected infected machines.
+- **Precision:** Focus on specific file paths and extension IDs identified by the agent.
+- **Remediate:** Use the agent's "Actionable Removal Steps" to clean the host.
