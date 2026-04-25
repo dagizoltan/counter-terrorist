@@ -1,0 +1,16 @@
+{
+  "tasks": {
+    "start": "deno run --allow-net --allow-read --allow-run --allow-sys orchestrator/main.ts",
+    "dev": "deno run --allow-net --allow-read --allow-run --allow-sys --watch orchestrator/main.ts",
+    "bootstrap": "deno run --allow-run --allow-read --allow-sys orchestrator/bootstrapper.ts",
+    "build-agents": "cd agents && cargo build --release"
+  },
+  "compilerOptions": {
+    "jsx": "precompile",
+    "jsxImportSource": "hono/jsx"
+  },
+  "imports": {
+    "hono": "https://deno.land/x/hono@v4.3.7/mod.ts",
+    "hono/": "https://deno.land/x/hono@v4.3.7/"
+  }
+}
