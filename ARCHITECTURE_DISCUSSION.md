@@ -35,13 +35,30 @@ The GUI will be served directly by the Deno orchestrator:
 ## 5. Security & Prevention Strategy
 
 - **Deno Sandbox:** The orchestrator runs with restricted permissions (`--allow-net`, `--allow-read`, `--allow-run`) to maintain its own security posture.
-- **Active Blocking:** The system will implement **Active Blocking** capabilities. This includes:
-    - Killing suspicious processes identified by the Rust agents.
-    - Injecting temporary firewall rules to block malicious IPs/domains.
-    - Quarantining malicious files in real-time.
+- **Active Blocking & Inbound Defense:** The system will implement **Active Blocking** capabilities. This includes:
+    - **Inbound Filtering:** Blocking unexpected incoming requests at the network level.
+    - **Process Termination:** Killing suspicious processes identified by the Rust agents.
+    - **Dynamic Firewalling:** Injecting temporary rules to block malicious IPs/domains.
+    - **Real-time Quarantine:** Moving malicious files to isolated storage.
 - **Privilege Escalation:** Only the specific Rust agents or sub-processes that *require* sudo/Admin privileges for blocking or deep system access will be granted them.
 
-## 6. Project Structure
+## 6. Hardening & Protection Pillars
+
+To provide a complete security solution, the system includes:
+
+### 6.1 Firewall Management
+- **Automated Configuration:** The bootstrapper will ensure the host firewall (e.g., `ufw` on Linux, `PacketFilter` on macOS, Windows Firewall) is active and follows a "deny by default" inbound policy.
+- **Service Whitelisting:** Automatic detection and management of rules for known safe services.
+
+### 6.2 VPN & Secure Tunneling
+- **Deployment:** The system can manage the lifecycle of a secure VPN client (e.g., WireGuard or OpenVPN).
+- **Kill-Switch:** Implementing a software-based kill-switch to prevent data leakage if the VPN connection drops.
+
+### 6.3 Antivirus & EDR Integration
+- **Agent Orchestration:** Monitoring the status and health of the system's AV (e.g., Windows Defender, ClamAV) or installing/configuring open-source EDR agents.
+- **Signature & Behavioral Analysis:** Combining traditional AV signatures with the system's own behavioral heuristics (via the Rust sidecars).
+
+## 7. Project Structure
 
 ```text
 security-system/

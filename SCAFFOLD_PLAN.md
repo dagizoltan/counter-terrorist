@@ -47,3 +47,15 @@ This plan outlines the concrete steps to implement the architecture defined in `
 1.  **Deno KV / SQLite Integration:**
     - Store the initial system state as a baseline.
     - Implement drift detection (alerting when new services/startup items appear).
+
+## Phase 6: System Hardening & Protection
+
+1.  **Firewall Orchestration:**
+    - Implement a Deno module to manage host firewalls (e.g., `ufw`, `iptables`, `powershell-firewall`).
+    - Define a "Hardened" profile (deny-by-default inbound).
+2.  **VPN Integration:**
+    - Add bootstrapping logic for WireGuard/OpenVPN.
+    - Implement a "Privacy Shield" toggle in the GUI that activates the VPN and kill-switch.
+3.  **Antivirus/EDR Monitoring:**
+    - Implement a scanner that checks the health and update status of existing AV solutions.
+    - Integrate open-source signature-based scanning (e.g., ClamAV) into the audit workflow.
