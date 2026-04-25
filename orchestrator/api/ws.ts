@@ -1,8 +1,10 @@
 /**
  * WebSocket handler for real-time security events.
+ * Compatible with Hono's upgradeWebSocket.
  */
+import { WSContext } from "hono/ws";
 
-const clients = new Set<WebSocket>();
+const clients = new Set<WSContext>();
 
 export function broadcast(data: any) {
   const message = JSON.stringify({
@@ -10,34 +12,28 @@ export function broadcast(data: any) {
     timestamp: new Date().toLocaleTimeString()
   });
   for (const client of clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
+    client.send(message);
   }
 }
 
-export function handleWs(socket: WebSocket) {
-  clients.add(socket);
-
-  socket.onopen = () => {
+export const wsHandler = {
+  onOpen(_event: Event, ws: WSContext) {
+    clients.add(ws);
     console.log("WebSocket client connected");
-    socket.send(JSON.stringify({
+    ws.send(JSON.stringify({
       type: "INFO",
       message: "Security Orchestrator WebSocket Connected",
       timestamp: new Date().toLocaleTimeString()
     }));
-  };
-
-  socket.onmessage = (event) => {
+  },
+  onMessage(event: MessageEvent, _ws: WSContext) {
     console.log("Message from client:", event.data);
-  };
-
-  socket.onclose = () => {
+  },
+  onClose(_event: Event, ws: WSContext) {
     console.log("WebSocket client disconnected");
-    clients.delete(socket);
-  };
-
-  socket.onerror = (error) => {
-    console.error("WebSocket error:", error);
-  };
-}
+    clients.delete(ws);
+  },
+  onError(event: Event) {
+    console.error("WebSocket error:", event);
+  },
+};
