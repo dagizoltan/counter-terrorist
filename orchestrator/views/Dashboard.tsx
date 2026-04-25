@@ -35,6 +35,24 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
 
         <div class="space-y-6">
           <section class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+            <h2 class="font-bold mb-4">System Baseline</h2>
+            <div class="grid grid-cols-2 gap-4">
+              <button
+                onclick="fetch('/api/baseline/set', {method:'POST'})"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
+              >
+                SET NEW BASELINE
+              </button>
+              <button
+                onclick="fetch('/api/baseline/check', {method:'POST'})"
+                class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
+              >
+                RUN DRIFT AUDIT
+              </button>
+            </div>
+          </section>
+
+          <section class="bg-slate-800 p-6 rounded-xl border border-slate-700">
             <h2 class="font-bold mb-4">Hardening Controls</h2>
             <div class="space-y-4">
               <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">

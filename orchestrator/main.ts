@@ -1,12 +1,12 @@
 import { Hono } from "hono";
-import { upgradeWebSocket } from "hono/deno";
-import { serveStatic } from "hono/middleware.ts";
+import { upgradeWebSocket, serveStatic } from "hono/deno";
 import { Dashboard } from "./views/Dashboard.tsx";
 import { bootstrap } from "./bootstrapper.ts";
-import { handleWs } from "./api/ws.ts";
+import { wsHandler } from "./api/ws.ts";
 import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
+import { baseline } from "./services/baseline.ts";
 
 const app = new Hono();
 
@@ -14,7 +14,10 @@ const app = new Hono();
 const systemStatus = await bootstrap();
 
 // Serve static assets (Web Components)
-app.use("/static/*", serveStatic({ root: "./orchestrator/web" }));
+app.use("/static/*", serveStatic({
+  root: "./orchestrator/web",
+  rewriteRequestPath: (path) => path.replace(/^\/static/, "")
+}));
 
 // UI Routes
 app.get("/", (c) => {
@@ -41,16 +44,20 @@ app.get("/api/protection/av/status", async (c) => {
   return c.json(status);
 });
 
+app.post("/api/baseline/set", async (c) => {
+  const result = await baseline.setBaseline();
+  return c.json(result);
+});
+
+app.post("/api/baseline/check", async (c) => {
+  const result = await baseline.checkDrift();
+  return c.json(result || { message: "No baseline established" });
+});
+
 // WebSocket Handler
 app.get(
   "/api/ws/events",
-  upgradeWebSocket((_c) => {
-    return {
-      onOpen(_event, ws) {
-        handleWs(ws as unknown as WebSocket);
-      },
-    };
-  }),
+  upgradeWebSocket((_c) => wsHandler),
 );
 
 console.log(`--- Security Orchestrator Web Console Running ---`);
