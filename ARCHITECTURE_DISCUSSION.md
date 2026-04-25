@@ -17,32 +17,29 @@ To handle the "first-start" requirement, we propose a `bootstrap.ts` module:
 - **Toolchain Management:** If Rust is required for compilation or specific plugins, the system can attempt to fetch pre-compiled binaries for the host architecture (aiding "simple" installation) or prompt for toolchain setup.
 - **Auto-Configuration:** Initial runs will establish a baseline of the system's "clean" state.
 
-## 3. Communication Model
+## 3. Communication Model: Sidecar Binaries
 
-We have two primary options for Deno <-> Rust integration:
+The system will use **Option A: Sidecar Binaries**. Deno executes platform-specific Rust binaries via `Deno.Command`.
 
-### Option A: Sidecar Binaries (Recommended for Isolation)
-Deno executes platform-specific Rust binaries via `Deno.Command`.
-- **Pros:** Process isolation; if a scanner crashes, the orchestrator stays up; easier to update individual components.
+- **Pros:** Process isolation; if a scanner or blocking agent crashes, the orchestrator stays up; easier to update individual components; avoids complex FFI memory management.
 - **Cons:** Slight overhead in process spawning.
-
-### Option B: Foreign Function Interface (FFI)
-Deno calls Rust functions directly via `.so`/`.dylib`/`.dll` files.
-- **Pros:** Extremely fast; high-performance data exchange.
-- **Cons:** More complex memory management; less isolation.
 
 ## 4. Web-Based GUI Architecture
 
 The GUI will be served directly by the Deno orchestrator:
-- **Server:** Using a lightweight framework like **Hono** or **Fresh**.
+- **Server:** **Hono** with **hono/jsx** for server-side rendering.
+- **Interactivity:** **Native Web Components** will be used for "islands" of interactivity (e.g., real-time graphs, status indicators).
 - **Real-time Updates:** **WebSockets** or **Server-Sent Events (SSE)** to stream scan results and monitoring logs to the browser.
 - **State Management:** A local SQLite database (via `Deno.openKv` or a SQLite library) to store history, baselines, and configurations.
 
-## 5. Security Strategy
+## 5. Security & Prevention Strategy
 
 - **Deno Sandbox:** The orchestrator runs with restricted permissions (`--allow-net`, `--allow-read`, `--allow-run`) to maintain its own security posture.
-- **Privilege Escalation:** Only the specific Rust agents or sub-processes that *require* sudo/Admin privileges will be granted them, following the principle of least privilege.
-- **Monitoring vs. Prevention:** The system will transition from periodic auditing to continuous monitoring by observing file changes (using Deno's `watchFs`) and network connections.
+- **Active Blocking:** The system will implement **Active Blocking** capabilities. This includes:
+    - Killing suspicious processes identified by the Rust agents.
+    - Injecting temporary firewall rules to block malicious IPs/domains.
+    - Quarantining malicious files in real-time.
+- **Privilege Escalation:** Only the specific Rust agents or sub-processes that *require* sudo/Admin privileges for blocking or deep system access will be granted them.
 
 ## 6. Project Structure
 
@@ -63,8 +60,9 @@ security-system/
 
 ---
 
-## Discussion Points for the User
+## Finalized Decisions
 
-1.  **Deployment Preference:** Do you prefer the Rust components to be shipped as pre-compiled "sidecar" binaries, or should the system attempt to compile them from source during bootstrapping?
-2.  **UI Complexity:** Do you envision a full-featured dashboard (React/Vue style) or a more minimal, utility-focused interface (HTMX)?
-3.  **Integration level:** Should the "prevention" aspect involve active blocking (e.g., firewall rule injection) or strictly focus on alerting and remediation guidance?
+- **Architecture:** 3-tier (Deno Orchestrator, Rust Sidecars, Browser GUI).
+- **Stack:** Deno, Hono/JSX, Native Web Components, Rust.
+- **Core Feature:** Active Blocking & Real-time Monitoring.
+- **Setup:** Automated bootstrapping for dependencies on first run.
