@@ -53,10 +53,31 @@ export class CommandManager {
    * Specifically handles execution of internal Rust sidecars.
    */
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
-    // Assuming binaries are in ./agents/target/release/ or similar
-    // For development, we might look for them in different places
-    const binPath = `./agents/target/debug/${name}`;
-    return this.execute(binPath, args);
+    const isWindows = Deno.build.os === "windows";
+    const extension = isWindows ? ".exe" : "";
+
+    // Check both release and debug directories
+    const paths = [
+      `./agents/target/release/${name}${extension}`,
+      `./agents/target/debug/${name}${extension}`,
+    ];
+
+    for (const binPath of paths) {
+      try {
+        const info = await Deno.stat(binPath);
+        if (info.isFile) {
+          return this.execute(binPath, args);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    return {
+      success: false,
+      stdout: "",
+      stderr: `Sidecar binary '${name}' not found in agents/target/`,
+    };
   }
 }
 

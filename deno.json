@@ -1,8 +1,9 @@
 {
   "tasks": {
-    "start": "deno run --allow-net --allow-read --allow-run orchestrator/main.ts",
-    "dev": "deno run --allow-net --allow-read --allow-run --watch orchestrator/main.ts",
-    "bootstrap": "deno run --allow-run --allow-read orchestrator/bootstrapper.ts"
+    "start": "deno run --allow-net --allow-read --allow-run --allow-sys orchestrator/main.ts",
+    "dev": "deno run --allow-net --allow-read --allow-run --allow-sys --watch orchestrator/main.ts",
+    "bootstrap": "deno run --allow-run --allow-read --allow-sys orchestrator/bootstrapper.ts",
+    "build-agents": "cd agents && cargo build --release"
   },
   "compilerOptions": {
     "jsx": "precompile",

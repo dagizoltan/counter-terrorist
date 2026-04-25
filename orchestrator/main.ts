@@ -1,7 +1,9 @@
 import { Hono } from "hono";
+import { upgradeWebSocket } from "hono/deno";
 import { serveStatic } from "hono/middleware.ts";
 import { Dashboard } from "./views/Dashboard.tsx";
 import { bootstrap } from "./bootstrapper.ts";
+import { handleWs } from "./api/ws.ts";
 
 const app = new Hono();
 
@@ -20,11 +22,17 @@ app.get("/api/status", (c) => {
   return c.json(systemStatus);
 });
 
-// WebSocket Handler (Implementation in separate file)
-app.get("/api/ws/events", (c) => {
-  // To be implemented in Task 4
-  return c.text("WebSocket Endpoint Placeholder");
-});
+// WebSocket Handler
+app.get(
+  "/api/ws/events",
+  upgradeWebSocket((_c) => {
+    return {
+      onOpen(_event, ws) {
+        handleWs(ws as unknown as WebSocket);
+      },
+    };
+  }),
+);
 
 console.log(`--- Security Orchestrator Web Console Running ---`);
 console.log(`Local: http://localhost:8000`);
