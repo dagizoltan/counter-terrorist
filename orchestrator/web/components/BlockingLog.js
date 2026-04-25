@@ -15,13 +15,25 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Note: This matches the route in main.ts
-    // For now we use a dummy simulation if WS fails
-    this.addLog({
-      type: 'INFO',
-      message: 'Event log initialized. Listening for system signals...',
-      timestamp: new Date().toLocaleTimeString()
-    });
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.addLog(data);
+      } catch (e) {
+        console.error("Error parsing WS message:", e);
+      }
+    };
+
+    socket.onclose = () => {
+      console.warn("WebSocket closed. Attempting reconnect...");
+      setTimeout(() => this.connect(), 5000);
+    };
+
+    socket.onerror = (err) => {
+      console.error("WebSocket error:", err);
+    };
   }
 
   addLog(entry) {

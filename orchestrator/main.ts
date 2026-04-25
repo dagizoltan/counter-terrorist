@@ -4,6 +4,9 @@ import { serveStatic } from "hono/middleware.ts";
 import { Dashboard } from "./views/Dashboard.tsx";
 import { bootstrap } from "./bootstrapper.ts";
 import { handleWs } from "./api/ws.ts";
+import { firewall } from "./protection/firewall.ts";
+import { vpn } from "./protection/vpn.ts";
+import { antivirus } from "./protection/antivirus.ts";
 
 const app = new Hono();
 
@@ -20,6 +23,22 @@ app.get("/", (c) => {
 
 app.get("/api/status", (c) => {
   return c.json(systemStatus);
+});
+
+app.post("/api/protection/firewall/block", async (c) => {
+  const { ip } = await c.req.json();
+  const result = await firewall.blockIp(ip);
+  return c.json(result);
+});
+
+app.get("/api/protection/vpn/status", async (c) => {
+  const connected = await vpn.isConnected();
+  return c.json({ connected });
+});
+
+app.get("/api/protection/av/status", async (c) => {
+  const status = await antivirus.getStatus();
+  return c.json(status);
 });
 
 // WebSocket Handler
