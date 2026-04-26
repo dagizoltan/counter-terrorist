@@ -68,19 +68,26 @@ fn kill_process(pid: u32) -> BlockerResponse {
 }
 
 fn block_ip(ip: String) -> BlockerResponse {
-    let os = std::env::consts::OS;
-    let (cmd, args) = if os == "linux" {
-        ("ufw", vec!["deny", "from", &ip])
-    } else if os == "macos" {
-        // macOS PacketFilter (PF) requires more complex management, placeholder for PoC
-        ("echo", vec!["Blocking IP on macOS via PF (Stub):", &ip])
-    } else if os == "windows" {
-        ("netsh", vec!["advfirewall", "firewall", "add", "rule", &format!("name=BlockIP_{}", ip), "dir=in", "action=block", &format!("remoteip={}", ip)])
-    } else {
-        ("echo", vec!["Unsupported OS for firewall blocking"])
-    };
+    if ip.parse::<std::net::IpAddr>().is_err() {
+        return BlockerResponse {
+            success: false,
+            message: format!("Invalid IP address: {}", ip),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+    }
 
-    let output = Command::new(cmd).args(args).output();
+    let os = std::env::consts::OS;
+    if os != "linux" {
+        return BlockerResponse {
+            success: false,
+            message: format!("Unsupported OS: {}. Only Linux is supported.", os),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+    }
+
+    let output = Command::new("ufw")
+        .args(["deny", "from", &ip])
+        .output();
     match output {
         Ok(out) => BlockerResponse {
             success: out.status.success(),

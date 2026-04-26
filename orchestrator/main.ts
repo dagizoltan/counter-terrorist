@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { bearerAuth } from "hono/bearer-auth";
 import { upgradeWebSocket, serveStatic } from "hono/deno";
 import { Dashboard } from "./views/Dashboard.tsx";
 import { bootstrap } from "./bootstrapper.ts";
@@ -9,6 +10,21 @@ import { antivirus } from "./protection/antivirus.ts";
 import { baseline } from "./services/baseline.ts";
 
 const app = new Hono();
+
+const TOKEN = Deno.env.get("API_TOKEN") || "development-token";
+
+// Apply bearer auth to all /api/* routes
+app.use("/api/*", (c, next) => {
+  if (c.req.path === "/api/ws/events") {
+    // WebSockets handle auth via query param (Milestone 1 requirement)
+    const token = c.req.query("token");
+    if (token !== TOKEN) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    return next();
+  }
+  return bearerAuth({ token: TOKEN })(c, next);
+});
 
 // Bootstrap system info for the dashboard
 const systemStatus = await bootstrap();
@@ -63,4 +79,4 @@ app.get(
 console.log(`--- Security Orchestrator Web Console Running ---`);
 console.log(`Local: http://localhost:8000`);
 
-Deno.serve({ port: 8000 }, app.fetch);
+Deno.serve({ port: 8000, hostname: "127.0.0.1" }, app.fetch);
