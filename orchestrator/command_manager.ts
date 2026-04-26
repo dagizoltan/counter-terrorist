@@ -53,6 +53,16 @@ export class CommandManager {
    * Specifically handles execution of internal Rust sidecars.
    */
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
+    // Strict sidecar allowlist (Milestone 1 requirement)
+    const ALLOWED_SIDECARS = ["scanner", "blocker"];
+    if (!ALLOWED_SIDECARS.includes(name)) {
+      return {
+        success: false,
+        stdout: "",
+        stderr: `Sidecar '${name}' is not in the allowlist.`,
+      };
+    }
+
     const isWindows = Deno.build.os === "windows";
     const extension = isWindows ? ".exe" : "";
 

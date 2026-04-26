@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sysinfo::{ProcessExt, System, SystemExt};
+use sysinfo::{PidExt, ProcessExt, System, SystemExt};
 use std::env;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -18,7 +18,7 @@ struct ScanResult {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let _args: Vec<String> = env::args().collect();
     let mut sys = System::new_all();
     sys.refresh_all();
 
