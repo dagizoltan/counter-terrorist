@@ -1,61 +1,75 @@
-# Exact Implementation Roadmap: Security Orchestrator
+# Implementation Roadmap: Counter-Terrorist
 
-This roadmap provides the granular steps for developing the Deno-based security system.
+This document defines the 6 milestones for the Counter-Terrorist security orchestrator.
 
-## Milestone 1: Core Orchestrator & Bootstrapping
-**Goal:** Establish the process foundation and environment verification.
+## Milestone 1: Security Foundations (BLOCKING)
+**Goal:** Implement critical security requirements before any other features.
 
-- [ ] **Task 1.1:** Initialize the project structure.
-  - `mkdir orchestrator agents shared config`
-- [ ] **Task 1.2:** Implement `orchestrator/bootstrapper.ts`.
-  - [ ] OS detection logic.
-  - [ ] Binary existence checks (`cargo`, `ufw`, `powershell`).
-  - [ ] Permission check logic (check for sudo/admin).
-- [ ] **Task 1.3:** Implement `orchestrator/command_manager.ts`.
-  - [ ] A wrapper for `Deno.Command` to execute sidecars with consistent JSON I/O.
+- [ ] **Task 1.1:** Implement bearer authentication on all `/api/*` routes.
+  - Touches: `orchestrator/main.ts`, `orchestrator/api/`
+- [ ] **Task 1.2:** Add IP address validation to Rust blocker.
+  - Touches: `agents/blocker/main.rs`
+- [ ] **Task 1.3:** Add path validation to antivirus `scanPath` logic.
+  - Touches: `orchestrator/protection/antivirus.ts`
+- [ ] **Task 1.4:** Implement strict sidecar allowlist in `CommandManager`.
+  - Touches: `orchestrator/command_manager.ts`
 
-## Milestone 2: Hono Web Console (SSR + JSX)
-**Goal:** Provide the management interface.
+## Milestone 2: Scanner Daemon + Persistence
+**Goal:** Transition to high-performance daemon model and persistent state.
 
-- [ ] **Task 2.1:** Setup `orchestrator/main.ts` with Hono.
-  - [ ] Root route rendering `orchestrator/views/Dashboard.tsx`.
-- [ ] **Task 2.2:** Create `orchestrator/views/Layout.tsx`.
-  - [ ] Base HTML with Tailwind CSS (CDN for simplicity) and Web Component definitions.
-- [ ] **Task 2.3:** Implement `orchestrator/api/ws.ts`.
-  - [ ] WebSocket handler for real-time log streaming.
+- [ ] **Task 2.1:** Refactor scanner from one-shot to persistent daemon.
+  - Touches: `agents/scanner/main.rs`
+- [ ] **Task 2.2:** Refactor `CommandManager` to hold long-running process reference.
+  - Touches: `orchestrator/command_manager.ts`
+- [ ] **Task 2.3:** Migrate baseline service and audit history to Deno KV.
+  - Touches: `orchestrator/services/baseline.ts`, `orchestrator/services/kv.ts`
+- [ ] **Task 2.4:** Implement hash/path-based drift detection.
+  - Touches: `orchestrator/services/baseline.ts`
 
-## Milestone 3: Rust Sidecar Agents (The Sensors)
-**Goal:** Native system access.
+## Milestone 3: Firewall + VPN Hardening
+**Goal:** Complete network protection layer for Ubuntu.
 
-- [ ] **Task 3.1:** Setup `agents/Cargo.toml` as a workspace.
-- [ ] **Task 3.2:** Implement `agents/scanner/main.rs`.
-  - [ ] Basic process and port scanning.
-  - [ ] Output formatted as JSON to stdout.
-- [ ] **Task 3.3:** Implement `agents/blocker/main.rs`.
-  - [ ] High-privilege binary for process termination and firewall rule injection.
+- [ ] **Task 3.1:** Complete `ufw` integration (status, block, unblock).
+  - Touches: `orchestrator/protection/firewall.ts`
+- [ ] **Task 3.2:** Implement WireGuard connection management via `wg-quick`.
+  - Touches: `orchestrator/protection/vpn.ts`
+- [ ] **Task 3.3:** Implement VPN kill-switch via `ufw` rules.
+  - Touches: `orchestrator/protection/vpn.ts`, `orchestrator/protection/firewall.ts`
+- [ ] **Task 3.4:** Implement VPN health monitoring loop.
+  - Touches: `orchestrator/protection/vpn.ts`
 
-## Milestone 4: Active Blocking & Hardening Pillars
-**Goal:** Real-time protection.
+## Milestone 4: Dashboard Wiring + Deployment
+**Goal:** Transition from stubs to real data and prepare for production.
 
-- [ ] **Task 4.1:** Implement `orchestrator/protection/firewall.ts`.
-  - [ ] Abstraction layer for `ufw` (Linux) and `netsh` (Windows).
-- [ ] **Task 4.2:** Implement `orchestrator/protection/vpn.ts`.
-  - [ ] Integration with `wg-quick` for WireGuard management.
-- [ ] **Task 4.3:** Implement `orchestrator/protection/antivirus.ts`.
-  - [ ] Health monitoring for Windows Defender/ClamAV.
+- [ ] **Task 4.1:** Connect Hono dashboard and Web Components to real API data.
+  - Touches: `orchestrator/views/`, `orchestrator/web/components/`
+- [ ] **Task 4.2:** Create systemd service files (server and desktop user service).
+  - Touches: `config/systemd/`
+- [ ] **Task 4.3:** Create Nginx configuration template for TLS termination.
+  - Touches: `config/nginx/`
+- [ ] **Task 4.4:** Implement desktop shortcut generation in `bootstrapper.ts`.
+  - Touches: `orchestrator/bootstrapper.ts`
 
-## Milestone 5: Frontend Islands (Web Components)
-**Goal:** Reactive UI without a heavy framework.
+## Milestone 5: AV + rkhunter
+**Goal:** Integrate filesystem and rootkit scanning.
 
-- [ ] **Task 5.1:** Create `orchestrator/web/components/StatusIndicator.js`.
-  - [ ] Native Web Component to show real-time agent health.
-- [ ] **Task 5.2:** Create `orchestrator/web/components/BlockingLog.js`.
-  - [ ] Reactive list of recently blocked requests/processes.
+- [ ] **Task 5.1:** Implement ClamAV scheduled scan integration.
+  - Touches: `orchestrator/protection/antivirus.ts`
+- [ ] **Task 5.2:** Document custom signature sets and `freshclam` configuration.
+  - Touches: `docs/AV_GUIDE.md`
+- [ ] **Task 5.3:** Integrate `rkhunter` as a scanner plugin.
+  - Touches: `agents/scanner/`, `orchestrator/protection/rkhunter.ts`
+- [ ] **Task 5.4:** Implement quarantine directory logic for flagged files.
+  - Touches: `orchestrator/protection/antivirus.ts`
 
-## Milestone 6: Deployment & Baseline
-**Goal:** Final integration.
+## Milestone 6: Audit + Alerting
+**Goal:** Historical tracking and notifications.
 
-- [ ] **Task 6.1:** Implement baseline drift detection in `orchestrator/services/baseline.ts`.
-- [ ] **Task 6.2:** Create a `deno.json` with tasks:
-  - `deno task start`: Runs the orchestrator.
-  - `deno task build-agents`: Compiles Rust binaries.
+- [ ] **Task 6.1:** Implement persistent audit history in Deno KV.
+  - Touches: `orchestrator/services/audit.ts`
+- [ ] **Task 6.2:** Implement remote syslog forwarding.
+  - Touches: `orchestrator/services/logging.ts`
+- [ ] **Task 6.3:** Implement configurable webhook alerts.
+  - Touches: `orchestrator/services/alerts.ts`
+- [ ] **Task 6.4:** Implement exportable scan reports (JSON/PDF).
+  - Touches: `orchestrator/api/reports.ts`

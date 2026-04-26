@@ -1,85 +1,100 @@
-# Architecture Discussion: Cross-Platform Deno Security Orchestrator
+# Architecture Discussion: Counter-Terrorist Security Orchestrator
 
-This document outlines the proposed architecture for a unified endpoint security auditing and monitoring system. The goal is to provide a consistent, browser-manageable interface that leverages Deno's security and Rust's system-level capabilities.
+This document outlines the finalized architecture for "Counter-Terrorist," a security auditing and monitoring system designed for Ubuntu LTS.
 
 ## 1. System Overview
 
-The system consists of three primary layers:
-1.  **Deno Orchestrator (The "Brain"):** A backend server that manages the web-based GUI, handles configuration, and schedules/triggers security audits.
-2.  **Rust Agents (The "Senses"):** Platform-specific binaries or libraries (compiled from Rust) that perform high-privilege system checks.
-3.  **Browser GUI (The "Eyes"):** A reactive web interface for real-time monitoring, report generation, and system configuration.
+Counter-Terrorist is a three-tier security orchestrator:
+1.  **Deno Orchestrator (Primary Process):** Manages the web-based GUI, persistence, and coordinates with sidecar agents.
+2.  **Rust Sidecars (System Agents):** Platform-native binaries that perform high-privilege system checks and enforcement.
+3.  **Browser GUI (Management Interface):** A server-side rendered (SSR) dashboard with reactive frontend islands.
 
-## 2. Cross-Platform Bootstrapping
+## 2. Platform Target
 
-To handle the "first-start" requirement, we propose a `bootstrap.ts` module:
+The system is exclusively targeted at **Ubuntu 24.04 / 26.04 LTS**.
+Cross-platform support (macOS/Windows) is explicitly deferred to future architectural phases and is not part of the initial implementation milestone.
 
-- **Dependency Check:** On startup, the Deno orchestrator checks for required platform-specific tools (e.g., `systemctl` on Linux, `system_profiler` on macOS, PowerShell modules on Windows).
-- **Toolchain Management:** If Rust is required for compilation or specific plugins, the system can attempt to fetch pre-compiled binaries for the host architecture (aiding "simple" installation) or prompt for toolchain setup.
-- **Auto-Configuration:** Initial runs will establish a baseline of the system's "clean" state.
+## 3. Runtime & Stack
 
-## 3. Communication Model: Sidecar Binaries
+- **Backend:** [Deno](https://deno.com/) runtime for the orchestrator.
+- **Web Framework:** [Hono](https://hono.dev/) with `hono/jsx` for SSR.
+- **Frontend:** Native Web Components for interactive elements (no heavy frameworks).
+- **Sidecars:** Rust binaries executed via `Deno.Command`.
+- **Persistence:** **Deno KV** for all state, including baselines and audit history.
+- **Real-time:** WebSockets for event streaming, with Server-Sent Events (SSE) as a fallback.
 
-The system will use **Option A: Sidecar Binaries**. Deno executes platform-specific Rust binaries via `Deno.Command`.
+## 4. Agent Models
 
-- **Pros:** Process isolation; if a scanner or blocking agent crashes, the orchestrator stays up; easier to update individual components; avoids complex FFI memory management.
-- **Cons:** Slight overhead in process spawning.
+### 4.1 Scanner Agent (Persistent Daemon)
+Unlike traditional one-shot scanners, the Rust scanner runs as a **persistent daemon**.
+- It maintains a long-running process to eliminate `System::new_all()` overhead and CPU spikes associated with frequent restarts.
+- It communicates via JSON over stdin (commands) and stdout (results) in a continuous loop.
+- The `CommandManager` in Deno holds a persistent reference to this process.
+- **Scan Interval:** Default is 60 seconds for desktop environments (configurable for servers).
 
-## 4. Web-Based GUI Architecture
+### 4.2 Blocker Agent (One-shot)
+The blocker remains a **one-shot, short-lived process**.
+- It is intentionally stateless.
+- It is spawned only when an active block is triggered.
+- It runs with elevated privileges only for the duration of the enforcement action.
 
-The GUI will be served directly by the Deno orchestrator:
-- **Server:** **Hono** with **hono/jsx** for server-side rendering.
-- **Interactivity:** **Native Web Components** will be used for "islands" of interactivity (e.g., real-time graphs, status indicators).
-- **Real-time Updates:** **WebSockets** or **Server-Sent Events (SSE)** to stream scan results and monitoring logs to the browser.
-- **State Management:** A local SQLite database (via `Deno.openKv` or a SQLite library) to store history, baselines, and configurations.
+## 5. Security Requirements
 
-## 5. Security & Prevention Strategy
+The following security measures are mandatory for the implementation:
 
-- **Deno Sandbox:** The orchestrator runs with restricted permissions (`--allow-net`, `--allow-read`, `--allow-run`) to maintain its own security posture.
-- **Active Blocking & Inbound Defense:** The system will implement **Active Blocking** capabilities. This includes:
-    - **Inbound Filtering:** Blocking unexpected incoming requests at the network level.
-    - **Process Termination:** Killing suspicious processes identified by the Rust agents.
-    - **Dynamic Firewalling:** Injecting temporary rules to block malicious IPs/domains.
-    - **Real-time Quarantine:** Moving malicious files to isolated storage.
-- **Privilege Escalation:** Only the specific Rust agents or sub-processes that *require* sudo/Admin privileges for blocking or deep system access will be granted them.
+1.  **Bearer Authentication:** All `/api/*` routes must require a bearer token provided via environment variables.
+2.  **IP Validation:** The Rust blocker must validate IP addresses (using `ip.parse::<std::net::IpAddr>().is_ok()`) before executing any firewall commands.
+3.  **Path Validation:** Strict path validation is required before any filesystem operations (e.g., antivirus `scanPath`).
+4.  **Sidecar Allowlist:** The `CommandManager` must implement a strict allowlist; only "scanner" and "blocker" binaries are permitted.
+5.  **Localhost Binding:** The Hono server must bind to `localhost` only. Nginx is used for TLS termination and external access.
+6.  **TLS Encryption:** Self-signed TLS is required even for local development (Milestone 2).
+7.  **WebSocket Security:** The WebSocket endpoint requires the auth token as a query parameter upon connection.
 
-## 6. Hardening & Protection Pillars
+## 6. Protection Pillars (Ubuntu Only)
 
-To provide a complete security solution, the system includes:
+### 6.1 Firewall (ufw)
+- Management of `ufw` (Uncomplicated Firewall).
+- Default-deny inbound policy.
+- Support for active blocking and unblocking of IPs.
 
-### 6.1 Firewall Management
-- **Automated Configuration:** The bootstrapper will ensure the host firewall (e.g., `ufw` on Linux, `PacketFilter` on macOS, Windows Firewall) is active and follows a "deny by default" inbound policy.
-- **Service Whitelisting:** Automatic detection and management of rules for known safe services.
+### 6.2 VPN (WireGuard)
+- Management via `wg-quick`.
+- Implementation of a kill-switch using `ufw` (default-deny, allow via `wg0` only).
+- Continuous VPN health monitoring loop.
 
-### 6.2 VPN & Secure Tunneling
-- **Deployment:** The system can manage the lifecycle of a secure VPN client (e.g., WireGuard or OpenVPN).
-- **Kill-Switch:** Implementing a software-based kill-switch to prevent data leakage if the VPN connection drops.
+### 6.3 Antivirus (ClamAV)
+- **Scheduled Scans:** Desktop deployment uses scheduled scans only. `clamonacc` (on-access) is avoided to preserve performance.
+- **On-Access:** Optional for server deployments, disabled by default.
+- **Scope:** Scans are scoped to high-risk directories: `/tmp`, `/var/tmp`, and `~/Downloads`.
+- **Detection Rate:** It must be noted that ClamAV has a limited detection rate (approx. 60% on general malware). This system is not a replacement for enterprise EDR.
 
-### 6.3 Antivirus & EDR Integration
-- **Agent Orchestration:** Monitoring the status and health of the system's AV (e.g., Windows Defender, ClamAV) or installing/configuring open-source EDR agents.
-- **Signature & Behavioral Analysis:** Combining traditional AV signatures with the system's own behavioral heuristics (via the Rust sidecars).
+### 6.4 Baseline Service
+- System state baselines are persisted to Deno KV.
+- **Drift Detection:** Compares both process hashes and paths, not just process names.
+- Baselines are resilient to orchestrator restarts.
 
-## 7. Project Structure
+## 7. Performance Profile
 
-```text
-security-system/
-├── orchestrator/          # Deno Backend (Hono/Fresh)
-│   ├── web/               # Frontend (HTML/JS/CSS)
-│   ├── api/               # REST/WebSocket endpoints
-│   └── bootstrapper.ts    # First-run & dependency logic
-├── agents/                # Rust Source Code
-│   ├── common/            # Shared Rust logic
-│   ├── windows/           # Windows-specific sensors
-│   ├── macos/             # macOS-specific sensors
-│   └── linux/             # Linux-specific sensors
-├── shared/                # Shared schemas (JSON/Protobuf)
-└── config/                # System & Rule definitions
-```
+- **Orchestrator Idle RAM:** 30-50MB.
+- **Scanner Daemon Idle RAM:** 8-15MB.
+- **Total Sustained Footprint:** ~40-65MB.
+- **CPU Usage:** Near-zero between scan intervals (60s cadence).
+- **WebSocket Efficiency:** Broadcasts must wrap `client.send()` in try/catch and prune dead clients from the `Set<WSContext>`.
 
----
+## 8. Deployment
 
-## Finalized Decisions
+### 8.1 Server
+- Deployed as a `systemd` service.
+- Binds to `localhost`.
+- Requires Nginx reverse proxy for TLS termination.
 
-- **Architecture:** 3-tier (Deno Orchestrator, Rust Sidecars, Browser GUI).
-- **Stack:** Deno, Hono/JSX, Native Web Components, Rust.
-- **Core Feature:** Active Blocking & Real-time Monitoring.
-- **Setup:** Automated bootstrapping for dependencies on first run.
+### 8.2 Desktop
+- Deployed as a `systemd` user service.
+- Configured to auto-start on login.
+- Includes a desktop shortcut that opens the default browser to the dashboard. No system tray is required for v1.
+
+## 9. Future Phases
+
+- Support for other Linux distributions.
+- Potential cross-platform support for macOS (PacketFilter/launchd) and Windows (Windows Firewall/Services).
+- Integration with remote logging and alerting providers.
