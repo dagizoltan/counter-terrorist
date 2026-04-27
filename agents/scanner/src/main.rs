@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{PidExt, ProcessExt, System, SystemExt};
 use std::io::{self, BufRead, Read};
 use std::fs::{self, File};
+use std::process::Command;
 use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -124,6 +125,28 @@ fn main() {
             };
 
             println!("{}", serde_json::to_string(&result).unwrap());
+        } else if cmd == "RKHUNTER" {
+            let output = Command::new("rkhunter")
+                .args(["--check", "--sk", "--nocolors", "--report-warnings-only"])
+                .output();
+
+            match output {
+                Ok(out) => {
+                    let result = serde_json::json!({
+                        "success": out.status.success(),
+                        "stdout": String::from_utf8_lossy(&out.stdout),
+                        "stderr": String::from_utf8_lossy(&out.stderr),
+                    });
+                    println!("{}", result.to_string());
+                },
+                Err(e) => {
+                    let result = serde_json::json!({
+                        "success": false,
+                        "error": e.to_string(),
+                    });
+                    println!("{}", result.to_string());
+                }
+            }
         } else if cmd == "QUIT" {
             break;
         }

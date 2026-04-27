@@ -12,6 +12,8 @@ export interface SecurityEvent {
   details?: any;
 }
 
+import { notificationService } from "./notifications.ts";
+
 export class LoggingService {
   private remoteEndpoint: string | null;
 
@@ -32,6 +34,11 @@ export class LoggingService {
 
     // Always log locally
     console.log(`[SECURITY EVENT] ${JSON.stringify(fullEvent)}`);
+
+    // Trigger notifications for CRITICAL events
+    if (fullEvent.level === "CRITICAL") {
+      notificationService.sendAlert(fullEvent);
+    }
 
     if (this.remoteEndpoint) {
       try {
