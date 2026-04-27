@@ -43,10 +43,26 @@ export class BaselineService {
     let processes: ProcessSnapshot[] = [];
 
     // Capture Ports
-    const netstatCmd = os === "windows" ? "netstat" : "ss";
-    const netstatArgs = os === "windows" ? ["-ano"] : ["-tuln"];
-    const netResult = await commandManager.execute(netstatCmd, netstatArgs);
-    ports = netResult.stdout.split("\n").filter(l => l.includes("LISTEN") || l.includes("LISTENING"));
+    if (os === "linux") {
+      const result = await commandManager.execute("ss", ["-tuln"]);
+      // Parse 'ss' output: Extract local address:port from LISTEN lines
+      ports = result.stdout.split("\n")
+        .filter(l => l.includes("LISTEN"))
+        .map(l => {
+          const parts = l.split(/\s+/);
+          return parts[4] || ""; // Local Address:Port is typically the 5th column
+        })
+        .filter(p => p !== "");
+    } else if (os === "windows") {
+      const result = await commandManager.execute("netstat", ["-ano"]);
+      ports = result.stdout.split("\n")
+        .filter(l => l.includes("LISTENING"))
+        .map(l => {
+          const parts = l.trim().split(/\s+/);
+          return parts[1] || ""; // Local Address is typically the 2nd column
+        })
+        .filter(p => p !== "");
+    }
 
     // Capture Processes (via our persistent sidecar)
     try {
@@ -108,13 +124,21 @@ export class BaselineService {
 
     if (newPorts.length > 0) {
       console.warn(`[BASELINE] Port drift detected: ${newPorts.join(", ")}`);
-      broadcast({ type: "WARN", message: `Drift Detected: ${newPorts.length} new listening ports!` });
+      broadcast({
+        type: "DRIFT_PORT",
+        message: `Drift Detected: ${newPorts.length} new listening ports!`,
+        data: newPorts
+      });
     }
     if (newProcs.length > 0) {
       newProcs.forEach(p => {
         console.warn(`[BASELINE] Process drift: ${p.name} (PID: ${p.pid}, Path: ${p.exe_path}, Hash: ${p.hash})`);
       });
-      broadcast({ type: "WARN", message: `Drift Detected: ${newProcs.length} new/modified processes found: ${newProcs.slice(0, 3).map(p => p.name).join(", ")}` });
+      broadcast({
+        type: "DRIFT_PROCESS",
+        message: `Drift Detected: ${newProcs.length} new/modified processes found.`,
+        data: newProcs.map(p => ({ name: p.name, pid: p.pid, path: p.exe_path }))
+      });
     }
 
     return { newPorts, newProcs };

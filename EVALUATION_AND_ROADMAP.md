@@ -34,8 +34,8 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 | **B-01** | **Highest** | Scanner is not a persistent daemon. | High CPU/IO overhead on every scan interval. | **RESOLVED** |
 | **B-02** | **High** | Missing Process Hashing. | Baseline drift detection cannot identify if a binary has been replaced. | **RESOLVED** |
 | **B-03** | **High** | Missing Executable Paths. | Orchestrator cannot verify the origin of running processes. | **RESOLVED** |
-| **B-04** | **Medium** | Hardcoded/Default Secrets. | "development-token" is used as a fallback, which is unsafe for production. |
-| **B-05** | **Medium** | Limited Error Resilience. | Orchestrator does not gracefully handle sidecar crashes or restarts. |
+| **B-04** | **Medium** | Hardcoded/Default Secrets. | "development-token" is used as a fallback, which is unsafe for production. | **RESOLVED** |
+| **B-05** | **Medium** | Limited Error Resilience. | Orchestrator does not gracefully handle sidecar crashes or restarts. | **IN PROGRESS** |
 
 ## 4. Security Audit Findings
 - **Positive:** Input validation for IPs and Paths is present in the orchestrator.
