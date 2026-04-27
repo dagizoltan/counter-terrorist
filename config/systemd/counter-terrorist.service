@@ -1,0 +1,14 @@
+[Unit]
+Description=Counter-Terrorist Security Orchestrator
+After=network.target ufw.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/app
+ExecStart=/usr/bin/deno run --allow-net --allow-read --allow-run --allow-sys --allow-env orchestrator/main.ts
+Restart=always
+Environment=API_TOKEN=change-me-in-production
+
+[Install]
+WantedBy=multi-user.target

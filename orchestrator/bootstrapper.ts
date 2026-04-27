@@ -51,6 +51,36 @@ export async function bootstrap(): Promise<SystemStatus> {
   };
 }
 
+export async function generateDesktopShortcut() {
+  const os = Deno.build.os;
+  if (os !== "linux") {
+    console.log("Desktop shortcut generation only implemented for Linux.");
+    return;
+  }
+
+  const home = Deno.env.get("HOME");
+  if (!home) return;
+
+  const shortcutPath = `${home}/.local/share/applications/counter-terrorist.desktop`;
+  const content = `[Desktop Entry]
+Type=Application
+Name=Counter-Terrorist Dashboard
+Comment=Security Orchestrator Web Console
+Exec=xdg-open http://localhost:8000
+Icon=security-high
+Categories=System;Security;
+Terminal=false
+`;
+
+  try {
+    await Deno.mkdir(`${home}/.local/share/applications`, { recursive: true });
+    await Deno.writeTextFile(shortcutPath, content);
+    console.log(`Desktop shortcut created at: ${shortcutPath}`);
+  } catch (error) {
+    console.error(`Failed to create desktop shortcut: ${error}`);
+  }
+}
+
 if (import.meta.main) {
   console.log("--- Initializing Security Orchestrator Bootstrapper ---");
   const status = await bootstrap();
@@ -67,5 +97,9 @@ if (import.meta.main) {
 
   if (!status.isRoot) {
     console.warn("\n[WARNING] Running without root/admin privileges. Active blocking and deep auditing will be limited.");
+  }
+
+  if (Deno.args.includes("--generate-shortcut")) {
+    await generateDesktopShortcut();
   }
 }

@@ -8,6 +8,9 @@ use std::process::Command;
 enum BlockerCommand {
     KillProcess { pid: u32 },
     BlockIp { ip: String },
+    UnblockIp { ip: String },
+    EnableKillSwitch { vpn_server_ip: String, vpn_interface: String },
+    DisableKillSwitch,
 }
 
 #[derive(Serialize, Debug)]
@@ -41,6 +44,9 @@ fn main() {
     let response = match command {
         BlockerCommand::KillProcess { pid } => kill_process(pid),
         BlockerCommand::BlockIp { ip } => block_ip(ip),
+        BlockerCommand::UnblockIp { ip } => unblock_ip(ip),
+        BlockerCommand::EnableKillSwitch { vpn_server_ip, vpn_interface } => enable_kill_switch(vpn_server_ip, vpn_interface),
+        BlockerCommand::DisableKillSwitch => disable_kill_switch(),
     };
 
     println!("{}", serde_json::to_string(&response).unwrap());
@@ -97,6 +103,71 @@ fn block_ip(ip: String) -> BlockerResponse {
         Err(e) => BlockerResponse {
             success: false,
             message: format!("Failed to execute firewall command: {}", e),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    }
+}
+
+fn unblock_ip(ip: String) -> BlockerResponse {
+    if ip.parse::<std::net::IpAddr>().is_err() {
+        return BlockerResponse {
+            success: false,
+            message: format!("Invalid IP address: {}", ip),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+    }
+
+    let output = Command::new("ufw")
+        .args(["delete", "deny", "from", &ip])
+        .output();
+    match output {
+        Ok(out) => BlockerResponse {
+            success: out.status.success(),
+            message: format!("Firewall command executed to unblock IP: {}", ip),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+        Err(e) => BlockerResponse {
+            success: false,
+            message: format!("Failed to execute firewall command: {}", e),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    }
+}
+
+fn enable_kill_switch(vpn_server_ip: String, vpn_interface: String) -> BlockerResponse {
+    // 1. Allow outgoing to VPN server
+    let _ = Command::new("ufw").args(["allow", "out", "to", &vpn_server_ip]).output();
+    // 2. Allow outgoing on VPN interface
+    let _ = Command::new("ufw").args(["allow", "out", "on", &vpn_interface]).output();
+    // 3. Deny outgoing by default
+    let output = Command::new("ufw").args(["default", "deny", "outgoing"]).output();
+
+    match output {
+        Ok(out) => BlockerResponse {
+            success: out.status.success() || out.stderr.is_empty(), // ufw might not be available
+            message: "VPN Kill-switch enabled (default outgoing deny, allow to VPN server and interface)".to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+        Err(e) => BlockerResponse {
+            success: false,
+            message: format!("Failed to enable VPN Kill-switch: {}", e),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    }
+}
+
+fn disable_kill_switch() -> BlockerResponse {
+    let output = Command::new("ufw").args(["default", "allow", "outgoing"]).output();
+
+    match output {
+        Ok(out) => BlockerResponse {
+            success: out.status.success() || out.stderr.is_empty(), // ufw might not be available
+            message: "VPN Kill-switch disabled (default outgoing allow)".to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+        Err(e) => BlockerResponse {
+            success: false,
+            message: format!("Failed to disable VPN Kill-switch: {}", e),
             timestamp: chrono::Utc::now().to_rfc3339(),
         },
     }

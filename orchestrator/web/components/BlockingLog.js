@@ -14,8 +14,9 @@ class BlockingLog extends HTMLElement {
   }
 
   connect() {
+    const token = document.querySelector('meta[name="api-token"]')?.content;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events?token=${token}`);
 
     socket.onmessage = (event) => {
       try {
@@ -37,7 +38,10 @@ class BlockingLog extends HTMLElement {
   }
 
   addLog(entry) {
-    this.logs.unshift(entry);
+    this.logs.unshift({
+        ...entry,
+        timestamp: entry.timestamp || new Date().toLocaleTimeString()
+    });
     if (this.logs.length > 50) this.logs.pop();
     this.render();
   }
@@ -49,10 +53,14 @@ class BlockingLog extends HTMLElement {
     if (!ip) return;
 
     input.disabled = true;
+    const token = document.querySelector('meta[name="api-token"]')?.content;
     try {
       const res = await fetch('/api/protection/firewall/block', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ ip })
       });
       if (res.ok) input.value = '';
@@ -100,10 +108,13 @@ class BlockingLog extends HTMLElement {
           padding: 1rem;
         }
         .entry { margin-bottom: 0.25rem; display: flex; gap: 0.5rem; }
-        .timestamp { color: #64748b; }
+        .timestamp { color: #64748b; min-width: 80px; }
         .type-INFO { color: #38bdf8; }
         .type-WARN { color: #fbbf24; }
         .type-BLOCK { color: #ef4444; font-weight: bold; }
+        .type-VPN_CONNECTED { color: #4ade80; }
+        .type-VPN_DISCONNECTED { color: #f87171; }
+        .type-VPN_CRITICAL { color: #ef4444; font-weight: bold; text-decoration: underline; }
         .message { color: #cbd5e1; }
       </style>
       <form class="controls" id="block-form">

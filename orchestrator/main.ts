@@ -8,6 +8,7 @@ import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
 import { baseline } from "./services/baseline.ts";
+import { rkhunter } from "./protection/rkhunter.ts";
 
 const app = new Hono();
 
@@ -29,6 +30,9 @@ app.use("/api/*", (c, next) => {
 // Bootstrap system info for the dashboard
 const systemStatus = await bootstrap();
 
+// Start health monitoring for VPN
+vpn.startMonitoring();
+
 // Serve static assets (Web Components)
 app.use("/static/*", serveStatic({
   root: "./orchestrator/web",
@@ -37,11 +41,16 @@ app.use("/static/*", serveStatic({
 
 // UI Routes
 app.get("/", (c) => {
-  return c.html(<Dashboard os={systemStatus.os} isRoot={systemStatus.isRoot} />);
+  return c.html(<Dashboard os={systemStatus.os} isRoot={systemStatus.isRoot} token={TOKEN} />);
 });
 
 app.get("/api/status", (c) => {
   return c.json(systemStatus);
+});
+
+app.get("/api/protection/firewall/status", async (c) => {
+  const status = await firewall.getStatus();
+  return c.json(status);
 });
 
 app.post("/api/protection/firewall/block", async (c) => {
@@ -50,14 +59,53 @@ app.post("/api/protection/firewall/block", async (c) => {
   return c.json(result);
 });
 
+app.post("/api/protection/firewall/unblock", async (c) => {
+  const { ip } = await c.req.json();
+  const result = await firewall.unblockIp(ip);
+  return c.json(result);
+});
+
+app.post("/api/protection/firewall/killswitch", async (c) => {
+  const { enabled, serverIp, interfaceName } = await c.req.json();
+  let result;
+  if (enabled) {
+    result = await vpn.enableKillSwitch(serverIp, interfaceName);
+  } else {
+    result = await vpn.disableKillSwitch();
+  }
+  return c.json(result);
+});
+
 app.get("/api/protection/vpn/status", async (c) => {
   const connected = await vpn.isConnected();
   return c.json({ connected });
 });
 
+app.post("/api/protection/vpn/connect", async (c) => {
+  const { interfaceName, serverIp } = await c.req.json().catch(() => ({}));
+  const result = await vpn.connect(interfaceName, serverIp);
+  return c.json(result);
+});
+
+app.post("/api/protection/vpn/disconnect", async (c) => {
+  const result = await vpn.disconnect();
+  return c.json(result);
+});
+
 app.get("/api/protection/av/status", async (c) => {
   const status = await antivirus.getStatus();
   return c.json(status);
+});
+
+app.post("/api/protection/av/scan", async (c) => {
+  const { path } = await c.req.json();
+  const result = await antivirus.scanPath(path);
+  return c.json(result);
+});
+
+app.post("/api/protection/rkhunter/check", async (c) => {
+  const result = await rkhunter.runCheck();
+  return c.json(result);
 });
 
 app.post("/api/baseline/set", async (c) => {
