@@ -66,6 +66,15 @@ export class CommandManager {
       };
     }
 
+    // Protection against misuse: scanner is a persistent daemon and should not be run via runSidecar
+    if (name === "scanner") {
+      return {
+        success: false,
+        stdout: "",
+        stderr: `Sidecar 'scanner' is a persistent daemon. Use sendCommand() instead.`,
+      };
+    }
+
     const isWindows = Deno.build.os === "windows";
     const extension = isWindows ? ".exe" : "";
 
@@ -130,13 +139,25 @@ export class CommandManager {
     });
 
     const child = command.spawn();
+    console.log(`[COMMAND] Spawned persistent sidecar: ${name}`);
+
+    // Monitor for exit to allow auto-restart on next use
+    child.status.then((status) => {
+      console.warn(`[COMMAND] Sidecar ${name} exited with code ${status.code}.`);
+      this.persistentProcesses.delete(name);
+    });
+
     // Background task to consume stderr to prevent the process from hanging
     (async () => {
       const reader = child.stderr.getReader();
       try {
         while (true) {
-          const { done } = await reader.read();
+          const { done, value } = await reader.read();
           if (done) break;
+          if (value) {
+            const msg = new TextDecoder().decode(value);
+            console.error(`[SIDECAR:${name}] ${msg.trim()}`);
+          }
         }
       } catch {
         // Handle error if needed
