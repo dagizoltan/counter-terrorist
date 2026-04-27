@@ -40,6 +40,7 @@ const systemStatus = await bootstrap();
 
 // Start background monitoring
 baseline.startMonitor();
+vpn.startMonitor();
 
 // Serve static assets (Web Components)
 app.use("/static/*", serveStatic({

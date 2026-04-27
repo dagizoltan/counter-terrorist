@@ -80,6 +80,26 @@ export class VpnManager {
         error: result.stderr
     };
   }
+
+  startMonitor(intervalMs: number = 10000) {
+    console.log(`[VPN] Starting active health monitoring loop (Interval: ${intervalMs}ms)`);
+    setInterval(async () => {
+      if (!this.activeInterface) return;
+
+      const isConnected = await this.isConnected();
+      if (!isConnected) {
+        console.error(`[VPN] CRITICAL: VPN connection lost on ${this.activeInterface}! Attempting reconnect...`);
+
+        // Attempt reconnect
+        const result = await this.connect(this.activeInterface);
+        if (result.success) {
+          console.log(`[VPN] Successfully reconnected to ${this.activeInterface}`);
+        } else {
+          console.error(`[VPN] Failed to reconnect: ${result.message}`);
+        }
+      }
+    }, intervalMs);
+  }
 }
 
 export const vpn = new VpnManager();
