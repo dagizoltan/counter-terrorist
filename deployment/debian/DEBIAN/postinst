@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+# Reload systemd to recognize new services
+systemctl daemon-reload
+
+# Enable but don't start services by default
+systemctl enable counter-terrorist.service
+systemctl enable counter-terrorist-scanner.service
+
+echo "Counter-Terrorist installed successfully."
+echo "Please configure /etc/counter-terrorist/orchestrator.env and start the service."

@@ -35,7 +35,7 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 | **B-02** | **High** | Missing Process Hashing. | Baseline drift detection cannot identify if a binary has been replaced. | **RESOLVED** |
 | **B-03** | **High** | Missing Executable Paths. | Orchestrator cannot verify the origin of running processes. | **RESOLVED** |
 | **B-04** | **Medium** | Hardcoded/Default Secrets. | "development-token" is used as a fallback, which is unsafe for production. | **RESOLVED** |
-| **B-05** | **Medium** | Limited Error Resilience. | Orchestrator does not gracefully handle sidecar crashes or restarts. | **IN PROGRESS** |
+| **B-05** | **Medium** | Limited Error Resilience. | Orchestrator does not gracefully handle sidecar crashes or restarts. | **RESOLVED** |
 
 ## 4. Security Audit Findings
 - **Positive:** Input validation for IPs and Paths is present in the orchestrator.
@@ -54,10 +54,12 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 - **Extended Auditing:** Add support for monitoring listening ports drift (currently partially implemented).
 - **UI Enhancements:** Provide a detailed view of detected drift in the dashboard.
 
-### Phase 3: Production Readiness (Pre-Pilot)
-- **Configuration Management:** Move all secrets and configurations to encrypted environment variables or a secure vault.
-- **Deployment Scripting:** Finalize the `systemd` unit files for both the Orchestrator and the Scanner daemon.
-- **Packaging:** Create a `.deb` package for easy installation on Ubuntu 24.04/26.04.
+### Phase 3: Production Readiness (Pre-Pilot) - IN PROGRESS
+- **Configuration Management:** Hardened `API_TOKEN` enforcement implemented. Template for `orchestrator.env` provided.
+- **Deployment Scripting:** `systemd` unit files finalized in `deployment/systemd/`.
+- **Automated Packaging:** `scripts/package.ts` added to automate artifact collection.
+- **Distribution:** `.deb` package structure drafted in `deployment/debian/`.
+- **Protection Pillars Hardening:** `vpn.ts` and `antivirus.ts` enhanced with production-grade error handling.
 
 ## 6. Conclusion
 The "Counter-Terrorist" project has a strong architectural vision. By resolving the identified blockers—specifically the scanner persistence and data enrichment—the system will provide a robust security layer suitable for the first production pilots.

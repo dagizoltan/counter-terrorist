@@ -1,0 +1,17 @@
+[Unit]
+Description=Counter-Terrorist Scanner Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/counter-terrorist
+# Note: The orchestrator typically spawns this, but this service can be used for
+# a decoupled deployment where the scanner runs as its own managed daemon.
+# For the integrated model, the orchestrator manages this process directly.
+ExecStart=/opt/counter-terrorist/agents/target/release/scanner
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
