@@ -37,11 +37,16 @@ app.use("/static/*", serveStatic({
 
 // UI Routes
 app.get("/", (c) => {
-  return c.html(<Dashboard os={systemStatus.os} isRoot={systemStatus.isRoot} />);
+  return c.html(<Dashboard os={systemStatus.os} isRoot={systemStatus.isRoot} token={TOKEN} />);
 });
 
 app.get("/api/status", (c) => {
   return c.json(systemStatus);
+});
+
+app.get("/api/protection/firewall/status", async (c) => {
+  const status = await firewall.getStatus();
+  return c.json(status);
 });
 
 app.post("/api/protection/firewall/block", async (c) => {
@@ -50,9 +55,26 @@ app.post("/api/protection/firewall/block", async (c) => {
   return c.json(result);
 });
 
+app.post("/api/protection/firewall/unblock", async (c) => {
+  const { ip } = await c.req.json();
+  const result = await firewall.unblockIp(ip);
+  return c.json(result);
+});
+
 app.get("/api/protection/vpn/status", async (c) => {
   const connected = await vpn.isConnected();
   return c.json({ connected });
+});
+
+app.post("/api/protection/vpn/connect", async (c) => {
+  const { interfaceName, serverIp } = await c.req.json().catch(() => ({}));
+  const result = await vpn.connect(interfaceName, serverIp);
+  return c.json(result);
+});
+
+app.post("/api/protection/vpn/disconnect", async (c) => {
+  const result = await vpn.disconnect();
+  return c.json(result);
 });
 
 app.get("/api/protection/av/status", async (c) => {

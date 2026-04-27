@@ -70,9 +70,9 @@ export class VpnManager {
         broadcast({ type: "VPN_CRITICAL", message: `VPN connection lost on ${this.activeInterface}!` });
 
         if (this.killSwitchEnabled) {
-            console.log("[VPN] Kill-switch is active. Network traffic is blocked.");
+          console.log("[VPN] Kill-switch is active. Network traffic is blocked.");
         } else {
-            console.log("[VPN] Kill-switch not active. System may be leaking traffic!");
+          console.log("[VPN] Kill-switch not active. System may be leaking traffic!");
         }
       }
     }, intervalMs);
