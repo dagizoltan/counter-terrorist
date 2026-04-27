@@ -17,9 +17,10 @@ export interface SystemSnapshot {
 export class BaselineService {
   private currentBaseline: SystemSnapshot | null = null;
   private kv: Deno.Kv | null = null;
+  private kvReady: Promise<void>;
 
   constructor() {
-    this.initKv();
+    this.kvReady = this.initKv();
   }
 
   private async initKv() {
@@ -69,6 +70,7 @@ export class BaselineService {
   }
 
   async setBaseline() {
+    await this.kvReady;
     this.currentBaseline = await this.captureSnapshot();
     if (this.kv) {
       await this.kv.set(["baseline"], this.currentBaseline);
@@ -79,15 +81,7 @@ export class BaselineService {
   }
 
   async checkDrift() {
-    if (!this.currentBaseline) {
-        // Try to load from KV if not loaded yet
-        if (this.kv) {
-            const res = await this.kv.get<SystemSnapshot>(["baseline"]);
-            if (res.value) {
-                this.currentBaseline = res.value;
-            }
-        }
-    }
+    await this.kvReady;
     if (!this.currentBaseline) return;
 
     const current = await this.captureSnapshot();
