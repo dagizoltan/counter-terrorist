@@ -35,6 +35,9 @@ app.use("/api/*", (c, next) => {
 // Bootstrap system info for the dashboard
 const systemStatus = await bootstrap();
 
+// Start background monitoring
+baseline.startMonitor();
+
 // Serve static assets (Web Components)
 app.use("/static/*", serveStatic({
   root: "./orchestrator/web",
@@ -83,6 +86,24 @@ app.get(
 );
 
 console.log(`--- Security Orchestrator Web Console Running ---`);
-console.log(`Local: http://localhost:8000`);
 
-Deno.serve({ port: 8000, hostname: "127.0.0.1" }, app.fetch);
+const PORT = Number(Deno.env.get("PORT")) || 8000;
+const HOST = "127.0.0.1";
+
+// Support for TLS (Milestone 2 Requirement)
+const certFile = Deno.env.get("TLS_CERT");
+const keyFile = Deno.env.get("TLS_KEY");
+
+if (certFile && keyFile) {
+  console.log(`Local (HTTPS): https://${HOST}:${PORT}`);
+  Deno.serve({
+    port: PORT,
+    hostname: HOST,
+    cert: await Deno.readTextFile(certFile),
+    key: await Deno.readTextFile(keyFile),
+  }, app.fetch);
+} else {
+  console.log(`Local (HTTP): http://${HOST}:${PORT}`);
+  console.warn("WARNING: Running without TLS. This is only recommended for local development.");
+  Deno.serve({ port: PORT, hostname: HOST }, app.fetch);
+}

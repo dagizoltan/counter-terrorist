@@ -12,6 +12,7 @@ export interface CommandResult {
 export class CommandManager {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private commandLocks: Map<string, Promise<void>> = new Map();
+  private processBuffers: Map<string, string> = new Map();
 
   /**
    * Executes a command and returns the result.
@@ -191,20 +192,24 @@ export class CommandManager {
       await writer.write(new TextEncoder().encode(cmd + "\n"));
       writer.releaseLock();
 
+      // Use the internal buffer for this process
+      let buffer = this.processBuffers.get(name) || "";
       const reader = child.stdout.getReader();
       const decoder = new TextDecoder();
-      let response = "";
 
       try {
-        while (true) {
+        while (!buffer.includes("\n")) {
           const { value, done } = await reader.read();
           if (done) break;
-          response += decoder.decode(value);
-          if (response.endsWith("\n")) break;
+          buffer += decoder.decode(value, { stream: true });
         }
       } finally {
         reader.releaseLock();
       }
+
+      const lines = buffer.split("\n");
+      const response = lines.shift() || "";
+      this.processBuffers.set(name, lines.join("\n"));
 
       if (!response) return null;
       try {
