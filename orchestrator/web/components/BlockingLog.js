@@ -15,7 +15,8 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const token = window.__CONFIG__?.token || '';
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events?token=${token}`);
 
     socket.onmessage = (event) => {
       try {
@@ -52,7 +53,10 @@ class BlockingLog extends HTMLElement {
     try {
       const res = await fetch('/api/protection/firewall/block', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (window.__CONFIG__?.token || '')
+        },
         body: JSON.stringify({ ip })
       });
       if (res.ok) input.value = '';

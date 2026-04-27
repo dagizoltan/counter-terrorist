@@ -82,9 +82,14 @@ async fn main() {
             sys.refresh_all();
 
             let mut processes = Vec::new();
+            let mut seen_paths = std::collections::HashSet::new();
+
             for (pid, process) in sys.processes() {
                 let exe = process.exe();
                 let exe_str = exe.to_string_lossy().to_string();
+                if !exe_str.is_empty() {
+                    seen_paths.insert(exe_str.clone());
+                }
 
                 let hash = if exe_str.is_empty() {
                     "N/A".to_string()
@@ -122,6 +127,9 @@ async fn main() {
                     memory_usage: process.memory(),
                 });
             }
+
+            // Evict old entries from hash_cache
+            hash_cache.retain(|k, _| seen_paths.contains(k));
 
             // Sort by CPU
             processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));

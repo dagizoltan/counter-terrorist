@@ -1,4 +1,6 @@
-/** @jsxImportSource hono/jsx */
+/** @jsx jsx */
+/** @jsxFrag Fragment */
+import { jsx, Fragment } from "hono/jsx";
 
 export const Layout = (props: { title: string; children: any }) => {
   return (

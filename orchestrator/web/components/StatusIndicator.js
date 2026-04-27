@@ -10,11 +10,41 @@ class StatusIndicator extends HTMLElement {
   connectedCallback() {
     const name = this.getAttribute('name') || 'Unknown Agent';
     this.render(name, 'Initializing...', 'text-slate-400');
+    this.updateStatus();
+    // Refresh every 30 seconds
+    this.interval = setInterval(() => this.updateStatus(), 30000);
+  }
 
-    // Simulation for now
-    setTimeout(() => {
-      this.render(name, 'ONLINE', 'text-green-400');
-    }, 1000);
+  disconnectedCallback() {
+    if (this.interval) clearInterval(this.interval);
+  }
+
+  async updateStatus() {
+    const name = this.getAttribute('name');
+    const token = window.__CONFIG__?.token;
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/status', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (res.ok) {
+        const status = await res.json();
+        let isOnline = false;
+
+        // Map UI names to dependencies
+        if (name === "Network Sensor") isOnline = status.dependencies.ss;
+        else if (name === "Persistence Monitor") isOnline = status.dependencies.cargo;
+        else if (name === "Active Blocker") isOnline = status.dependencies.ufw;
+
+        this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'text-green-400' : 'text-red-400');
+      } else {
+        this.render(name, 'ERROR', 'text-red-500');
+      }
+    } catch (e) {
+      console.error("Failed to fetch status:", e);
+      this.render(name, 'UNREACHABLE', 'text-yellow-500');
+    }
   }
 
   render(name, status, colorClass) {

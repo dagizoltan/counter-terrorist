@@ -91,7 +91,10 @@ export class AntivirusManager {
       allowedPrefixes.push(resolve(home, "Downloads"));
     }
 
-    const isAllowed = allowedPrefixes.some((prefix) => absolutePath.startsWith(prefix));
+    const isAllowed = allowedPrefixes.some((prefix) => {
+      const sep = Deno.build.os === "windows" ? "\\" : "/";
+      return absolutePath === prefix || absolutePath.startsWith(prefix + sep);
+    });
 
     if (!isAllowed) {
       return {
