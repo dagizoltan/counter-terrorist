@@ -10,3 +10,4 @@ sysinfo = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+tokio = { workspace = true }

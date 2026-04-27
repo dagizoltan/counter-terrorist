@@ -7,7 +7,10 @@ import { wsHandler } from "./api/ws.ts";
 import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
+import { rkhunter } from "./protection/rkhunter.ts";
 import { baseline } from "./services/baseline.ts";
+import reportsApi from "./api/reports.ts";
+import notificationsApi from "./api/notifications.ts";
 
 const app = new Hono();
 
@@ -68,6 +71,19 @@ app.get("/api/protection/av/status", async (c) => {
   const status = await antivirus.getStatus();
   return c.json(status);
 });
+
+app.post("/api/protection/rkhunter/scan", async (c) => {
+  const result = await rkhunter.runScan();
+  return c.json(result);
+});
+
+app.get("/api/protection/rkhunter/status", (c) => {
+  const result = rkhunter.getLastResult();
+  return c.json(result || { message: "No scan performed yet" });
+});
+
+app.route("/api/reports", reportsApi);
+app.route("/api/notifications", notificationsApi);
 
 app.post("/api/baseline/set", async (c) => {
   const result = await baseline.setBaseline();

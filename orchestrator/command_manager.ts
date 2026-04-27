@@ -11,8 +11,8 @@ export interface CommandResult {
 
 export class CommandManager {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
-  private commandLocks: Map<string, Promise<void>> = new Map();
-  private processBuffers: Map<string, string> = new Map();
+  private responseWaiters: Map<string, Map<string, (data: any) => void>> = new Map();
+  private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
 
   /**
    * Executes a command and returns the result.
@@ -168,58 +168,100 @@ export class CommandManager {
     })();
 
     this.persistentProcesses.set(name, child);
+    this.startResponseReader(name, child);
     return child;
   }
 
   /**
-   * Sends a command to a persistent sidecar and waits for a single line response.
-   * Uses a lock to ensure thread-safe access to the process streams.
+   * Starts a background reader for a sidecar's stdout to handle multiplexed JSON responses.
    */
-  async sendCommand(name: string, cmd: string): Promise<any> {
-    const lock = this.commandLocks.get(name) || Promise.resolve();
-    let resolveLock: () => void;
-    const newLock = new Promise<void>((resolve) => {
-      resolveLock = resolve;
-    });
-    this.commandLocks.set(name, newLock);
+  private async startResponseReader(name: string, child: Deno.ChildProcess) {
+    const reader = child.stdout.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
     try {
-      await lock;
-      const child = await this.getPersistentSidecar(name);
-      if (!child) throw new Error(`Sidecar ${name} not found`);
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
 
-      const writer = child.stdin.getWriter();
-      await writer.write(new TextEncoder().encode(cmd + "\n"));
-      writer.releaseLock();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
-      // Use the internal buffer for this process
-      let buffer = this.processBuffers.get(name) || "";
-      const reader = child.stdout.getReader();
-      const decoder = new TextDecoder();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const data = JSON.parse(line);
 
-      try {
-        while (!buffer.includes("\n")) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
+            // 1. Check if anyone is waiting for this specific ID
+            if (data.id && this.responseWaiters.has(name)) {
+              const waiters = this.responseWaiters.get(name)!;
+              const resolve = waiters.get(data.id);
+              if (resolve) {
+                resolve(data);
+                waiters.delete(data.id);
+                continue;
+              }
+            }
+
+            // 2. Otherwise, treat as a generic background event
+            const handlers = this.eventHandlers.get(name) || [];
+            for (const handler of handlers) {
+              handler(data);
+            }
+          } catch {
+            console.error(`[COMMAND:${name}] Failed to parse sidecar response: ${line}`);
+          }
         }
-      } finally {
-        reader.releaseLock();
       }
-
-      const lines = buffer.split("\n");
-      const response = lines.shift() || "";
-      this.processBuffers.set(name, lines.join("\n"));
-
-      if (!response) return null;
-      try {
-        return JSON.parse(response.trim());
-      } catch {
-        return response.trim();
-      }
+    } catch (e) {
+      console.error(`[COMMAND:${name}] Reader error:`, e);
     } finally {
-      resolveLock!();
+      reader.releaseLock();
+      this.persistentProcesses.delete(name);
+      this.responseWaiters.delete(name);
     }
+  }
+
+  /**
+   * Sends a command to a persistent sidecar and waits for a response with a matching ID.
+   */
+  async sendCommand(name: string, cmd: string | object): Promise<any> {
+    const child = await this.getPersistentSidecar(name);
+    if (!child) throw new Error(`Sidecar ${name} not found`);
+
+    const id = crypto.randomUUID();
+    let commandObj: any;
+
+    if (typeof cmd === "string") {
+      commandObj = { id, type: cmd };
+    } else {
+      commandObj = { ...cmd, id };
+    }
+
+    const responsePromise = new Promise((resolve) => {
+      if (!this.responseWaiters.has(name)) {
+        this.responseWaiters.set(name, new Map());
+      }
+      this.responseWaiters.get(name)!.set(id, resolve);
+    });
+
+    const writer = child.stdin.getWriter();
+    await writer.write(new TextEncoder().encode(JSON.stringify(commandObj) + "\n"));
+    writer.releaseLock();
+
+    return responsePromise;
+  }
+
+  /**
+   * Registers a handler for background events from a sidecar.
+   */
+  onEvent(name: string, handler: (data: any) => void) {
+    if (!this.eventHandlers.has(name)) {
+      this.eventHandlers.set(name, []);
+    }
+    this.eventHandlers.get(name)!.push(handler);
   }
 }
 

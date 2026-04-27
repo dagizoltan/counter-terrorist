@@ -35,7 +35,7 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
 
         <div class="space-y-6">
           <section class="bg-slate-800 p-6 rounded-xl border border-slate-700">
-            <h2 class="font-bold mb-4">System Baseline</h2>
+            <h2 class="font-bold mb-4">System Baseline & Reports</h2>
             <div class="grid grid-cols-2 gap-4">
               <button
                 onclick="fetch('/api/baseline/set', {method:'POST'})"
@@ -49,12 +49,27 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
               >
                 RUN DRIFT AUDIT
               </button>
+              <button
+                onclick="window.open('/api/reports/export', '_blank')"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors col-span-2"
+              >
+                EXPORT SECURITY REPORT (JSON)
+              </button>
             </div>
           </section>
 
           <section class="bg-slate-800 p-6 rounded-xl border border-slate-700">
             <h2 class="font-bold mb-4">Hardening Controls</h2>
             <div class="space-y-4">
+              <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
+                <span>Rootkit Scanner</span>
+                <button
+                  onclick="fetch('/api/protection/rkhunter/scan', {method:'POST'})"
+                  class="bg-red-600 hover:bg-red-700 text-white text-xs py-1 px-2 rounded"
+                >
+                  RUN RKHUNTER
+                </button>
+              </div>
               <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
                 <span>Incoming Firewall</span>
                 <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded border border-green-500/30">LOCKED</span>
@@ -75,6 +90,20 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
             <status-indicator name="Network Sensor"></status-indicator>
             <status-indicator name="Persistence Monitor"></status-indicator>
             <status-indicator name="Active Blocker"></status-indicator>
+            <div class="mt-4 pt-4 border-t border-slate-700">
+               <h3 class="text-xs font-bold text-slate-500 uppercase mb-2">Webhooks</h3>
+               <div id="webhook-status" class="text-xs text-slate-400">Loading configurations...</div>
+               <script dangerouslySetInnerHTML={{ __html: `
+                 fetch('/api/notifications').then(r => r.json()).then(data => {
+                   const container = document.getElementById('webhook-status');
+                   if (data.length === 0) {
+                     container.innerHTML = 'No webhooks configured.';
+                   } else {
+                     container.innerHTML = data.map(w => \`<div>\${w.name} (\${w.type}) - \${w.enabled ? 'ENABLED' : 'DISABLED'}</div>\`).join('');
+                   }
+                 });
+               ` }} />
+            </div>
           </section>
         </div>
       </div>

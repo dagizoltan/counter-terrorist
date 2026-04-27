@@ -104,7 +104,11 @@ class BlockingLog extends HTMLElement {
         .type-INFO { color: #38bdf8; }
         .type-WARN { color: #fbbf24; }
         .type-BLOCK { color: #ef4444; font-weight: bold; }
+        .type-CRITICAL { color: #f43f5e; font-weight: bold; text-decoration: underline; }
+        .type-DRIFT_PORT { color: #a855f7; }
+        .type-DRIFT_PROCESS { color: #ec4899; }
         .message { color: #cbd5e1; }
+        .details { color: #94a3b8; font-size: 0.7rem; margin-left: 1rem; }
       </style>
       <form class="controls" id="block-form">
         <input type="text" id="ip-input" placeholder="Enter IP to block..." />
@@ -112,10 +116,13 @@ class BlockingLog extends HTMLElement {
       </form>
       <div class="log-container">
         ${this.logs.map(log => `
-          <div class="entry">
-            <span class="timestamp">[${log.timestamp}]</span>
-            <span class="type-${log.type}">${log.type}</span>
-            <span class="message">${log.message}</span>
+          <div class="entry-group">
+            <div class="entry">
+              <span class="timestamp">[${log.timestamp}]</span>
+              <span class="type-${log.type}">${log.type}</span>
+              <span class="message">${log.message}</span>
+            </div>
+            ${log.data ? `<div class="details">${typeof log.data === 'string' ? log.data : JSON.stringify(log.data)}</div>` : ''}
           </div>
         `).join('')}
       </div>
