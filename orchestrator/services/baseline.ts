@@ -1,19 +1,44 @@
 import { commandManager } from "../command_manager.ts";
 import { broadcast } from "../api/ws.ts";
 
+export interface ProcessSnapshot {
+  pid: number;
+  name: string;
+  exe_path: string;
+  hash: string;
+}
+
 export interface SystemSnapshot {
   timestamp: string;
   ports: string[];
-  processes: string[];
+  processes: ProcessSnapshot[];
 }
 
 export class BaselineService {
   private currentBaseline: SystemSnapshot | null = null;
+  private kv: Deno.Kv | null = null;
+
+  constructor() {
+    this.initKv();
+  }
+
+  private async initKv() {
+    try {
+      this.kv = await Deno.openKv();
+      const res = await this.kv.get<SystemSnapshot>(["baseline"]);
+      if (res.value) {
+        this.currentBaseline = res.value;
+        console.log("[BASELINE] Restored from Deno KV.");
+      }
+    } catch (e) {
+      console.error("[BASELINE] Failed to initialize Deno KV:", e);
+    }
+  }
 
   async captureSnapshot(): Promise<SystemSnapshot> {
     const os = Deno.build.os;
     let ports: string[] = [];
-    let processes: string[] = [];
+    let processes: ProcessSnapshot[] = [];
 
     // Capture Ports
     const netstatCmd = os === "windows" ? "netstat" : "ss";
@@ -21,10 +46,19 @@ export class BaselineService {
     const netResult = await commandManager.execute(netstatCmd, netstatArgs);
     ports = netResult.stdout.split("\n").filter(l => l.includes("LISTEN") || l.includes("LISTENING"));
 
-    // Capture Processes (via our sidecar)
-    const scanResult = await commandManager.runSidecar("scanner");
-    if (scanResult.success && scanResult.data) {
-      processes = scanResult.data.processes.map((p: any) => p.name);
+    // Capture Processes (via our persistent sidecar)
+    try {
+        const scanResult = await commandManager.sendCommand("scanner", "SCAN");
+        if (scanResult && scanResult.processes) {
+            processes = scanResult.processes.map((p: any) => ({
+                pid: p.pid,
+                name: p.name,
+                exe_path: p.exe_path,
+                hash: p.hash,
+            }));
+        }
+    } catch (e) {
+        console.error("[BASELINE] Failed to capture processes from scanner:", e);
     }
 
     return {
@@ -36,23 +70,45 @@ export class BaselineService {
 
   async setBaseline() {
     this.currentBaseline = await this.captureSnapshot();
+    if (this.kv) {
+      await this.kv.set(["baseline"], this.currentBaseline);
+    }
     console.log("[BASELINE] New system baseline established.");
     broadcast({ type: "INFO", message: "New system baseline established." });
     return this.currentBaseline;
   }
 
   async checkDrift() {
+    if (!this.currentBaseline) {
+        // Try to load from KV if not loaded yet
+        if (this.kv) {
+            const res = await this.kv.get<SystemSnapshot>(["baseline"]);
+            if (res.value) {
+                this.currentBaseline = res.value;
+            }
+        }
+    }
     if (!this.currentBaseline) return;
 
     const current = await this.captureSnapshot();
+
+    // Check Ports drift
     const newPorts = current.ports.filter(p => !this.currentBaseline?.ports.includes(p));
-    const newProcs = current.processes.filter(p => !this.currentBaseline?.processes.includes(p));
+
+    // Check Processes drift (hash/path based)
+    const baselineProcs = this.currentBaseline.processes;
+    const newProcs = current.processes.filter(currProc => {
+        // Match by path and hash
+        return !baselineProcs.some(baseProc =>
+            baseProc.exe_path === currProc.exe_path && baseProc.hash === currProc.hash
+        );
+    });
 
     if (newPorts.length > 0) {
       broadcast({ type: "WARN", message: `Drift Detected: ${newPorts.length} new listening ports!` });
     }
     if (newProcs.length > 0) {
-      broadcast({ type: "WARN", message: `Drift Detected: New processes found: ${newProcs.slice(0, 3).join(", ")}` });
+      broadcast({ type: "WARN", message: `Drift Detected: ${newProcs.length} new/modified processes found: ${newProcs.slice(0, 3).map(p => p.name).join(", ")}` });
     }
 
     return { newPorts, newProcs };
