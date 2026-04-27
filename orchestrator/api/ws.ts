@@ -3,6 +3,7 @@
  * Compatible with Hono's upgradeWebSocket.
  */
 import { WSContext } from "hono/ws";
+import { notificationService } from "../services/alerts.ts";
 
 const clients = new Set<WSContext>();
 
@@ -14,6 +15,9 @@ export function broadcast(data: any) {
   for (const client of clients) {
     client.send(message);
   }
+
+  // Trigger external notifications
+  notificationService.notify(data).catch(console.error);
 }
 
 export const wsHandler = {

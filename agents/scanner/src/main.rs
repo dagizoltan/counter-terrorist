@@ -9,6 +9,7 @@ use std::time::SystemTime;
 #[derive(Serialize, Deserialize, Debug)]
 struct ProcessInfo {
     pid: u32,
+    ppid: u32,
     name: String,
     exe_path: String,
     hash: String,
@@ -103,6 +104,7 @@ fn main() {
 
                 processes.push(ProcessInfo {
                     pid: pid.as_u32(),
+                    ppid: process.parent().map(|p| p.as_u32()).unwrap_or(0),
                     name: process.name().to_string(),
                     exe_path: exe_str,
                     hash,
@@ -122,6 +124,31 @@ fn main() {
             };
 
             println!("{}", serde_json::to_string(&result).unwrap());
+        } else if cmd == "RKH_SCAN" {
+            let output = std::process::Command::new("rkhunter")
+                .args(["--check", "--sk", "--nocolors"])
+                .output();
+
+            match output {
+                Ok(out) => {
+                    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                    let result = serde_json::json!({
+                        "success": out.status.success(),
+                        "exit_code": out.status.code(),
+                        "stdout": stdout,
+                        "stderr": stderr,
+                    });
+                    println!("{}", result.to_string());
+                }
+                Err(e) => {
+                    let result = serde_json::json!({
+                        "success": false,
+                        "error": e.to_string(),
+                    });
+                    println!("{}", result.to_string());
+                }
+            }
         } else if cmd == "QUIT" {
             break;
         }
