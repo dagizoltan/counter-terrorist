@@ -35,6 +35,12 @@ export class AntivirusManager {
   async quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }> {
     const QUARANTINE_DIR = "/var/lib/cts/quarantine";
     try {
+      // TOCTOU Protection: Verify the file still exists and get its current metadata
+      const initialStat = await Deno.stat(path);
+      if (!initialStat.isFile) {
+        return { success: false, message: "Target is not a file." };
+      }
+
       await ensureDir(QUARANTINE_DIR);
       // Attempt to set restrictive permissions if on Linux
       if (Deno.build.os === "linux") {
@@ -43,6 +49,12 @@ export class AntivirusManager {
 
       const fileName = basename(path);
       const destination = resolve(QUARANTINE_DIR, `${Date.now()}_${fileName}`);
+
+      // Final check: ensure mtime hasn't changed since we started the quarantine process
+      const currentStat = await Deno.stat(path);
+      if (currentStat.mtime?.getTime() !== initialStat.mtime?.getTime()) {
+        return { success: false, message: "Security Warning: File modified during quarantine process. Aborting." };
+      }
 
       try {
         await Deno.rename(path, destination);
@@ -55,7 +67,9 @@ export class AntivirusManager {
       const metadata = {
         originalPath: path,
         quarantinedAt: new Date().toISOString(),
-        fileName: fileName
+        fileName: fileName,
+        size: initialStat.size,
+        mtime: initialStat.mtime
       };
       await Deno.writeTextFile(`${destination}.metadata.json`, JSON.stringify(metadata, null, 2));
 
@@ -105,9 +119,13 @@ export class AntivirusManager {
               const lines = result.stdout.split("\n");
               for (const line of lines) {
                 if (line.includes(" FOUND")) {
-                  const infectedPath = line.split(":")[0].trim();
-                  if (infectedPath) {
-                    await this.quarantine(infectedPath);
+                  // Robust parsing: use lastIndexOf(':') to handle paths with colons
+                  const lastColonIndex = line.lastIndexOf(":");
+                  if (lastColonIndex !== -1) {
+                    const infectedPath = line.substring(0, lastColonIndex).trim();
+                    if (infectedPath) {
+                      await this.quarantine(infectedPath);
+                    }
                   }
                 }
               }

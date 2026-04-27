@@ -4,6 +4,7 @@
  */
 import { WSContext } from "hono/ws";
 import { notificationService } from "../services/alerts.ts";
+import { loggingService, SyslogSeverity } from "../services/logging.ts";
 
 const clients = new Set<WSContext>();
 
@@ -18,6 +19,14 @@ export function broadcast(data: any) {
 
   // Trigger external notifications
   notificationService.notify(data).catch(console.error);
+
+  // Trigger Syslog
+  let severity = SyslogSeverity.INFORMATIONAL;
+  if (data.type === "CRITICAL") severity = SyslogSeverity.CRITICAL;
+  else if (data.type?.startsWith("DRIFT")) severity = SyslogSeverity.WARNING;
+  else if (data.type === "BLOCK") severity = SyslogSeverity.NOTICE;
+
+  loggingService.log(`${data.type}: ${data.message}`, severity).catch(console.error);
 }
 
 export const wsHandler = {

@@ -1,10 +1,18 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::{PidExt, ProcessExt, System, SystemExt};
-use std::io::{self, BufRead, Read};
+use std::io::{Read};
 use std::fs::{self, File};
 use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::time::SystemTime;
+use tokio::io::{AsyncBufReadExt, BufReader};
+
+#[derive(Serialize, Deserialize, Debug)]
+struct Command {
+    id: String,
+    #[serde(rename = "type")]
+    cmd_type: String,
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ProcessInfo {
@@ -19,6 +27,7 @@ struct ProcessInfo {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ScanResult {
+    id: String,
     timestamp: String,
     processes: Vec<ProcessInfo>,
     system_load: f32,
@@ -56,19 +65,20 @@ fn compute_hash(path: &std::path::Path) -> (String, SystemTime) {
     (hex::encode(hasher.finalize()), mtime)
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let mut sys = System::new_all();
-    let stdin = io::stdin();
+    let stdin = tokio::io::stdin();
+    let mut reader = BufReader::new(stdin).lines();
     let mut hash_cache: HashMap<String, CacheEntry> = HashMap::new();
 
-    for line in stdin.lock().lines() {
-        let input = match line {
-            Ok(l) => l,
-            Err(_) => break,
+    while let Ok(Some(line)) = reader.next_line().await {
+        let command: Command = match serde_json::from_str(&line) {
+            Ok(c) => c,
+            Err(_) => continue,
         };
 
-        let cmd = input.trim();
-        if cmd == "SCAN" {
+        if command.cmd_type == "SCAN" {
             sys.refresh_all();
 
             let mut processes = Vec::new();
@@ -118,38 +128,47 @@ fn main() {
             let top_processes = processes.into_iter().take(50).collect();
 
             let result = ScanResult {
+                id: command.id,
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 processes: top_processes,
                 system_load: sys.load_average().one as f32,
             };
 
             println!("{}", serde_json::to_string(&result).unwrap());
-        } else if cmd == "RKH_SCAN" {
-            let output = std::process::Command::new("rkhunter")
-                .args(["--check", "--sk", "--nocolors"])
-                .output();
+        } else if command.cmd_type == "RKH_SCAN" {
+            let cmd_id = command.id;
+            // Run rkhunter in a separate thread to avoid blocking the main loop
+            tokio::spawn(async move {
+                let output = std::process::Command::new("rkhunter")
+                    .args(["--check", "--sk", "--nocolors"])
+                    .output();
 
-            match output {
-                Ok(out) => {
-                    let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                    let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                    let result = serde_json::json!({
-                        "success": out.status.success(),
-                        "exit_code": out.status.code(),
-                        "stdout": stdout,
-                        "stderr": stderr,
-                    });
-                    println!("{}", result.to_string());
+                match output {
+                    Ok(out) => {
+                        let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                        let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                        let result = serde_json::json!({
+                            "id": cmd_id,
+                            "success": out.status.success(),
+                            "exit_code": out.status.code(),
+                            "stdout": stdout,
+                            "stderr": stderr,
+                            "type": "RKH_SCAN_RESULT"
+                        });
+                        println!("{}", result.to_string());
+                    }
+                    Err(e) => {
+                        let result = serde_json::json!({
+                            "id": cmd_id,
+                            "success": false,
+                            "error": e.to_string(),
+                            "type": "RKH_SCAN_RESULT"
+                        });
+                        println!("{}", result.to_string());
+                    }
                 }
-                Err(e) => {
-                    let result = serde_json::json!({
-                        "success": false,
-                        "error": e.to_string(),
-                    });
-                    println!("{}", result.to_string());
-                }
-            }
-        } else if cmd == "QUIT" {
+            });
+        } else if command.cmd_type == "QUIT" {
             break;
         }
     }
