@@ -1,0 +1,15 @@
+[Unit]
+Description=Counter-Terrorist Security Orchestrator (Desktop User Service)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/counter-terrorist
+Environment="API_TOKEN=change_me_in_production"
+Environment="PORT=8000"
+ExecStart=/usr/local/bin/deno task start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

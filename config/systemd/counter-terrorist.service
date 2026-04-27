@@ -1,0 +1,19 @@
+[Unit]
+Description=Counter-Terrorist Security Orchestrator
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/counter-terrorist
+Environment="API_TOKEN=change_me_in_production"
+Environment="PORT=8000"
+# Uncomment these when using TLS directly
+# Environment="TLS_CERT=/etc/ssl/certs/cts.crt"
+# Environment="TLS_KEY=/etc/ssl/private/cts.key"
+ExecStart=/usr/local/bin/deno task start
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
