@@ -106,7 +106,7 @@ export class BaselineService {
             }
         }
     }
-    if (!this.currentBaseline) return;
+    if (!this.currentBaseline) return null;
 
     const current = await this.captureSnapshot();
 
@@ -142,6 +142,20 @@ export class BaselineService {
     }
 
     return { newPorts, newProcs };
+  }
+
+  /**
+   * Starts the background drift monitoring loop.
+   */
+  startMonitor(intervalMs: number = 60000) {
+    console.log(`[BASELINE] Starting background monitoring loop (Interval: ${intervalMs}ms)`);
+    setInterval(async () => {
+      try {
+        await this.checkDrift();
+      } catch (e) {
+        console.error("[BASELINE] Drift check loop failed:", e);
+      }
+    }, intervalMs);
   }
 }
 

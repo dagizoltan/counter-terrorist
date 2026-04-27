@@ -49,12 +49,14 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 - **Data Enrichment:** Update the scanner to include `exe_path` and a SHA-256 `hash` for every process.
 - **Baseline Alignment:** Update the Deno `BaselineService` to utilize the enriched data for drift detection.
 
-### Phase 2: Reliability & Visibility (Short-term)
-- **Health Checks:** Implement automated sidecar health monitoring and auto-restart logic in the Orchestrator.
-- **Extended Auditing:** Add support for monitoring listening ports drift (currently partially implemented).
-- **UI Enhancements:** Provide a detailed view of detected drift in the dashboard.
+### Phase 2: Reliability & Visibility (Short-term) - COMPLETED
+- **Health Checks:** Automated sidecar health monitoring and auto-restart logic implemented in CommandManager.
+- **Extended Auditing:** Listening ports drift monitoring fully implemented using `ss`/`netstat`.
+- **Robust Communication:** Implemented buffered line-based protocol for sidecar communication to prevent data loss.
+- **Background Monitoring:** Implemented persistent drift audit loop in the Orchestrator.
 
 ### Phase 3: Production Readiness (Pre-Pilot) - IN PROGRESS
+- **TLS Security:** Milestone 2 requirement met: HTTPS support implemented in Orchestrator.
 - **Configuration Management:** Hardened `API_TOKEN` enforcement implemented. Template for `orchestrator.env` provided.
 - **Deployment Scripting:** `systemd` unit files finalized in `deployment/systemd/`.
 - **Automated Packaging:** `scripts/package.ts` added to automate artifact collection.
