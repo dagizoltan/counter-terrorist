@@ -73,6 +73,14 @@ export const Dashboard = (props: { os: string; isRoot: boolean; token: string })
                 >DISCONNECTED</button>
               </div>
               <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
+                <span>VPN Kill-switch</span>
+                <button
+                  id="killswitch-toggle"
+                  class="px-2 py-1 bg-slate-700 text-slate-400 text-xs rounded border border-slate-600"
+                  onclick={`const enabled = this.dataset.enabled === 'true'; fetch('/api/protection/firewall/killswitch', {method:'POST', headers: {'Authorization': 'Bearer ${props.token}', 'Content-Type': 'application/json'}, body: JSON.stringify({enabled: !enabled, serverIp: '1.1.1.1', interfaceName: 'wg0'})}).then(() => location.reload())`}
+                >DISABLED</button>
+              </div>
+              <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
                 <span>Process Blocker</span>
                 <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded border border-green-500/30">ARMED</span>
               </div>
@@ -104,6 +112,10 @@ export const Dashboard = (props: { os: string; isRoot: boolean; token: string })
             }).then(() => location.reload());
           }
         });
+
+        // Kill-switch status is harder to track without persistent state in backend,
+        // but we can heuristic it or add an endpoint if needed.
+        // For now we just use the toggle logic.
       `}} />
     </Layout>
   );
