@@ -8,6 +8,7 @@ import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
 import { baseline } from "./services/baseline.ts";
+import { loggingService } from "./services/logging.ts";
 
 const app = new Hono();
 

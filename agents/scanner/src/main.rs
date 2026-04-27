@@ -9,6 +9,7 @@ use std::time::SystemTime;
 #[derive(Serialize, Deserialize, Debug)]
 struct ProcessInfo {
     pid: u32,
+    parent_pid: Option<u32>,
     name: String,
     exe_path: String,
     hash: String,
@@ -103,6 +104,7 @@ fn main() {
 
                 processes.push(ProcessInfo {
                     pid: pid.as_u32(),
+                    parent_pid: process.parent().map(|p| p.as_u32()),
                     name: process.name().to_string(),
                     exe_path: exe_str,
                     hash,

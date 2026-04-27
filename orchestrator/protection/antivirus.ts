@@ -1,5 +1,6 @@
 import { commandManager } from "../command_manager.ts";
 import { resolve, normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { loggingService } from "../services/logging.ts";
 
 export interface ScanResult {
     success: boolean;
@@ -60,9 +61,21 @@ export class AntivirusManager {
 
             const result = await commandManager.execute("clamscan", ["-r", absolutePath]);
             // Clamscan exit codes: 0 = no virus, 1 = virus found, 2 = error
+            const threatsFound = result.stdout.includes("Infected files: 1") || !result.success && result.stdout.includes("Infected files:");
+
+            if (threatsFound) {
+                loggingService.logSecurityEvent({
+                    level: "CRITICAL",
+                    source: "AntivirusManager",
+                    type: "THREAT_DETECTED",
+                    message: `Virus detected in path: ${absolutePath}`,
+                    details: { path: absolutePath, output: result.stdout }
+                });
+            }
+
             return {
                 success: result.success || result.stdout.includes("Infected files:"),
-                threatsFound: result.stdout.includes("Infected files: 1") || !result.success && result.stdout.includes("Infected files:"),
+                threatsFound: threatsFound,
                 message: result.success ? "Scan completed successfully." : "Scan detected issues or failed.",
                 details: result.stdout
             };
@@ -80,6 +93,24 @@ export class AntivirusManager {
     }
 
     return { success: false, threatsFound: false, message: "Manual scan not implemented for this OS" };
+  }
+
+  async updateDefinitions() {
+    console.log("[ANTIVIRUS] Starting asynchronous ClamAV update...");
+    // Run freshclam asynchronously
+    commandManager.execute("freshclam", [])
+      .then((result) => {
+        if (result.success) {
+          console.log("[ANTIVIRUS] ClamAV definitions updated successfully.");
+        } else {
+          console.error(`[ANTIVIRUS] ClamAV update failed: ${result.stderr}`);
+        }
+      })
+      .catch((error) => {
+        console.error(`[ANTIVIRUS] Unexpected error during ClamAV update: ${error}`);
+      });
+
+    return { success: true, message: "ClamAV update initiated in the background." };
   }
 }
 
