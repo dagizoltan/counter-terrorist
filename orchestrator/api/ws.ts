@@ -2,7 +2,7 @@
  * WebSocket handler for real-time security events.
  * Compatible with Hono's upgradeWebSocket.
  */
-import { WSContext } from "hono/ws";
+import { WSContext } from "https://deno.land/x/hono@v4.3.7/helper/websocket/index.ts";
 import { notificationService } from "../services/alerts.ts";
 import { loggingService, SyslogSeverity } from "../services/logging.ts";
 

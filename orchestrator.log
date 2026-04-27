@@ -1,0 +1,16 @@
+[0m[32mTask[0m [0m[36mstart[0m deno run --allow-net --allow-read --allow-run --allow-sys --allow-env orchestrator/main.ts
+[NOTIFICATIONS] Failed to initialize Deno KV: TypeError: Deno.openKv is not a function
+    at NotificationService.initKv (file:///app/orchestrator/services/alerts.ts:19:34)
+    at new NotificationService (file:///app/orchestrator/services/alerts.ts:14:14)
+    at file:///app/orchestrator/services/alerts.ts:88:36
+[BASELINE] Failed to initialize Deno KV: TypeError: Deno.openKv is not a function
+    at BaselineService.initKv (file:///app/orchestrator/services/baseline.ts:29:28)
+    at new BaselineService (file:///app/orchestrator/services/baseline.ts:24:10)
+    at file:///app/orchestrator/services/baseline.ts:162:25
+[BASELINE] Starting background monitoring loop (Interval: 60000ms)
+--- Security Orchestrator Web Console Running ---
+Local (HTTP): http://127.0.0.1:8000
+WARNING: Running without TLS. This is only recommended for local development.
+Listening on http://127.0.0.1:8000/
+WebSocket client connected
+WebSocket client disconnected

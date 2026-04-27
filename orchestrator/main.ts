@@ -49,7 +49,9 @@ app.use("/static/*", serveStatic({
 
 // UI Routes
 app.get("/", (c) => {
-  return c.html(<Dashboard os={systemStatus.os} isRoot={systemStatus.isRoot} />);
+  // Use component as a function to avoid JSX syntax in this file
+  // @ts-ignore: Dashboard is a JSX component
+  return c.html(Dashboard({ os: systemStatus.os, isRoot: systemStatus.isRoot, token: TOKEN! }));
 });
 
 app.get("/api/status", (c) => {

@@ -1,9 +1,12 @@
-/** @jsxImportSource hono/jsx */
+/** @jsx jsx */
+/** @jsxFrag Fragment */
+import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "./Layout.tsx";
 
-export const Dashboard = (props: { os: string; isRoot: boolean }) => {
+export const Dashboard = (props: { os: string; isRoot: boolean; token: string }) => {
   return (
     <Layout title="Dashboard">
+      <script dangerouslySetInnerHTML={{ __html: `window.__CONFIG__ = { token: '${props.token}' };` }} />
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
           <h3 class="text-slate-400 text-sm font-semibold mb-2 uppercase">System OS</h3>
@@ -38,13 +41,13 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
             <h2 class="font-bold mb-4">System Baseline & Reports</h2>
             <div class="grid grid-cols-2 gap-4">
               <button
-                onclick="fetch('/api/baseline/set', {method:'POST'})"
+                onclick="fetch('/api/baseline/set', {method:'POST', headers: {'Authorization': 'Bearer ' + window.__CONFIG__.token}})"
                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
               >
                 SET NEW BASELINE
               </button>
               <button
-                onclick="fetch('/api/baseline/check', {method:'POST'})"
+                onclick="fetch('/api/baseline/check', {method:'POST', headers: {'Authorization': 'Bearer ' + window.__CONFIG__.token}})"
                 class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
               >
                 RUN DRIFT AUDIT
@@ -64,7 +67,7 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
               <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
                 <span>Rootkit Scanner</span>
                 <button
-                  onclick="fetch('/api/protection/rkhunter/scan', {method:'POST'})"
+                  onclick="fetch('/api/protection/rkhunter/scan', {method:'POST', headers: {'Authorization': 'Bearer ' + window.__CONFIG__.token}})"
                   class="bg-red-600 hover:bg-red-700 text-white text-xs py-1 px-2 rounded"
                 >
                   RUN RKHUNTER
@@ -94,7 +97,7 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
                <h3 class="text-xs font-bold text-slate-500 uppercase mb-2">Webhooks</h3>
                <div id="webhook-status" class="text-xs text-slate-400">Loading configurations...</div>
                <script dangerouslySetInnerHTML={{ __html: `
-                 fetch('/api/notifications').then(r => r.json()).then(data => {
+                 fetch('/api/notifications', { headers: {'Authorization': 'Bearer ' + window.__CONFIG__.token} }).then(r => r.json()).then(data => {
                    const container = document.getElementById('webhook-status');
                    if (data.length === 0) {
                      container.innerHTML = 'No webhooks configured.';
