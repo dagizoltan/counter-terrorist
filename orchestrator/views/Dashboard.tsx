@@ -67,6 +67,29 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
                 <span>Process Blocker</span>
                 <span class="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded border border-green-500/30">ARMED</span>
               </div>
+              <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
+                <span>Enterprise Logging</span>
+                <span class="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded border border-blue-500/30">ACTIVE</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="bg-slate-800 p-6 rounded-xl border border-slate-700">
+            <h2 class="font-bold mb-4">Phase 5 Actions</h2>
+            <div class="grid grid-cols-2 gap-4">
+              <button
+                onclick="fetch('/api/protection/rkhunter/check', {method:'POST'})"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
+              >
+                RUN RKHUNTER
+              </button>
+              <a
+                href="/api/reports/export"
+                target="_blank"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded text-sm text-center transition-colors"
+              >
+                EXPORT REPORT
+              </a>
             </div>
           </section>
 

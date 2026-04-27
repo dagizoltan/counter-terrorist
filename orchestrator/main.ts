@@ -7,7 +7,10 @@ import { wsHandler } from "./api/ws.ts";
 import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
+import { rkhunter } from "./protection/rkhunter.ts";
 import { baseline } from "./services/baseline.ts";
+import { generateSecurityReport } from "./api/reports.ts";
+import { loggingService } from "./services/logging.ts";
 
 const app = new Hono();
 
@@ -69,6 +72,11 @@ app.get("/api/protection/av/status", async (c) => {
   return c.json(status);
 });
 
+app.post("/api/protection/rkhunter/check", async (c) => {
+  const result = await rkhunter.runCheck();
+  return c.json(result);
+});
+
 app.post("/api/baseline/set", async (c) => {
   const result = await baseline.setBaseline();
   return c.json(result);
@@ -77,6 +85,11 @@ app.post("/api/baseline/set", async (c) => {
 app.post("/api/baseline/check", async (c) => {
   const result = await baseline.checkDrift();
   return c.json(result || { message: "No baseline established" });
+});
+
+app.get("/api/reports/export", async (c) => {
+  const report = await generateSecurityReport();
+  return c.json(report);
 });
 
 // WebSocket Handler
