@@ -13,9 +13,10 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 - **Baseline Service:** The service is designed to detect drift using process paths and hashes, but it currently receives neither from the scanner agent, rendering drift detection ineffective.
 
 ### 2.2 Scanner Agent (Rust)
-- **Status:** **CRITICAL BLOCKER.**
-- **Implementation Gap:** The scanner is currently a one-shot CLI tool. The architecture specifically requires a **persistent daemon** to eliminate `sysinfo` initialization overhead.
-- **Data Deficiency:** The agent does not currently report `exe_path` or process `hash`, which are mandatory for the `BaselineService` to detect sophisticated threats (e.g., process hollowing or binary replacement).
+- **Status:** **PHASE 1 COMPLETE.**
+- **Implementation:** The scanner is now a **persistent daemon** integrated with the Orchestrator. This eliminates `sysinfo` overhead and allows for efficient, real-time monitoring.
+- **Data Enrichment:** The agent provides `exe_path` and SHA-256 `hash` for all processes.
+- **Security:** The hash cache uses file modification time (mtime) invalidation to detect unauthorized binary changes.
 
 ### 2.3 Blocker Agent (Rust)
 - **Status:** Functional.
@@ -28,11 +29,11 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 
 ## 3. Critical Blockers for Production
 
-| Blocker ID | Priority | Description | Impact |
-| :--- | :--- | :--- | :--- |
-| **B-01** | **Highest** | Scanner is not a persistent daemon. | High CPU/IO overhead on every scan interval; fails to meet architectural spec. |
-| **B-02** | **High** | Missing Process Hashing. | Baseline drift detection cannot identify if a binary has been replaced (only if name/pid changed). |
-| **B-03** | **High** | Missing Executable Paths. | Orchestrator cannot verify the origin of running processes. |
+| Blocker ID | Priority | Description | Impact | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **B-01** | **Highest** | Scanner is not a persistent daemon. | High CPU/IO overhead on every scan interval. | **RESOLVED** |
+| **B-02** | **High** | Missing Process Hashing. | Baseline drift detection cannot identify if a binary has been replaced. | **RESOLVED** |
+| **B-03** | **High** | Missing Executable Paths. | Orchestrator cannot verify the origin of running processes. | **RESOLVED** |
 | **B-04** | **Medium** | Hardcoded/Default Secrets. | "development-token" is used as a fallback, which is unsafe for production. |
 | **B-05** | **Medium** | Limited Error Resilience. | Orchestrator does not gracefully handle sidecar crashes or restarts. |
 

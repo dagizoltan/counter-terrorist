@@ -66,6 +66,15 @@ export class CommandManager {
       };
     }
 
+    // Protection against misuse: scanner is a persistent daemon and should not be run via runSidecar
+    if (name === "scanner") {
+      return {
+        success: false,
+        stdout: "",
+        stderr: `Sidecar 'scanner' is a persistent daemon. Use sendCommand() instead.`,
+      };
+    }
+
     const isWindows = Deno.build.os === "windows";
     const extension = isWindows ? ".exe" : "";
 

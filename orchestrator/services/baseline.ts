@@ -6,6 +6,8 @@ export interface ProcessSnapshot {
   name: string;
   exe_path: string;
   hash: string;
+  cpu_usage?: number;
+  memory_usage?: number;
 }
 
 export interface SystemSnapshot {
@@ -105,9 +107,13 @@ export class BaselineService {
     });
 
     if (newPorts.length > 0) {
+      console.warn(`[BASELINE] Port drift detected: ${newPorts.join(", ")}`);
       broadcast({ type: "WARN", message: `Drift Detected: ${newPorts.length} new listening ports!` });
     }
     if (newProcs.length > 0) {
+      newProcs.forEach(p => {
+        console.warn(`[BASELINE] Process drift: ${p.name} (PID: ${p.pid}, Path: ${p.exe_path}, Hash: ${p.hash})`);
+      });
       broadcast({ type: "WARN", message: `Drift Detected: ${newProcs.length} new/modified processes found: ${newProcs.slice(0, 3).map(p => p.name).join(", ")}` });
     }
 

@@ -11,7 +11,13 @@ import { baseline } from "./services/baseline.ts";
 
 const app = new Hono();
 
-const TOKEN = Deno.env.get("API_TOKEN") || "development-token";
+const TOKEN = Deno.env.get("API_TOKEN");
+
+if (!TOKEN) {
+  console.error("CRITICAL ERROR: API_TOKEN environment variable is not set.");
+  console.error("For security reasons, the orchestrator will not start without a defined token.");
+  Deno.exit(1);
+}
 
 // Apply bearer auth to all /api/* routes
 app.use("/api/*", (c, next) => {
