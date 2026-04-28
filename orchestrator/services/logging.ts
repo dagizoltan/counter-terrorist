@@ -32,12 +32,11 @@ export class LoggingService {
 
         if (this.remoteHost) {
             try {
-                const conn = await Deno.connectDatagram({
-                    hostname: this.remoteHost,
-                    port: this.remotePort,
+                const conn = await Deno.listenDatagram({
+                    port: 0,
                     transport: "udp",
                 });
-                await conn.send(new TextEncoder().encode(syslogMsg));
+                await conn.send(new TextEncoder().encode(syslogMsg), { hostname: this.remoteHost, port: this.remotePort, transport: "udp" });
                 conn.close();
             } catch (e) {
                 console.error("[SYSLOG] Failed to send remote log:", e);

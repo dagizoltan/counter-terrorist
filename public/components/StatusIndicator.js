@@ -21,25 +21,30 @@ class StatusIndicator extends HTMLElement {
 
   async updateStatus() {
     const name = this.getAttribute('name');
-    const token = window.__CONFIG__?.token;
-    if (!token) return;
 
     try {
-      const res = await fetch('/api/status', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      if (res.ok) {
-        const status = await res.json();
-        let isOnline = false;
-
-        // Map UI names to dependencies
-        if (name === "Network Sensor") isOnline = status.dependencies.ss;
-        else if (name === "Persistence Monitor") isOnline = status.dependencies.cargo;
-        else if (name === "Active Blocker") isOnline = status.dependencies.ufw;
-
-        this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'text-green-400' : 'text-red-400');
+      if (name === "Active Blocker") {
+        const res = await fetch('/api/agent/status');
+        if (res.ok) {
+          const status = await res.json();
+          const isOnline = status.blocker_binary && status.firewall.active;
+          this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'text-green-400' : 'text-red-400');
+        } else {
+          this.render(name, 'ERROR', 'text-red-500');
+        }
       } else {
-        this.render(name, 'ERROR', 'text-red-500');
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const status = await res.json();
+          let isOnline = false;
+
+          if (name === "Network Sensor") isOnline = status.dependencies.ss;
+          else if (name === "Persistence Monitor") isOnline = status.dependencies.cargo;
+
+          this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'text-green-400' : 'text-red-400');
+        } else {
+          this.render(name, 'ERROR', 'text-red-500');
+        }
       }
     } catch (e) {
       console.error("Failed to fetch status:", e);

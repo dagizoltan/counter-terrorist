@@ -4,12 +4,20 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=cts
 WorkingDirectory=/opt/counter-terrorist
 ExecStart=/usr/bin/deno run --allow-net --allow-read --allow-run --allow-sys orchestrator/main.ts
 EnvironmentFile=/etc/counter-terrorist/orchestrator.env
 Restart=always
 RestartSec=5
+
+# Hardening
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cts /etc/counter-terrorist
 
 [Install]
 WantedBy=multi-user.target

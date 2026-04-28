@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { upgradeWebSocket, serveStatic } from "hono/deno";
+import { getCookie, setCookie, deleteCookie } from "hono/helper/cookie/index.ts";
+import { cors } from "hono/middleware/cors/index.ts";
 import { Dashboard } from "./views/Dashboard.tsx";
+import { Login } from "./views/Login.tsx";
 import { bootstrap } from "./bootstrapper.ts";
 import { wsHandler } from "./api/ws.ts";
 import { firewall } from "./protection/firewall.ts";
@@ -23,18 +26,60 @@ if (!TOKEN) {
   Deno.exit(1);
 }
 
-// Apply bearer auth to all /api/* routes
-app.use("/api/*", (c, next) => {
-  if (c.req.path === "/api/ws/events") {
-    // WebSockets handle auth via query param (Milestone 1 requirement)
-    const token = c.req.query("token");
-    if (token !== TOKEN) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+app.use("/api/*", cors({
+  origin: ['http://127.0.0.1:8000', 'https://127.0.0.1:8000'],
+  credentials: true,
+}));
+
+import { timingSafeEqual } from "node:crypto";
+
+const isTokenValid = (tokenToTest: string | undefined): boolean => {
+  if (!tokenToTest) return false;
+  // Use TextEncoder to safely handle any string length into a Uint8Array
+  const encoder = new TextEncoder();
+  const a = encoder.encode(tokenToTest);
+  const b = encoder.encode(TOKEN!);
+  // If lengths differ, timingSafeEqual will throw. Prevent this by checking length first,
+  // but note that length check is a timing leak for token length. Usually acceptable.
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+};
+
+const authMiddleware = async (c: any, next: any) => {
+  // Check cookie
+  const sessionToken = getCookie(c, "session_token");
+  if (isTokenValid(sessionToken)) {
     return next();
   }
-  return bearerAuth({ token: TOKEN })(c, next);
-});
+
+  // Fallback to bearer auth for API clients
+  const authHeader = c.req.header("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const bearerToken = authHeader.substring(7);
+    if (isTokenValid(bearerToken)) {
+      return next();
+    }
+  }
+
+  if (c.req.path === "/api/ws/events") {
+    const token = c.req.query("token");
+    if (isTokenValid(token)) {
+      return next();
+    }
+  }
+
+  // If UI request, redirect to login
+  if (!c.req.path.startsWith("/api/")) {
+    return c.redirect("/login");
+  }
+
+  return c.json({ error: "Unauthorized" }, 401);
+};
+
+app.use("/api/*", authMiddleware);
+
+// Apply auth to UI routes except login
+app.use("/", authMiddleware);
 
 // Bootstrap system info for the dashboard
 const systemStatus = await bootstrap();
@@ -44,24 +89,93 @@ baseline.startMonitor();
 
 // Serve static assets (Web Components)
 app.use("/static/*", serveStatic({
-  root: "./orchestrator/web",
+  root: "./public",
   rewriteRequestPath: (path) => path.replace(/^\/static/, "")
 }));
+
+app.get("/login", (c) => {
+  // @ts-ignore: JSX component
+  return c.html(Login());
+});
+
+app.post("/login", async (c) => {
+  const body = await c.req.parseBody();
+  const password = body.password;
+
+  if (typeof password === "string" && isTokenValid(password)) {
+    setCookie(c, "session_token", TOKEN!, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: 60 * 60 * 24 // 24 hours
+    });
+    return c.redirect("/");
+  }
+
+  return c.redirect("/login?error=1");
+});
+
+app.get("/logout", (c) => {
+  deleteCookie(c, "session_token");
+  return c.redirect("/login");
+});
 
 // UI Routes
 app.get("/", (c) => {
   // Use component as a function to avoid JSX syntax in this file
   // @ts-ignore: Dashboard is a JSX component
-  return c.html(Dashboard({ os: systemStatus.os, isRoot: systemStatus.isRoot, token: TOKEN! }));
+  return c.html(Dashboard({ os: systemStatus.os, isRoot: systemStatus.isRoot }));
 });
 
 app.get("/api/status", (c) => {
   return c.json(systemStatus);
 });
 
+app.get("/api/agent/status", async (c) => {
+  const fwStatus = await firewall.getStatus();
+
+  // Check if blocker binary exists
+  let blockerExists = false;
+  try {
+    const isWindows = Deno.build.os === "windows";
+    const extension = isWindows ? ".exe" : "";
+    const paths = [
+      `./agents/target/release/blocker${extension}`,
+      `./agents/target/debug/blocker${extension}`,
+    ];
+    for (const p of paths) {
+      try {
+        const info = await Deno.stat(p);
+        if (info.isFile) {
+          blockerExists = true;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  return c.json({
+    blocker_binary: blockerExists,
+    firewall: {
+      active: fwStatus.success && fwStatus.stdout.includes("Status: active"),
+      details: fwStatus.stdout || fwStatus.stderr
+    }
+  });
+});
+
 app.post("/api/protection/firewall/block", async (c) => {
   const { ip } = await c.req.json();
   const result = await firewall.blockIp(ip);
+  return c.json(result);
+});
+
+app.delete("/api/protection/firewall/block/:ip", async (c) => {
+  const ip = c.req.param("ip");
+  const result = await firewall.unblockIp(ip);
   return c.json(result);
 });
 

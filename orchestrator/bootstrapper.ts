@@ -36,7 +36,7 @@ export async function bootstrap(): Promise<SystemStatus> {
 
   const deps: string[] = ["cargo"];
   if (os === "linux") deps.push("ufw", "ss");
-  if (os === "macos") deps.push("launchctl", "system_profiler");
+  if (os === "darwin") deps.push("launchctl", "system_profiler");
   if (os === "windows") deps.push("powershell");
 
   const dependencies: Record<string, boolean> = {};
