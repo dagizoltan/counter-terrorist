@@ -9,13 +9,17 @@ export interface RkhunterResult {
     error?: string;
 }
 
+import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
+
 export class RkhunterManager {
     private lastResult: RkhunterResult | null = null;
+
+    constructor(private sidecar: SidecarManager) {}
 
     async runScan(): Promise<RkhunterResult> {
         try {
             console.log("[RKHUNTER] Starting rootkit scan...");
-            const result = await commandManager.sendCommand("scanner", "RKH_SCAN");
+            const result = await this.sidecar.sendCommand("scanner", "RKH_SCAN");
 
             this.lastResult = result;
 

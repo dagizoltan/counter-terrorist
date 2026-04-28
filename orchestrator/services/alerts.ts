@@ -8,21 +8,19 @@ export interface WebhookConfig {
 
 export class NotificationService {
     private webhooks: WebhookConfig[] = [];
-    private kv: Deno.Kv | null = null;
 
-    constructor() {
-        this.initKv();
+    constructor(private kv: Deno.Kv) {
+        this.loadWebhooks();
     }
 
-    private async initKv() {
+    private async loadWebhooks() {
         try {
-            this.kv = await Deno.openKv();
             const res = await this.kv.get<WebhookConfig[]>(["webhooks"]);
             if (res.value) {
                 this.webhooks = res.value;
             }
         } catch (e) {
-            console.error("[NOTIFICATIONS] Failed to initialize Deno KV:", e);
+            console.error("[NOTIFICATIONS] Failed to load webhooks from KV:", e);
         }
     }
 

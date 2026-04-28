@@ -1,4 +1,4 @@
-import { loggingService, SyslogSeverity } from "./logging.ts";
+import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 
 export interface AuditEvent {
     id: string;
@@ -9,29 +9,9 @@ export interface AuditEvent {
 }
 
 export class AuditService {
-    private kv: Deno.Kv | null = null;
-
-    constructor() {
-        this.initKv();
-    }
-
-    private async initKv() {
-        try {
-            this.kv = await Deno.openKv();
-        } catch (e) {
-            console.error("[AUDIT] Failed to initialize Deno KV:", e);
-        }
-    }
+    constructor(private kv: Deno.Kv, private logging: LoggingPort) {}
 
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp"> & { timestamp?: string }) {
-        if (!this.kv) {
-            await this.initKv();
-        }
-        if (!this.kv) {
-            console.error("[AUDIT] Cannot log event, KV not initialized.");
-            return;
-        }
-
         const id = crypto.randomUUID();
         const timestamp = event.timestamp || new Date().toISOString();
         const auditEvent: AuditEvent = { ...event, id, timestamp };
@@ -39,20 +19,13 @@ export class AuditService {
         try {
             await this.kv.set(["audit", Date.now(), id], auditEvent);
             // Forward audit event to remote syslog (Phase 2 Requirement)
-            loggingService.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, SyslogSeverity.NOTICE);
+            this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, SyslogSeverity.NOTICE);
         } catch (e) {
             console.error("[AUDIT] Failed to save event:", e);
         }
     }
 
     async getRecentEvents(limit: number = 50): Promise<AuditEvent[]> {
-        if (!this.kv) {
-            await this.initKv();
-        }
-        if (!this.kv) {
-            return [];
-        }
-
         const events: AuditEvent[] = [];
         const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { reverse: true, limit });
 

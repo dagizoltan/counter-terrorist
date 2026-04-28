@@ -1,12 +1,12 @@
 import { Plugin } from "../services/plugin_manager.ts";
-import { CommandManager } from "../infrastructure/command_manager.ts";
+import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
 import { FirewallManager } from "../protection/firewall.ts";
 import { PcapManager } from "../protection/pcap.ts";
 import { BroadcastFunction } from "./types.ts";
 
 export class HoneypotPlugin implements Plugin {
   constructor(
-    private commandManager: CommandManager,
+    private sidecarManager: SidecarManager,
     private firewall: FirewallManager,
     private pcap: PcapManager,
     private broadcast: BroadcastFunction,
@@ -24,13 +24,13 @@ export class HoneypotPlugin implements Plugin {
     console.log("[HONEYPOT] Starting Honeypot Sidecar...");
 
     try {
-      const child = await this.commandManager.getPersistentSidecar("honeypot");
+      const child = await this.sidecarManager.getPersistentSidecar("honeypot");
       if (!child) {
         console.error("[HONEYPOT] Failed to start sidecar: binary not found");
         return;
       }
 
-      this.commandManager.onEvent("honeypot", (event) => {
+      this.sidecarManager.onEvent("honeypot", (event) => {
         this.handleEvent(event);
       });
 

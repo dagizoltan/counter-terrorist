@@ -1,13 +1,17 @@
-import { CommandResult, commandManager } from "../infrastructure/command_manager.ts";
+import { CommandResult } from "../../core/ports.ts";
+import { SidecarManager } from "../../infrastructure/sidecar_manager.ts";
+import { SystemExecutor, SystemExecutor } from "../../infrastructure/system_executor.ts";
 import { FirewallProvider } from "./interfaces.ts";
 
 export class UbuntuFirewallProvider implements FirewallProvider {
+  constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}
+
   async blockIp(ip: string): Promise<CommandResult> {
     const command = {
       type: "BlockIp",
       payload: { ip }
     };
-    return await commandManager.runSidecar("blocker", [JSON.stringify(command)]);
+    return await this.sidecar.runSidecar("blocker", [JSON.stringify(command)]);
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
@@ -15,10 +19,10 @@ export class UbuntuFirewallProvider implements FirewallProvider {
       type: "UnblockIp",
       payload: { ip }
     };
-    return await commandManager.runSidecar("blocker", [JSON.stringify(command)]);
+    return await this.sidecar.runSidecar("blocker", [JSON.stringify(command)]);
   }
 
   async getStatus(): Promise<CommandResult> {
-    return await commandManager.execute("ufw", ["status"]);
+    return await this.executor.execute("ufw", ["status"]);
   }
 }

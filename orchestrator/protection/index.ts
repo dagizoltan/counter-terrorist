@@ -1,15 +1,16 @@
-import { CommandManager } from "../infrastructure/command_manager.ts";
+import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
+import { SystemExecutor } from "../infrastructure/system_executor.ts";
 import { PlatformInfo } from "../infrastructure/platform.ts";
 import { createAntivirusManager, createFirewallManager, createPersistenceManager, createPcapManager, createVpnManager } from "./factory.ts";
 import { RkhunterManager } from "./rkhunter.ts";
 
-export function createProtection(commandManager: CommandManager, platformInfo: PlatformInfo) {
+export function createProtection(sidecar: SidecarManager, executor: SystemExecutor, platformInfo: PlatformInfo) {
   return {
-    firewall: createFirewallManager(commandManager, platformInfo),
-    vpn: createVpnManager(commandManager, platformInfo),
-    antivirus: createAntivirusManager(commandManager),
-    persistence: createPersistenceManager(commandManager, platformInfo),
-    pcap: createPcapManager(commandManager),
-    rkhunter: new RkhunterManager(),
+    firewall: createFirewallManager(sidecar, executor, platformInfo),
+    vpn: createVpnManager(sidecar, executor, platformInfo),
+    antivirus: createAntivirusManager(sidecar, executor),
+    persistence: createPersistenceManager(sidecar, executor, platformInfo),
+    pcap: createPcapManager(sidecar),
+    rkhunter: new RkhunterManager(sidecar),
   };
 }

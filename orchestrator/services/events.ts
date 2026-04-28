@@ -1,5 +1,5 @@
 import { pcap } from "../protection/index.ts";
-import { SyslogSeverity, loggingService } from "./logging.ts";
+import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS";
 
@@ -12,6 +12,8 @@ export interface SystemEvent {
 
 export class EventBus {
   private handlers: ((event: SystemEvent) => void)[] = [];
+
+  constructor(private logging: LoggingPort) {}
 
   subscribe(handler: (event: SystemEvent) => void) {
     this.handlers.push(handler);
@@ -27,7 +29,7 @@ export class EventBus {
 
     // Forward to syslog
     const severity = this.mapTypeToSeverity(type);
-    loggingService.log(`[EVENT:${type}] ${message}`, severity);
+    this.logging.log(`[EVENT:${type}] ${message}`, severity);
 
     // Notify internal subscribers
     for (const handler of this.handlers) {

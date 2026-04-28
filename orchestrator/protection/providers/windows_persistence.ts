@@ -1,7 +1,8 @@
-import { commandManager } from "../infrastructure/command_manager.ts";
+import { SystemExecutor } from "../../infrastructure/system_executor.ts";
 import { PersistenceProvider, PersistenceAuditResult } from "./interfaces.ts";
 
 export class WindowsPersistenceProvider implements PersistenceProvider {
+  constructor(private executor: SystemExecutor) {}
   async auditPersistence(): Promise<PersistenceAuditResult> {
     const psCommand = `
       $anomalies = @()
@@ -60,7 +61,7 @@ export class WindowsPersistenceProvider implements PersistenceProvider {
     `;
 
     try {
-      const result = await commandManager.execute("powershell", ["-Command", psCommand]);
+      const result = await executor.execute("powershell", ["-Command", psCommand]);
       return {
         success: result.success,
         anomalies: result.data || [],

@@ -1,5 +1,5 @@
 import { Plugin } from "../services/plugin_manager.ts";
-import { CommandManager } from "../infrastructure/command_manager.ts";
+import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
 import { FirewallManager } from "../protection/firewall.ts";
 import { PcapManager } from "../protection/pcap.ts";
 import { HoneypotPlugin } from "./honeypot.ts";
@@ -11,7 +11,7 @@ import { BroadcastFunction } from "./types.ts";
 import { VpnManager } from "../protection/vpn.ts";
 
 export interface PluginFactoryDependencies {
-  commandManager: CommandManager;
+  sidecarManager: SidecarManager;
   firewall: FirewallManager;
   vpn: VpnManager;
   pcap: PcapManager;
@@ -46,8 +46,8 @@ export const pluginCatalog: PlatformPluginDefinition[] = [
   {
     id: "honeypot",
     supportedTags: ALL_TAGS,
-    create: ({ commandManager, firewall, pcap, broadcast }) =>
-      new HoneypotPlugin(commandManager, firewall, pcap, broadcast),
+    create: ({ sidecarManager, firewall, pcap, broadcast }) =>
+      new HoneypotPlugin(sidecarManager, firewall, pcap, broadcast),
   },
   {
     id: "ssh_honeypot",

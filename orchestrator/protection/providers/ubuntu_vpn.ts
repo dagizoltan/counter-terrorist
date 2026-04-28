@@ -1,17 +1,18 @@
-import { commandManager } from "../infrastructure/command_manager.ts";
+import { SystemExecutor } from "../../infrastructure/system_executor.ts";
 import { VpnProvider, VpnResult } from "./interfaces.ts";
 
 export class UbuntuVpnProvider implements VpnProvider {
+  constructor(private executor: SystemExecutor) {}
   private activeInterface: string | null = null;
 
   async connect(interfaceName: string = "wg0"): Promise<VpnResult> {
-    const checkResult = await commandManager.execute("which", ["wg-quick"]);
+    const checkResult = await executor.execute("which", ["wg-quick"]);
     if (!checkResult.success) {
         return { success: false, message: "WireGuard (wg-quick) is not installed." };
     }
 
     try {
-        const result = await commandManager.execute("wg-quick", ["up", interfaceName]);
+        const result = await executor.execute("wg-quick", ["up", interfaceName]);
         if (result.success) {
             this.activeInterface = interfaceName;
             return { success: true, message: `Connected to ${interfaceName}` };
@@ -35,7 +36,7 @@ export class UbuntuVpnProvider implements VpnProvider {
     }
 
     try {
-        const result = await commandManager.execute("wg-quick", ["down", this.activeInterface]);
+        const result = await executor.execute("wg-quick", ["down", this.activeInterface]);
         if (result.success) {
             const iface = this.activeInterface;
             this.activeInterface = null;
@@ -54,7 +55,7 @@ export class UbuntuVpnProvider implements VpnProvider {
 
   async isConnected(): Promise<boolean> {
     try {
-        const result = await commandManager.execute("wg", ["show"]);
+        const result = await executor.execute("wg", ["show"]);
         return result.success && result.stdout.trim().length > 0;
     } catch {
         return false;
@@ -62,7 +63,7 @@ export class UbuntuVpnProvider implements VpnProvider {
   }
 
   async getStatus() {
-    const result = await commandManager.execute("wg", ["show"]);
+    const result = await executor.execute("wg", ["show"]);
     return {
         connected: result.success && result.stdout.trim().length > 0,
         output: result.stdout,
