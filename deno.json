@@ -3,7 +3,7 @@
     "start": "deno run --allow-net --allow-read --allow-run --allow-sys --allow-env orchestrator/main.ts",
     "dev": "deno run --allow-net --allow-read --allow-run --allow-sys --allow-env --watch orchestrator/main.ts",
     "bootstrap": "deno run --allow-run --allow-read --allow-sys orchestrator/bootstrapper.ts",
-    "build-agents": "cd agents && cargo build --release",
+    "build-agents": "cd agents && cargo build --release && cargo build --release --package ebpf",
     "package": "deno run --allow-run --allow-read --allow-write orchestrator/scripts/package.ts"
   },
   "compilerOptions": {
