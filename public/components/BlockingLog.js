@@ -17,7 +17,12 @@ class BlockingLog extends HTMLElement {
 
   async loadHistory() {
     try {
-      const res = await fetch('/api/audit?limit=50');
+      const token = window.__CONFIG__?.token || '';
+      const res = await fetch('/api/audit?limit=50', {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
       if (res.ok) {
         const history = await res.json();
         // The API returns most recent first, which is the same order we want in our logs array.
@@ -32,7 +37,8 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const token = window.__CONFIG__?.token || '';
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events?token=${token}`);
 
     socket.onmessage = (event) => {
       try {
@@ -70,7 +76,8 @@ class BlockingLog extends HTMLElement {
       const res = await fetch('/api/protection/firewall/block', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + (window.__CONFIG__?.token || '')
         },
         body: JSON.stringify({ ip })
       });
