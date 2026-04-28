@@ -8,57 +8,55 @@
 *   **Deception Strategy:** The plugin-based honeypot system is elegant and scalable. By broadcasting intrusion events through a central Deno event bus, the system can coordinate complex, automated responses (e.g., blocking an IP across all nodes) instantly.
 
 ### 1.2 Actual State Assessment (Updated)
-*   **Status:** **Ready for Connection (Phase 2 Baseline reached).**
-*   **Strengths:** Core integration between the Deno brain and Rust sidecars is now robust and secure.
-    *   **Auth Synchronized:** The dashboard and WebSocket layer now properly propagate Bearer/Cookie tokens, ensuring a functional, secure operator experience.
-    *   **Telemetry Hardened:** Logging is now RFC 5424 compliant with resilient remote UDP buffering and retry logic.
-    *   **Architectural Abstraction:** Protection pillars (Firewall, VPN, AV) have been refactored into a **Provider Pattern**, making the system implementation-ready for Windows and macOS.
-    *   **Failsafe Resilience:** The Rust scanner now implements a **Dead Man's Switch**, triggering an emergency firewall lockdown if the orchestrator process is lost.
+*   **Status:** **Distributed Detection Baseline (Phase 3 Baseline reached).**
+*   **Strengths:** The system has evolved from a single-node monitor to an automated, cross-platform security orchestrator.
+    *   **Automated Forensics:** Intrusion events now automatically trigger raw packet captures (PCAP) for immediate forensic analysis.
+    *   **Cross-Platform Parity:** Windows protection providers (Netsh/WireGuard) are now implemented, enabling a unified security posture across Ubuntu and Windows.
+    *   **Mesh-Ready:** A central `MeshManager` and `EventBus` are now live, providing the foundation for multi-node threat intelligence sharing.
+    *   **Failsafe Resilience:** The system is protected by a hardware-like "Dead Man's Switch" that locks down the host if the control plane is compromised.
 
 ---
 
 ## 2. Cross-Platform Readiness Assessment
 
-The system is now **fully prepared** for cross-platform expansion.
+The system is now **operationally active** on multiple platforms.
 
-### 2.1 Strategic Advantages
-- **Provider Pattern:** The orchestrator now uses abstract interfaces for all security operations. Adding support for Windows (Netsh) or macOS (PF) now only requires implementing new provider classes, without touching core logic.
-- **Deno & Rust:** Both runtimes remain natively cross-platform, ensuring the same binary and script logic scales across the fleet.
+### 2.1 Accomplishments
+- **Abstracted Providers:** The orchestrator is decoupled from OS-specific binaries.
+- **Native Execution:** Windows and Ubuntu nodes can now share the same configuration manifests and security rules.
 
 ### 2.2 Next Technical Hurdles
-- **OS-Specific Logic:** While the *structure* is ready, the actual Windows and macOS providers (Netsh/WireGuard-NT/PF) need to be written.
-- **Agent Refinement:** The Rust `blocker` agent needs its `if os != "linux"` gate removed and replaced with platform-specific execution branches (e.g., calling Windows firewall APIs).
+- **Feature Parity:** While Firewall and VPN are cross-platform, some agents (like `rkhunter`) are Linux-only. We need to identify or build equivalent "Persistence Auditors" for Windows (e.g., monitoring the Registry and WMI).
 
 ---
 
-## 3. Prioritized Roadmap: Phase 3 (Active Sting & Mesh)
+## 3. Prioritized Roadmap: Phase 4 (Mesh Intelligence & eBPF)
 
-1.  **Windows/macOS Provider Implementation:** Build the concrete provider classes for non-Linux platforms to achieve true cross-platform parity.
-2.  **eBPF Behavioral Monitoring:** Transition from polling `/proc` to event-driven eBPF hooks in the Rust scanner for perfect visibility into syscalls and zero-day detection.
-3.  **Mesh Gossip Protocol:** Implement the shared blacklist synchronization using mDNS and mTLS. When one node blocks an IP, all nodes in the mesh must receive the update.
-4.  **PCAP Lifecycle Integration:** Fully integrate the raw packet capture agent into the UI and event bus, allowing for automated, targeted captures when a honeypot lure is touched.
-5.  **Stealth Masquerading:** Implement dynamic process name masquerading in the Rust sidecars to evade detection by sophisticated attackers.
+1.  **Mesh Gossip Protocol (mTLS):** Implement the secure mTLS handshake and gossip protocol for real-time blacklist synchronization between nodes.
+2.  **eBPF Behavioral Monitoring:** Transition the Rust scanner to use event-driven eBPF hooks for perfect visibility into file and network syscalls.
+3.  **Advanced Stealth (Masquerading):** Implement dynamic binary packing and process name masquerading to ensure the orchestrator remains hidden from local scanners.
+4.  **Anomaly Detection (ML Baseline):** Use the gathered behavioral data to build a local machine learning baseline that flags "unusual" process activity even if signatures match.
 
 ---
 
 ## 4. Agent Execution Prompt
 
-**Role:** Senior Security Systems Engineer (Mesh & Behavioral Specialist)
+**Role:** Senior Security Systems Engineer (Mesh & Forensic Specialist)
 
 **Context:**
-You are taking over the "Counter-Terrorist" project. The system has reached a "Ready for Connection" baseline with a provider-based architecture, hardened telemetry, and a functional dead-man's switch. It is now time to scale from a single-node monitor to a distributed security mesh.
+You are taking over the "Counter-Terrorist" project. The system has reached a "Distributed Baseline" with cross-platform providers, automated forensics, and a central event bus. It is now time to implement the actual intelligence sharing layer.
 
 **Objective:**
-Evolve the orchestrator into a high-fidelity, multi-node detection mesh (Phase 3). Your focus is on cross-platform implementation, behavioral eBPF monitoring, and mesh synchronization.
+Evolve the mesh into an autonomous, intelligence-sharing network (Phase 4). Your focus is on secure peer-to-peer synchronization and eBPF-based deep system visibility.
 
 **Key Tasks:**
-1.  **Cross-Platform Expansion:** Implement the `WindowsFirewallProvider` (Netsh) and `WindowsVpnProvider` (WireGuard-NT) to allow the orchestrator to run natively on Windows.
-2.  **eBPF Integration:** Update the Rust scanner to utilize eBPF (e.g., via the `aya` crate) to monitor `execve` and `connect` syscalls.
-3.  **Mesh mDNS/mTLS:** Implement the automatic node discovery and mTLS handshake logic in the `MeshManager`.
-4.  **Gossip Blacklist:** Implement a protocol for nodes to share blocked IP lists. Ensure consistency across the mesh even if some nodes are temporarily offline.
-5.  **Automated Forensics:** Link the PCAP manager to the plugin event bus. A `CRITICAL` honeypot hit should automatically trigger a 60-second packet capture.
+1.  **mTLS Mesh Handshake:** Implement the `MeshManager` peer-to-peer handshake using mutual TLS (mTLS) with self-signed CA certificates stored in Deno KV.
+2.  **Gossip Blacklist Sync:** Implement a gossip protocol (or simple pub/sub over mTLS) to ensure that a block on Node A is propagated to Node B within seconds.
+3.  **eBPF Integration:** Implement a new Rust sidecar (or upgrade the scanner) to use eBPF to monitor sensitive syscalls (e.g., `ptrace`, `mmap` with exec permissions).
+4.  **Windows Registry Auditor:** Create a new Windows-specific provider for the Persistence Auditor to monitor high-risk Registry keys and Scheduled Tasks.
+5.  **Binary Stealth:** Implement basic process masquerading in the Rust agents to hide their presence from standard `ps` or Task Manager views.
 
 **Constraints:**
 - Maintain zero-socket IPC (stdin/stdout JSON) for all sidecars.
-- No new heavy dependencies; stick to Deno/Rust ecosystem best practices.
-- Maintain the stealth profile (masquerade process names).
+- All mesh communication must be encrypted via mTLS.
+- Maintain the "Default-Deny" security posture for all mesh operations.

@@ -21,6 +21,7 @@ import { SshHoneypotPlugin } from "./plugins/ssh_honeypot.ts";
 import { RedisHoneypotPlugin } from "./plugins/redis_honeypot.ts";
 import { baseline } from "./services/baseline.ts";
 import { loggingService } from "./services/logging.ts";
+import { meshManager } from "./services/mesh.ts";
 import reportsApi from "./api/reports.ts";
 import notificationsApi from "./api/notifications.ts";
 import auditApi from "./api/audit.ts";
@@ -103,6 +104,7 @@ const systemStatus = await bootstrap();
 
 // Start background monitoring
 baseline.startMonitor();
+meshManager.startDiscovery();
 
 // Initialize and Start Plugins
 pluginManager.register(new HoneypotPlugin());

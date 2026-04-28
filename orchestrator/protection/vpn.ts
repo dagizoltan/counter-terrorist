@@ -1,11 +1,17 @@
 import { VpnProvider, VpnResult } from "./interfaces.ts";
 import { UbuntuVpnProvider } from "./ubuntu_vpn.ts";
+import { WindowsVpnProvider } from "./windows_vpn.ts";
 
 export class VpnManager {
   private provider: VpnProvider;
 
   constructor() {
-    this.provider = new UbuntuVpnProvider();
+    const os = Deno.build.os;
+    if (os === "windows") {
+        this.provider = new WindowsVpnProvider();
+    } else {
+        this.provider = new UbuntuVpnProvider();
+    }
   }
 
   async connect(interfaceName: string = "wg0"): Promise<VpnResult> {

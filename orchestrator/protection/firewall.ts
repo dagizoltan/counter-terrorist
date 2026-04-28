@@ -1,13 +1,18 @@
 import { broadcast } from "../api/ws.ts";
 import { FirewallProvider } from "./interfaces.ts";
 import { UbuntuFirewallProvider } from "./ubuntu_firewall.ts";
+import { WindowsFirewallProvider } from "./windows_firewall.ts";
 
 export class FirewallManager {
   private provider: FirewallProvider;
 
   constructor() {
-    // Strategy: Default to Ubuntu, but prepared for expansion
-    this.provider = new UbuntuFirewallProvider();
+    const os = Deno.build.os;
+    if (os === "windows") {
+        this.provider = new WindowsFirewallProvider();
+    } else {
+        this.provider = new UbuntuFirewallProvider();
+    }
   }
 
   async blockIp(ip: string) {
