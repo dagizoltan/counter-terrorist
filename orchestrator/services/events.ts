@@ -1,4 +1,4 @@
-import { pcap } from "../protection/pcap.ts";
+import { pcap } from "../protection/index.ts";
 import { SyslogSeverity, loggingService } from "./logging.ts";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS";

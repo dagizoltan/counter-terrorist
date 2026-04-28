@@ -1,12 +1,7 @@
 import { AntivirusProvider, ScanResult } from "./interfaces.ts";
-import { UbuntuAntivirusProvider } from "./ubuntu_antivirus.ts";
 
 export class AntivirusManager {
-  private provider: AntivirusProvider;
-
-  constructor() {
-    this.provider = new UbuntuAntivirusProvider();
-  }
+  constructor(private provider: AntivirusProvider) {}
 
   async getStatus() {
     return await this.provider.getStatus();
@@ -20,5 +15,3 @@ export class AntivirusManager {
     return await this.provider.scanPath(path);
   }
 }
-
-export const antivirus = new AntivirusManager();

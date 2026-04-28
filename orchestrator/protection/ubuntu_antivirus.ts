@@ -1,4 +1,4 @@
-import { commandManager } from "../command_manager.ts";
+import { commandManager } from "../services/command_manager.ts";
 import { resolve, normalize, basename } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import { AntivirusProvider, ScanResult } from "./interfaces.ts";

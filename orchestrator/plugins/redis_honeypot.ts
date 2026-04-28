@@ -1,9 +1,14 @@
-import { Plugin } from "../plugin_manager.ts";
-import { broadcast } from "../api/ws.ts";
-import { firewall } from "../protection/firewall.ts";
-import { pcap } from "../protection/pcap.ts";
+import { Plugin } from "../services/plugin_manager.ts";
+import { FirewallManager } from "../protection/firewall.ts";
+import { PcapManager } from "../protection/pcap.ts";
+import { BroadcastFunction } from "./types.ts";
 
 export class RedisHoneypotPlugin implements Plugin {
+  constructor(
+    private firewall: FirewallManager,
+    private pcap: PcapManager,
+    private broadcast: BroadcastFunction,
+  ) {}
   name = "redis_honeypot";
   private listener: Deno.TcpListener | null = null;
   private active = false;
@@ -31,14 +36,14 @@ export class RedisHoneypotPlugin implements Plugin {
       const remoteAddr = (conn.remoteAddr as Deno.NetAddr).hostname;
       console.warn(`[REDIS-HONEYPOT] Connection attempt from ${remoteAddr}`);
 
-      broadcast({
+      this.broadcast({
         type: "CRITICAL",
         message: `Redis Honeypot Triggered: Connection from ${remoteAddr}`,
         data: { source_ip: remoteAddr, port: this.port }
       });
 
-      firewall.blockIp(remoteAddr).catch(console.error);
-      pcap.startCapture("any", 30).catch(console.error);
+      this.firewall.blockIp(remoteAddr).catch(console.error);
+      this.pcap.startCapture("any", 30).catch(console.error);
 
       // Simple Redis response and close
       try {

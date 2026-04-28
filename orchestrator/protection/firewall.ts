@@ -1,20 +1,9 @@
 import { broadcast } from "../api/ws.ts";
 import { meshManager } from "../services/mesh.ts";
 import { FirewallProvider } from "./interfaces.ts";
-import { UbuntuFirewallProvider } from "./ubuntu_firewall.ts";
-import { WindowsFirewallProvider } from "./windows_firewall.ts";
 
 export class FirewallManager {
-  private provider: FirewallProvider;
-
-  constructor() {
-    const os = Deno.build.os;
-    if (os === "windows") {
-        this.provider = new WindowsFirewallProvider();
-    } else {
-        this.provider = new UbuntuFirewallProvider();
-    }
-  }
+  constructor(private provider: FirewallProvider) {}
 
   async blockIp(ip: string) {
     console.log(`[FIREWALL] Requesting block for IP: ${ip}`);
@@ -36,5 +25,3 @@ export class FirewallManager {
     return await this.provider.getStatus();
   }
 }
-
-export const firewall = new FirewallManager();

@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { baseline } from "../services/baseline.ts";
-import { antivirus } from "../protection/antivirus.ts";
+import { antivirus } from "../protection/index.ts";
 import { rkhunter } from "../protection/rkhunter.ts";
 
 const api = new Hono();

@@ -3,8 +3,11 @@
  * Handles OS detection, dependency verification, and permission checks.
  */
 
+import { getPlatformInfo } from "./services/platform.ts";
+
 export interface SystemStatus {
   os: string;
+  platformTag: string;
   isRoot: boolean;
   dependencies: Record<string, boolean>;
 }
@@ -31,6 +34,7 @@ export async function checkDependency(cmd: string): Promise<boolean> {
 }
 
 export async function bootstrap(): Promise<SystemStatus> {
+  const platformInfo = await getPlatformInfo();
   const os = Deno.build.os;
   const isRoot = os === "windows" ? true : (Deno.uid?.() === 0); // Simplified for Windows
 
@@ -46,6 +50,7 @@ export async function bootstrap(): Promise<SystemStatus> {
 
   return {
     os,
+    platformTag: platformInfo.tag,
     isRoot,
     dependencies,
   };

@@ -1,4 +1,4 @@
-import { CommandResult, commandManager } from "../command_manager.ts";
+import { CommandResult, commandManager } from "../services/command_manager.ts";
 import { FirewallProvider } from "./interfaces.ts";
 
 export class WindowsFirewallProvider implements FirewallProvider {

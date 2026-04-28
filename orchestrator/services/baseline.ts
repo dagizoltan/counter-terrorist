@@ -1,4 +1,4 @@
-import { commandManager } from "../command_manager.ts";
+import { commandManager } from "../services/command_manager.ts";
 import { broadcast } from "../api/ws.ts";
 
 export interface ProcessSnapshot {

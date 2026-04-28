@@ -1,0 +1,87 @@
+import { Plugin } from "../services/plugin_manager.ts";
+import { CommandManager } from "../services/command_manager.ts";
+import { FirewallManager } from "../protection/firewall.ts";
+import { PcapManager } from "../protection/pcap.ts";
+import { HoneypotPlugin } from "./honeypot.ts";
+import { SshHoneypotPlugin } from "./ssh_honeypot.ts";
+import { RedisHoneypotPlugin } from "./redis_honeypot.ts";
+import { BroadcastFunction } from "./types.ts";
+
+export interface PluginFactoryDependencies {
+  commandManager: CommandManager;
+  firewall: FirewallManager;
+  pcap: PcapManager;
+  broadcast: BroadcastFunction;
+}
+
+export interface PlatformPluginDefinition {
+  id: string;
+  supportedTags: string[];
+  create: (deps: PluginFactoryDependencies) => Plugin;
+}
+
+const ALL_TAGS = [
+  "ubuntu_24.04",
+  "ubuntu_26.04",
+  "windows_11",
+  "macos_15",
+  "macos_14",
+];
+
+export const pluginCatalog: PlatformPluginDefinition[] = [
+  {
+    id: "honeypot",
+    supportedTags: ALL_TAGS,
+    create: ({ commandManager, firewall, pcap, broadcast }) =>
+      new HoneypotPlugin(commandManager, firewall, pcap, broadcast),
+  },
+  {
+    id: "ssh_honeypot",
+    supportedTags: ALL_TAGS,
+    create: ({ firewall, pcap, broadcast }) =>
+      new SshHoneypotPlugin(firewall, pcap, broadcast),
+  },
+  {
+    id: "redis_honeypot",
+    supportedTags: ALL_TAGS,
+    create: ({ firewall, pcap, broadcast }) =>
+      new RedisHoneypotPlugin(firewall, pcap, broadcast),
+  },
+];
+
+const PLATFORM_FAMILIES: Record<string, string[]> = {
+  ubuntu: ["ubuntu_24.04", "ubuntu_26.04"],
+  macos: ["macos_15", "macos_14"],
+  windows: ["windows_11"],
+};
+
+export function createPluginsForPlatform(tag: string, deps: PluginFactoryDependencies): Plugin[] {
+  let matches = pluginCatalog.filter((entry) => entry.supportedTags.includes(tag));
+
+  if (matches.length === 0) {
+    const family = tag.split("_")[0];
+    const fallbackTags = PLATFORM_FAMILIES[family] ?? [];
+    if (fallbackTags.length > 0) {
+      matches = pluginCatalog.filter((entry) =>
+        entry.supportedTags.some((supportedTag) => fallbackTags.includes(supportedTag)),
+      );
+    }
+  }
+
+  if (matches.length === 0) {
+    console.warn(`[PLUGIN_CATALOG] No plugin definitions found for platform tag '${tag}'. Falling back to all available plugins.`);
+    matches = pluginCatalog;
+  }
+
+  return matches.map((entry) => entry.create(deps));
+}
+
+export function createPluginFactory(deps: PluginFactoryDependencies) {
+  return {
+    createPluginsForPlatform: (tag: string) => createPluginsForPlatform(tag, deps),
+  };
+}
+
+export function getSupportedPlatformTags(): string[] {
+  return Array.from(new Set(pluginCatalog.flatMap((entry) => entry.supportedTags)));
+}

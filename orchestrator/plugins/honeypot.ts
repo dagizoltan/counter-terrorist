@@ -1,10 +1,16 @@
-import { Plugin } from "../plugin_manager.ts";
-import { commandManager } from "../command_manager.ts";
-import { broadcast } from "../api/ws.ts";
-import { firewall } from "../protection/firewall.ts";
-import { pcap } from "../protection/pcap.ts";
+import { Plugin } from "../services/plugin_manager.ts";
+import { CommandManager } from "../services/command_manager.ts";
+import { FirewallManager } from "../protection/firewall.ts";
+import { PcapManager } from "../protection/pcap.ts";
+import { BroadcastFunction } from "./types.ts";
 
 export class HoneypotPlugin implements Plugin {
+  constructor(
+    private commandManager: CommandManager,
+    private firewall: FirewallManager,
+    private pcap: PcapManager,
+    private broadcast: BroadcastFunction,
+  ) {}
   name = "honeypot";
   private active = false;
 
@@ -18,13 +24,13 @@ export class HoneypotPlugin implements Plugin {
     console.log("[HONEYPOT] Starting Honeypot Sidecar...");
 
     try {
-      const child = await commandManager.getPersistentSidecar("honeypot");
+      const child = await this.commandManager.getPersistentSidecar("honeypot");
       if (!child) {
         console.error("[HONEYPOT] Failed to start sidecar: binary not found");
         return;
       }
 
-      commandManager.onEvent("honeypot", (event) => {
+      this.commandManager.onEvent("honeypot", (event) => {
         this.handleEvent(event);
       });
 
@@ -50,26 +56,26 @@ export class HoneypotPlugin implements Plugin {
     switch (type) {
       case "PortAccess":
         console.warn(`[HONEYPOT] ALERT: Unauthorized port access on port ${payload.port} from ${payload.source_ip}`);
-        broadcast({
+        this.broadcast({
           type: "CRITICAL",
           message: `Honeypot Triggered: Unauthorized access to port ${payload.port}`,
           data: { source_ip: payload.source_ip, port: payload.port }
         });
 
         // Auto-block logic
-        firewall.blockIp(payload.source_ip).catch(err => {
+        this.firewall.blockIp(payload.source_ip).catch(err => {
           console.error(`[HONEYPOT] Failed to auto-block ${payload.source_ip}:`, err);
         });
 
         // Trigger PCAP capture (Phase 2 Requirement)
-        pcap.startCapture("any", 30).catch(err => {
+        this.pcap.startCapture("any", 30).catch(err => {
           console.error("[HONEYPOT] Failed to trigger PCAP:", err);
         });
         break;
 
       case "FileAccess":
         console.warn(`[HONEYPOT] ALERT: Unauthorized file access to ${payload.path} (${payload.event_type})`);
-        broadcast({
+        this.broadcast({
           type: "CRITICAL",
           message: `Honeypot Triggered: Unauthorized file access to ${payload.path}`,
           data: { path: payload.path, event_type: payload.event_type }
@@ -78,7 +84,7 @@ export class HoneypotPlugin implements Plugin {
 
       case "Status":
         console.log(`[HONEYPOT] Status: ${payload.message}`);
-        broadcast({
+        this.broadcast({
           type: "INFO",
           message: `Honeypot Status: ${payload.message}`
         });

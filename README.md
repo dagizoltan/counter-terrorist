@@ -6,7 +6,11 @@ Counter-Terrorist is a lightweight, high-performance security orchestrator for U
 
 To provide Ubuntu users (Desktop and Server) with a transparent, easy-to-manage security layer that combines the safety of the Deno sandbox with the performance of native Rust system agents.
 
-## 🚀 Architecture Summary
+## � Documentation
+
+All project documentation has been moved into the `docs/` directory. For architecture, security, and implementation planning, see `docs/README.md`.
+
+## �🚀 Architecture Summary
 
 The system follows a three-tier model:
 - **Deno Orchestrator:** The central "brain" that manages the Hono-based web UI, coordinates scanning schedules, and persists state to Deno KV.

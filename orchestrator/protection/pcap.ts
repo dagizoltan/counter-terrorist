@@ -1,10 +1,12 @@
-import { commandManager } from "../command_manager.ts";
+import { CommandManager } from "../services/command_manager.ts";
 
 export class PcapManager {
+  constructor(private commandManager: CommandManager) {}
+
   async startCapture(interface_name: string = "any", duration: number = 60, filename: string = `capture_${Date.now()}.pcap`) {
     console.log(`[PCAP] Requesting capture on ${interface_name} for ${duration}s...`);
     try {
-      const result = await commandManager.sendCommand("pcap", {
+      const result = await this.commandManager.sendCommand("pcap", {
         type: "StartCapture",
         payload: { interface: interface_name, duration, filename }
       });
@@ -17,7 +19,7 @@ export class PcapManager {
 
   async stopCapture() {
     try {
-      const result = await commandManager.sendCommand("pcap", {
+      const result = await this.commandManager.sendCommand("pcap", {
         type: "StopCapture"
       });
       return result;
@@ -28,4 +30,3 @@ export class PcapManager {
   }
 }
 
-export const pcap = new PcapManager();

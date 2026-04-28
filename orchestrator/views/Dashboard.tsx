@@ -3,10 +3,10 @@
 import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "./Layout.tsx";
 
-export const Dashboard = (props: { os: string; isRoot: boolean }) => {
+export const Dashboard = (props: { os: string; platformTag: string; isRoot: boolean; plugins: { name: string; status: string }[] }) => {
   return (
     <Layout title="Dashboard">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
           <h3 class="text-slate-400 text-sm font-semibold mb-2 uppercase">System OS</h3>
           <p class="text-2xl font-bold text-white capitalize">{props.os}</p>
@@ -20,6 +20,10 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
           <h3 class="text-slate-400 text-sm font-semibold mb-2 uppercase">Protection Status</h3>
           <p class="text-2xl font-bold text-red-500">ACTIVE</p>
+        </div>
+        <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
+          <h3 class="text-slate-400 text-sm font-semibold mb-2 uppercase">Platform Tag</h3>
+          <p class="text-2xl font-bold text-white">{props.platformTag}</p>
         </div>
       </div>
 
@@ -105,6 +109,17 @@ export const Dashboard = (props: { os: string; isRoot: boolean }) => {
                    }
                  });
                ` }} />
+            </div>
+            <div class="mt-4 pt-4 border-t border-slate-700">
+              <h3 class="text-xs font-bold text-slate-500 uppercase mb-2">Loaded Plugins</h3>
+              <ul class="space-y-2 text-xs text-slate-400">
+                {props.plugins.map((plugin) => (
+                  <li class="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2">
+                    <span>{plugin.name}</span>
+                    <span class="text-green-400 text-xs uppercase">{plugin.status}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
         </div>
