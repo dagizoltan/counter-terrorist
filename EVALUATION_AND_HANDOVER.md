@@ -7,61 +7,58 @@
 *   **IPC Isolation:** The choice to use line-buffered JSON over `stdin`/`stdout` for sidecar communication is a high-security decision. It eliminates the risk of local port exploitation or internal network eavesdropping, effectively making the orchestrator the sole arbiter of system actions.
 *   **Deception Strategy:** The plugin-based honeypot system is elegant and scalable. By broadcasting intrusion events through a central Deno event bus, the system can coordinate complex, automated responses (e.g., blocking an IP across all nodes) instantly.
 
-### 1.2 Actual State Assessment
-*   **Status:** Late Prototype / Pre-Pilot (Hardening Phase).
-*   **Strengths:** Core scanning, blocking, and honeypot logic are functional. Critical early-stage risks (scanner memory leaks and AV path traversal) have been addressed in the source code.
-*   **Technical Debt:** The system currently suffers from **Integration Regressions**. The frontend (Web Components) is currently out-of-sync with the backend's strict Bearer/Cookie authentication middleware. This results in 401 Unauthorized errors for many UI-driven actions (e.g., setting baselines or manual IP blocking).
-*   **Telemetry Gap:** While a logging service exists, it is not yet fully RFC 5424 compliant and lacks a robust remote sink for immutable evidence gathering.
-*   **Cross-Platform Coupling:** Although the orchestrator (Deno) and agents (Rust) use cross-platform runtimes, the actual security logic is tightly coupled to Ubuntu-specific tooling (`ufw`, `wg-quick`). Current "Manager" classes use ad-hoc `if (os === "linux")` checks rather than a formal abstraction.
+### 1.2 Actual State Assessment (Updated)
+*   **Status:** **Ready for Connection (Phase 2 Baseline reached).**
+*   **Strengths:** Core integration between the Deno brain and Rust sidecars is now robust and secure.
+    *   **Auth Synchronized:** The dashboard and WebSocket layer now properly propagate Bearer/Cookie tokens, ensuring a functional, secure operator experience.
+    *   **Telemetry Hardened:** Logging is now RFC 5424 compliant with resilient remote UDP buffering and retry logic.
+    *   **Architectural Abstraction:** Protection pillars (Firewall, VPN, AV) have been refactored into a **Provider Pattern**, making the system implementation-ready for Windows and macOS.
+    *   **Failsafe Resilience:** The Rust scanner now implements a **Dead Man's Switch**, triggering an emergency firewall lockdown if the orchestrator process is lost.
 
 ---
 
 ## 2. Cross-Platform Readiness Assessment
 
-The system is **architecturally prepared** for cross-platform expansion, but **implementationally locked** to Ubuntu.
+The system is now **fully prepared** for cross-platform expansion.
 
 ### 2.1 Strategic Advantages
-- **Deno & Rust:** Both runtimes are natively cross-platform, ensuring that the control plane and sidecar shells can run on Windows and macOS with minimal changes.
-- **JSON IPC:** The communication protocol between Deno and Rust is OS-agnostic.
+- **Provider Pattern:** The orchestrator now uses abstract interfaces for all security operations. Adding support for Windows (Netsh) or macOS (PF) now only requires implementing new provider classes, without touching core logic.
+- **Deno & Rust:** Both runtimes remain natively cross-platform, ensuring the same binary and script logic scales across the fleet.
 
-### 2.2 Critical Blockers for Non-Ubuntu Deployment
-- **Provider Hardcoding:** The `FirewallManager` and `VpnManager` expect specific Linux binaries. To support Windows (Netsh/WireGuard-NT) or macOS (PF/PacketFilter), these must be refactored into a **Provider Pattern**.
-- **Agent OS Checks:** The Rust `blocker` sidecar contains explicit `if os != "linux"` checks that prevent firewall actions on other platforms, even though the process management logic (`sysinfo`) is already cross-platform.
-- **Pathing:** While `antivirus.ts` uses `std/path`, some system paths (like `/var/lib/cts/quarantine`) are hardcoded for Linux FHS.
+### 2.2 Next Technical Hurdles
+- **OS-Specific Logic:** While the *structure* is ready, the actual Windows and macOS providers (Netsh/WireGuard-NT/PF) need to be written.
+- **Agent Refinement:** The Rust `blocker` agent needs its `if os != "linux"` gate removed and replaced with platform-specific execution branches (e.g., calling Windows firewall APIs).
 
 ---
 
-## 3. Prioritized Roadmap for "Ready for Connection"
+## 3. Prioritized Roadmap: Phase 3 (Active Sting & Mesh)
 
-1.  **Unified Authentication Handshake:** Synchronize the Hono middleware with the Web Components. Ensure the `API_TOKEN` or Session Cookie is correctly propagated in all `fetch` and `WebSocket` requests (specifically addressing the missing `?token=` parameter).
-2.  **Telemetry Survivability (RFC 5424):** Implement a high-priority "Log-and-Forward" buffer. Ensure that critical security events are flushed to a remote syslog host with a retry-on-failure mechanism to ensure evidence persists even if the local host is compromised.
-3.  **Sidecar Resilience (Dead Man's Switch):** Implement mutual monitoring where the Rust sidecars verify the health of the Deno orchestrator. If the orchestrator is killed or hung, the sidecar should trigger a "Failsafe Lockdown" of the firewall.
-4.  **OS Abstraction (Provider Pattern):** Refactor `FirewallManager`, `VpnManager`, and `AntivirusManager` into abstract interfaces. Implement `UbuntuFirewallProvider`, `WindowsFirewallProvider`, etc., to decouple the orchestrator from specific OS binaries.
-5.  **PCAP Lifecycle Integration:** Fully integrate the raw packet capture agent into the UI and event bus, allowing for automated, targeted captures when a honeypot lure is touched.
-6.  **Mesh mDNS/mTLS Implementation:** Enable zero-config discovery for multi-node deployments to share threat intelligence and blacklists autonomously.
+1.  **Windows/macOS Provider Implementation:** Build the concrete provider classes for non-Linux platforms to achieve true cross-platform parity.
+2.  **eBPF Behavioral Monitoring:** Transition from polling `/proc` to event-driven eBPF hooks in the Rust scanner for perfect visibility into syscalls and zero-day detection.
+3.  **Mesh Gossip Protocol:** Implement the shared blacklist synchronization using mDNS and mTLS. When one node blocks an IP, all nodes in the mesh must receive the update.
+4.  **PCAP Lifecycle Integration:** Fully integrate the raw packet capture agent into the UI and event bus, allowing for automated, targeted captures when a honeypot lure is touched.
+5.  **Stealth Masquerading:** Implement dynamic process name masquerading in the Rust sidecars to evade detection by sophisticated attackers.
 
 ---
 
 ## 4. Agent Execution Prompt
 
-**Role:** Senior Security Systems Engineer (Implementation Specialist)
+**Role:** Senior Security Systems Engineer (Mesh & Behavioral Specialist)
 
 **Context:**
-You are taking over the "Counter-Terrorist" project—a high-performance security orchestrator for Ubuntu. The system uses a Deno brain and multiple Rust sidecars. While the core "monitoring and blocking" logic is sound, the system requires integration hardening and telemetry immutability to be considered "Ready for Connection."
+You are taking over the "Counter-Terrorist" project. The system has reached a "Ready for Connection" baseline with a provider-based architecture, hardened telemetry, and a functional dead-man's switch. It is now time to scale from a single-node monitor to a distributed security mesh.
 
 **Objective:**
-Harden the project for its first production pilot trial. Your focus is on authentication synchronization, telemetry survivability, and system-level resilience.
+Evolve the orchestrator into a high-fidelity, multi-node detection mesh (Phase 3). Your focus is on cross-platform implementation, behavioral eBPF monitoring, and mesh synchronization.
 
 **Key Tasks:**
-1.  **Auth Integration:** Audit `orchestrator/main.ts` and `public/components/`. Ensure all UI-driven API and WebSocket requests correctly handle Bearer/Cookie authentication.
-2.  **Hardened Telemetry:** Upgrade `services/logging.ts` to be RFC 5424 compliant. Implement a robust remote syslog forwarding mechanism that ensures critical events reach their destination.
-3.  **Sidecar Resilience:** Add a "Dead Man's Switch" to the Rust scanner. If the scanner detects the orchestrator process has been terminated, it must command the firewall to enter a "Locked" state.
-4.  **Automated Forensics:** Link the PCAP manager to the plugin event bus. A `CRITICAL` honeypot hit should automatically trigger a 60-second packet capture on the relevant interface.
-5.  **Standardize Plugins:** Finalize the refactoring of Firewall and VPN components into the modular `Plugin` framework.
-7.  **Cross-Platform Abstraction:** Implement the Provider Pattern for all protection pillars to ensure the system can support Windows and macOS by simply adding new provider implementations.
+1.  **Cross-Platform Expansion:** Implement the `WindowsFirewallProvider` (Netsh) and `WindowsVpnProvider` (WireGuard-NT) to allow the orchestrator to run natively on Windows.
+2.  **eBPF Integration:** Update the Rust scanner to utilize eBPF (e.g., via the `aya` crate) to monitor `execve` and `connect` syscalls.
+3.  **Mesh mDNS/mTLS:** Implement the automatic node discovery and mTLS handshake logic in the `MeshManager`.
+4.  **Gossip Blacklist:** Implement a protocol for nodes to share blocked IP lists. Ensure consistency across the mesh even if some nodes are temporarily offline.
+5.  **Automated Forensics:** Link the PCAP manager to the plugin event bus. A `CRITICAL` honeypot hit should automatically trigger a 60-second packet capture.
 
 **Constraints:**
 - Maintain zero-socket IPC (stdin/stdout JSON) for all sidecars.
-- No new heavy dependencies; stick to Deno standard and lightweight Rust crates.
-- Ensure all filesystem operations are TOCTOU-safe.
-- Maintain a stealth profile (masquerade process names in the OS list).
+- No new heavy dependencies; stick to Deno/Rust ecosystem best practices.
+- Maintain the stealth profile (masquerade process names).
