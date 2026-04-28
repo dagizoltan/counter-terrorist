@@ -2,6 +2,8 @@
 members = [
     "scanner",
     "blocker",
+    "honeypot",
+    "pcap",
 ]
 
 [workspace.dependencies]

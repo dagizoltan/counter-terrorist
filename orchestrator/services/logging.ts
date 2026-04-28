@@ -18,6 +18,38 @@ export class LoggingService {
         this.remotePort = Number(Deno.env.get("SYSLOG_PORT")) || 514;
     }
 
+    private isLogging = false;
+
+    /**
+     * Intercepts console methods to automatically forward logs to syslog.
+     */
+    enableGlobalIntercept() {
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+
+        console.log = (...args: any[]) => {
+            originalLog(...args);
+            if (this.isLogging) return;
+            this.isLogging = true;
+            this.log(args.map(String).join(" "), SyslogSeverity.INFORMATIONAL).finally(() => this.isLogging = false);
+        };
+
+        console.warn = (...args: any[]) => {
+            originalWarn(...args);
+            if (this.isLogging) return;
+            this.isLogging = true;
+            this.log(args.map(String).join(" "), SyslogSeverity.WARNING).finally(() => this.isLogging = false);
+        };
+
+        console.error = (...args: any[]) => {
+            originalError(...args);
+            if (this.isLogging) return;
+            this.isLogging = true;
+            this.log(args.map(String).join(" "), SyslogSeverity.ERROR).finally(() => this.isLogging = false);
+        };
+    }
+
     async log(message: string, severity: SyslogSeverity = SyslogSeverity.INFORMATIONAL) {
         const timestamp = new Date().toISOString();
         const hostname = Deno.hostname() || "unknown";

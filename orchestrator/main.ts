@@ -15,12 +15,20 @@ import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
 import { rkhunter } from "./protection/rkhunter.ts";
+import { pluginManager } from "./plugin_manager.ts";
+import { HoneypotPlugin } from "./plugins/honeypot.ts";
+import { SshHoneypotPlugin } from "./plugins/ssh_honeypot.ts";
+import { RedisHoneypotPlugin } from "./plugins/redis_honeypot.ts";
 import { baseline } from "./services/baseline.ts";
+import { loggingService } from "./services/logging.ts";
 import reportsApi from "./api/reports.ts";
 import notificationsApi from "./api/notifications.ts";
 import auditApi from "./api/audit.ts";
 
 const app = new Hono();
+
+// Enable global console interception to syslog (Phase 2 Requirement)
+loggingService.enableGlobalIntercept();
 
 const TOKEN = Deno.env.get("API_TOKEN");
 
@@ -95,6 +103,12 @@ const systemStatus = await bootstrap();
 
 // Start background monitoring
 baseline.startMonitor();
+
+// Initialize and Start Plugins
+pluginManager.register(new HoneypotPlugin());
+pluginManager.register(new SshHoneypotPlugin());
+pluginManager.register(new RedisHoneypotPlugin());
+pluginManager.startAll().catch(console.error);
 
 // Serve static assets (Web Components)
 app.use(

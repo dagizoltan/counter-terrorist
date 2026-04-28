@@ -1,3 +1,5 @@
+import { loggingService, SyslogSeverity } from "./logging.ts";
+
 export interface AuditEvent {
     id: string;
     timestamp: string;
@@ -36,6 +38,8 @@ export class AuditService {
 
         try {
             await this.kv.set(["audit", Date.now(), id], auditEvent);
+            // Forward audit event to remote syslog (Phase 2 Requirement)
+            loggingService.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, SyslogSeverity.NOTICE);
         } catch (e) {
             console.error("[AUDIT] Failed to save event:", e);
         }
