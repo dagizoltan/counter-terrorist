@@ -40,6 +40,16 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
               <blocking-log id="main-log"></blocking-log>
             </div>
           </section>
+
+          <section class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+            <div class="bg-slate-700/50 p-4 border-b border-slate-700 flex justify-between items-center">
+              <h2 class="font-bold">Process Hierarchy (eBPF Tracked)</h2>
+              <button onclick="document.querySelector('process-tree').refresh()" class="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded border border-slate-600 transition-colors">REFRESH</button>
+            </div>
+            <div class="p-4 max-h-[300px] overflow-y-auto">
+              <process-tree></process-tree>
+            </div>
+          </section>
         </div>
 
         <div class="space-y-6">

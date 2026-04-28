@@ -6,6 +6,7 @@ class BlockingLog extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
     this.logs = [];
+    this.filter = 'ALL';
   }
 
   connectedCallback() {
@@ -60,7 +61,7 @@ class BlockingLog extends HTMLElement {
 
   addLog(entry) {
     this.logs.unshift(entry);
-    if (this.logs.length > 50) this.logs.pop();
+    if (this.logs.length > 100) this.logs.pop();
     this.render();
   }
 
@@ -91,6 +92,10 @@ class BlockingLog extends HTMLElement {
   }
 
   render() {
+    const filteredLogs = this.filter === 'ALL'
+      ? this.logs
+      : this.logs.filter(log => log.type === this.filter || (this.filter === 'WARN' && log.type === 'CRITICAL'));
+
     this.shadowRoot.innerHTML = `
       <style>
         .controls {
@@ -99,6 +104,23 @@ class BlockingLog extends HTMLElement {
           border-bottom: 1px solid #1e293b;
           display: flex;
           gap: 0.5rem;
+          align-items: center;
+        }
+        .filter-group {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.75rem;
+          color: #94a3b8;
+        }
+        select {
+          background: #1e293b;
+          border: 1px solid #334155;
+          color: white;
+          padding: 0.15rem 0.3rem;
+          border-radius: 4px;
+          font-size: 0.75rem;
         }
         input {
           background: #1e293b;
@@ -139,12 +161,24 @@ class BlockingLog extends HTMLElement {
         .message { color: #cbd5e1; }
         .details { color: #94a3b8; font-size: 0.7rem; margin-left: 1rem; }
       </style>
-      <form class="controls" id="block-form">
-        <input type="text" id="ip-input" placeholder="Enter IP to block..." />
-        <button type="submit">BLOCK IP</button>
-      </form>
+      <div class="controls">
+        <form id="block-form" style="display:flex; flex-grow:1; gap: 0.5rem;">
+            <input type="text" id="ip-input" placeholder="Enter IP to block..." />
+            <button type="submit">BLOCK IP</button>
+        </form>
+        <div class="filter-group">
+            <span>Filter:</span>
+            <select id="severity-filter">
+                <option value="ALL" ${this.filter === 'ALL' ? 'selected' : ''}>ALL</option>
+                <option value="INFO" ${this.filter === 'INFO' ? 'selected' : ''}>INFO</option>
+                <option value="WARN" ${this.filter === 'WARN' ? 'selected' : ''}>WARN+</option>
+                <option value="CRITICAL" ${this.filter === 'CRITICAL' ? 'selected' : ''}>CRITICAL</option>
+                <option value="BLOCK" ${this.filter === 'BLOCK' ? 'selected' : ''}>BLOCK</option>
+            </select>
+        </div>
+      </div>
       <div class="log-container">
-        ${this.logs.map(log => `
+        ${filteredLogs.map(log => `
           <div class="entry-group">
             <div class="entry">
               <span class="timestamp">[${log.timestamp}]</span>
@@ -157,6 +191,10 @@ class BlockingLog extends HTMLElement {
       </div>
     `;
     this.shadowRoot.querySelector('#block-form').addEventListener('submit', (e) => this.blockIp(e));
+    this.shadowRoot.querySelector('#severity-filter').addEventListener('change', (e) => {
+        this.filter = e.target.value;
+        this.render();
+    });
   }
 }
 

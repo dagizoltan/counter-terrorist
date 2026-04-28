@@ -11,7 +11,7 @@ export interface CertPair {
 
 export class MeshAuthService {
   private readonly CA_KEY = ["mesh", "pki", "root_ca_v4"];
-  private readonly NODES_PREFIX = ["mesh", "pki", "nodes"];
+  private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v2"];
 
   constructor(private kv: Deno.Kv) {}
 

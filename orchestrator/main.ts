@@ -1,6 +1,6 @@
 import { bootstrap } from "./bootstrapper.ts";
 import { createProtection } from "./protection/index.ts";
-import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService } from "./services/index.ts";
+import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService, ProcessTracker } from "./services/index.ts";
 import { setMeshManager } from "./services/mesh.ts";
 import { SidecarManager } from "./infrastructure/sidecar_manager.ts";
 import { SystemExecutor } from "./infrastructure/system_executor.ts";
@@ -35,6 +35,7 @@ const eventBus = new EventBus(loggingService);
 const meshAuthService = new MeshAuthService(kv);
 const meshManager = new MeshManager(meshAuthService, loggingService);
 setMeshManager(meshManager);
+const processTracker = new ProcessTracker(loggingService);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 
 initBroadcaster({
@@ -75,24 +76,33 @@ const web = new WebAdapter(
   app.platformInfo,
   auditService,
   notificationService,
-  baselineService
+  baselineService,
+  processTracker
 );
 
 // Handle eBPF events
-app.command.onEvent("ebpf", (event: SidecarEvent) => {
+app.command.onEvent("ebpf", async (event: SidecarEvent) => {
   if (event.type === "SYSCALL_EVENT") {
     let type = "INFO";
+    let message = `eBPF Alert: ${event.comm} (PID: ${event.pid}) called ${event.syscall}`;
+
     if (event.syscall === "ptrace") {
       type = "CRITICAL";
     } else if (event.syscall === "mmap") {
       type = "WARN";
     } else if (event.syscall === "execve") {
       type = "WARN";
+      const analysis = await processTracker.analyzeEvent(event.pid, event.comm);
+      if (analysis.isStrayShell) {
+        type = "CRITICAL";
+        message = `STRAY SHELL DETECTED: ${event.comm} (PID: ${event.pid}) spawned by suspicious parent. Reason: ${analysis.reason}`;
+      }
+      event.ppid = analysis.ppid;
     }
 
     broadcast({
       type,
-      message: `eBPF Alert: ${event.comm} (PID: ${event.pid}) called ${event.syscall}`,
+      message,
       data: event
     });
   }
