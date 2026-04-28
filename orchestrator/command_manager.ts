@@ -58,7 +58,7 @@ export class CommandManager {
    */
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
     // Strict sidecar allowlist (Milestone 1 requirement)
-    const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot"];
+    const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap"];
     if (!ALLOWED_SIDECARS.includes(name)) {
       return {
         success: false,
@@ -68,7 +68,7 @@ export class CommandManager {
     }
 
     // Protection against misuse: persistent daemons should not be run via runSidecar
-    const PERSISTENT_SIDECARS = ["scanner", "honeypot"];
+    const PERSISTENT_SIDECARS = ["scanner", "honeypot", "pcap"];
     if (PERSISTENT_SIDECARS.includes(name)) {
       return {
         success: false,

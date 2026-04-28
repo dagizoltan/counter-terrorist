@@ -1,9 +1,16 @@
+import { Plugin } from "../plugin_manager.ts";
 import { commandManager } from "../command_manager.ts";
 import { broadcast } from "../api/ws.ts";
-import { firewall } from "./firewall.ts";
+import { firewall } from "../protection/firewall.ts";
+import { pcap } from "../protection/pcap.ts";
 
-export class HoneypotManager {
+export class HoneypotPlugin implements Plugin {
+  name = "honeypot";
   private active = false;
+
+  status(): "ACTIVE" | "INACTIVE" | "ERROR" {
+    return this.active ? "ACTIVE" : "INACTIVE";
+  }
 
   async start() {
     if (this.active) return;
@@ -24,7 +31,14 @@ export class HoneypotManager {
       this.active = true;
     } catch (error) {
       console.error("[HONEYPOT] Error starting sidecar:", error);
+      throw error;
     }
+  }
+
+  async stop() {
+    // Currently CommandManager doesn't support explicit sidecar termination via API
+    // but we can mark it inactive.
+    this.active = false;
   }
 
   private handleEvent(event: any) {
@@ -45,6 +59,11 @@ export class HoneypotManager {
         // Auto-block logic
         firewall.blockIp(payload.source_ip).catch(err => {
           console.error(`[HONEYPOT] Failed to auto-block ${payload.source_ip}:`, err);
+        });
+
+        // Trigger PCAP capture (Phase 2 Requirement)
+        pcap.startCapture("any", 30).catch(err => {
+          console.error("[HONEYPOT] Failed to trigger PCAP:", err);
         });
         break;
 
@@ -67,5 +86,3 @@ export class HoneypotManager {
     }
   }
 }
-
-export const honeypot = new HoneypotManager();
