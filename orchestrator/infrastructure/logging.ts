@@ -1,15 +1,8 @@
-export enum SyslogSeverity {
-    EMERGENCY = 0,
-    ALERT = 1,
-    CRITICAL = 2,
-    ERROR = 3,
-    WARNING = 4,
-    NOTICE = 5,
-    INFORMATIONAL = 6,
-    DEBUG = 7,
-}
+import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 
-export class LoggingService {
+export { SyslogSeverity };
+
+export class LoggingService implements LoggingPort {
     private remoteHost: string | null = null;
     private remotePort: number = 514;
     private logBuffer: string[] = [];
@@ -117,3 +110,4 @@ export class LoggingService {
     }
 }
 
+export const loggingService = new LoggingService();

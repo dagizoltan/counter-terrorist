@@ -1,5 +1,5 @@
 import { SystemExecutor } from "../../infrastructure/system_executor.ts";
-import { PersistenceProvider, PersistenceAuditResult } from "./interfaces.ts";
+import { PersistenceProvider, PersistenceAuditResult } from "../interfaces.ts";
 
 export class WindowsPersistenceProvider implements PersistenceProvider {
   constructor(private executor: SystemExecutor) {}
@@ -61,7 +61,7 @@ export class WindowsPersistenceProvider implements PersistenceProvider {
     `;
 
     try {
-      const result = await executor.execute("powershell", ["-Command", psCommand]);
+      const result = await this.executor.execute("powershell", ["-Command", psCommand]);
       return {
         success: result.success,
         anomalies: result.data || [],

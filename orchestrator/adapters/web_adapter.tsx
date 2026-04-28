@@ -1,3 +1,6 @@
+/** @jsx jsx */
+/** @jsxFrag Fragment */
+import { jsx, Fragment } from "hono/jsx";
 import { Hono, Context, Next } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { serveStatic, upgradeWebSocket } from "hono/deno";
@@ -208,7 +211,7 @@ export class WebAdapter implements WebPort {
     });
 
     // WebSocket
-    this.app.get("/api/ws/events", upgradeWebSocket(wsHandler));
+    this.app.get("/api/ws/events", upgradeWebSocket(() => wsHandler));
 
     // Login
     this.app.get("/login", (c: Context) => {

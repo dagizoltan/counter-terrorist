@@ -5,8 +5,8 @@ import { Layout } from "./Layout.tsx";
 
 import { ApplicationStatus } from "../core/ports.ts";
 
-export const Dashboard = (props: { os: string; platformTag: string; isRoot: boolean; plugins: { name: string; status: string }[] }) => {
-  const { os, platformTag, isRoot, plugins } = props;
+export const Dashboard = (props: { status: ApplicationStatus }) => {
+  const { os, platformTag, isRoot, plugins } = props.status;
   return (
     <Layout title="Dashboard">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -26,7 +26,7 @@ export const Dashboard = (props: { os: string; platformTag: string; isRoot: bool
         </div>
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
           <h3 class="text-slate-400 text-sm font-semibold mb-2 uppercase">Platform Tag</h3>
-          <p class="text-2xl font-bold text-white">{props.platformTag}</p>
+          <p class="text-2xl font-bold text-white">{platformTag}</p>
         </div>
       </div>
 

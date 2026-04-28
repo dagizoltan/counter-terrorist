@@ -1,4 +1,3 @@
-import { pcap } from "../protection/index.ts";
 import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS";
@@ -19,9 +18,9 @@ export class EventBus {
     this.handlers.push(handler);
   }
 
-  publish(type: EventType, message: string, data?: any) {
+  publish(type: string, message: string, data?: any) {
     const event: SystemEvent = {
-      type,
+      type: type as EventType,
       message,
       timestamp: new Date().toISOString(),
       data
@@ -41,7 +40,7 @@ export class EventBus {
     }
   }
 
-  private mapTypeToSeverity(type: EventType): SyslogSeverity {
+  private mapTypeToSeverity(type: string): SyslogSeverity {
     switch (type) {
       case "CRITICAL": return SyslogSeverity.CRITICAL;
       case "BLOCK": return SyslogSeverity.ALERT;

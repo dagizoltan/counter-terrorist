@@ -4,7 +4,7 @@
  */
 import { WSContext } from "hono/helper/websocket/index.ts";
 import { NotificationService, AuditService, EventBus } from "../services/index.ts";
-import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
+import { LoggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 
 const clients = new Set<WSContext>();
 
@@ -54,10 +54,19 @@ export function broadcast(data: BroadcastData) {
   }
 
   // Trigger Deno KV Audit Event
-  auditService.logEvent(eventToBroadcast).catch(console.error);
+  auditService.logEvent({
+    type: data.type,
+    message: data.message || "",
+    data: data.data,
+    timestamp: eventToBroadcast.timestamp
+  }).catch(console.error);
 
   // Trigger external notifications
-  notificationService.notify(data).catch(console.error);
+  notificationService.notify({
+    type: data.type,
+    message: data.message || "",
+    data: data.data
+  }).catch(console.error);
 
   // Trigger Syslog
   let severity = SyslogSeverity.INFORMATIONAL;
@@ -65,7 +74,8 @@ export function broadcast(data: BroadcastData) {
   else if (data.type?.startsWith("DRIFT")) severity = SyslogSeverity.WARNING;
   else if (data.type === "BLOCK") severity = SyslogSeverity.NOTICE;
 
-  loggingService.log(`${data.type}: ${data.message}`, severity).catch(console.error);
+  const logging = new LoggingService();
+  logging.log(`${data.type}: ${data.message || ""}`, severity).catch(console.error);
 }
 
 export const wsHandler = {

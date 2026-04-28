@@ -1,5 +1,9 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { antivirus } from "../orchestrator/protection/antivirus.ts";
+import { AntivirusManager } from "../orchestrator/protection/antivirus.ts";
+import { UbuntuAntivirusProvider } from "../orchestrator/protection/providers/ubuntu_antivirus.ts";
+import { SystemExecutor } from "../orchestrator/infrastructure/system_executor.ts";
+
+const antivirus = new AntivirusManager(new UbuntuAntivirusProvider(new SystemExecutor()));
 
 Deno.test("AntivirusManager.scanPath validation", async () => {
   // Test allowed paths

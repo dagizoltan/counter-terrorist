@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { CommandManager } from "../orchestrator/services/command_manager.ts";
-import { isValidIP } from "../orchestrator/services/validation.ts";
+import { CommandManager } from "../orchestrator/infrastructure/command_manager.ts";
+import { isValidIP } from "../orchestrator/infrastructure/validation.ts";
 
 Deno.test("IP Validation Regex", () => {
   // Valid IPv4
