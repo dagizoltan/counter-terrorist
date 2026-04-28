@@ -10,30 +10,16 @@ export interface CertPair {
 }
 
 export class MeshAuthService {
-  private kv: Deno.Kv | null = null;
   private readonly CA_KEY = ["mesh", "pki", "root_ca"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes"];
 
-  async init() {
-    if (!this.kv) {
-      this.kv = await Deno.openKv();
-    }
-  }
-
-  async close() {
-    if (this.kv) {
-      await this.kv.close();
-      this.kv = null;
-    }
-  }
+  constructor(private kv: Deno.Kv) {}
 
   /**
    * Generates or retrieves the root CA for the mesh.
    */
   async getRootCA(): Promise<CertPair> {
-    await this.init();
-
-    const entry = await this.kv!.get<CertPair>(this.CA_KEY);
+    const entry = await this.kv.get<CertPair>(this.CA_KEY);
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
     if (entry.value && entry.value.timestamp > thirtyDaysAgo) {
@@ -56,10 +42,8 @@ export class MeshAuthService {
    * Generates a signed certificate for a node.
    */
   async generateNodeCert(nodeId: string): Promise<CertPair> {
-    await this.init();
-
     const nodeKey = [...this.NODES_PREFIX, nodeId];
-    const entry = await this.kv!.get<CertPair>(nodeKey);
+    const entry = await this.kv.get<CertPair>(nodeKey);
 
     if (entry.value) return entry.value;
 
@@ -72,15 +56,14 @@ export class MeshAuthService {
    * Rotates a specific node certificate.
    */
   async rotateCert(nodeId: string): Promise<CertPair> {
-    await this.init();
     const certPair = await this.issueNodeCert(nodeId);
-    await this.kv!.set([...this.NODES_PREFIX, nodeId], certPair);
+    await this.kv.set([...this.NODES_PREFIX, nodeId], certPair);
     return certPair;
   }
 
   private async rotateAllNodeCerts() {
     console.log("[PKI] Rotating all node certificates due to CA regeneration...");
-    const iter = this.kv!.list<CertPair>({ prefix: this.NODES_PREFIX });
+    const iter = this.kv.list<CertPair>({ prefix: this.NODES_PREFIX });
     for await (const entry of iter) {
       const nodeId = entry.key[entry.key.length - 1] as string;
       await this.rotateCert(nodeId);

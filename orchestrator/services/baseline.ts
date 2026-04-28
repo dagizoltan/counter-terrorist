@@ -1,6 +1,7 @@
-import { commandManager } from "../infrastructure/command_manager.ts";
+import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
+import { SystemExecutor } from "../infrastructure/system_executor.ts";
 import { broadcast } from "../api/ws.ts";
-import { loggingService, SyslogSeverity } from "./logging.ts";
+import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 
 export interface ProcessSnapshot {
   pid: number;
@@ -20,22 +21,25 @@ export interface SystemSnapshot {
 export class BaselineService {
   private currentBaseline: SystemSnapshot | null = null;
   private previousProcesses: ProcessSnapshot[] | null = null;
-  private kv: Deno.Kv | null = null;
 
-  constructor() {
-    this.initKv();
+  constructor(
+    private kv: Deno.Kv,
+    private sidecar: SidecarManager,
+    private executor: SystemExecutor,
+    private logging: LoggingPort
+  ) {
+    this.restoreBaseline();
   }
 
-  private async initKv() {
+  private async restoreBaseline() {
     try {
-      this.kv = await Deno.openKv();
       const res = await this.kv.get<SystemSnapshot>(["baseline"]);
       if (res.value) {
         this.currentBaseline = res.value;
-        loggingService.log("[BASELINE] Restored from Deno KV.", SyslogSeverity.INFORMATIONAL);
+        this.logging.log("[BASELINE] Restored from Deno KV.", SyslogSeverity.INFORMATIONAL);
       }
     } catch (e) {
-      loggingService.log(`[BASELINE] Failed to initialize Deno KV: ${e}`, SyslogSeverity.ERROR);
+      this.logging.log(`[BASELINE] Failed to restore baseline from KV: ${e}`, SyslogSeverity.ERROR);
     }
   }
 
@@ -46,7 +50,7 @@ export class BaselineService {
 
     // Capture Ports
     if (os === "linux") {
-      const result = await commandManager.execute("ss", ["-tuln"]);
+      const result = await this.executor.execute("ss", ["-tuln"]);
       // Parse 'ss' output: Extract local address:port from LISTEN lines
       ports = result.stdout.split("\n")
         .filter(l => l.includes("LISTEN"))
@@ -56,7 +60,7 @@ export class BaselineService {
         })
         .filter(p => p !== "");
     } else if (os === "windows") {
-      const result = await commandManager.execute("netstat", ["-ano"]);
+      const result = await this.executor.execute("netstat", ["-ano"]);
       ports = result.stdout.split("\n")
         .filter(l => l.includes("LISTENING"))
         .map(l => {
@@ -68,7 +72,7 @@ export class BaselineService {
 
     // Capture Processes (via our persistent sidecar)
     try {
-        const scanResult = await commandManager.sendCommand("scanner", "SCAN");
+        const scanResult = await this.sidecar.sendCommand("scanner", "SCAN");
         if (scanResult && scanResult.processes) {
             processes = scanResult.processes.map((p: any) => ({
                 pid: p.pid,
@@ -93,7 +97,7 @@ export class BaselineService {
     if (this.kv) {
       await this.kv.set(["baseline"], this.currentBaseline);
     }
-    loggingService.log("[BASELINE] New system baseline established.", SyslogSeverity.NOTICE);
+    this.logging.log("[BASELINE] New system baseline established.", SyslogSeverity.NOTICE);
     broadcast({ type: "INFO", message: "New system baseline established." });
     return this.currentBaseline;
   }
@@ -165,12 +169,12 @@ export class BaselineService {
    * Starts the background drift monitoring loop.
    */
   startMonitor(intervalMs: number = 60000) {
-    loggingService.log(`[BASELINE] Starting background monitoring loop (Interval: ${intervalMs}ms)`, SyslogSeverity.INFORMATIONAL);
+    this.logging.log(`[BASELINE] Starting background monitoring loop (Interval: ${intervalMs}ms)`, SyslogSeverity.INFORMATIONAL);
     setInterval(async () => {
       try {
         await this.checkDrift();
       } catch (e) {
-        loggingService.log(`[BASELINE] Drift check loop failed: ${e}`, SyslogSeverity.ERROR);
+        this.logging.log(`[BASELINE] Drift check loop failed: ${e}`, SyslogSeverity.ERROR);
       }
     }, intervalMs);
   }

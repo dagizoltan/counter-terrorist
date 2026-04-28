@@ -1,11 +1,12 @@
-import { commandManager } from "../infrastructure/command_manager.ts";
+import { SystemExecutor, SystemExecutor } from "../../infrastructure/system_executor.ts";
 import { resolve, normalize, basename } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import { AntivirusProvider, ScanResult } from "./interfaces.ts";
 
 export class UbuntuAntivirusProvider implements AntivirusProvider {
+  constructor(private executor: SystemExecutor) {}
   async getStatus() {
-    const result = await commandManager.execute("systemctl", ["is-active", "clamav-daemon"]);
+    const result = await this.executor.execute("systemctl", ["is-active", "clamav-daemon"]);
     return {
         success: result.success,
         active: result.stdout.trim() === "active",
@@ -85,12 +86,12 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
       };
     }
 
-    const check = await commandManager.execute("which", ["clamscan"]);
+    const check = await this.executor.execute("which", ["clamscan"]);
     if (!check.success) {
         return { success: false, threatsFound: false, message: "clamscan is not installed." };
     }
 
-    const result = await commandManager.execute("clamscan", ["-r", absolutePath]);
+    const result = await this.executor.execute("clamscan", ["-r", absolutePath]);
     const threatsFound = result.stdout.includes("Infected files: 1") || (!result.success && result.stdout.includes("Infected files:"));
 
     if (threatsFound) {

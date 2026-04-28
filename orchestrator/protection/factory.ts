@@ -1,4 +1,5 @@
-import { CommandManager } from "../infrastructure/command_manager.ts";
+import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
+import { SystemExecutor } from "../infrastructure/system_executor.ts";
 import { PlatformInfo } from "../infrastructure/platform.ts";
 import { AntivirusManager } from "./antivirus.ts";
 import { FirewallManager } from "./firewall.ts";
@@ -13,31 +14,31 @@ import { WindowsFirewallProvider } from "./providers/windows_firewall.ts";
 import { WindowsPersistenceProvider } from "./providers/windows_persistence.ts";
 import { WindowsVpnProvider } from "./providers/windows_vpn.ts";
 
-export function createFirewallManager(commandManager: CommandManager, platform: PlatformInfo): FirewallManager {
+export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): FirewallManager {
   if (platform.name === "windows") {
     return new FirewallManager(new WindowsFirewallProvider());
   }
-  return new FirewallManager(new UbuntuFirewallProvider());
+  return new FirewallManager(new UbuntuFirewallProvider(sidecar, executor));
 }
 
-export function createVpnManager(commandManager: CommandManager, platform: PlatformInfo): VpnManager {
+export function createVpnManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): VpnManager {
   if (platform.name === "windows") {
-    return new VpnManager(new WindowsVpnProvider());
+    return new VpnManager(new WindowsVpnProvider(executor));
   }
-  return new VpnManager(new UbuntuVpnProvider());
+  return new VpnManager(new UbuntuVpnProvider(executor));
 }
 
-export function createAntivirusManager(commandManager: CommandManager): AntivirusManager {
-  return new AntivirusManager(new UbuntuAntivirusProvider());
+export function createAntivirusManager(sidecar: SidecarManager, executor: SystemExecutor): AntivirusManager {
+  return new AntivirusManager(new UbuntuAntivirusProvider(executor));
 }
 
-export function createPersistenceManager(commandManager: CommandManager, platform: PlatformInfo): PersistenceManager {
+export function createPersistenceManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): PersistenceManager {
   if (platform.name === "windows") {
-    return new PersistenceManager(new WindowsPersistenceProvider());
+    return new PersistenceManager(new WindowsPersistenceProvider(executor));
   }
-  return new PersistenceManager(new UbuntuPersistenceProvider());
+  return new PersistenceManager(new UbuntuPersistenceProvider(executor));
 }
 
-export function createPcapManager(commandManager: CommandManager): PcapManager {
-  return new PcapManager(commandManager);
+export function createPcapManager(sidecar: SidecarManager): PcapManager {
+  return new PcapManager(sidecar);
 }

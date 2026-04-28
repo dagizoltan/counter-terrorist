@@ -96,6 +96,8 @@ export interface MeshAuthPort {
 export interface ConfigurationPort {
   getToken(): string | undefined;
   getEnv(key: string): string | undefined;
+  getNumber(key: string, defaultValue: number): number;
+  getBoolean(key: string, defaultValue: boolean): boolean;
 }
 
 export interface WebPort {

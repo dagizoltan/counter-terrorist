@@ -1,6 +1,9 @@
 import { bootstrap } from "./bootstrapper.ts";
 import { createProtection } from "./protection/index.ts";
-import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, CommandManager, LoggingService } from "./services/index.ts";
+import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService } from "./services/index.ts";
+import { SidecarManager } from "./infrastructure/sidecar_manager.ts";
+import { SystemExecutor } from "./infrastructure/system_executor.ts";
+import { KvStore } from "./infrastructure/kv_store.ts";
 import { createPluginFactory } from "./plugins/plugin_catalog.ts";
 import { initializeApplication, createDashboardStatus } from "./core/application.ts";
 import { CommandAdapter } from "./adapters/command_adapter.ts";
@@ -9,23 +12,28 @@ import { LoggingAdapter } from "./adapters/logging_adapter.ts";
 import { BaselineAdapter } from "./adapters/baseline_adapter.ts";
 import { MeshAdapter } from "./adapters/mesh_adapter.ts";
 import { MeshAuthAdapter } from "./adapters/mesh_auth_adapter.ts";
-import { configurationAdapter } from "./adapters/configuration_adapter.ts";
+import { EnvConfigProvider } from "./infrastructure/env_config_provider.ts";
 import { WebAdapter } from "./adapters/web_adapter.tsx";
 import { broadcast, initBroadcaster } from "./api/ws.ts";
 import { SidecarEvent } from "./infrastructure/validation.ts";
 
+const configProvider = new EnvConfigProvider();
 const loggingService = new LoggingService();
-const commandManager = new CommandManager();
+const executor = new SystemExecutor();
+const sidecarManager = new SidecarManager(executor);
 
 const platformInfo = await getPlatformInfo();
-const protection = createProtection(commandManager, platformInfo);
+const protection = createProtection(sidecarManager, executor, platformInfo);
 
-const auditService = new AuditService();
-const notificationService = new NotificationService();
-const eventBus = new EventBus();
-const meshAuthService = new MeshAuthService();
-const meshManager = new MeshManager(meshAuthService);
-const baselineService = new BaselineService();
+const kvStore = new KvStore();
+const kv = await kvStore.init();
+
+const auditService = new AuditService(kv, loggingService);
+const notificationService = new NotificationService(kv);
+const eventBus = new EventBus(loggingService);
+const meshAuthService = new MeshAuthService(kv);
+const meshManager = new MeshManager(meshAuthService, loggingService);
+const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 
 initBroadcaster({
   notificationService,
@@ -39,26 +47,26 @@ const app = await initializeApplication({
   platform: { getPlatformInfo },
   pluginRegistry: pluginManager,
   pluginFactory: createPluginFactory({
-    commandManager,
+    sidecarManager,
     firewall: protection.firewall,
     vpn: protection.vpn,
     pcap: protection.pcap,
     broadcast,
   }),
-  command: new CommandAdapter(commandManager),
+  command: new CommandAdapter(sidecarManager),
   protection: new ProtectionAdapter(protection),
   logging: new LoggingAdapter(loggingService),
   baseline: new BaselineAdapter(baselineService),
   mesh: new MeshAdapter(meshManager),
   meshAuth: new MeshAuthAdapter(meshAuthService),
-  config: configurationAdapter,
+  config: configProvider,
   audit: auditService,
   notifications: notificationService,
   eventBus: eventBus,
 });
 
 const web = new WebAdapter(
-  configurationAdapter,
+  configProvider,
   app.protection,
   app.command,
   createDashboardStatus(app.systemStatus, app.platformInfo, pluginManager),
