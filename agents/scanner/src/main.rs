@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use sysinfo::{PidExt, ProcessExt, System, SystemExt};
+use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
 use std::io::{Read};
 use std::fs::{self, File};
 use sha2::{Sha256, Digest};
@@ -68,6 +68,42 @@ fn compute_hash(path: &std::path::Path) -> (String, SystemTime) {
 #[tokio::main]
 async fn main() {
     let mut sys = System::new_all();
+
+    // Dead Man's Switch: Identify the parent orchestrator process
+    let my_pid = Pid::from_u32(std::process::id());
+    sys.refresh_process(my_pid);
+
+    let parent_pid = sys.process(my_pid).and_then(|p| p.parent());
+
+    if let Some(ppid) = parent_pid {
+        let ppid_u32 = ppid.as_u32();
+        tokio::spawn(async move {
+            let mut monitor_sys = System::new();
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                monitor_sys.refresh_process(Pid::from_u32(ppid_u32));
+                if monitor_sys.process(Pid::from_u32(ppid_u32)).is_none() {
+                    eprintln!("[CRITICAL] Parent orchestrator (PID {}) lost! Triggering lockdown...", ppid_u32);
+                    // Trigger Failsafe Lockdown (e.g., block all traffic except SSH)
+                    let _ = std::process::Command::new("ufw")
+                        .args(["default", "deny", "incoming"])
+                        .status();
+                    let _ = std::process::Command::new("ufw")
+                        .args(["default", "deny", "outgoing"])
+                        .status();
+                    // Allow SSH for recovery
+                    let _ = std::process::Command::new("ufw")
+                        .args(["allow", "22/tcp"])
+                        .status();
+                    let _ = std::process::Command::new("ufw")
+                        .arg("enable")
+                        .status();
+                    std::process::exit(1);
+                }
+            }
+        });
+    }
+
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
     let mut hash_cache: HashMap<String, CacheEntry> = HashMap::new();

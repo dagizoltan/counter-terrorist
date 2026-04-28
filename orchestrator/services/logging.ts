@@ -12,17 +12,22 @@ export enum SyslogSeverity {
 export class LoggingService {
     private remoteHost: string | null = null;
     private remotePort: number = 514;
+    private logBuffer: string[] = [];
+    private maxBufferSize = 1000;
+    private isForwarding = false;
 
     constructor() {
         this.remoteHost = Deno.env.get("SYSLOG_HOST") || null;
         this.remotePort = Number(Deno.env.get("SYSLOG_PORT")) || 514;
+
+        if (this.remoteHost) {
+            console.log(`[LOGGING] Remote syslog enabled: ${this.remoteHost}:${this.remotePort}`);
+            this.startFlushInterval();
+        }
     }
 
-    private isLogging = false;
+    private isIntercepting = false;
 
-    /**
-     * Intercepts console methods to automatically forward logs to syslog.
-     */
     enableGlobalIntercept() {
         const originalLog = console.log;
         const originalWarn = console.warn;
@@ -30,23 +35,23 @@ export class LoggingService {
 
         console.log = (...args: any[]) => {
             originalLog(...args);
-            if (this.isLogging) return;
-            this.isLogging = true;
-            this.log(args.map(String).join(" "), SyslogSeverity.INFORMATIONAL).finally(() => this.isLogging = false);
+            if (this.isIntercepting) return;
+            this.isIntercepting = true;
+            this.log(args.map(String).join(" "), SyslogSeverity.INFORMATIONAL).finally(() => this.isIntercepting = false);
         };
 
         console.warn = (...args: any[]) => {
             originalWarn(...args);
-            if (this.isLogging) return;
-            this.isLogging = true;
-            this.log(args.map(String).join(" "), SyslogSeverity.WARNING).finally(() => this.isLogging = false);
+            if (this.isIntercepting) return;
+            this.isIntercepting = true;
+            this.log(args.map(String).join(" "), SyslogSeverity.WARNING).finally(() => this.isIntercepting = false);
         };
 
         console.error = (...args: any[]) => {
             originalError(...args);
-            if (this.isLogging) return;
-            this.isLogging = true;
-            this.log(args.map(String).join(" "), SyslogSeverity.ERROR).finally(() => this.isLogging = false);
+            if (this.isIntercepting) return;
+            this.isIntercepting = true;
+            this.log(args.map(String).join(" "), SyslogSeverity.ERROR).finally(() => this.isIntercepting = false);
         };
     }
 
@@ -54,25 +59,60 @@ export class LoggingService {
         const timestamp = new Date().toISOString();
         const hostname = Deno.hostname() || "unknown";
         const appName = "counter-terrorist";
+        const procId = Deno.pid;
 
-        // RFC 5424 format (simplified)
+        // RFC 5424 format
         // <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
         const pri = (1 * 8) + severity; // Facility 1 (user-level)
-        const syslogMsg = `<${pri}>1 ${timestamp} ${hostname} ${appName} - - - ${message}`;
-
-        console.log(`[SYSLOG] ${syslogMsg}`);
+        const syslogMsg = `<${pri}>1 ${timestamp} ${hostname} ${appName} ${procId} - - ${message}`;
 
         if (this.remoteHost) {
-            try {
-                const conn = await Deno.listenDatagram({
-                    port: 0,
-                    transport: "udp",
+            this.bufferLog(syslogMsg);
+        } else {
+            // If no remote host, we still print to stdout but it's already done by console interception
+        }
+    }
+
+    private bufferLog(msg: string) {
+        this.logBuffer.push(msg);
+        if (this.logBuffer.length > this.maxBufferSize) {
+            this.logBuffer.shift(); // Drop oldest if buffer full
+        }
+    }
+
+    private startFlushInterval() {
+        setInterval(() => this.flushLogs(), 5000);
+    }
+
+    private async flushLogs() {
+        if (this.isForwarding || this.logBuffer.length === 0 || !this.remoteHost) return;
+        this.isForwarding = true;
+
+        const logsToSend = [...this.logBuffer];
+        this.logBuffer = [];
+
+        try {
+            const conn = await Deno.listenDatagram({
+                port: 0,
+                transport: "udp",
+            });
+
+            const encoder = new TextEncoder();
+            for (const log of logsToSend) {
+                await conn.send(encoder.encode(log), {
+                    hostname: this.remoteHost!,
+                    port: this.remotePort,
+                    transport: "udp"
                 });
-                await conn.send(new TextEncoder().encode(syslogMsg), { hostname: this.remoteHost, port: this.remotePort, transport: "udp" });
-                conn.close();
-            } catch (e) {
-                console.error("[SYSLOG] Failed to send remote log:", e);
             }
+            conn.close();
+        } catch (e) {
+            // On failure, put logs back at the beginning of the buffer
+            this.logBuffer = [...logsToSend, ...this.logBuffer].slice(0, this.maxBufferSize);
+            // Don't use console.error here to avoid infinite loops if intercepting
+            // We'll just try again next interval
+        } finally {
+            this.isForwarding = false;
         }
     }
 }
