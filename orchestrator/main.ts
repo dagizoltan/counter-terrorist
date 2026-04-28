@@ -104,6 +104,7 @@ const systemStatus = await bootstrap();
 
 // Start background monitoring
 baseline.startMonitor();
+await meshManager.init();
 meshManager.startDiscovery();
 
 // Initialize and Start Plugins

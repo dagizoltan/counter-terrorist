@@ -31,3 +31,13 @@ export interface AntivirusProvider {
   scanPath(path: string): Promise<ScanResult>;
   quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }>;
 }
+
+export interface PersistenceAuditResult {
+  success: boolean;
+  anomalies: any[];
+  timestamp: string;
+}
+
+export interface PersistenceProvider {
+  auditPersistence(): Promise<PersistenceAuditResult>;
+}

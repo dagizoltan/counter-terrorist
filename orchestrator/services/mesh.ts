@@ -1,4 +1,5 @@
 import { broadcast } from "../api/ws.ts";
+import { meshAuth } from "./mesh_auth.ts";
 
 export interface MeshNode {
   id: string;
@@ -10,9 +11,16 @@ export interface MeshNode {
 export class MeshManager {
   private nodes: Map<string, MeshNode> = new Map();
   private discoveryInterval: number | null = null;
+  private nodeCert: any = null;
 
   constructor() {
     console.log("[MESH] Initializing Mesh Infrastructure...");
+  }
+
+  async init() {
+    const nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
+    this.nodeCert = await meshAuth.generateNodeCert(nodeId);
+    console.log(`[MESH] mTLS Identity established for ${nodeId}`);
   }
 
   /**
@@ -58,8 +66,29 @@ export class MeshManager {
    * Broadcasts a block command to all discovered nodes in the mesh.
    */
   async broadcastBlock(ip: string) {
-    console.log(`[MESH] Broadcasting block for ${ip} to ${this.nodes.size} nodes...`);
-    // Phase 3.2: Implement mTLS-encrypted RPC calls to peer nodes
+    if (this.nodes.size === 0) return;
+
+    console.log(`[MESH] Gossip: Broadcasting block for ${ip} to ${this.nodes.size} nodes...`);
+
+    for (const node of this.nodes.values()) {
+        this.sendSync(node, { type: "GOSSIP_BLOCK", ip }).catch(err => {
+            console.warn(`[MESH] Failed to gossip with ${node.hostname}: ${err.message}`);
+        });
+    }
+  }
+
+  private async sendSync(node: MeshNode, payload: any) {
+    // In Phase 4.1, we use mTLS fetch to peer nodes
+    /*
+    const res = await fetch(`https://${node.address}:8000/api/mesh/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        clientCert: this.nodeCert.cert,
+        clientKey: this.nodeCert.key
+    });
+    */
+    console.log(`[MESH] mTLS Sync sent to ${node.address} (Simulation)`);
   }
 }
 
