@@ -21,9 +21,8 @@ class StatusIndicator extends HTMLElement {
 
   async updateStatus() {
     const name = this.getAttribute('name');
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    // Session cookie handles auth
     const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     try {
       if (name === "Active Blocker") {

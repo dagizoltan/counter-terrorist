@@ -10,7 +10,11 @@ export class WindowsPersistenceProvider implements PersistenceProvider {
       # Audit Scheduled Tasks
       $tasks = Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' -and $_.TaskPath -notlike '\\Microsoft*' }
 
-      # Logic to identify anomalies goes here
+      # Identify suspicious non-Microsoft entries in common Run keys
+      Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' | Get-Member -MemberType NoteProperty | ForEach-Object {
+          $val = Get-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run' -Name $_.Name
+          $anomalies += @{ name = $_.Name; path = $val.$($_.Name); type = 'RegistryRun' }
+      }
       return $anomalies | ConvertTo-Json
     `;
 

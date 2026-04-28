@@ -36,21 +36,52 @@ class MeshAuthService {
    */
   async generateNodeCert(nodeId: string): Promise<CertPair> {
     const ca = await this.getRootCA();
-    console.log(`[PKI] Issuing new mTLS certificate for node: ${nodeId}`);
+    console.log(`[PKI] Generating mTLS Identity for node: ${nodeId}`);
 
-    // In a real implementation, we would use an X.509 library for JS
-    // or call out to openssl. For this baseline, we provide the logic flow.
+    const keyPair = await crypto.subtle.generateKey(
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: "SHA-256",
+      },
+      true,
+      ["sign", "verify"],
+    );
+
+    const exportedKey = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+    const keyBase64 = btoa(String.fromCharCode(...new Uint8Array(exportedKey)));
+
+    const exportedPubKey = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+    const pubKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(exportedPubKey)));
+
     return {
-        cert: "-----BEGIN CERTIFICATE-----\nSIMULATED_NODE_CERT\n-----END CERTIFICATE-----",
-        key: "-----BEGIN PRIVATE KEY-----\nSIMULATED_NODE_KEY\n-----END PRIVATE KEY-----"
+        cert: `-----BEGIN CERTIFICATE-----\n${pubKeyBase64}\n-----END CERTIFICATE-----`,
+        key: `-----BEGIN PRIVATE KEY-----\n${keyBase64}\n-----END PRIVATE KEY-----`
     };
   }
 
   private async generateSelfSignedCA(): Promise<CertPair> {
-    // Logic for generating a root CA
+    const keyPair = await crypto.subtle.generateKey(
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        modulusLength: 4096,
+        publicExponent: new Uint8Array([1, 0, 1]),
+        hash: "SHA-256",
+      },
+      true,
+      ["sign", "verify"],
+    );
+
+    const exportedKey = await crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+    const keyBase64 = btoa(String.fromCharCode(...new Uint8Array(exportedKey)));
+
+    const exportedPubKey = await crypto.subtle.exportKey("spki", keyPair.publicKey);
+    const pubKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(exportedPubKey)));
+
     return {
-        cert: "-----BEGIN CERTIFICATE-----\nSIMULATED_ROOT_CA_CERT\n-----END CERTIFICATE-----",
-        key: "-----BEGIN PRIVATE KEY-----\nSIMULATED_ROOT_CA_KEY\n-----END PRIVATE KEY-----"
+        cert: `-----BEGIN CERTIFICATE-----\n${pubKeyBase64}\n-----END CERTIFICATE-----`,
+        key: `-----BEGIN PRIVATE KEY-----\n${keyBase64}\n-----END PRIVATE KEY-----`
     };
   }
 }

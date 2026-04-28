@@ -34,14 +34,9 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Retrieve token if stored in session/local storage for manual injection
-    // For now, we assume the session cookie is enough, but we add the token param
-    // as required by the backend in main.ts
+    // The session cookie handles auth automatically for the WebSocket connection.
+    // We no longer inject the master token into the URL.
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
-
-    // We try to get the token from a meta tag or a known location
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
-    if (token) url.searchParams.set('token', token);
 
     const socket = new WebSocket(url.toString());
 
@@ -76,9 +71,8 @@ class BlockingLog extends HTMLElement {
     const ip = input.value;
     if (!ip) return;
 
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    // The secure httpOnly session cookie is automatically sent with fetch.
     const headers = { 'Content-Type': 'application/json' };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     input.disabled = true;
     try {

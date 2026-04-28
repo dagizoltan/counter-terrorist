@@ -80,6 +80,12 @@ const authMiddleware = async (c: any, next: any) => {
   }
 
   if (c.req.path === "/api/ws/events") {
+    // Also allow session cookie for WS
+    const sessionToken = getCookie(c, "session_token");
+    if (isTokenValid(sessionToken)) {
+      return next();
+    }
+
     const token = c.req.query("token");
     if (isTokenValid(token)) {
       return next();

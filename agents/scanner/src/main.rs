@@ -70,7 +70,7 @@ async fn main() {
     // Phase 4: Basic Process Masquerading
     // Note: On Linux, we can change the process name shown in some tools by modifying argv[0]
     // For this baseline, we use an innocuous title for the internal logic
-    println!("[INFO] Initializing system-monitoring-helper...");
+    // We avoid raw println! to prevent breaking the line-buffered JSON IPC protocol.
 
     let mut sys = System::new_all();
 
@@ -89,20 +89,21 @@ async fn main() {
                 monitor_sys.refresh_process(Pid::from_u32(ppid_u32));
                 if monitor_sys.process(Pid::from_u32(ppid_u32)).is_none() {
                     eprintln!("[CRITICAL] Parent orchestrator (PID {}) lost! Triggering lockdown...", ppid_u32);
-                    // Trigger Failsafe Lockdown (e.g., block all traffic except SSH)
-                    let _ = std::process::Command::new("ufw")
-                        .args(["default", "deny", "incoming"])
-                        .status();
-                    let _ = std::process::Command::new("ufw")
-                        .args(["default", "deny", "outgoing"])
-                        .status();
-                    // Allow SSH for recovery
-                    let _ = std::process::Command::new("ufw")
-                        .args(["allow", "22/tcp"])
-                        .status();
-                    let _ = std::process::Command::new("ufw")
-                        .arg("enable")
-                        .status();
+
+                    // Trigger Failsafe Lockdown via platform-specific commands
+                    let os = std::env::consts::OS;
+                    if os == "linux" {
+                        let _ = std::process::Command::new("ufw").args(["default", "deny", "incoming"]).status();
+                        let _ = std::process::Command::new("ufw").args(["default", "deny", "outgoing"]).status();
+                        let _ = std::process::Command::new("ufw").args(["allow", "22/tcp"]).status();
+                        let _ = std::process::Command::new("ufw").arg("enable").status();
+                    } else if os == "windows" {
+                        let _ = std::process::Command::new("netsh").args(["advfirewall", "set", "allprofiles", "state", "on"]).status();
+                        let _ = std::process::Command::new("netsh").args(["advfirewall", "set", "allprofiles", "firewallpolicy", "blockinbound,blockoutbound"]).status();
+                        // Allow SSH (Port 22) for recovery if OpenSSH is installed
+                        let _ = std::process::Command::new("netsh").args(["advfirewall", "firewall", "add", "rule", "name=CT-Recovery-SSH", "dir=in", "action=allow", "protocol=TCP", "localport=22"]).status();
+                    }
+
                     std::process::exit(1);
                 }
             }
