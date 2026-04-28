@@ -12,6 +12,7 @@ struct Command {
     id: String,
     #[serde(rename = "type")]
     cmd_type: String,
+    path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,8 +30,19 @@ struct ProcessInfo {
 struct ScanResult {
     id: String,
     timestamp: String,
-    processes: Vec<ProcessInfo>,
-    system_load: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    processes: Option<Vec<ProcessInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_load: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    files: Option<Vec<FileInfo>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct FileInfo {
+    path: String,
+    hash: String,
+    mtime: String,
 }
 
 struct CacheEntry {
@@ -122,7 +134,7 @@ async fn main() {
         if command.cmd_type == "SCAN" {
             sys.refresh_all();
 
-            let mut processes = Vec::new();
+            let mut processes_list = Vec::new();
             let mut seen_paths = std::collections::HashSet::new();
 
             for (pid, process) in sys.processes() {
@@ -160,7 +172,7 @@ async fn main() {
                     }
                 };
 
-                processes.push(ProcessInfo {
+                processes_list.push(ProcessInfo {
                     pid: pid.as_u32(),
                     ppid: process.parent().map(|p| p.as_u32()).unwrap_or(0),
                     name: process.name().to_string(),
@@ -175,14 +187,42 @@ async fn main() {
             hash_cache.retain(|k, _| seen_paths.contains(k));
 
             // Sort by CPU
-            processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
-            let top_processes = processes.into_iter().take(50).collect();
+            processes_list.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
+            let top_processes = processes_list.into_iter().take(50).collect();
 
             let result = ScanResult {
                 id: command.id,
                 timestamp: chrono::Utc::now().to_rfc3339(),
-                processes: top_processes,
-                system_load: sys.load_average().one as f32,
+                processes: Some(top_processes),
+                system_load: Some(sys.load_average().one as f32),
+                files: None,
+            };
+
+            println!("{}", serde_json::to_string(&result).unwrap());
+        } else if command.cmd_type == "DIR_SCAN" {
+            let mut file_infos = Vec::new();
+            if let Some(dir_path) = command.path {
+                if let Ok(entries) = fs::read_dir(&dir_path) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() {
+                            let (hash, mtime) = compute_hash(&path);
+                            file_infos.push(FileInfo {
+                                path: path.to_string_lossy().to_string(),
+                                hash,
+                                mtime: chrono::DateTime::<chrono::Utc>::from(mtime).to_rfc3339(),
+                            });
+                        }
+                    }
+                }
+            }
+
+            let result = ScanResult {
+                id: command.id,
+                timestamp: chrono::Utc::now().to_rfc3339(),
+                processes: None,
+                system_load: None,
+                files: Some(file_infos),
             };
 
             println!("{}", serde_json::to_string(&result).unwrap());

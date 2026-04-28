@@ -11,8 +11,9 @@ export const Layout = (props: { title: string; children: any }) => {
         <meta name="api-token" content={Deno.env.get("API_TOKEN") || ""} />
         <title>{props.title} | Security Orchestrator</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <script type="module" src="/static/components/StatusIndicator.js"></script>
-        <script type="module" src="/static/components/BlockingLog.js"></script>
+        <script type="module" src="/components/StatusIndicator.js"></script>
+        <script type="module" src="/components/BlockingLog.js"></script>
+        <script type="module" src="/components/ProcessTree.js"></script>
       </head>
       <body class="bg-slate-900 text-slate-100 min-h-screen">
         <nav class="border-b border-slate-800 p-4 flex justify-between items-center bg-slate-950">

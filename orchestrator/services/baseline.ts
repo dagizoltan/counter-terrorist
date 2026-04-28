@@ -12,10 +12,17 @@ export interface ProcessSnapshot {
   memory_usage?: number;
 }
 
+export interface FileSnapshot {
+  path: string;
+  hash: string;
+  mtime: string;
+}
+
 export interface SystemSnapshot {
   timestamp: string;
   ports: string[];
   processes: ProcessSnapshot[];
+  files?: FileSnapshot[];
 }
 
 export class BaselineService {
@@ -47,6 +54,7 @@ export class BaselineService {
     const os = Deno.build.os;
     let ports: string[] = [];
     let processes: ProcessSnapshot[] = [];
+    let files: FileSnapshot[] = [];
 
     // Capture Ports
     if (os === "linux") {
@@ -85,10 +93,24 @@ export class BaselineService {
         console.error("[BASELINE] Failed to capture processes from scanner:", e);
     }
 
+    // Capture Sensitive Files
+    const sensitivePaths = ["/etc", "/usr/local/bin"];
+    for (const dir of sensitivePaths) {
+      try {
+        const res = await this.sidecar.sendCommand("scanner", { type: "DIR_SCAN", path: dir });
+        if (res && res.files) {
+          files = files.concat(res.files);
+        }
+      } catch (e) {
+        // Ignore errors for non-existent or inaccessible paths
+      }
+    }
+
     return {
       timestamp: new Date().toISOString(),
       ports,
-      processes
+      processes,
+      files
     };
   }
 
@@ -143,6 +165,14 @@ export class BaselineService {
     // Update previous processes for next run
     this.previousProcesses = current.processes;
 
+    // Check Filesystem drift
+    const baselineFiles = this.currentBaseline.files || [];
+    const currentFiles = current.files || [];
+    const changedFiles = currentFiles.filter(currFile => {
+        const baseFile = baselineFiles.find(f => f.path === currFile.path);
+        return !baseFile || baseFile.hash !== currFile.hash;
+    });
+
     if (newPorts.length > 0) {
       console.warn(`[BASELINE] Port drift detected: ${newPorts.join(", ")}`);
       broadcast({
@@ -161,8 +191,28 @@ export class BaselineService {
         data: newProcs.map(p => ({ name: p.name, pid: p.pid, path: p.exe_path }))
       });
     }
+    if (changedFiles.length > 0) {
+        const criticalFiles = ["/etc/shadow", "/etc/sudoers", "authorized_keys"];
+        const criticalChanges = changedFiles.filter(f => criticalFiles.some(c => f.path.includes(c)));
 
-    return { newPorts, newProcs };
+        if (criticalChanges.length > 0) {
+            this.logging.log(`[BASELINE] CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`, SyslogSeverity.CRITICAL);
+            broadcast({
+                type: "CRITICAL",
+                message: `CRITICAL FILE MODIFIED: ${criticalChanges[0].path} (and ${criticalChanges.length - 1} others)`,
+                data: criticalChanges
+            });
+        } else {
+            console.warn(`[BASELINE] Filesystem drift: ${changedFiles.length} files modified.`);
+            broadcast({
+                type: "DRIFT_FILE",
+                message: `Drift Detected: ${changedFiles.length} files modified in sensitive directories.`,
+                data: changedFiles.slice(0, 10)
+            });
+        }
+    }
+
+    return { newPorts, newProcs, changedFiles };
   }
 
   /**

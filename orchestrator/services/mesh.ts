@@ -30,13 +30,11 @@ export class MeshManager {
       this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
 
       // Create mTLS HTTP client
-      /*
       this.httpClient = Deno.createHttpClient({
         cert: this.nodeCert.cert,
         key: this.nodeCert.key,
-        // caCerts: [(await meshAuth.getRootCA()).cert], // For mutual verification
+        caCerts: [(await this.meshAuth.getRootCA()).cert], // For mutual verification
       });
-      */
 
       this.logging.log(`[MESH] mTLS Identity established for ${this.nodeId}`, SyslogSeverity.NOTICE);
     } catch (e) {

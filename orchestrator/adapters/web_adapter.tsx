@@ -21,7 +21,7 @@ import { isValidIP } from "../infrastructure/validation.ts";
 import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
-import { AuditService, NotificationService, BaselineService } from "../services/index.ts";
+import { AuditService, NotificationService, BaselineService, ProcessTracker } from "../services/index.ts";
 
 export class WebAdapter implements WebPort {
   private app: Hono;
@@ -36,6 +36,7 @@ export class WebAdapter implements WebPort {
     private auditService: AuditService,
     private notificationService: NotificationService,
     private baselineService: BaselineService,
+    private processTracker: ProcessTracker,
   ) {
     this.token = config.getToken();
     this.app = new Hono();
@@ -140,6 +141,10 @@ export class WebAdapter implements WebPort {
       });
     });
 
+    this.app.get("/api/status", (c: Context) => {
+      return c.json(this.dashboardStatus);
+    });
+
     // Agent status
     this.app.get("/api/agent/status", async (c: Context) => {
       const fwStatus = await this.protection.firewall.getStatus();
@@ -210,6 +215,17 @@ export class WebAdapter implements WebPort {
       return c.json(result);
     });
 
+    // Baseline
+    this.app.post("/api/baseline/set", async (c: Context) => {
+      const result = await this.baselineService.setBaseline();
+      return c.json(result);
+    });
+
+    this.app.post("/api/baseline/check", async (c: Context) => {
+      const result = await this.baselineService.checkDrift();
+      return c.json(result);
+    });
+
     // WebSocket
     this.app.get("/api/ws/events", upgradeWebSocket(() => wsHandler));
 
@@ -219,15 +235,27 @@ export class WebAdapter implements WebPort {
     });
 
     this.app.post("/login", async (c: Context) => {
-      const { token } = await c.req.json();
-      if (token === this.token) {
+      let token: string | undefined;
+      const contentType = c.req.header("Content-Type");
+      if (contentType && contentType.includes("application/json")) {
+        const body = await c.req.json();
+        token = body.token;
+      } else {
+        const body = await c.req.parseBody();
+        token = body.password as string;
+      }
+
+      if (token && token === this.token) {
         setCookie(c, "session_token", token, {
           httpOnly: true,
           secure: false, // For development
           sameSite: "Strict",
           maxAge: 86400, // 24 hours
         });
-        return c.json({ success: true });
+        if (contentType && contentType.includes("application/json")) {
+            return c.json({ success: true });
+        }
+        return c.redirect("/");
       }
       return c.json({ error: "Invalid token" }, 401);
     });
@@ -238,12 +266,39 @@ export class WebAdapter implements WebPort {
     });
 
     // Static assets
-    this.app.use(
+    this.app.get(
+      "/components/*",
+      serveStatic({
+        root: "./public",
+      }),
+    );
+
+    this.app.get(
       "/static/*",
       serveStatic({
         root: "./public",
       }),
     );
+
+    // Processes
+    this.app.get("/api/processes/tree", (c: Context) => {
+      return c.json(this.processTracker.getTree());
+    });
+
+    // Mesh
+    this.app.get("/api/mesh/ping", (c: Context) => {
+      return c.json({ success: true, nodeId: Deno.hostname(), timestamp: Date.now() });
+    });
+
+    this.app.post("/api/mesh/sync", async (c: Context) => {
+      const payload = await c.req.json();
+      console.log(`[MESH] Received sync from peer:`, payload);
+      // Process gossip payload (e.g. block IP)
+      if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
+        await this.protection.firewall.blockIp(payload.ip);
+      }
+      return c.json({ success: true });
+    });
 
     // API modules
     this.app.route("/api/reports", createReportsApi(this.baselineService, this.protection));

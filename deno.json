@@ -1,7 +1,7 @@
 {
   "tasks": {
-    "start": "deno run --allow-net --allow-read --allow-write --allow-run --allow-sys --allow-env --unstable-kv orchestrator/main.ts",
-    "dev": "deno run --allow-net --allow-read --allow-write --allow-run --allow-sys --allow-env --unstable-kv --watch orchestrator/main.ts",
+    "start": "deno run --allow-net --allow-read --allow-write --allow-run --allow-sys --allow-env --unstable-kv --unstable-net orchestrator/main.ts",
+    "dev": "deno run --allow-net --allow-read --allow-write --allow-run --allow-sys --allow-env --unstable-kv --unstable-net --watch orchestrator/main.ts",
     "bootstrap": "deno run --allow-run --allow-read --allow-sys orchestrator/bootstrapper.ts",
     "build-agents": "cd agents && cargo build --release && cargo build --release --package ebpf",
     "package": "deno run --allow-run --allow-read --allow-write orchestrator/scripts/package.ts"
