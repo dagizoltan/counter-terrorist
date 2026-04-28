@@ -6,6 +6,7 @@ import { WSContext } from "https://deno.land/x/hono@v4.3.7/helper/websocket/inde
 import { notificationService } from "../services/alerts.ts";
 import { loggingService, SyslogSeverity } from "../services/logging.ts";
 import { auditService } from "../services/audit.ts";
+import { eventBus } from "../services/events.ts";
 
 const clients = new Set<WSContext>();
 
@@ -15,6 +16,11 @@ export function broadcast(data: any) {
     ...data,
     timestamp
   };
+
+  // Publish to central event bus (Phase 3: Trigger Forensic Automation)
+  if (data.type) {
+    eventBus.publish(data.type, data.message || "", data.data);
+  }
   const message = JSON.stringify(eventToBroadcast);
 
   for (const client of clients) {
