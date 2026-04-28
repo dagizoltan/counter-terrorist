@@ -1,0 +1,23 @@
+You are an expert security engineer and system developer. Your task is to remediate several critical blockers in the "Counter-Terrorist" security orchestrator. Review the provided architecture context (`STABLE_DESIGN.md`, `EVALUATION_AND_ROADMAP.md`) and address the following items in the codebase without fundamentally altering the core architecture.
+
+1. **Fix Frontend Authentication Integration:**
+   - Investigate the frontend UI components (e.g., dashboard REST API fetch calls and WebSocket initialization).
+   - Ensure that the frontend correctly relies on the established `httpOnly` secure session cookies for all `/api/*` and WebSocket authentication, removing any legacy code that attempts to pass insecure tokens or query parameters.
+
+2. **Resolve Rust Scanner Memory Leak:**
+   - Locate the `hash_cache` implementation within the Rust scanner daemon (`agents/scanner/`).
+   - Implement a robust cache eviction mechanism that periodically iterates through the cache and safely removes entries for processes that have terminated or no longer exist on the filesystem to prevent OOM errors.
+
+3. **Harden Antivirus Path Validation:**
+   - Locate the `AntivirusManager` (likely in `orchestrator/protection/antivirus.ts`).
+   - Replace the insecure `.startsWith()` path validation logic with strict boundary checks (such as enforcing trailing slashes or using path resolution) to explicitly prevent directory traversal or prefix bypass attacks (e.g., disallowing `/tmp-malicious`).
+
+4. **Connect UI Status Indicators to Real Data:**
+   - Locate UI components containing hardcoded mock data (such as `StatusIndicator` components with manual timeout delays).
+   - Wire these components directly to the authenticated backend API endpoints so they reflect live system state.
+
+5. **Validation and Verification:**
+   - After completing these changes, run the Deno test suite (`deno test --allow-env`) and the Rust test suite (`cd agents && cargo test`).
+   - Ensure all changes pass linting and programmatic tests. Use tool calls to verify the codebase state continuously.
+
+Do not rewrite major components from scratch; focus on "Incremental Refactoring" to address these specific vulnerabilities and integration errors. Use your available tools to locate the exact files, make the necessary Git-diff style updates, and verify your changes.
