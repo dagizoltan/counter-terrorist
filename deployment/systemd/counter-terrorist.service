@@ -12,8 +12,8 @@ Restart=always
 RestartSec=5
 
 # Hardening
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE
-AmbientCapabilities=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE CAP_BPF
+AmbientCapabilities=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE CAP_BPF
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

@@ -15,6 +15,7 @@ import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
 import { rkhunter } from "./protection/rkhunter.ts";
+import { persistence } from "./protection/persistence.ts";
 import { pluginManager } from "./plugin_manager.ts";
 import { HoneypotPlugin } from "./plugins/honeypot.ts";
 import { SshHoneypotPlugin } from "./plugins/ssh_honeypot.ts";
@@ -22,6 +23,9 @@ import { RedisHoneypotPlugin } from "./plugins/redis_honeypot.ts";
 import { baseline } from "./services/baseline.ts";
 import { loggingService } from "./services/logging.ts";
 import { meshManager } from "./services/mesh.ts";
+import { meshAuth } from "./services/mesh_auth.ts";
+import { commandManager } from "./command_manager.ts";
+import { broadcast } from "./api/ws.ts";
 import reportsApi from "./api/reports.ts";
 import notificationsApi from "./api/notifications.ts";
 import auditApi from "./api/audit.ts";
@@ -52,6 +56,9 @@ app.use(
 import { timingSafeEqual } from "node:crypto";
 
 const isTokenValid = (tokenToTest: string | undefined): boolean => {
+  // If no token is set in environment, we might be in a bootstrap phase.
+  // But for security, we require it.
+  if (!TOKEN) return false;
   if (!tokenToTest) return false;
   // Use TextEncoder to safely handle any string length into a Uint8Array
   const encoder = new TextEncoder();
@@ -106,6 +113,30 @@ const systemStatus = await bootstrap();
 baseline.startMonitor();
 await meshManager.init();
 meshManager.startDiscovery();
+
+// Handle eBPF events
+commandManager.onEvent("ebpf", (data: any) => {
+  if (data.type === "SYSCALL_EVENT") {
+    let type = "INFO";
+    if (data.syscall === "ptrace") {
+      type = "CRITICAL";
+    } else if (data.syscall === "mmap") {
+      // In a real implementation we'd check for PROT_EXEC
+      type = "WARN";
+    }
+
+    broadcast({
+      type,
+      message: `eBPF Alert: ${data.comm} (PID: ${data.pid}) called ${data.syscall}`,
+      data: data
+    });
+  }
+});
+
+// Start eBPF sidecar
+commandManager.getPersistentSidecar("ebpf").catch(err => {
+  console.warn("[MAIN] Failed to start eBPF sidecar:", err.message);
+});
 
 // Initialize and Start Plugins
 pluginManager.register(new HoneypotPlugin());
@@ -231,6 +262,11 @@ app.get("/api/protection/rkhunter/status", (c) => {
   return c.json(result || { message: "No scan performed yet" });
 });
 
+app.post("/api/protection/persistence/audit", async (c) => {
+  const result = await persistence.audit();
+  return c.json(result);
+});
+
 app.route("/api/reports", reportsApi);
 app.route("/api/notifications", notificationsApi);
 app.route("/api/audit", auditApi);
@@ -245,6 +281,16 @@ app.post("/api/baseline/check", async (c) => {
   return c.json(result || { message: "No baseline established" });
 });
 
+app.post("/api/mesh/sync", async (c) => {
+  const payload = await c.req.json();
+  if (payload.type === "GOSSIP_BLOCK") {
+    console.log(`[MESH] Received Gossip Block for IP: ${payload.ip}`);
+    const result = await firewall.blockIp(payload.ip);
+    return c.json(result);
+  }
+  return c.json({ error: "Unknown gossip type" }, 400);
+});
+
 // WebSocket Handler
 app.get(
   "/api/ws/events",
@@ -257,16 +303,28 @@ const PORT = Number(Deno.env.get("PORT")) || 8000;
 const HOST = "127.0.0.1";
 
 // Support for TLS (Milestone 2 Requirement)
-const certFile = Deno.env.get("TLS_CERT");
-const keyFile = Deno.env.get("TLS_KEY");
+let cert = Deno.env.get("TLS_CERT") ? await Deno.readTextFile(Deno.env.get("TLS_CERT")!) : null;
+let key = Deno.env.get("TLS_KEY") ? await Deno.readTextFile(Deno.env.get("TLS_KEY")!) : null;
 
-if (certFile && keyFile) {
+// Fallback to Mesh Certificates if TLS env vars are not set
+let caCert = null;
+if (!cert || !key) {
+  console.log("[MAIN] No TLS environment variables found. Using Mesh mTLS identity.");
+  const nodeCert = await meshAuth.generateNodeCert(Deno.hostname() || "node-local");
+  cert = nodeCert.cert;
+  key = nodeCert.key;
+  caCert = (await meshAuth.getRootCA()).cert;
+}
+
+if (cert && key) {
   console.log(`Local (HTTPS): https://${HOST}:${PORT}`);
   Deno.serve({
     port: PORT,
     hostname: HOST,
-    cert: await Deno.readTextFile(certFile),
-    key: await Deno.readTextFile(keyFile),
+    cert: cert,
+    key: key,
+    // Enable client certificate verification for mTLS
+    ...(caCert ? { caCerts: [caCert] } : {}),
   }, app.fetch);
 } else {
   console.log(`Local (HTTP): http://${HOST}:${PORT}`);

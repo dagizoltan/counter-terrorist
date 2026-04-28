@@ -3,7 +3,7 @@ members = [
     "scanner",
     "blocker",
     "honeypot",
-    "pcap",
+    "pcap", "ebpf",
 ]
 
 [workspace.dependencies]
