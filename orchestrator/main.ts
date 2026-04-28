@@ -84,6 +84,8 @@ app.command.onEvent("ebpf", (event: SidecarEvent) => {
       type = "CRITICAL";
     } else if (event.syscall === "mmap") {
       type = "WARN";
+    } else if (event.syscall === "execve") {
+      type = "WARN";
     }
 
     broadcast({

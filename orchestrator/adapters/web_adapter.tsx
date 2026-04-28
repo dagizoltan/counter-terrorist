@@ -90,6 +90,15 @@ export class WebAdapter implements WebPort {
     const authMiddleware = async (c: Context, next: Next) => {
       const sessionToken = getCookie(c, "session_token");
       if (isTokenValid(sessionToken)) {
+        // CSRF protection for state-changing methods when using cookie auth
+        const method = c.req.method;
+        if (method === "POST" || method === "DELETE" || method === "PUT" || method === "PATCH") {
+          const ctToken = c.req.header("X-CT-Token");
+          if (!isTokenValid(ctToken)) {
+            loggingService.log(`[AUTH] CSRF attempt blocked: Missing or invalid X-CT-Token header for ${method} ${c.req.path}`, SyslogSeverity.WARNING);
+            return c.json({ error: "CSRF Protection: X-CT-Token header required" }, 403);
+          }
+        }
         return next();
       }
 
@@ -102,10 +111,9 @@ export class WebAdapter implements WebPort {
       }
 
       if (c.req.path === "/api/ws/events") {
-        const token = c.req.query("token");
-        if (isTokenValid(token)) {
-          return next();
-        }
+        // WebSocket must rely on session cookie or bearer token in headers
+        // Falling back to query param token is deprecated/insecure
+        return c.json({ error: "Unauthorized: WebSockets require session cookie or bearer token" }, 401);
       }
 
       if (!c.req.path.startsWith("/api/")) {

@@ -3,18 +3,21 @@
 import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "./Layout.tsx";
 
+import { ApplicationStatus } from "../core/ports.ts";
+
 export const Dashboard = (props: { os: string; platformTag: string; isRoot: boolean; plugins: { name: string; status: string }[] }) => {
+  const { os, platformTag, isRoot, plugins } = props;
   return (
     <Layout title="Dashboard">
       <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
           <h3 class="text-slate-400 text-sm font-semibold mb-2 uppercase">System OS</h3>
-          <p class="text-2xl font-bold text-white capitalize">{props.os}</p>
+          <p class="text-2xl font-bold text-white capitalize">{os}</p>
         </div>
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
           <h3 class="text-slate-400 text-sm font-semibold mb-2 uppercase">Privileges</h3>
-          <p class={`text-2xl font-bold ${props.isRoot ? "text-green-400" : "text-yellow-400"}`}>
-            {props.isRoot ? "Elevated (Root)" : "Limited (User)"}
+          <p class={`text-2xl font-bold ${isRoot ? "text-green-400" : "text-yellow-400"}`}>
+            {isRoot ? "Elevated (Root)" : "Limited (User)"}
           </p>
         </div>
         <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 shadow-lg">
@@ -44,13 +47,13 @@ export const Dashboard = (props: { os: string; platformTag: string; isRoot: bool
             <h2 class="font-bold mb-4">System Baseline & Reports</h2>
             <div class="grid grid-cols-2 gap-4">
               <button
-                onclick="fetch('/api/baseline/set', {method:'POST'})"
+                onclick="fetch('/api/baseline/set', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=api-token]')?.content || ''}})"
                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
               >
                 SET NEW BASELINE
               </button>
               <button
-                onclick="fetch('/api/baseline/check', {method:'POST'})"
+                onclick="fetch('/api/baseline/check', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=api-token]')?.content || ''}})"
                 class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
               >
                 RUN DRIFT AUDIT
@@ -70,7 +73,7 @@ export const Dashboard = (props: { os: string; platformTag: string; isRoot: bool
               <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
                 <span>Rootkit Scanner</span>
                 <button
-                  onclick="fetch('/api/protection/rkhunter/scan', {method:'POST'})"
+                  onclick="fetch('/api/protection/rkhunter/scan', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=api-token]')?.content || ''}})"
                   class="bg-red-600 hover:bg-red-700 text-white text-xs py-1 px-2 rounded"
                 >
                   RUN RKHUNTER
@@ -113,7 +116,7 @@ export const Dashboard = (props: { os: string; platformTag: string; isRoot: bool
             <div class="mt-4 pt-4 border-t border-slate-700">
               <h3 class="text-xs font-bold text-slate-500 uppercase mb-2">Loaded Plugins</h3>
               <ul class="space-y-2 text-xs text-slate-400">
-                {props.plugins.map((plugin) => (
+                {plugins.map((plugin) => (
                   <li class="flex items-center justify-between bg-slate-900 rounded-lg px-3 py-2">
                     <span>{plugin.name}</span>
                     <span class="text-green-400 text-xs uppercase">{plugin.status}</span>
