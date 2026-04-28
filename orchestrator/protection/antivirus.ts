@@ -48,7 +48,7 @@ export class AntivirusManager {
       }
 
       const fileName = basename(path);
-      const destination = resolve(QUARANTINE_DIR, `${Date.now()}_${fileName}`);
+      const destination = resolve(QUARANTINE_DIR, `${crypto.randomUUID()}_${fileName}`);
 
       // Final check: ensure mtime hasn't changed since we started the quarantine process
       const currentStat = await Deno.stat(path);
@@ -56,12 +56,18 @@ export class AntivirusManager {
         return { success: false, message: "Security Warning: File modified during quarantine process. Aborting." };
       }
 
+      // Open destination with createNew to prevent TOCTOU symlink attacks
+      const destFile = await Deno.open(destination, { write: true, createNew: true });
+      const srcFile = await Deno.open(path, { read: true });
+
       try {
-        await Deno.rename(path, destination);
-      } catch (e) {
-        // Fallback for cross-device moves
-        await copy(path, destination);
-        await Deno.remove(path);
+        await srcFile.readable.pipeTo(destFile.writable);
+      } finally {
+        try {
+          await Deno.remove(path);
+        } catch {
+          // Best effort removal
+        }
       }
 
       const metadata = {

@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=cts
 WorkingDirectory=/opt/counter-terrorist
 # Note: The orchestrator typically spawns this, but this service can be used for
 # a decoupled deployment where the scanner runs as its own managed daemon.
@@ -12,6 +12,14 @@ WorkingDirectory=/opt/counter-terrorist
 ExecStart=/opt/counter-terrorist/agents/target/release/scanner
 Restart=always
 RestartSec=5
+
+# Hardening
+CapabilityBoundingSet=CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_DAC_OVERRIDE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cts
 
 [Install]
 WantedBy=multi-user.target

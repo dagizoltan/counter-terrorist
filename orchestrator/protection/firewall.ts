@@ -12,6 +12,16 @@ export class FirewallManager {
     return await commandManager.runSidecar("blocker", [JSON.stringify(command)]);
   }
 
+  async unblockIp(ip: string) {
+    console.log(`[FIREWALL] Requesting unblock for IP: ${ip}`);
+    broadcast({ type: "INFO", message: `Unblocking IP: ${ip}` });
+    const command = {
+      type: "UnblockIp",
+      payload: { ip }
+    };
+    return await commandManager.runSidecar("blocker", [JSON.stringify(command)]);
+  }
+
   async getStatus() {
     const os = Deno.build.os;
     if (os === "linux") {

@@ -18,7 +18,11 @@ export function broadcast(data: any) {
   const message = JSON.stringify(eventToBroadcast);
 
   for (const client of clients) {
-    client.send(message);
+    try {
+      client.send(message);
+    } catch {
+      clients.delete(client);
+    }
   }
 
   // Trigger Deno KV Audit Event

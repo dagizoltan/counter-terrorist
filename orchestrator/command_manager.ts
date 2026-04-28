@@ -11,7 +11,7 @@ export interface CommandResult {
 
 export class CommandManager {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
-  private responseWaiters: Map<string, Map<string, (data: any) => void>> = new Map();
+  private responseWaiters: Map<string, Map<string, { resolve: (data: any) => void, reject: (err: Error) => void }>> = new Map();
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
 
   /**
@@ -197,9 +197,9 @@ export class CommandManager {
             // 1. Check if anyone is waiting for this specific ID
             if (data.id && this.responseWaiters.has(name)) {
               const waiters = this.responseWaiters.get(name)!;
-              const resolve = waiters.get(data.id);
-              if (resolve) {
-                resolve(data);
+              const waiter = waiters.get(data.id);
+              if (waiter) {
+                waiter.resolve(data);
                 waiters.delete(data.id);
                 continue;
               }
@@ -220,6 +220,14 @@ export class CommandManager {
     } finally {
       reader.releaseLock();
       this.persistentProcesses.delete(name);
+
+      // Reject any pending promises to avoid memory leaks
+      if (this.responseWaiters.has(name)) {
+        const waiters = this.responseWaiters.get(name)!;
+        for (const [id, waiter] of waiters.entries()) {
+          waiter.reject(new Error(`Sidecar ${name} crashed or stream closed`));
+        }
+      }
       this.responseWaiters.delete(name);
     }
   }
@@ -240,18 +248,27 @@ export class CommandManager {
       commandObj = { ...cmd, id };
     }
 
-    const responsePromise = new Promise((resolve) => {
+    const responsePromise = new Promise((resolve, reject) => {
       if (!this.responseWaiters.has(name)) {
         this.responseWaiters.set(name, new Map());
       }
-      this.responseWaiters.get(name)!.set(id, resolve);
+      this.responseWaiters.get(name)!.set(id, { resolve, reject });
+    });
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        if (this.responseWaiters.has(name)) {
+          this.responseWaiters.get(name)!.delete(id);
+        }
+        reject(new Error(`Command ${commandObj.type} to sidecar ${name} timed out after 30 seconds.`));
+      }, 30000);
     });
 
     const writer = child.stdin.getWriter();
     await writer.write(new TextEncoder().encode(JSON.stringify(commandObj) + "\n"));
     writer.releaseLock();
 
-    return responsePromise;
+    return Promise.race([responsePromise, timeoutPromise]);
   }
 
   /**

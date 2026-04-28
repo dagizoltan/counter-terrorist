@@ -1,6 +1,21 @@
 #!/bin/bash
 set -e
 
+# Create dedicated cts user
+if ! id "cts" &>/dev/null; then
+    useradd -r -s /bin/false cts
+fi
+
+# Set up required directories and permissions
+mkdir -p /var/lib/cts
+chown -R cts:cts /var/lib/cts
+
+# Ensure env file is secure
+if [ -f "/etc/counter-terrorist/orchestrator.env" ]; then
+    chown cts:cts /etc/counter-terrorist/orchestrator.env
+    chmod 600 /etc/counter-terrorist/orchestrator.env
+fi
+
 # Reload systemd to recognize new services
 systemctl daemon-reload
 

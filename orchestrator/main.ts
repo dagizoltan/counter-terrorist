@@ -31,10 +31,24 @@ app.use("/api/*", cors({
   credentials: true,
 }));
 
+import { timingSafeEqual } from "node:crypto";
+
+const isTokenValid = (tokenToTest: string | undefined): boolean => {
+  if (!tokenToTest) return false;
+  // Use TextEncoder to safely handle any string length into a Uint8Array
+  const encoder = new TextEncoder();
+  const a = encoder.encode(tokenToTest);
+  const b = encoder.encode(TOKEN!);
+  // If lengths differ, timingSafeEqual will throw. Prevent this by checking length first,
+  // but note that length check is a timing leak for token length. Usually acceptable.
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+};
+
 const authMiddleware = async (c: any, next: any) => {
   // Check cookie
   const sessionToken = getCookie(c, "session_token");
-  if (sessionToken === TOKEN) {
+  if (isTokenValid(sessionToken)) {
     return next();
   }
 
@@ -42,14 +56,14 @@ const authMiddleware = async (c: any, next: any) => {
   const authHeader = c.req.header("Authorization");
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const bearerToken = authHeader.substring(7);
-    if (bearerToken === TOKEN) {
+    if (isTokenValid(bearerToken)) {
       return next();
     }
   }
 
   if (c.req.path === "/api/ws/events") {
     const token = c.req.query("token");
-    if (token === TOKEN) {
+    if (isTokenValid(token)) {
       return next();
     }
   }
@@ -88,7 +102,7 @@ app.post("/login", async (c) => {
   const body = await c.req.parseBody();
   const password = body.password;
 
-  if (password === TOKEN) {
+  if (typeof password === "string" && isTokenValid(password)) {
     setCookie(c, "session_token", TOKEN!, {
       httpOnly: true,
       secure: true,
@@ -117,9 +131,51 @@ app.get("/api/status", (c) => {
   return c.json(systemStatus);
 });
 
+app.get("/api/agent/status", async (c) => {
+  const fwStatus = await firewall.getStatus();
+
+  // Check if blocker binary exists
+  let blockerExists = false;
+  try {
+    const isWindows = Deno.build.os === "windows";
+    const extension = isWindows ? ".exe" : "";
+    const paths = [
+      `./agents/target/release/blocker${extension}`,
+      `./agents/target/debug/blocker${extension}`,
+    ];
+    for (const p of paths) {
+      try {
+        const info = await Deno.stat(p);
+        if (info.isFile) {
+          blockerExists = true;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+  } catch {
+    // Ignore
+  }
+
+  return c.json({
+    blocker_binary: blockerExists,
+    firewall: {
+      active: fwStatus.success && fwStatus.stdout.includes("Status: active"),
+      details: fwStatus.stdout || fwStatus.stderr
+    }
+  });
+});
+
 app.post("/api/protection/firewall/block", async (c) => {
   const { ip } = await c.req.json();
   const result = await firewall.blockIp(ip);
+  return c.json(result);
+});
+
+app.delete("/api/protection/firewall/block/:ip", async (c) => {
+  const ip = c.req.param("ip");
+  const result = await firewall.unblockIp(ip);
   return c.json(result);
 });
 
