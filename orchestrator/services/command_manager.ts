@@ -1,7 +1,7 @@
 /**
  * Command Manager for executing Rust sidecars and other system commands.
  */
-import { isAllowedSidecar } from "./validation.ts";
+import { isAllowedSidecar, SidecarResponse } from "./validation.ts";
 
 export interface CommandResult {
   success: boolean;
@@ -12,7 +12,7 @@ export interface CommandResult {
 
 export class CommandManager {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
-  private responseWaiters: Map<string, Map<string, { resolve: (data: any) => void, reject: (err: Error) => void }>> = new Map();
+  private responseWaiters: Map<string, Map<string, { resolve: (data: SidecarResponse) => void, reject: (err: Error) => void }>> = new Map();
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
 
   /**
@@ -267,7 +267,7 @@ export class CommandManager {
   /**
    * Sends a command to a persistent sidecar and waits for a response with a matching ID.
    */
-  async sendCommand(name: string, cmd: string | object): Promise<any> {
+  async sendCommand(name: string, cmd: string | object): Promise<SidecarResponse> {
     const child = await this.getPersistentSidecar(name);
     if (!child) throw new Error(`Sidecar ${name} not found`);
 

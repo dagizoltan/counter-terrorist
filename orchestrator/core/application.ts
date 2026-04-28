@@ -1,4 +1,4 @@
-import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, WebPort } from "./ports.ts";
+import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, WebPort, AuditPort, NotificationPort, EventBusPort } from "./ports.ts";
 
 export interface ApplicationDependencies {
   startup: StartupPort;
@@ -12,7 +12,9 @@ export interface ApplicationDependencies {
   mesh: MeshPort;
   meshAuth: MeshAuthPort;
   config: ConfigurationPort;
-  web: WebPort;
+  audit: AuditPort;
+  notifications: NotificationPort;
+  eventBus: EventBusPort;
 }
 
 export async function initializeApplication(deps: ApplicationDependencies) {
@@ -44,7 +46,9 @@ export async function initializeApplication(deps: ApplicationDependencies) {
     mesh: deps.mesh,
     meshAuth: deps.meshAuth,
     config: deps.config,
-    web: deps.web,
+    audit: deps.audit,
+    notifications: deps.notifications,
+    eventBus: deps.eventBus,
   };
 }
 

@@ -14,3 +14,20 @@ export type SidecarName = typeof ALLOWED_SIDECARS[number];
 export function isAllowedSidecar(name: string): name is SidecarName {
   return (ALLOWED_SIDECARS as readonly string[]).includes(name);
 }
+
+export interface SidecarResponse {
+  id?: string;
+  success: boolean;
+  message?: string;
+  stdout?: string;
+  stderr?: string;
+  data?: any;
+  [key: string]: any;
+}
+
+export interface SidecarEvent {
+  type: string;
+  data: any;
+  timestamp: string;
+  [key: string]: any;
+}

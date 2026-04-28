@@ -102,6 +102,18 @@ export interface WebPort {
   start(port?: number): Promise<void>;
 }
 
+export interface AuditPort {
+  logEvent(event: any): Promise<void>;
+}
+
+export interface NotificationPort {
+  notify(event: any): Promise<void>;
+}
+
+export interface EventBusPort {
+  publish(type: string, message: string, data?: any): void;
+}
+
 export interface ApplicationStatus {
   os: string;
   isRoot: boolean;

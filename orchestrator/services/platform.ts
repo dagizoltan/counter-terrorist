@@ -28,10 +28,13 @@ async function detectLinuxVersion(): Promise<string> {
 
 async function detectMacosVersion(): Promise<string> {
   try {
-    const proc = Deno.run({ cmd: ["sw_vers", "-productVersion"], stdout: "piped", stderr: "null" });
-    const output = await proc.output();
-    proc.close();
-    const version = new TextDecoder().decode(output).trim();
+    const command = new Deno.Command("sw_vers", {
+      args: ["-productVersion"],
+      stdout: "piped",
+      stderr: "null",
+    });
+    const { stdout } = await command.output();
+    const version = new TextDecoder().decode(stdout).trim();
     return normalizeVersion(version);
   } catch {
     return "unknown";

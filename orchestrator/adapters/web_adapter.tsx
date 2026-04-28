@@ -1,15 +1,17 @@
-import { Hono } from "https://deno.land/x/hono@v4.3.7/mod.ts";
-import { bearerAuth } from "https://deno.land/x/hono@v4.3.7/middleware/bearer-auth/index.ts";
-import { serveStatic, upgradeWebSocket } from "https://deno.land/x/hono@v4.3.7/adapter/deno/index.ts";
+import { Hono, Context, Next } from "hono";
+import { bearerAuth } from "hono/bearer-auth";
+import { serveStatic, upgradeWebSocket } from "hono/deno";
 import {
   deleteCookie,
   getCookie,
   setCookie,
-} from "https://deno.land/x/hono@v4.3.7/helper/cookie/index.ts";
-import { cors } from "https://deno.land/x/hono@v4.3.7/middleware/cors/index.ts";
+} from "hono/helper/cookie/index.ts";
+import { cors } from "hono/middleware/cors/index.ts";
 import { WebPort, ApplicationStatus, ProtectionPort, CommandPort, ConfigurationPort } from "../core/ports.ts";
 import { Dashboard } from "../views/Dashboard.tsx";
 import { Login } from "../views/Login.tsx";
+import { AppError } from "../core/errors.ts";
+import { loggingService, SyslogSeverity } from "../services/logging.ts";
 import { wsHandler } from "../api/ws.ts";
 import { broadcast } from "../api/ws.ts";
 import { isValidIP } from "../services/validation.ts";
@@ -32,7 +34,26 @@ export class WebAdapter implements WebPort {
     this.app = new Hono();
 
     this.setupMiddleware();
+    this.setupErrorHandling();
     this.setupRoutes();
+  }
+
+  private setupErrorHandling() {
+    this.app.onError((err, c) => {
+      if (err instanceof AppError) {
+        const status = err.statusCode as Parameters<Context["json"]>[1];
+        return c.json(err.toJSON(), status);
+      }
+
+      loggingService.log(`[WEB] Unhandled Error: ${err.message}`, SyslogSeverity.ERROR);
+      return c.json({
+        success: false,
+        error: {
+          message: "An internal server error occurred",
+          code: "INTERNAL_ERROR"
+        }
+      }, 500);
+    });
   }
 
   private setupMiddleware() {
@@ -62,7 +83,7 @@ export class WebAdapter implements WebPort {
       return diff === 0;
     };
 
-    const authMiddleware = async (c: any, next: any) => {
+    const authMiddleware = async (c: Context, next: Next) => {
       const sessionToken = getCookie(c, "session_token");
       if (isTokenValid(sessionToken)) {
         return next();
@@ -96,7 +117,7 @@ export class WebAdapter implements WebPort {
 
   private setupRoutes() {
     // Platform info
-    this.app.get("/api/platform", (c: any) => {
+    this.app.get("/api/platform", (c: Context) => {
       return c.json({
         name: this.platformInfo.name,
         version: this.platformInfo.version,
@@ -105,7 +126,7 @@ export class WebAdapter implements WebPort {
     });
 
     // Agent status
-    this.app.get("/api/agent/status", async (c: any) => {
+    this.app.get("/api/agent/status", async (c: Context) => {
       const fwStatus = await this.protection.firewall.getStatus();
 
       let blockerExists = false;
@@ -141,7 +162,7 @@ export class WebAdapter implements WebPort {
     });
 
     // Protection routes
-    this.app.post("/api/protection/firewall/block", async (c: any) => {
+    this.app.post("/api/protection/firewall/block", async (c: Context) => {
       const { ip } = await c.req.json();
       if (!ip || !isValidIP(ip)) {
         return c.json({ success: false, message: "Invalid IP address" }, 400);
@@ -150,7 +171,7 @@ export class WebAdapter implements WebPort {
       return c.json(result);
     });
 
-    this.app.delete("/api/protection/firewall/block/:ip", async (c: any) => {
+    this.app.delete("/api/protection/firewall/block/:ip", async (c: Context) => {
       const ip = c.req.param("ip");
       if (!ip || !isValidIP(ip)) {
         return c.json({ success: false, message: "Invalid IP address" }, 400);
@@ -159,17 +180,17 @@ export class WebAdapter implements WebPort {
       return c.json(result);
     });
 
-    this.app.get("/api/protection/vpn/status", async (c: any) => {
+    this.app.get("/api/protection/vpn/status", async (c: Context) => {
       const connected = await this.protection.vpn.isConnected();
       return c.json({ connected });
     });
 
-    this.app.get("/api/protection/av/status", async (c: any) => {
+    this.app.get("/api/protection/av/status", async (c: Context) => {
       const status = await this.protection.antivirus.getStatus();
       return c.json(status);
     });
 
-    this.app.post("/api/protection/rkhunter/scan", async (c: any) => {
+    this.app.post("/api/protection/rkhunter/scan", async (c: Context) => {
       const result = await this.protection.rkhunter.runScan();
       return c.json(result);
     });
@@ -178,11 +199,11 @@ export class WebAdapter implements WebPort {
     this.app.get("/api/ws/events", upgradeWebSocket(wsHandler));
 
     // Login
-    this.app.get("/login", (c: any) => {
+    this.app.get("/login", (c: Context) => {
       return c.html(<Login />);
     });
 
-    this.app.post("/login", async (c: any) => {
+    this.app.post("/login", async (c: Context) => {
       const { token } = await c.req.json();
       if (token === this.token) {
         setCookie(c, "session_token", token, {
@@ -197,7 +218,7 @@ export class WebAdapter implements WebPort {
     });
 
     // Dashboard
-    this.app.get("/", (c: any) => {
+    this.app.get("/", (c: Context) => {
       return c.html(<Dashboard status={this.dashboardStatus} />);
     });
 

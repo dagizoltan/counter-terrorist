@@ -1,5 +1,6 @@
 import { broadcast } from "../api/ws.ts";
 import { meshAuth } from "./mesh_auth.ts";
+import { loggingService, SyslogSeverity } from "./logging.ts";
 
 export interface MeshNode {
   id: string;
@@ -18,7 +19,7 @@ export class MeshManager {
   private httpClient: Deno.HttpClient | null = null;
 
   constructor() {
-    console.log("[MESH] Initializing Mesh Infrastructure...");
+    loggingService.log("[MESH] Initializing Mesh Infrastructure...", SyslogSeverity.NOTICE);
   }
 
   async init() {
@@ -33,7 +34,7 @@ export class MeshManager {
       // caCerts: [(await meshAuth.getRootCA()).cert], // For mutual verification
     });
 
-    console.log(`[MESH] mTLS Identity established for ${this.nodeId}`);
+    loggingService.log(`[MESH] mTLS Identity established for ${this.nodeId}`, SyslogSeverity.NOTICE);
   }
 
   /**
@@ -42,7 +43,7 @@ export class MeshManager {
   startDiscovery() {
     if (this.discoveryInterval) return;
 
-    console.log("[MESH] Starting mDNS node discovery...");
+    loggingService.log("[MESH] Starting mDNS node discovery...", SyslogSeverity.NOTICE);
 
     // Initial scan and then every minute
     this.scanNetwork();
@@ -62,7 +63,7 @@ export class MeshManager {
         transport: "udp",
       });
 
-      console.log("[MESH] Listening for mDNS on 224.0.0.251:5353");
+      loggingService.log("[MESH] Listening for mDNS on 224.0.0.251:5353", SyslogSeverity.NOTICE);
 
       for await (const [data, addr] of listener) {
         // More robust mDNS check: look for _ct-orchestrator._tcp.local
@@ -115,7 +116,7 @@ export class MeshManager {
     this.nodes.set(node.id, { ...node, lastSeen: Date.now() });
 
     if (isNew) {
-      console.log(`[MESH] New node discovered: ${node.hostname} (${node.address}:${node.port})`);
+      loggingService.log(`[MESH] New node discovered: ${node.hostname} (${node.address}:${node.port})`, SyslogSeverity.NOTICE);
       broadcast({
         type: "INFO",
         message: `New security node joined the mesh: ${node.hostname}`,
@@ -134,7 +135,7 @@ export class MeshManager {
   async broadcastBlock(ip: string) {
     if (this.nodes.size === 0) return;
 
-    console.log(`[MESH] Gossip: Broadcasting block for ${ip} to ${this.nodes.size} nodes...`);
+    loggingService.log(`[MESH] Gossip: Broadcasting block for ${ip} to ${this.nodes.size} nodes...`, SyslogSeverity.NOTICE);
 
     for (const node of this.nodes.values()) {
         this.sendSync(node, { type: "GOSSIP_BLOCK", ip }).catch(err => {

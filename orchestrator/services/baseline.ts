@@ -1,5 +1,6 @@
 import { commandManager } from "../services/command_manager.ts";
 import { broadcast } from "../api/ws.ts";
+import { loggingService, SyslogSeverity } from "./logging.ts";
 
 export interface ProcessSnapshot {
   pid: number;
@@ -31,10 +32,10 @@ export class BaselineService {
       const res = await this.kv.get<SystemSnapshot>(["baseline"]);
       if (res.value) {
         this.currentBaseline = res.value;
-        console.log("[BASELINE] Restored from Deno KV.");
+        loggingService.log("[BASELINE] Restored from Deno KV.", SyslogSeverity.INFORMATIONAL);
       }
     } catch (e) {
-      console.error("[BASELINE] Failed to initialize Deno KV:", e);
+      loggingService.log(`[BASELINE] Failed to initialize Deno KV: ${e}`, SyslogSeverity.ERROR);
     }
   }
 
@@ -92,7 +93,7 @@ export class BaselineService {
     if (this.kv) {
       await this.kv.set(["baseline"], this.currentBaseline);
     }
-    console.log("[BASELINE] New system baseline established.");
+    loggingService.log("[BASELINE] New system baseline established.", SyslogSeverity.NOTICE);
     broadcast({ type: "INFO", message: "New system baseline established." });
     return this.currentBaseline;
   }
@@ -164,12 +165,12 @@ export class BaselineService {
    * Starts the background drift monitoring loop.
    */
   startMonitor(intervalMs: number = 60000) {
-    console.log(`[BASELINE] Starting background monitoring loop (Interval: ${intervalMs}ms)`);
+    loggingService.log(`[BASELINE] Starting background monitoring loop (Interval: ${intervalMs}ms)`, SyslogSeverity.INFORMATIONAL);
     setInterval(async () => {
       try {
         await this.checkDrift();
       } catch (e) {
-        console.error("[BASELINE] Drift check loop failed:", e);
+        loggingService.log(`[BASELINE] Drift check loop failed: ${e}`, SyslogSeverity.ERROR);
       }
     }, intervalMs);
   }

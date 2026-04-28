@@ -11,13 +11,14 @@ import { meshAdapter } from "./adapters/mesh_adapter.ts";
 import { meshAuthAdapter } from "./adapters/mesh_auth_adapter.ts";
 import { configurationAdapter } from "./adapters/configuration_adapter.ts";
 import { WebAdapter } from "./adapters/web_adapter.tsx";
+import { auditService } from "./services/audit.ts";
+import { notificationService } from "./services/alerts.ts";
+import { eventBus } from "./services/events.ts";
 import { broadcast } from "./api/ws.ts";
-
-// Bootstrap system info for the dashboard
-const systemStatus = await bootstrap();
+import { SidecarEvent } from "./services/validation.ts";
 
 // Initialize Application via hexagonal core
-const { systemStatus: applicationStatus, platformInfo, command, protection, config, web } = await initializeApplication({
+const app = await initializeApplication({
   startup: { bootstrap },
   platform: { getPlatformInfo },
   pluginRegistry: pluginManager,
@@ -35,29 +36,39 @@ const { systemStatus: applicationStatus, platformInfo, command, protection, conf
   mesh: meshAdapter,
   meshAuth: meshAuthAdapter,
   config: configurationAdapter,
-  web: new WebAdapter(config, protection, command, createDashboardStatus(applicationStatus, platformInfo, pluginManager), platformInfo),
+  audit: auditService,
+  notifications: notificationService,
+  eventBus: eventBus,
 });
 
+const web = new WebAdapter(
+  configurationAdapter,
+  protectionAdapter,
+  commandAdapter,
+  createDashboardStatus(app.systemStatus, app.platformInfo, pluginManager),
+  app.platformInfo
+);
+
 // Handle eBPF events
-command.onEvent("ebpf", (data: any) => {
-  if (data.type === "SYSCALL_EVENT") {
+app.command.onEvent("ebpf", (event: SidecarEvent) => {
+  if (event.type === "SYSCALL_EVENT") {
     let type = "INFO";
-    if (data.syscall === "ptrace") {
+    if (event.syscall === "ptrace") {
       type = "CRITICAL";
-    } else if (data.syscall === "mmap") {
+    } else if (event.syscall === "mmap") {
       type = "WARN";
     }
 
     broadcast({
       type,
-      message: `eBPF Alert: ${data.comm} (PID: ${data.pid}) called ${data.syscall}`,
-      data: data
+      message: `eBPF Alert: ${event.comm} (PID: ${event.pid}) called ${event.syscall}`,
+      data: event
     });
   }
 });
 
 // Start eBPF sidecar
-command.getPersistentSidecar("ebpf").catch(err => {
+app.command.getPersistentSidecar("ebpf").catch(err => {
   console.warn("[MAIN] Failed to start eBPF sidecar:", err.message);
 });
 

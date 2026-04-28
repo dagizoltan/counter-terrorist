@@ -2,7 +2,7 @@
  * WebSocket handler for real-time security events.
  * Compatible with Hono's upgradeWebSocket.
  */
-import { WSContext } from "https://deno.land/x/hono@v4.3.7/helper/websocket/index.ts";
+import { WSContext } from "hono/helper/websocket/index.ts";
 import { notificationService } from "../services/alerts.ts";
 import { loggingService, SyslogSeverity } from "../services/logging.ts";
 import { auditService } from "../services/audit.ts";
@@ -10,7 +10,14 @@ import { eventBus } from "../services/events.ts";
 
 const clients = new Set<WSContext>();
 
-export function broadcast(data: any) {
+export interface BroadcastData {
+  type: string;
+  message?: string;
+  data?: any;
+  [key: string]: any;
+}
+
+export function broadcast(data: BroadcastData) {
   const timestamp = new Date().toLocaleTimeString();
   const eventToBroadcast = {
     ...data,
