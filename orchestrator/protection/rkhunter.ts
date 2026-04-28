@@ -1,4 +1,4 @@
-import { commandManager } from "../services/command_manager.ts";
+import { commandManager } from "../infrastructure/command_manager.ts";
 import { broadcast } from "../api/ws.ts";
 
 export interface RkhunterResult {
@@ -47,4 +47,3 @@ export class RkhunterManager {
     }
 }
 
-export const rkhunter = new RkhunterManager();

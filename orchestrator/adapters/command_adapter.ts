@@ -1,18 +1,18 @@
 import { CommandPort, CommandResult } from "../core/ports.ts";
-import { commandManager } from "../services/command_manager.ts";
+import { CommandManager } from "../infrastructure/command_manager.ts";
 
 export class CommandAdapter implements CommandPort {
+  constructor(private manager: CommandManager) {}
   async sendCommand(sidecar: string, command: any): Promise<CommandResult> {
-    return await commandManager.sendCommand(sidecar, command);
+    return await this.manager.sendCommand(sidecar, command);
   }
 
   onEvent(sidecar: string, handler: (event: any) => void): void {
-    commandManager.onEvent(sidecar, handler);
+    this.manager.onEvent(sidecar, handler);
   }
 
   async getPersistentSidecar(sidecar: string): Promise<any> {
-    return await commandManager.getPersistentSidecar(sidecar);
+    return await this.manager.getPersistentSidecar(sidecar);
   }
 }
 
-export const commandAdapter = new CommandAdapter();

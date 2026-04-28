@@ -1,12 +1,15 @@
-import { commandManager } from "../services/command_manager.ts";
-import { getPlatformInfo } from "../services/platform.ts";
+import { CommandManager } from "../infrastructure/command_manager.ts";
+import { PlatformInfo } from "../infrastructure/platform.ts";
 import { createAntivirusManager, createFirewallManager, createPersistenceManager, createPcapManager, createVpnManager } from "./factory.ts";
+import { RkhunterManager } from "./rkhunter.ts";
 
-const platformInfo = await getPlatformInfo();
-
-export const firewall = createFirewallManager(commandManager, platformInfo);
-export const vpn = createVpnManager(commandManager, platformInfo);
-export const antivirus = createAntivirusManager(commandManager);
-export const persistence = createPersistenceManager(commandManager, platformInfo);
-export const pcap = createPcapManager(commandManager);
-export { rkhunter } from "./rkhunter.ts";
+export function createProtection(commandManager: CommandManager, platformInfo: PlatformInfo) {
+  return {
+    firewall: createFirewallManager(commandManager, platformInfo),
+    vpn: createVpnManager(commandManager, platformInfo),
+    antivirus: createAntivirusManager(commandManager),
+    persistence: createPersistenceManager(commandManager, platformInfo),
+    pcap: createPcapManager(commandManager),
+    rkhunter: new RkhunterManager(),
+  };
+}

@@ -1,14 +1,14 @@
 import { LoggingPort } from "../core/ports.ts";
-import { loggingService } from "../services/logging.ts";
+import { LoggingService } from "../infrastructure/logging.ts";
 
 export class LoggingAdapter implements LoggingPort {
+  constructor(private service: LoggingService) {}
   enableGlobalIntercept(): void {
-    loggingService.enableGlobalIntercept();
+    this.service.enableGlobalIntercept();
   }
 
   async log(message: string, severity?: number): Promise<void> {
-    await loggingService.log(message, severity);
+    await this.service.log(message, severity);
   }
 }
 
-export const loggingAdapter = new LoggingAdapter();

@@ -1,4 +1,4 @@
-import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, WebPort } from "./ports.ts";
+import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, WebPort, AuditPort, NotificationPort, EventBusPort } from "./ports.ts";
 
 export interface ApplicationDependencies {
   startup: StartupPort;
@@ -12,7 +12,9 @@ export interface ApplicationDependencies {
   mesh: MeshPort;
   meshAuth: MeshAuthPort;
   config: ConfigurationPort;
-  web: WebPort;
+  audit: AuditPort;
+  notifications: NotificationPort;
+  eventBus: EventBusPort;
 }
 
 export async function initializeApplication(deps: ApplicationDependencies) {
@@ -34,6 +36,17 @@ export async function initializeApplication(deps: ApplicationDependencies) {
   await deps.mesh.init();
   deps.mesh.startDiscovery();
 
+  // Automated Forensic Response
+  deps.eventBus.subscribe((event) => {
+    if (event.type === "CRITICAL") {
+      deps.protection.pcap.startCapture("any", 60, `intrusion_${Date.now()}.pcap`)
+        .then(res => {
+          if (!res.success) console.warn("[FORENSICS] PCAP capture failed:", res.stderr);
+        })
+        .catch(err => console.error("[FORENSICS] Unexpected PCAP error:", err));
+    }
+  });
+
   return {
     systemStatus,
     platformInfo,
@@ -44,7 +57,9 @@ export async function initializeApplication(deps: ApplicationDependencies) {
     mesh: deps.mesh,
     meshAuth: deps.meshAuth,
     config: deps.config,
-    web: deps.web,
+    audit: deps.audit,
+    notifications: deps.notifications,
+    eventBus: deps.eventBus,
   };
 }
 

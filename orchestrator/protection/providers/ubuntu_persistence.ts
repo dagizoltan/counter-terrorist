@@ -1,4 +1,4 @@
-import { commandManager } from "../services/command_manager.ts";
+import { commandManager } from "../infrastructure/command_manager.ts";
 import { PersistenceProvider, PersistenceAuditResult } from "./interfaces.ts";
 
 export class UbuntuPersistenceProvider implements PersistenceProvider {

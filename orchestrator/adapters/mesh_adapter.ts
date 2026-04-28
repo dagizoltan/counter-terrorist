@@ -1,14 +1,13 @@
 import { MeshPort } from "../core/ports.ts";
-import { meshManager } from "../services/mesh.ts";
+import { MeshManager } from "../services/mesh.ts";
 
 export class MeshAdapter implements MeshPort {
+  constructor(private service: MeshManager) {}
   async init(): Promise<void> {
-    await meshManager.init();
+    await this.service.init();
   }
 
   startDiscovery(): void {
-    meshManager.startDiscovery();
+    this.service.startDiscovery();
   }
 }
-
-export const meshAdapter = new MeshAdapter();

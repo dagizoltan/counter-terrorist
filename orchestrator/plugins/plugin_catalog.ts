@@ -1,5 +1,5 @@
 import { Plugin } from "../services/plugin_manager.ts";
-import { CommandManager } from "../services/command_manager.ts";
+import { CommandManager } from "../infrastructure/command_manager.ts";
 import { FirewallManager } from "../protection/firewall.ts";
 import { PcapManager } from "../protection/pcap.ts";
 import { HoneypotPlugin } from "./honeypot.ts";

@@ -1,10 +1,9 @@
 import { BaselinePort } from "../core/ports.ts";
-import { baseline } from "../services/baseline.ts";
+import { BaselineService } from "../services/baseline.ts";
 
 export class BaselineAdapter implements BaselinePort {
+  constructor(private service: BaselineService) {}
   startMonitor(): void {
-    baseline.startMonitor();
+    this.service.startMonitor();
   }
 }
-
-export const baselineAdapter = new BaselineAdapter();

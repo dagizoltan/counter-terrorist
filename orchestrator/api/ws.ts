@@ -2,15 +2,37 @@
  * WebSocket handler for real-time security events.
  * Compatible with Hono's upgradeWebSocket.
  */
-import { WSContext } from "https://deno.land/x/hono@v4.3.7/helper/websocket/index.ts";
-import { notificationService } from "../services/alerts.ts";
-import { loggingService, SyslogSeverity } from "../services/logging.ts";
-import { auditService } from "../services/audit.ts";
-import { eventBus } from "../services/events.ts";
+import { WSContext } from "hono/helper/websocket/index.ts";
+import { NotificationService, AuditService, EventBus } from "../services/index.ts";
+import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 
 const clients = new Set<WSContext>();
 
-export function broadcast(data: any) {
+export interface BroadcastData {
+  type: string;
+  message?: string;
+  data?: any;
+  [key: string]: any;
+}
+
+export interface BroadcasterDeps {
+  notificationService: NotificationService;
+  auditService: AuditService;
+  eventBus: EventBus;
+}
+
+let broadcasterDeps: BroadcasterDeps | null = null;
+
+export function initBroadcaster(deps: BroadcasterDeps) {
+  broadcasterDeps = deps;
+}
+
+export function broadcast(data: BroadcastData) {
+  if (!broadcasterDeps) {
+    console.warn("[WS] Broadcaster not initialized. Data lost:", data.type);
+    return;
+  }
+  const { notificationService, auditService, eventBus } = broadcasterDeps;
   const timestamp = new Date().toLocaleTimeString();
   const eventToBroadcast = {
     ...data,

@@ -1,4 +1,4 @@
-import { CommandManager } from "../services/command_manager.ts";
+import { CommandManager } from "../infrastructure/command_manager.ts";
 
 export class PcapManager {
   constructor(private commandManager: CommandManager) {}

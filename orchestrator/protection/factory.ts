@@ -1,17 +1,17 @@
-import { CommandManager } from "../services/command_manager.ts";
-import { PlatformInfo } from "../services/platform.ts";
+import { CommandManager } from "../infrastructure/command_manager.ts";
+import { PlatformInfo } from "../infrastructure/platform.ts";
 import { AntivirusManager } from "./antivirus.ts";
 import { FirewallManager } from "./firewall.ts";
 import { PersistenceManager } from "./persistence.ts";
 import { PcapManager } from "./pcap.ts";
 import { VpnManager } from "./vpn.ts";
-import { UbuntuAntivirusProvider } from "./ubuntu_antivirus.ts";
-import { UbuntuFirewallProvider } from "./ubuntu_firewall.ts";
-import { UbuntuPersistenceProvider } from "./ubuntu_persistence.ts";
-import { UbuntuVpnProvider } from "./ubuntu_vpn.ts";
-import { WindowsFirewallProvider } from "./windows_firewall.ts";
-import { WindowsPersistenceProvider } from "./windows_persistence.ts";
-import { WindowsVpnProvider } from "./windows_vpn.ts";
+import { UbuntuAntivirusProvider } from "./providers/ubuntu_antivirus.ts";
+import { UbuntuFirewallProvider } from "./providers/ubuntu_firewall.ts";
+import { UbuntuPersistenceProvider } from "./providers/ubuntu_persistence.ts";
+import { UbuntuVpnProvider } from "./providers/ubuntu_vpn.ts";
+import { WindowsFirewallProvider } from "./providers/windows_firewall.ts";
+import { WindowsPersistenceProvider } from "./providers/windows_persistence.ts";
+import { WindowsVpnProvider } from "./providers/windows_vpn.ts";
 
 export function createFirewallManager(commandManager: CommandManager, platform: PlatformInfo): FirewallManager {
   if (platform.name === "windows") {

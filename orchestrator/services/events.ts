@@ -10,7 +10,7 @@ export interface SystemEvent {
   data?: any;
 }
 
-class EventBus {
+export class EventBus {
   private handlers: ((event: SystemEvent) => void)[] = [];
 
   subscribe(handler: (event: SystemEvent) => void) {
@@ -53,17 +53,3 @@ class EventBus {
   }
 }
 
-export const eventBus = new EventBus();
-
-// --- Automated Forensic Response ---
-eventBus.subscribe((event) => {
-  if (event.type === "CRITICAL") {
-    console.log("[FORENSICS] Critical event detected! Triggering automated PCAP...");
-    pcap.startCapture("any", 60, `intrusion_${Date.now()}.pcap`)
-      .then(res => {
-        if (res.success) console.log("[FORENSICS] PCAP capture initiated successfully.");
-        else console.warn("[FORENSICS] PCAP capture failed:", res.message);
-      })
-      .catch(err => console.error("[FORENSICS] Unexpected PCAP error:", err));
-  }
-});

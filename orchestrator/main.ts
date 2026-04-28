@@ -1,63 +1,93 @@
 import { bootstrap } from "./bootstrapper.ts";
-import { firewall, vpn, pcap } from "./protection/index.ts";
-import { pluginManager, commandManager, getPlatformInfo } from "./services/index.ts";
+import { createProtection } from "./protection/index.ts";
+import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, CommandManager, LoggingService } from "./services/index.ts";
 import { createPluginFactory } from "./plugins/plugin_catalog.ts";
 import { initializeApplication, createDashboardStatus } from "./core/application.ts";
-import { commandAdapter } from "./adapters/command_adapter.ts";
-import { protectionAdapter } from "./adapters/protection_adapter.ts";
-import { loggingAdapter } from "./adapters/logging_adapter.ts";
-import { baselineAdapter } from "./adapters/baseline_adapter.ts";
-import { meshAdapter } from "./adapters/mesh_adapter.ts";
-import { meshAuthAdapter } from "./adapters/mesh_auth_adapter.ts";
+import { CommandAdapter } from "./adapters/command_adapter.ts";
+import { ProtectionAdapter } from "./adapters/protection_adapter.ts";
+import { LoggingAdapter } from "./adapters/logging_adapter.ts";
+import { BaselineAdapter } from "./adapters/baseline_adapter.ts";
+import { MeshAdapter } from "./adapters/mesh_adapter.ts";
+import { MeshAuthAdapter } from "./adapters/mesh_auth_adapter.ts";
 import { configurationAdapter } from "./adapters/configuration_adapter.ts";
 import { WebAdapter } from "./adapters/web_adapter.tsx";
-import { broadcast } from "./api/ws.ts";
+import { broadcast, initBroadcaster } from "./api/ws.ts";
+import { SidecarEvent } from "./infrastructure/validation.ts";
 
-// Bootstrap system info for the dashboard
-const systemStatus = await bootstrap();
+const loggingService = new LoggingService();
+const commandManager = new CommandManager();
+
+const platformInfo = await getPlatformInfo();
+const protection = createProtection(commandManager, platformInfo);
+
+const auditService = new AuditService();
+const notificationService = new NotificationService();
+const eventBus = new EventBus();
+const meshAuthService = new MeshAuthService();
+const meshManager = new MeshManager(meshAuthService);
+const baselineService = new BaselineService();
+
+initBroadcaster({
+  notificationService,
+  auditService,
+  eventBus,
+});
 
 // Initialize Application via hexagonal core
-const { systemStatus: applicationStatus, platformInfo, command, protection, config, web } = await initializeApplication({
+const app = await initializeApplication({
   startup: { bootstrap },
   platform: { getPlatformInfo },
   pluginRegistry: pluginManager,
   pluginFactory: createPluginFactory({
     commandManager,
-    firewall,
-    vpn,
-    pcap,
+    firewall: protection.firewall,
+    vpn: protection.vpn,
+    pcap: protection.pcap,
     broadcast,
   }),
-  command: commandAdapter,
-  protection: protectionAdapter,
-  logging: loggingAdapter,
-  baseline: baselineAdapter,
-  mesh: meshAdapter,
-  meshAuth: meshAuthAdapter,
+  command: new CommandAdapter(commandManager),
+  protection: new ProtectionAdapter(protection),
+  logging: new LoggingAdapter(loggingService),
+  baseline: new BaselineAdapter(baselineService),
+  mesh: new MeshAdapter(meshManager),
+  meshAuth: new MeshAuthAdapter(meshAuthService),
   config: configurationAdapter,
-  web: new WebAdapter(config, protection, command, createDashboardStatus(applicationStatus, platformInfo, pluginManager), platformInfo),
+  audit: auditService,
+  notifications: notificationService,
+  eventBus: eventBus,
 });
 
+const web = new WebAdapter(
+  configurationAdapter,
+  app.protection,
+  app.command,
+  createDashboardStatus(app.systemStatus, app.platformInfo, pluginManager),
+  app.platformInfo,
+  auditService,
+  notificationService,
+  baselineService
+);
+
 // Handle eBPF events
-command.onEvent("ebpf", (data: any) => {
-  if (data.type === "SYSCALL_EVENT") {
+app.command.onEvent("ebpf", (event: SidecarEvent) => {
+  if (event.type === "SYSCALL_EVENT") {
     let type = "INFO";
-    if (data.syscall === "ptrace") {
+    if (event.syscall === "ptrace") {
       type = "CRITICAL";
-    } else if (data.syscall === "mmap") {
+    } else if (event.syscall === "mmap") {
       type = "WARN";
     }
 
     broadcast({
       type,
-      message: `eBPF Alert: ${data.comm} (PID: ${data.pid}) called ${data.syscall}`,
-      data: data
+      message: `eBPF Alert: ${event.comm} (PID: ${event.pid}) called ${event.syscall}`,
+      data: event
     });
   }
 });
 
 // Start eBPF sidecar
-command.getPersistentSidecar("ebpf").catch(err => {
+app.command.getPersistentSidecar("ebpf").catch(err => {
   console.warn("[MAIN] Failed to start eBPF sidecar:", err.message);
 });
 
