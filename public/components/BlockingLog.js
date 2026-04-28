@@ -17,6 +17,8 @@ class BlockingLog extends HTMLElement {
 
   async loadHistory() {
     try {
+      // In a real environment, the session cookie will handle auth.
+      // If using Bearer tokens, we'd need to inject them here.
       const res = await fetch('/api/audit?limit=50');
       if (res.ok) {
         const history = await res.json();
@@ -32,7 +34,16 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    // Retrieve token if stored in session/local storage for manual injection
+    // For now, we assume the session cookie is enough, but we add the token param
+    // as required by the backend in main.ts
+    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+
+    // We try to get the token from a meta tag or a known location
+    const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    if (token) url.searchParams.set('token', token);
+
+    const socket = new WebSocket(url.toString());
 
     socket.onmessage = (event) => {
       try {
@@ -65,13 +76,15 @@ class BlockingLog extends HTMLElement {
     const ip = input.value;
     if (!ip) return;
 
+    const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
     input.disabled = true;
     try {
       const res = await fetch('/api/protection/firewall/block', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: JSON.stringify({ ip })
       });
       if (res.ok) input.value = '';

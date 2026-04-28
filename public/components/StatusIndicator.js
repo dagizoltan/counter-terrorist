@@ -21,10 +21,13 @@ class StatusIndicator extends HTMLElement {
 
   async updateStatus() {
     const name = this.getAttribute('name');
+    const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    const headers = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     try {
       if (name === "Active Blocker") {
-        const res = await fetch('/api/agent/status');
+        const res = await fetch('/api/agent/status', { headers });
         if (res.ok) {
           const status = await res.json();
           const isOnline = status.blocker_binary && status.firewall.active;
@@ -33,7 +36,7 @@ class StatusIndicator extends HTMLElement {
           this.render(name, 'ERROR', 'text-red-500');
         }
       } else {
-        const res = await fetch('/api/status');
+        const res = await fetch('/api/status', { headers });
         if (res.ok) {
           const status = await res.json();
           let isOnline = false;

@@ -8,6 +8,7 @@ export const Layout = (props: { title: string; children: any }) => {
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="api-token" content={Deno.env.get("API_TOKEN") || ""} />
         <title>{props.title} | Security Orchestrator</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script type="module" src="/static/components/StatusIndicator.js"></script>
