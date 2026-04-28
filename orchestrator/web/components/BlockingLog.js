@@ -10,7 +10,29 @@ class BlockingLog extends HTMLElement {
 
   connectedCallback() {
     this.render();
-    this.connect();
+    this.loadHistory().then(() => {
+        this.connect();
+    });
+  }
+
+  async loadHistory() {
+    try {
+      const token = window.__CONFIG__?.token || '';
+      const res = await fetch('/api/audit?limit=50', {
+        headers: {
+          'Authorization': 'Bearer ' + token
+        }
+      });
+      if (res.ok) {
+        const history = await res.json();
+        // The API returns most recent first, which is the same order we want in our logs array.
+        // We will replace this.logs with history.
+        this.logs = history;
+        this.render();
+      }
+    } catch (e) {
+      console.error("Failed to load audit history:", e);
+    }
   }
 
   connect() {

@@ -11,6 +11,7 @@ import { rkhunter } from "./protection/rkhunter.ts";
 import { baseline } from "./services/baseline.ts";
 import reportsApi from "./api/reports.ts";
 import notificationsApi from "./api/notifications.ts";
+import auditApi from "./api/audit.ts";
 
 const app = new Hono();
 
@@ -86,6 +87,7 @@ app.get("/api/protection/rkhunter/status", (c) => {
 
 app.route("/api/reports", reportsApi);
 app.route("/api/notifications", notificationsApi);
+app.route("/api/audit", auditApi);
 
 app.post("/api/baseline/set", async (c) => {
   const result = await baseline.setBaseline();
