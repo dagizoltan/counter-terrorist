@@ -62,6 +62,7 @@ export interface PcapPort {
 
 export interface RkhunterPort {
   runScan(): Promise<{ success: boolean; exit_code?: number; stdout?: string; stderr?: string; error?: string }>;
+  getLastResult(): any;
 }
 
 export interface ProtectionPort {
@@ -73,9 +74,20 @@ export interface ProtectionPort {
   rkhunter: RkhunterPort;
 }
 
+export enum SyslogSeverity {
+  EMERGENCY = 0,
+  ALERT = 1,
+  CRITICAL = 2,
+  ERROR = 3,
+  WARNING = 4,
+  NOTICE = 5,
+  INFORMATIONAL = 6,
+  DEBUG = 7,
+}
+
 export interface LoggingPort {
   enableGlobalIntercept(): void;
-  log(message: string, severity?: number): Promise<void>;
+  log(message: string, severity?: SyslogSeverity): Promise<void>;
 }
 
 export interface BaselinePort {
@@ -127,6 +139,7 @@ export interface NotificationPort {
 
 export interface EventBusPort {
   publish(type: string, message: string, data?: any): void;
+  subscribe(handler: (event: { type: string; message: string; timestamp: string; data?: any }) => void): void;
 }
 
 export interface ApplicationStatus {

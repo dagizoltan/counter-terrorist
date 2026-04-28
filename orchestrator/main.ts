@@ -1,6 +1,7 @@
 import { bootstrap } from "./bootstrapper.ts";
 import { createProtection } from "./protection/index.ts";
 import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService } from "./services/index.ts";
+import { setMeshManager } from "./services/mesh.ts";
 import { SidecarManager } from "./infrastructure/sidecar_manager.ts";
 import { SystemExecutor } from "./infrastructure/system_executor.ts";
 import { KvStore } from "./infrastructure/kv_store.ts";
@@ -33,6 +34,7 @@ const notificationService = new NotificationService(kv);
 const eventBus = new EventBus(loggingService);
 const meshAuthService = new MeshAuthService(kv);
 const meshManager = new MeshManager(meshAuthService, loggingService);
+setMeshManager(meshManager);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 
 initBroadcaster({
@@ -83,6 +85,8 @@ app.command.onEvent("ebpf", (event: SidecarEvent) => {
     if (event.syscall === "ptrace") {
       type = "CRITICAL";
     } else if (event.syscall === "mmap") {
+      type = "WARN";
+    } else if (event.syscall === "execve") {
       type = "WARN";
     }
 

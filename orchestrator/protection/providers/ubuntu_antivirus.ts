@@ -1,7 +1,7 @@
-import { SystemExecutor, SystemExecutor } from "../../infrastructure/system_executor.ts";
+import { SystemExecutor } from "../../infrastructure/system_executor.ts";
 import { resolve, normalize, basename } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
-import { AntivirusProvider, ScanResult } from "./interfaces.ts";
+import { AntivirusProvider, ScanResult } from "../interfaces.ts";
 
 export class UbuntuAntivirusProvider implements AntivirusProvider {
   constructor(private executor: SystemExecutor) {}

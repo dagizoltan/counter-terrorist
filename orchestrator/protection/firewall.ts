@@ -10,7 +10,9 @@ export class FirewallManager {
     broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}` });
 
     // Mesh Gossip (Phase 4)
-    meshManager.broadcastBlock(ip).catch(console.error);
+    if (meshManager) {
+      meshManager.broadcastBlock(ip).catch(console.error);
+    }
 
     return await this.provider.blockIp(ip);
   }

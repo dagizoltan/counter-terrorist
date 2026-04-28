@@ -10,7 +10,7 @@ export interface CertPair {
 }
 
 export class MeshAuthService {
-  private readonly CA_KEY = ["mesh", "pki", "root_ca"];
+  private readonly CA_KEY = ["mesh", "pki", "root_ca_v4"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes"];
 
   constructor(private kv: Deno.Kv) {}
@@ -78,10 +78,23 @@ export class MeshAuthService {
     const nodeKeyPath = `${tempDir}/node.key`;
     const nodeCsrPath = `${tempDir}/node.csr`;
     const nodeCertPath = `${tempDir}/node.crt`;
+    const nodeConfPath = `${tempDir}/node.conf`;
 
     try {
       await Deno.writeTextFile(caCertPath, ca.cert);
       await Deno.writeTextFile(caKeyPath, ca.key);
+      await Deno.writeTextFile(nodeConfPath, `
+[req]
+distinguished_name = req_distinguished_name
+prompt = no
+[req_distinguished_name]
+CN = ${nodeId}
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = clientAuth, serverAuth
+subjectKeyIdentifier = hash
+`);
 
       // 1. Generate Node Key
       const genKeyCmd = await new Deno.Command("openssl", {
@@ -91,7 +104,7 @@ export class MeshAuthService {
 
       // 2. Generate CSR
       const genCsrCmd = await new Deno.Command("openssl", {
-        args: ["req", "-new", "-key", nodeKeyPath, "-out", nodeCsrPath, "-subj", `/CN=${nodeId}`],
+        args: ["req", "-new", "-key", nodeKeyPath, "-out", nodeCsrPath, "-config", nodeConfPath],
       }).output();
       if (!genCsrCmd.success) throw new Error(`Failed to generate CSR: ${new TextDecoder().decode(genCsrCmd.stderr)}`);
 
@@ -101,7 +114,7 @@ export class MeshAuthService {
           "x509", "-req", "-in", nodeCsrPath,
           "-CA", caCertPath, "-CAkey", caKeyPath,
           "-CAcreateserial", "-out", nodeCertPath,
-          "-days", "365"
+          "-days", "365", "-sha256", "-extfile", nodeConfPath, "-extensions", "v3_req"
         ],
       }).output();
       if (!signCmd.success) throw new Error(`Failed to sign certificate: ${new TextDecoder().decode(signCmd.stderr)}`);
@@ -119,13 +132,29 @@ export class MeshAuthService {
     const tempDir = await Deno.makeTempDir();
     const caKeyPath = `${tempDir}/ca.key`;
     const caCertPath = `${tempDir}/ca.crt`;
+    const caConfPath = `${tempDir}/ca.conf`;
 
     try {
+      await Deno.writeTextFile(caConfPath, `
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_ca
+prompt = no
+[req_distinguished_name]
+CN = MeshRootCA
+[v3_ca]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical, digitalSignature, cRLSign, keyCertSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer
+`);
+
       const genCaCmd = await new Deno.Command("openssl", {
         args: [
           "req", "-x509", "-newkey", "rsa:4096",
           "-keyout", caKeyPath, "-out", caCertPath,
-          "-days", "3650", "-nodes", "-subj", "/CN=MeshRootCA"
+          "-days", "3650", "-nodes", "-config", caConfPath,
+          "-sha256"
         ],
       }).output();
       if (!genCaCmd.success) throw new Error(`Failed to generate Root CA: ${new TextDecoder().decode(genCaCmd.stderr)}`);

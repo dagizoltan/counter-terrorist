@@ -16,7 +16,7 @@ import { WindowsVpnProvider } from "./providers/windows_vpn.ts";
 
 export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): FirewallManager {
   if (platform.name === "windows") {
-    return new FirewallManager(new WindowsFirewallProvider());
+    return new FirewallManager(new WindowsFirewallProvider(executor));
   }
   return new FirewallManager(new UbuntuFirewallProvider(sidecar, executor));
 }

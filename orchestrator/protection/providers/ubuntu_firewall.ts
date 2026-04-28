@@ -1,7 +1,7 @@
 import { CommandResult } from "../../core/ports.ts";
 import { SidecarManager } from "../../infrastructure/sidecar_manager.ts";
-import { SystemExecutor, SystemExecutor } from "../../infrastructure/system_executor.ts";
-import { FirewallProvider } from "./interfaces.ts";
+import { SystemExecutor } from "../../infrastructure/system_executor.ts";
+import { FirewallProvider } from "../interfaces.ts";
 
 export class UbuntuFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}

@@ -7,6 +7,7 @@ import { CommandResult } from "./command_manager.ts";
  */
 export class SidecarManager {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
+  private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
   private responseWaiters: Map<string, Map<string, { resolve: (data: SidecarResponse) => void, reject: (err: Error) => void }>> = new Map();
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
 
@@ -66,6 +67,7 @@ export class SidecarManager {
     child.status.then((status) => {
       console.warn(`[SIDE-MAN] Sidecar ${name} exited with code ${status.code}.`);
       this.persistentProcesses.delete(name);
+      this.handleSidecarExit(name, status.code);
     });
 
     // Handle stderr
@@ -100,10 +102,22 @@ export class SidecarManager {
       `./agents/target/debug/${name}${extension}`,
     ];
 
+    let agentsDir = await Deno.realPath("./agents");
+    if (!agentsDir.endsWith("/")) agentsDir += "/";
+
     for (const p of paths) {
       try {
-        const info = await Deno.stat(p);
-        if (info.isFile) return p;
+        const absolutePath = await Deno.realPath(p);
+        const info = await Deno.stat(absolutePath);
+
+        if (info.isFile) {
+          // Security: Ensure the binary is within the agents directory
+          if (!absolutePath.startsWith(agentsDir)) {
+            console.error(`[SIDE-MAN] Security violation: Binary ${absolutePath} is outside agents directory`);
+            continue;
+          }
+          return absolutePath;
+        }
       } catch {
         continue;
       }
@@ -205,5 +219,33 @@ export class SidecarManager {
       this.eventHandlers.set(name, []);
     }
     this.eventHandlers.get(name)!.push(handler);
+  }
+
+  private handleSidecarExit(name: string, exitCode: number) {
+    if (exitCode === 0) return; // Clean exit
+
+    const now = Date.now();
+    const restartInfo = this.restartCounts.get(name) || { count: 0, lastRestart: 0 };
+
+    // Reset count if last restart was more than 5 minutes ago
+    if (now - restartInfo.lastRestart > 300000) {
+      restartInfo.count = 0;
+    }
+
+    if (restartInfo.count < 3) {
+      restartInfo.count++;
+      restartInfo.lastRestart = now;
+      this.restartCounts.set(name, restartInfo);
+
+      console.log(`[SIDE-MAN] Restarting sidecar ${name} (attempt ${restartInfo.count}/3)...`);
+      const backoffMs = Math.pow(2, restartInfo.count - 1) * 1000;
+      setTimeout(() => {
+        this.getPersistentSidecar(name).catch(err => {
+          console.error(`[SIDE-MAN] Failed to restart sidecar ${name}:`, err.message);
+        });
+      }, backoffMs);
+    } else {
+      console.error(`[SIDE-MAN] Sidecar ${name} failed too many times. Giving up.`);
+    }
   }
 }

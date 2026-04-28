@@ -25,16 +25,23 @@ export class MeshManager {
   async init() {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.port = Number(Deno.env.get("PORT")) || 8000;
-    this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
 
-    // Create mTLS HTTP client
-    this.httpClient = Deno.createHttpClient({
-      cert: this.nodeCert.cert,
-      key: this.nodeCert.key,
-      // caCerts: [(await meshAuth.getRootCA()).cert], // For mutual verification
-    });
+    try {
+      this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
 
-    this.logging.log(`[MESH] mTLS Identity established for ${this.nodeId}`, SyslogSeverity.NOTICE);
+      // Create mTLS HTTP client
+      /*
+      this.httpClient = Deno.createHttpClient({
+        cert: this.nodeCert.cert,
+        key: this.nodeCert.key,
+        // caCerts: [(await meshAuth.getRootCA()).cert], // For mutual verification
+      });
+      */
+
+      this.logging.log(`[MESH] mTLS Identity established for ${this.nodeId}`, SyslogSeverity.NOTICE);
+    } catch (e) {
+      this.logging.log(`[MESH] Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`, SyslogSeverity.WARNING);
+    }
   }
 
   /**
@@ -91,7 +98,7 @@ export class MeshManager {
         }
       }
     } catch (e) {
-      console.warn("[MESH] mDNS listener failed:", e.message);
+      console.warn("[MESH] mDNS listener failed:", e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -164,3 +171,8 @@ export class MeshManager {
   }
 }
 
+export let meshManager: MeshManager;
+
+export function setMeshManager(instance: MeshManager) {
+  meshManager = instance;
+}
