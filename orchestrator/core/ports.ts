@@ -1,5 +1,5 @@
 import { Plugin } from "../services/plugin_manager.ts";
-import { PlatformInfo } from "../services/platform.ts";
+import { PlatformInfo } from "../infrastructure/platform.ts";
 
 export interface StartupPort {
   bootstrap(): Promise<{ os: string; isRoot: boolean; dependencies: Record<string, boolean> }>;
@@ -102,12 +102,25 @@ export interface WebPort {
   start(port?: number): Promise<void>;
 }
 
+export interface AuditEvent {
+  type: string;
+  message: string;
+  timestamp?: string;
+  data?: any;
+}
+
 export interface AuditPort {
-  logEvent(event: any): Promise<void>;
+  logEvent(event: AuditEvent): Promise<void>;
+}
+
+export interface NotificationPayload {
+  type: string;
+  message: string;
+  data?: any;
 }
 
 export interface NotificationPort {
-  notify(event: any): Promise<void>;
+  notify(event: NotificationPayload): Promise<void>;
 }
 
 export interface EventBusPort {

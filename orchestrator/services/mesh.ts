@@ -1,6 +1,6 @@
 import { broadcast } from "../api/ws.ts";
-import { meshAuth } from "./mesh_auth.ts";
-import { loggingService, SyslogSeverity } from "./logging.ts";
+import { MeshAuthService } from "./index.ts";
+import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 
 export interface MeshNode {
   id: string;
@@ -18,14 +18,14 @@ export class MeshManager {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
 
-  constructor() {
+  constructor(private meshAuth: MeshAuthService) {
     loggingService.log("[MESH] Initializing Mesh Infrastructure...", SyslogSeverity.NOTICE);
   }
 
   async init() {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.port = Number(Deno.env.get("PORT")) || 8000;
-    this.nodeCert = await meshAuth.generateNodeCert(this.nodeId);
+    this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
 
     // Create mTLS HTTP client
     this.httpClient = Deno.createHttpClient({
@@ -164,4 +164,3 @@ export class MeshManager {
   }
 }
 
-export const meshManager = new MeshManager();

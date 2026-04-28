@@ -36,6 +36,17 @@ export async function initializeApplication(deps: ApplicationDependencies) {
   await deps.mesh.init();
   deps.mesh.startDiscovery();
 
+  // Automated Forensic Response
+  deps.eventBus.subscribe((event) => {
+    if (event.type === "CRITICAL") {
+      deps.protection.pcap.startCapture("any", 60, `intrusion_${Date.now()}.pcap`)
+        .then(res => {
+          if (!res.success) console.warn("[FORENSICS] PCAP capture failed:", res.stderr);
+        })
+        .catch(err => console.error("[FORENSICS] Unexpected PCAP error:", err));
+    }
+  });
+
   return {
     systemStatus,
     platformInfo,

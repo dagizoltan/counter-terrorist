@@ -11,13 +11,14 @@ import { WebPort, ApplicationStatus, ProtectionPort, CommandPort, ConfigurationP
 import { Dashboard } from "../views/Dashboard.tsx";
 import { Login } from "../views/Login.tsx";
 import { AppError } from "../core/errors.ts";
-import { loggingService, SyslogSeverity } from "../services/logging.ts";
+import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 import { wsHandler } from "../api/ws.ts";
 import { broadcast } from "../api/ws.ts";
-import { isValidIP } from "../services/validation.ts";
-import reportsApi from "../api/reports.ts";
-import notificationsApi from "../api/notifications.ts";
-import auditApi from "../api/audit.ts";
+import { isValidIP } from "../infrastructure/validation.ts";
+import { createReportsApi } from "../api/reports.ts";
+import { createNotificationsApi } from "../api/notifications.ts";
+import { createAuditApi } from "../api/audit.ts";
+import { AuditService, NotificationService, BaselineService } from "../services/index.ts";
 
 export class WebAdapter implements WebPort {
   private app: Hono;
@@ -29,6 +30,9 @@ export class WebAdapter implements WebPort {
     private command: CommandPort,
     private dashboardStatus: ApplicationStatus,
     private platformInfo: { name: string; version: string; tag: string },
+    private auditService: AuditService,
+    private notificationService: NotificationService,
+    private baselineService: BaselineService,
   ) {
     this.token = config.getToken();
     this.app = new Hono();
@@ -231,9 +235,9 @@ export class WebAdapter implements WebPort {
     );
 
     // API modules
-    this.app.route("/api/reports", reportsApi);
-    this.app.route("/api/notifications", notificationsApi);
-    this.app.route("/api/audit", auditApi);
+    this.app.route("/api/reports", createReportsApi(this.baselineService, this.protection));
+    this.app.route("/api/notifications", createNotificationsApi(this.notificationService));
+    this.app.route("/api/audit", createAuditApi(this.auditService));
   }
 
   async start(port: number = 8000): Promise<void> {

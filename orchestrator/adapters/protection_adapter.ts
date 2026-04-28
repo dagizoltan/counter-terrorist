@@ -1,30 +1,29 @@
 import { ProtectionPort } from "../core/ports.ts";
-import { firewall, vpn, antivirus, persistence, pcap, rkhunter } from "../protection/index.ts";
 
 export class ProtectionAdapter implements ProtectionPort {
+  constructor(private protection: any) {}
   get firewall() {
-    return firewall;
+    return this.protection.firewall;
   }
 
   get vpn() {
-    return vpn;
+    return this.protection.vpn;
   }
 
   get antivirus() {
-    return antivirus;
+    return this.protection.antivirus;
   }
 
   get persistence() {
-    return persistence;
+    return this.protection.persistence;
   }
 
   get pcap() {
-    return pcap;
+    return this.protection.pcap;
   }
 
   get rkhunter() {
-    return rkhunter;
+    return this.protection.rkhunter;
   }
 }
 
-export const protectionAdapter = new ProtectionAdapter();

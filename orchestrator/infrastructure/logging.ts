@@ -117,4 +117,3 @@ export class LoggingService {
     }
 }
 
-export const loggingService = new LoggingService();

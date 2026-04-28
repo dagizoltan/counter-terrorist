@@ -1,4 +1,4 @@
-import { commandManager } from "../services/command_manager.ts";
+import { commandManager } from "../infrastructure/command_manager.ts";
 import { broadcast } from "../api/ws.ts";
 import { loggingService, SyslogSeverity } from "./logging.ts";
 
@@ -176,4 +176,3 @@ export class BaselineService {
   }
 }
 
-export const baseline = new BaselineService();

@@ -9,7 +9,7 @@ export interface CertPair {
   timestamp: number;
 }
 
-class MeshAuthService {
+export class MeshAuthService {
   private kv: Deno.Kv | null = null;
   private readonly CA_KEY = ["mesh", "pki", "root_ca"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes"];
@@ -157,4 +157,3 @@ class MeshAuthService {
   }
 }
 
-export const meshAuth = new MeshAuthService();

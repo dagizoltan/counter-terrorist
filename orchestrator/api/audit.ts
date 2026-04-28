@@ -1,12 +1,14 @@
 import { Hono } from "hono";
-import { auditService } from "../services/audit.ts";
+import { AuditService } from "../services/index.ts";
 
-const auditApi = new Hono();
+export function createAuditApi(auditService: AuditService) {
+  const auditApi = new Hono();
 
-auditApi.get("/", async (c) => {
-    const limit = Number(c.req.query("limit")) || 50;
-    const events = await auditService.getRecentEvents(limit);
-    return c.json(events);
-});
+  auditApi.get("/", async (c) => {
+      const limit = Number(c.req.query("limit")) || 50;
+      const events = await auditService.getRecentEvents(limit);
+      return c.json(events);
+  });
 
-export default auditApi;
+  return auditApi;
+}

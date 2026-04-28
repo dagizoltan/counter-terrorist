@@ -314,4 +314,3 @@ export class CommandManager {
   }
 }
 
-export const commandManager = new CommandManager();

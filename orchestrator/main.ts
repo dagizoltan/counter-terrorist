@@ -1,21 +1,37 @@
 import { bootstrap } from "./bootstrapper.ts";
-import { firewall, vpn, pcap } from "./protection/index.ts";
-import { pluginManager, commandManager, getPlatformInfo } from "./services/index.ts";
+import { createProtection } from "./protection/index.ts";
+import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, CommandManager, LoggingService } from "./services/index.ts";
 import { createPluginFactory } from "./plugins/plugin_catalog.ts";
 import { initializeApplication, createDashboardStatus } from "./core/application.ts";
-import { commandAdapter } from "./adapters/command_adapter.ts";
-import { protectionAdapter } from "./adapters/protection_adapter.ts";
-import { loggingAdapter } from "./adapters/logging_adapter.ts";
-import { baselineAdapter } from "./adapters/baseline_adapter.ts";
-import { meshAdapter } from "./adapters/mesh_adapter.ts";
-import { meshAuthAdapter } from "./adapters/mesh_auth_adapter.ts";
+import { CommandAdapter } from "./adapters/command_adapter.ts";
+import { ProtectionAdapter } from "./adapters/protection_adapter.ts";
+import { LoggingAdapter } from "./adapters/logging_adapter.ts";
+import { BaselineAdapter } from "./adapters/baseline_adapter.ts";
+import { MeshAdapter } from "./adapters/mesh_adapter.ts";
+import { MeshAuthAdapter } from "./adapters/mesh_auth_adapter.ts";
 import { configurationAdapter } from "./adapters/configuration_adapter.ts";
 import { WebAdapter } from "./adapters/web_adapter.tsx";
-import { auditService } from "./services/audit.ts";
-import { notificationService } from "./services/alerts.ts";
-import { eventBus } from "./services/events.ts";
-import { broadcast } from "./api/ws.ts";
-import { SidecarEvent } from "./services/validation.ts";
+import { broadcast, initBroadcaster } from "./api/ws.ts";
+import { SidecarEvent } from "./infrastructure/validation.ts";
+
+const loggingService = new LoggingService();
+const commandManager = new CommandManager();
+
+const platformInfo = await getPlatformInfo();
+const protection = createProtection(commandManager, platformInfo);
+
+const auditService = new AuditService();
+const notificationService = new NotificationService();
+const eventBus = new EventBus();
+const meshAuthService = new MeshAuthService();
+const meshManager = new MeshManager(meshAuthService);
+const baselineService = new BaselineService();
+
+initBroadcaster({
+  notificationService,
+  auditService,
+  eventBus,
+});
 
 // Initialize Application via hexagonal core
 const app = await initializeApplication({
@@ -24,17 +40,17 @@ const app = await initializeApplication({
   pluginRegistry: pluginManager,
   pluginFactory: createPluginFactory({
     commandManager,
-    firewall,
-    vpn,
-    pcap,
+    firewall: protection.firewall,
+    vpn: protection.vpn,
+    pcap: protection.pcap,
     broadcast,
   }),
-  command: commandAdapter,
-  protection: protectionAdapter,
-  logging: loggingAdapter,
-  baseline: baselineAdapter,
-  mesh: meshAdapter,
-  meshAuth: meshAuthAdapter,
+  command: new CommandAdapter(commandManager),
+  protection: new ProtectionAdapter(protection),
+  logging: new LoggingAdapter(loggingService),
+  baseline: new BaselineAdapter(baselineService),
+  mesh: new MeshAdapter(meshManager),
+  meshAuth: new MeshAuthAdapter(meshAuthService),
   config: configurationAdapter,
   audit: auditService,
   notifications: notificationService,
@@ -43,10 +59,13 @@ const app = await initializeApplication({
 
 const web = new WebAdapter(
   configurationAdapter,
-  protectionAdapter,
-  commandAdapter,
+  app.protection,
+  app.command,
   createDashboardStatus(app.systemStatus, app.platformInfo, pluginManager),
-  app.platformInfo
+  app.platformInfo,
+  auditService,
+  notificationService,
+  baselineService
 );
 
 // Handle eBPF events
