@@ -103,9 +103,13 @@ app.post("/login", async (c) => {
   const password = body.password;
 
   if (typeof password === "string" && isTokenValid(password)) {
+    const certFile = Deno.env.get("TLS_CERT");
+    const keyFile = Deno.env.get("TLS_KEY");
+    const isSecure = !!(certFile && keyFile);
+
     setCookie(c, "session_token", TOKEN!, {
       httpOnly: true,
-      secure: true,
+      secure: isSecure,
       sameSite: "Strict",
       maxAge: 60 * 60 * 24 // 24 hours
     });
