@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { upgradeWebSocket, serveStatic } from "hono/deno";
+import { getCookie, setCookie, deleteCookie } from "hono/helper/cookie/index.ts";
+import { cors } from "hono/middleware/cors/index.ts";
 import { Dashboard } from "./views/Dashboard.tsx";
+import { Login } from "./views/Login.tsx";
 import { bootstrap } from "./bootstrapper.ts";
 import { wsHandler } from "./api/ws.ts";
 import { firewall } from "./protection/firewall.ts";
@@ -23,18 +26,46 @@ if (!TOKEN) {
   Deno.exit(1);
 }
 
-// Apply bearer auth to all /api/* routes
-app.use("/api/*", (c, next) => {
-  if (c.req.path === "/api/ws/events") {
-    // WebSockets handle auth via query param (Milestone 1 requirement)
-    const token = c.req.query("token");
-    if (token !== TOKEN) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+app.use("/api/*", cors({
+  origin: ['http://127.0.0.1:8000', 'https://127.0.0.1:8000'],
+  credentials: true,
+}));
+
+const authMiddleware = async (c: any, next: any) => {
+  // Check cookie
+  const sessionToken = getCookie(c, "session_token");
+  if (sessionToken === TOKEN) {
     return next();
   }
-  return bearerAuth({ token: TOKEN })(c, next);
-});
+
+  // Fallback to bearer auth for API clients
+  const authHeader = c.req.header("Authorization");
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const bearerToken = authHeader.substring(7);
+    if (bearerToken === TOKEN) {
+      return next();
+    }
+  }
+
+  if (c.req.path === "/api/ws/events") {
+    const token = c.req.query("token");
+    if (token === TOKEN) {
+      return next();
+    }
+  }
+
+  // If UI request, redirect to login
+  if (!c.req.path.startsWith("/api/")) {
+    return c.redirect("/login");
+  }
+
+  return c.json({ error: "Unauthorized" }, 401);
+};
+
+app.use("/api/*", authMiddleware);
+
+// Apply auth to UI routes except login
+app.use("/", authMiddleware);
 
 // Bootstrap system info for the dashboard
 const systemStatus = await bootstrap();
@@ -44,15 +75,42 @@ baseline.startMonitor();
 
 // Serve static assets (Web Components)
 app.use("/static/*", serveStatic({
-  root: "./orchestrator/web",
+  root: "./public",
   rewriteRequestPath: (path) => path.replace(/^\/static/, "")
 }));
+
+app.get("/login", (c) => {
+  // @ts-ignore: JSX component
+  return c.html(Login());
+});
+
+app.post("/login", async (c) => {
+  const body = await c.req.parseBody();
+  const password = body.password;
+
+  if (password === TOKEN) {
+    setCookie(c, "session_token", TOKEN!, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: 60 * 60 * 24 // 24 hours
+    });
+    return c.redirect("/");
+  }
+
+  return c.redirect("/login?error=1");
+});
+
+app.get("/logout", (c) => {
+  deleteCookie(c, "session_token");
+  return c.redirect("/login");
+});
 
 // UI Routes
 app.get("/", (c) => {
   // Use component as a function to avoid JSX syntax in this file
   // @ts-ignore: Dashboard is a JSX component
-  return c.html(Dashboard({ os: systemStatus.os, isRoot: systemStatus.isRoot, token: TOKEN! }));
+  return c.html(Dashboard({ os: systemStatus.os, isRoot: systemStatus.isRoot }));
 });
 
 app.get("/api/status", (c) => {

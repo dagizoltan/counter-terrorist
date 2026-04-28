@@ -18,6 +18,7 @@ export interface SystemSnapshot {
 
 export class BaselineService {
   private currentBaseline: SystemSnapshot | null = null;
+  private previousProcesses: ProcessSnapshot[] | null = null;
   private kv: Deno.Kv | null = null;
 
   constructor() {
@@ -115,12 +116,27 @@ export class BaselineService {
 
     // Check Processes drift (hash/path based)
     const baselineProcs = this.currentBaseline.processes;
-    const newProcs = current.processes.filter(currProc => {
+    let newProcs = current.processes.filter(currProc => {
         // Match by path and hash
         return !baselineProcs.some(baseProc =>
             baseProc.exe_path === currProc.exe_path && baseProc.hash === currProc.hash
         );
     });
+
+    // Ephemeral process filter (N-04)
+    if (this.previousProcesses) {
+      newProcs = newProcs.filter(currProc => {
+        return this.previousProcesses!.some(prevProc =>
+            prevProc.exe_path === currProc.exe_path && prevProc.hash === currProc.hash
+        );
+      });
+    } else {
+      // If no previous processes, assume all are ephemeral on first run to avoid noise
+      newProcs = [];
+    }
+
+    // Update previous processes for next run
+    this.previousProcesses = current.processes;
 
     if (newPorts.length > 0) {
       console.warn(`[BASELINE] Port drift detected: ${newPorts.join(", ")}`);

@@ -104,13 +104,15 @@ async fn main() {
                             if occupied.get().mtime == current_mtime {
                                 occupied.get().hash.clone()
                             } else {
-                                let (h, m) = compute_hash(exe);
+                                let exe_clone = exe.to_path_buf();
+                                let (h, m) = tokio::task::spawn_blocking(move || compute_hash(&exe_clone)).await.unwrap_or_else(|_| ("ERROR".to_string(), SystemTime::now()));
                                 occupied.insert(CacheEntry { hash: h.clone(), mtime: m });
                                 h
                             }
                         },
                         Entry::Vacant(vacant) => {
-                            let (h, m) = compute_hash(exe);
+                            let exe_clone = exe.to_path_buf();
+                            let (h, m) = tokio::task::spawn_blocking(move || compute_hash(&exe_clone)).await.unwrap_or_else(|_| ("ERROR".to_string(), SystemTime::now()));
                             vacant.insert(CacheEntry { hash: h.clone(), mtime: m });
                             h
                         }
