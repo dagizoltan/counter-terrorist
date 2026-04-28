@@ -88,7 +88,9 @@ export interface MeshPort {
 }
 
 export interface MeshAuthPort {
-  // Add methods as needed
+  getRootCACert(): Promise<{ cert: string; timestamp: number }>;
+  generateNodeCert(nodeId: string): Promise<{ cert: string; key: string; timestamp: number }>;
+  rotateCert(nodeId: string): Promise<{ cert: string; key: string; timestamp: number }>;
 }
 
 export interface ConfigurationPort {

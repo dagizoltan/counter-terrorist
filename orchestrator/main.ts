@@ -1,5 +1,5 @@
 import { bootstrap } from "./bootstrapper.ts";
-import { firewall, pcap } from "./protection/index.ts";
+import { firewall, vpn, pcap } from "./protection/index.ts";
 import { pluginManager, commandManager, getPlatformInfo } from "./services/index.ts";
 import { createPluginFactory } from "./plugins/plugin_catalog.ts";
 import { initializeApplication, createDashboardStatus } from "./core/application.ts";
@@ -24,6 +24,7 @@ const { systemStatus: applicationStatus, platformInfo, command, protection, conf
   pluginFactory: createPluginFactory({
     commandManager,
     firewall,
+    vpn,
     pcap,
     broadcast,
   }),

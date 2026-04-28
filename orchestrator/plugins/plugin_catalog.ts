@@ -5,11 +5,15 @@ import { PcapManager } from "../protection/pcap.ts";
 import { HoneypotPlugin } from "./honeypot.ts";
 import { SshHoneypotPlugin } from "./ssh_honeypot.ts";
 import { RedisHoneypotPlugin } from "./redis_honeypot.ts";
+import { FirewallPlugin } from "./firewall_plugin.ts";
+import { VpnPlugin } from "./vpn_plugin.ts";
 import { BroadcastFunction } from "./types.ts";
+import { VpnManager } from "../protection/vpn.ts";
 
 export interface PluginFactoryDependencies {
   commandManager: CommandManager;
   firewall: FirewallManager;
+  vpn: VpnManager;
   pcap: PcapManager;
   broadcast: BroadcastFunction;
 }
@@ -29,6 +33,16 @@ const ALL_TAGS = [
 ];
 
 export const pluginCatalog: PlatformPluginDefinition[] = [
+  {
+    id: "firewall",
+    supportedTags: ALL_TAGS,
+    create: ({ firewall }) => new FirewallPlugin(firewall),
+  },
+  {
+    id: "vpn",
+    supportedTags: ALL_TAGS,
+    create: ({ vpn }) => new VpnPlugin(vpn),
+  },
   {
     id: "honeypot",
     supportedTags: ALL_TAGS,
