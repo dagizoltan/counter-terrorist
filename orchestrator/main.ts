@@ -1,11 +1,7 @@
 import { Hono } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
-import { serveStatic, upgradeWebSocket } from "hono/deno";
-import {
-  deleteCookie,
-  getCookie,
-  setCookie,
-} from "hono/helper/cookie/index.ts";
+import { upgradeWebSocket, serveStatic } from "hono/deno";
+import { getCookie, setCookie, deleteCookie } from "hono/helper/cookie/index.ts";
 import { cors } from "hono/middleware/cors/index.ts";
 import { Dashboard } from "./views/Dashboard.tsx";
 import { Login } from "./views/Login.tsx";
@@ -19,6 +15,7 @@ import { baseline } from "./services/baseline.ts";
 import reportsApi from "./api/reports.ts";
 import notificationsApi from "./api/notifications.ts";
 import auditApi from "./api/audit.ts";
+import honeypotsApi from "./api/honeypots.ts";
 
 const app = new Hono();
 
@@ -26,19 +23,14 @@ const TOKEN = Deno.env.get("API_TOKEN");
 
 if (!TOKEN) {
   console.error("CRITICAL ERROR: API_TOKEN environment variable is not set.");
-  console.error(
-    "For security reasons, the orchestrator will not start without a defined token.",
-  );
+  console.error("For security reasons, the orchestrator will not start without a defined token.");
   Deno.exit(1);
 }
 
-app.use(
-  "/api/*",
-  cors({
-    origin: ["http://127.0.0.1:8000", "https://127.0.0.1:8000"],
-    credentials: true,
-  }),
-);
+app.use("/api/*", cors({
+  origin: ['http://127.0.0.1:8000', 'https://127.0.0.1:8000'],
+  credentials: true,
+}));
 
 import { timingSafeEqual } from "node:crypto";
 
@@ -97,13 +89,10 @@ const systemStatus = await bootstrap();
 baseline.startMonitor();
 
 // Serve static assets (Web Components)
-app.use(
-  "/static/*",
-  serveStatic({
-    root: "./public",
-    rewriteRequestPath: (path) => path.replace(/^\/static/, ""),
-  }),
-);
+app.use("/static/*", serveStatic({
+  root: "./public",
+  rewriteRequestPath: (path) => path.replace(/^\/static/, "")
+}));
 
 app.get("/login", (c) => {
   // @ts-ignore: JSX component
@@ -115,12 +104,11 @@ app.post("/login", async (c) => {
   const password = body.password;
 
   if (typeof password === "string" && isTokenValid(password)) {
-    const isTls = !!(Deno.env.get("TLS_CERT") && Deno.env.get("TLS_KEY"));
     setCookie(c, "session_token", TOKEN!, {
       httpOnly: true,
-      secure: isTls,
+      secure: true,
       sameSite: "Strict",
-      maxAge: 60 * 60 * 24, // 24 hours
+      maxAge: 60 * 60 * 24 // 24 hours
     });
     return c.redirect("/");
   }
@@ -137,9 +125,7 @@ app.get("/logout", (c) => {
 app.get("/", (c) => {
   // Use component as a function to avoid JSX syntax in this file
   // @ts-ignore: Dashboard is a JSX component
-  return c.html(
-    Dashboard({ os: systemStatus.os, isRoot: systemStatus.isRoot }),
-  );
+  return c.html(Dashboard({ os: systemStatus.os, isRoot: systemStatus.isRoot }));
 });
 
 app.get("/api/status", (c) => {
@@ -177,8 +163,8 @@ app.get("/api/agent/status", async (c) => {
     blocker_binary: blockerExists,
     firewall: {
       active: fwStatus.success && fwStatus.stdout.includes("Status: active"),
-      details: fwStatus.stdout || fwStatus.stderr,
-    },
+      details: fwStatus.stdout || fwStatus.stderr
+    }
   });
 });
 
@@ -217,6 +203,7 @@ app.get("/api/protection/rkhunter/status", (c) => {
 app.route("/api/reports", reportsApi);
 app.route("/api/notifications", notificationsApi);
 app.route("/api/audit", auditApi);
+app.route("/api/honeypots", honeypotsApi);
 
 app.post("/api/baseline/set", async (c) => {
   const result = await baseline.setBaseline();
@@ -253,8 +240,6 @@ if (certFile && keyFile) {
   }, app.fetch);
 } else {
   console.log(`Local (HTTP): http://${HOST}:${PORT}`);
-  console.warn(
-    "WARNING: Running without TLS. This is only recommended for local development.",
-  );
+  console.warn("WARNING: Running without TLS. This is only recommended for local development.");
   Deno.serve({ port: PORT, hostname: HOST }, app.fetch);
 }
