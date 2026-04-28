@@ -1,6 +1,7 @@
 /**
  * Command Manager for executing Rust sidecars and other system commands.
  */
+import { isAllowedSidecar } from "./validation.ts";
 
 export interface CommandResult {
   success: boolean;
@@ -17,7 +18,10 @@ export class CommandManager {
   /**
    * Executes a command and returns the result.
    */
-  async execute(cmd: string, args: string[] = []): Promise<CommandResult> {
+  async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
+    let timeoutId: number | undefined;
+    let child: Deno.ChildProcess | undefined;
+
     try {
       const command = new Deno.Command(cmd, {
         args,
@@ -25,7 +29,29 @@ export class CommandManager {
         stderr: "piped",
       });
 
-      const { code, stdout, stderr } = await command.output();
+      child = command.spawn();
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          if (child) {
+            try {
+              child.kill();
+            } catch {
+              // Ignore if already dead
+            }
+          }
+          reject(new Error(`Command '${cmd} ${args.join(" ")}' timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      });
+
+      const result = await Promise.race([
+        child.output(),
+        timeoutPromise
+      ]);
+
+      if (timeoutId) clearTimeout(timeoutId);
+
+      const { code, stdout, stderr } = result;
       const stdoutStr = new TextDecoder().decode(stdout);
       const stderrStr = new TextDecoder().decode(stderr);
 
@@ -45,6 +71,7 @@ export class CommandManager {
         data,
       };
     } catch (error) {
+      if (timeoutId) clearTimeout(timeoutId);
       return {
         success: false,
         stdout: "",
@@ -58,8 +85,7 @@ export class CommandManager {
    */
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
     // Strict sidecar allowlist (Milestone 1 requirement)
-    const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf"];
-    if (!ALLOWED_SIDECARS.includes(name)) {
+    if (!isAllowedSidecar(name)) {
       return {
         success: false,
         stdout: "",
@@ -108,6 +134,11 @@ export class CommandManager {
    * Gets or starts a persistent sidecar process.
    */
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
+    // Strict sidecar allowlist (Milestone 1 requirement)
+    if (!isAllowedSidecar(name)) {
+      throw new Error(`Sidecar '${name}' is not in the allowlist.`);
+    }
+
     if (this.persistentProcesses.has(name)) {
       return this.persistentProcesses.get(name)!;
     }

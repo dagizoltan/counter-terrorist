@@ -12,6 +12,7 @@ import { Dashboard } from "../views/Dashboard.tsx";
 import { Login } from "../views/Login.tsx";
 import { wsHandler } from "../api/ws.ts";
 import { broadcast } from "../api/ws.ts";
+import { isValidIP } from "../services/validation.ts";
 import reportsApi from "../api/reports.ts";
 import notificationsApi from "../api/notifications.ts";
 import auditApi from "../api/audit.ts";
@@ -142,12 +143,18 @@ export class WebAdapter implements WebPort {
     // Protection routes
     this.app.post("/api/protection/firewall/block", async (c: any) => {
       const { ip } = await c.req.json();
+      if (!ip || !isValidIP(ip)) {
+        return c.json({ success: false, message: "Invalid IP address" }, 400);
+      }
       const result = await this.protection.firewall.blockIp(ip);
       return c.json(result);
     });
 
     this.app.delete("/api/protection/firewall/block/:ip", async (c: any) => {
       const ip = c.req.param("ip");
+      if (!ip || !isValidIP(ip)) {
+        return c.json({ success: false, message: "Invalid IP address" }, 400);
+      }
       const result = await this.protection.firewall.unblockIp(ip);
       return c.json(result);
     });
