@@ -58,7 +58,7 @@ export class CommandManager {
    */
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
     // Strict sidecar allowlist (Milestone 1 requirement)
-    const ALLOWED_SIDECARS = ["scanner", "blocker"];
+    const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot"];
     if (!ALLOWED_SIDECARS.includes(name)) {
       return {
         success: false,
@@ -67,12 +67,13 @@ export class CommandManager {
       };
     }
 
-    // Protection against misuse: scanner is a persistent daemon and should not be run via runSidecar
-    if (name === "scanner") {
+    // Protection against misuse: persistent daemons should not be run via runSidecar
+    const PERSISTENT_SIDECARS = ["scanner", "honeypot"];
+    if (PERSISTENT_SIDECARS.includes(name)) {
       return {
         success: false,
         stdout: "",
-        stderr: `Sidecar 'scanner' is a persistent daemon. Use sendCommand() instead.`,
+        stderr: `Sidecar '${name}' is a persistent daemon. Use getPersistentSidecar() instead.`,
       };
     }
 

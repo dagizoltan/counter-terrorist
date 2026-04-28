@@ -15,6 +15,7 @@ import { firewall } from "./protection/firewall.ts";
 import { vpn } from "./protection/vpn.ts";
 import { antivirus } from "./protection/antivirus.ts";
 import { rkhunter } from "./protection/rkhunter.ts";
+import { honeypot } from "./protection/honeypot.ts";
 import { baseline } from "./services/baseline.ts";
 import reportsApi from "./api/reports.ts";
 import notificationsApi from "./api/notifications.ts";
@@ -95,6 +96,9 @@ const systemStatus = await bootstrap();
 
 // Start background monitoring
 baseline.startMonitor();
+
+// Start Honeypot (Day 1 Sting Plan)
+honeypot.start().catch(console.error);
 
 // Serve static assets (Web Components)
 app.use(
