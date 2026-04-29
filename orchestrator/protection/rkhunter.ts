@@ -18,20 +18,17 @@ export class RkhunterManager {
 
     async runScan(): Promise<RkhunterResult> {
         try {
-            console.log("[RKHUNTER] Starting rootkit scan...");
             const result = await this.sidecar.sendCommand("scanner", "RKH_SCAN");
 
             this.lastResult = result;
 
             if (result && !result.success) {
-                console.warn("[RKHUNTER] Rootkit scan detected potential issues or failed.");
                 broadcast({
                     type: "CRITICAL",
                     message: "Rootkit scan completed with warnings or failures.",
                     data: result
                 });
             } else {
-                console.log("[RKHUNTER] Rootkit scan completed successfully.");
                 broadcast({
                     type: "INFO",
                     message: "Rootkit scan completed successfully.",
