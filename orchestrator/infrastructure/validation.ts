@@ -90,6 +90,31 @@ export interface SidecarEvent {
 
 // Validation functions
 
+/**
+ * Constant-time comparison using hashing to prevent timing attacks.
+ * It hashes both inputs with SHA-256 and then performs a bitwise comparison
+ * on the resulting fixed-length hashes.
+ */
+export async function secureCompare(a: string | undefined, b: string | undefined): Promise<boolean> {
+  if (a === undefined || b === undefined) return false;
+
+  const encoder = new TextEncoder();
+  const aData = encoder.encode(a);
+  const bData = encoder.encode(b);
+
+  // Use SHA-256 to hash both inputs to the same length
+  const aHash = new Uint8Array(await crypto.subtle.digest("SHA-256", aData));
+  const bHash = new Uint8Array(await crypto.subtle.digest("SHA-256", bData));
+
+  // Constant-time comparison of the hashes
+  let diff = 0;
+  for (let i = 0; i < aHash.length; i++) {
+    diff |= aHash[i] ^ bHash[i];
+  }
+
+  return diff === 0;
+}
+
 export function validateRequest(sidecar: SidecarName, req: any): boolean {
   if (!req.type) return false;
 
