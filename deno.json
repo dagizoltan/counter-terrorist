@@ -4,7 +4,8 @@
     "dev": "deno run --allow-net --allow-read --allow-write --allow-run --allow-sys --allow-env --unstable-kv --unstable-net --watch orchestrator/main.ts",
     "bootstrap": "deno run --allow-run --allow-read --allow-sys orchestrator/bootstrapper.ts",
     "build-agents": "cd agents && cargo build --release && cargo build --release --package ebpf",
-    "package": "deno run --allow-run --allow-read --allow-write orchestrator/scripts/package.ts"
+    "package": "deno run --allow-run --allow-read --allow-write orchestrator/scripts/package.ts",
+    "test": "deno test --allow-read --allow-env --allow-run"
   },
   "compilerOptions": {
     "jsx": "react",
