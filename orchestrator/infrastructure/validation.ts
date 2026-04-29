@@ -25,6 +25,7 @@ export interface BaseRequest {
 export interface ScannerRequest extends BaseRequest {
   type: "SCAN" | "DIR_SCAN" | "RKH_SCAN" | "QUIT";
   path?: string;
+  paths?: string[];
 }
 
 export interface BlockerRequest extends BaseRequest {
@@ -120,7 +121,12 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
 
   switch (sidecar) {
     case "scanner":
-      return ["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT"].includes(req.type);
+      if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT"].includes(req.type)) return false;
+      if (req.type === "DIR_SCAN") {
+        if (req.path && typeof req.path !== "string") return false;
+        if (req.paths && !Array.isArray(req.paths)) return false;
+      }
+      return true;
     case "blocker":
       if (!["KillProcess", "BlockIp", "UnblockIp"].includes(req.type)) return false;
       if (req.type === "KillProcess" && typeof req.payload?.pid !== "number") return false;
