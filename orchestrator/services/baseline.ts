@@ -188,16 +188,14 @@ export class BaselineService {
 
     for (let i = 0; i < currentProcs.length; i++) {
       const currProc = currentProcs[i];
-      const key = currProc.key ?? `${currProc.exe_path}:${currProc.hash}`;
+      const key = this.getProcessKey(currProc);
       currentProcessKeys.add(key);
 
       // A process is "drift" if it's not in the baseline.
       // It's "ephemeral" if it's new but wasn't there in the previous scan.
       // We only report it if it's in drift AND not ephemeral (i.e. it was also in previous scan).
-      if (!this.baselineProcessSet.has(key)) {
-        if (this.isInitialized && this.previousProcessSet.has(key)) {
-          newProcs.push(currProc);
-        }
+      if (this.isInitialized && !this.baselineProcessSet.has(key) && this.previousProcessSet.has(key)) {
+        newProcs.push(currProc);
       }
     }
 
