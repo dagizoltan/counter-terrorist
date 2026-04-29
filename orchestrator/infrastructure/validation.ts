@@ -15,6 +15,35 @@ export function isAllowedSidecar(name: string): name is SidecarName {
   return (ALLOWED_SIDECARS as readonly string[]).includes(name);
 }
 
+// IPC Schemas
+
+export interface BaseRequest {
+  id?: string;
+  type: string;
+}
+
+export interface ScannerRequest extends BaseRequest {
+  type: "SCAN" | "DIR_SCAN" | "RKH_SCAN" | "QUIT";
+  path?: string;
+}
+
+export interface BlockerRequest extends BaseRequest {
+  type: "KillProcess" | "BlockIp" | "UnblockIp";
+  payload: {
+    pid?: number;
+    ip?: string;
+  };
+}
+
+export interface PcapRequest extends BaseRequest {
+  type: "StartCapture" | "StopCapture";
+  payload?: {
+    interface?: string;
+    duration?: number;
+    filename?: string;
+  };
+}
+
 export interface SidecarResponse {
   id?: string;
   success: boolean;
@@ -22,7 +51,34 @@ export interface SidecarResponse {
   stdout?: string;
   stderr?: string;
   data?: any;
+  timestamp?: string;
   [key: string]: any;
+}
+
+export interface ScannerResponse extends SidecarResponse {
+  processes?: Array<{
+    pid: number;
+    ppid: number;
+    name: string;
+    exe_path: string;
+    hash: string;
+    cpu_usage: number;
+    memory_usage: number;
+  }>;
+  system_load?: number;
+  files?: Array<{
+    path: string;
+    hash: string;
+    mtime: string;
+  }>;
+}
+
+export interface BlockerResponse extends SidecarResponse {
+  // message and success are enough
+}
+
+export interface PcapResponse extends SidecarResponse {
+  // message and success are enough
 }
 
 export interface SidecarEvent {
@@ -30,4 +86,37 @@ export interface SidecarEvent {
   data: any;
   timestamp: string;
   [key: string]: any;
+}
+
+// Validation functions
+
+export function validateRequest(sidecar: SidecarName, req: any): boolean {
+  if (!req.type) return false;
+
+  switch (sidecar) {
+    case "scanner":
+      return ["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT"].includes(req.type);
+    case "blocker":
+      if (!["KillProcess", "BlockIp", "UnblockIp"].includes(req.type)) return false;
+      if (req.type === "KillProcess" && typeof req.payload?.pid !== "number") return false;
+      if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(req.payload?.ip || "")) return false;
+      return true;
+    case "pcap":
+      if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
+      if (req.type === "StartCapture") {
+        if (req.payload?.interface && typeof req.payload.interface !== "string") return false;
+        if (req.payload?.duration && typeof req.payload.duration !== "number") return false;
+        if (req.payload?.filename && typeof req.payload.filename !== "string") return false;
+      }
+      return true;
+    default:
+      return true; // Other sidecars use loose schemas for now
+  }
+}
+
+export function validateResponse(sidecar: SidecarName, res: any): boolean {
+  if (typeof res.success !== "boolean") return false;
+
+  // Additional sidecar-specific response validation can be added here
+  return true;
 }

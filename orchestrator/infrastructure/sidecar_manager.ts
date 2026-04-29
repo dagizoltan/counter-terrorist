@@ -1,4 +1,4 @@
-import { isAllowedSidecar, SidecarResponse } from "./validation.ts";
+import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, SidecarName } from "./validation.ts";
 import { SystemExecutor } from "./system_executor.ts";
 import { CommandResult } from "./command_manager.ts";
 
@@ -38,6 +38,22 @@ export class SidecarManager {
         stdout: "",
         stderr: `Sidecar binary '${name}' not found in agents/target/`,
       };
+    }
+
+    // Security: If first arg is JSON, validate it
+    if (args.length > 0) {
+      try {
+        const payload = JSON.parse(args[0]);
+        if (!validateRequest(name as SidecarName, payload)) {
+          return {
+            success: false,
+            stdout: "",
+            stderr: `Security violation: Invalid payload for sidecar '${name}'`,
+          };
+        }
+      } catch {
+        // Not JSON, skip validation for now
+      }
     }
 
     return this.executor.execute(binPath, args);
@@ -144,6 +160,11 @@ export class SidecarManager {
           try {
             const data = JSON.parse(line) as SidecarResponse;
 
+            if (!validateResponse(name as SidecarName, data)) {
+              console.error(`[SIDE-MAN:${name}] Security violation: Invalid response from sidecar: ${line}`);
+              continue;
+            }
+
             if (data.id && this.responseWaiters.has(name)) {
               const waiters = this.responseWaiters.get(name)!;
               const waiter = waiters.get(data.id);
@@ -189,6 +210,10 @@ export class SidecarManager {
       commandObj = { id, type: cmd };
     } else {
       commandObj = { ...cmd, id };
+    }
+
+    if (!validateRequest(name as SidecarName, commandObj)) {
+      throw new Error(`Security violation: Invalid command for sidecar '${name}'`);
     }
 
     const responsePromise = new Promise<SidecarResponse>((resolve, reject) => {

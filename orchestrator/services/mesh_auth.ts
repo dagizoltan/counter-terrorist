@@ -74,16 +74,12 @@ export class MeshAuthService {
     const ca = await this.getRootCA();
     const tempDir = await Deno.makeTempDir();
     const caCertPath = `${tempDir}/ca.crt`;
-    const caKeyPath = `${tempDir}/ca.key`;
-    const nodeKeyPath = `${tempDir}/node.key`;
-    const nodeCsrPath = `${tempDir}/node.csr`;
-    const nodeCertPath = `${tempDir}/node.crt`;
     const nodeConfPath = `${tempDir}/node.conf`;
+    const nodeCsrPath = `${tempDir}/node.csr`;
 
     try {
       await Deno.writeTextFile(caCertPath, ca.cert);
-      await Deno.writeTextFile(caKeyPath, ca.key);
-      await Deno.writeTextFile(nodeConfPath, `
+      const nodeConf = `
 [req]
 distinguished_name = req_distinguished_name
 prompt = no
@@ -94,48 +90,68 @@ basicConstraints = CA:FALSE
 keyUsage = digitalSignature, keyEncipherment
 extendedKeyUsage = clientAuth, serverAuth
 subjectKeyIdentifier = hash
-`);
+`;
+      await Deno.writeTextFile(nodeConfPath, nodeConf);
 
-      // 1. Generate Node Key
-      const genKeyCmd = await new Deno.Command("openssl", {
-        args: ["genrsa", "-out", nodeKeyPath, "2048"],
-      }).output();
-      if (!genKeyCmd.success) throw new Error(`Failed to generate node key: ${new TextDecoder().decode(genKeyCmd.stderr)}`);
+      // 1. Generate Node Key and CSR in memory
+      const genReqCmd = new Deno.Command("openssl", {
+        args: [
+          "req", "-new", "-newkey", "rsa:2048",
+          "-keyout", "/dev/stdout", "-out", "/dev/stdout",
+          "-nodes", "-config", nodeConfPath, "-sha256"
+        ],
+        stdout: "piped",
+        stderr: "piped",
+      });
 
-      // 2. Generate CSR
-      const genCsrCmd = await new Deno.Command("openssl", {
-        args: ["req", "-new", "-key", nodeKeyPath, "-out", nodeCsrPath, "-config", nodeConfPath],
-      }).output();
-      if (!genCsrCmd.success) throw new Error(`Failed to generate CSR: ${new TextDecoder().decode(genCsrCmd.stderr)}`);
+      const reqOutput = await genReqCmd.output();
+      if (!reqOutput.success) {
+        throw new Error(`Failed to generate node request: ${new TextDecoder().decode(reqOutput.stderr)}`);
+      }
 
-      // 3. Sign CSR
-      const signCmd = await new Deno.Command("openssl", {
+      const reqPem = new TextDecoder().decode(reqOutput.stdout);
+      const nodeKey = reqPem.match(/-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/)?.[0];
+      const nodeCsr = reqPem.match(/-----BEGIN CERTIFICATE REQUEST-----[\s\S]*?-----END CERTIFICATE REQUEST-----/)?.[0];
+
+      if (!nodeKey || !nodeCsr) {
+        throw new Error("Failed to extract node key or CSR from OpenSSL output");
+      }
+
+      await Deno.writeTextFile(nodeCsrPath, nodeCsr);
+
+      // 2. Sign CSR using CA key from memory (via stdin)
+      const signCmd = new Deno.Command("openssl", {
         args: [
           "x509", "-req", "-in", nodeCsrPath,
-          "-CA", caCertPath, "-CAkey", caKeyPath,
-          "-CAcreateserial", "-out", nodeCertPath,
+          "-CA", caCertPath, "-CAkey", "/dev/stdin",
+          "-CAcreateserial", "-out", "/dev/stdout",
           "-days", "365", "-sha256", "-extfile", nodeConfPath, "-extensions", "v3_req"
         ],
-      }).output();
-      if (!signCmd.success) throw new Error(`Failed to sign certificate: ${new TextDecoder().decode(signCmd.stderr)}`);
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "piped",
+      });
 
-      const cert = await Deno.readTextFile(nodeCertPath);
-      const key = await Deno.readTextFile(nodeKeyPath);
+      const signer = signCmd.spawn();
+      const writer = signer.stdin.getWriter();
+      await writer.write(new TextEncoder().encode(ca.key));
+      await writer.close();
 
-      return { cert, key, timestamp: Date.now() };
+      const signOutput = await signer.output();
+      if (!signOutput.success) {
+        throw new Error(`Failed to sign certificate: ${new TextDecoder().decode(signOutput.stderr)}`);
+      }
+
+      const cert = new TextDecoder().decode(signOutput.stdout);
+
+      return { cert, key: nodeKey, timestamp: Date.now() };
     } finally {
       await Deno.remove(tempDir, { recursive: true });
     }
   }
 
   private async generateSelfSignedCA(): Promise<CertPair> {
-    const tempDir = await Deno.makeTempDir();
-    const caKeyPath = `${tempDir}/ca.key`;
-    const caCertPath = `${tempDir}/ca.crt`;
-    const caConfPath = `${tempDir}/ca.conf`;
-
-    try {
-      await Deno.writeTextFile(caConfPath, `
+    const caConf = `
 [req]
 distinguished_name = req_distinguished_name
 x509_extensions = v3_ca
@@ -147,25 +163,38 @@ basicConstraints = critical,CA:TRUE
 keyUsage = critical, digitalSignature, cRLSign, keyCertSign
 subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer
-`);
+`;
 
-      const genCaCmd = await new Deno.Command("openssl", {
-        args: [
-          "req", "-x509", "-newkey", "rsa:4096",
-          "-keyout", caKeyPath, "-out", caCertPath,
-          "-days", "3650", "-nodes", "-config", caConfPath,
-          "-sha256"
-        ],
-      }).output();
-      if (!genCaCmd.success) throw new Error(`Failed to generate Root CA: ${new TextDecoder().decode(genCaCmd.stderr)}`);
+    const genCaCmd = new Deno.Command("openssl", {
+      args: [
+        "req", "-x509", "-newkey", "rsa:4096",
+        "-keyout", "/dev/stdout", "-out", "/dev/stdout",
+        "-days", "3650", "-nodes", "-config", "/dev/stdin",
+        "-sha256"
+      ],
+      stdin: "piped",
+      stdout: "piped",
+      stderr: "piped",
+    });
 
-      const cert = await Deno.readTextFile(caCertPath);
-      const key = await Deno.readTextFile(caKeyPath);
+    const child = genCaCmd.spawn();
+    const writer = child.stdin.getWriter();
+    await writer.write(new TextEncoder().encode(caConf));
+    await writer.close();
 
-      return { cert, key, timestamp: Date.now() };
-    } finally {
-      await Deno.remove(tempDir, { recursive: true });
+    const { success, stdout, stderr } = await child.output();
+    if (!success) {
+      throw new Error(`Failed to generate Root CA: ${new TextDecoder().decode(stderr)}`);
     }
+
+    const output = new TextDecoder().decode(stdout);
+    const cert = output.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/)?.[0];
+    const key = output.match(/-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/)?.[0];
+
+    if (!cert || !key) {
+      throw new Error("Failed to extract CA cert or key from OpenSSL output");
+    }
+
+    return { cert, key, timestamp: Date.now() };
   }
 }
-
