@@ -81,8 +81,9 @@ export class WebAdapter implements WebPort {
       : [];
 
     // Security: Only enable CORS if origins are explicitly configured.
-    // We use a function for origin validation to ensure exact matches,
-    // avoiding Hono's default behavior of echoing the first origin on mismatch.
+    // We use a function for origin validation to ensure exact matches against the ALLOWED_ORIGINS allowlist.
+    // This prevents "Arbitrary Localhost Origins" vulnerabilities where any localhost port might be trusted.
+    // By using a validation function, we also avoid Hono's default behavior of echoing the first origin on mismatch.
     if (allowedOrigins.length > 0) {
       this.app.use(
         "/api/*",
@@ -90,7 +91,10 @@ export class WebAdapter implements WebPort {
           origin: (origin) => {
             return allowedOrigins.includes(origin) ? origin : null;
           },
+          allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+          allowHeaders: ["Content-Type", "Authorization", "X-CT-Token"],
           credentials: true,
+          maxAge: 600,
         }),
       );
     }
