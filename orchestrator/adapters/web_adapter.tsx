@@ -69,10 +69,15 @@ export class WebAdapter implements WebPort {
       throw new Error("API_TOKEN environment variable is not set.");
     }
 
+    const allowedOriginsStr = this.config.getEnv("ALLOWED_ORIGINS");
+    const allowedOrigins = allowedOriginsStr
+      ? allowedOriginsStr.split(",").map((o) => o.trim())
+      : [];
+
     this.app.use(
       "/api/*",
       cors({
-        origin: ["http://127.0.0.1:8000", "https://127.0.0.1:8000"],
+        origin: allowedOrigins,
         credentials: true,
       }),
     );
