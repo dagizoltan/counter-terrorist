@@ -10,6 +10,7 @@ export interface ProcessSnapshot {
   hash: string;
   cpu_usage?: number;
   memory_usage?: number;
+  key?: string; // Pre-computed unique identifier (exe_path:hash)
 }
 
 export interface FileSnapshot {
@@ -60,7 +61,7 @@ export class BaselineService {
   private updateCaches(snapshot: SystemSnapshot) {
     this.baselineFileMap = new Map((snapshot.files || []).map(f => [f.path, f.hash]));
     this.baselinePortSet = new Set(snapshot.ports);
-    this.baselineProcessSet = new Set(snapshot.processes.map(p => `${p.exe_path}:${p.hash}`));
+    this.baselineProcessSet = new Set(snapshot.processes.map(p => p.key ?? `${p.exe_path}:${p.hash}`));
   }
 
   async captureSnapshot(): Promise<SystemSnapshot> {
@@ -100,6 +101,7 @@ export class BaselineService {
                 name: p.name,
                 exe_path: p.exe_path,
                 hash: p.hash,
+                key: `${p.exe_path}:${p.hash}`,
             }));
         }
     } catch (e) {
@@ -157,13 +159,13 @@ export class BaselineService {
     // Check Processes drift (hash/path based)
     let newProcs = current.processes.filter(currProc => {
         // Match by path and hash
-        return !this.baselineProcessSet.has(`${currProc.exe_path}:${currProc.hash}`);
+        return !this.baselineProcessSet.has(currProc.key ?? `${currProc.exe_path}:${currProc.hash}`);
     });
 
     // Ephemeral process filter (N-04)
     if (this.previousProcesses) {
       newProcs = newProcs.filter(currProc => {
-        return this.previousProcessSet.has(`${currProc.exe_path}:${currProc.hash}`);
+        return this.previousProcessSet.has(currProc.key ?? `${currProc.exe_path}:${currProc.hash}`);
       });
     } else {
       // If no previous processes, assume all are ephemeral on first run to avoid noise
@@ -172,7 +174,7 @@ export class BaselineService {
 
     // Update previous processes for next run
     this.previousProcesses = current.processes;
-    this.previousProcessSet = new Set(this.previousProcesses.map(p => `${p.exe_path}:${p.hash}`));
+    this.previousProcessSet = new Set(this.previousProcesses.map(p => p.key ?? `${p.exe_path}:${p.hash}`));
 
     // Check Filesystem drift
     const currentFiles = current.files || [];
