@@ -124,7 +124,7 @@ Deno.test("createPersistenceManager - Windows platform", async () => {
 
   const manager = createPersistenceManager(sidecar, executor, platform);
 
-  await manager.auditPersistence();
+  await manager.audit();
   assertEquals(executor.lastCmd, "powershell");
   assertEquals(executor.lastArgs[0], "-Command");
 });
@@ -136,7 +136,7 @@ Deno.test("createPersistenceManager - Ubuntu platform", async () => {
 
   const manager = createPersistenceManager(sidecar, executor, platform);
 
-  await manager.auditPersistence();
+  await manager.audit();
   assertEquals(executor.lastCmd, "ls");
   assertEquals(executor.lastArgs.includes("/etc/cron.d"), true);
 });
