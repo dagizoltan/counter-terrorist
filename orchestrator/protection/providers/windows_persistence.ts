@@ -61,7 +61,20 @@ export class WindowsPersistenceProvider implements PersistenceProvider {
     `;
 
     try {
-      const result = await this.executor.execute("powershell", ["-Command", psCommand]);
+      const bytes = new Uint8Array(psCommand.length * 2);
+      for (let i = 0; i < psCommand.length; i++) {
+        const code = psCommand.charCodeAt(i);
+        bytes[i * 2] = code & 0xff;
+        bytes[i * 2 + 1] = (code >> 8) & 0xff;
+      }
+
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      const result = await this.executor.execute("powershell", ["-EncodedCommand", base64]);
       return {
         success: result.success,
         anomalies: result.data || [],
