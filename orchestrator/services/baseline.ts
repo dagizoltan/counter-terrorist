@@ -160,25 +160,32 @@ export class BaselineService {
     // Check Ports drift
     const newPorts = current.ports.filter(p => !this.baselinePortSet.has(p));
 
-    // Check Processes drift (hash/path based)
-    let newProcs = current.processes.filter(currProc => {
-        // Match by path and hash
-        return !this.baselineProcessSet.has(this.getProcessKey(currProc));
-    });
+    // Check Processes drift (hash/path based) and filter ephemeral processes (N-04)
+    let newProcs: ProcessSnapshot[] = [];
+    const currentProcessKeys = new Set<string>();
 
-    // Ephemeral process filter (N-04)
-    if (this.isInitialized) {
-      newProcs = newProcs.filter(currProc => {
-        return this.previousProcessSet.has(this.getProcessKey(currProc));
-      });
-    } else {
-      // If no previous processes, assume all are ephemeral on first run to avoid noise
-      newProcs = [];
+    for (const currProc of current.processes) {
+      const key = this.getProcessKey(currProc);
+      currentProcessKeys.add(key);
+
+      // A process is "drift" if it's not in the baseline.
+      // It's "ephemeral" if it's new but wasn't there in the previous scan.
+      // We only report it if it's in drift AND not ephemeral (i.e. it was also in previous scan).
+      if (!this.baselineProcessSet.has(key)) {
+        if (this.isInitialized) {
+          if (this.previousProcessSet.has(key)) {
+            newProcs.push(currProc);
+          }
+        }
+      }
+    }
+
+    if (!this.isInitialized) {
       this.isInitialized = true;
     }
 
     // Update previous processes for next run
-    this.previousProcessSet = new Set(current.processes.map(p => this.getProcessKey(p)));
+    this.previousProcessSet = currentProcessKeys;
 
     // Check Filesystem drift
     const currentFiles = current.files || [];
