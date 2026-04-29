@@ -74,15 +74,11 @@ export class MeshAuthService {
     const ca = await this.getRootCA();
     const tempDir = await Deno.makeTempDir();
     const caCertPath = `${tempDir}/ca.crt`;
-    const caKeyPath = `${tempDir}/ca.key`;
-    const nodeKeyPath = `${tempDir}/node.key`;
-    const nodeCsrPath = `${tempDir}/node.csr`;
-    const nodeCertPath = `${tempDir}/node.crt`;
     const nodeConfPath = `${tempDir}/node.conf`;
+    const nodeCsrPath = `${tempDir}/node.csr`;
 
     try {
       await Deno.writeTextFile(caCertPath, ca.cert);
-      await Deno.writeTextFile(caKeyPath, ca.key);
       await Deno.writeTextFile(nodeConfPath, `
 [req]
 distinguished_name = req_distinguished_name
@@ -96,31 +92,45 @@ extendedKeyUsage = clientAuth, serverAuth
 subjectKeyIdentifier = hash
 `);
 
-      // 1. Generate Node Key
-      const genKeyCmd = await new Deno.Command("openssl", {
-        args: ["genrsa", "-out", nodeKeyPath, "2048"],
+      // 1. Generate Node Key (In-Memory)
+      const genKeyOutput = await new Deno.Command("openssl", {
+        args: ["genrsa", "2048"],
       }).output();
-      if (!genKeyCmd.success) throw new Error(`Failed to generate node key: ${new TextDecoder().decode(genKeyCmd.stderr)}`);
+      if (!genKeyOutput.success) throw new Error(`Failed to generate node key: ${new TextDecoder().decode(genKeyOutput.stderr)}`);
+      const key = new TextDecoder().decode(genKeyOutput.stdout);
 
-      // 2. Generate CSR
-      const genCsrCmd = await new Deno.Command("openssl", {
-        args: ["req", "-new", "-key", nodeKeyPath, "-out", nodeCsrPath, "-config", nodeConfPath],
-      }).output();
-      if (!genCsrCmd.success) throw new Error(`Failed to generate CSR: ${new TextDecoder().decode(genCsrCmd.stderr)}`);
+      // 2. Generate CSR (In-Memory Key)
+      const genCsrCmd = new Deno.Command("openssl", {
+        args: ["req", "-new", "-key", "/dev/stdin", "-config", nodeConfPath, "-out", nodeCsrPath],
+        stdin: "piped",
+      });
+      const genCsrChild = genCsrCmd.spawn();
+      const csrWriter = genCsrChild.stdin.getWriter();
+      await csrWriter.write(new TextEncoder().encode(key));
+      await csrWriter.close();
+      const csrStatus = await genCsrChild.status;
+      if (!csrStatus.success) throw new Error("Failed to generate CSR");
 
-      // 3. Sign CSR
-      const signCmd = await new Deno.Command("openssl", {
+      // 3. Sign CSR (In-Memory CA Key)
+      const signCmd = new Deno.Command("openssl", {
         args: [
           "x509", "-req", "-in", nodeCsrPath,
-          "-CA", caCertPath, "-CAkey", caKeyPath,
-          "-CAcreateserial", "-out", nodeCertPath,
+          "-CA", caCertPath, "-CAkey", "/dev/stdin",
+          "-CAcreateserial",
           "-days", "365", "-sha256", "-extfile", nodeConfPath, "-extensions", "v3_req"
         ],
-      }).output();
-      if (!signCmd.success) throw new Error(`Failed to sign certificate: ${new TextDecoder().decode(signCmd.stderr)}`);
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "piped",
+      });
+      const signChild = signCmd.spawn();
+      const signWriter = signChild.stdin.getWriter();
+      await signWriter.write(new TextEncoder().encode(ca.key));
+      await signWriter.close();
 
-      const cert = await Deno.readTextFile(nodeCertPath);
-      const key = await Deno.readTextFile(nodeKeyPath);
+      const { success, stdout, stderr } = await signChild.output();
+      if (!success) throw new Error(`Failed to sign certificate: ${new TextDecoder().decode(stderr)}`);
+      const cert = new TextDecoder().decode(stdout);
 
       return { cert, key, timestamp: Date.now() };
     } finally {
@@ -130,8 +140,6 @@ subjectKeyIdentifier = hash
 
   private async generateSelfSignedCA(): Promise<CertPair> {
     const tempDir = await Deno.makeTempDir();
-    const caKeyPath = `${tempDir}/ca.key`;
-    const caCertPath = `${tempDir}/ca.crt`;
     const caConfPath = `${tempDir}/ca.conf`;
 
     try {
@@ -149,18 +157,33 @@ subjectKeyIdentifier = hash
 authorityKeyIdentifier = keyid:always,issuer
 `);
 
-      const genCaCmd = await new Deno.Command("openssl", {
+      // 1. Generate CA Key (In-Memory)
+      const genKeyOutput = await new Deno.Command("openssl", {
+        args: ["genrsa", "4096"],
+      }).output();
+      if (!genKeyOutput.success) throw new Error("Failed to generate CA key");
+      const key = new TextDecoder().decode(genKeyOutput.stdout);
+
+      // 2. Generate CA Certificate (In-Memory Key)
+      const genCertCmd = new Deno.Command("openssl", {
         args: [
-          "req", "-x509", "-newkey", "rsa:4096",
-          "-keyout", caKeyPath, "-out", caCertPath,
-          "-days", "3650", "-nodes", "-config", caConfPath,
+          "req", "-x509", "-new",
+          "-key", "/dev/stdin",
+          "-days", "3650", "-config", caConfPath,
           "-sha256"
         ],
-      }).output();
-      if (!genCaCmd.success) throw new Error(`Failed to generate Root CA: ${new TextDecoder().decode(genCaCmd.stderr)}`);
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "piped",
+      });
+      const genCertChild = genCertCmd.spawn();
+      const writer = genCertChild.stdin.getWriter();
+      await writer.write(new TextEncoder().encode(key));
+      await writer.close();
 
-      const cert = await Deno.readTextFile(caCertPath);
-      const key = await Deno.readTextFile(caKeyPath);
+      const { success, stdout, stderr } = await genCertChild.output();
+      if (!success) throw new Error(`Failed to generate Root CA: ${new TextDecoder().decode(stderr)}`);
+      const cert = new TextDecoder().decode(stdout);
 
       return { cert, key, timestamp: Date.now() };
     } finally {

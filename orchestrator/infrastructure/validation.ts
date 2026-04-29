@@ -25,6 +25,20 @@ export interface SidecarResponse {
   [key: string]: any;
 }
 
+export function validateSidecarResponse(data: any): data is SidecarResponse {
+  if (typeof data !== "object" || data === null) return false;
+  if ("success" in data && typeof data.success !== "boolean") return false;
+  if ("id" in data && typeof data.id !== "string") return false;
+  return true;
+}
+
+export function validateSidecarCommand(cmd: any): boolean {
+  if (typeof cmd !== "object" || cmd === null) return false;
+  if (!("id" in cmd) || typeof cmd.id !== "string") return false;
+  if (!("type" in cmd) || typeof cmd.type !== "string") return false;
+  return true;
+}
+
 export interface SidecarEvent {
   type: string;
   data: any;

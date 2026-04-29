@@ -216,6 +216,14 @@ export class BaselineService {
   }
 
   /**
+   * Trigger a real-time drift check for a specific event (e.g., eBPF alert).
+   */
+  async triggerRealtimeCheck(reason: string) {
+    this.logging.log(`[BASELINE] Triggering real-time drift check. Reason: ${reason}`, SyslogSeverity.NOTICE);
+    return await this.checkDrift();
+  }
+
+  /**
    * Starts the background drift monitoring loop.
    */
   startMonitor(intervalMs: number = 60000) {
