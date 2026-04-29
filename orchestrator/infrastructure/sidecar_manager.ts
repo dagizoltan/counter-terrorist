@@ -1,4 +1,4 @@
-import { isAllowedSidecar, SidecarResponse } from "./validation.ts";
+import { isAllowedSidecar, SidecarResponse, validateSidecarCommand, validateSidecarResponse } from "./validation.ts";
 import { SystemExecutor } from "./system_executor.ts";
 import { CommandResult } from "./command_manager.ts";
 
@@ -142,7 +142,11 @@ export class SidecarManager {
         for (const line of lines) {
           if (!line.trim()) continue;
           try {
-            const data = JSON.parse(line) as SidecarResponse;
+            const data = JSON.parse(line);
+            if (!validateSidecarResponse(data)) {
+              console.error(`[SIDE-MAN:${name}] Invalid response schema: ${line}`);
+              continue;
+            }
 
             if (data.id && this.responseWaiters.has(name)) {
               const waiters = this.responseWaiters.get(name)!;
@@ -189,6 +193,10 @@ export class SidecarManager {
       commandObj = { id, type: cmd };
     } else {
       commandObj = { ...cmd, id };
+    }
+
+    if (!validateSidecarCommand(commandObj)) {
+      throw new Error(`Invalid sidecar command: ${JSON.stringify(commandObj)}`);
     }
 
     const responsePromise = new Promise<SidecarResponse>((resolve, reject) => {

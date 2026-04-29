@@ -92,10 +92,27 @@ app.command.onEvent("ebpf", async (event: SidecarEvent) => {
       type = "WARN";
     } else if (event.syscall === "execve") {
       type = "WARN";
+      // Trigger real-time baseline drift check on execve
+      baselineService.triggerRealtimeCheck(`eBPF execve detected: ${event.comm} (PID: ${event.pid})`).catch(console.error);
+
       const analysis = await processTracker.analyzeEvent(event.pid, event.comm);
       if (analysis.isStrayShell) {
         type = "CRITICAL";
         message = `STRAY SHELL DETECTED: ${event.comm} (PID: ${event.pid}) spawned by suspicious parent. Reason: ${analysis.reason}`;
+
+        // Automated Containment: Kill the stray shell
+        app.command.sendCommand("blocker", {
+          type: "KillProcess",
+          payload: { pid: event.pid }
+        }).then(res => {
+          if (res.success) {
+            loggingService.log(`[CONTAINMENT] Successfully killed stray shell (PID: ${event.pid})`, SyslogSeverity.NOTICE);
+          } else {
+            loggingService.log(`[CONTAINMENT] Failed to kill stray shell (PID: ${event.pid}): ${res.message}`, SyslogSeverity.ERROR);
+          }
+        }).catch(err => {
+          loggingService.log(`[CONTAINMENT] Error during stray shell termination: ${err.message}`, SyslogSeverity.ERROR);
+        });
       }
       event.ppid = analysis.ppid;
     }
