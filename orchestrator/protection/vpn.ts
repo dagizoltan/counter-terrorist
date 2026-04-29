@@ -4,7 +4,6 @@ export class VpnManager {
   constructor(private provider: VpnProvider) {}
 
   async connect(interfaceName: string = "wg0"): Promise<VpnResult> {
-    console.log(`[VPN] Attempting to connect to: ${interfaceName}`);
     return await this.provider.connect(interfaceName);
   }
 
