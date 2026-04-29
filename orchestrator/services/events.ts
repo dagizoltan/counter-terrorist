@@ -35,7 +35,7 @@ export class EventBus {
       try {
         handler(event);
       } catch (e) {
-        console.error("[EVENTBUS] Handler error:", e);
+        this.logging.log(`[EVENTBUS] Handler error: ${e instanceof Error ? e.stack : e}`, SyslogSeverity.ERROR);
       }
     }
   }
