@@ -91,32 +91,41 @@ export interface SidecarEvent {
 
 // Validation functions
 
+let comparisonKey: CryptoKey | null = null;
+
 /**
- * Constant-time comparison using hashing to prevent timing attacks.
- * It hashes both inputs with SHA-256 and then performs a bitwise comparison
- * on the resulting fixed-length hashes.
+ * Constant-time comparison using HMAC to prevent timing attacks.
+ * It hashes both inputs with HMAC-SHA256 using a per-process random key,
+ * ensuring fixed-length outputs and preventing timing attack vectors.
  */
 export async function secureCompare(a: string | undefined, b: string | undefined): Promise<boolean> {
   if (a === undefined || b === undefined) return false;
 
   const encoder = new TextEncoder();
-  const aData = encoder.encode(a);
-  const bData = encoder.encode(b);
 
-  // Use SHA-256 to hash both inputs to the same length
-  const aHash = new Uint8Array(await crypto.subtle.digest("SHA-256", aData));
-  const bHash = new Uint8Array(await crypto.subtle.digest("SHA-256", bData));
+  if (!comparisonKey) {
+    comparisonKey = await crypto.subtle.generateKey(
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign", "verify"]
+    );
+  }
 
-  return secureCompareBytes(aHash, bHash);
+  const aMac = new Uint8Array(await crypto.subtle.sign("HMAC", comparisonKey, encoder.encode(a)));
+  const bMac = new Uint8Array(await crypto.subtle.sign("HMAC", comparisonKey, encoder.encode(b)));
+
+  return secureCompareBytes(aMac, bMac);
 }
 
 /**
  * Constant-time comparison of two Uint8Arrays to prevent timing attacks.
+ * This implementation avoids early returns based on content to mitigate timing leaks.
+ * Note: It still returns early if lengths differ, which is safe when comparing fixed-length hashes.
  */
 export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false;
 
-  // Constant-time comparison
+  // Constant-time bitwise comparison
   let diff = 0;
   for (let i = 0; i < a.length; i++) {
     diff |= a[i] ^ b[i];

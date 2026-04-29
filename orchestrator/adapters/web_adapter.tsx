@@ -17,7 +17,7 @@ import { AppError } from "../core/errors.ts";
 import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 import { wsHandler } from "../api/ws.ts";
 import { broadcast } from "../api/ws.ts";
-import { isValidIP, secureCompareBytes } from "../infrastructure/validation.ts";
+import { isValidIP, secureCompare } from "../infrastructure/validation.ts";
 import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
@@ -26,7 +26,6 @@ import { AuditService, NotificationService, BaselineService, ProcessTracker } fr
 export class WebAdapter implements WebPort {
   private app: Hono;
   private token: string | undefined;
-  private hashedTokenPromise: Promise<Uint8Array> | undefined;
 
   constructor(
     private config: ConfigurationPort,
@@ -40,11 +39,6 @@ export class WebAdapter implements WebPort {
     private processTracker: ProcessTracker,
   ) {
     this.token = config.getToken();
-    if (this.token) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(this.token);
-      this.hashedTokenPromise = crypto.subtle.digest("SHA-256", data).then((hash) => new Uint8Array(hash));
-    }
     this.app = new Hono();
 
     this.setupMiddleware();
@@ -311,14 +305,7 @@ export class WebAdapter implements WebPort {
   }
 
   private async isTokenValid(tokenToTest: string | undefined): Promise<boolean> {
-    if (!tokenToTest || !this.hashedTokenPromise) return false;
-
-    const encoder = new TextEncoder();
-    const data = encoder.encode(tokenToTest);
-    const testHash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
-    const secureHash = await this.hashedTokenPromise;
-
-    return secureCompareBytes(testHash, secureHash);
+    return await secureCompare(tokenToTest, this.token);
   }
 
   async start(port: number = 8000): Promise<void> {
