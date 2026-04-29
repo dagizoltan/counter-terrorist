@@ -1,5 +1,5 @@
-import { commandManager } from "../infrastructure/command_manager.ts";
 import { broadcast } from "../api/ws.ts";
+import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
 
 export interface RkhunterResult {
     success: boolean;
@@ -8,8 +8,6 @@ export interface RkhunterResult {
     stderr?: string;
     error?: string;
 }
-
-import { SidecarManager } from "../infrastructure/sidecar_manager.ts";
 
 export class RkhunterManager {
     private lastResult: RkhunterResult | null = null;
