@@ -4,7 +4,6 @@ export class PcapManager {
   constructor(private sidecar: SidecarManager) {}
 
   async startCapture(interface_name: string = "any", duration: number = 60, filename: string = `capture_${Date.now()}.pcap`) {
-    console.log(`[PCAP] Requesting capture on ${interface_name} for ${duration}s...`);
     try {
       const result = await this.sidecar.sendCommand("pcap", {
         type: "StartCapture",
