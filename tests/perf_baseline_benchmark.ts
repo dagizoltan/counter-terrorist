@@ -57,25 +57,31 @@ async function runBenchmark(numProcesses: number, iterations: number = 5) {
   // We need to run it twice to trigger the ephemeral filter (which uses previousProcesses)
   // First run: previousProcesses is null, newProcs becomes empty
   (mockSidecar.sendCommand as any) = async () => ({ processes: currentProcs });
-  await service.checkDrift();
+  const result1 = await service.checkDrift();
+  console.log(`First run: detected ${result1?.newProcs.length} new processes (Expected 0 due to ephemeral filter)`);
 
   // Second run: previousProcesses is now populated from first run
   // We'll keep the processes the same as first run so they are NOT ephemeral
+  const result2 = await service.checkDrift();
+  console.log(`Second run: detected ${result2?.newProcs.length} new processes (Expected ${newCount})`);
+
   const times: number[] = [];
+  // Suppress logs for benchmarking
+  const originalWarn = console.warn;
+  console.warn = () => {};
   for (let i = 0; i < iterations; i++) {
     const start = performance.now();
     await service.checkDrift();
     const end = performance.now();
     times.push(end - start);
   }
+  console.warn = originalWarn;
 
   const avg = times.reduce((a, b) => a + b, 0) / times.length;
   console.log(`Average execution time over ${iterations} iterations: ${avg.toFixed(4)}ms`);
   return avg;
 }
 
-if (import.meta.main) {
-  await runBenchmark(100);
-  await runBenchmark(1000);
-  await runBenchmark(5000);
-}
+await runBenchmark(100);
+await runBenchmark(1000);
+await runBenchmark(5000);
