@@ -71,3 +71,23 @@ Deno.test("EventBus handler error isolation", () => {
 
   assertEquals(handlerCalled, true);
 });
+
+Deno.test("EventBus logs handler errors", async () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  const error = new Error("Test handler error");
+
+  eventBus.subscribe(() => {
+    throw error;
+  });
+
+  eventBus.publish("INFO", "Test error logging");
+
+  // Wait for promise-based logging to complete
+  await new Promise(resolve => setTimeout(resolve, 10));
+
+  const errorLog = mockLogging.logs.find(l => l.message.includes("[EVENTBUS] Handler error"));
+  assertEquals(!!errorLog, true);
+  assertEquals(errorLog?.severity, SyslogSeverity.ERROR);
+  assertEquals(errorLog?.message.includes("Test handler error"), true);
+});

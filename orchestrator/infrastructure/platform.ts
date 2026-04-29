@@ -20,8 +20,8 @@ async function detectLinuxVersion(): Promise<string> {
     if (versionMatch) {
       return normalizeVersion(versionMatch[1]);
     }
-  } catch {
-    // ignore
+  } catch (e) {
+    console.error(`[PLATFORM] Failed to detect Linux version: ${e}`);
   }
   return "unknown";
 }
@@ -36,7 +36,8 @@ async function detectMacosVersion(): Promise<string> {
     const { stdout } = await command.output();
     const version = new TextDecoder().decode(stdout).trim();
     return normalizeVersion(version);
-  } catch {
+  } catch (e) {
+    console.error(`[PLATFORM] Failed to detect MacOS version: ${e}`);
     return "unknown";
   }
 }
