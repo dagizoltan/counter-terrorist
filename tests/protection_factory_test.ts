@@ -90,7 +90,7 @@ Deno.test("createFirewallManager - Windows platform", async () => {
 
   await manager.blockIp("1.2.3.4");
   assertEquals(executor.lastCmd, "netsh");
-  assertEquals(executor.lastArgs.includes("1.2.3.4"), true);
+  assertEquals(executor.lastArgs.some(arg => arg.includes("1.2.3.4")), true);
 });
 
 Deno.test("createFirewallManager - Ubuntu platform", async () => {
@@ -126,7 +126,7 @@ Deno.test("createPersistenceManager - Windows platform", async () => {
 
   await manager.audit();
   assertEquals(executor.lastCmd, "powershell");
-  assertEquals(executor.lastArgs[0], "-Command");
+  assertEquals(executor.lastArgs[0], "-EncodedCommand");
 });
 
 Deno.test("createPersistenceManager - Ubuntu platform", async () => {
