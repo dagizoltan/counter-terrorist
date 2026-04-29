@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use rayon::prelude::*;
+use std::sync::{Arc, Mutex};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Command {
@@ -126,7 +127,7 @@ async fn main() {
 
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
-    let mut hash_cache: HashMap<String, CacheEntry> = HashMap::new();
+    let hash_cache: Arc<Mutex<HashMap<String, CacheEntry>>> = Arc::new(Mutex::new(HashMap::new()));
 
     while let Ok(Some(line)) = reader.next_line().await {
         let command: Command = match serde_json::from_str(&line) {
@@ -137,8 +138,8 @@ async fn main() {
         if command.cmd_type == "SCAN" {
             sys.refresh_all();
 
-            let mut processes_list = Vec::new();
             let mut seen_paths = std::collections::HashSet::new();
+            let mut processes_to_scan = Vec::new();
 
             for (pid, process) in sys.processes() {
                 let exe = process.exe();
@@ -147,47 +148,64 @@ async fn main() {
                     seen_paths.insert(exe_str.clone());
                 }
 
-                let hash = if exe_str.is_empty() {
+                processes_to_scan.push((
+                    pid.as_u32(),
+                    process.parent().map(|p| p.as_u32()).unwrap_or(0),
+                    process.name().to_string(),
+                    exe_str,
+                    exe.to_path_buf(),
+                    process.cpu_usage(),
+                    process.memory()
+                ));
+            }
+
+            let cache_ref = Arc::clone(&hash_cache);
+            let mut processes_list: Vec<ProcessInfo> = processes_to_scan.into_par_iter().map(|(pid, ppid, name, exe_path, exe_buf, cpu_usage, memory_usage)| {
+                let hash = if exe_path.is_empty() {
                     "N/A".to_string()
                 } else {
-                    let current_mtime = fs::metadata(exe)
+                    let current_mtime = fs::metadata(&exe_buf)
                         .and_then(|m| m.modified())
                         .unwrap_or(SystemTime::now());
 
-                    use std::collections::hash_map::Entry;
-                    match hash_cache.entry(exe_str.clone()) {
-                        Entry::Occupied(mut occupied) => {
-                            if occupied.get().mtime == current_mtime {
-                                occupied.get().hash.clone()
-                            } else {
-                                let exe_clone = exe.to_path_buf();
-                                let (h, m) = tokio::task::spawn_blocking(move || compute_hash(&exe_clone)).await.unwrap_or_else(|_| ("ERROR".to_string(), SystemTime::now()));
-                                occupied.insert(CacheEntry { hash: h.clone(), mtime: m });
-                                h
+                    let mut cached_hash = None;
+                    {
+                        let cache = cache_ref.lock().unwrap();
+                        if let Some(entry) = cache.get(&exe_path) {
+                            if entry.mtime == current_mtime {
+                                cached_hash = Some(entry.hash.clone());
                             }
-                        },
-                        Entry::Vacant(vacant) => {
-                            let exe_clone = exe.to_path_buf();
-                            let (h, m) = tokio::task::spawn_blocking(move || compute_hash(&exe_clone)).await.unwrap_or_else(|_| ("ERROR".to_string(), SystemTime::now()));
-                            vacant.insert(CacheEntry { hash: h.clone(), mtime: m });
-                            h
                         }
+                    }
+
+                    if let Some(h) = cached_hash {
+                        h
+                    } else {
+                        let (h, m) = compute_hash(&exe_buf);
+                        let mut cache = cache_ref.lock().unwrap();
+                        cache.insert(exe_path.clone(), CacheEntry { hash: h.clone(), mtime: m });
+                        h
                     }
                 };
 
-                processes_list.push(ProcessInfo {
-                    pid: pid.as_u32(),
-                    ppid: process.parent().map(|p| p.as_u32()).unwrap_or(0),
-                    name: process.name().to_string(),
-                    exe_path: exe_str,
+                ProcessInfo {
+                    pid,
+                    ppid,
+                    name,
+                    exe_path,
                     hash,
-                    cpu_usage: process.cpu_usage(),
-                    memory_usage: process.memory(),
+                    cpu_usage,
+                    memory_usage,
+                }
+            }).collect();
+
+            // Evict old entries from hash_cache only if they are not in seen_paths AND not existing files
+            {
+                let mut cache = hash_cache.lock().unwrap();
+                cache.retain(|k, _| {
+                    seen_paths.contains(k) || std::path::Path::new(k).exists()
                 });
             }
-
-            // Evict old entries from hash_cache
-            hash_cache.retain(|k, _| seen_paths.contains(k));
 
             // Sort by CPU
             processes_list.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
@@ -212,23 +230,53 @@ async fn main() {
                 paths_to_scan.extend(ps);
             }
 
-            let file_infos: Vec<FileInfo> = paths_to_scan.par_iter().flat_map(|dir_path| {
+            // Collect all files first
+            let mut all_files = Vec::new();
+            for dir_path in paths_to_scan {
                 if let Ok(entries) = fs::read_dir(dir_path) {
-                    entries.flatten().filter_map(|entry| {
+                    for entry in entries.flatten() {
                         let path = entry.path();
                         if path.is_file() {
-                            let (hash, mtime) = compute_hash(&path);
-                            Some(FileInfo {
-                                path: path.to_string_lossy().to_string(),
-                                hash,
-                                mtime: chrono::DateTime::<chrono::Utc>::from(mtime).to_rfc3339(),
-                            })
-                        } else {
-                            None
+                            all_files.push(path);
                         }
-                    }).collect::<Vec<_>>()
+                    }
+                }
+            }
+
+            let cache_ref = Arc::clone(&hash_cache);
+            let file_infos: Vec<FileInfo> = all_files.par_iter().map(|path| {
+                let path_str = path.to_string_lossy().to_string();
+                let current_mtime = fs::metadata(path)
+                    .and_then(|m| m.modified())
+                    .unwrap_or(SystemTime::now());
+
+                let mut mtime_val = current_mtime;
+                let mut cached_hash = None;
+
+                {
+                    let cache = cache_ref.lock().unwrap();
+                    if let Some(entry) = cache.get(&path_str) {
+                        if entry.mtime == current_mtime {
+                            cached_hash = Some(entry.hash.clone());
+                            mtime_val = entry.mtime;
+                        }
+                    }
+                }
+
+                let hash = if let Some(h) = cached_hash {
+                    h
                 } else {
-                    Vec::new()
+                    let (h, m) = compute_hash(path);
+                    mtime_val = m;
+                    let mut cache = cache_ref.lock().unwrap();
+                    cache.insert(path_str.clone(), CacheEntry { hash: h.clone(), mtime: mtime_val });
+                    h
+                };
+
+                FileInfo {
+                    path: path_str,
+                    hash,
+                    mtime: chrono::DateTime::<chrono::Utc>::from(mtime_val).to_rfc3339(),
                 }
             }).collect();
 
