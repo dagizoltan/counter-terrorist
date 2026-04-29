@@ -26,6 +26,8 @@ export interface SystemSnapshot {
   files?: FileSnapshot[];
 }
 
+const CRITICAL_FILES_REGEX = /\/etc\/shadow|\/etc\/sudoers|authorized_keys/;
+
 export class BaselineService {
   private currentBaseline: SystemSnapshot | null = null;
   private isInitialized = false;
@@ -213,8 +215,7 @@ export class BaselineService {
       });
     }
     if (changedFiles.length > 0) {
-        const criticalFiles = ["/etc/shadow", "/etc/sudoers", "authorized_keys"];
-        const criticalChanges = changedFiles.filter(f => criticalFiles.some(c => f.path.includes(c)));
+        const criticalChanges = changedFiles.filter(f => CRITICAL_FILES_REGEX.test(f.path));
 
         if (criticalChanges.length > 0) {
             this.logging.log(`[BASELINE] CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`, SyslogSeverity.CRITICAL);
