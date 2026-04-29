@@ -100,7 +100,7 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
         return { success: false, threatsFound: false, message: "clamscan is not installed." };
     }
 
-    const result = await this.executor.execute("clamscan", ["-r", absolutePath]);
+    const result = await this.executor.execute("clamscan", ["-r", "--", absolutePath]);
     const threatsFound = result.stdout.includes("Infected files: 1") || (!result.success && result.stdout.includes("Infected files:"));
 
     if (threatsFound) {
