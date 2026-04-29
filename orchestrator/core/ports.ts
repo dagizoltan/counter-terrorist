@@ -139,7 +139,10 @@ export interface NotificationPort {
 
 export interface EventBusPort {
   publish(type: string, message: string, data?: any): void;
-  subscribe(handler: (event: { type: string; message: string; timestamp: string; data?: any }) => void): void;
+  emit(event: string, data: any): void;
+  subscribe(handler: (event: { type: string; message: string; timestamp: string; data?: any }) => void): () => void;
+  unsubscribe(handler: (event: any) => void): void;
+  on(event: string, callback: (data: any) => void): () => void;
 }
 
 export interface ApplicationStatus {

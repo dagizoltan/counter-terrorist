@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { EventBus, SystemEvent } from "../orchestrator/services/events.ts";
 import { LoggingPort, SyslogSeverity } from "../orchestrator/core/ports.ts";
 
@@ -29,6 +29,105 @@ Deno.test("EventBus.subscribe and publish", () => {
   assertEquals(events[0].message, "Test message");
   assertEquals(events[0].data, testData);
   assertEquals(typeof events[0].timestamp, "string");
+});
+
+Deno.test("EventBus.on (keyed subscription)", () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  const receivedData: any[] = [];
+
+  eventBus.on("INFO", (data) => {
+    receivedData.push(data);
+  });
+
+  eventBus.publish("INFO", "Info msg", { foo: "bar" });
+  eventBus.publish("WARN", "Warn msg", { skip: "me" });
+
+  assertEquals(receivedData.length, 1);
+  assertEquals(receivedData[0], { foo: "bar" });
+});
+
+Deno.test("EventBus.unsubscribe (general)", () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  let count = 0;
+  const handler = () => { count++; };
+
+  const unsub = eventBus.subscribe(handler);
+  eventBus.publish("INFO", "msg 1");
+  assertEquals(count, 1);
+
+  unsub();
+  eventBus.publish("INFO", "msg 2");
+  assertEquals(count, 1);
+
+  // Manual unsubscribe
+  const handler2 = () => { count++; };
+  eventBus.subscribe(handler2);
+  eventBus.publish("INFO", "msg 3");
+  assertEquals(count, 2);
+
+  eventBus.unsubscribe(handler2);
+  eventBus.publish("INFO", "msg 4");
+  assertEquals(count, 2);
+});
+
+Deno.test("EventBus.unsubscribe (keyed)", () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  let count = 0;
+  const handler = () => { count++; };
+
+  const unsub = eventBus.on("INFO", handler);
+  eventBus.publish("INFO", "msg 1");
+  assertEquals(count, 1);
+
+  unsub();
+  eventBus.publish("INFO", "msg 2");
+  assertEquals(count, 1);
+
+  // Manual unsubscribe
+  const handler2 = () => { count++; };
+  eventBus.on("WARN", handler2);
+  eventBus.publish("WARN", "msg 3");
+  assertEquals(count, 2);
+
+  eventBus.unsubscribe(handler2);
+  eventBus.publish("WARN", "msg 4");
+  assertEquals(count, 2);
+});
+
+Deno.test("EventBus.unsubscribe should remove from all registrations", () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  let count = 0;
+  const handler = () => { count++; };
+
+  eventBus.on("INFO", handler);
+  eventBus.on("WARN", handler);
+  eventBus.subscribe(handler as any);
+
+  eventBus.publish("INFO", "msg 1"); // +2 (on INFO and subscribe)
+  eventBus.publish("WARN", "msg 2"); // +2 (on WARN and subscribe)
+  assertEquals(count, 4);
+
+  eventBus.unsubscribe(handler);
+  eventBus.publish("INFO", "msg 3");
+  eventBus.publish("WARN", "msg 4");
+  assertEquals(count, 4);
+});
+
+Deno.test("EventBus.emit alias", () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  let received: any = null;
+
+  eventBus.on("CUSTOM", (data) => {
+    received = data;
+  });
+
+  eventBus.emit("CUSTOM", { hello: "world" });
+  assertEquals(received, { hello: "world" });
 });
 
 Deno.test("EventBus severity mapping", () => {
@@ -90,4 +189,28 @@ Deno.test("EventBus logs handler errors", async () => {
   assertEquals(!!errorLog, true);
   assertEquals(errorLog?.severity, SyslogSeverity.ERROR);
   assertEquals(errorLog?.message.includes("Test handler error"), true);
+});
+
+Deno.test("EventBus edge cases", () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  const events: SystemEvent[] = [];
+
+  eventBus.subscribe(e => events.push(e));
+
+  // Undefined data
+  eventBus.publish("INFO", "No data");
+  assertEquals(events[0].data, undefined);
+
+  // Empty message
+  eventBus.publish("INFO", "");
+  assertEquals(events[1].message, "");
+
+  // Multiple subscribers of different types
+  let keyedCount = 0;
+  eventBus.on("INFO", () => keyedCount++);
+
+  eventBus.publish("INFO", "Both");
+  assertEquals(events.length, 3);
+  assertEquals(keyedCount, 1);
 });
