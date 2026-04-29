@@ -61,9 +61,23 @@ export class BaselineService {
   }
 
   private updateCaches(snapshot: SystemSnapshot) {
-    this.baselineFileMap = new Map((snapshot.files || []).map(f => [f.path, f.hash]));
-    this.baselinePortSet = new Set(snapshot.ports);
-    this.baselineProcessSet = new Set(snapshot.processes.map(p => this.getProcessKey(p)));
+    // Avoid intermediate array allocations for large sets
+    this.baselineFileMap.clear();
+    if (snapshot.files) {
+      for (const f of snapshot.files) {
+        this.baselineFileMap.set(f.path, f.hash);
+      }
+    }
+
+    this.baselinePortSet.clear();
+    for (const p of snapshot.ports) {
+      this.baselinePortSet.add(p);
+    }
+
+    this.baselineProcessSet.clear();
+    for (const p of snapshot.processes) {
+      this.baselineProcessSet.add(this.getProcessKey(p));
+    }
   }
 
   private getProcessKey(p: ProcessSnapshot): string {
@@ -102,13 +116,18 @@ export class BaselineService {
     try {
         const scanResult = await this.sidecar.sendCommand("scanner", "SCAN");
         if (scanResult && scanResult.processes) {
-            processes = scanResult.processes.map((p: any) => ({
-                pid: p.pid,
-                name: p.name,
-                exe_path: p.exe_path,
-                hash: p.hash,
-                key: `${p.exe_path}:${p.hash}`,
-            }));
+            const scanProcs = scanResult.processes;
+            processes = new Array(scanProcs.length);
+            for (let i = 0; i < scanProcs.length; i++) {
+                const p = scanProcs[i];
+                processes[i] = {
+                    pid: p.pid,
+                    name: p.name,
+                    exe_path: p.exe_path,
+                    hash: p.hash,
+                    key: `${p.exe_path}:${p.hash}`,
+                };
+            }
         }
     } catch (e) {
         console.error("[BASELINE] Failed to capture processes from scanner:", e);
@@ -163,21 +182,21 @@ export class BaselineService {
     const newPorts = current.ports.filter(p => !this.baselinePortSet.has(p));
 
     // Check Processes drift (hash/path based) and filter ephemeral processes (N-04)
-    let newProcs: ProcessSnapshot[] = [];
+    const newProcs: ProcessSnapshot[] = [];
     const currentProcessKeys = new Set<string>();
+    const currentProcs = current.processes;
 
-    for (const currProc of current.processes) {
-      const key = this.getProcessKey(currProc);
+    for (let i = 0; i < currentProcs.length; i++) {
+      const currProc = currentProcs[i];
+      const key = currProc.key ?? `${currProc.exe_path}:${currProc.hash}`;
       currentProcessKeys.add(key);
 
       // A process is "drift" if it's not in the baseline.
       // It's "ephemeral" if it's new but wasn't there in the previous scan.
       // We only report it if it's in drift AND not ephemeral (i.e. it was also in previous scan).
       if (!this.baselineProcessSet.has(key)) {
-        if (this.isInitialized) {
-          if (this.previousProcessSet.has(key)) {
-            newProcs.push(currProc);
-          }
+        if (this.isInitialized && this.previousProcessSet.has(key)) {
+          newProcs.push(currProc);
         }
       }
     }
