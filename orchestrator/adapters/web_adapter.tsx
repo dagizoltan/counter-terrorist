@@ -308,6 +308,11 @@ export class WebAdapter implements WebPort {
     this.app.route("/api/audit", createAuditApi(this.auditService));
   }
 
+  /**
+   * Securely validates the provided token against the configured API token.
+   * Uses HMAC-based constant-time comparison (via secureCompare) to prevent timing attacks
+   * and avoid leaking the length or content of the secret token.
+   */
   private async isTokenValid(tokenToTest: string | undefined): Promise<boolean> {
     return await secureCompare(tokenToTest, this.token);
   }

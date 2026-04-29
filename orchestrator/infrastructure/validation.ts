@@ -91,30 +91,44 @@ export interface SidecarEvent {
 
 // Validation functions
 
-let comparisonKey: CryptoKey | null = null;
+let comparisonKeyPromise: Promise<CryptoKey> | null = null;
 
 /**
- * Constant-time comparison using HMAC to prevent timing attacks.
- * It hashes both inputs with HMAC-SHA256 using a per-process random key,
- * ensuring fixed-length outputs and preventing timing attack vectors.
+ * Gets or generates the HMAC key for constant-time comparisons.
+ * Uses a Promise to avoid race conditions during initialization.
  */
-export async function secureCompare(a: string | undefined, b: string | undefined): Promise<boolean> {
-  if (a === undefined || b === undefined) return false;
-
-  const encoder = new TextEncoder();
-
-  if (!comparisonKey) {
-    comparisonKey = await crypto.subtle.generateKey(
+async function getComparisonKey(): Promise<CryptoKey> {
+  if (!comparisonKeyPromise) {
+    comparisonKeyPromise = crypto.subtle.generateKey(
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["sign", "verify"]
     );
   }
+  return comparisonKeyPromise;
+}
 
-  const aMac = new Uint8Array(await crypto.subtle.sign("HMAC", comparisonKey, encoder.encode(a)));
-  const bMac = new Uint8Array(await crypto.subtle.sign("HMAC", comparisonKey, encoder.encode(b)));
+/**
+ * Constant-time comparison using HMAC to prevent timing attacks.
+ * It hashes both inputs with HMAC-SHA256 using a per-process random key,
+ * ensuring fixed-length outputs and preventing timing attack vectors.
+ * This version avoids early returns for undefined inputs to maintain consistent timing.
+ */
+export async function secureCompare(a: string | undefined, b: string | undefined): Promise<boolean> {
+  const key = await getComparisonKey();
+  const encoder = new TextEncoder();
 
-  return secureCompareBytes(aMac, bMac);
+  // Use dummy values if undefined to ensure HMAC operations are always performed
+  const aData = encoder.encode(a ?? "");
+  const bData = encoder.encode(b ?? "");
+
+  const aMac = new Uint8Array(await crypto.subtle.sign("HMAC", key, aData));
+  const bMac = new Uint8Array(await crypto.subtle.sign("HMAC", key, bData));
+
+  const result = secureCompareBytes(aMac, bMac);
+
+  // Ensure we return false if either input was undefined, but only after HMAC operations
+  return result && a !== undefined && b !== undefined;
 }
 
 /**
