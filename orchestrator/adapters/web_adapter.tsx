@@ -81,12 +81,15 @@ export class WebAdapter implements WebPort {
       : [];
 
     // Security: Only enable CORS if origins are explicitly configured.
-    // If ALLOWED_ORIGINS is empty or not set, CORS will default to denying all cross-origin requests.
+    // We use a function for origin validation to ensure exact matches,
+    // avoiding Hono's default behavior of echoing the first origin on mismatch.
     if (allowedOrigins.length > 0) {
       this.app.use(
         "/api/*",
         cors({
-          origin: allowedOrigins,
+          origin: (origin) => {
+            return allowedOrigins.includes(origin) ? origin : null;
+          },
           credentials: true,
         }),
       );
