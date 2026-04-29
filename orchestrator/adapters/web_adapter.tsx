@@ -71,16 +71,20 @@ export class WebAdapter implements WebPort {
 
     const allowedOriginsStr = this.config.getEnv("ALLOWED_ORIGINS");
     const allowedOrigins = allowedOriginsStr
-      ? allowedOriginsStr.split(",").map((o) => o.trim())
+      ? allowedOriginsStr.split(",").map((o) => o.trim()).filter((o) => o.length > 0)
       : [];
 
-    this.app.use(
-      "/api/*",
-      cors({
-        origin: allowedOrigins,
-        credentials: true,
-      }),
-    );
+    // Security: Only enable CORS if origins are explicitly configured.
+    // If ALLOWED_ORIGINS is empty or not set, CORS will default to denying all cross-origin requests.
+    if (allowedOrigins.length > 0) {
+      this.app.use(
+        "/api/*",
+        cors({
+          origin: allowedOrigins,
+          credentials: true,
+        }),
+      );
+    }
 
     const isTokenValid = (tokenToTest: string | undefined): boolean => {
       if (!this.token) return false;
