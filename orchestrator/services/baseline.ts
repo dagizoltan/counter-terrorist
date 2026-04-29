@@ -143,19 +143,17 @@ export class BaselineService {
 
     // Check Processes drift (hash/path based)
     const baselineProcs = this.currentBaseline.processes;
+    const baselineSet = new Set(baselineProcs.map(p => `${p.exe_path}:${p.hash}`));
     let newProcs = current.processes.filter(currProc => {
         // Match by path and hash
-        return !baselineProcs.some(baseProc =>
-            baseProc.exe_path === currProc.exe_path && baseProc.hash === currProc.hash
-        );
+        return !baselineSet.has(`${currProc.exe_path}:${currProc.hash}`);
     });
 
     // Ephemeral process filter (N-04)
     if (this.previousProcesses) {
+      const prevSet = new Set(this.previousProcesses.map(p => `${p.exe_path}:${p.hash}`));
       newProcs = newProcs.filter(currProc => {
-        return this.previousProcesses!.some(prevProc =>
-            prevProc.exe_path === currProc.exe_path && prevProc.hash === currProc.hash
-        );
+        return prevSet.has(`${currProc.exe_path}:${currProc.hash}`);
       });
     } else {
       // If no previous processes, assume all are ephemeral on first run to avoid noise
@@ -167,10 +165,11 @@ export class BaselineService {
 
     // Check Filesystem drift
     const baselineFiles = this.currentBaseline.files || [];
+    const baselineFileMap = new Map(baselineFiles.map(f => [f.path, f.hash]));
     const currentFiles = current.files || [];
     const changedFiles = currentFiles.filter(currFile => {
-        const baseFile = baselineFiles.find(f => f.path === currFile.path);
-        return !baseFile || baseFile.hash !== currFile.hash;
+        const baseHash = baselineFileMap.get(currFile.path);
+        return baseHash === undefined || baseHash !== currFile.hash;
     });
 
     if (newPorts.length > 0) {
