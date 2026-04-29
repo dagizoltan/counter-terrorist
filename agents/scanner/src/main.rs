@@ -29,6 +29,7 @@ struct ProcessInfo {
 #[derive(Serialize, Deserialize, Debug)]
 struct ScanResult {
     id: String,
+    success: bool,
     timestamp: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     processes: Option<Vec<ProcessInfo>>,
@@ -192,6 +193,7 @@ async fn main() {
 
             let result = ScanResult {
                 id: command.id,
+                success: true,
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 processes: Some(top_processes),
                 system_load: Some(sys.load_average().one as f32),
@@ -219,6 +221,7 @@ async fn main() {
 
             let result = ScanResult {
                 id: command.id,
+                success: true,
                 timestamp: chrono::Utc::now().to_rfc3339(),
                 processes: None,
                 system_load: None,
@@ -244,7 +247,8 @@ async fn main() {
                             "exit_code": out.status.code(),
                             "stdout": stdout,
                             "stderr": stderr,
-                            "type": "RKH_SCAN_RESULT"
+                            "type": "RKH_SCAN_RESULT",
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
                         });
                         println!("{}", result.to_string());
                     }
@@ -253,7 +257,8 @@ async fn main() {
                             "id": cmd_id,
                             "success": false,
                             "error": e.to_string(),
-                            "type": "RKH_SCAN_RESULT"
+                            "type": "RKH_SCAN_RESULT",
+                            "timestamp": chrono::Utc::now().to_rfc3339(),
                         });
                         println!("{}", result.to_string());
                     }
