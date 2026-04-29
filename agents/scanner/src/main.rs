@@ -13,6 +13,7 @@ struct Command {
     #[serde(rename = "type")]
     cmd_type: String,
     path: Option<String>,
+    paths: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -203,7 +204,15 @@ async fn main() {
             println!("{}", serde_json::to_string(&result).unwrap());
         } else if command.cmd_type == "DIR_SCAN" {
             let mut file_infos = Vec::new();
-            if let Some(dir_path) = command.path {
+            let mut paths_to_scan = Vec::new();
+            if let Some(p) = command.path {
+                paths_to_scan.push(p);
+            }
+            if let Some(ps) = command.paths {
+                paths_to_scan.extend(ps);
+            }
+
+            for dir_path in paths_to_scan {
                 if let Ok(entries) = fs::read_dir(&dir_path) {
                     for entry in entries.flatten() {
                         let path = entry.path();

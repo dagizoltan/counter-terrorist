@@ -95,15 +95,13 @@ export class BaselineService {
 
     // Capture Sensitive Files
     const sensitivePaths = ["/etc", "/usr/local/bin"];
-    for (const dir of sensitivePaths) {
-      try {
-        const res = await this.sidecar.sendCommand("scanner", { type: "DIR_SCAN", path: dir });
-        if (res && res.files) {
-          files = files.concat(res.files);
-        }
-      } catch (e) {
-        // Ignore errors for non-existent or inaccessible paths
+    try {
+      const res = await this.sidecar.sendCommand("scanner", { type: "DIR_SCAN", paths: sensitivePaths });
+      if (res && res.files) {
+        files = files.concat(res.files);
       }
+    } catch (e) {
+      this.logging.log(`[BASELINE] Failed to scan sensitive files: ${e}`, SyslogSeverity.ERROR);
     }
 
     return {
