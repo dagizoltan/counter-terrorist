@@ -17,7 +17,7 @@ import { AppError } from "../core/errors.ts";
 import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 import { wsHandler } from "../api/ws.ts";
 import { broadcast } from "../api/ws.ts";
-import { isValidIP, secureCompare } from "../infrastructure/validation.ts";
+import { isValidIP, secureCompareBytes } from "../infrastructure/validation.ts";
 import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
@@ -26,6 +26,7 @@ import { AuditService, NotificationService, BaselineService, ProcessTracker } fr
 export class WebAdapter implements WebPort {
   private app: Hono;
   private token: string | undefined;
+  private hashedTokenPromise: Promise<Uint8Array> | undefined;
 
   constructor(
     private config: ConfigurationPort,
@@ -39,6 +40,11 @@ export class WebAdapter implements WebPort {
     private processTracker: ProcessTracker,
   ) {
     this.token = config.getToken();
+    if (this.token) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(this.token);
+      this.hashedTokenPromise = crypto.subtle.digest("SHA-256", data).then((hash) => new Uint8Array(hash));
+    }
     this.app = new Hono();
 
     this.setupMiddleware();
@@ -86,18 +92,14 @@ export class WebAdapter implements WebPort {
       );
     }
 
-    const isTokenValid = async (tokenToTest: string | undefined): Promise<boolean> => {
-      return await secureCompare(tokenToTest, this.token);
-    };
-
     const authMiddleware = async (c: Context, next: Next) => {
       const sessionToken = getCookie(c, "session_token");
-      if (await isTokenValid(sessionToken)) {
+      if (await this.isTokenValid(sessionToken)) {
         // CSRF protection for state-changing methods when using cookie auth
         const method = c.req.method;
         if (method === "POST" || method === "DELETE" || method === "PUT" || method === "PATCH") {
           const ctToken = c.req.header("X-CT-Token");
-          if (!(await isTokenValid(ctToken))) {
+          if (!(await this.isTokenValid(ctToken))) {
             loggingService.log(`[AUTH] CSRF attempt blocked: Missing or invalid X-CT-Token header for ${method} ${c.req.path}`, SyslogSeverity.WARNING);
             return c.json({ error: "CSRF Protection: X-CT-Token header required" }, 403);
           }
@@ -108,7 +110,7 @@ export class WebAdapter implements WebPort {
       const authHeader = c.req.header("Authorization");
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const bearerToken = authHeader.substring(7);
-        if (await isTokenValid(bearerToken)) {
+        if (await this.isTokenValid(bearerToken)) {
           return next();
         }
       }
@@ -244,7 +246,7 @@ export class WebAdapter implements WebPort {
         token = body.password as string;
       }
 
-      if (token && (await isTokenValid(token))) {
+      if (token && (await this.isTokenValid(token))) {
         setCookie(c, "session_token", token, {
           httpOnly: true,
           secure: false, // For development
@@ -303,6 +305,17 @@ export class WebAdapter implements WebPort {
     this.app.route("/api/reports", createReportsApi(this.baselineService, this.protection));
     this.app.route("/api/notifications", createNotificationsApi(this.notificationService));
     this.app.route("/api/audit", createAuditApi(this.auditService));
+  }
+
+  private async isTokenValid(tokenToTest: string | undefined): Promise<boolean> {
+    if (!tokenToTest || !this.hashedTokenPromise) return false;
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(tokenToTest);
+    const testHash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
+    const secureHash = await this.hashedTokenPromise;
+
+    return secureCompareBytes(testHash, secureHash);
   }
 
   async start(port: number = 8000): Promise<void> {

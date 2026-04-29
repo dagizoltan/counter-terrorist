@@ -1,6 +1,17 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { CommandManager } from "../orchestrator/infrastructure/command_manager.ts";
-import { isValidIP } from "../orchestrator/infrastructure/validation.ts";
+import { isValidIP, secureCompareBytes } from "../orchestrator/infrastructure/validation.ts";
+
+Deno.test("Constant-time Byte Comparison (secureCompareBytes)", () => {
+  const a = new Uint8Array([1, 2, 3, 4]);
+  const b = new Uint8Array([1, 2, 3, 4]);
+  const c = new Uint8Array([1, 2, 3, 5]);
+  const d = new Uint8Array([1, 2, 3]);
+
+  assertEquals(secureCompareBytes(a, b), true);
+  assertEquals(secureCompareBytes(a, c), false);
+  assertEquals(secureCompareBytes(a, d), false);
+});
 
 Deno.test("IP Validation Regex", () => {
   // Valid IPv4

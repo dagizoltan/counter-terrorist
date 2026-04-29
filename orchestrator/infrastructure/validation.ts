@@ -107,10 +107,19 @@ export async function secureCompare(a: string | undefined, b: string | undefined
   const aHash = new Uint8Array(await crypto.subtle.digest("SHA-256", aData));
   const bHash = new Uint8Array(await crypto.subtle.digest("SHA-256", bData));
 
-  // Constant-time comparison of the hashes
+  return secureCompareBytes(aHash, bHash);
+}
+
+/**
+ * Constant-time comparison of two Uint8Arrays to prevent timing attacks.
+ */
+export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+
+  // Constant-time comparison
   let diff = 0;
-  for (let i = 0; i < aHash.length; i++) {
-    diff |= aHash[i] ^ bHash[i];
+  for (let i = 0; i < a.length; i++) {
+    diff |= a[i] ^ b[i];
   }
 
   return diff === 0;
