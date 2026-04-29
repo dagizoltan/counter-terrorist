@@ -15,39 +15,44 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
   }
 
   async quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }> {
-    const QUARANTINE_DIR = "/var/lib/cts/quarantine";
+    const QUARANTINE_DIR = Deno.env.get("QUARANTINE_DIR") || "/var/lib/cts/quarantine";
+    let srcFile: Deno.FsFile | null = null;
     try {
-      const initialStat = await Deno.lstat(path);
-      if (!initialStat.isFile) {
+      // Open file first to avoid TOCTOU between stat and open
+      srcFile = await Deno.open(path, { read: true });
+      const stat = await srcFile.stat();
+
+      if (!stat.isFile) {
+        srcFile.close();
+        srcFile = null;
         return { success: false, message: "Target is not a regular file." };
       }
 
       await ensureDir(QUARANTINE_DIR);
-      await Deno.chmod(QUARANTINE_DIR, 0o700);
+      // Attempt to set permissions, but ignore errors if we don't own the dir
+      try {
+        await Deno.chmod(QUARANTINE_DIR, 0o700);
+      } catch { /* ignore */ }
 
       const fileName = basename(path);
       const destination = resolve(QUARANTINE_DIR, `${crypto.randomUUID()}_${fileName}`);
 
-      const srcFile = await Deno.open(path, { read: true });
+      const destFile = await Deno.open(destination, { write: true, createNew: true });
       try {
-        const currentStat = await srcFile.stat();
-        if (
-          currentStat.mtime?.getTime() !== initialStat.mtime?.getTime() ||
-          currentStat.ino !== initialStat.ino ||
-          currentStat.dev !== initialStat.dev
-        ) {
-          return { success: false, message: "Security Warning: File modified or replaced during quarantine. Aborting." };
-        }
-
-        const destFile = await Deno.open(destination, { write: true, createNew: true });
-        try {
-          await srcFile.readable.pipeTo(destFile.writable);
-        } finally {
-          try { destFile.close(); } catch { /* ignore */ }
-        }
+        await srcFile.readable.pipeTo(destFile.writable, { preventClose: true });
       } finally {
-        try { srcFile.close(); } catch { /* ignore */ }
+        try { destFile.close(); } catch { /* ignore */ }
       }
+
+      // Close the source file before removing it
+      try {
+        srcFile.close();
+      } catch (e) {
+        if (!(e instanceof Deno.errors.BadResource)) {
+            console.warn("Error closing srcFile before removal:", e);
+        }
+      }
+      srcFile = null;
 
       try {
         await Deno.remove(path);
@@ -59,8 +64,10 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
         originalPath: path,
         quarantinedAt: new Date().toISOString(),
         fileName: fileName,
-        size: initialStat.size,
-        mtime: initialStat.mtime
+        size: stat.size,
+        mtime: stat.mtime,
+        ino: stat.ino,
+        dev: stat.dev
       };
       await Deno.writeTextFile(`${destination}.metadata.json`, JSON.stringify(metadata, null, 2));
 
@@ -71,6 +78,17 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
       };
     } catch (e) {
       return { success: false, message: `Failed to quarantine: ${String(e)}` };
+    } finally {
+      if (srcFile) {
+        try {
+          srcFile.close();
+        } catch (e) {
+            // If it was already closed, this might throw BadResource which is fine in finally
+            if (!(e instanceof Deno.errors.BadResource)) {
+                console.error("Unexpected error in finally close:", e);
+            }
+        }
+      }
     }
   }
 
