@@ -159,6 +159,7 @@ Deno.test("createFirewallManager - Windows platform", async () => {
   await manager.blockIp("1.2.3.4");
   assertEquals(executor.lastCmd, "netsh");
   assertEquals(executor.lastArgs.includes("remoteip=1.2.3.4"), true);
+  assertEquals(executor.lastArgs.some(arg => arg.includes("1.2.3.4")), true);
 });
 
 Deno.test("createFirewallManager - Ubuntu platform", async () => {
