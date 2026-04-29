@@ -28,14 +28,18 @@ export class EventBus {
 
     // Forward to syslog
     const severity = this.mapTypeToSeverity(type);
-    this.logging.log(`[EVENT:${type}] ${message}`, severity);
+    this.logging.log(`[EVENT:${type}] ${message}`, severity)
+      .catch(err => console.error(`[EVENTBUS] Failed to log event: ${err}`));
 
     // Notify internal subscribers
     for (const handler of this.handlers) {
       try {
         handler(event);
       } catch (e) {
-        this.logging.log(`[EVENTBUS] Handler error: ${e instanceof Error ? e.stack : e}`, SyslogSeverity.ERROR);
+        const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
+        console.error(`[EVENTBUS] Handler error: ${errorMsg}`);
+        this.logging.log(`[EVENTBUS] Handler error: ${errorMsg}`, SyslogSeverity.ERROR)
+          .catch(err => console.error(`[EVENTBUS] Failed to log handler error: ${err}`));
       }
     }
   }

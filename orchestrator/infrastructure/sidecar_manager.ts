@@ -51,8 +51,9 @@ export class SidecarManager {
             stderr: `Security violation: Invalid payload for sidecar '${name}'`,
           };
         }
-      } catch {
+      } catch (e) {
         // Not JSON, skip validation for now
+        console.debug?.(`[SIDE-MAN:${name}] Payload is not JSON, skipping validation: ${e}`);
       }
     }
 
@@ -98,8 +99,8 @@ export class SidecarManager {
             console.error(`[SIDECAR:${name}] ${msg.trim()}`);
           }
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        console.error(`[SIDE-MAN:${name}] Stderr reader error:`, e);
       } finally {
         reader.releaseLock();
       }
