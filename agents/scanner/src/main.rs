@@ -6,6 +6,7 @@ use sha2::{Sha256, Digest};
 use std::collections::HashMap;
 use std::time::SystemTime;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use rayon::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Command {
@@ -203,7 +204,6 @@ async fn main() {
 
             println!("{}", serde_json::to_string(&result).unwrap());
         } else if command.cmd_type == "DIR_SCAN" {
-            let mut file_infos = Vec::new();
             let mut paths_to_scan = Vec::new();
             if let Some(p) = command.path {
                 paths_to_scan.push(p);
@@ -212,21 +212,25 @@ async fn main() {
                 paths_to_scan.extend(ps);
             }
 
-            for dir_path in paths_to_scan {
-                if let Ok(entries) = fs::read_dir(&dir_path) {
-                    for entry in entries.flatten() {
+            let file_infos: Vec<FileInfo> = paths_to_scan.par_iter().flat_map(|dir_path| {
+                if let Ok(entries) = fs::read_dir(dir_path) {
+                    entries.flatten().filter_map(|entry| {
                         let path = entry.path();
                         if path.is_file() {
                             let (hash, mtime) = compute_hash(&path);
-                            file_infos.push(FileInfo {
+                            Some(FileInfo {
                                 path: path.to_string_lossy().to_string(),
                                 hash,
                                 mtime: chrono::DateTime::<chrono::Utc>::from(mtime).to_rfc3339(),
-                            });
+                            })
+                        } else {
+                            None
                         }
-                    }
+                    }).collect::<Vec<_>>()
+                } else {
+                    Vec::new()
                 }
-            }
+            }).collect();
 
             let result = ScanResult {
                 id: command.id,
