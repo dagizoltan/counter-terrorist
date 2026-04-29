@@ -56,8 +56,6 @@ export class NotificationService {
             return; // Only notify on critical or drift events
         }
 
-        console.log(`[NOTIFICATIONS] Sending alerts for event: ${event.type}`);
-
         for (const webhook of this.webhooks) {
             if (!webhook.enabled) continue;
 
