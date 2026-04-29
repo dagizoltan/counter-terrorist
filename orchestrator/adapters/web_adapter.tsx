@@ -17,7 +17,7 @@ import { AppError } from "../core/errors.ts";
 import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 import { wsHandler } from "../api/ws.ts";
 import { broadcast } from "../api/ws.ts";
-import { isValidIP } from "../infrastructure/validation.ts";
+import { isValidIP, secureCompare } from "../infrastructure/validation.ts";
 import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
@@ -82,28 +82,18 @@ export class WebAdapter implements WebPort {
       }),
     );
 
-    const isTokenValid = (tokenToTest: string | undefined): boolean => {
-      if (!this.token) return false;
-      if (!tokenToTest) return false;
-      const encoder = new TextEncoder();
-      const a = encoder.encode(tokenToTest);
-      const b = encoder.encode(this.token!);
-      if (a.length !== b.length) return false;
-      let diff = 0;
-      for (let i = 0; i < a.length; i++) {
-        diff |= a[i] ^ b[i];
-      }
-      return diff === 0;
+    const isTokenValid = async (tokenToTest: string | undefined): Promise<boolean> => {
+      return await secureCompare(tokenToTest, this.token);
     };
 
     const authMiddleware = async (c: Context, next: Next) => {
       const sessionToken = getCookie(c, "session_token");
-      if (isTokenValid(sessionToken)) {
+      if (await isTokenValid(sessionToken)) {
         // CSRF protection for state-changing methods when using cookie auth
         const method = c.req.method;
         if (method === "POST" || method === "DELETE" || method === "PUT" || method === "PATCH") {
           const ctToken = c.req.header("X-CT-Token");
-          if (!isTokenValid(ctToken)) {
+          if (!(await isTokenValid(ctToken))) {
             loggingService.log(`[AUTH] CSRF attempt blocked: Missing or invalid X-CT-Token header for ${method} ${c.req.path}`, SyslogSeverity.WARNING);
             return c.json({ error: "CSRF Protection: X-CT-Token header required" }, 403);
           }
@@ -114,7 +104,7 @@ export class WebAdapter implements WebPort {
       const authHeader = c.req.header("Authorization");
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const bearerToken = authHeader.substring(7);
-        if (isTokenValid(bearerToken)) {
+        if (await isTokenValid(bearerToken)) {
           return next();
         }
       }
@@ -250,7 +240,7 @@ export class WebAdapter implements WebPort {
         token = body.password as string;
       }
 
-      if (token && token === this.token) {
+      if (token && (await isTokenValid(token))) {
         setCookie(c, "session_token", token, {
           httpOnly: true,
           secure: false, // For development
