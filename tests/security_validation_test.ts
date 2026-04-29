@@ -1,6 +1,26 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { CommandManager } from "../orchestrator/infrastructure/command_manager.ts";
-import { isValidIP, secureCompareBytes } from "../orchestrator/infrastructure/validation.ts";
+import { isValidIP, secureCompareBytes, secureCompare } from "../orchestrator/infrastructure/validation.ts";
+
+Deno.test("Constant-time Token Comparison (secureCompare)", async () => {
+  const secret = "super-secret-token";
+
+  // Correct token
+  assertEquals(await secureCompare(secret, secret), true);
+
+  // Incorrect tokens
+  assertEquals(await secureCompare("wrong-token", secret), false);
+  assertEquals(await secureCompare(secret, "wrong-token"), false);
+
+  // Edge cases
+  assertEquals(await secureCompare("", secret), false);
+  assertEquals(await secureCompare(undefined, secret), false);
+  assertEquals(await secureCompare(secret, undefined), false);
+
+  // Different lengths (should not leak length via timing, but should still be false)
+  assertEquals(await secureCompare("short", secret), false);
+  assertEquals(await secureCompare(secret + "-long", secret), false);
+});
 
 Deno.test("Constant-time Byte Comparison (secureCompareBytes)", () => {
   const a = new Uint8Array([1, 2, 3, 4]);
