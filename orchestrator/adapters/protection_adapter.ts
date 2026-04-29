@@ -1,7 +1,8 @@
 import { ProtectionPort } from "../core/ports.ts";
+import { Protection } from "../protection/index.ts";
 
 export class ProtectionAdapter implements ProtectionPort {
-  constructor(private protection: any) {}
+  constructor(private protection: Protection) {}
   get firewall() {
     return this.protection.firewall;
   }
