@@ -28,6 +28,7 @@ export interface SystemSnapshot {
 export class BaselineService {
   private currentBaseline: SystemSnapshot | null = null;
   private previousProcesses: ProcessSnapshot[] | null = null;
+  private previousProcessSet = new Set<string>();
 
   // Caches for faster drift detection
   private baselineFileMap = new Map<string, string>();
@@ -161,9 +162,8 @@ export class BaselineService {
 
     // Ephemeral process filter (N-04)
     if (this.previousProcesses) {
-      const prevSet = new Set(this.previousProcesses.map(p => `${p.exe_path}:${p.hash}`));
       newProcs = newProcs.filter(currProc => {
-        return prevSet.has(`${currProc.exe_path}:${currProc.hash}`);
+        return this.previousProcessSet.has(`${currProc.exe_path}:${currProc.hash}`);
       });
     } else {
       // If no previous processes, assume all are ephemeral on first run to avoid noise
@@ -172,6 +172,7 @@ export class BaselineService {
 
     // Update previous processes for next run
     this.previousProcesses = current.processes;
+    this.previousProcessSet = new Set(this.previousProcesses.map(p => `${p.exe_path}:${p.hash}`));
 
     // Check Filesystem drift
     const currentFiles = current.files || [];
