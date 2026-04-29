@@ -29,6 +29,11 @@ export class BaselineService {
   private currentBaseline: SystemSnapshot | null = null;
   private previousProcesses: ProcessSnapshot[] | null = null;
 
+  // Caches for faster drift detection
+  private baselineFileMap = new Map<string, string>();
+  private baselinePortSet = new Set<string>();
+  private baselineProcessSet = new Set<string>();
+
   constructor(
     private kv: Deno.Kv,
     private sidecar: SidecarManager,
@@ -43,11 +48,18 @@ export class BaselineService {
       const res = await this.kv.get<SystemSnapshot>(["baseline"]);
       if (res.value) {
         this.currentBaseline = res.value;
+        this.updateCaches(res.value);
         this.logging.log("[BASELINE] Restored from Deno KV.", SyslogSeverity.INFORMATIONAL);
       }
     } catch (e) {
       this.logging.log(`[BASELINE] Failed to restore baseline from KV: ${e}`, SyslogSeverity.ERROR);
     }
+  }
+
+  private updateCaches(snapshot: SystemSnapshot) {
+    this.baselineFileMap = new Map((snapshot.files || []).map(f => [f.path, f.hash]));
+    this.baselinePortSet = new Set(snapshot.ports);
+    this.baselineProcessSet = new Set(snapshot.processes.map(p => `${p.exe_path}:${p.hash}`));
   }
 
   async captureSnapshot(): Promise<SystemSnapshot> {
@@ -114,6 +126,7 @@ export class BaselineService {
 
   async setBaseline() {
     this.currentBaseline = await this.captureSnapshot();
+    this.updateCaches(this.currentBaseline);
     if (this.kv) {
       await this.kv.set(["baseline"], this.currentBaseline);
     }
@@ -129,6 +142,7 @@ export class BaselineService {
             const res = await this.kv.get<SystemSnapshot>(["baseline"]);
             if (res.value) {
                 this.currentBaseline = res.value;
+                this.updateCaches(res.value);
             }
         }
     }
@@ -137,14 +151,12 @@ export class BaselineService {
     const current = await this.captureSnapshot();
 
     // Check Ports drift
-    const newPorts = current.ports.filter(p => !this.currentBaseline?.ports.includes(p));
+    const newPorts = current.ports.filter(p => !this.baselinePortSet.has(p));
 
     // Check Processes drift (hash/path based)
-    const baselineProcs = this.currentBaseline.processes;
-    const baselineSet = new Set(baselineProcs.map(p => `${p.exe_path}:${p.hash}`));
     let newProcs = current.processes.filter(currProc => {
         // Match by path and hash
-        return !baselineSet.has(`${currProc.exe_path}:${currProc.hash}`);
+        return !this.baselineProcessSet.has(`${currProc.exe_path}:${currProc.hash}`);
     });
 
     // Ephemeral process filter (N-04)
@@ -162,11 +174,9 @@ export class BaselineService {
     this.previousProcesses = current.processes;
 
     // Check Filesystem drift
-    const baselineFiles = this.currentBaseline.files || [];
-    const baselineFileMap = new Map(baselineFiles.map(f => [f.path, f.hash]));
     const currentFiles = current.files || [];
     const changedFiles = currentFiles.filter(currFile => {
-        const baseHash = baselineFileMap.get(currFile.path);
+        const baseHash = this.baselineFileMap.get(currFile.path);
         return baseHash === undefined || baseHash !== currFile.hash;
     });
 
