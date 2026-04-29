@@ -1,3 +1,5 @@
+import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
+
 export interface WebhookConfig {
     id: string;
     name: string;
@@ -9,7 +11,7 @@ export interface WebhookConfig {
 export class NotificationService {
     private webhooks: WebhookConfig[] = [];
 
-    constructor(private kv: Deno.Kv) {
+    constructor(private kv: Deno.Kv, private logging: LoggingPort) {
         this.loadWebhooks();
     }
 
@@ -20,7 +22,7 @@ export class NotificationService {
                 this.webhooks = res.value;
             }
         } catch (e) {
-            console.error("[NOTIFICATIONS] Failed to load webhooks from KV:", e);
+            this.logging.log(`[NOTIFICATIONS] Failed to load webhooks from KV: ${e}`, SyslogSeverity.ERROR);
         }
     }
 
@@ -55,7 +57,6 @@ export class NotificationService {
         if (event.type !== "CRITICAL" && !event.type.startsWith("DRIFT")) {
             return; // Only notify on critical or drift events
         }
-
         for (const webhook of this.webhooks) {
             if (!webhook.enabled) continue;
 
@@ -75,9 +76,8 @@ export class NotificationService {
                     body: JSON.stringify(body),
                 });
             } catch (e) {
-                console.error(`[NOTIFICATIONS] Failed to trigger webhook ${webhook.name}:`, e);
+                this.logging.log(`[NOTIFICATIONS] Failed to trigger webhook ${webhook.name}: ${e}`, SyslogSeverity.ERROR);
             }
         }
     }
 }
-

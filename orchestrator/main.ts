@@ -30,7 +30,7 @@ const kvStore = new KvStore();
 const kv = await kvStore.init();
 
 const auditService = new AuditService(kv, loggingService);
-const notificationService = new NotificationService(kv);
+const notificationService = new NotificationService(kv, loggingService);
 const eventBus = new EventBus(loggingService);
 const meshAuthService = new MeshAuthService(kv);
 const meshManager = new MeshManager(meshAuthService, loggingService);
