@@ -17,9 +17,9 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
   async quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }> {
     const QUARANTINE_DIR = "/var/lib/cts/quarantine";
     try {
-      const initialStat = await Deno.stat(path);
+      const initialStat = await Deno.lstat(path);
       if (!initialStat.isFile) {
-        return { success: false, message: "Target is not a file." };
+        return { success: false, message: "Target is not a regular file." };
       }
 
       await ensureDir(QUARANTINE_DIR);
@@ -28,22 +28,31 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
       const fileName = basename(path);
       const destination = resolve(QUARANTINE_DIR, `${crypto.randomUUID()}_${fileName}`);
 
-      const currentStat = await Deno.stat(path);
-      if (currentStat.mtime?.getTime() !== initialStat.mtime?.getTime()) {
-        return { success: false, message: "Security Warning: File modified during quarantine. Aborting." };
+      const srcFile = await Deno.open(path, { read: true });
+      try {
+        const currentStat = await srcFile.stat();
+        if (
+          currentStat.mtime?.getTime() !== initialStat.mtime?.getTime() ||
+          currentStat.ino !== initialStat.ino ||
+          currentStat.dev !== initialStat.dev
+        ) {
+          return { success: false, message: "Security Warning: File modified or replaced during quarantine. Aborting." };
+        }
+
+        const destFile = await Deno.open(destination, { write: true, createNew: true });
+        try {
+          await srcFile.readable.pipeTo(destFile.writable);
+        } finally {
+          try { destFile.close(); } catch { /* ignore */ }
+        }
+      } finally {
+        try { srcFile.close(); } catch { /* ignore */ }
       }
 
-      const destFile = await Deno.open(destination, { write: true, createNew: true });
-      const srcFile = await Deno.open(path, { read: true });
-
       try {
-        await srcFile.readable.pipeTo(destFile.writable);
-      } finally {
-        try {
-          await Deno.remove(path);
-        } catch {
-          // Ignore
-        }
+        await Deno.remove(path);
+      } catch {
+        // Ignore
       }
 
       const metadata = {
