@@ -22,6 +22,7 @@ export class AuditService {
     private lastHash: string = "GENESIS";
     private retentionConfig: RetentionConfig;
     private purgeIntervalId: number | undefined;
+    private logQueue: Promise<void> = Promise.resolve();
 
     constructor(private kv: Deno.Kv, private logging: LoggingPort) {
         this.retentionConfig = {
@@ -35,11 +36,7 @@ export class AuditService {
         // Schedule periodic retention purge (every hour)
         this.purgeIntervalId = setInterval(() => this.purgeExpired(), 60 * 60 * 1000);
     }
-
-    /**
-     * Restores the chain head hash from the most recent audit event in KV.
-     * This ensures the hash chain is continuous across service restarts.
-     */
+    
     private async restoreChainHead() {
         try {
             const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { reverse: true, limit: 1 });
@@ -59,41 +56,44 @@ export class AuditService {
 
     /**
      * Logs an audit event with hash chain integrity.
-     * Each event includes a SHA-256 hash of its content and the hash of the previous event,
-     * forming a tamper-evident chain (any modification breaks the chain).
+     * Uses a sequential queue to ensure the hash chain is strictly linear even with concurrent calls.
      */
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string }) {
-        const id = crypto.randomUUID();
-        const timestamp = event.timestamp || new Date().toISOString();
-        const prevHash = this.lastHash;
+        this.logQueue = this.logQueue.then(async () => {
+            const id = crypto.randomUUID();
+            const timestamp = event.timestamp || new Date().toISOString();
+            const prevHash = this.lastHash;
 
-        // Compute hash over the event content + prevHash for chain integrity
-        const hashInput = JSON.stringify({
-            id,
-            timestamp,
-            type: event.type,
-            message: event.message,
-            data: event.data,
-            prevHash,
+            // Compute hash over the event content + prevHash for chain integrity
+            const hashInput = JSON.stringify({
+                id,
+                timestamp,
+                type: event.type,
+                message: event.message,
+                data: event.data,
+                prevHash,
+            });
+            const hash = await this.computeHash(hashInput);
+
+            const auditEvent: AuditEvent = {
+                ...event,
+                id,
+                timestamp,
+                hash,
+                prevHash,
+            };
+
+            try {
+                await this.kv.set(["audit", Date.now(), id], auditEvent);
+                this.lastHash = hash;
+                // Forward audit event to remote syslog
+                this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, SyslogSeverity.NOTICE);
+            } catch (e) {
+                console.error("[AUDIT] Failed to save event:", e);
+            }
         });
-        const hash = await this.computeHash(hashInput);
-
-        const auditEvent: AuditEvent = {
-            ...event,
-            id,
-            timestamp,
-            hash,
-            prevHash,
-        };
-
-        try {
-            await this.kv.set(["audit", Date.now(), id], auditEvent);
-            this.lastHash = hash;
-            // Forward audit event to remote syslog (Phase 2 Requirement)
-            this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, SyslogSeverity.NOTICE);
-        } catch (e) {
-            console.error("[AUDIT] Failed to save event:", e);
-        }
+        
+        return this.logQueue;
     }
 
     async getRecentEvents(limit: number = 50): Promise<AuditEvent[]> {

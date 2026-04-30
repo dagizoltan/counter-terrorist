@@ -26,5 +26,9 @@ export class ProtectionAdapter implements ProtectionPort {
   get rkhunter() {
     return this.protection.rkhunter;
   }
+
+  async lockdown() {
+    return await this.protection.firewall.lockdown();
+  }
 }
 

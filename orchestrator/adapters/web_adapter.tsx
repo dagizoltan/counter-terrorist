@@ -431,7 +431,7 @@ export class WebAdapter implements WebPort {
       const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
       const { bootstrap } = await import("../bootstrapper.ts");
       const systemStatus = await bootstrap();
-      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager);
+      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager, this.auditService);
     }));
 
     // Audit
@@ -443,7 +443,7 @@ export class WebAdapter implements WebPort {
       const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
       const { bootstrap } = await import("../bootstrapper.ts");
       const systemStatus = await bootstrap();
-      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager);
+      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager, this.auditService);
     }));
 
     // Dashboard
@@ -452,7 +452,7 @@ export class WebAdapter implements WebPort {
       const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
       const { bootstrap } = await import("../bootstrapper.ts");
       const systemStatus = await bootstrap();
-      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager);
+      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager, this.auditService);
     }));
 
     // Static assets
@@ -470,6 +470,25 @@ export class WebAdapter implements WebPort {
         await this.processTracker.fullScan();
       }
       return c.json(this.processTracker.getTree());
+    });
+
+    // Protection Controls
+    this.app.post("/api/protection/lockdown", async (c: Context) => {
+      const result = await this.protection.lockdown();
+      return c.json(result);
+    });
+
+    // Agent Controls
+    this.app.post("/api/agents/:name/restart", async (c: Context) => {
+      const name = c.req.param("name");
+      await this.command.restartSidecar(name);
+      return c.json({ success: true, message: `Agent ${name} restarted.` });
+    });
+
+    this.app.post("/api/agents/:name/stop", async (c: Context) => {
+      const name = c.req.param("name");
+      await this.command.stopSidecar(name);
+      return c.json({ success: true, message: `Agent ${name} stopped.` });
     });
 
     // Mesh

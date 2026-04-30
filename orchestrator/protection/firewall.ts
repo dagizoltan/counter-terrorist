@@ -36,4 +36,9 @@ export class FirewallManager {
   async getStatus() {
     return await this.provider.getStatus();
   }
+
+  async lockdown() {
+    broadcast({ type: "CRITICAL", message: "LOCKDOWN PROTOCOL INITIATED" });
+    return await this.provider.lockdown();
+  }
 }

@@ -19,8 +19,18 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
            <h2 class="text-4xl font-black tracking-tighter uppercase">{agent.name}</h2>
         </div>
         <div class="flex gap-4">
-           <button class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Restart_Agent</button>
-           <button class="border border-red-600/50 text-red-500 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all">Deactivate</button>
+           <button 
+             onclick={`fetch('/api/agents/${agent.name}/restart', { method: 'POST' }).then(() => location.reload())`}
+             class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+           >
+             Restart_Agent
+           </button>
+           <button 
+             onclick={`fetch('/api/agents/${agent.name}/stop', { method: 'POST' }).then(() => location.reload())`}
+             class="border border-red-600/50 text-red-500 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
+           >
+             Deactivate
+           </button>
         </div>
       </div>
 

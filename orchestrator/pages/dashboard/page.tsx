@@ -38,7 +38,12 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
         </div>
         <div class="flex gap-4">
           <button class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Export Report</button>
-          <button class="border border-white/20 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-red-500">Lockdown</button>
+          <button 
+            onclick="fetch('/api/protection/lockdown', { method: 'POST' }).then(r => r.json()).then(d => alert(d.stdout))"
+            class="border border-white/20 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-red-500"
+          >
+            Lockdown
+          </button>
         </div>
       </div>
 
@@ -110,8 +115,8 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
               <div class="p-4 bg-black/40 border border-white/5">
                 <p class="text-slate-500 text-[9px] font-bold uppercase mb-2">Audit Subsystem</p>
                 <div class="flex justify-between items-center">
-                   <span class="text-xs font-bold uppercase">Chain Verified</span>
-                  <div class="w-1.5 h-1.5 bg-green-500"></div>
+                   <span class="text-xs font-bold uppercase">{props.status.auditVerified ? "Chain Verified" : "INTEGRITY_FAIL"}</span>
+                  <div class={`w-1.5 h-1.5 ${props.status.auditVerified ? "bg-green-500" : "bg-red-600 animate-pulse"}`}></div>
                 </div>
               </div>
           </div>

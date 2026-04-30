@@ -45,4 +45,21 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   async getStatus(): Promise<CommandResult> {
     return await this.executor.execute("sudo", ["ufw", "status"]);
   }
+
+  async lockdown(): Promise<CommandResult> {
+    // 1. Allow critical ports first
+    await this.executor.execute("sudo", ["ufw", "allow", "8000/tcp"]);
+    await this.executor.execute("sudo", ["ufw", "allow", "22/tcp"]);
+    
+    // 2. Set default deny
+    await this.executor.execute("sudo", ["ufw", "default", "deny", "incoming"]);
+    await this.executor.execute("sudo", ["ufw", "default", "deny", "outgoing"]);
+    
+    // 3. Allow essential outgoing
+    await this.executor.execute("sudo", ["ufw", "allow", "out", "8000/tcp"]);
+    await this.executor.execute("sudo", ["ufw", "allow", "out", "53"]);
+    
+    const res = await this.executor.execute("sudo", ["ufw", "enable", "--force"]);
+    return { success: res.success, stdout: "Emergency Lockdown Engaged", stderr: res.stderr };
+  }
 }

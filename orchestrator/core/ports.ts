@@ -31,6 +31,8 @@ export interface CommandPort {
   onEvent(sidecar: string, handler: (event: any) => void): void;
   emitEvent(sidecar: string, event: any): void;
   getPersistentSidecar(sidecar: string): Promise<any>;
+  restartSidecar(sidecar: string): Promise<void>;
+  stopSidecar(sidecar: string): Promise<void>;
 }
 
 export interface FirewallPort {
@@ -74,6 +76,7 @@ export interface ProtectionPort {
   persistence: PersistencePort;
   pcap: PcapPort;
   rkhunter: RkhunterPort;
+  lockdown(): Promise<CommandResult>;
 }
 
 export enum SyslogSeverity {

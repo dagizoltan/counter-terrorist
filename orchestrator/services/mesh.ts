@@ -47,38 +47,93 @@ export class MeshManager {
   }
 
   /**
-   * Starts the mDNS discovery process to identify other nodes.
+   * Starts node discovery.
+   * Zero-config: Attempts mDNS first, then falls back to Subnet Scanning.
    */
   startDiscovery() {
     if (this.discoveryInterval) return;
 
-    this.logging.log("[MESH] Starting mDNS node discovery...", SyslogSeverity.NOTICE);
+    this.logging.log("[MESH] Starting zero-config node discovery...", SyslogSeverity.NOTICE);
 
-    // Initial scan and then every minute
-    this.scanNetwork();
+    // 1. Initial Subnet Scan (Fast discovery)
+    this.discoverSubnet();
+    
+    // 2. Schedule regular scans
     this.discoveryInterval = setInterval(() => {
+        this.discoverSubnet();
         this.scanNetwork();
-    }, 60000);
+    }, 300000); // Every 5 minutes
 
-    // Start listening for mDNS responses/queries
+    // 3. Start listening for mDNS (Passive discovery)
     this.listenForDiscovery();
+  }
+
+  private async discoverSubnet() {
+    const interfaces = Deno.networkInterfaces();
+    const localIps = interfaces
+      .filter(i => i.family === "IPv4" && !i.address.startsWith("127."))
+      .map(i => i.address);
+
+    for (const ip of localIps) {
+      const subnet = ip.split(".").slice(0, 3).join(".");
+      this.logging.log(`[MESH] Probing subnet ${subnet}.0/24...`, SyslogSeverity.DEBUG);
+      
+      // Parallel probe with concurrency limit to avoid flooding
+      const probes = [];
+      for (let i = 1; i < 255; i++) {
+        const targetIp = `${subnet}.${i}`;
+        if (targetIp === ip) continue; // Skip self
+
+        probes.push(this.probeNode(targetIp));
+        
+        if (probes.length >= 20) {
+          await Promise.all(probes);
+          probes.length = 0;
+        }
+      }
+      await Promise.all(probes);
+    }
+  }
+
+  private async probeNode(address: string) {
+    try {
+      const url = `http://${address}:${this.port}/api/mesh/ping`; // Try HTTP first for discovery
+      const res = await fetch(url, { signal: AbortSignal.timeout(1000) });
+      if (res.ok) {
+        const body = await res.json();
+        if (body.success && body.nodeId) {
+          this.logging.log(`[MESH] Discovered potential peer at ${address}`, SyslogSeverity.NOTICE);
+          this.validateAndRegisterNode({
+            id: body.nodeId,
+            hostname: body.nodeId,
+            address,
+            port: this.port,
+            lastSeen: Date.now(),
+            verified: false,
+          });
+        }
+      }
+    } catch {
+      // Node not present or port closed
+    }
   }
 
   private async listenForDiscovery() {
     try {
+      // @ts-ignore
+      if (typeof Deno.listenDatagram !== "function") return;
+
       const listener = Deno.listenDatagram({
         port: 5353,
         hostname: "0.0.0.0",
         transport: "udp",
       });
 
-      this.logging.log("[MESH] Listening for mDNS on 224.0.0.251:5353", SyslogSeverity.NOTICE);
+      this.logging.log("[MESH] Passive mDNS listener active", SyslogSeverity.NOTICE);
 
       for await (const [data, addr] of listener) {
-        // More robust mDNS check: look for _ct-orchestrator._tcp.local
         const msg = new TextDecoder().decode(data);
         if (msg.includes("_ct-orchestrator._tcp.local")) {
-           // Basic extraction from simulated DNS-SD TXT record
            const idMatch = msg.match(/id=([^,]+)/);
            const portMatch = msg.match(/port=(\d+)/);
 
@@ -88,7 +143,6 @@ export class MeshManager {
              const address = (addr as Deno.NetAddr).hostname;
 
              if (id !== this.nodeId) {
-               // Security: Don't trust mDNS alone — validate via mTLS before accepting
                this.validateAndRegisterNode({
                  id,
                  hostname: id,
@@ -102,23 +156,24 @@ export class MeshManager {
         }
       }
     } catch (e) {
-      console.warn("[MESH] mDNS listener failed:", e instanceof Error ? e.message : String(e));
+      // Silent fail
     }
   }
 
   private scanNetwork() {
-    // Construct a simulated DNS-SD announcement
-    // Format: _ct-orchestrator._tcp.local TXT id=NODEID,port=PORT
-    const txt = `id=${this.nodeId},port=${this.port}`;
-    const announcement = `_ct-orchestrator._tcp.local|${txt}`;
-    const message = new TextEncoder().encode(announcement);
-
     try {
+      // @ts-ignore
+      if (typeof Deno.listenDatagram !== "function") return;
+
+      const txt = `id=${this.nodeId},port=${this.port}`;
+      const announcement = `_ct-orchestrator._tcp.local|${txt}`;
+      const message = new TextEncoder().encode(announcement);
+
       const socket = Deno.listenDatagram({ port: 0, transport: "udp" });
       socket.send(message, { transport: "udp", hostname: "224.0.0.251", port: 5353 });
       socket.close();
     } catch (e) {
-      console.error("[MESH] Failed to send mDNS broadcast", e);
+      // Silent fail
     }
   }
 

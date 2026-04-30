@@ -77,7 +77,11 @@ export class SidecarManager {
     const binPath = await this.findBinary(name);
     if (!binPath) return null;
 
-    const command = new Deno.Command(binPath, {
+    const PRIVILEGED_SIDECARS = ["ebpf", "fim"];
+    const isPrivileged = PRIVILEGED_SIDECARS.includes(name);
+
+    const command = new Deno.Command(isPrivileged ? "sudo" : binPath, {
+      args: isPrivileged ? ["-n", binPath] : [],
       stdin: "piped",
       stdout: "piped",
       stderr: "piped",
@@ -269,6 +273,24 @@ export class SidecarManager {
       for (const handler of handlers) {
         handler(data);
       }
+    }
+  }
+
+  async restartSidecar(name: string): Promise<void> {
+    await this.stopSidecar(name);
+    await this.getPersistentSidecar(name);
+  }
+
+  async stopSidecar(name: string): Promise<void> {
+    const process = this.persistentProcesses.get(name);
+    if (process) {
+      try {
+        process.kill("SIGTERM");
+      } catch (e) {
+        console.warn(`[SIDE-MAN] Failed to kill ${name} with SIGTERM, forcing SIGKILL:`, e.message);
+        process.kill("SIGKILL");
+      }
+      this.persistentProcesses.delete(name);
     }
   }
 

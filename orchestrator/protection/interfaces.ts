@@ -5,6 +5,7 @@ export interface FirewallProvider {
   unblockIp(ip: string): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
+  lockdown(): Promise<CommandResult>;
 }
 
 export interface VpnResult {
