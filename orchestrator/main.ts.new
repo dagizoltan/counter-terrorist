@@ -1,0 +1,83 @@
+import { Application } from "./core/application.ts";
+import { WebAdapter } from "./adapters/web_adapter.tsx";
+import { SidecarManager } from "./infrastructure/sidecar_manager.ts";
+import { SystemExecutor } from "./infrastructure/system_executor.ts";
+import { AuditService } from "./services/audit.ts";
+import { NotificationService } from "./services/notifications.ts";
+import { BaselineService, ProcessTracker, SessionService, ApiKeysService, EventBus } from "./services/index.ts";
+import { ConfigProvider } from "./infrastructure/config.ts";
+import { MeshManager } from "./services/mesh.ts";
+import { PlaybookService } from "./services/playbook_service.ts";
+import { loggingService } from "./infrastructure/logging.ts";
+import { broadcast } from "./api/ws.ts";
+import { PlaybookEngine } from "./services/playbook_engine.ts";
+import { BehavioralAnalyzer } from "./services/behavioral_analyzer.ts";
+import { MetricsService } from "./services/metrics_service.ts";
+import { ThreatIntelService } from "./services/threat_intel.ts";
+import { HoneypotService } from "./services/honeypot_service.ts";
+import { CanaryService } from "./services/canary_service.ts";
+import { KernelService } from "./services/kernel_service.ts";
+
+const kv = await Deno.openKv();
+const configProvider = new ConfigProvider();
+const executor = new SystemExecutor();
+const sidecarManager = new SidecarManager();
+const eventBus = new EventBus();
+
+const auditService = new AuditService(kv, loggingService);
+const notificationService = new NotificationService(loggingService);
+const meshManager = new MeshManager(auditService);
+await meshManager.init();
+
+const app = new Application(sidecarManager, executor, auditService, meshManager);
+const protection = app.getProtection();
+
+const processTracker = new ProcessTracker(loggingService);
+const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
+const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
+const apiKeysService = new ApiKeysService(kv, loggingService);
+const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager);
+
+const behavioralAnalyzer = new BehavioralAnalyzer();
+const threatIntel = new ThreatIntelService(protection, loggingService);
+const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast);
+const canaryService = new CanaryService(auditService);
+const kernelService = new KernelService(executor, auditService);
+const metricsService = new MetricsService(protection.firewall, meshManager, honeypotService, processTracker, broadcast);
+
+await playbookService.init();
+await processTracker.fullScan();
+await threatIntel.start();
+await honeypotService.start();
+await canaryService.deploy();
+await kernelService.harden();
+
+honeypotService.onEvent((event) => {
+  if (event.type === "PortAccess") {
+    behavioralAnalyzer.track(event.source_ip);
+    const analysis = behavioralAnalyzer.analyze(event.source_ip);
+    if (analysis.botProbability > 0.8) {
+       console.log(`[BOT-DETECTOR] High bot probability for ${event.source_ip}: ${analysis.botProbability}`);
+    }
+  }
+});
+
+const playbookEngine = new PlaybookEngine(eventBus, protection, loggingService);
+await playbookEngine.start();
+
+const web = new WebAdapter(
+  app.getProtection(),
+  app.getCommand(),
+  app.getConfig(),
+  auditService,
+  notificationService,
+  meshManager,
+  baselineService,
+  processTracker,
+  sessionService,
+  apiKeysService,
+  eventBus,
+  honeypotService
+);
+
+// ... rest of event handlers and start server ...

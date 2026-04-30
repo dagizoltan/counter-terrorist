@@ -312,6 +312,19 @@ export class WebAdapter implements WebPort {
       });
     });
 
+    // CSRF Protection Middleware
+    this.app.use("/api/*", async (c: Context, next: Next) => {
+      if (["POST", "PUT", "DELETE"].includes(c.req.method)) {
+        const origin = c.req.header("origin");
+        const host = c.req.header("host");
+        if (origin && !origin.includes(host || "")) {
+          console.warn(`[SECURITY] CSRF blocked: Origin ${origin} does not match Host ${host}`);
+          return c.json({ error: "Potential CSRF detected" }, 403);
+        }
+      }
+      await next();
+    });
+
     this.app.get("/api/status", this.requireRole("admin", "operator", "viewer"), (c: Context) => {
       return c.json(this.dashboardStatus);
     });
@@ -538,6 +551,14 @@ export class WebAdapter implements WebPort {
     });
 
     this.app.post("/api/mesh/sync", async (c: Context) => {
+      const incomingSecret = c.req.header("X-Mesh-Secret");
+      const localSecret = Deno.env.get("MESH_SECRET");
+      
+      if (!await secureCompare(incomingSecret, localSecret)) {
+        console.warn(`[MESH] Rejected sync attempt from ${c.req.header("host")} - Invalid Secret`);
+        return c.json({ success: false, error: "Unauthorized" }, 401);
+      }
+
       const payload = await c.req.json();
       console.log(`[MESH] Received sync from peer:`, payload);
       // Process gossip payload (e.g. block IP)

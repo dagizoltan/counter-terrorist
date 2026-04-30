@@ -14,6 +14,7 @@ export interface HoneypotModule {
 export class HoneypotService {
   private modules: Map<string, HoneypotModule> = new Map();
   private eventHandlers: ((event: any) => void)[] = [];
+  private hitCount: number = 0;
 
   constructor(
     private sidecarManager: SidecarManager,
@@ -95,6 +96,7 @@ export class HoneypotService {
       const payload = event.event.payload;
       const { port, source_ip } = payload;
       
+      this.hitCount++;
       this.emitEvent({ type: "PortAccess", source_ip, port });
 
       this.broadcast({
@@ -104,5 +106,9 @@ export class HoneypotService {
       });
       this.firewall.blockIp(source_ip).catch(console.error);
     }
+  }
+
+  getHitCount() {
+    return this.hitCount;
   }
 }

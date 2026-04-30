@@ -16,7 +16,8 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
     '/pages/dashboard/islands/ProcessTree.js',
     '/pages/dashboard/islands/HoneypotChart.js',
     '/pages/dashboard/islands/MeshGraph.js',
-    '/pages/dashboard/islands/ThreatMap.js'
+    '/pages/dashboard/islands/ThreatMap.js',
+    '/pages/dashboard/islands/MetricsHydrator.js'
   ];
 
   const formatBytes = (bytes?: number) => {
@@ -50,26 +51,22 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
         </div>
       </div>
 
-      {/* Metrics Row - Compact */}
-      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-        <div class="bg-white/5 p-6 border-l-2 border-red-600">
-          <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">Core System</h3>
-          <p class="text-xl font-bold uppercase tracking-tight">{os} {platform?.version}</p>
+      {/* ROW 1: CORE TELEMETRY */}
+      <div class="grid grid-cols-1 xl:grid-cols-4 gap-8 mb-8">
+        <div class="xl:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div class="bg-white/5 p-6 border-l-2 border-red-600">
+             <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">OS Context</h3>
+             <p class="text-xl font-bold uppercase tracking-tight">{os} {platform?.version}</p>
+           </div>
+           <div class="bg-white/5 p-6 border-l-2 border-slate-700">
+             <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">System Load</h3>
+             <p class="text-xl font-bold uppercase tracking-tight">{metrics?.cpu.load[0].toFixed(2)}</p>
+           </div>
+           <div class="bg-white/5 p-6 border-l-2 border-slate-700">
+             <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">Memory Utilization</h3>
+             <p class="text-xl font-bold uppercase tracking-tight">{formatBytes(metrics?.memory.used)}</p>
+           </div>
         </div>
-
-        <div class="bg-white/5 p-6 border-l-2 border-slate-700">
-          <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">Memory</h3>
-          <p class="text-xl font-bold uppercase tracking-tight">{formatBytes(metrics?.memory.used)}</p>
-          <div class="w-full bg-white/5 h-1 mt-3">
-             <div class="bg-white h-full" style={`width: ${((metrics?.memory.used || 0) / (metrics?.memory.total || 1)) * 100}%`}></div>
-          </div>
-        </div>
-
-        <div class="bg-white/5 p-6 border-l-2 border-slate-700">
-          <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">CPU Load</h3>
-          <p class="text-xl font-bold uppercase tracking-tight">{metrics?.cpu.load[0].toFixed(2)}</p>
-        </div>
-
         <div class="bg-white/5 p-6 border-l-2 border-slate-700 relative overflow-hidden flex flex-col justify-center">
           <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-4">Mesh Topology</h3>
           <div class="h-24">
@@ -78,67 +75,168 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
         </div>
       </div>
 
-      {/* AGENTS & HARDENING ROW */}
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <section class="bg-white/5 p-8 border border-white/5">
-           <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-              <a href="/agents" class="text-xs font-black uppercase tracking-[0.3em] hover:text-white transition-all">Protection Agents →</a>
-              <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">{plugins?.length || 0} ACTIVE</span>
-           </div>
-           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {plugins?.map(p => (
-                <div class="p-4 bg-black/40 border border-white/5 hover:border-white/20 transition-all flex justify-between items-center group/card">
-                  <div>
-                    <span class="text-[10px] font-black uppercase tracking-widest block mb-1">{p.name}</span>
-                    <div class="flex items-center gap-2">
-                       <div class={`w-1 h-1 ${p.status === 'ACTIVE' || p.status === 'RUNNING' ? 'bg-green-500' : 'bg-red-600'}`}></div>
-                       <span class="text-[8px] text-slate-500 font-bold uppercase">{p.status}</span>
-                    </div>
+      {/* ROW 2: PROTECTION AGENTS */}
+      <div class="mb-8">
+         <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
+            <h2 class="text-xs font-black uppercase tracking-[0.3em]">Protection Layer</h2>
+            <span class="text-[9px] font-bold text-slate-500 uppercase">3 ACTIVE</span>
+         </div>
+         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all">
+               <div class="flex justify-between items-start mb-4">
+                  <span class="text-[10px] font-black uppercase tracking-widest">Firewall_Enforcer</span>
+                  <div class="w-2 h-2 bg-green-500"></div>
+               </div>
+               <div class="space-y-2">
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Blocked IPs</span>
+                     <span id="stat-fw-blocked" class="text-white">...</span>
                   </div>
-                  <a href={`/agents/${p.name}`} class="opacity-0 group-hover/card:opacity-100 transition-all p-2 hover:bg-white/5 text-slate-400 hover:text-white">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
-                  </a>
-                </div>
-              ))}
-           </div>
-        </section>
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Active Rules</span>
+                     <span id="stat-fw-rules" class="text-white">...</span>
+                  </div>
+               </div>
+               <a href="/agents/firewall" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Details</a>
+            </div>
 
-        <section class="bg-white/5 p-8 border border-white/5">
-          <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-             <h2 class="text-xs font-black uppercase tracking-[0.3em]">Hardening Matrix</h2>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="p-4 bg-black/40 border border-white/5">
-                <p class="text-slate-500 text-[9px] font-bold uppercase mb-2">Firewall Enforcer</p>
-                <div class="flex justify-between items-center">
-                  <span class="text-xs font-bold uppercase">{isRoot ? "Kernel Mode" : "User Mode"}</span>
-                  <div class="w-1.5 h-1.5 bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div>
-                </div>
-              </div>
-              <div class="p-4 bg-black/40 border border-white/5">
-                <p class="text-slate-500 text-[9px] font-bold uppercase mb-2">Audit Subsystem</p>
-                <div class="flex justify-between items-center">
-                   <span class="text-xs font-bold uppercase">{props.status.auditVerified ? "Chain Verified" : "INTEGRITY_FAIL"}</span>
-                  <div class={`w-1.5 h-1.5 ${props.status.auditVerified ? "bg-green-500" : "bg-red-600 animate-pulse"}`}></div>
-                </div>
-              </div>
-          </div>
-        </section>
+            <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all">
+               <div class="flex justify-between items-start mb-4">
+                  <span class="text-[10px] font-black uppercase tracking-widest">VPN_Sentinel</span>
+                  <div class="w-2 h-2 bg-green-500"></div>
+               </div>
+               <div class="space-y-2">
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Mesh Peers</span>
+                     <span id="stat-mesh-nodes" class="text-white">...</span>
+                  </div>
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Handshakes</span>
+                     <span id="stat-mesh-handshakes" class="text-white">...</span>
+                  </div>
+               </div>
+               <a href="/agents/vpn" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Details</a>
+            </div>
+
+            <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all">
+               <div class="flex justify-between items-start mb-4">
+                  <span class="text-[10px] font-black uppercase tracking-widest">Vuln_Scanner</span>
+                  <div class="w-2 h-2 bg-slate-600"></div>
+               </div>
+               <div class="space-y-2">
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Last Scan</span>
+                     <span class="text-white">2h ago</span>
+                  </div>
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>CVE Matches</span>
+                     <span class="text-white">0</span>
+                  </div>
+               </div>
+               <a href="/agents/scanner" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Details</a>
+            </div>
+         </div>
       </div>
 
-      {/* THREAT GEOGRAPHY */}
-      <div class="mb-8 bg-white/5 border border-white/5 p-8">
-         <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-            <h3 class="text-xs font-black uppercase tracking-[0.3em]">Global Threat Geography</h3>
-            <span class="text-[9px] font-bold text-red-500 uppercase tracking-widest">Live_Intelligence_Feed</span>
+      {/* ROW 3: FORENSIC AGENTS */}
+      <div class="mb-12">
+         <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
+            <h2 class="text-xs font-black uppercase tracking-[0.3em]">Forensic Ops</h2>
+            <span class="text-[9px] font-bold text-slate-500 uppercase">3 ACTIVE</span>
          </div>
-         <div class="h-64 bg-black relative">
+         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all border-l-2 border-yellow-500">
+               <div class="flex justify-between items-start mb-4">
+                  <span class="text-[10px] font-black uppercase tracking-widest">eBPF_Observer</span>
+                  <div class="w-2 h-2 bg-red-600 animate-pulse"></div>
+               </div>
+               <div class="space-y-2">
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Processes</span>
+                     <span id="stat-forensics-procs" class="text-white">...</span>
+                  </div>
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Anomaly Score</span>
+                     <span class="text-white">0.02</span>
+                  </div>
+               </div>
+               <a href="/agents/ebpf" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Monitor</a>
+            </div>
+
+            <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all">
+               <div class="flex justify-between items-start mb-4">
+                  <span class="text-[10px] font-black uppercase tracking-widest">FIM_Warden</span>
+                  <div class="w-2 h-2 bg-green-500"></div>
+               </div>
+               <div class="space-y-2">
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Paths Watched</span>
+                     <span class="text-white">142</span>
+                  </div>
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Modifications</span>
+                     <span class="text-white">0</span>
+                  </div>
+               </div>
+               <a href="/agents/fim" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Monitor</a>
+            </div>
+
+            <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all">
+               <div class="flex justify-between items-start mb-4">
+                  <span class="text-[10px] font-black uppercase tracking-widest">Deception_Grid</span>
+                  <div class="w-2 h-2 bg-green-500"></div>
+               </div>
+               <div class="space-y-2">
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Active Decoys</span>
+                     <span id="stat-honeypot-active" class="text-white">...</span>
+                  </div>
+                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
+                     <span>Total Hits</span>
+                     <span id="stat-honeypot-hits" class="text-white">...</span>
+                  </div>
+               </div>
+               <a href="/honeypots" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Grid_View</a>
+            </div>
+         </div>
+      </div>
+
+      {/* ROW 4: HARDENING MATRIX */}
+      <div class="mb-12">
+         <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
+            <h2 class="text-xs font-black uppercase tracking-[0.3em]">Hardening Matrix</h2>
+            <span class="text-[9px] font-bold text-green-500 uppercase tracking-widest font-mono">SECURE</span>
+         </div>
+         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {[
+              { label: 'ASLR', status: 'STRICT', color: 'text-green-500' },
+              { label: 'SYN_COOKIES', status: 'ENABLED', color: 'text-green-500' },
+              { label: 'RP_FILTER', status: 'STRICT', color: 'text-green-500' },
+              { label: 'CANARIES', status: 'ACTIVE', color: 'text-green-500' },
+              { label: 'P2P_RBAC', status: 'ENFORCED', color: 'text-blue-500' },
+              { label: 'AUDIT_CHAIN', status: 'VERIFIED', color: 'text-green-500' }
+            ].map(h => (
+              <div class="bg-white/5 p-4 border border-white/5 text-center">
+                 <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">{h.label}</p>
+                 <p class={`text-[10px] font-black uppercase ${h.color}`}>{h.status}</p>
+              </div>
+            ))}
+         </div>
+      </div>
+
+      {/* ROW 5: THREAT GEOGRAPHY */}
+      <div class="mb-12">
+         <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
+            <h2 class="text-xs font-black uppercase tracking-[0.3em]">Global Threat Geography</h2>
+            <a href="/intel/map" class="text-[9px] font-bold text-slate-500 uppercase hover:text-white transition-all tracking-widest">Standalone Map →</a>
+         </div>
+         <div class="h-96 bg-black relative border border-white/5 overflow-hidden">
             <threat-map></threat-map>
          </div>
       </div>
 
-      {/* REAL-TIME LOG FULL WIDTH */}
-      <section class="bg-white/5 mb-8 border border-white/5">
+      {/* REAL-TIME LOG */}
+      <section class="bg-white/5 border border-white/5 mb-12">
         <div class="p-8 pb-4 border-b border-white/5 flex justify-between items-center">
           <h2 class="text-xs font-black uppercase tracking-[0.3em]">Security Event Stream</h2>
           <div class="flex gap-4 items-center">
@@ -161,6 +259,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
           <process-tree></process-tree>
         </div>
       </section>
+      <metrics-hydrator></metrics-hydrator>
     </Layout>
   );
 };

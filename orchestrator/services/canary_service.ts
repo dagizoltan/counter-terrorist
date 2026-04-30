@@ -28,6 +28,15 @@ export class CanaryService {
                     }
                 }
                 
+                // Safety: Don't overwrite existing files
+                try {
+                  await Deno.stat(token.path);
+                  console.warn(`[CANARY] Path ${token.path} already exists. Skipping.`);
+                  continue;
+                } catch {
+                  // Proceed
+                }
+
                 await Deno.writeTextFile(token.path, `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\n`);
                 console.log(`[CANARY] Deployed breadcrumb: ${token.path}`);
             } catch (e) {
