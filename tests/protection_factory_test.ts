@@ -90,7 +90,7 @@ Deno.test("createFirewallManager - Windows platform", async () => {
 
   await manager.blockIp("1.2.3.4");
   assertEquals(executor.lastCmd, "netsh");
-  assertEquals(executor.lastArgs.includes("1.2.3.4"), true);
+  assertEquals(executor.lastArgs.some(arg => arg.includes("1.2.3.4")), true);
 });
 
 Deno.test("createFirewallManager - Ubuntu platform", async () => {
@@ -126,7 +126,7 @@ Deno.test("createPersistenceManager - Windows platform", async () => {
 
   await manager.audit();
   assertEquals(executor.lastCmd, "powershell");
-  assertEquals(executor.lastArgs[0], "-Command");
+  assertEquals(executor.lastArgs[0], "-EncodedCommand");
 });
 
 Deno.test("createPersistenceManager - Ubuntu platform", async () => {
@@ -139,6 +139,17 @@ Deno.test("createPersistenceManager - Ubuntu platform", async () => {
   await manager.audit();
   assertEquals(executor.lastCmd, "ls");
   assertEquals(executor.lastArgs.includes("/etc/cron.d"), true);
+});
+
+Deno.test("createPersistenceManager - Default to Ubuntu for other platforms", async () => {
+  const executor = new MockExecutor();
+  const sidecar = new SidecarManager(executor);
+  const platform: PlatformInfo = { name: "macos", version: "15", tag: "macos_15" };
+
+  const manager = createPersistenceManager(sidecar, executor, platform);
+
+  await manager.audit();
+  assertEquals(executor.lastCmd, "ls");
 });
 
 Deno.test("createPcapManager", async () => {
