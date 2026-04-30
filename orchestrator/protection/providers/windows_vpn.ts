@@ -4,6 +4,12 @@ import { VpnProvider, VpnResult } from "../interfaces.ts";
 export class WindowsVpnProvider implements VpnProvider {
   constructor(private executor: SystemExecutor) {}
   async connect(interfaceName: string): Promise<VpnResult> {
+    // Validate interface name to prevent command/argument injection
+    const interfaceRegex = /^[a-zA-Z0-9_=+.-]{1,15}$/;
+    if (!interfaceRegex.test(interfaceName) || interfaceName.startsWith("-") || interfaceName.startsWith("/")) {
+      return { success: false, message: `Invalid interface name: ${interfaceName}` };
+    }
+
     // Basic implementation using wireguard.exe /installservice
     // Note: Windows VPN management typically requires admin and specific config paths
     try {
