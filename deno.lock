@@ -248,6 +248,7 @@
   },
   "workspace": {
     "dependencies": [
+      "jsr:@std/dotenv@0.224",
       "npm:zod@^4.4.1"
     ]
   }
