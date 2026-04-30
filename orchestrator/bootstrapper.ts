@@ -3,7 +3,7 @@
  * Handles OS detection, dependency verification, and permission checks.
  */
 
-import { getPlatformInfo } from "./infrastructure/platform.ts";
+import { getPlatformInfo } from "./infrastructure/system/platform.ts";
 
 export interface SystemStatus {
   os: string;

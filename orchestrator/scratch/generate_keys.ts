@@ -1,7 +1,7 @@
 import { ApiKeysService } from "../services/api_keys.ts";
 import { loggingService } from "../infrastructure/logging.ts";
 
-const kv = await Deno.openKv("./orchestrator.db");
+const kv = await Deno.openKv("./data/orchestrator.db");
 const apiKeysService = new ApiKeysService(kv, loggingService);
 
 // We need to bypass the role check for the script to create an admin API key
