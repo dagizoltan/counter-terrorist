@@ -20,6 +20,21 @@ export class FirewallManager {
     return await this.provider.blockIp(ip);
   }
 
+  async shadowBanIp(ip: string) {
+    if (!isValidIP(ip)) {
+      return { success: false, message: `Invalid IP address: ${ip}` };
+    }
+    broadcast({ type: "WARNING", message: `Shadow Banning IP: ${ip} (Throttling to 1KB/s)`, data: { ip } });
+    
+    // Notify mesh peers about the shadow ban
+    if (meshManager) {
+      // Re-use broadcastBlock for now or add broadcastShadowBan
+      meshManager.broadcastBlock(ip).catch(console.error);
+    }
+
+    return await this.provider.shadowBanIp(ip);
+  }
+
   async unblockIp(ip: string) {
     if (!isValidIP(ip)) {
       return { success: false, message: `Invalid IP address: ${ip}` };

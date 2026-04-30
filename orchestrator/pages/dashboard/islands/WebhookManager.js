@@ -16,9 +16,13 @@ class WebhookManager extends HTMLElement {
       const status = document.getElementById('webhook-status');
 
       try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
         const res = await fetch('/api/notifications', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-CT-Token': csrf
+          },
           body: JSON.stringify({ name, url, type, enabled: true })
         });
         const data = await res.json();
@@ -81,7 +85,7 @@ class WebhookManager extends HTMLElement {
             </div>
             <p class="text-[9px] text-slate-600 font-mono truncate max-w-lg">${this.esc(wh.url)}</p>
           </div>
-          <button onclick="fetch('/api/notifications/${wh.id}',{method:'DELETE'}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="text-[9px] font-black uppercase text-red-500/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all px-4 py-2 border border-transparent hover:border-red-500/20">
+          <button onclick="const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/notifications/${wh.id}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="text-[9px] font-black uppercase text-red-500/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all px-4 py-2 border border-transparent hover:border-red-500/20">
             Remove
           </button>
         </div>

@@ -59,6 +59,33 @@ fn main() -> anyhow::Result<()> {
         message: "FIM Sidecar Started".to_string(),
     });
 
+    // Dynamic Command Handler
+    let mut watcher_ref = watcher; 
+    
+    std::thread::spawn(move || {
+        use std::io::{self, BufRead};
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            if let Ok(line) = line {
+                if let Ok(cmd) = serde_json::from_str::<serde_json::Value>(&line) {
+                    if cmd["type"] == "WATCH" && cmd["path"].is_string() {
+                        let path_str = cmd["path"].as_str().unwrap();
+                        let path = Path::new(path_str);
+                        if path.exists() {
+                            if let Err(e) = watcher_ref.watch(path, RecursiveMode::NonRecursive) {
+                                eprintln!("Failed to watch {}: {}", path_str, e);
+                            } else {
+                                emit_event(FimEvent::Status { message: format!("Dynamically watching {}", path_str) });
+                            }
+                        }
+                    } else if cmd["type"] == "SHUTDOWN" {
+                        std::process::exit(0);
+                    }
+                }
+            }
+        }
+    });
+
     for res in rx {
         match res {
             Ok(event) => {

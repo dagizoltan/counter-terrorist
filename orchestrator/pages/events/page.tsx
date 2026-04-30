@@ -3,11 +3,11 @@
 import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../Layout.tsx";
 
-export const EventsPage = () => {
+export const EventsPage = (props: { csrfToken?: string }) => {
   const islandPaths = ['/pages/dashboard/islands/BlockingLog.js'];
 
   return (
-    <Layout title="Security Events" islandPaths={islandPaths}>
+    <Layout title="Security Events" islandPaths={islandPaths} csrfToken={props.csrfToken}>
       <div class="mb-12">
         <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Live Threat Stream</h2>
         <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Real-time forensic telemetry // Unified event pipeline</p>

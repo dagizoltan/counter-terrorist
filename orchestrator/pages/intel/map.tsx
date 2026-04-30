@@ -1,83 +1,57 @@
-/** @jsx jsx */
-/** @jsxFrag Fragment */
-import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../Layout.tsx";
 
-export const ThreatMapPage = () => {
-  const islandPaths = [
-    '/pages/dashboard/islands/ThreatMap.js',
-    '/pages/dashboard/islands/BlockingLog.js',
-    '/pages/dashboard/islands/MetricsHydrator.js',
-  ];
-
+export default function ThreatMapPage() {
   return (
-    <Layout title="Global Threat Intelligence" islandPaths={islandPaths}>
-      <div class="mb-12 flex justify-between items-end">
-        <div>
-          <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Threat Intelligence</h2>
-          <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Live Global Attack Vectors // Geo-Spatial Correlation</p>
+    <Layout title="Mesh Heatmap // Autonomous Defense Mesh">
+      <div class="p-8 max-w-7xl mx-auto">
+        <header class="mb-12">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="h-[1px] w-8 bg-green-500"></div>
+            <span class="text-[10px] font-black uppercase tracking-[0.4em] text-green-500">Spatial Intelligence</span>
+          </div>
+          <h1 class="text-5xl font-black tracking-tighter text-white mb-4 italic">
+            TACTICAL_OVERLAY
+          </h1>
+          <p class="text-slate-500 max-w-2xl font-medium leading-relaxed">
+            Real-time visualization of mesh propagation and gossip traffic. Watch threat signatures ripple through the peer network as the grid autonomously synchronizes its defensive posture.
+          </p>
+        </header>
+
+        <div id="heatmap-island-container">
+           {/* MeshHeatmap.js will be hydrated here */}
         </div>
-        <div class="flex gap-4">
-           <div class="px-4 py-2 bg-red-600/10 border border-red-600/20 text-red-500 text-[10px] font-black uppercase tracking-widest">
-              Honeypot Hits: <span id="stat-honeypot-hits">...</span>
+
+        <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+           <div class="bg-white/5 border border-white/10 rounded-2xl p-8">
+              <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                 Dynamic Deception active
+              </h3>
+              <p class="text-sm text-slate-500 leading-relaxed">
+                The **Morphing Engine** is currently rotating honeypot ports and canary breadcrumbs every 10 minutes to invalidate attacker reconnaissance.
+              </p>
            </div>
-           <div class="px-4 py-2 bg-green-600/10 border border-green-600/20 text-green-500 text-[10px] font-black uppercase tracking-widest">
-              Mesh Peers: <span id="stat-mesh-nodes">...</span>
+           <div class="bg-white/5 border border-white/10 rounded-2xl p-8">
+              <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                 Kernel Zero-Trust
+              </h3>
+              <p class="text-sm text-slate-500 leading-relaxed">
+                **eBPF LSM** is enforcing kernel-level access controls. Unauthorized processes attempting to read sensitive configuration files are blocked before execution.
+              </p>
            </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
-         {/* SIDEBAR INTEL */}
-         <div class="lg:col-span-1 space-y-6">
-            <div class="bg-white/5 border border-white/5 p-6">
-               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 pb-2 border-b border-white/5">Blocked IPs</h3>
-               <div class="space-y-4">
-                  <p id="fw-blocked-count" class="text-3xl font-black">...</p>
-                  <p class="text-[9px] text-slate-500 font-bold uppercase">Total firewall blocks</p>
-               </div>
-            </div>
-
-            <div class="bg-white/5 border border-white/5 p-6">
-               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 pb-2 border-b border-white/5">System Status</h3>
-               <div class="space-y-3">
-                  <div class="flex justify-between text-[10px] font-black uppercase">
-                     <span class="text-slate-500">eBPF</span>
-                     <span id="stat-forensics-ebpf-status" class="text-slate-400">...</span>
-                  </div>
-                  <div class="flex justify-between text-[10px] font-black uppercase">
-                     <span class="text-slate-500">FIM</span>
-                     <span id="stat-forensics-fim-status" class="text-slate-400">...</span>
-                  </div>
-                  <div class="flex justify-between text-[10px] font-black uppercase">
-                     <span class="text-slate-500">Canaries</span>
-                     <span id="stat-canary-deployed" class="text-slate-400">...</span>
-                  </div>
-               </div>
-            </div>
-         </div>
-
-         {/* MAIN MAP */}
-         <div class="lg:col-span-3 bg-white/5 border border-white/5 relative h-[600px] overflow-hidden group">
-            <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_#000_100%)] z-10 pointer-events-none"></div>
-            <div class="absolute top-6 left-6 z-20">
-               <div class="flex items-center gap-2">
-                  <div class="w-2 h-2 bg-red-600 animate-pulse"></div>
-                  <span class="text-[10px] font-black uppercase tracking-widest">Live_Capture_Stream</span>
-               </div>
-            </div>
-            
-            <div class="w-full h-full transform scale-125 translate-y-10">
-               <threat-map id="main-map"></threat-map>
-            </div>
-
-            {/* LIVE OVERLAY TELEMETRY — from real audit stream */}
-            <div class="absolute bottom-0 right-0 left-0 z-20 bg-black/80 border-t border-white/5 h-[120px] overflow-hidden">
-               <blocking-log id="map-log"></blocking-log>
-            </div>
-         </div>
-      </div>
-      <metrics-hydrator></metrics-hydrator>
+      <script type="module" dangerouslySetInnerHTML={{ __html: `
+        import { render } from 'preact';
+        import MeshHeatmap from '/pages/dashboard/islands/MeshHeatmap.js';
+        
+        const container = document.getElementById('heatmap-island-container');
+        if (container) {
+          render(<MeshHeatmap />, container);
+        }
+      `}} />
     </Layout>
   );
-};
+}

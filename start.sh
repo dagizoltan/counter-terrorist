@@ -32,5 +32,19 @@ if [ ${#MISSING_BINARIES[@]} -ne 0 ]; then
     cd agents && cargo build --release && cd ..
 fi
 
+# Ensure Deno is available when running via sudo, including user-local installs.
+DENO_BIN=$(command -v deno || true)
+if [ -z "$DENO_BIN" ] && [ -n "$SUDO_USER" ]; then
+    USER_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
+    if [ -x "$USER_HOME/.deno/bin/deno" ]; then
+        DENO_BIN="$USER_HOME/.deno/bin/deno"
+    fi
+fi
+if [ -z "$DENO_BIN" ]; then
+    echo "Error: deno not found in PATH. Please install Deno or run sudo with PATH preserved:"
+    echo "  sudo env \"PATH=\$PATH\" ./start.sh"
+    exit 1
+fi
+
 echo "[DEPLOY] Starting Security Orchestrator..."
-deno run --allow-all --unstable-kv orchestrator/main.ts
+"$DENO_BIN" run --allow-all --unstable-kv orchestrator/main.ts

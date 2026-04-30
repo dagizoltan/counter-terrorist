@@ -3,12 +3,12 @@
 import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../Layout.tsx";
 
-export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: any } }) => {
+export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: any }, csrfToken?: string }) => {
   const { agent } = props;
   const islandPaths = ['/pages/dashboard/islands/BlockingLog.js', '/pages/dashboard/islands/AgentDetail.js'];
 
   return (
-    <Layout title={`Agent: ${agent.name}`} islandPaths={islandPaths}>
+    <Layout title={`Agent: ${agent.name}`} islandPaths={islandPaths} csrfToken={props.csrfToken}>
       <div class="mb-12 flex justify-between items-end">
         <div>
            <div class="flex items-center gap-3 mb-2">
@@ -21,13 +21,13 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
         </div>
         <div class="flex gap-4">
            <button 
-             onclick={`fetch('/api/agents/${agent.name}/restart', { method: 'POST' }).then(() => location.reload())`}
+             onclick={`const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/agents/${agent.name}/restart', { method: 'POST', headers: {'X-CT-Token': csrf} }).then(() => location.reload())`}
              class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
            >
              Restart_Agent
            </button>
            <button 
-             onclick={`fetch('/api/agents/${agent.name}/stop', { method: 'POST' }).then(() => location.reload())`}
+             onclick={`const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/agents/${agent.name}/stop', { method: 'POST', headers: {'X-CT-Token': csrf} }).then(() => location.reload())`}
              class="border border-red-600/50 text-red-500 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all"
            >
              Deactivate

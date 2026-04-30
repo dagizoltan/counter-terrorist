@@ -21,6 +21,11 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     return agentResult;
   }
 
+  async shadowBanIp(ip: string): Promise<CommandResult> {
+    // Send to eBPF sidecar via persistent stdin (sendCommand)
+    return await (this.sidecar as any).sendCommand("ebpf", { type: "SHADOW_BAN", ip });
+  }
+
   async unblockIp(ip: string): Promise<CommandResult> {
     const command = {
       type: "UnblockIp",

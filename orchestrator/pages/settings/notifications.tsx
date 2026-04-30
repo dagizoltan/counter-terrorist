@@ -3,11 +3,11 @@
 import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../Layout.tsx";
 
-export const NotificationsPage = () => {
+export const NotificationsPage = (props: { csrfToken?: string }) => {
   const islandPaths = ['/pages/dashboard/islands/WebhookManager.js'];
 
   return (
-    <Layout title="Alert Configuration" islandPaths={islandPaths}>
+    <Layout title="Alert Configuration" islandPaths={islandPaths} csrfToken={props.csrfToken}>
       <div class="mb-12">
         <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Alert Pipeline</h2>
         <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Webhook configuration // External notification targets</p>

@@ -4,7 +4,7 @@ members = [
     "scanner",
     "blocker",
     "honeypot",
-    "pcap", "ebpf",
+    "pcap", "ebpf", "ebpf/ebpf",
     "fim",
 ]
 

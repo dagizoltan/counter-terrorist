@@ -316,6 +316,25 @@ export class MeshManager {
     }
   }
 
+  /**
+   * Broadcasts the current audit chain head for cross-node verification.
+   */
+  async broadcastAuditVerification(lastHash: string, eventCount: number) {
+    const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+    if (verifiedNodes.length === 0) return;
+
+    for (const node of verifiedNodes) {
+        this.sendSync(node, { 
+            type: "GOSSIP_AUDIT_VERIFY", 
+            lastHash, 
+            eventCount,
+            node: this.nodeId 
+        }).catch(err => {
+            console.warn(`[MESH] Failed to send audit verification to ${node.hostname}: ${err.message}`);
+        });
+    }
+  }
+
   async reconcile() {
     const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
     for (const node of verifiedNodes) {
@@ -330,28 +349,93 @@ export class MeshManager {
   }
 
   /**
+   * Generates a HMAC-SHA256 signature for a payload using the MESH_SECRET.
+   */
+  async signPayload(payload: any): Promise<string> {
+    if (!this.meshSecret) return "unsigned";
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(this.meshSecret);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+    const signature = await crypto.subtle.sign(
+      "HMAC",
+      key,
+      encoder.encode(JSON.stringify(payload))
+    );
+    return btoa(String.fromCharCode(...new Uint8Array(signature)));
+  }
+
+  /**
+   * Verifies an HMAC-SHA256 signature.
+   */
+  async verifySignature(payload: any, signature: string): Promise<boolean> {
+    if (!this.meshSecret) return false;
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(this.meshSecret);
+    const key = await crypto.subtle.importKey(
+      "raw",
+      keyData,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+    const sigData = new Uint8Array(
+      atob(signature).split("").map((c) => c.charCodeAt(0))
+    );
+    return await crypto.subtle.verify(
+      "HMAC",
+      key,
+      sigData,
+      encoder.encode(JSON.stringify(payload))
+    );
+  }
+
+  /**
    * Requests approval from peers for a critical action.
-   * Requires at least 'threshold' approvals.
+   * Uses P2P signatures to ensure identity.
    */
   async requestApproval(action: string, data: any, threshold: number = 2): Promise<boolean> {
     const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
     if (verifiedNodes.length < threshold) {
-        console.warn(`[MESH] Not enough verified nodes for consensus (${verifiedNodes.length}/${threshold})`);
-        return true; // Fallback to local decision if cluster is too small
+        this.logging.log(`[MESH] Consensus threshold not met (${verifiedNodes.length}/${threshold}). Proceeding with LOCAL_AUTHORITY.`, SyslogSeverity.WARNING);
+        return true; 
     }
 
     let approvals = 0;
+    const requestPayload = { action, data, nodeId: this.nodeId, timestamp: Date.now() };
+    const signature = await this.signPayload(requestPayload);
+
     for (const node of verifiedNodes) {
         try {
-            const res = await this.sendSync(node, { type: "REQUEST_APPROVAL", action, data });
-            if ((res as any).approved) approvals++;
+            const res = await this.sendSync(node, { 
+                type: "REQUEST_APPROVAL", 
+                payload: requestPayload,
+                signature 
+            });
+            if ((res as any).approved) {
+                // Verify peer signature if provided
+                if ((res as any).signature) {
+                    const isValid = await this.verifySignature((res as any).payload, (res as any).signature);
+                    if (isValid) approvals++;
+                } else {
+                    approvals++;
+                }
+            }
         } catch (e) {
-            console.warn(`[MESH] Node ${node.hostname} denied/failed approval for ${action}`);
+            this.logging.log(`[MESH] Node ${node.hostname} denied/failed approval: ${e.message}`, SyslogSeverity.WARNING);
         }
     }
 
-    return approvals >= threshold;
+    const success = approvals >= threshold;
+    this.logging.log(`[MESH] Consensus for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold} votes)`, success ? SyslogSeverity.NOTICE : SyslogSeverity.CRITICAL);
+    return success;
   }
+
   private async sendSync(node: MeshNode, payload: any) {
     if (!this.httpClient) await this.init();
 

@@ -29,7 +29,6 @@ import { recordScannerResult } from "../services/metrics_service.ts";
 import { FirewallPage, VpnPage, ScannerPage } from "../pages/agents/subpages/core.tsx";
 import { EbpfPage, FimPage } from "../pages/agents/subpages/forensics.tsx";
 import { TimelinePage } from "../pages/forensics/timeline.tsx";
-import { ThreatMapPage } from "../pages/intel/map.tsx";
 import { createExtraPagesRouter } from "../pages/extra_handlers.tsx";
 import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role, EventBus, HoneypotService } from "../services/index.ts";
 import { meshManager } from "../services/mesh.ts";
@@ -115,6 +114,8 @@ export class WebAdapter implements WebPort {
     private apiKeysService: ApiKeysService,
     private eventBus: EventBusPort,
     private honeypotService: HoneypotService,
+    private chaosEngine: any,
+    private supplyChain: any,
   ) {
     this.token = config.getToken();
     this.meshSecret = config.getMeshSecret();
@@ -243,6 +244,7 @@ export class WebAdapter implements WebPort {
             return c.json({ error: "CSRF Protection: X-CT-Token header required" }, 403);
           }
         }
+        c.set("csrfToken", session.csrfToken);
         return next();
       }
 
@@ -640,10 +642,33 @@ export class WebAdapter implements WebPort {
           message: `[REMOTE:${payload.event.node || 'unknown'}] ${payload.event.message}`,
         });
       }
+      if (payload.type === "GOSSIP_AUDIT_VERIFY") {
+        const localStatus = await this.auditService.getChainStatus();
+        if (payload.lastHash !== localStatus.lastHash && payload.eventCount === localStatus.count) {
+          await this.auditService.logEvent({
+            type: "CRITICAL",
+            message: `AUDIT INTEGRITY ALERT: Remote node ${payload.node} reporting mismatched chain hash! Possible tampering detected.`,
+            data: { remoteHash: payload.lastHash, localHash: localStatus.lastHash }
+          });
+        }
+      }
       if (payload.type === "REQUEST_APPROVAL") {
-        // Auto-approve for now if we have verified the mesh secret
-        // In a real app, this would show a popup to the admin
-        return c.json({ approved: true });
+        const { payload: requestPayload, signature } = payload;
+        const isValid = await meshManager.verifySignature(requestPayload, signature);
+        
+        if (!isValid) {
+          console.warn(`[MESH] Rejected approval request - Invalid Signature`);
+          return c.json({ approved: false, error: "Invalid Signature" });
+        }
+
+        const responsePayload = { approved: true, timestamp: Date.now(), originalNode: requestPayload.nodeId };
+        const responseSignature = await meshManager.signPayload(responsePayload);
+
+        return c.json({ 
+          approved: true, 
+          payload: responsePayload, 
+          signature: responseSignature 
+        });
       }
       return c.json({ success: true });
     });
@@ -735,6 +760,50 @@ export class WebAdapter implements WebPort {
     this.app.route("/api/reports", createReportsApi(this.baselineService, this.protection));
     this.app.route("/api/notifications", createNotificationsApi(this.notificationService));
     this.app.route("/api/audit", createAuditApi(this.auditService));
+
+    this.app.get("/intel/map", async (c: Context) => {
+      const { default: ThreatMapPage } = await import("./intel/map.tsx");
+      return c.html(<ThreatMapPage />);
+    });
+
+    this.app.get("/forensics/replay", async (c: Context) => {
+      const { default: ForensicReplay } = await import("./forensics/replay.tsx");
+      return c.html(<ForensicReplay />);
+    });
+
+    this.app.get("/audit/integrity", async (c: Context) => {
+      const { default: AuditIntegrity } = await import("./audit/integrity.tsx");
+      return c.html(<AuditIntegrity />);
+    });
+
+    this.app.get("/api/audit/integrity/status", async (c: Context) => {
+      const status = await this.auditService.getChainStatus();
+      return c.json({ localHash: status.lastHash, count: status.count });
+    });
+
+    this.app.post("/api/chaos/simulate", this.requireRole("admin"), async (c: Context) => {
+      const { vector, target } = await c.req.json();
+      if (vector === "brute-force") await this.chaosEngine.simulateBruteForce(target);
+      if (vector === "canary") await this.chaosEngine.simulateCanaryTrigger(target);
+      if (vector === "malware") await this.chaosEngine.simulateMalwareExecution(target);
+      return c.json({ success: true, message: `Simulation '${vector}' triggered.` });
+    });
+
+    this.app.get("/api/supply-chain/sbom", async (c: Context) => {
+      return c.json(this.supplyChain.getSBOM());
+    });
+
+    this.app.get("/api/supply-chain/status", async (c: Context) => {
+      return c.json({ 
+        score: this.supplyChain.getHealthScore(), 
+        vulnerableCount: this.supplyChain.getVexReport().length 
+      });
+    });
+
+    this.app.post("/api/audit/integrity/verify", async (c: Context) => {
+      const result = await this.auditService.verifyChain();
+      return c.json(result);
+    });
 
     // Admin: API Key Management
     this.app.post("/api/admin/api-keys", this.requireRole("admin"), async (c: Context) => {

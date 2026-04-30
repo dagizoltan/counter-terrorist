@@ -10,11 +10,15 @@ import { PlaybookService } from "./services/playbook_service.ts";
 import { loggingService } from "./infrastructure/logging.ts";
 import { broadcast, initBroadcaster } from "./api/ws.ts";
 import { PlaybookEngine } from "./services/playbook_engine.ts";
-import { BehavioralAnalyzer } from "./services/behavioral_analyzer.ts";
+import { BehavioralService } from "./services/behavioral_service.ts";
 import { MetricsService, setMetricsService } from "./services/metrics_service.ts";
 import { ThreatIntelService } from "./services/threat_intel.ts";
+import { MorphingService } from "./services/morphing_service.ts";
+import { ChaosEngine } from "./services/chaos_engine.ts";
+import { SupplyChainService } from "./services/supply_chain.ts";
 import { HoneypotService } from "./services/honeypot_service.ts";
 import { CanaryService } from "./services/canary_service.ts";
+import { AutopilotService } from "./services/autopilot_service.ts";
 import { KernelService } from "./services/kernel_service.ts";
 import { createProtection } from "./protection/index.ts";
 import { getPlatformInfo } from "./infrastructure/platform.ts";
@@ -54,14 +58,22 @@ const sessionService = new SessionService(kv, loggingService, configProvider.get
 const apiKeysService = new ApiKeysService(kv, loggingService);
 const playbookService = new PlaybookService(sidecarManager, protection as any, notificationService, meshManager);
 
-const behavioralAnalyzer = new BehavioralAnalyzer();
+const behavioralService = new BehavioralService(protection.firewall as any);
 const threatIntel = new ThreatIntelService(protection as any, loggingService);
 const honeypotService = new HoneypotService(sidecarManager, protection.firewall as any, protection.pcap as any, broadcast);
-const canaryService = new CanaryService(auditService);
+honeypotService.setBehavioralService(behavioralService);
+
+const canaryService = new CanaryService(auditService, sidecarManager);
 const kernelService = new KernelService(executor, auditService);
+const autopilotService = new AutopilotService(eventBus, playbookService, auditService);
+const morphingService = new MorphingService(honeypotService, canaryService, auditService);
+const chaosEngine = new ChaosEngine(eventBus, auditService, sidecarManager);
+const supplyChain = new SupplyChainService();
 
 // ── Phase 4: Start subsystems ─────────────────────────────────────────
 await playbookService.init();
+await autopilotService.start();
+await morphingService.start();
 await processTracker.fullScan();
 await threatIntel.start();
 await honeypotService.start();
@@ -69,18 +81,10 @@ await canaryService.deploy();
 await kernelService.harden();
 
 // ── Phase 5: Wire event pipelines ─────────────────────────────────────
-// Honeypot events → EventBus (for stats API) + Behavioral Analyzer
+// Honeypot events → EventBus (for stats API) + Behavioral Analysis
 honeypotService.onEvent((event) => {
   // Publish to EventBus so /api/stats/honeypot receives the event
   eventBus.emit("honeypot", { event });
-
-  if (event.type === "PortAccess") {
-    behavioralAnalyzer.track(event.source_ip);
-    const analysis = behavioralAnalyzer.analyze(event.source_ip);
-    if (analysis.botProbability > 0.8) {
-       console.log(`[BOT-DETECTOR] High bot probability for ${event.source_ip}: ${analysis.botProbability}`);
-    }
-  }
 });
 
 const playbookEngine = new PlaybookEngine(eventBus, protection as any, loggingService);
@@ -123,7 +127,9 @@ const web = new WebAdapter(
   sessionService,
   apiKeysService,
   eventBus as any,
-  honeypotService
+  honeypotService,
+  chaosEngine,
+  supplyChain
 );
 
 // MetricsService starts AFTER broadcaster is initialized
@@ -153,4 +159,5 @@ const startDaemons = async () => {
 };
 
 startDaemons();
-await web.start();
+const port = parseInt(Deno.env.get("PORT") || "8000");
+await web.start(port);

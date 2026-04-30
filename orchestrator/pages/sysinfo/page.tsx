@@ -4,7 +4,7 @@ import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../Layout.tsx";
 import { ApplicationStatus } from "../../core/ports.ts";
 
-export const SysInfoPage = (props: { status: ApplicationStatus }) => {
+export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: string }) => {
   const { platform } = props.status;
   const metrics = platform?.metrics;
 
@@ -17,7 +17,7 @@ export const SysInfoPage = (props: { status: ApplicationStatus }) => {
   };
 
   return (
-    <Layout title="System Information">
+    <Layout title="System Information" csrfToken={props.csrfToken}>
       <div class="mb-12">
         <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Host Intelligence</h2>
         <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Hardware & OS deep-dive // Real-time telemetry</p>

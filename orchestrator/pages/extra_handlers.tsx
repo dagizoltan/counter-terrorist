@@ -10,20 +10,24 @@ export function createExtraPagesRouter(getStatus: () => Promise<ApplicationStatu
   const router = new Hono();
 
   router.get("/events", async (c: Context) => {
-    return c.html(<EventsPage />);
+    const csrfToken = c.get("csrfToken") as string;
+    return c.html(<EventsPage csrfToken={csrfToken} />);
   });
 
   router.get("/processes", async (c: Context) => {
-    return c.html(<ProcessesPage />);
+    const csrfToken = c.get("csrfToken") as string;
+    return c.html(<ProcessesPage csrfToken={csrfToken} />);
   });
 
   router.get("/sysinfo", async (c: Context) => {
     const status = await getStatus();
-    return c.html(<SysInfoPage status={status} />);
+    const csrfToken = c.get("csrfToken") as string;
+    return c.html(<SysInfoPage status={status} csrfToken={csrfToken} />);
   });
 
   router.get("/settings/notifications", async (c: Context) => {
-    return c.html(<NotificationsPage />);
+    const csrfToken = c.get("csrfToken") as string;
+    return c.html(<NotificationsPage csrfToken={csrfToken} />);
   });
 
   return router;

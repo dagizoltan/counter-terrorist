@@ -8,7 +8,8 @@ export function createDashboardRouter(getStatus: () => Promise<ApplicationStatus
 
   router.get("/", async (c: Context) => {
     const status = await getStatus();
-    return c.html(<Dashboard status={status} />);
+    const csrfToken = c.get("csrfToken") as string;
+    return c.html(<Dashboard status={status} csrfToken={csrfToken} />);
   });
 
   return router;

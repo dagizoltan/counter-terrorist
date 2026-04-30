@@ -40,6 +40,14 @@ export class AuditService {
 
         // Schedule periodic retention purge (every hour)
         this.purgeIntervalId = setInterval(() => this.purgeExpired(), 60 * 60 * 1000);
+
+        // Schedule periodic mesh verification (every 5 minutes)
+        setInterval(async () => {
+          if (this.mesh) {
+            const status = await this.getChainStatus();
+            this.mesh.broadcastAuditVerification(status.lastHash, status.count);
+          }
+        }, 5 * 60 * 1000);
     }
 
     setMesh(mesh: MeshManager) {
@@ -112,6 +120,15 @@ export class AuditService {
         });
         
         return this.logQueue;
+    }
+
+    async getChainStatus() {
+        let count = 0;
+        const entries = this.kv.list({ prefix: ["audit"] });
+        for await (const _ of entries) {
+            count++;
+        }
+        return { lastHash: this.lastHash, count };
     }
 
     async getRecentEvents(limit: number = 50): Promise<AuditEvent[]> {

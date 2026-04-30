@@ -91,7 +91,13 @@ export class HoneypotService {
     this.sidecarManager.onEvent("honeypot", (event) => this.handleEvent(event));
   }
 
-  private handleEvent(event: any) {
+  private behavioralService?: any; // Injected later or passed in constructor
+
+  setBehavioralService(service: any) {
+    this.behavioralService = service;
+  }
+
+  private async handleEvent(event: any) {
     if (event.event?.type === "PortAccess") {
       const payload = event.event.payload;
       const { port, source_ip } = payload;
@@ -104,7 +110,38 @@ export class HoneypotService {
         message: `Honeypot Triggered: Access to ${port} from ${source_ip}`,
         data: { source_ip, port }
       });
-      this.firewall.blockIp(source_ip).catch(console.error);
+
+      if (this.behavioralService) {
+        await this.behavioralService.analyze(source_ip);
+      } else {
+        this.firewall.blockIp(source_ip).catch(console.error);
+      }
+    }
+  }
+
+  /**
+   * Randomly rotates the ports of all active modules to confuse attackers.
+   */
+  async morph() {
+    console.log("[HONEYPOT] Engaging Deception Morphing (Port Rotation)...");
+    for (const [id, module] of this.modules) {
+      if (!module.active) continue;
+
+      // Random high port (avoiding standard ones)
+      const oldPort = module.port;
+      const newPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
+      module.port = newPort;
+
+      await this.sidecarManager.sendCommand("honeypot", {
+        type: "UpdateModule",
+        payload: { module: id, oldPort, newPort }
+      });
+
+      this.broadcast({
+        type: "INFO",
+        message: `DECEPTION MORPH: ${module.name} moved from ${oldPort} to ${newPort}`,
+        data: { id, oldPort, newPort }
+      });
     }
   }
 

@@ -5,7 +5,7 @@ import { Layout } from "../Layout.tsx";
 
 import { ApplicationStatus } from "../../core/ports.ts";
 
-export const Dashboard = (props: { status: ApplicationStatus }) => {
+export const Dashboard = (props: { status: ApplicationStatus, csrfToken?: string }) => {
   const { os, isRoot, platform, plugins } = props.status;
   const metrics = platform?.metrics;
 
@@ -17,7 +17,8 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
     '/pages/dashboard/islands/HoneypotChart.js',
     '/pages/dashboard/islands/MeshGraph.js',
     '/pages/dashboard/islands/ThreatMap.js',
-    '/pages/dashboard/islands/MetricsHydrator.js'
+    '/pages/dashboard/islands/MetricsHydrator.js',
+    '/pages/dashboard/islands/ChaosIsland.js'
   ];
 
   const formatBytes = (bytes?: number) => {
@@ -29,7 +30,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
   };
 
   return (
-    <Layout title="Dashboard" cssPaths={cssPaths} islandPaths={islandPaths}>
+    <Layout title="Dashboard" cssPaths={cssPaths} islandPaths={islandPaths} csrfToken={props.csrfToken}>
       {/* Top Header Section */}
       <div class="flex justify-between items-end mb-8">
         <div>
@@ -43,7 +44,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
           <a href="/api/forensics/export" class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center">Export Report</a>
           <a href="/api/forensics/export-iac" class="border border-white/20 text-white px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all flex items-center justify-center">Clone Posture</a>
           <button 
-            onclick="fetch('/api/protection/lockdown', { method: 'POST' }).then(r => r.json()).then(d => alert(d.stdout))"
+            onclick="const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/protection/lockdown', { method: 'POST', headers: {'X-CT-Token': csrf} }).then(r => r.json()).then(d => alert(d.stdout))"
             class="border border-white/20 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-red-500"
           >
             Lockdown
@@ -270,7 +271,20 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
           <process-tree></process-tree>
         </div>
       </section>
+      {/* CHAOS ENGINE */}
+      <section class="mt-12 bg-black/40 border border-red-500/10 rounded-2xl overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.05)]">
+        <div id="chaos-island-container"></div>
+      </section>
+
       <metrics-hydrator></metrics-hydrator>
+
+      <script type="module" dangerouslySetInnerHTML={{ __html: `
+        import { render } from 'preact';
+        import ChaosIsland from '/pages/dashboard/islands/ChaosIsland.js';
+        
+        const chaosContainer = document.getElementById('chaos-island-container');
+        if (chaosContainer) render(<ChaosIsland />, chaosContainer);
+      `}} />
     </Layout>
   );
 };

@@ -8,5 +8,14 @@ pub struct SyscallEvent {
     pub syscall_id: u32, // 1: ptrace, 2: mmap, 3: execve
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct ShadowBanInfo {
+    pub last_timestamp: u64,
+    pub bytes_this_second: u64,
+}
+
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for SyscallEvent {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for ShadowBanInfo {}

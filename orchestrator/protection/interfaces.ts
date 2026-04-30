@@ -2,6 +2,7 @@ import { CommandResult } from "../infrastructure/command_manager.ts";
 
 export interface FirewallProvider {
   blockIp(ip: string): Promise<CommandResult>;
+  shadowBanIp(ip: string): Promise<CommandResult>;
   unblockIp(ip: string): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;

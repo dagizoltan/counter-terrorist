@@ -7,6 +7,7 @@ export const Layout = (props: {
   children: any;
   cssPaths?: string[];
   islandPaths?: string[];
+  csrfToken?: string;
 }) => {
   return (
     <html lang="en">
@@ -14,6 +15,7 @@ export const Layout = (props: {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="api-token" content={Deno.env.get("API_TOKEN") || ""} />
+        <meta name="csrf-token" content={props.csrfToken || ""} />
         <title>{props.title} | Security Orchestrator</title>
         
         {/* Modern Typography */}
@@ -140,11 +142,18 @@ export const Layout = (props: {
                 <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Global_Map</span>
               </a>
 
-              <a href="/forensics/timeline" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+              <a href="/forensics/replay" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
                 <div class="w-6 h-6 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 1.9-1.9"/><path d="M3 3v18h18"/><path d="M7 15l4-4 4 4 5-5"/></svg>
                 </div>
-                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Timeline</span>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Forensic_Replay</span>
+              </a>
+
+              <a href="/audit/integrity" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Mesh_Integrity</span>
               </a>
 
               <a href="/audit" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
