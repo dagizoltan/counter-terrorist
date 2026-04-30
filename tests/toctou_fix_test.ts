@@ -7,6 +7,10 @@ Deno.test("UbuntuAntivirusProvider.quarantine - Security Fix Verification", asyn
   const executor = new SystemExecutor();
   const provider = new UbuntuAntivirusProvider(executor);
   const testFile = "tests/security_test_file.txt";
+  const tempQuarantineDir = await Deno.makeTempDir({ prefix: "cts_quarantine_test" });
+
+  // Set the environment variable for the provider to use
+  Deno.env.set("QUARANTINE_DIR", tempQuarantineDir);
 
   await Deno.writeTextFile(testFile, "initial content");
 
@@ -48,5 +52,7 @@ Deno.test("UbuntuAntivirusProvider.quarantine - Security Fix Verification", asyn
 
   } finally {
     try { await Deno.remove(testFile); } catch { /* ignore */ }
+    try { await Deno.remove(tempQuarantineDir, { recursive: true }); } catch { /* ignore */ }
+    Deno.env.delete("QUARANTINE_DIR");
   }
 });
