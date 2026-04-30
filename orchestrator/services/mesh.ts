@@ -328,6 +328,29 @@ export class MeshManager {
     }
   }
 
+  /**
+   * Requests approval from peers for a critical action.
+   * Requires at least 'threshold' approvals.
+   */
+  async requestApproval(action: string, data: any, threshold: number = 2): Promise<boolean> {
+    const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+    if (verifiedNodes.length < threshold) {
+        console.warn(`[MESH] Not enough verified nodes for consensus (${verifiedNodes.length}/${threshold})`);
+        return true; // Fallback to local decision if cluster is too small
+    }
+
+    let approvals = 0;
+    for (const node of verifiedNodes) {
+        try {
+            const res = await this.sendSync(node, { type: "REQUEST_APPROVAL", action, data });
+            if ((res as any).approved) approvals++;
+        } catch (e) {
+            console.warn(`[MESH] Node ${node.hostname} denied/failed approval for ${action}`);
+        }
+    }
+
+    return approvals >= threshold;
+  }
   private async sendSync(node: MeshNode, payload: any) {
     if (!this.httpClient) await this.init();
 

@@ -13,6 +13,7 @@ export interface HoneypotModule {
 
 export class HoneypotService {
   private modules: Map<string, HoneypotModule> = new Map();
+  private eventHandlers: ((event: any) => void)[] = [];
 
   constructor(
     private sidecarManager: SidecarManager,
@@ -51,6 +52,16 @@ export class HoneypotService {
     });
   }
 
+  onEvent(handler: (event: any) => void) {
+    this.eventHandlers.push(handler);
+  }
+
+  private emitEvent(event: any) {
+    for (const handler of this.eventHandlers) {
+      handler(event);
+    }
+  }
+
   registerModule(module: HoneypotModule) {
     this.modules.set(module.id, module);
   }
@@ -67,8 +78,6 @@ export class HoneypotService {
     const module = this.modules.get(id);
     if (module) {
       module.active = active;
-      // In a real implementation, we would send a command to the Rust sidecar
-      // to open/close the port.
       await this.sidecarManager.sendCommand("honeypot", {
         type: "ToggleModule",
         payload: { module: id, active, port: module.port }
@@ -83,7 +92,11 @@ export class HoneypotService {
 
   private handleEvent(event: any) {
     if (event.event?.type === "PortAccess") {
-      const { port, source_ip } = event.event.payload;
+      const payload = event.event.payload;
+      const { port, source_ip } = payload;
+      
+      this.emitEvent({ type: "PortAccess", source_ip, port });
+
       this.broadcast({
         type: "CRITICAL",
         message: `Honeypot Triggered: Access to ${port} from ${source_ip}`,

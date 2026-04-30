@@ -51,7 +51,22 @@ await processTracker.fullScan();
 const threatIntel = new ThreatIntelService(protection, loggingService);
 await threatIntel.start();
 
+import { BehavioralAnalyzer } from "./services/behavioral_analyzer.ts";
+const behavioralAnalyzer = new BehavioralAnalyzer();
+
+// ... existing code ...
+
 const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast);
+honeypotService.onEvent((event) => {
+  if (event.type === "PortAccess") {
+    behavioralAnalyzer.track(event.source_ip);
+    const analysis = behavioralAnalyzer.analyze(event.source_ip);
+    if (analysis.botProbability > 0.8) {
+       console.log(`[BOT-DETECTOR] High bot probability for ${event.source_ip}: ${analysis.botProbability}`);
+       // Could trigger a more aggressive block
+    }
+  }
+});
 await honeypotService.start();
 
 import { CanaryService } from "./services/canary_service.ts";

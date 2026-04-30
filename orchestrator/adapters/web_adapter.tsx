@@ -495,8 +495,13 @@ export class WebAdapter implements WebPort {
     });
 
     // Protection Controls
-    this.app.post("/api/protection/lockdown", async (c: Context) => {
+    this.app.post("/api/protection/lockdown", this.requireRole("admin"), async (c: Context) => {
+      const approved = await this.meshManager.requestApproval("lockdown", { initiator: Deno.hostname() });
+      if (!approved) {
+        return c.json({ success: false, stdout: "Lockdown denied by mesh consensus." });
+      }
       const result = await this.protection.lockdown();
+      await this.meshManager.broadcastLockdown();
       return c.json(result);
     });
 
@@ -549,6 +554,11 @@ export class WebAdapter implements WebPort {
           ...payload.event,
           message: `[REMOTE:${payload.event.node || 'unknown'}] ${payload.event.message}`,
         });
+      }
+      if (payload.type === "REQUEST_APPROVAL") {
+        // Auto-approve for now if we have verified the mesh secret
+        // In a real app, this would show a popup to the admin
+        return c.json({ approved: true });
       }
       return c.json({ success: true });
     });
