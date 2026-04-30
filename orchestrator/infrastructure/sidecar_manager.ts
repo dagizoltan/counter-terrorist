@@ -155,6 +155,10 @@ export class SidecarManager {
     return null;
   }
 
+  isRunning(name: string): boolean {
+    return this.persistentProcesses.has(name) && !this.unsupportedSidecars.has(name);
+  }
+
   private async startResponseReader(name: string, child: Deno.ChildProcess) {
     const reader = child.stdout.getReader();
     const decoder = new TextDecoder();

@@ -4,7 +4,7 @@ import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../../Layout.tsx";
 
 export const FirewallPage = () => (
-  <Layout title="Firewall Agent">
+  <Layout title="Firewall Agent" islandPaths={['/pages/dashboard/islands/FirewallAgent.js']}>
     <div class="mb-12">
       <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Firewall Enforcer</h2>
       <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Kernel-level packet filtering // Active quarantine</p>
@@ -13,79 +13,62 @@ export const FirewallPage = () => (
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div class="lg:col-span-1 bg-white/5 border border-white/5 p-8">
         <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Blocked Identities</h3>
-        <div class="text-3xl font-black mb-2">1,242</div>
+        <div id="fw-blocked-count" class="text-3xl font-black mb-2">...</div>
         <p class="text-[9px] text-slate-500 font-bold uppercase">Total unique IP blocks</p>
       </div>
       <div class="lg:col-span-2 bg-white/5 border border-white/5 p-8">
         <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 pb-2 border-b border-white/5">Active Quarantined IPs</h3>
-        <div class="space-y-2 font-mono text-xs">
-          <div class="flex justify-between p-2 bg-black/40 border border-white/5 text-red-500">
-            <span>185.220.101.44</span>
-            <span class="text-[9px] font-black">TOR_EXIT_NODE</span>
-          </div>
-          <div class="flex justify-between p-2 bg-black/40 border border-white/5 text-red-500">
-            <span>45.143.203.14</span>
-            <span class="text-[9px] font-black">SSH_BRUTE_FORCE</span>
-          </div>
-          <div class="flex justify-between p-2 bg-black/40 border border-white/5 text-red-500">
-            <span>91.240.118.221</span>
-            <span class="text-[9px] font-black">SCANNER_IDENTIFIED</span>
-          </div>
+        <div id="fw-blocked-list" class="space-y-2 font-mono text-xs">
+          <p class="text-slate-500 text-[9px]">Loading firewall state...</p>
         </div>
       </div>
     </div>
+    <firewall-agent></firewall-agent>
   </Layout>
 );
 
 export const VpnPage = () => (
-  <Layout title="VPN Tunnels">
+  <Layout title="VPN Tunnels" islandPaths={['/pages/dashboard/islands/VpnAgent.js']}>
     <div class="mb-12">
       <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Cryptographic Tunnels</h2>
       <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">WireGuard encryption // Secure mesh backhaul</p>
     </div>
     <div class="bg-white/5 border border-white/5 p-12 text-center">
        <div class="w-16 h-16 border-2 border-green-500 flex items-center justify-center mx-auto mb-6">
-          <div class="w-8 h-8 bg-green-500 animate-pulse rounded-full"></div>
+          <div id="vpn-status-dot" class="w-8 h-8 bg-slate-600 rounded-full"></div>
        </div>
-       <h3 class="text-2xl font-black uppercase tracking-tight mb-2">Mesh Tunnel Active</h3>
-       <p class="text-slate-500 text-xs font-bold uppercase mb-8">Interface: wg0 // Protocol: WireGuard // Encryption: ChaCha20-Poly1305</p>
+       <h3 id="vpn-status-label" class="text-2xl font-black uppercase tracking-tight mb-2">Checking...</h3>
+       <p id="vpn-status-details" class="text-slate-500 text-xs font-bold uppercase mb-8">Querying VPN subsystem...</p>
        <div class="max-w-md mx-auto grid grid-cols-2 gap-4">
           <div class="p-4 bg-black/40 border border-white/5">
-             <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Tx Data</p>
-             <p class="text-lg font-bold">1.2 GB</p>
+             <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Mesh Peers</p>
+             <p id="vpn-peer-count" class="text-lg font-bold">...</p>
           </div>
           <div class="p-4 bg-black/40 border border-white/5">
-             <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Rx Data</p>
-             <p class="text-lg font-bold">842 MB</p>
+             <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Self Node</p>
+             <p id="vpn-self-node" class="text-lg font-bold">...</p>
           </div>
        </div>
     </div>
+    <vpn-agent></vpn-agent>
   </Layout>
 );
 
 export const ScannerPage = () => (
-  <Layout title="Vulnerability Scanner">
+  <Layout title="Vulnerability Scanner" islandPaths={['/pages/dashboard/islands/ScannerAgent.js']}>
     <div class="mb-12">
       <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Vulnerability Scanner</h2>
-      <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Automated patch auditing // CVE discovery</p>
+      <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Automated process auditing // Anomaly detection</p>
     </div>
-    <div class="space-y-4">
-       {[
-         { id: 'CVE-2024-1234', title: 'OpenSSL Out-of-bounds Read', severity: 'HIGH', status: 'PATCHED' },
-         { id: 'CVE-2023-4567', title: 'Kernel Privilege Escalation', severity: 'CRITICAL', status: 'PENDING' },
-         { id: 'CVE-2024-9988', title: 'LibSSH Authentication Bypass', severity: 'HIGH', status: 'QUARANTINED' },
-       ].map(vuln => (
-         <div class="bg-white/5 border border-white/5 p-6 flex justify-between items-center">
-            <div>
-               <span class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">{vuln.id}</span>
-               <h3 class="text-lg font-black uppercase">{vuln.title}</h3>
-            </div>
-            <div class="flex gap-4 items-center">
-               <span class={`px-3 py-1 text-[9px] font-black uppercase ${vuln.severity === 'CRITICAL' ? 'bg-red-600' : 'bg-orange-500'}`}>{vuln.severity}</span>
-               <span class="text-[9px] font-black uppercase text-slate-400">{vuln.status}</span>
-            </div>
-         </div>
-       ))}
+    <div class="bg-white/5 border border-white/5 p-8 mb-8">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500">System Scan</h3>
+        <button onclick="const btn=this;btn.disabled=true;btn.textContent='SCANNING...';fetch('/api/scanner/run',{method:'POST'}).then(r=>r.json()).then(d=>{const out=document.getElementById('scanner-output');if(d.result&&d.result.processes){out.innerHTML=d.result.processes.map(p=>`<div class='flex gap-4 py-1 border-b border-white/5'><span class='text-slate-600 w-16'>[${p.pid}]</span><span class='text-white w-48'>${p.name}</span><span class='text-slate-500 flex-1 truncate'>${p.exe_path||'N/A'}</span><span class='text-yellow-500 w-20 text-right'>${(p.cpu_usage||0).toFixed(1)}% CPU</span></div>`).join('')}else{out.textContent=JSON.stringify(d,null,2)}}).catch(e=>document.getElementById('scanner-output').textContent='Error: '+e).finally(()=>{btn.disabled=false;btn.textContent='RUN SCAN'})" class="bg-white text-black px-4 py-2 text-[9px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Run Scan</button>
+      </div>
+      <div id="scanner-output" class="font-mono text-xs text-slate-400 bg-black/40 p-6 border border-white/5 max-h-[500px] overflow-y-auto whitespace-pre-wrap">
+        Click 'Run Scan' to trigger the scanner sidecar. Results show top processes by CPU with SHA-256 integrity hashes.
+      </div>
     </div>
+    <scanner-agent></scanner-agent>
   </Layout>
 );

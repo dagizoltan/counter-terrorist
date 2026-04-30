@@ -3,6 +3,7 @@ import { jsx } from "hono/jsx";
 import { EventsPage } from "./events/page.tsx";
 import { ProcessesPage } from "./processes/page.tsx";
 import { SysInfoPage } from "./sysinfo/page.tsx";
+import { NotificationsPage } from "./settings/notifications.tsx";
 import { ApplicationStatus } from "../core/ports.ts";
 
 export function createExtraPagesRouter(getStatus: () => Promise<ApplicationStatus>) {
@@ -19,6 +20,10 @@ export function createExtraPagesRouter(getStatus: () => Promise<ApplicationStatu
   router.get("/sysinfo", async (c: Context) => {
     const status = await getStatus();
     return c.html(<SysInfoPage status={status} />);
+  });
+
+  router.get("/settings/notifications", async (c: Context) => {
+    return c.html(<NotificationsPage />);
   });
 
   return router;

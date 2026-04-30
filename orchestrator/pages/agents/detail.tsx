@@ -5,9 +5,10 @@ import { Layout } from "../Layout.tsx";
 
 export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: any } }) => {
   const { agent } = props;
+  const islandPaths = ['/pages/dashboard/islands/BlockingLog.js', '/pages/dashboard/islands/AgentDetail.js'];
 
   return (
-    <Layout title={`Agent: ${agent.name}`}>
+    <Layout title={`Agent: ${agent.name}`} islandPaths={islandPaths}>
       <div class="mb-12 flex justify-between items-end">
         <div>
            <div class="flex items-center gap-3 mb-2">
@@ -39,24 +40,23 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
         <div class="bg-white/5 p-8 border-l-2 border-green-500">
            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">Current Status</h3>
            <p class="text-2xl font-bold uppercase tracking-tight text-white">{agent.status}</p>
-           <p class="text-[10px] text-slate-400 mt-2 uppercase tracking-widest font-bold">Health: <span class="text-green-500">OPTIMAL</span></p>
+           <p class="text-[10px] text-slate-400 mt-2 uppercase tracking-widest font-bold">Health: <span id={`agent-health-${agent.name}`} class="text-slate-500">CHECKING...</span></p>
         </div>
 
         {/* AGENT IDENTITY */}
         <div class="bg-white/5 p-8 border-l-2 border-slate-700">
            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">Agent Identity</h3>
-           <p class="text-2xl font-bold uppercase tracking-tight text-white">PID_7741</p>
+           <p id={`agent-pid-${agent.name}`} class="text-2xl font-bold uppercase tracking-tight text-white">...</p>
            <p class="text-[10px] text-slate-400 mt-2 uppercase tracking-widest font-bold">Type: Persistent_Sidecar</p>
         </div>
 
         {/* SECURITY CONTEXT */}
         <div class="bg-white/5 p-8 border-l-2 border-slate-700">
            <h3 class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">Security Context</h3>
-           <div class="flex gap-2 mt-1">
-              <span class="px-2 py-0.5 bg-white/10 text-[9px] font-black uppercase">CAP_NET_RAW</span>
-              <span class="px-2 py-0.5 bg-white/10 text-[9px] font-black uppercase">CAP_SYS_ADMIN</span>
+           <div id={`agent-caps-${agent.name}`} class="flex gap-2 mt-1 flex-wrap">
+              <span class="text-[9px] text-slate-500 font-bold uppercase">Loading capabilities...</span>
            </div>
-           <p class="text-[10px] text-slate-400 mt-3 uppercase tracking-widest font-bold">Privilege: <span class="text-yellow-500">SUDO_ACCESS</span></p>
+           <p class="text-[10px] text-slate-400 mt-3 uppercase tracking-widest font-bold">Privilege: <span id={`agent-priv-${agent.name}`} class="text-slate-500">CHECKING</span></p>
         </div>
       </div>
 
@@ -64,19 +64,14 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <section class="bg-white/5 border border-white/5">
            <div class="p-6 border-b border-white/5 flex justify-between items-center">
-              <h2 class="text-xs font-black uppercase tracking-[0.3em]">Telemetry Stream</h2>
+              <h2 class="text-xs font-black uppercase tracking-[0.3em]">Live Event Stream</h2>
               <div class="flex items-center gap-2">
-                 <span class="text-[9px] text-slate-500 font-black uppercase">Live_Updates</span>
+                 <span class="text-[9px] text-slate-500 font-black uppercase">Real_Time</span>
                  <div class="w-1.5 h-1.5 bg-red-600 animate-pulse"></div>
               </div>
            </div>
-           <div class="p-6 font-mono text-[11px] h-[400px] overflow-y-auto bg-black/40 text-slate-400 space-y-1">
-              <p><span class="text-slate-600">[11:16:01]</span> <span class="text-green-500">INITIALIZING</span> kernel module bridge...</p>
-              <p><span class="text-slate-600">[11:16:02]</span> <span class="text-blue-500">SYNCING</span> protection rules with local DB...</p>
-              <p><span class="text-slate-600">[11:16:05]</span> <span class="text-white">ENFORCEMENT</span> active on interface eth0</p>
-              <p><span class="text-slate-600">[11:16:10]</span> <span class="text-slate-500">HEARTBEAT</span> signal received from master</p>
-              <p><span class="text-slate-600">[11:16:15]</span> <span class="text-slate-500">HEARTBEAT</span> signal received from master</p>
-              <p><span class="text-slate-600">[11:16:20]</span> <span class="text-slate-500">HEARTBEAT</span> signal received from master</p>
+           <div class="min-h-[400px]">
+              <blocking-log id={`agent-log-${agent.name}`}></blocking-log>
            </div>
         </section>
 
@@ -111,6 +106,7 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
            </div>
         </section>
       </div>
+      <agent-detail data-agent={agent.name}></agent-detail>
     </Layout>
   );
 };

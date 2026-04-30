@@ -31,6 +31,7 @@ import { TimelinePage } from "../pages/forensics/timeline.tsx";
 import { ThreatMapPage } from "../pages/intel/map.tsx";
 import { createExtraPagesRouter } from "../pages/extra_handlers.tsx";
 import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role, EventBus, HoneypotService } from "../services/index.ts";
+import { meshManager } from "../services/mesh.ts";
 /**
  * IPs that must never be blocked via mesh sync gossip.
  * Prevents denial-of-service via loopback, link-local, or broadcast blocking.
@@ -329,6 +330,26 @@ export class WebAdapter implements WebPort {
       return c.json(this.dashboardStatus);
     });
 
+    // Real-time metrics snapshot (HTTP fallback for initial page load)
+    this.app.get("/api/metrics", async (c: Context) => {
+      const { getMetricsSnapshot } = await import("../services/metrics_service.ts");
+      const snapshot = getMetricsSnapshot();
+      if (snapshot) {
+        return c.json(snapshot);
+      }
+      // Fallback if metrics haven't been collected yet
+      return c.json({
+        firewall: { blockedCount: 0, rules: 0, blockedIps: [] },
+        mesh: { activeNodes: 0, totalNodes: 0, selfId: Deno.hostname() },
+        honeypot: { activeDecoys: 0, totalHits: 0 },
+        forensics: { processCount: 0, ebpfActive: false, fimActive: false },
+        kernel: { aslr: "LOADING", syncookies: "LOADING", rp_filter: "LOADING", tcp_timestamps: "LOADING", accept_source_route: "LOADING", icmp_echo_ignore_broadcasts: "LOADING" },
+        canary: { deployed: 0, triggered: 0 },
+        audit: { chainVerified: false, totalEvents: 0 },
+        scanner: { lastScanTime: "NEVER", lastScanResult: "PENDING" },
+      });
+    });
+
     // Agent status
     this.app.get("/api/agent/status", this.requireRole("admin", "operator", "viewer"), async (c: Context) => {
       const fwStatus = await this.protection.firewall.getStatus();
@@ -428,8 +449,25 @@ export class WebAdapter implements WebPort {
       return c.json(result);
     });
 
-    // WebSocket
-    this.app.get("/api/ws/events", upgradeWebSocket(() => wsHandler));
+    // WebSocket — validate session before upgrade
+    this.app.get("/api/ws/events", async (c: Context, next: Next) => {
+      const sessionToken = getCookie(c, "session_token");
+      const bearerToken = c.req.header("Authorization")?.replace("Bearer ", "");
+      
+      // Allow if valid session cookie exists
+      if (sessionToken) {
+        const session = await this.sessionService.validateSession(sessionToken);
+        if (session) return next();
+      }
+      
+      // Allow if valid bearer token
+      if (bearerToken && this.isTokenValid(bearerToken)) {
+        return next();
+      }
+      
+      // Reject unauthenticated WebSocket upgrades
+      return c.json({ error: "Unauthorized: WebSocket requires authentication" }, 401);
+    }, upgradeWebSocket(() => wsHandler));
 
     // Login
     this.app.route("/login", createLoginRouter({
@@ -507,14 +545,34 @@ export class WebAdapter implements WebPort {
       return c.json(this.processTracker.getTree());
     });
 
+    // Scanner — trigger real scanner sidecar
+    this.app.post("/api/scanner/run", this.requireRole("admin", "operator"), async (c: Context) => {
+      try {
+        const scanId = crypto.randomUUID().slice(0, 8);
+        
+        // Use sendCommand which sends data to the persistent sidecar's stdin
+        // Include both type (for sidecar manager validation) and cmd_type (for rust sidecar)
+        const scanResult = await (this.command as any).sendCommand("scanner", { type: "SCAN", cmd_type: "SCAN", id: scanId });
+        
+        if (scanResult && scanResult.processes) {
+           broadcast({ type: "INFO", message: `System scan completed (${scanId})`, data: scanResult });
+           return c.json({ success: true, id: scanId, result: scanResult });
+        }
+        
+        return c.json({ success: true, id: scanId, result: scanResult });
+      } catch (e) {
+        return c.json({ success: false, error: e.message }, 500);
+      }
+    });
+
     // Protection Controls
     this.app.post("/api/protection/lockdown", this.requireRole("admin"), async (c: Context) => {
-      const approved = await this.meshManager.requestApproval("lockdown", { initiator: Deno.hostname() });
+      const approved = await meshManager.requestApproval("lockdown", { initiator: Deno.hostname() });
       if (!approved) {
         return c.json({ success: false, stdout: "Lockdown denied by mesh consensus." });
       }
       const result = await this.protection.lockdown();
-      await this.meshManager.broadcastLockdown();
+      await meshManager.broadcastLockdown();
       return c.json(result);
     });
 
@@ -537,15 +595,16 @@ export class WebAdapter implements WebPort {
     });
 
     this.app.get("/api/mesh/nodes", (c: Context) => {
-      const nodes = this.honeypotService.getModules(); // Dummy for now or use real mesh nodes
-      // Get real nodes from meshManager
-      const meshNodes = Array.from((this.honeypotService as any).sidecarManager.eventHandlers.keys()); // Just a hack to get some ids
+      const meshNodes = meshManager.getNodes();
       return c.json({
         local: Deno.hostname(),
-        peers: ["node-alpha", "node-bravo", "node-gamma"].map(id => ({
-          id,
-          status: Math.random() > 0.1 ? "ACTIVE" : "INACTIVE",
-          latency: Math.floor(Math.random() * 50) + "ms"
+        peers: meshNodes.map(node => ({
+          id: node.id || node.hostname,
+          hostname: node.hostname,
+          address: node.address,
+          status: Date.now() - node.lastSeen < 60000 ? "ACTIVE" : "INACTIVE",
+          latency: `${Date.now() - node.lastSeen}ms`,
+          verified: node.verified,
         }))
       });
     });

@@ -79,7 +79,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
       <div class="mb-8">
          <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
             <h2 class="text-xs font-black uppercase tracking-[0.3em]">Protection Layer</h2>
-            <span class="text-[9px] font-bold text-slate-500 uppercase">3 ACTIVE</span>
+            <span id="stat-protection-count" class="text-[9px] font-bold text-slate-500 uppercase">...</span>
          </div>
          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all">
@@ -111,7 +111,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
                      <span id="stat-mesh-nodes" class="text-white">...</span>
                   </div>
                   <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
-                     <span>Handshakes</span>
+                     <span>Verified</span>
                      <span id="stat-mesh-handshakes" class="text-white">...</span>
                   </div>
                </div>
@@ -126,11 +126,11 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
                <div class="space-y-2">
                   <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
                      <span>Last Scan</span>
-                     <span class="text-white">2h ago</span>
+                     <span id="stat-scanner-last" class="text-white">...</span>
                   </div>
                   <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
-                     <span>CVE Matches</span>
-                     <span class="text-white">0</span>
+                     <span>Result</span>
+                     <span id="stat-scanner-result" class="text-white">...</span>
                   </div>
                </div>
                <a href="/agents/scanner" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Details</a>
@@ -142,7 +142,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
       <div class="mb-12">
          <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
             <h2 class="text-xs font-black uppercase tracking-[0.3em]">Forensic Ops</h2>
-            <span class="text-[9px] font-bold text-slate-500 uppercase">3 ACTIVE</span>
+            <span id="stat-forensic-count" class="text-[9px] font-bold text-slate-500 uppercase">...</span>
          </div>
          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all border-l-2 border-yellow-500">
@@ -156,8 +156,8 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
                      <span id="stat-forensics-procs" class="text-white">...</span>
                   </div>
                   <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
-                     <span>Anomaly Score</span>
-                     <span class="text-white">0.02</span>
+                     <span>Status</span>
+                     <span id="stat-forensics-ebpf-status" class="text-white">...</span>
                   </div>
                </div>
                <a href="/agents/ebpf" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Monitor</a>
@@ -170,12 +170,12 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
                </div>
                <div class="space-y-2">
                   <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
-                     <span>Paths Watched</span>
-                     <span class="text-white">142</span>
+                     <span>Status</span>
+                     <span id="stat-forensics-fim-status" class="text-white">...</span>
                   </div>
                   <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
-                     <span>Modifications</span>
-                     <span class="text-white">0</span>
+                     <span>Canary Tokens</span>
+                     <span id="stat-canary-deployed" class="text-white">...</span>
                   </div>
                </div>
                <a href="/agents/fim" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Monitor</a>
@@ -201,26 +201,37 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
          </div>
       </div>
 
-      {/* ROW 4: HARDENING MATRIX */}
+      {/* ROW 4: HARDENING MATRIX — all values hydrated from real sysctl */}
       <div class="mb-12">
          <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/5">
             <h2 class="text-xs font-black uppercase tracking-[0.3em]">Hardening Matrix</h2>
-            <span class="text-[9px] font-bold text-green-500 uppercase tracking-widest font-mono">SECURE</span>
+            <span id="stat-audit-chain" class="text-[9px] font-bold text-green-500 uppercase tracking-widest font-mono">...</span>
          </div>
          <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {[
-              { label: 'ASLR', status: 'STRICT', color: 'text-green-500' },
-              { label: 'SYN_COOKIES', status: 'ENABLED', color: 'text-green-500' },
-              { label: 'RP_FILTER', status: 'STRICT', color: 'text-green-500' },
-              { label: 'CANARIES', status: 'ACTIVE', color: 'text-green-500' },
-              { label: 'P2P_RBAC', status: 'ENFORCED', color: 'text-blue-500' },
-              { label: 'AUDIT_CHAIN', status: 'VERIFIED', color: 'text-green-500' }
-            ].map(h => (
-              <div class="bg-white/5 p-4 border border-white/5 text-center">
-                 <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">{h.label}</p>
-                 <p class={`text-[10px] font-black uppercase ${h.color}`}>{h.status}</p>
-              </div>
-            ))}
+            <div class="bg-white/5 p-4 border border-white/5 text-center">
+               <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">ASLR</p>
+               <p id="stat-kernel-aslr" class="text-[10px] font-black uppercase text-slate-500">...</p>
+            </div>
+            <div class="bg-white/5 p-4 border border-white/5 text-center">
+               <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">SYN_COOKIES</p>
+               <p id="stat-kernel-syncookies" class="text-[10px] font-black uppercase text-slate-500">...</p>
+            </div>
+            <div class="bg-white/5 p-4 border border-white/5 text-center">
+               <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">RP_FILTER</p>
+               <p id="stat-kernel-rpfilter" class="text-[10px] font-black uppercase text-slate-500">...</p>
+            </div>
+            <div class="bg-white/5 p-4 border border-white/5 text-center">
+               <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">CANARIES</p>
+               <p id="stat-canary-triggered" class="text-[10px] font-black uppercase text-slate-500">...</p>
+            </div>
+            <div class="bg-white/5 p-4 border border-white/5 text-center">
+               <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">P2P_RBAC</p>
+               <p class="text-[10px] font-black uppercase text-blue-500">ENFORCED</p>
+            </div>
+            <div class="bg-white/5 p-4 border border-white/5 text-center">
+               <p class="text-slate-500 text-[8px] font-black uppercase tracking-widest mb-1">AUDIT_CHAIN</p>
+               <p id="stat-audit-chain" class="text-[10px] font-black uppercase text-slate-500">...</p>
+            </div>
          </div>
       </div>
 

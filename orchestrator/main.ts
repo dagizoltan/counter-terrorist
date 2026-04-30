@@ -1,4 +1,3 @@
-import { initializeApplication } from "./core/application.ts";
 import { WebAdapter } from "./adapters/web_adapter.tsx";
 import { SidecarManager } from "./infrastructure/sidecar_manager.ts";
 import { SystemExecutor } from "./infrastructure/system_executor.ts";
@@ -6,13 +5,13 @@ import { AuditService } from "./services/audit.ts";
 import { NotificationService } from "./services/alerts.ts";
 import { BaselineService, ProcessTracker, SessionService, ApiKeysService, EventBus, MeshAuthService } from "./services/index.ts";
 import { EnvConfigProvider } from "./infrastructure/env_config_provider.ts";
-import { MeshManager } from "./services/mesh.ts";
+import { MeshManager, setMeshManager } from "./services/mesh.ts";
 import { PlaybookService } from "./services/playbook_service.ts";
 import { loggingService } from "./infrastructure/logging.ts";
-import { broadcast } from "./api/ws.ts";
+import { broadcast, initBroadcaster } from "./api/ws.ts";
 import { PlaybookEngine } from "./services/playbook_engine.ts";
 import { BehavioralAnalyzer } from "./services/behavioral_analyzer.ts";
-import { MetricsService } from "./services/metrics_service.ts";
+import { MetricsService, setMetricsService } from "./services/metrics_service.ts";
 import { ThreatIntelService } from "./services/threat_intel.ts";
 import { HoneypotService } from "./services/honeypot_service.ts";
 import { CanaryService } from "./services/canary_service.ts";
@@ -21,21 +20,31 @@ import { createProtection } from "./protection/index.ts";
 import { getPlatformInfo } from "./infrastructure/platform.ts";
 import { bootstrap } from "./bootstrapper.ts";
 import { SidecarEvent } from "./infrastructure/sidecar_manager.ts";
-import { pluginManager } from "./services/plugin_manager.ts";
 
+// ── Phase 1: Core infrastructure ──────────────────────────────────────
 const kv = await Deno.openKv();
 const configProvider = new EnvConfigProvider();
 const executor = new SystemExecutor();
 const sidecarManager = new SidecarManager(executor);
-const eventBus = new EventBus();
 const platformInfo = await getPlatformInfo();
 const systemStatus = await bootstrap();
 
+// ── Phase 2: Service layer ────────────────────────────────────────────
 const auditService = new AuditService(kv, loggingService);
 const notificationService = new NotificationService(kv, loggingService);
+const eventBus = new EventBus(loggingService);
 const meshAuthService = new MeshAuthService(kv);
 const meshManager = new MeshManager(meshAuthService, loggingService);
+setMeshManager(meshManager);
 await meshManager.init();
+
+// ── Phase 3: Initialize Broadcaster BEFORE any service calls broadcast() ──
+initBroadcaster({
+  notificationService,
+  auditService,
+  eventBus,
+  loggingService,
+});
 
 const protection = createProtection(sidecarManager, executor, platformInfo);
 
@@ -50,8 +59,8 @@ const threatIntel = new ThreatIntelService(protection as any, loggingService);
 const honeypotService = new HoneypotService(sidecarManager, protection.firewall as any, protection.pcap as any, broadcast);
 const canaryService = new CanaryService(auditService);
 const kernelService = new KernelService(executor, auditService);
-const metricsService = new MetricsService(protection.firewall as any, meshManager, honeypotService, processTracker, broadcast);
 
+// ── Phase 4: Start subsystems ─────────────────────────────────────────
 await playbookService.init();
 await processTracker.fullScan();
 await threatIntel.start();
@@ -59,7 +68,12 @@ await honeypotService.start();
 await canaryService.deploy();
 await kernelService.harden();
 
+// ── Phase 5: Wire event pipelines ─────────────────────────────────────
+// Honeypot events → EventBus (for stats API) + Behavioral Analyzer
 honeypotService.onEvent((event) => {
+  // Publish to EventBus so /api/stats/honeypot receives the event
+  eventBus.emit("honeypot", { event });
+
   if (event.type === "PortAccess") {
     behavioralAnalyzer.track(event.source_ip);
     const analysis = behavioralAnalyzer.analyze(event.source_ip);
@@ -72,7 +86,7 @@ honeypotService.onEvent((event) => {
 const playbookEngine = new PlaybookEngine(eventBus, protection as any, loggingService);
 await playbookEngine.start();
 
-// Handle Sidecar events
+// eBPF sidecar → broadcast pipeline
 sidecarManager.onEvent("ebpf", async (event: SidecarEvent) => {
   if (event.type === "SYSCALL_EVENT") {
     let type = "INFO";
@@ -89,6 +103,7 @@ sidecarManager.onEvent("ebpf", async (event: SidecarEvent) => {
   }
 });
 
+// FIM sidecar → broadcast + canary pipeline
 sidecarManager.onEvent("fim", (event: any) => {
   if (event.type === "FILE_EVENT") {
     canaryService.handleFileAccess(event.path, event.comm);
@@ -96,6 +111,7 @@ sidecarManager.onEvent("fim", (event: any) => {
   }
 });
 
+// ── Phase 6: Web adapter + MetricsService (started AFTER broadcaster is ready) ──
 const web = new WebAdapter(
   configProvider,
   protection as any,
@@ -110,14 +126,21 @@ const web = new WebAdapter(
   honeypotService
 );
 
-// Start persistent sidecars with specialized fallbacks
+// MetricsService starts AFTER broadcaster is initialized
+const metricsService = new MetricsService(
+  protection.firewall as any, meshManager, honeypotService, processTracker,
+  kernelService, auditService, canaryService, sidecarManager, broadcast
+);
+setMetricsService(metricsService);
+
+// ── Phase 7: Start persistent sidecars ────────────────────────────────
 const startDaemons = async () => {
   sidecarManager.getPersistentSidecar("honeypot").catch(() => {});
   sidecarManager.getPersistentSidecar("fim").catch(() => {});
   try {
     await sidecarManager.getPersistentSidecar("ebpf");
-  } catch (e) {
-    console.warn("[FORENSICS] eBPF fallback active.");
+  } catch (_e) {
+    console.warn("[FORENSICS] eBPF fallback active — polling canary tokens.");
     setInterval(async () => {
       try {
         for (const token of canaryService.getTokens()) {

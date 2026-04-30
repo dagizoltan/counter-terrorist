@@ -4,7 +4,11 @@ import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../Layout.tsx";
 
 export const ThreatMapPage = () => {
-  const islandPaths = ['/pages/dashboard/islands/ThreatMap.js'];
+  const islandPaths = [
+    '/pages/dashboard/islands/ThreatMap.js',
+    '/pages/dashboard/islands/BlockingLog.js',
+    '/pages/dashboard/islands/MetricsHydrator.js',
+  ];
 
   return (
     <Layout title="Global Threat Intelligence" islandPaths={islandPaths}>
@@ -15,10 +19,10 @@ export const ThreatMapPage = () => {
         </div>
         <div class="flex gap-4">
            <div class="px-4 py-2 bg-red-600/10 border border-red-600/20 text-red-500 text-[10px] font-black uppercase tracking-widest">
-              Live Attacks: 1,242/hr
+              Honeypot Hits: <span id="stat-honeypot-hits">...</span>
            </div>
            <div class="px-4 py-2 bg-green-600/10 border border-green-600/20 text-green-500 text-[10px] font-black uppercase tracking-widest">
-              Mesh Nodes: 3
+              Mesh Peers: <span id="stat-mesh-nodes">...</span>
            </div>
         </div>
       </div>
@@ -27,33 +31,28 @@ export const ThreatMapPage = () => {
          {/* SIDEBAR INTEL */}
          <div class="lg:col-span-1 space-y-6">
             <div class="bg-white/5 border border-white/5 p-6">
-               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 pb-2 border-b border-white/5">Top Attack Origins</h3>
+               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 pb-2 border-b border-white/5">Blocked IPs</h3>
                <div class="space-y-4">
-                  {[
-                    { country: 'China', count: 432, color: 'bg-red-500' },
-                    { country: 'Russia', count: 211, color: 'bg-red-500' },
-                    { country: 'USA', count: 184, color: 'bg-orange-500' },
-                    { country: 'Brazil', count: 102, color: 'bg-yellow-500' },
-                  ].map(c => (
-                    <div class="flex flex-col gap-1">
-                       <div class="flex justify-between text-[10px] font-black uppercase">
-                          <span>{c.country}</span>
-                          <span class="text-slate-500">{c.count}</span>
-                       </div>
-                       <div class="w-full h-1 bg-white/5">
-                          <div class={`${c.color} h-full`} style={`width: ${(c.count / 432) * 100}%`}></div>
-                       </div>
-                    </div>
-                  ))}
+                  <p id="fw-blocked-count" class="text-3xl font-black">...</p>
+                  <p class="text-[9px] text-slate-500 font-bold uppercase">Total firewall blocks</p>
                </div>
             </div>
 
             <div class="bg-white/5 border border-white/5 p-6">
-               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 pb-2 border-b border-white/5">Active ASN Blocks</h3>
-               <div class="space-y-2 font-mono text-[9px] text-slate-500">
-                  <p>AS14061 (DigitalOcean)</p>
-                  <p>AS16509 (Amazon)</p>
-                  <p>AS24940 (Hetzner)</p>
+               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 pb-2 border-b border-white/5">System Status</h3>
+               <div class="space-y-3">
+                  <div class="flex justify-between text-[10px] font-black uppercase">
+                     <span class="text-slate-500">eBPF</span>
+                     <span id="stat-forensics-ebpf-status" class="text-slate-400">...</span>
+                  </div>
+                  <div class="flex justify-between text-[10px] font-black uppercase">
+                     <span class="text-slate-500">FIM</span>
+                     <span id="stat-forensics-fim-status" class="text-slate-400">...</span>
+                  </div>
+                  <div class="flex justify-between text-[10px] font-black uppercase">
+                     <span class="text-slate-500">Canaries</span>
+                     <span id="stat-canary-deployed" class="text-slate-400">...</span>
+                  </div>
                </div>
             </div>
          </div>
@@ -72,14 +71,13 @@ export const ThreatMapPage = () => {
                <threat-map id="main-map"></threat-map>
             </div>
 
-            {/* OVERLAY TELEMETRY */}
-            <div class="absolute bottom-6 right-6 z-20 w-64 bg-black/80 border border-white/5 p-4 font-mono text-[9px] space-y-1 text-slate-400">
-               <p><span class="text-red-500">[BLOCK]</span> IP: 185.x.x.x -> SSH_DECOY</p>
-               <p><span class="text-red-500">[BLOCK]</span> IP: 45.x.x.x -> REDIS_VAULT</p>
-               <p><span class="text-yellow-500">[SCAN]</span> IP: 91.x.x.x -> TCP_STEALTH</p>
+            {/* LIVE OVERLAY TELEMETRY — from real audit stream */}
+            <div class="absolute bottom-0 right-0 left-0 z-20 bg-black/80 border-t border-white/5 h-[120px] overflow-hidden">
+               <blocking-log id="map-log"></blocking-log>
             </div>
          </div>
       </div>
+      <metrics-hydrator></metrics-hydrator>
     </Layout>
   );
 };

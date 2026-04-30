@@ -10,7 +10,7 @@ export class FirewallManager {
     if (!isValidIP(ip)) {
       return { success: false, message: `Invalid IP address: ${ip}` };
     }
-    broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}` });
+    broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}`, data: { ip } });
 
     // Mesh Gossip (Phase 4)
     if (meshManager) {
