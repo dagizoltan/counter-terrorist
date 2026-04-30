@@ -1,5 +1,7 @@
 import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 import { MeshManager } from "./mesh.ts";
+import { TimelineRepository } from "../infrastructure/repositories/timeline_repository.ts";
+import { withTelemetry } from "../core/service_utils.ts";
 
 export interface AuditEvent {
     id: string;
@@ -7,13 +9,10 @@ export interface AuditEvent {
     type: string;
     message: string;
     data?: any;
-    /** SHA-256 hash of this event's content (excluding prevHash and hash fields). */
     hash: string;
-    /** Hash of the previous event, forming a tamper-evident chain. */
     prevHash: string;
 }
 
-/** Retention policy configuration for audit log. */
 interface RetentionConfig {
     maxAgeDays: number;
     maxEvents: number;
@@ -24,30 +23,32 @@ export class AuditService {
     private retentionConfig: RetentionConfig;
     private purgeIntervalId: number | undefined;
     private logQueue: Promise<void> = Promise.resolve();
+    private repo: TimelineRepository<AuditEvent>;
 
     constructor(
         private kv: Deno.Kv, 
         private logging: LoggingPort,
         private mesh: MeshManager | null = null
     ) {
+        this.repo = new TimelineRepository<AuditEvent>(kv, "audit");
         this.retentionConfig = {
             maxAgeDays: Number(Deno.env.get("AUDIT_RETENTION_DAYS")) || 90,
             maxEvents: Number(Deno.env.get("AUDIT_MAX_EVENTS")) || 10000,
         };
 
-        // Restore the last hash from the most recent event to continue the chain
         this.restoreChainHead();
-
-        // Schedule periodic retention purge (every hour)
         this.purgeIntervalId = setInterval(() => this.purgeExpired(), 60 * 60 * 1000);
-
-        // Schedule periodic mesh verification (every 5 minutes)
+        
         setInterval(async () => {
           if (this.mesh) {
             const status = await this.getChainStatus();
             this.mesh.broadcastAuditVerification(status.lastHash, status.count);
           }
         }, 5 * 60 * 1000);
+
+        // Wrap public methods with telemetry
+        this.logEvent = withTelemetry("Audit:Log", this.logEvent.bind(this), logging) as any;
+        this.verifyChain = withTelemetry("Audit:Verify", this.verifyChain.bind(this), logging) as any;
     }
 
     setMesh(mesh: MeshManager) {
@@ -56,15 +57,13 @@ export class AuditService {
     
     private async restoreChainHead() {
         try {
-            const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { reverse: true, limit: 1 });
-            for await (const entry of entries) {
-                if (entry.value?.hash) {
-                    this.lastHash = entry.value.hash;
-                    this.logging.log(
-                        `[AUDIT] Chain restored from last event: ${this.lastHash.slice(0, 12)}…`,
-                        SyslogSeverity.INFORMATIONAL
-                    );
-                }
+            const latest = await this.repo.getLatest(1);
+            if (latest.length > 0 && latest[0].hash) {
+                this.lastHash = latest[0].hash;
+                this.logging.log(
+                    `[AUDIT] Chain restored from last event: ${this.lastHash.slice(0, 12)}…`,
+                    SyslogSeverity.INFORMATIONAL
+                );
             }
         } catch (e) {
             this.logging.log(`[AUDIT] Failed to restore chain head: ${e}`, SyslogSeverity.WARNING);
@@ -101,7 +100,7 @@ export class AuditService {
             };
 
             try {
-                await this.kv.set(["audit", Date.now(), id], auditEvent);
+                await this.repo.set(id, auditEvent);
                 this.lastHash = hash;
                 
                 // Forward audit event to remote syslog
@@ -123,23 +122,12 @@ export class AuditService {
     }
 
     async getChainStatus() {
-        let count = 0;
-        const entries = this.kv.list({ prefix: ["audit"] });
-        for await (const _ of entries) {
-            count++;
-        }
+        const count = await this.repo.count();
         return { lastHash: this.lastHash, count };
     }
 
     async getRecentEvents(limit: number = 50): Promise<AuditEvent[]> {
-        const events: AuditEvent[] = [];
-        const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { reverse: true, limit });
-
-        for await (const entry of entries) {
-            events.push(entry.value);
-        }
-
-        return events;
+        return await this.repo.getLatest(limit);
     }
 
     /**
@@ -212,34 +200,8 @@ export class AuditService {
      */
     private async purgeExpired() {
         const cutoffTimestamp = Date.now() - (this.retentionConfig.maxAgeDays * 24 * 60 * 60 * 1000);
-        let purgedCount = 0;
-
         try {
-            const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] });
-            for await (const entry of entries) {
-                // Key format is ["audit", timestamp_ms, id]
-                const eventTimestamp = entry.key[1] as number;
-                if (eventTimestamp < cutoffTimestamp) {
-                    await this.kv.delete(entry.key);
-                    purgedCount++;
-                }
-            }
-
-            // Also enforce max events limit
-            const allEntries: Deno.KvEntry<AuditEvent>[] = [];
-            const iter = this.kv.list<AuditEvent>({ prefix: ["audit"] });
-            for await (const entry of iter) {
-                allEntries.push(entry);
-            }
-
-            if (allEntries.length > this.retentionConfig.maxEvents) {
-                // Remove oldest events beyond the limit
-                const toRemove = allEntries.slice(0, allEntries.length - this.retentionConfig.maxEvents);
-                for (const entry of toRemove) {
-                    await this.kv.delete(entry.key);
-                    purgedCount++;
-                }
-            }
+            const purgedCount = await this.repo.deleteBefore(cutoffTimestamp);
 
             if (purgedCount > 0) {
                 this.logging.log(

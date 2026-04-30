@@ -5,6 +5,7 @@ import { AuditService } from "./services/audit.ts";
 import { NotificationService } from "./services/alerts.ts";
 import { BaselineService, ProcessTracker, SessionService, ApiKeysService, EventBus, MeshAuthService } from "./services/index.ts";
 import { EnvConfigProvider } from "./infrastructure/env_config_provider.ts";
+import { ServiceContainer } from "./core/container.ts";
 import { MeshManager, setMeshManager } from "./services/mesh.ts";
 import { PlaybookService } from "./services/playbook_service.ts";
 import { loggingService } from "./infrastructure/logging.ts";
@@ -25,9 +26,12 @@ import { getPlatformInfo } from "./infrastructure/platform.ts";
 import { bootstrap } from "./bootstrapper.ts";
 import { SidecarEvent } from "./infrastructure/sidecar_manager.ts";
 
+import { loadConfig } from "./core/config_schema.ts";
+
 // ── Phase 1: Core infrastructure ──────────────────────────────────────
-const kv = await Deno.openKv();
-const configProvider = new EnvConfigProvider();
+const config = loadConfig();
+const kv = await Deno.openKv("./orchestrator.db");
+const configProvider = new EnvConfigProvider(config);
 const executor = new SystemExecutor();
 const sidecarManager = new SidecarManager(executor);
 const platformInfo = await getPlatformInfo();
@@ -116,21 +120,27 @@ sidecarManager.onEvent("fim", (event: any) => {
 });
 
 // ── Phase 6: Web adapter + MetricsService (started AFTER broadcaster is ready) ──
-const web = new WebAdapter(
-  configProvider,
-  protection as any,
-  sidecarManager as any,
-  auditService,
-  notificationService,
-  baselineService,
+const services: ServiceContainer = {
+  config: configProvider,
+  protection,
+  command: sidecarManager,
+  audit: auditService,
+  notifications: notificationService,
+  baseline: baselineService,
   processTracker,
-  sessionService,
-  apiKeysService,
-  eventBus as any,
-  honeypotService,
-  chaosEngine,
-  supplyChain
-);
+  sessions: sessionService,
+  apiKeys: apiKeysService,
+  eventBus: eventBus,
+  honeypot: honeypotService,
+  autopilot: autopilotService,
+  morphing: morphingService,
+  chaos: chaosEngine,
+  supplyChain: supplyChain,
+  mesh: meshManager,
+  platformInfo
+};
+
+const web = new WebAdapter(services);
 
 // MetricsService starts AFTER broadcaster is initialized
 const metricsService = new MetricsService(

@@ -7,18 +7,20 @@
 
 import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 import { Role } from "./api_keys.ts";
+import { KvRepository } from "../infrastructure/repositories/kv_repository.ts";
+import { withTelemetry } from "../core/service_utils.ts";
 
 export interface Session {
+  id: string;
   createdAt: number;
   expiresAt: number;
   csrfToken: string;
   role: Role;
 }
 
-const SESSIONS_PREFIX = ["sessions"];
-
 export class SessionService {
   private ttlMs: number;
+  private repo: KvRepository<Session>;
 
   constructor(
     private kv: Deno.Kv,
@@ -26,26 +28,28 @@ export class SessionService {
     ttlHours: number = 24,
   ) {
     this.ttlMs = ttlHours * 60 * 60 * 1000;
+    this.repo = new KvRepository<Session>(kv, "sessions");
+
+    // Wrap public methods
+    this.createSession = withTelemetry("Session:Create", this.createSession.bind(this), logging) as any;
+    this.validateSession = withTelemetry("Session:Validate", this.validateSession.bind(this), logging) as any;
+    this.revokeAllSessions = withTelemetry("Session:RevokeAll", this.revokeAllSessions.bind(this), logging) as any;
   }
 
-  /**
-   * Creates a new session and returns the session ID + CSRF token.
-   * The session ID is a random UUID stored in KV — not the API token.
-   */
   async createSession(role: Role = "admin"): Promise<{ sessionId: string; csrfToken: string }> {
     const sessionId = crypto.randomUUID();
     const csrfToken = crypto.randomUUID();
     const now = Date.now();
 
     const session: Session = {
+      id: sessionId,
       createdAt: now,
       expiresAt: now + this.ttlMs,
       csrfToken,
       role,
     };
 
-    await this.kv.set([...SESSIONS_PREFIX, sessionId], session);
-    this.logging.log(`[SESSION] Session created: ${sessionId.slice(0, 8)}…`, SyslogSeverity.INFORMATIONAL);
+    await this.repo.set(sessionId, session);
     return { sessionId, csrfToken };
   }
 
@@ -56,16 +60,15 @@ export class SessionService {
     if (!sessionId) return null;
 
     try {
-      const entry = await this.kv.get<Session>([...SESSIONS_PREFIX, sessionId]);
-      if (!entry.value) return null;
+      const session = await this.repo.get(sessionId);
+      if (!session) return null;
 
-      if (Date.now() > entry.value.expiresAt) {
-        // Session expired — clean up
-        await this.kv.delete([...SESSIONS_PREFIX, sessionId]);
+      if (Date.now() > session.expiresAt) {
+        await this.repo.delete(sessionId);
         return null;
       }
 
-      return entry.value;
+      return session;
     } catch {
       return null;
     }
@@ -89,21 +92,17 @@ export class SessionService {
    * Revokes a single session.
    */
   async revokeSession(sessionId: string): Promise<void> {
-    await this.kv.delete([...SESSIONS_PREFIX, sessionId]);
-    this.logging.log(`[SESSION] Session revoked: ${sessionId.slice(0, 8)}…`, SyslogSeverity.NOTICE);
+    await this.repo.delete(sessionId);
   }
 
   /**
    * Revokes all sessions (e.g. on token rotation or security incident).
    */
   async revokeAllSessions(): Promise<void> {
-    const iter = this.kv.list({ prefix: SESSIONS_PREFIX });
-    let count = 0;
-    for await (const entry of iter) {
-      await this.kv.delete(entry.key);
-      count++;
+    const sessions = await this.repo.list();
+    for (const session of sessions) {
+      await this.repo.delete(session.id);
     }
-    this.logging.log(`[SESSION] All sessions revoked (${count} sessions cleared).`, SyslogSeverity.WARNING);
   }
 
   /**

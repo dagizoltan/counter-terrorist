@@ -2,8 +2,8 @@
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
 import { Layout } from "../Layout.tsx";
-
 import { ApplicationStatus } from "../../core/ports.ts";
+import { PrimaryButton, GhostButton, Card, StatRow, Badge } from "../../components/ui/index.tsx";
 
 export const Dashboard = (props: { status: ApplicationStatus, csrfToken?: string }) => {
   const { os, isRoot, platform, plugins } = props.status;
@@ -29,6 +29,8 @@ export const Dashboard = (props: { status: ApplicationStatus, csrfToken?: string
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
+  const lockdownScript = "const csrf=document.querySelector('meta[name=\\'csrf-token\']')?.content;fetch('/api/protection/lockdown', { method: 'POST', headers: {'X-CT-Token': csrf} }).then(r => r.json()).then(d => alert(d.stdout))";
+
   return (
     <Layout title="Dashboard" cssPaths={cssPaths} islandPaths={islandPaths} csrfToken={props.csrfToken}>
       {/* Top Header Section */}
@@ -41,39 +43,39 @@ export const Dashboard = (props: { status: ApplicationStatus, csrfToken?: string
           </p>
         </div>
         <div class="flex gap-4">
-          <a href="/api/forensics/export" class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center">Export Report</a>
-          <a href="/api/forensics/export-iac" class="border border-white/20 text-white px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all flex items-center justify-center">Clone Posture</a>
-          <button 
-            onclick="const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/protection/lockdown', { method: 'POST', headers: {'X-CT-Token': csrf} }).then(r => r.json()).then(d => alert(d.stdout))"
-            class="border border-white/20 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-red-500"
+          <a href="/api/forensics/export">
+            <PrimaryButton>Export Report</PrimaryButton>
+          </a>
+          <a href="/api/forensics/export-iac">
+            <GhostButton>Clone Posture</GhostButton>
+          </a>
+          <GhostButton 
+            onclick={lockdownScript}
+            class="text-red-500"
           >
             Lockdown
-          </button>
+          </GhostButton>
         </div>
       </div>
 
       {/* ROW 1: CORE TELEMETRY */}
       <div class="grid grid-cols-1 xl:grid-cols-4 gap-8 mb-8">
         <div class="xl:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-           <div class="bg-white/5 p-6 border-l-2 border-red-600">
-             <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">OS Context</h3>
+           <Card title="OS Context" accentColor="red-600">
              <p class="text-xl font-bold uppercase tracking-tight">{os} {platform?.version}</p>
-           </div>
-           <div class="bg-white/5 p-6 border-l-2 border-slate-700">
-             <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">System Load</h3>
+           </Card>
+           <Card title="System Load">
              <p class="text-xl font-bold uppercase tracking-tight">{metrics?.cpu.load[0].toFixed(2)}</p>
-           </div>
-           <div class="bg-white/5 p-6 border-l-2 border-slate-700">
-             <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">Memory Utilization</h3>
+           </Card>
+           <Card title="Memory Utilization">
              <p class="text-xl font-bold uppercase tracking-tight">{formatBytes(metrics?.memory.used)}</p>
-           </div>
+           </Card>
         </div>
-        <div class="bg-white/5 p-6 border-l-2 border-slate-700 relative overflow-hidden flex flex-col justify-center">
-          <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-4">Mesh Topology</h3>
+        <Card title="Mesh Topology" class="relative overflow-hidden flex flex-col justify-center">
           <div class="h-24">
             <mesh-graph></mesh-graph>
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* ROW 2: PROTECTION AGENTS */}
@@ -86,17 +88,11 @@ export const Dashboard = (props: { status: ApplicationStatus, csrfToken?: string
             <div class="bg-white/5 p-6 border border-white/5 hover:border-white/10 transition-all">
                <div class="flex justify-between items-start mb-4">
                   <span class="text-[10px] font-black uppercase tracking-widest">Firewall_Enforcer</span>
-                  <div class="w-2 h-2 bg-green-500"></div>
+                  <Badge color="green-500" />
                </div>
                <div class="space-y-2">
-                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
-                     <span>Blocked IPs</span>
-                     <span id="stat-fw-blocked" class="text-white">...</span>
-                  </div>
-                  <div class="flex justify-between text-[9px] uppercase font-bold text-slate-500">
-                     <span>Active Rules</span>
-                     <span id="stat-fw-rules" class="text-white">...</span>
-                  </div>
+                  <StatRow label="Blocked IPs" id="stat-fw-blocked" value="..." />
+                  <StatRow label="Active Rules" id="stat-fw-rules" value="..." />
                </div>
                <a href="/agents/firewall" class="mt-4 block text-center py-2 border border-white/10 text-[8px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Details</a>
             </div>

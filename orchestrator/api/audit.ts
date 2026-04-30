@@ -17,8 +17,14 @@ export function createAuditApi(auditService: AuditService) {
   auditApi.get("/verify", async (c) => {
       const limit = Number(c.req.query("limit")) || 1000;
       const result = await auditService.verifyChain(limit);
-      const status = result.valid ? 200 : 409; // 409 Conflict if tampered
-      return c.json(result, status);
+      
+      if (!result.success) {
+        return c.json({ error: "Failed to verify chain", details: result.error.message }, 500);
+      }
+
+      const data = result.data;
+      const status = data.valid ? 200 : 409; 
+      return c.json(data, status);
   });
 
   return auditApi;

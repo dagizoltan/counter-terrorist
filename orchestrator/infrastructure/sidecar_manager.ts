@@ -1,11 +1,14 @@
 import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, SidecarName } from "./validation.ts";
 import { SystemExecutor } from "./system_executor.ts";
 import { CommandResult } from "./command_manager.ts";
+import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS, PRIVILEGED_SIDECARS } from "./sidecar_registry.ts";
+
+import { CommandPort } from "../core/ports.ts";
 
 /**
  * Manages persistent Rust sidecars.
  */
-export class SidecarManager {
+export class SidecarManager implements CommandPort {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
   private responseWaiters: Map<string, Map<string, { resolve: (data: SidecarResponse) => void, reject: (err: Error) => void }>> = new Map();
@@ -23,7 +26,6 @@ export class SidecarManager {
       };
     }
 
-    const PERSISTENT_SIDECARS = ["scanner", "honeypot", "pcap", "ebpf"];
     if (PERSISTENT_SIDECARS.includes(name)) {
       return {
         success: false,
@@ -77,7 +79,6 @@ export class SidecarManager {
     const binPath = await this.findBinary(name);
     if (!binPath) return null;
 
-    const PRIVILEGED_SIDECARS = ["ebpf", "fim"];
     const isPrivileged = PRIVILEGED_SIDECARS.includes(name);
 
     const command = new Deno.Command(isPrivileged ? "sudo" : binPath, {

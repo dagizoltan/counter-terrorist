@@ -3,10 +3,11 @@ import { jsx } from "hono/jsx";
 import { Login } from "./page.tsx";
 import { setCookie, getCookie, deleteCookie } from "hono/helper/cookie/index.ts";
 import { loggingService, SyslogSeverity } from "../../infrastructure/logging.ts";
+import { Role } from "../../services/api_keys.ts";
 
 export interface LoginRouterDependencies {
   checkLoginRateLimit: (ip: string) => { allowed: boolean; retryAfterMs?: number };
-  isTokenValid: (token: string) => Promise<boolean>;
+  isTokenValid: (token: string) => Promise<Role | null>;
   sessionService: any;
   config: any;
 }
@@ -22,6 +23,9 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
     const clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
       || c.req.header("x-real-ip")
       || "unknown";
+    const contentType = c.req.header("Content-Type");
+
+    console.log(`[AUTH:HANDLER] Received login request from ${clientIp}, content-type: ${contentType}`);
 
     const rateCheck = deps.checkLoginRateLimit(clientIp);
     if (!rateCheck.allowed) {
@@ -35,7 +39,6 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
     }
 
     let token: string | undefined;
-    const contentType = c.req.header("Content-Type");
     if (contentType && contentType.includes("application/json")) {
       const body = await c.req.json();
       token = body.token;
@@ -44,8 +47,16 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       token = body.password as string;
     }
 
-    if (token && (await deps.isTokenValid(token))) {
-      const { sessionId, csrfToken } = await deps.sessionService.createSession();
+    console.log(`[AUTH:HANDLER] Extracted token length: ${token?.length || 0}`);
+    const role = await deps.isTokenValid(token);
+    if (token && role) {
+      const result = await deps.sessionService.createSession(role);
+      
+      if (!result.success) {
+        return c.json({ error: "Failed to create session" }, 500);
+      }
+
+      const { sessionId, csrfToken } = result.data;
 
       const secureCookie = deps.config.getBoolean("COOKIE_SECURE", true);
       setCookie(c, "session_token", sessionId, {

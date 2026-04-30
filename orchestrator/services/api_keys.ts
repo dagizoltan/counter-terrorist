@@ -1,4 +1,6 @@
 import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
+import { KvRepository } from "../infrastructure/repositories/kv_repository.ts";
+import { withTelemetry } from "../core/service_utils.ts";
 
 export type Role = "admin" | "operator" | "viewer" | "mesh_peer";
 
@@ -10,10 +12,19 @@ export interface ApiKeyMetadata {
   lastUsed?: number;
 }
 
-const API_KEYS_PREFIX = ["api_keys"];
-
 export class ApiKeysService {
-  constructor(private kv: Deno.Kv, private logging: LoggingPort) {}
+  private hashRepo: KvRepository<ApiKeyMetadata>;
+  private idRepo: KvRepository<string>;
+
+  constructor(private kv: Deno.Kv, private logging: LoggingPort) {
+    this.hashRepo = new KvRepository<ApiKeyMetadata>(kv, "api_keys_hash");
+    this.idRepo = new KvRepository<string>(kv, "api_keys_id");
+
+    // Wrap public methods
+    this.createApiKey = withTelemetry("Auth:CreateKey", this.createApiKey.bind(this), logging) as any;
+    this.validateApiKey = withTelemetry("Auth:ValidateKey", this.validateApiKey.bind(this), logging) as any;
+    this.revokeApiKey = withTelemetry("Auth:RevokeKey", this.revokeApiKey.bind(this), logging) as any;
+  }
 
   /**
    * Hashes a raw API key using SHA-256 to ensure we never store plaintext keys.
@@ -47,9 +58,9 @@ export class ApiKeysService {
     };
 
     // Store by hash for fast lookup during authentication
-    await this.kv.set([...API_KEYS_PREFIX, "hash", keyHash], metadata);
+    await this.hashRepo.set(keyHash, metadata);
     // Store by ID for list/revoke operations
-    await this.kv.set([...API_KEYS_PREFIX, "id", id], keyHash);
+    await this.idRepo.set(id, keyHash);
 
     this.logging.log(`[AUTH] API Key created: ${name} (${role})`, SyslogSeverity.NOTICE);
     
@@ -64,13 +75,12 @@ export class ApiKeysService {
 
     try {
       const keyHash = await this.hashKey(rawKey);
-      const entry = await this.kv.get<ApiKeyMetadata>([...API_KEYS_PREFIX, "hash", keyHash]);
+      const metadata = await this.hashRepo.get(keyHash);
       
-      if (entry.value) {
-        // Update last used timestamp (fire and forget to avoid blocking auth)
-        entry.value.lastUsed = Date.now();
-        this.kv.set([...API_KEYS_PREFIX, "hash", keyHash], entry.value).catch(() => {});
-        return entry.value.role;
+      if (metadata) {
+        metadata.lastUsed = Date.now();
+        this.hashRepo.set(keyHash, metadata).catch(() => {});
+        return metadata.role;
       }
       return null;
     } catch {
@@ -83,14 +93,11 @@ export class ApiKeysService {
    */
   async listApiKeys(): Promise<ApiKeyMetadata[]> {
     const keys: ApiKeyMetadata[] = [];
-    const iter = this.kv.list<string>({ prefix: [...API_KEYS_PREFIX, "id"] });
+    const hashes = await this.idRepo.list();
     
-    for await (const entry of iter) {
-      const keyHash = entry.value;
-      const metaEntry = await this.kv.get<ApiKeyMetadata>([...API_KEYS_PREFIX, "hash", keyHash]);
-      if (metaEntry.value) {
-        keys.push(metaEntry.value);
-      }
+    for (const keyHash of hashes) {
+      const metadata = await this.hashRepo.get(keyHash);
+      if (metadata) keys.push(metadata);
     }
     
     return keys;
@@ -100,19 +107,10 @@ export class ApiKeysService {
    * Revokes an API key by its ID.
    */
   async revokeApiKey(id: string): Promise<void> {
-    const idEntry = await this.kv.get<string>([...API_KEYS_PREFIX, "id", id]);
-    if (!idEntry.value) return;
+    const keyHash = await this.idRepo.get(id);
+    if (!keyHash) return;
 
-    const keyHash = idEntry.value;
-    const metaEntry = await this.kv.get<ApiKeyMetadata>([...API_KEYS_PREFIX, "hash", keyHash]);
-    
-    await this.kv.atomic()
-      .delete([...API_KEYS_PREFIX, "hash", keyHash])
-      .delete([...API_KEYS_PREFIX, "id", id])
-      .commit();
-
-    if (metaEntry.value) {
-      this.logging.log(`[AUTH] API Key revoked: ${metaEntry.value.name} (${metaEntry.value.role})`, SyslogSeverity.NOTICE);
-    }
+    await this.hashRepo.delete(keyHash);
+    await this.idRepo.delete(id);
   }
 }

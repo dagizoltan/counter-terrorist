@@ -1,4 +1,5 @@
 import { LoggingPort, SyslogSeverity, EventBusPort } from "../core/ports.ts";
+import { validateEvent, EventName } from "../core/event_schema.ts";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS";
 
@@ -46,15 +47,17 @@ export class EventBus implements EventBusPort {
   }
 
   emit(event: string, data: any) {
-    this.publish(event, `Emitted event: ${event}`, data);
+    const validatedData = validateEvent(event as EventName, data);
+    this.publish(event, `Emitted event: ${event}`, validatedData);
   }
 
   publish(type: string, message: string, data?: any) {
+    const validatedData = validateEvent(type as EventName, data);
     const event: SystemEvent = {
       type: type as EventType,
       message,
       timestamp: new Date().toISOString(),
-      data
+      data: validatedData
     };
 
     // Forward to syslog
