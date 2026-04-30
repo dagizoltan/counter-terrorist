@@ -22,10 +22,13 @@ export function createFirewallManager(sidecar: SidecarManager, executor: SystemE
 }
 
 export function createVpnManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): VpnManager {
+  let provider;
   if (platform.name === "windows") {
-    return new VpnManager(new WindowsVpnProvider(executor));
+    provider = new WindowsVpnProvider(executor);
+  } else {
+    provider = new UbuntuVpnProvider(executor);
   }
-  return new VpnManager(new UbuntuVpnProvider(executor));
+  return new VpnManager(provider);
 }
 
 export function createAntivirusManager(sidecar: SidecarManager, executor: SystemExecutor): AntivirusManager {

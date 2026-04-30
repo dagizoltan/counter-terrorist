@@ -68,7 +68,7 @@ Deno.test("createVpnManager - Ubuntu platform", async () => {
   assertEquals(executor.calls[0].cmd, "which");
 });
 
-Deno.test("createVpnManager - Default to Ubuntu for other platforms", async () => {
+Deno.test("createVpnManager - Default to Ubuntu for other platforms (macos)", async () => {
   const executor = new MockExecutor();
   const sidecar = new SidecarManager(executor);
   const platform: PlatformInfo = { name: "macos", version: "15", tag: "macos_15" };
@@ -79,6 +79,75 @@ Deno.test("createVpnManager - Default to Ubuntu for other platforms", async () =
 
   await manager.connect("wg0");
   assertEquals(executor.lastCmd, "wg-quick");
+});
+
+Deno.test("createVpnManager - Default to Ubuntu for unknown platform", async () => {
+  const executor = new MockExecutor();
+  const sidecar = new SidecarManager(executor);
+  const platform: PlatformInfo = { name: "unknown", version: "unknown", tag: "unknown" };
+
+  executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
+
+  const manager = createVpnManager(sidecar, executor, platform);
+
+  await manager.connect("wg0");
+  assertEquals(executor.lastCmd, "wg-quick");
+});
+
+Deno.test("createVpnManager - Full lifecycle (Windows)", async () => {
+  const executor = new MockExecutor();
+  const sidecar = new SidecarManager(executor);
+  const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
+
+  const manager = createVpnManager(sidecar, executor, platform);
+
+  // connect
+  await manager.connect("wg0");
+  assertEquals(executor.lastCmd, "wireguard.exe");
+
+  // isConnected
+  executor.responses["powershell"] = { success: true, stdout: "WireGuard Tunnel", stderr: "" };
+  const connected = await manager.isConnected();
+  assertEquals(connected, true);
+  assertEquals(executor.lastCmd, "powershell");
+
+  // getStatus
+  await manager.getStatus();
+  assertEquals(executor.lastCmd, "powershell");
+
+  // disconnect
+  const discResult = await manager.disconnect();
+  assertEquals(discResult.success, false); // Windows disconnect is not fully implemented for safety as per provider code
+});
+
+Deno.test("createVpnManager - Full lifecycle (Ubuntu)", async () => {
+  const executor = new MockExecutor();
+  const sidecar = new SidecarManager(executor);
+  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
+
+  executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
+  executor.responses["wg"] = { success: true, stdout: "interface: wg0", stderr: "" };
+
+  const manager = createVpnManager(sidecar, executor, platform);
+
+  // connect
+  await manager.connect("wg0");
+  assertEquals(executor.lastCmd, "wg-quick");
+  assertEquals(executor.lastArgs, ["up", "wg0"]);
+
+  // isConnected
+  const connected = await manager.isConnected();
+  assertEquals(connected, true);
+  assertEquals(executor.lastCmd, "wg");
+
+  // getStatus
+  await manager.getStatus();
+  assertEquals(executor.lastCmd, "wg");
+
+  // disconnect
+  await manager.disconnect();
+  assertEquals(executor.lastCmd, "wg-quick");
+  assertEquals(executor.lastArgs, ["down", "wg0"]);
 });
 
 Deno.test("createFirewallManager - Windows platform", async () => {
