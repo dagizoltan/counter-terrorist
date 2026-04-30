@@ -79,13 +79,23 @@ export class WebAdapter implements WebPort {
     // This prevents "Arbitrary Localhost Origins" vulnerabilities where any localhost port might be trusted.
     // By using a validation function, we also avoid Hono's default behavior of echoing the first origin on mismatch.
     if (allowedOrigins.length > 0) {
+      if (allowedOrigins.includes("*")) {
+        loggingService.log(
+          "[WEB] SECURITY WARNING: CORS wildcard '*' detected in ALLOWED_ORIGINS while credentials are enabled. This is an insecure configuration.",
+          SyslogSeverity.WARNING,
+        );
+      }
+
       this.app.use(
         "/api/*",
         cors({
           origin: (origin) => {
+            // Security: We only allow origins that are explicitly listed in the allowlist.
+            // Using a wildcard '*' with credentials: true is blocked by browsers,
+            // and reflecting the origin here would create a serious security vulnerability.
             return allowedOrigins.includes(origin) ? origin : null;
           },
-          allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+          allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
           allowHeaders: ["Content-Type", "Authorization", "X-CT-Token"],
           credentials: true,
           maxAge: 600,
