@@ -3,11 +3,11 @@ use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
 use std::io::{Read};
 use std::fs::{self, File};
 use sha2::{Sha256, Digest};
-use std::collections::HashMap;
 use std::time::SystemTime;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc};
+use dashmap::DashMap;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Command {
@@ -127,7 +127,7 @@ async fn main() {
 
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
-    let hash_cache: Arc<Mutex<HashMap<String, CacheEntry>>> = Arc::new(Mutex::new(HashMap::new()));
+    let hash_cache: Arc<DashMap<String, CacheEntry>> = Arc::new(DashMap::new());
 
     while let Ok(Some(line)) = reader.next_line().await {
         let command: Command = match serde_json::from_str(&line) {
@@ -159,8 +159,7 @@ async fn main() {
                 ));
             }
 
-            let cache_ref = Arc::clone(&hash_cache);
-            let mut processes_list: Vec<ProcessInfo> = processes_to_scan.into_par_iter().map(|(pid, ppid, name, exe_path, exe_buf, cpu_usage, memory_usage)| {
+            let processes_list: Vec<ProcessInfo> = processes_to_scan.into_par_iter().map(|(pid, ppid, name, exe_path, exe_buf, cpu_usage, memory_usage)| {
                 let hash = if exe_path.is_empty() {
                     "N/A".to_string()
                 } else {
@@ -168,22 +167,18 @@ async fn main() {
                         .and_then(|m| m.modified())
                         .unwrap_or(SystemTime::now());
 
-                    let mut cached_hash = None;
-                    {
-                        let cache = cache_ref.lock().unwrap();
-                        if let Some(entry) = cache.get(&exe_path) {
-                            if entry.mtime == current_mtime {
-                                cached_hash = Some(entry.hash.clone());
-                            }
+                    if let Some(entry) = hash_cache.get(&exe_path) {
+                        if entry.mtime == current_mtime {
+                            entry.hash.clone()
+                        } else {
+                            drop(entry);
+                            let (h, m) = compute_hash(&exe_buf);
+                            hash_cache.insert(exe_path.clone(), CacheEntry { hash: h.clone(), mtime: m });
+                            h
                         }
-                    }
-
-                    if let Some(h) = cached_hash {
-                        h
                     } else {
                         let (h, m) = compute_hash(&exe_buf);
-                        let mut cache = cache_ref.lock().unwrap();
-                        cache.insert(exe_path.clone(), CacheEntry { hash: h.clone(), mtime: m });
+                        hash_cache.insert(exe_path.clone(), CacheEntry { hash: h.clone(), mtime: m });
                         h
                     }
                 };
@@ -200,14 +195,12 @@ async fn main() {
             }).collect();
 
             // Evict old entries from hash_cache only if they are not in seen_paths AND not existing files
-            {
-                let mut cache = hash_cache.lock().unwrap();
-                cache.retain(|k, _| {
-                    seen_paths.contains(k) || std::path::Path::new(k).exists()
-                });
-            }
+            hash_cache.retain(|k, _| {
+                seen_paths.contains(k) || std::path::Path::new(k).exists()
+            });
 
             // Sort by CPU
+            let mut processes_list = processes_list;
             processes_list.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
             let top_processes = processes_list.into_iter().take(50).collect();
 
@@ -231,19 +224,16 @@ async fn main() {
             }
 
             // Collect all files first
-            let mut all_files = Vec::new();
-            for dir_path in paths_to_scan {
-                if let Ok(entries) = fs::read_dir(dir_path) {
-                    for entry in entries.flatten() {
+            let all_files: Vec<_> = paths_to_scan.into_par_iter().flat_map(|dir_path| {
+                match fs::read_dir(dir_path) {
+                    Ok(entries) => entries.flatten().filter_map(|entry| {
                         let path = entry.path();
-                        if path.is_file() {
-                            all_files.push(path);
-                        }
-                    }
+                        if path.is_file() { Some(path) } else { None }
+                    }).collect::<Vec<_>>(),
+                    Err(_) => Vec::new(),
                 }
-            }
+            }).collect();
 
-            let cache_ref = Arc::clone(&hash_cache);
             let file_infos: Vec<FileInfo> = all_files.par_iter().map(|path| {
                 let path_str = path.to_string_lossy().to_string();
                 let current_mtime = fs::metadata(path)
@@ -251,25 +241,21 @@ async fn main() {
                     .unwrap_or(SystemTime::now());
 
                 let mut mtime_val = current_mtime;
-                let mut cached_hash = None;
-
-                {
-                    let cache = cache_ref.lock().unwrap();
-                    if let Some(entry) = cache.get(&path_str) {
-                        if entry.mtime == current_mtime {
-                            cached_hash = Some(entry.hash.clone());
-                            mtime_val = entry.mtime;
-                        }
+                let hash = if let Some(entry) = hash_cache.get(&path_str) {
+                    if entry.mtime == current_mtime {
+                        mtime_val = entry.mtime;
+                        entry.hash.clone()
+                    } else {
+                        drop(entry);
+                        let (h, m) = compute_hash(path);
+                        mtime_val = m;
+                        hash_cache.insert(path_str.clone(), CacheEntry { hash: h.clone(), mtime: m });
+                        h
                     }
-                }
-
-                let hash = if let Some(h) = cached_hash {
-                    h
                 } else {
                     let (h, m) = compute_hash(path);
                     mtime_val = m;
-                    let mut cache = cache_ref.lock().unwrap();
-                    cache.insert(path_str.clone(), CacheEntry { hash: h.clone(), mtime: mtime_val });
+                    hash_cache.insert(path_str.clone(), CacheEntry { hash: h.clone(), mtime: m });
                     h
                 };
 

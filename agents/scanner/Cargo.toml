@@ -11,4 +11,5 @@ chrono = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 tokio = { workspace = true }
-rayon = { workspace = true }
+rayon.workspace = true
+dashmap = "6.1.0"
