@@ -214,3 +214,74 @@ Deno.test("EventBus edge cases", () => {
   assertEquals(events.length, 3);
   assertEquals(keyedCount, 1);
 });
+
+Deno.test("EventBus.unsubscribe (partial keyed)", () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+  let count1 = 0;
+  let count2 = 0;
+  const h1 = () => count1++;
+  const h2 = () => count2++;
+
+  eventBus.on("INFO", h1);
+  eventBus.on("INFO", h2);
+
+  eventBus.publish("INFO", "msg 1");
+  assertEquals(count1, 1);
+  assertEquals(count2, 1);
+
+  eventBus.unsubscribe(h1);
+  eventBus.publish("INFO", "msg 2");
+  assertEquals(count1, 1);
+  assertEquals(count2, 2);
+});
+
+Deno.test("EventBus handler error with non-Error object", async () => {
+  const mockLogging = new MockLogging();
+  const eventBus = new EventBus(mockLogging);
+
+  eventBus.subscribe(() => {
+    throw "string error";
+  });
+
+  eventBus.publish("INFO", "Test non-Error throw");
+
+  // Test Error without stack
+  eventBus.subscribe(() => {
+    const err = new Error("error without stack");
+    Object.defineProperty(err, 'stack', { get: () => undefined });
+    throw err;
+  });
+
+  eventBus.publish("INFO", "Test Error without stack");
+
+  // Wait for promise-based logging
+  await new Promise(resolve => setTimeout(resolve, 10));
+
+  const stringErrorLog = mockLogging.logs.find(l => l.message.includes("string error"));
+  assertEquals(!!stringErrorLog, true);
+
+  const noStackErrorLog = mockLogging.logs.find(l => l.message.includes("error without stack"));
+  assertEquals(!!noStackErrorLog, true);
+});
+
+Deno.test("EventBus handle logging failure", async () => {
+  const failingLogging: LoggingPort = {
+    enableGlobalIntercept() {},
+    log: () => Promise.reject(new Error("Logging failed")),
+  };
+  const eventBus = new EventBus(failingLogging);
+
+  // This should not throw even if logging fails
+  eventBus.publish("INFO", "Test logging failure");
+
+  // Also test failure in safelyExecute logging
+  eventBus.subscribe(() => {
+    throw new Error("Handler failed");
+  });
+
+  eventBus.publish("INFO", "Test handler + logging failure");
+
+  await new Promise(resolve => setTimeout(resolve, 10));
+  // If we reached here without uncaught exception, it's successful
+});
