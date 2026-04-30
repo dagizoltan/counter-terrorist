@@ -8,6 +8,10 @@ export class EnvConfigProvider implements ConfigurationPort {
     return Deno.env.get("API_TOKEN");
   }
 
+  getMeshSecret(): string | undefined {
+    return Deno.env.get("MESH_SECRET");
+  }
+
   getEnv(key: string): string | undefined {
     return Deno.env.get(key);
   }

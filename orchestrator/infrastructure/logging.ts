@@ -2,19 +2,37 @@ import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
 
 export { SyslogSeverity };
 
+type SyslogTransport = "udp" | "tcp" | "tls";
+
 export class LoggingService implements LoggingPort {
     private remoteHost: string | null = null;
     private remotePort: number = 514;
+    private transport: SyslogTransport = "udp";
     private logBuffer: string[] = [];
     private maxBufferSize = 1000;
     private isForwarding = false;
+    private tlsCaCertPath: string | null = null;
+
+    /** Persistent TCP/TLS connection, reused across flushes. */
+    private persistentConn: Deno.Conn | Deno.TlsConn | null = null;
 
     constructor() {
         this.remoteHost = Deno.env.get("SYSLOG_HOST") || null;
         this.remotePort = Number(Deno.env.get("SYSLOG_PORT")) || 514;
+        this.transport = (Deno.env.get("SYSLOG_TRANSPORT") as SyslogTransport) || "udp";
+        this.tlsCaCertPath = Deno.env.get("SYSLOG_CA_PATH") || null;
+
+        // Validate transport
+        if (!["udp", "tcp", "tls"].includes(this.transport)) {
+            console.warn(`[LOGGING] Invalid SYSLOG_TRANSPORT '${this.transport}', falling back to 'udp'`);
+            this.transport = "udp";
+        }
 
         if (this.remoteHost) {
-            console.log(`[LOGGING] Remote syslog enabled: ${this.remoteHost}:${this.remotePort}`);
+            console.log(`[LOGGING] Remote syslog enabled: ${this.transport}://${this.remoteHost}:${this.remotePort}`);
+            if (this.transport === "tls" && !this.tlsCaCertPath) {
+                console.log("[LOGGING] TLS syslog using system CA trust store (no SYSLOG_CA_PATH set)");
+            }
             this.startFlushInterval();
         }
     }
@@ -85,27 +103,119 @@ export class LoggingService implements LoggingPort {
         this.logBuffer = [];
 
         try {
-            const conn = await Deno.listenDatagram({
-                port: 0,
-                transport: "udp",
-            });
-
-            const encoder = new TextEncoder();
-            for (const log of logsToSend) {
-                await conn.send(encoder.encode(log), {
-                    hostname: this.remoteHost!,
-                    port: this.remotePort,
-                    transport: "udp"
-                });
+            switch (this.transport) {
+                case "udp":
+                    await this.sendUdp(logsToSend);
+                    break;
+                case "tcp":
+                    await this.sendTcpOrTls(logsToSend, false);
+                    break;
+                case "tls":
+                    await this.sendTcpOrTls(logsToSend, true);
+                    break;
             }
-            conn.close();
-        } catch (e) {
+        } catch (_e) {
             // On failure, put logs back at the beginning of the buffer
             this.logBuffer = [...logsToSend, ...this.logBuffer].slice(0, this.maxBufferSize);
+            // Close broken persistent connection so it reconnects next flush
+            this.closePersistentConn();
             // Don't use console.error here to avoid infinite loops if intercepting
             // We'll just try again next interval
         } finally {
             this.isForwarding = false;
+        }
+    }
+
+    /**
+     * Send logs via UDP (original behavior, unencrypted).
+     */
+    private async sendUdp(logs: string[]) {
+        const conn = await Deno.listenDatagram({
+            port: 0,
+            transport: "udp",
+        });
+
+        const encoder = new TextEncoder();
+        for (const log of logs) {
+            await conn.send(encoder.encode(log), {
+                hostname: this.remoteHost!,
+                port: this.remotePort,
+                transport: "udp"
+            });
+        }
+        conn.close();
+    }
+
+    /**
+     * Send logs via TCP or TLS (RFC 5425 for TLS, RFC 6587 for TCP).
+     * Uses persistent connections with automatic reconnection on failure.
+     * Each message is framed with octet-counting per RFC 6587:
+     *   <MSG_LEN> <SP> <MSG>
+     */
+    private async sendTcpOrTls(logs: string[], useTls: boolean) {
+        const conn = await this.getOrCreateConnection(useTls);
+        const encoder = new TextEncoder();
+
+        for (const log of logs) {
+            // RFC 6587 octet-counting framing: "<length> <message>"
+            const msgBytes = encoder.encode(log);
+            const frame = encoder.encode(`${msgBytes.length} `);
+
+            const combined = new Uint8Array(frame.length + msgBytes.length);
+            combined.set(frame);
+            combined.set(msgBytes, frame.length);
+
+            await conn.write(combined);
+        }
+    }
+
+    /**
+     * Gets an existing persistent connection or creates a new one.
+     */
+    private async getOrCreateConnection(useTls: boolean): Promise<Deno.Conn | Deno.TlsConn> {
+        if (this.persistentConn) {
+            return this.persistentConn;
+        }
+
+        if (useTls) {
+            const options: Deno.ConnectTlsOptions = {
+                hostname: this.remoteHost!,
+                port: this.remotePort,
+            };
+
+            // If a custom CA cert path is specified, read and use it
+            if (this.tlsCaCertPath) {
+                try {
+                    const caCert = await Deno.readTextFile(this.tlsCaCertPath);
+                    options.caCerts = [caCert];
+                } catch (e) {
+                    // Fall through to system CA if file can't be read
+                    console.warn(`[LOGGING] Failed to read SYSLOG_CA_PATH '${this.tlsCaCertPath}': ${e}`);
+                }
+            }
+
+            this.persistentConn = await Deno.connectTls(options);
+        } else {
+            this.persistentConn = await Deno.connect({
+                hostname: this.remoteHost!,
+                port: this.remotePort,
+            });
+        }
+
+        return this.persistentConn;
+    }
+
+    /**
+     * Closes the persistent connection (e.g., on error for reconnection).
+     */
+    private closePersistentConn() {
+        if (this.persistentConn) {
+            try {
+                this.persistentConn.close();
+            } catch {
+                // Ignore close errors
+            }
+            this.persistentConn = null;
         }
     }
 }

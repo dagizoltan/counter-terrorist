@@ -52,13 +52,69 @@ async fn main() {
                     }
                 }
 
-                let interface = cmd["payload"]["interface"].as_str().unwrap_or("any");
+                let raw_interface = cmd["payload"]["interface"].as_str().unwrap_or("any");
                 let duration = cmd["payload"]["duration"].as_u64().unwrap_or(60);
-                let filename = cmd["payload"]["filename"].as_str().unwrap_or("capture.pcap");
+                let raw_filename = cmd["payload"]["filename"].as_str().unwrap_or("capture.pcap");
+
+                // Security: Validate interface name — only allow alphanumeric, hyphens, underscores, and dots.
+                // This prevents injection via the -i argument to tcpdump.
+                let interface = if raw_interface.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') && !raw_interface.is_empty() {
+                    raw_interface
+                } else {
+                    let resp = PcapResponse {
+                        id,
+                        success: false,
+                        message: format!("Invalid interface name: '{}'", raw_interface),
+                        timestamp: Utc::now().to_rfc3339(),
+                    };
+                    println!("{}", serde_json::to_string(&resp).unwrap());
+                    continue;
+                };
+
+                // Security: Cap duration to prevent indefinite captures (max 1 hour).
+                let duration = duration.min(3600);
+
+                // Security: Sanitize filename to prevent path traversal.
+                // 1. Extract basename only (strip any directory components)
+                // 2. Remove any characters that aren't alphanumeric, dots, hyphens, or underscores
+                // 3. Force .pcap extension
+                // 4. Prepend a fixed output directory
+                let basename = std::path::Path::new(raw_filename)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("capture.pcap");
+
+                let sanitized_name: String = basename
+                    .chars()
+                    .filter(|c| c.is_alphanumeric() || *c == '.' || *c == '-' || *c == '_')
+                    .collect();
+
+                let sanitized_name = if sanitized_name.is_empty() {
+                    "capture.pcap".to_string()
+                } else if !sanitized_name.ends_with(".pcap") {
+                    format!("{}.pcap", sanitized_name)
+                } else {
+                    sanitized_name
+                };
+
+                let capture_dir = std::env::var("CTS_CAPTURE_DIR").unwrap_or_else(|_| "/var/lib/cts/captures".to_string());
+                // Ensure the capture directory exists
+                if let Err(e) = std::fs::create_dir_all(&capture_dir) {
+                    let resp = PcapResponse {
+                        id,
+                        success: false,
+                        message: format!("Failed to create capture directory '{}': {}", capture_dir, e),
+                        timestamp: Utc::now().to_rfc3339(),
+                    };
+                    println!("{}", serde_json::to_string(&resp).unwrap());
+                    continue;
+                }
+
+                let safe_path = format!("{}/{}", capture_dir, sanitized_name);
 
                 // tcpdump -i <interface> -G <duration> -W 1 -w <filename>
                 let child = Command::new("tcpdump")
-                    .args(["-i", interface, "-G", &duration.to_string(), "-W", "1", "-w", filename])
+                    .args(["-i", interface, "-G", &duration.to_string(), "-W", "1", "-w", &safe_path])
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .spawn();
@@ -69,7 +125,7 @@ async fn main() {
                         let resp = PcapResponse {
                             id,
                             success: true,
-                            message: format!("Started capture on {} for {}s to {}", interface, duration, filename),
+                            message: format!("Started capture on {} for {}s to {}", interface, duration, safe_path),
                             timestamp: Utc::now().to_rfc3339(),
                         };
                         println!("{}", serde_json::to_string(&resp).unwrap());

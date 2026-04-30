@@ -1,4 +1,5 @@
 import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
+import { isValidWebhookUrl } from "../infrastructure/validation.ts";
 
 export interface WebhookConfig {
     id: string;
@@ -26,7 +27,14 @@ export class NotificationService {
         }
     }
 
-    async addWebhook(webhook: Omit<WebhookConfig, "id">): Promise<WebhookConfig> {
+    async addWebhook(webhook: Omit<WebhookConfig, "id">): Promise<WebhookConfig | { error: string }> {
+        // Security: Validate webhook URL to prevent SSRF
+        const urlCheck = isValidWebhookUrl(webhook.url);
+        if (!urlCheck.valid) {
+            this.logging.log(`[NOTIFICATIONS] Rejected webhook URL: ${urlCheck.reason}`, SyslogSeverity.WARNING);
+            return { error: `Invalid webhook URL: ${urlCheck.reason}` };
+        }
+
         const newWebhook = { ...webhook, id: crypto.randomUUID() };
         this.webhooks.push(newWebhook);
         await this.saveWebhooks();

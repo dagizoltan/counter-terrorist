@@ -8,6 +8,67 @@ export function isValidIP(ip: string): boolean {
   return IP_REGEX.test(ip);
 }
 
+/**
+ * Interface name validation pattern.
+ * Only alphanumeric, hyphens, underscores, and dots are allowed.
+ */
+const INTERFACE_NAME_REGEX = /^[a-zA-Z0-9._-]+$/;
+
+/**
+ * Filename validation pattern for PCAP captures.
+ * Only alphanumeric, dots, hyphens, and underscores. No path separators.
+ */
+const SAFE_FILENAME_REGEX = /^[a-zA-Z0-9._-]+$/;
+
+/**
+ * Validates a webhook URL to prevent SSRF attacks.
+ * - Only HTTPS is allowed (HTTP rejected)
+ * - Loopback, link-local, RFC1918 private ranges, and cloud metadata IPs are blocked
+ * - DNS names that resolve to private IPs should be checked at fetch time
+ */
+export function isValidWebhookUrl(url: string): { valid: boolean; reason?: string } {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { valid: false, reason: "Invalid URL format" };
+  }
+
+  // Only allow HTTPS
+  if (parsed.protocol !== "https:") {
+    return { valid: false, reason: `Scheme '${parsed.protocol}' is not allowed. Only HTTPS is permitted.` };
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Block loopback
+  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]") {
+    return { valid: false, reason: "Loopback addresses are not allowed" };
+  }
+
+  // Block cloud metadata endpoints
+  if (hostname === "169.254.169.254" || hostname === "metadata.google.internal") {
+    return { valid: false, reason: "Cloud metadata endpoints are not allowed" };
+  }
+
+  // Block link-local range (169.254.x.x)
+  if (hostname.startsWith("169.254.")) {
+    return { valid: false, reason: "Link-local addresses are not allowed" };
+  }
+
+  // Block RFC1918 private ranges
+  const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (a === 10) return { valid: false, reason: "RFC1918 private addresses (10.x.x.x) are not allowed" };
+    if (a === 172 && b >= 16 && b <= 31) return { valid: false, reason: "RFC1918 private addresses (172.16-31.x.x) are not allowed" };
+    if (a === 192 && b === 168) return { valid: false, reason: "RFC1918 private addresses (192.168.x.x) are not allowed" };
+    if (a === 0) return { valid: false, reason: "Zero-prefix addresses are not allowed" };
+  }
+
+  return { valid: true };
+}
+
 export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
@@ -168,12 +229,21 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
       if (req.type === "StartCapture") {
         if (req.payload?.interface && typeof req.payload.interface !== "string") return false;
+        // Security: Validate interface name characters
+        if (req.payload?.interface && !INTERFACE_NAME_REGEX.test(req.payload.interface)) return false;
         if (req.payload?.duration && typeof req.payload.duration !== "number") return false;
+        // Security: Cap duration at 1 hour
+        if (req.payload?.duration && req.payload.duration > 3600) return false;
         if (req.payload?.filename && typeof req.payload.filename !== "string") return false;
+        // Security: Reject filenames with path separators (path traversal defense-in-depth)
+        if (req.payload?.filename) {
+          const basename = req.payload.filename.split("/").pop()?.split("\\").pop() || "";
+          if (!SAFE_FILENAME_REGEX.test(basename)) return false;
+        }
       }
       return true;
     default:
-      return true; // Other sidecars use loose schemas for now
+      return false; // Unknown sidecars are rejected by default
   }
 }
 

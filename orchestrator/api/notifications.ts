@@ -10,8 +10,11 @@ export function createNotificationsApi(notificationService: NotificationService)
 
   api.post("/", async (c) => {
       const config = await c.req.json();
-      const newWebhook = await notificationService.addWebhook(config);
-      return c.json(newWebhook, 201);
+      const result = await notificationService.addWebhook(config);
+      if ("error" in result) {
+        return c.json({ success: false, error: result.error }, 400);
+      }
+      return c.json(result, 201);
   });
 
   api.delete("/:id", async (c) => {

@@ -57,13 +57,13 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
             <h2 class="font-bold mb-4">System Baseline & Reports</h2>
             <div class="grid grid-cols-2 gap-4">
               <button
-                onclick="fetch('/api/baseline/set', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=api-token]')?.content || ''}})"
+                onclick="fetch('/api/baseline/set', {method:'POST', headers: {'X-CT-Token': (document.cookie.match(/csrf_token=([^;]+)/)||[])[1] || ''}})"
                 class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
               >
                 SET NEW BASELINE
               </button>
               <button
-                onclick="fetch('/api/baseline/check', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=api-token]')?.content || ''}})"
+                onclick="fetch('/api/baseline/check', {method:'POST', headers: {'X-CT-Token': (document.cookie.match(/csrf_token=([^;]+)/)||[])[1] || ''}})"
                 class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 px-4 rounded text-sm transition-colors"
               >
                 RUN DRIFT AUDIT
@@ -83,7 +83,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
               <div class="flex items-center justify-between p-3 bg-slate-900 rounded-lg">
                 <span>Rootkit Scanner</span>
                 <button
-                  onclick="fetch('/api/protection/rkhunter/scan', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=api-token]')?.content || ''}})"
+                  onclick="fetch('/api/protection/rkhunter/scan', {method:'POST', headers: {'X-CT-Token': (document.cookie.match(/csrf_token=([^;]+)/)||[])[1] || ''}})"
                   class="bg-red-600 hover:bg-red-700 text-white text-xs py-1 px-2 rounded"
                 >
                   RUN RKHUNTER
@@ -115,10 +115,16 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
                <script dangerouslySetInnerHTML={{ __html: `
                  fetch('/api/notifications').then(r => r.json()).then(data => {
                    const container = document.getElementById('webhook-status');
+                   if (!container) return;
+                   container.textContent = '';
                    if (data.length === 0) {
-                     container.innerHTML = 'No webhooks configured.';
+                     container.textContent = 'No webhooks configured.';
                    } else {
-                     container.innerHTML = data.map(w => \`<div>\${w.name} (\${w.type}) - \${w.enabled ? 'ENABLED' : 'DISABLED'}</div>\`).join('');
+                     data.forEach(function(w) {
+                       var div = document.createElement('div');
+                       div.textContent = w.name + ' (' + w.type + ') - ' + (w.enabled ? 'ENABLED' : 'DISABLED');
+                       container.appendChild(div);
+                     });
                    }
                  });
                ` }} />

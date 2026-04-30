@@ -9,3 +9,4 @@ export { NotificationService } from "./alerts.ts";
 export { AuditService } from "./audit.ts";
 export { EventBus } from "./events.ts";
 export { ProcessTracker } from "./process_tracker.ts";
+export { SessionService } from "./session.ts";

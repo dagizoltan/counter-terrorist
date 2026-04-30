@@ -21,11 +21,77 @@ import { isValidIP, secureCompare } from "../infrastructure/validation.ts";
 import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
-import { AuditService, NotificationService, BaselineService, ProcessTracker } from "../services/index.ts";
+import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService } from "../services/index.ts";
+
+/**
+ * IPs that must never be blocked via mesh sync gossip.
+ * Prevents denial-of-service via loopback, link-local, or broadcast blocking.
+ */
+const MESH_BLOCK_DENY_LIST = [
+  "127.0.0.1",
+  "::1",
+  "0.0.0.0",
+  "::",
+  "255.255.255.255",
+  "localhost",
+];
+function isBlockDenied(ip: string): boolean {
+  if (MESH_BLOCK_DENY_LIST.includes(ip)) return true;
+  // Block link-local (169.254.x.x, fe80::)
+  if (ip.startsWith("169.254.")) return true;
+  if (ip.toLowerCase().startsWith("fe80:")) return true;
+  return false;
+}
+
+/**
+ * In-memory per-IP rate limiter for login attempts.
+ * Tracks attempt timestamps per IP and enforces a sliding window.
+ */
+interface RateLimitEntry {
+  attempts: number[];
+}
+
+const LOGIN_RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const LOGIN_RATE_LIMIT_MAX_ATTEMPTS = 5;
+const loginRateLimiter = new Map<string, RateLimitEntry>();
+
+// Periodic cleanup of stale rate limit entries (every 5 minutes)
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginRateLimiter.entries()) {
+    entry.attempts = entry.attempts.filter(t => now - t < LOGIN_RATE_LIMIT_WINDOW_MS);
+    if (entry.attempts.length === 0) {
+      loginRateLimiter.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000);
+
+function checkLoginRateLimit(ip: string): { allowed: boolean; retryAfterMs?: number } {
+  const now = Date.now();
+  let entry = loginRateLimiter.get(ip);
+
+  if (!entry) {
+    entry = { attempts: [] };
+    loginRateLimiter.set(ip, entry);
+  }
+
+  // Remove attempts outside the window
+  entry.attempts = entry.attempts.filter(t => now - t < LOGIN_RATE_LIMIT_WINDOW_MS);
+
+  if (entry.attempts.length >= LOGIN_RATE_LIMIT_MAX_ATTEMPTS) {
+    const oldestInWindow = entry.attempts[0];
+    const retryAfterMs = LOGIN_RATE_LIMIT_WINDOW_MS - (now - oldestInWindow);
+    return { allowed: false, retryAfterMs };
+  }
+
+  entry.attempts.push(now);
+  return { allowed: true };
+}
 
 export class WebAdapter implements WebPort {
   private app: Hono;
   private token: string | undefined;
+  private meshSecret: string | undefined;
 
   constructor(
     private config: ConfigurationPort,
@@ -37,8 +103,10 @@ export class WebAdapter implements WebPort {
     private notificationService: NotificationService,
     private baselineService: BaselineService,
     private processTracker: ProcessTracker,
+    private sessionService: SessionService,
   ) {
     this.token = config.getToken();
+    this.meshSecret = config.getMeshSecret();
     this.app = new Hono();
 
     this.setupMiddleware();
@@ -99,21 +167,65 @@ export class WebAdapter implements WebPort {
             return allowedOrigins.includes(origin) ? origin : null;
           },
           allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-          allowHeaders: ["Content-Type", "Authorization", "X-CT-Token"],
+          allowHeaders: ["Content-Type", "Authorization", "X-CT-Token", "X-Mesh-Secret"],
           credentials: true,
           maxAge: 600,
         }),
       );
     }
 
+    // --- Mesh-specific authentication middleware ---
+    // Mesh peers authenticate with a separate MESH_SECRET, not the user-facing API_TOKEN.
+    // This enforces role separation: dashboard users cannot invoke mesh peer operations
+    // unless they also possess the mesh secret.
+    const meshAuthMiddleware = async (c: Context, next: Next) => {
+      // Option 1: Mesh pre-shared key header
+      const meshSecretHeader = c.req.header("X-Mesh-Secret");
+      if (this.meshSecret && meshSecretHeader) {
+        if (await secureCompare(meshSecretHeader, this.meshSecret)) {
+          return next();
+        }
+      }
+
+      // Option 2: Fall through to bearer token (admin API access still works)
+      const authHeader = c.req.header("Authorization");
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const bearerToken = authHeader.substring(7);
+        if (await this.isTokenValid(bearerToken)) {
+          return next();
+        }
+      }
+
+      // Option 3: Valid session cookie (admin dashboard access)
+      const sessionId = getCookie(c, "session_token");
+      const session = await this.sessionService.validateSession(sessionId);
+      if (session) {
+        // CSRF protection for state-changing mesh requests via cookie
+        const method = c.req.method;
+        if (method === "POST" || method === "DELETE" || method === "PUT" || method === "PATCH") {
+          const csrfToken = c.req.header("X-CT-Token");
+          if (!csrfToken || !(await this.sessionService.validateCsrf(sessionId, csrfToken))) {
+            return c.json({ error: "CSRF Protection: X-CT-Token header required" }, 403);
+          }
+        }
+        return next();
+      }
+
+      loggingService.log(`[AUTH] Mesh auth rejected for ${c.req.method} ${c.req.path}`, SyslogSeverity.WARNING);
+      return c.json({ error: "Unauthorized: Mesh endpoints require X-Mesh-Secret or admin bearer token" }, 401);
+    };
+
+    // --- Standard user/API authentication middleware ---
     const authMiddleware = async (c: Context, next: Next) => {
-      const sessionToken = getCookie(c, "session_token");
-      if (await this.isTokenValid(sessionToken)) {
+      // Session cookie auth (cookie contains a random session ID, NOT the API token)
+      const sessionId = getCookie(c, "session_token");
+      const session = await this.sessionService.validateSession(sessionId);
+      if (session) {
         // CSRF protection for state-changing methods when using cookie auth
         const method = c.req.method;
         if (method === "POST" || method === "DELETE" || method === "PUT" || method === "PATCH") {
-          const ctToken = c.req.header("X-CT-Token");
-          if (!(await this.isTokenValid(ctToken))) {
+          const csrfToken = c.req.header("X-CT-Token");
+          if (!csrfToken || !session.csrfToken || !this.timingSafeEqual(csrfToken, session.csrfToken)) {
             loggingService.log(`[AUTH] CSRF attempt blocked: Missing or invalid X-CT-Token header for ${method} ${c.req.path}`, SyslogSeverity.WARNING);
             return c.json({ error: "CSRF Protection: X-CT-Token header required" }, 403);
           }
@@ -121,6 +233,7 @@ export class WebAdapter implements WebPort {
         return next();
       }
 
+      // Bearer token auth (for API/automation clients — uses the real API_TOKEN)
       const authHeader = c.req.header("Authorization");
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const bearerToken = authHeader.substring(7);
@@ -142,6 +255,9 @@ export class WebAdapter implements WebPort {
       return c.json({ error: "Unauthorized" }, 401);
     };
 
+    // Mesh endpoints use dedicated mesh auth
+    this.app.use("/api/mesh/*", meshAuthMiddleware);
+    // All other API endpoints and dashboard use standard auth
     this.app.use("/api/*", authMiddleware);
     this.app.use("/", authMiddleware);
   }
@@ -250,6 +366,22 @@ export class WebAdapter implements WebPort {
     });
 
     this.app.post("/login", async (c: Context) => {
+      // Rate limiting: check per-IP attempt count
+      const clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
+        || c.req.header("x-real-ip")
+        || "unknown";
+
+      const rateCheck = checkLoginRateLimit(clientIp);
+      if (!rateCheck.allowed) {
+        const retryAfterSec = Math.ceil((rateCheck.retryAfterMs || 60_000) / 1000);
+        loggingService.log(
+          `[AUTH] Login rate limit exceeded for IP ${clientIp}. Retry after ${retryAfterSec}s.`,
+          SyslogSeverity.WARNING
+        );
+        c.header("Retry-After", String(retryAfterSec));
+        return c.json({ error: "Too many login attempts. Please try again later." }, 429);
+      }
+
       let token: string | undefined;
       const contentType = c.req.header("Content-Type");
       if (contentType && contentType.includes("application/json")) {
@@ -261,18 +393,49 @@ export class WebAdapter implements WebPort {
       }
 
       if (token && (await this.isTokenValid(token))) {
-        setCookie(c, "session_token", token, {
+        // Security: Generate an ephemeral session ID — never store the raw API token in cookies.
+        const { sessionId, csrfToken } = await this.sessionService.createSession();
+
+        const secureCookie = this.config.getBoolean("COOKIE_SECURE", true);
+        setCookie(c, "session_token", sessionId, {
           httpOnly: true,
-          secure: false, // For development
+          secure: secureCookie,
           sameSite: "Strict",
           maxAge: 86400, // 24 hours
         });
+
         if (contentType && contentType.includes("application/json")) {
-            return c.json({ success: true });
+            return c.json({ success: true, csrfToken });
         }
+
+        // For form-based login, provide the CSRF token via a redirect cookie.
+        // The dashboard JS will read this non-httpOnly cookie for X-CT-Token headers.
+        setCookie(c, "csrf_token", csrfToken, {
+          httpOnly: false,
+          secure: secureCookie,
+          sameSite: "Strict",
+          maxAge: 86400,
+        });
+
         return c.redirect("/");
       }
+
+      loggingService.log(
+        `[AUTH] Failed login attempt from IP ${clientIp}`,
+        SyslogSeverity.NOTICE
+      );
       return c.json({ error: "Invalid token" }, 401);
+    });
+
+    // Logout
+    this.app.post("/logout", async (c: Context) => {
+      const sessionId = getCookie(c, "session_token");
+      if (sessionId) {
+        await this.sessionService.revokeSession(sessionId);
+      }
+      deleteCookie(c, "session_token");
+      deleteCookie(c, "csrf_token");
+      return c.redirect("/login");
     });
 
     // Dashboard
@@ -310,6 +473,15 @@ export class WebAdapter implements WebPort {
       console.log(`[MESH] Received sync from peer:`, payload);
       // Process gossip payload (e.g. block IP)
       if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
+        // Security: Validate IP format and block deny-listed IPs
+        if (!isValidIP(payload.ip)) {
+          loggingService.log(`[MESH] Rejected gossip block: invalid IP '${payload.ip}'`, SyslogSeverity.WARNING);
+          return c.json({ success: false, error: "Invalid IP address" }, 400);
+        }
+        if (isBlockDenied(payload.ip)) {
+          loggingService.log(`[MESH] Rejected gossip block: deny-listed IP '${payload.ip}'`, SyslogSeverity.WARNING);
+          return c.json({ success: false, error: "IP is in the deny list (loopback/link-local)" }, 400);
+        }
         await this.protection.firewall.blockIp(payload.ip);
       }
       return c.json({ success: true });
@@ -328,6 +500,18 @@ export class WebAdapter implements WebPort {
    */
   private async isTokenValid(tokenToTest: string | undefined): Promise<boolean> {
     return await secureCompare(tokenToTest, this.token);
+  }
+
+  /**
+   * Simple constant-time string comparison for CSRF tokens.
+   */
+  private timingSafeEqual(a: string, b: string): boolean {
+    if (a.length !== b.length) return false;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) {
+      diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return diff === 0;
   }
 
   async start(port: number = 8000): Promise<void> {

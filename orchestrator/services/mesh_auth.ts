@@ -1,6 +1,9 @@
 /**
  * Mesh Authentication Service: Manages the internal PKI for mTLS communication.
  * Stores certificates and keys in Deno KV for persistence and cross-node sync.
+ *
+ * SECURITY: Private keys are encrypted at rest using AES-256-GCM with a key
+ * derived from the PKI_SECRET environment variable via PBKDF2.
  */
 
 export interface CertPair {
@@ -9,9 +12,21 @@ export interface CertPair {
   timestamp: number;
 }
 
+/**
+ * Encrypted envelope stored in KV. Contains the AES-GCM encrypted private key,
+ * the IV used for encryption, and the PBKDF2 salt for key derivation.
+ */
+interface EncryptedCertPair {
+  cert: string;
+  encryptedKey: string;   // base64-encoded AES-GCM ciphertext
+  iv: string;             // base64-encoded IV
+  salt: string;           // base64-encoded PBKDF2 salt
+  timestamp: number;
+}
+
 export class MeshAuthService {
-  private readonly CA_KEY = ["mesh", "pki", "root_ca_v4"];
-  private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v2"];
+  private readonly CA_KEY = ["mesh", "pki", "root_ca_v5"];
+  private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v3"];
 
   constructor(private kv: Deno.Kv) {}
 
@@ -19,16 +34,16 @@ export class MeshAuthService {
    * Generates or retrieves the root CA for the mesh.
    */
   async getRootCA(): Promise<CertPair> {
-    const entry = await this.kv.get<CertPair>(this.CA_KEY);
+    const entry = await this.kv.get<EncryptedCertPair>(this.CA_KEY);
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
     if (entry.value && entry.value.timestamp > thirtyDaysAgo) {
-      return entry.value;
+      return await this.decryptCertPair(entry.value);
     }
 
     console.log("[PKI] CA is missing or older than 30 days. Generating/Regenerating Root CA...");
     const ca = await this.generateSelfSignedCA();
-    await this.kv!.set(this.CA_KEY, ca);
+    await this.kv!.set(this.CA_KEY, await this.encryptCertPair(ca));
 
     // If we regenerated the CA, we MUST regenerate all node certs
     if (entry.value) {
@@ -43,12 +58,12 @@ export class MeshAuthService {
    */
   async generateNodeCert(nodeId: string): Promise<CertPair> {
     const nodeKey = [...this.NODES_PREFIX, nodeId];
-    const entry = await this.kv.get<CertPair>(nodeKey);
+    const entry = await this.kv.get<EncryptedCertPair>(nodeKey);
 
-    if (entry.value) return entry.value;
+    if (entry.value) return await this.decryptCertPair(entry.value);
 
     const certPair = await this.issueNodeCert(nodeId);
-    await this.kv!.set(nodeKey, certPair);
+    await this.kv!.set(nodeKey, await this.encryptCertPair(certPair));
     return certPair;
   }
 
@@ -57,13 +72,123 @@ export class MeshAuthService {
    */
   async rotateCert(nodeId: string): Promise<CertPair> {
     const certPair = await this.issueNodeCert(nodeId);
-    await this.kv.set([...this.NODES_PREFIX, nodeId], certPair);
+    await this.kv.set([...this.NODES_PREFIX, nodeId], await this.encryptCertPair(certPair));
     return certPair;
   }
 
+  // --- Encryption helpers ---
+
+  /**
+   * Gets the PKI encryption secret. Falls back to API_TOKEN if PKI_SECRET is not set.
+   */
+  private getPkiSecret(): string {
+    const secret = Deno.env.get("PKI_SECRET") || Deno.env.get("API_TOKEN");
+    if (!secret) {
+      throw new Error("[PKI] Neither PKI_SECRET nor API_TOKEN is set. Cannot encrypt/decrypt PKI keys.");
+    }
+    return secret;
+  }
+
+  /**
+   * Derives an AES-256-GCM key from the PKI secret using PBKDF2.
+   */
+  private async deriveKey(salt: Uint8Array): Promise<CryptoKey> {
+    const secret = this.getPkiSecret();
+    const encoder = new TextEncoder();
+    const secretBytes = encoder.encode(secret);
+
+    const baseKey = await crypto.subtle.importKey(
+      "raw",
+      secretBytes.buffer as ArrayBuffer,
+      "PBKDF2",
+      false,
+      ["deriveKey"]
+    );
+
+    return crypto.subtle.deriveKey(
+      {
+        name: "PBKDF2",
+        salt: salt.buffer as ArrayBuffer,
+        iterations: 100_000,
+        hash: "SHA-256",
+      },
+      baseKey,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"]
+    );
+  }
+
+  /**
+   * Encrypts a CertPair's private key using AES-256-GCM.
+   * The certificate itself is stored in plaintext (it's public).
+   */
+  private async encryptCertPair(pair: CertPair): Promise<EncryptedCertPair> {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await this.deriveKey(salt);
+
+    const encoder = new TextEncoder();
+    const plaintext = encoder.encode(pair.key);
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
+      key,
+      plaintext.buffer as ArrayBuffer
+    );
+
+    return {
+      cert: pair.cert,
+      encryptedKey: this.toBase64(new Uint8Array(encrypted)),
+      iv: this.toBase64(iv),
+      salt: this.toBase64(salt),
+      timestamp: pair.timestamp,
+    };
+  }
+
+  /**
+   * Decrypts an EncryptedCertPair back to a CertPair.
+   */
+  private async decryptCertPair(encrypted: EncryptedCertPair): Promise<CertPair> {
+    const salt = this.fromBase64(encrypted.salt);
+    const iv = this.fromBase64(encrypted.iv);
+    const ciphertext = this.fromBase64(encrypted.encryptedKey);
+    const key = await this.deriveKey(salt);
+
+    const decrypted = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
+      key,
+      ciphertext.buffer as ArrayBuffer
+    );
+
+    return {
+      cert: encrypted.cert,
+      key: new TextDecoder().decode(decrypted),
+      timestamp: encrypted.timestamp,
+    };
+  }
+
+  private toBase64(bytes: Uint8Array): string {
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  private fromBase64(str: string): Uint8Array {
+    const binary = atob(str);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
+  // --- Certificate generation ---
+
   private async rotateAllNodeCerts() {
     console.log("[PKI] Rotating all node certificates due to CA regeneration...");
-    const iter = this.kv.list<CertPair>({ prefix: this.NODES_PREFIX });
+    const iter = this.kv.list<EncryptedCertPair>({ prefix: this.NODES_PREFIX });
     for await (const entry of iter) {
       const nodeId = entry.key[entry.key.length - 1] as string;
       await this.rotateCert(nodeId);
