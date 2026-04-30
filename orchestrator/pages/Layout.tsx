@@ -95,12 +95,25 @@ export const Layout = (props: {
                 <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Kernel</span>
               </a>
 
-              <a href="/agents" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
-                <div class="w-6 h-6 flex items-center justify-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <div class="group/nav-item">
+                <a href="/agents" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                  <div class="w-6 h-6 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  </div>
+                  <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Agents</span>
+                </a>
+                
+                {/* SUBMENU: HONEYPOTS */}
+                <div class="ml-10 space-y-1 border-l border-white/5 group-[.compact]:hidden">
+                  <a href="/honeypots" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Honeypots_Master</a>
+                  <div class="space-y-0.5">
+                    <a href="/honeypots/ssh" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• SSH_Decoy</a>
+                    <a href="/honeypots/redis" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• Redis_Vault</a>
+                    <a href="/honeypots/http" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• HTTP_Admin</a>
+                    <a href="/honeypots/telnet" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• IoT_Telnet</a>
+                  </div>
                 </div>
-                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Agents</span>
-              </a>
+              </div>
               
               <a href="/sysinfo" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
                 <div class="w-6 h-6 flex items-center justify-center">

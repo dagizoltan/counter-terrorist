@@ -286,6 +286,22 @@ export class MeshManager {
     }
   }
 
+  /**
+   * Broadcasts a lockdown command to all verified nodes in the mesh.
+   */
+  async broadcastLockdown() {
+    const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+    if (verifiedNodes.length === 0) return;
+
+    this.logging.log(`[MESH] Gossip: Broadcasting EMERGENCY LOCKDOWN to ${verifiedNodes.length} nodes...`, SyslogSeverity.EMERGENCY);
+
+    for (const node of verifiedNodes) {
+        this.sendSync(node, { type: "GOSSIP_LOCKDOWN" }).catch(err => {
+            console.warn(`[MESH] Failed to gossip lockdown with ${node.hostname}: ${err.message}`);
+        });
+    }
+  }
+
   private async sendSync(node: MeshNode, payload: any) {
     if (!this.httpClient) await this.init();
 

@@ -17,6 +17,7 @@ import { EnvConfigProvider } from "./infrastructure/env_config_provider.ts";
 import { WebAdapter } from "./adapters/web_adapter.tsx";
 import { broadcast, initBroadcaster } from "./api/ws.ts";
 import { SidecarEvent } from "./infrastructure/validation.ts";
+import { PlaybookEngine } from "./services/playbook_engine.ts";
 
 const configProvider = new EnvConfigProvider();
 const loggingService = new LoggingService();
@@ -40,8 +41,20 @@ const baselineService = new BaselineService(kv, sidecarManager, executor, loggin
 const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
 const apiKeysService = new ApiKeysService(kv, loggingService);
 const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager);
+import { ThreatIntelService } from "./services/threat_intel.ts";
+import { HoneypotService } from "./services/honeypot_service.ts";
+
 await playbookService.init();
 await processTracker.fullScan();
+
+const threatIntel = new ThreatIntelService(protection, loggingService);
+await threatIntel.start();
+
+const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast);
+await honeypotService.start();
+
+const playbookEngine = new PlaybookEngine(eventBus, protection, loggingService);
+playbookEngine.start();
 
 initBroadcaster({
   notificationService,
@@ -84,7 +97,8 @@ const web = new WebAdapter(
   processTracker,
   sessionService,
   apiKeysService,
-  app.eventBus
+  app.eventBus,
+  honeypotService
 );
 
 // Handle eBPF events

@@ -24,8 +24,9 @@ import { createAuditApi } from "../api/audit.ts";
 import { createStatsApi } from "../api/stats.ts";
 import { createAgentsRouter } from "../pages/agents/handler.tsx";
 import { createAuditRouter } from "../pages/audit/handler.tsx";
+import { createHoneypotsRouter } from "../pages/honeypots/handler.tsx";
 import { createExtraPagesRouter } from "../pages/extra_handlers.tsx";
-import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role, EventBus } from "../services/index.ts";
+import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role, EventBus, HoneypotService } from "../services/index.ts";
 /**
  * IPs that must never be blocked via mesh sync gossip.
  * Prevents denial-of-service via loopback, link-local, or broadcast blocking.
@@ -107,6 +108,7 @@ export class WebAdapter implements WebPort {
     private sessionService: SessionService,
     private apiKeysService: ApiKeysService,
     private eventBus: EventBusPort,
+    private honeypotService: HoneypotService,
   ) {
     this.token = config.getToken();
     this.meshSecret = config.getMeshSecret();
@@ -437,6 +439,9 @@ export class WebAdapter implements WebPort {
     // Audit
     this.app.route("/audit", createAuditRouter());
 
+    // Honeypots
+    this.app.route("/honeypots", createHoneypotsRouter(this.honeypotService));
+
     // Extra Pages
     this.app.route("/", createExtraPagesRouter(async () => {
       const { createDashboardStatus } = await import("../core/application.ts");
@@ -501,21 +506,48 @@ export class WebAdapter implements WebPort {
       console.log(`[MESH] Received sync from peer:`, payload);
       // Process gossip payload (e.g. block IP)
       if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
-        // Security: Validate IP format and block deny-listed IPs
-        if (!isValidIP(payload.ip)) {
-          loggingService.log(`[MESH] Rejected gossip block: invalid IP '${payload.ip}'`, SyslogSeverity.WARNING);
-          return c.json({ success: false, error: "Invalid IP address" }, 400);
-        }
-        if (isBlockDenied(payload.ip)) {
-          loggingService.log(`[MESH] Rejected gossip block: deny-listed IP '${payload.ip}'`, SyslogSeverity.WARNING);
-          return c.json({ success: false, error: "IP is in the deny list (loopback/link-local)" }, 400);
-        }
+        if (!isValidIP(payload.ip)) return c.json({ success: false, error: "Invalid IP" }, 400);
+        if (isBlockDenied(payload.ip)) return c.json({ success: false, error: "IP Deny List" }, 400);
         await this.protection.firewall.blockIp(payload.ip);
+      }
+      if (payload.type === "GOSSIP_LOCKDOWN") {
+        await this.protection.lockdown();
       }
       return c.json({ success: true });
     });
 
+    // Forensic Export
+    this.app.get("/api/forensics/export", async (c: Context) => {
+      const logs = await this.auditService.getRecentEvents(500);
+      const processes = this.processTracker.getTree();
+      const { createDashboardStatus } = await import("../core/application.ts");
+      const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
+      const { bootstrap } = await import("../bootstrapper.ts");
+      const status = await createDashboardStatus(await bootstrap(), { getPlatformInfo }, pluginManager, this.auditService);
+
+      const report = {
+        node: Deno.hostname(),
+        timestamp: new Date().toISOString(),
+        status,
+        forensic_logs: logs,
+        process_hierarchy: processes,
+        verification: {
+          audit_verified: status.auditVerified,
+          signature: crypto.randomUUID(), // Placeholder for real mTLS signature
+        }
+      };
+
+      return c.json(report, 200, {
+        "Content-Disposition": `attachment; filename="forensic_report_${Date.now()}.json"`,
+        "Content-Type": "application/json"
+      });
+    });
+
     // Enforce roles on sub-routers
+    this.app.use("/api/protection/*", this.requireRole("admin", "operator"));
+    this.app.use("/api/agents/:name/restart", this.requireRole("admin", "operator"));
+    this.app.use("/api/agents/:name/stop", this.requireRole("admin", "operator"));
+    this.app.use("/api/forensics/export", this.requireRole("admin", "operator"));
     this.app.use("/api/reports/*", this.requireRole("admin", "operator", "viewer"));
     this.app.use("/api/notifications/*", this.requireRole("admin"));
     this.app.use("/api/audit/*", this.requireRole("admin", "operator", "viewer"));

@@ -37,7 +37,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
           </p>
         </div>
         <div class="flex gap-4">
-          <button class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Export Report</button>
+          <a href="/api/forensics/export" class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center">Export Report</a>
           <button 
             onclick="fetch('/api/protection/lockdown', { method: 'POST' }).then(r => r.json()).then(d => alert(d.stdout))"
             class="border border-white/20 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-red-500"

@@ -39,6 +39,12 @@ export class FirewallManager {
 
   async lockdown() {
     broadcast({ type: "CRITICAL", message: "LOCKDOWN PROTOCOL INITIATED" });
+    
+    // Mesh Gossip
+    if (meshManager) {
+      meshManager.broadcastLockdown().catch(console.error);
+    }
+
     return await this.provider.lockdown();
   }
 }
