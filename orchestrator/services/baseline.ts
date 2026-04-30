@@ -81,7 +81,8 @@ export class BaselineService {
   }
 
   private getProcessKey(p: ProcessSnapshot): string {
-    return p.key ?? `${p.exe_path}:${p.hash}`;
+    // Prefer pre-computed key to avoid repeated string concatenations
+    return p.key || `${p.exe_path}:${p.hash}`;
   }
 
   async captureSnapshot(): Promise<SystemSnapshot> {
@@ -181,19 +182,16 @@ export class BaselineService {
     // Check Ports drift
     const newPorts = current.ports.filter(p => !this.baselinePortSet.has(p));
 
-    // Check Processes drift (hash/path based) and filter ephemeral processes (N-04)
+    // Optimized process drift and ephemeral filtering (O(N))
+    // Uses Set-based lookup for O(1) time complexity instead of O(M) .some()
     const newProcs: ProcessSnapshot[] = [];
     const currentProcessKeys = new Set<string>();
-    const currentProcs = current.processes;
 
-    for (let i = 0; i < currentProcs.length; i++) {
-      const currProc = currentProcs[i];
+    for (const currProc of current.processes) {
       const key = this.getProcessKey(currProc);
       currentProcessKeys.add(key);
 
-      // A process is "drift" if it's not in the baseline.
-      // It's "ephemeral" if it's new but wasn't there in the previous scan.
-      // We only report it if it's in drift AND not ephemeral (i.e. it was also in previous scan).
+      // Drift is only reported if it persists across scans (avoids noise from short-lived processes)
       if (this.isInitialized && !this.baselineProcessSet.has(key) && this.previousProcessSet.has(key)) {
         newProcs.push(currProc);
       }
