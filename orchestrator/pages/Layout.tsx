@@ -61,7 +61,7 @@ export const Layout = (props: {
 
         {/* Page specific islands (Web Components) */}
         {props.islandPaths?.map((path) => (
-          <script type="module" src={path}></script>
+          <script type="module" src={path.replace(/\/pages\/.*\/islands\//, '/components/islands/')}></script>
         ))}
       </head>
       <body class="min-h-screen flex bg-[#050505] font-sans overflow-hidden">
