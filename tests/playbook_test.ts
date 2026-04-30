@@ -12,11 +12,18 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
       blockIp: async (ip: string) => {
         blockedIp = ip;
       }
+    },
+    pcap: {
+      startCapture: async () => {}
     }
   } as any;
 
   const mockNotifications = {
     notify: async () => {}
+  } as any;
+
+  const mockMeshManager = {
+    isolateNode: () => {}
   } as any;
 
   const mockSidecarManager = {
@@ -31,7 +38,7 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
     }
   } as any;
 
-  const playbook = new PlaybookService(mockSidecarManager, mockProtection, mockNotifications);
+  const playbook = new PlaybookService(mockSidecarManager, mockProtection, mockNotifications, mockMeshManager);
   await playbook.init();
 
   // Simulate honeypot access

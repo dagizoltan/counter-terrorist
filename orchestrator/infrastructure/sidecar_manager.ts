@@ -127,27 +127,38 @@ export class SidecarManager {
   private async findBinary(name: string): Promise<string | null> {
     const isWindows = Deno.build.os === "windows";
     const extension = isWindows ? ".exe" : "";
+
+    // Define search paths in order of preference (release before debug)
     const paths = [
       `./agents/target/release/${name}${extension}`,
       `./agents/target/debug/${name}${extension}`,
+      `/usr/local/bin/cts-${name}${extension}`, // Fallback for installed location
     ];
 
-    let agentsDir = await Deno.realPath("./agents");
-    if (!agentsDir.endsWith("/")) agentsDir += "/";
+    let agentsDir: string;
+    try {
+      agentsDir = await Deno.realPath("./agents");
+      if (!agentsDir.endsWith("/")) agentsDir += "/";
+    } catch {
+      // If ./agents doesn't exist (e.g. in production), we might not enforce the agentsDir check for system paths
+      agentsDir = "";
+    }
 
     for (const p of paths) {
       try {
-        const absolutePath = await Deno.realPath(p);
-        const info = await Deno.stat(absolutePath);
+        // First check if the file exists before calling realPath (which throws if not found)
+        const info = await Deno.stat(p);
+        if (!info.isFile) continue;
 
-        if (info.isFile) {
-          // Security: Ensure the binary is within the agents directory
-          if (!absolutePath.startsWith(agentsDir)) {
-            console.error(`[SIDE-MAN] Security violation: Binary ${absolutePath} is outside agents directory`);
-            continue;
-          }
-          return absolutePath;
+        const absolutePath = await Deno.realPath(p);
+
+        // Security: If we are looking in ./agents, ensure the binary stays within it
+        if (p.startsWith("./agents") && agentsDir && !absolutePath.startsWith(agentsDir)) {
+          console.error(`[SIDE-MAN] Security violation: Binary ${absolutePath} is outside agents directory`);
+          continue;
         }
+
+        return absolutePath;
       } catch {
         continue;
       }
@@ -291,7 +302,8 @@ export class SidecarManager {
       try {
         process.kill("SIGTERM");
       } catch (e) {
-        console.warn(`[SIDE-MAN] Failed to kill ${name} with SIGTERM, forcing SIGKILL:`, e.message);
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(`[SIDE-MAN] Failed to kill ${name} with SIGTERM, forcing SIGKILL:`, msg);
         process.kill("SIGKILL");
       }
       this.persistentProcesses.delete(name);

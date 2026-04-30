@@ -25,6 +25,7 @@ import { createStatsApi } from "../api/stats.ts";
 import { createAgentsRouter } from "../pages/agents/handler.tsx";
 import { createAuditRouter } from "../pages/audit/handler.tsx";
 import { createHoneypotsRouter } from "../pages/honeypots/handler.tsx";
+import { recordScannerResult } from "../services/metrics_service.ts";
 import { FirewallPage, VpnPage, ScannerPage } from "../pages/agents/subpages/core.tsx";
 import { EbpfPage, FimPage } from "../pages/agents/subpages/forensics.tsx";
 import { TimelinePage } from "../pages/forensics/timeline.tsx";
@@ -555,6 +556,10 @@ export class WebAdapter implements WebPort {
         const scanResult = await (this.command as any).sendCommand("scanner", { type: "SCAN", cmd_type: "SCAN", id: scanId });
         
         if (scanResult && scanResult.processes) {
+           const now = new Date().toLocaleTimeString();
+           const resultStr = `${scanResult.processes.length} PROCS`;
+           recordScannerResult(now, resultStr);
+
            broadcast({ type: "INFO", message: `System scan completed (${scanId})`, data: scanResult });
            return c.json({ success: true, id: scanId, result: scanResult });
         }

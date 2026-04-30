@@ -1,6 +1,7 @@
 /**
  * Centralized validation logic for security orchestrator.
  */
+import { normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 export const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
 
@@ -74,6 +75,25 @@ export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
 export function isAllowedSidecar(name: string): name is SidecarName {
   return (ALLOWED_SIDECARS as readonly string[]).includes(name);
+}
+
+/**
+ * Validates a filesystem path to prevent traversal and prefix bypass.
+ */
+export function validatePath(p: string): boolean {
+  if (typeof p !== "string" || p.length === 0) return false;
+
+  // Reject obvious traversal and prefix bypasses (e.g. //etc/passwd)
+  if (p.includes("..") || p.startsWith("//") || p.startsWith("\\\\")) return false;
+
+  try {
+    const n = normalize(p);
+    if (n.includes("..")) return false;
+  } catch {
+    return false;
+  }
+
+  return true;
 }
 
 // IPC Schemas
@@ -216,8 +236,13 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
     case "scanner":
       if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT"].includes(req.type)) return false;
       if (req.type === "DIR_SCAN") {
-        if (req.path && typeof req.path !== "string") return false;
-        if (req.paths && !Array.isArray(req.paths)) return false;
+        if (req.path) {
+          if (!validatePath(req.path)) return false;
+        }
+        if (req.paths) {
+          if (!Array.isArray(req.paths)) return false;
+          if (!req.paths.every((p: string) => validatePath(p))) return false;
+        }
       }
       return true;
     case "blocker":
