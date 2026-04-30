@@ -70,22 +70,25 @@ export class WebAdapter implements WebPort {
     }
 
     const allowedOriginsStr = this.config.getEnv("ALLOWED_ORIGINS");
-    const allowedOrigins = allowedOriginsStr
+    const rawOrigins = allowedOriginsStr
       ? allowedOriginsStr.split(",").map((o) => o.trim()).filter((o) => o.length > 0)
       : [];
 
-    // Security: Only enable CORS if origins are explicitly configured.
+    // Security: Filter out wildcards when credentials are enabled to prevent origin reflection attacks.
+    const allowedOrigins = rawOrigins.filter((o) => o !== "*");
+
+    if (rawOrigins.includes("*")) {
+      loggingService.log(
+        "[WEB] SECURITY WARNING: CORS wildcard '*' detected in ALLOWED_ORIGINS while credentials are enabled. This wildcard has been ignored for security.",
+        SyslogSeverity.WARNING,
+      );
+    }
+
+    // Security: Only enable CORS if origins are explicitly configured and valid.
     // We use a function for origin validation to ensure exact matches against the ALLOWED_ORIGINS allowlist.
     // This prevents "Arbitrary Localhost Origins" vulnerabilities where any localhost port might be trusted.
     // By using a validation function, we also avoid Hono's default behavior of echoing the first origin on mismatch.
     if (allowedOrigins.length > 0) {
-      if (allowedOrigins.includes("*")) {
-        loggingService.log(
-          "[WEB] SECURITY WARNING: CORS wildcard '*' detected in ALLOWED_ORIGINS while credentials are enabled. This is an insecure configuration.",
-          SyslogSeverity.WARNING,
-        );
-      }
-
       this.app.use(
         "/api/*",
         cors({
