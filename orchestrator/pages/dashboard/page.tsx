@@ -14,7 +14,9 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
     '/pages/dashboard/islands/StatusIndicator.js',
     '/pages/dashboard/islands/BlockingLog.js',
     '/pages/dashboard/islands/ProcessTree.js',
-    '/pages/dashboard/islands/HoneypotChart.js'
+    '/pages/dashboard/islands/HoneypotChart.js',
+    '/pages/dashboard/islands/MeshGraph.js',
+    '/pages/dashboard/islands/ThreatMap.js'
   ];
 
   const formatBytes = (bytes?: number) => {
@@ -38,6 +40,7 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
         </div>
         <div class="flex gap-4">
           <a href="/api/forensics/export" class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all flex items-center justify-center">Export Report</a>
+          <a href="/api/forensics/export-iac" class="border border-white/20 text-white px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all flex items-center justify-center">Clone Posture</a>
           <button 
             onclick="fetch('/api/protection/lockdown', { method: 'POST' }).then(r => r.json()).then(d => alert(d.stdout))"
             class="border border-white/20 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all text-red-500"
@@ -67,11 +70,11 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
           <p class="text-xl font-bold uppercase tracking-tight">{metrics?.cpu.load[0].toFixed(2)}</p>
         </div>
 
-        <div class="bg-white/5 p-6 border-l-2 border-slate-700 relative overflow-hidden">
-          <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-2">Detection Trend</h3>
-           <div class="h-8">
-             <honeypot-chart></honeypot-chart>
-           </div>
+        <div class="bg-white/5 p-6 border-l-2 border-slate-700 relative overflow-hidden flex flex-col justify-center">
+          <h3 class="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-4">Mesh Topology</h3>
+          <div class="h-24">
+            <mesh-graph></mesh-graph>
+          </div>
         </div>
       </div>
 
@@ -121,6 +124,17 @@ export const Dashboard = (props: { status: ApplicationStatus }) => {
               </div>
           </div>
         </section>
+      </div>
+
+      {/* THREAT GEOGRAPHY */}
+      <div class="mb-8 bg-white/5 border border-white/5 p-8">
+         <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
+            <h3 class="text-xs font-black uppercase tracking-[0.3em]">Global Threat Geography</h3>
+            <span class="text-[9px] font-bold text-red-500 uppercase tracking-widest">Live_Intelligence_Feed</span>
+         </div>
+         <div class="h-64 bg-black relative">
+            <threat-map></threat-map>
+         </div>
       </div>
 
       {/* REAL-TIME LOG FULL WIDTH */}

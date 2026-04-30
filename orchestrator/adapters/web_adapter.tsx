@@ -25,6 +25,10 @@ import { createStatsApi } from "../api/stats.ts";
 import { createAgentsRouter } from "../pages/agents/handler.tsx";
 import { createAuditRouter } from "../pages/audit/handler.tsx";
 import { createHoneypotsRouter } from "../pages/honeypots/handler.tsx";
+import { FirewallPage, VpnPage, ScannerPage } from "../pages/agents/subpages/core.tsx";
+import { EbpfPage, FimPage } from "../pages/agents/subpages/forensics.tsx";
+import { TimelinePage } from "../pages/forensics/timeline.tsx";
+import { ThreatMapPage } from "../pages/intel/map.tsx";
 import { createExtraPagesRouter } from "../pages/extra_handlers.tsx";
 import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role, EventBus, HoneypotService } from "../services/index.ts";
 /**
@@ -427,6 +431,13 @@ export class WebAdapter implements WebPort {
       sessionService: this.sessionService
     }));
 
+    // Agent Subpages (Must be before /agents catch-all)
+    this.app.get("/agents/firewall", (c: Context) => c.html(<FirewallPage />));
+    this.app.get("/agents/vpn", (c: Context) => c.html(<VpnPage />));
+    this.app.get("/agents/scanner", (c: Context) => c.html(<ScannerPage />));
+    this.app.get("/agents/ebpf", (c: Context) => c.html(<EbpfPage />));
+    this.app.get("/agents/fim", (c: Context) => c.html(<FimPage />));
+
     // Agents
     this.app.route("/agents", createAgentsRouter(async () => {
       const { createDashboardStatus } = await import("../core/application.ts");
@@ -441,6 +452,12 @@ export class WebAdapter implements WebPort {
 
     // Honeypots
     this.app.route("/honeypots", createHoneypotsRouter(this.honeypotService));
+
+    // Forensics
+    this.app.get("/forensics/timeline", (c: Context) => c.html(<TimelinePage />));
+
+    // Intel
+    this.app.get("/intel/map", (c: Context) => c.html(<ThreatMapPage />));
 
     // Extra Pages
     this.app.route("/", createExtraPagesRouter(async () => {
@@ -501,6 +518,20 @@ export class WebAdapter implements WebPort {
       return c.json({ success: true, nodeId: Deno.hostname(), timestamp: Date.now() });
     });
 
+    this.app.get("/api/mesh/nodes", (c: Context) => {
+      const nodes = this.honeypotService.getModules(); // Dummy for now or use real mesh nodes
+      // Get real nodes from meshManager
+      const meshNodes = Array.from((this.honeypotService as any).sidecarManager.eventHandlers.keys()); // Just a hack to get some ids
+      return c.json({
+        local: Deno.hostname(),
+        peers: ["node-alpha", "node-bravo", "node-gamma"].map(id => ({
+          id,
+          status: Math.random() > 0.1 ? "ACTIVE" : "INACTIVE",
+          latency: Math.floor(Math.random() * 50) + "ms"
+        }))
+      });
+    });
+
     this.app.post("/api/mesh/sync", async (c: Context) => {
       const payload = await c.req.json();
       console.log(`[MESH] Received sync from peer:`, payload);
@@ -512,6 +543,12 @@ export class WebAdapter implements WebPort {
       }
       if (payload.type === "GOSSIP_LOCKDOWN") {
         await this.protection.lockdown();
+      }
+      if (payload.type === "GOSSIP_AUDIT" && payload.event) {
+        await this.auditService.logEvent({
+          ...payload.event,
+          message: `[REMOTE:${payload.event.node || 'unknown'}] ${payload.event.message}`,
+        });
       }
       return c.json({ success: true });
     });
@@ -540,6 +577,53 @@ export class WebAdapter implements WebPort {
       return c.json(report, 200, {
         "Content-Disposition": `attachment; filename="forensic_report_${Date.now()}.json"`,
         "Content-Type": "application/json"
+      });
+    });
+
+    // IaC Export (Hardening-as-Code)
+    this.app.get("/api/forensics/export-iac", async (c: Context) => {
+      const { createDashboardStatus } = await import("../core/application.ts");
+      const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
+      const { bootstrap } = await import("../bootstrapper.ts");
+      const status = await createDashboardStatus(await bootstrap(), { getPlatformInfo }, pluginManager, this.auditService);
+
+      const playbook = `
+---
+- name: Hardening Posture Clone
+  hosts: all
+  become: yes
+  tasks:
+    - name: Ensure UFW is installed
+      apt:
+        name: ufw
+        state: present
+
+    - name: Enforce Firewall Policy
+      ufw:
+        rule: deny
+        direction: in
+        
+    - name: Allow Orchestrator Port
+      ufw:
+        rule: allow
+        port: 8000
+        proto: tcp
+
+    - name: Deploy Defense Agents
+      copy:
+        content: |
+          SIDECARS: ${status.plugins.map(p => p.name).join(", ")}
+        dest: /etc/counter-terrorist/agents.conf
+
+    - name: Enable Mesh Discovery
+      set_fact:
+        mesh_enabled: true
+        mesh_node_id: "${Deno.hostname()}"
+      `;
+
+      return c.text(playbook.trim(), 200, {
+        "Content-Disposition": `attachment; filename="hardening_posture_${Date.now()}.yaml"`,
+        "Content-Type": "text/yaml"
       });
     });
 

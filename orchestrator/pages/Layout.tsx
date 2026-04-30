@@ -103,15 +103,26 @@ export const Layout = (props: {
                   <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Agents</span>
                 </a>
                 
-                {/* SUBMENU: HONEYPOTS */}
                 <div class="ml-10 space-y-1 border-l border-white/5 group-[.compact]:hidden">
-                  <a href="/honeypots" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Honeypots_Master</a>
-                  <div class="space-y-0.5">
-                    <a href="/honeypots/ssh" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• SSH_Decoy</a>
-                    <a href="/honeypots/redis" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• Redis_Vault</a>
-                    <a href="/honeypots/http" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• HTTP_Admin</a>
-                    <a href="/honeypots/telnet" class="block py-1 pl-6 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all border-l border-transparent hover:border-green-500">• IoT_Telnet</a>
+                  {/* HONEYPOTS */}
+                  <div class="group/honeypot">
+                    <a href="/honeypots" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all flex items-center gap-2">
+                       <span>Honeypots</span>
+                       <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </a>
+                    <div class="space-y-0.5 ml-2">
+                      <a href="/honeypots/ssh" class="block py-1 pl-4 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all">• SSH_Decoy</a>
+                      <a href="/honeypots/redis" class="block py-1 pl-4 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all">• Redis_Vault</a>
+                      <a href="/honeypots/http" class="block py-1 pl-4 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-600 hover:text-green-500 transition-all">• HTTP_Admin</a>
+                    </div>
                   </div>
+
+                  {/* CORE AGENTS */}
+                  <a href="/agents/firewall" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Firewall_Agent</a>
+                  <a href="/agents/vpn" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">VPN_Tunnels</a>
+                  <a href="/agents/scanner" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Vuln_Scanner</a>
+                  <a href="/agents/ebpf" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Kernel_eBPF</a>
+                  <a href="/agents/fim" class="block py-2 pl-4 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">FIM_Integrity</a>
                 </div>
               </div>
               
@@ -120,6 +131,20 @@ export const Layout = (props: {
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M20 15h2"/><path d="M9 2v2"/><path d="M9 20v2"/><path d="M2 9h2"/><path d="M20 9h2"/></svg>
                 </div>
                 <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Sys_Info</span>
+              </a>
+
+              <a href="/intel/map" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Global_Map</span>
+              </a>
+
+              <a href="/forensics/timeline" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Timeline</span>
               </a>
 
               <a href="/audit" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">

@@ -302,6 +302,32 @@ export class MeshManager {
     }
   }
 
+  /**
+   * Broadcasts a critical audit event to the mesh.
+   */
+  async broadcastAuditEvent(event: any) {
+    const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+    if (verifiedNodes.length === 0) return;
+
+    for (const node of verifiedNodes) {
+        this.sendSync(node, { type: "GOSSIP_AUDIT", event }).catch(err => {
+            console.warn(`[MESH] Failed to gossip audit with ${node.hostname}: ${err.message}`);
+        });
+    }
+  }
+
+  async reconcile() {
+    const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+    for (const node of verifiedNodes) {
+        try {
+            await this.sendSync(node, { type: "FETCH_STATE" });
+            console.log(`[MESH] Reconciled state with ${node.hostname}`);
+        } catch (e) {
+            console.warn(`[MESH] Failed to reconcile with ${node.hostname}: ${e.message}`);
+        }
+    }
+  }
+
   private async sendSync(node: MeshNode, payload: any) {
     if (!this.httpClient) await this.init();
 

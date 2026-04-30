@@ -36,6 +36,7 @@ const eventBus = new EventBus(loggingService);
 const meshAuthService = new MeshAuthService(kv);
 const meshManager = new MeshManager(meshAuthService, loggingService);
 setMeshManager(meshManager);
+auditService.setMesh(meshManager);
 const processTracker = new ProcessTracker(loggingService);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
@@ -52,6 +53,14 @@ await threatIntel.start();
 
 const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast);
 await honeypotService.start();
+
+import { CanaryService } from "./services/canary_service.ts";
+const canaryService = new CanaryService(auditService);
+await canaryService.deploy();
+
+import { KernelService } from "./services/kernel_service.ts";
+const kernelService = new KernelService(executor, auditService);
+await kernelService.harden();
 
 const playbookEngine = new PlaybookEngine(eventBus, protection, loggingService);
 playbookEngine.start();
@@ -124,6 +133,18 @@ app.command.onEvent("ebpf", async (event: SidecarEvent) => {
     broadcast({
       type,
       message,
+      data: event
+    });
+  }
+});
+
+// Handle FIM events
+app.command.onEvent("fim", (event: any) => {
+  if (event.type === "FILE_EVENT") {
+    canaryService.handleFileAccess(event.path, event.comm);
+    broadcast({
+      type: "INFO",
+      message: `FIM Alert: ${event.comm} ${event.action} ${event.path}`,
       data: event
     });
   }

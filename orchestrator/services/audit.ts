@@ -1,4 +1,5 @@
 import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
+import { MeshManager } from "./mesh.ts";
 
 export interface AuditEvent {
     id: string;
@@ -24,7 +25,11 @@ export class AuditService {
     private purgeIntervalId: number | undefined;
     private logQueue: Promise<void> = Promise.resolve();
 
-    constructor(private kv: Deno.Kv, private logging: LoggingPort) {
+    constructor(
+        private kv: Deno.Kv, 
+        private logging: LoggingPort,
+        private mesh: MeshManager | null = null
+    ) {
         this.retentionConfig = {
             maxAgeDays: Number(Deno.env.get("AUDIT_RETENTION_DAYS")) || 90,
             maxEvents: Number(Deno.env.get("AUDIT_MAX_EVENTS")) || 10000,
@@ -35,6 +40,10 @@ export class AuditService {
 
         // Schedule periodic retention purge (every hour)
         this.purgeIntervalId = setInterval(() => this.purgeExpired(), 60 * 60 * 1000);
+    }
+
+    setMesh(mesh: MeshManager) {
+        this.mesh = mesh;
     }
     
     private async restoreChainHead() {
@@ -86,8 +95,17 @@ export class AuditService {
             try {
                 await this.kv.set(["audit", Date.now(), id], auditEvent);
                 this.lastHash = hash;
+                
                 // Forward audit event to remote syslog
                 this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, SyslogSeverity.NOTICE);
+
+                // Gossip to mesh if critical
+                if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
+                  this.mesh.broadcastAuditEvent({
+                    ...auditEvent,
+                    node: Deno.hostname()
+                  }).catch(console.error);
+                }
             } catch (e) {
                 console.error("[AUDIT] Failed to save event:", e);
             }
