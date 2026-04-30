@@ -1,6 +1,6 @@
 import { bootstrap } from "./bootstrapper.ts";
 import { createProtection } from "./protection/index.ts";
-import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService, ProcessTracker, SessionService, ApiKeysService } from "./services/index.ts";
+import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService, ProcessTracker, SessionService, ApiKeysService, PlaybookService } from "./services/index.ts";
 import { setMeshManager } from "./services/mesh.ts";
 import { SidecarManager } from "./infrastructure/sidecar_manager.ts";
 import { SystemExecutor } from "./infrastructure/system_executor.ts";
@@ -39,6 +39,8 @@ const processTracker = new ProcessTracker(loggingService);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
 const apiKeysService = new ApiKeysService(kv, loggingService);
+const playbookService = new PlaybookService(sidecarManager, protection, notificationService);
+await playbookService.init();
 
 initBroadcaster({
   notificationService,
@@ -113,10 +115,13 @@ app.command.onEvent("ebpf", async (event: SidecarEvent) => {
   }
 });
 
-// Start eBPF sidecar
-app.command.getPersistentSidecar("ebpf").catch(err => {
-  console.warn("[MAIN] Failed to start eBPF sidecar:", err.message);
-});
+// Start persistent sidecars
+const daemons = ["ebpf", "honeypot", "fim"];
+for (const daemon of daemons) {
+  app.command.getPersistentSidecar(daemon).catch(err => {
+    console.warn(`[MAIN] Failed to start sidecar ${daemon}:`, err.message);
+  });
+}
 
 // Start the web server
 await web.start();

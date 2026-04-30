@@ -69,7 +69,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   return { valid: true };
 }
 
-export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf"] as const;
+export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
 export function isAllowedSidecar(name: string): name is SidecarName {

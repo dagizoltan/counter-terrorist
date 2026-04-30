@@ -5,6 +5,7 @@ members = [
     "blocker",
     "honeypot",
     "pcap", "ebpf",
+    "fim",
 ]
 
 [workspace.dependencies]

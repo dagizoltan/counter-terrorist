@@ -1,15 +1,12 @@
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tokio::io::AsyncWriteExt;
-use inotify::{Inotify, WatchMask};
-use std::path::PathBuf;
 use chrono::Utc;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "payload")]
 enum HoneypotEvent {
     PortAccess { port: u16, source_ip: String },
-    FileAccess { path: String, event_type: String },
     Status { message: String },
 }
 
@@ -56,50 +53,10 @@ async fn start_port_listener(port: u16) {
     }
 }
 
-async fn start_file_monitor(paths: Vec<PathBuf>) {
-    let mut inotify = match Inotify::init() {
-        Ok(i) => i,
-        Err(e) => {
-            emit_event(HoneypotEvent::Status {
-                message: format!("Failed to initialize inotify: {}", e),
-            });
-            return;
-        }
-    };
-
-    for path in paths {
-        if path.exists() {
-            let mask = WatchMask::ACCESS | WatchMask::MODIFY | WatchMask::OPEN;
-            if let Err(e) = inotify.watches().add(&path, mask) {
-                emit_event(HoneypotEvent::Status {
-                    message: format!("Failed to watch {:?}: {}", path, e),
-                });
-            }
-        }
-    }
-
-    let mut buffer = [0; 1024];
-    loop {
-        let events = match inotify.read_events_blocking(&mut buffer) {
-            Ok(e) => e,
-            Err(_) => continue,
-        };
-
-        for event in events {
-            let event_type = format!("{:?}", event.mask);
-            let path = event.name.map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "unknown".to_string());
-            emit_event(HoneypotEvent::FileAccess {
-                path,
-                event_type,
-            });
-        }
-    }
-}
-
 #[tokio::main]
 async fn main() {
     // Honey ports to listen on
-    let ports = vec![22, 23, 445, 3389];
+    let ports = vec![2222, 23, 445, 3389];
 
     // Launch port listeners
     for port in ports {
@@ -108,19 +65,8 @@ async fn main() {
         });
     }
 
-    // Launch file monitor
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
-    let monitor_paths = vec![
-        PathBuf::from(format!("{}/Documents", home)),
-        PathBuf::from(format!("{}/Desktop", home)),
-    ];
-
-    tokio::spawn(async move {
-        start_file_monitor(monitor_paths).await;
-    });
-
     emit_event(HoneypotEvent::Status {
-        message: "Honeypot Sidecar Started".to_string(),
+        message: "Micro-Honeypot Sidecar Started".to_string(),
     });
 
     // Keep the main thread alive
