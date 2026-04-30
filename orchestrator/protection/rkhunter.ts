@@ -14,7 +14,7 @@ export class RkhunterManager {
 
     constructor(private sidecar: SidecarManager) {}
 
-    async runScan(): Promise<RkhunterResult> {
+    async runScan(): Promise<RkhunterResult | null> {
         try {
             const result = await this.sidecar.sendCommand("scanner", "RKH_SCAN");
 
@@ -35,9 +35,9 @@ export class RkhunterManager {
 
             return result;
         } catch (e) {
-            const errorResult = { success: false, error: String(e) };
-            this.lastResult = errorResult;
-            return errorResult;
+            console.error("rkhunter scan failed", e);
+            this.lastResult = null;
+            return null;
         }
     }
 
