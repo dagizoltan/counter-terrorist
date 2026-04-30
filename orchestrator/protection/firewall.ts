@@ -1,11 +1,15 @@
 import { broadcast } from "../api/ws.ts";
 import { meshManager } from "../services/mesh.ts";
+import { isValidIP } from "../infrastructure/validation.ts";
 import { FirewallProvider } from "./interfaces.ts";
 
 export class FirewallManager {
   constructor(private provider: FirewallProvider) {}
 
   async blockIp(ip: string) {
+    if (!isValidIP(ip)) {
+      return { success: false, message: `Invalid IP address: ${ip}` };
+    }
     broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}` });
 
     // Mesh Gossip (Phase 4)
@@ -17,6 +21,9 @@ export class FirewallManager {
   }
 
   async unblockIp(ip: string) {
+    if (!isValidIP(ip)) {
+      return { success: false, message: `Invalid IP address: ${ip}` };
+    }
     broadcast({ type: "INFO", message: `Unblocking IP: ${ip}` });
     return await this.provider.unblockIp(ip);
   }

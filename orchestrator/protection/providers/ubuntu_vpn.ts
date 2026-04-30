@@ -6,6 +6,13 @@ export class UbuntuVpnProvider implements VpnProvider {
   private activeInterface: string | null = null;
 
   async connect(interfaceName: string = "wg0"): Promise<VpnResult> {
+    // Validate interface name to prevent command/argument injection
+    // wg-quick(8) recommended names: [a-zA-Z0-9_=+.-]{1,15}
+    const interfaceRegex = /^[a-zA-Z0-9_=+.-]{1,15}$/;
+    if (!interfaceRegex.test(interfaceName) || interfaceName.startsWith("-")) {
+      return { success: false, message: `Invalid interface name: ${interfaceName}` };
+    }
+
     const checkResult = await this.executor.execute("which", ["wg-quick"]);
     if (!checkResult.success) {
         return { success: false, message: "WireGuard (wg-quick) is not installed." };
