@@ -76,6 +76,23 @@ export class ProcessTracker {
         }
     }
 
+    async fullScan() {
+        try {
+            for await (const entry of Deno.readDir("/proc")) {
+                if (entry.isDirectory && /^\d+$/.test(entry.name)) {
+                    const pid = parseInt(entry.name);
+                    const ppid = await this.getPPID(pid);
+                    const comm = await this.getComm(pid);
+                    if (ppid !== null && comm !== null) {
+                        this.updateProcess(pid, ppid, comm);
+                    }
+                }
+            }
+        } catch (e) {
+            this.logging.log(`[PROCESS] Full scan failed: ${e.message}`, SyslogSeverity.ERROR);
+        }
+    }
+
     getTree(): ProcessNode[] {
         return Array.from(this.tree.values());
     }

@@ -153,6 +153,7 @@ export interface ApplicationStatus {
   isRoot: boolean;
   dependencies: Record<string, boolean>;
   platformTag: string;
-  plugins: { name: string; status: string }[];
+  platform?: PlatformInfo;
+  plugins: { name: string; status: string; details?: any }[];
 }
 

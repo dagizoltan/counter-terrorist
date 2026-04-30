@@ -63,14 +63,16 @@ export async function initializeApplication(deps: ApplicationDependencies) {
   };
 }
 
-export function createDashboardStatus(
+export async function createDashboardStatus(
   systemStatus: { os: string; isRoot: boolean; dependencies: Record<string, boolean> },
-  platformInfo: { tag: string },
+  platformPort: PlatformPort,
   pluginRegistry: PluginRegistryPort,
 ) {
+  const platform = await platformPort.getPlatformInfo();
   return {
     ...systemStatus,
-    platformTag: platformInfo.tag,
+    platformTag: platform.tag,
+    platform,
     plugins: pluginRegistry.listPlugins(),
   };
 }

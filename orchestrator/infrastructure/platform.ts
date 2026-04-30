@@ -4,10 +4,16 @@ export interface PlatformInfo {
   name: PlatformName;
   version: string;
   tag: string;
+  metrics?: {
+    memory: { total: number; free: number; used: number };
+    cpu: { load: number[]; cores: number };
+    disk: { total: number; free: number; used: number };
+    uptime: number;
+    hostname: string;
+  };
 }
 
 const WINDOWS_TAG = "windows_11";
-const MACOS_LATEST_TAGS = ["macos_15", "macos_14"];
 
 function normalizeVersion(version: string): string {
   return version.trim().replace(/[^0-9.]/g, "");
@@ -42,49 +48,63 @@ async function detectMacosVersion(): Promise<string> {
   }
 }
 
-export async function getPlatformInfo(): Promise<PlatformInfo> {
-  const envOverride = Deno.env.get("CT_PLATFORM_TAG");
-  if (envOverride) {
+async function getMetrics(): Promise<PlatformInfo["metrics"]> {
+  const isLinux = Deno.build.os === "linux";
+  if (!isLinux) return undefined;
+
+  try {
+    const meminfo = await Deno.readTextFile("/proc/meminfo");
+    const totalMem = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1] || "0") * 1024;
+    const freeMem = parseInt(meminfo.match(/MemAvailable:\s+(\d+)/)?.[1] || "0") * 1024;
+
+    const loadavg = await Deno.readTextFile("/proc/loadavg");
+    const load = loadavg.split(" ").slice(0, 3).map(parseFloat);
+
+    const uptimeStr = await Deno.readTextFile("/proc/uptime");
+    const uptime = parseFloat(uptimeStr.split(" ")[0]);
+
+    const hostname = Deno.hostname();
+
     return {
+      memory: { total: totalMem, free: freeMem, used: totalMem - freeMem },
+      cpu: { load, cores: navigator.hardwareConcurrency },
+      disk: { total: 0, free: 0, used: 0 },
+      uptime,
+      hostname,
+    };
+  } catch (e) {
+    console.error(`[PLATFORM] Failed to get metrics: ${e}`);
+    return undefined;
+  }
+}
+
+export async function getPlatformInfo(): Promise<PlatformInfo> {
+  const metrics = await getMetrics();
+  const envOverride = Deno.env.get("CT_PLATFORM_TAG");
+  
+  let info: PlatformInfo;
+  if (envOverride) {
+    info = {
       name: envOverride.startsWith("windows") ? "windows" : envOverride.startsWith("ubuntu") ? "ubuntu" : envOverride.startsWith("macos") ? "macos" : "unknown",
       version: envOverride.split("_")[1] || "unknown",
       tag: envOverride,
     };
+  } else {
+    const os = Deno.build.os;
+    if (os === "windows") {
+      info = { name: "windows", version: "11", tag: WINDOWS_TAG };
+    } else if (os === "darwin") {
+      const version = await detectMacosVersion();
+      const major = version.split(".")[0] || "unknown";
+      info = { name: "macos", version, tag: `macos_${major}` };
+    } else if (os === "linux") {
+      const version = await detectLinuxVersion();
+      const tag = version.startsWith("24.04") ? "ubuntu_24.04" : version.startsWith("26.04") ? "ubuntu_26.04" : `ubuntu_${version}`;
+      info = { name: "ubuntu", version, tag };
+    } else {
+      info = { name: "unknown", version: "unknown", tag: "unknown" };
+    }
   }
 
-  const os = Deno.build.os;
-  if (os === "windows") {
-    return {
-      name: "windows",
-      version: "11",
-      tag: WINDOWS_TAG,
-    };
-  }
-
-  if (os === "darwin") {
-    const version = await detectMacosVersion();
-    const major = version.split(".")[0] || "unknown";
-    const tag = MACOS_LATEST_TAGS.includes(`macos_${major}`) ? `macos_${major}` : `macos_${major}`;
-    return {
-      name: "macos",
-      version,
-      tag,
-    };
-  }
-
-  if (os === "linux") {
-    const version = await detectLinuxVersion();
-    const tag = version.startsWith("24.04") ? "ubuntu_24.04" : version.startsWith("26.04") ? "ubuntu_26.04" : `ubuntu_${version}`;
-    return {
-      name: "ubuntu",
-      version,
-      tag,
-    };
-  }
-
-  return {
-    name: "unknown",
-    version: "unknown",
-    tag: "unknown",
-  };
+  return { ...info, metrics };
 }

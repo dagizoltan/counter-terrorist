@@ -22,6 +22,9 @@ import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
 import { createStatsApi } from "../api/stats.ts";
+import { createAgentsRouter } from "../pages/agents/handler.tsx";
+import { createAuditRouter } from "../pages/audit/handler.tsx";
+import { createExtraPagesRouter } from "../pages/extra_handlers.tsx";
 import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role, EventBus } from "../services/index.ts";
 /**
  * IPs that must never be blocked via mesh sync gossip.
@@ -97,8 +100,6 @@ export class WebAdapter implements WebPort {
     private config: ConfigurationPort,
     private protection: ProtectionPort,
     private command: CommandPort,
-    private dashboardStatus: ApplicationStatus,
-    private platformInfo: { name: string; version: string; tag: string },
     private auditService: AuditService,
     private notificationService: NotificationService,
     private baselineService: BaselineService,
@@ -424,8 +425,35 @@ export class WebAdapter implements WebPort {
       sessionService: this.sessionService
     }));
 
+    // Agents
+    this.app.route("/agents", createAgentsRouter(async () => {
+      const { createDashboardStatus } = await import("../core/application.ts");
+      const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
+      const { bootstrap } = await import("../bootstrapper.ts");
+      const systemStatus = await bootstrap();
+      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager);
+    }));
+
+    // Audit
+    this.app.route("/audit", createAuditRouter());
+
+    // Extra Pages
+    this.app.route("/", createExtraPagesRouter(async () => {
+      const { createDashboardStatus } = await import("../core/application.ts");
+      const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
+      const { bootstrap } = await import("../bootstrapper.ts");
+      const systemStatus = await bootstrap();
+      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager);
+    }));
+
     // Dashboard
-    this.app.route("/", createDashboardRouter(this.dashboardStatus));
+    this.app.route("/", createDashboardRouter(async () => {
+      const { createDashboardStatus } = await import("../core/application.ts");
+      const { pluginManager, getPlatformInfo } = await import("../services/index.ts");
+      const { bootstrap } = await import("../bootstrapper.ts");
+      const systemStatus = await bootstrap();
+      return await createDashboardStatus(systemStatus, { getPlatformInfo }, pluginManager);
+    }));
 
     // Static assets
     this.app.get(
@@ -436,7 +464,11 @@ export class WebAdapter implements WebPort {
     );
 
     // Processes
-    this.app.get("/api/processes/tree", (c: Context) => {
+    this.app.get("/api/processes/tree", async (c: Context) => {
+      // If tree is very small or empty, trigger a scan
+      if (this.processTracker.getTree().length < 5) {
+        await this.processTracker.fullScan();
+      }
       return c.json(this.processTracker.getTree());
     });
 

@@ -62,29 +62,118 @@ export const Layout = (props: {
           <script type="module" src={path}></script>
         ))}
       </head>
-      <body class="min-h-screen flex flex-col font-sans">
-        <nav class="p-6 border-b border-white/5 flex justify-between items-center sticky top-0 bg-black/80 backdrop-blur-md z-50">
-          <div class="flex items-center gap-3">
-            <div class="w-1.5 h-6 bg-red-600"></div>
-            <h1 class="font-extrabold text-lg tracking-widest uppercase">Orchestrator</h1>
+      <body class="min-h-screen flex bg-[#050505] font-sans overflow-hidden">
+        {/* SIDEBAR */}
+        <aside id="sidebar" class="h-screen bg-black border-r border-white/5 flex flex-col transition-all duration-300 z-50 w-64 [&.compact]:w-20 group">
+          {/* BRANDING */}
+          <div class="p-6 flex items-center gap-3 border-b border-white/5 h-20">
+            <div class="min-w-[1.5rem] h-6 bg-red-600 flex-shrink-0"></div>
+            <span class="font-black text-lg tracking-widest uppercase truncate sidebar-label group-[.compact]:hidden">Orchestrator</span>
           </div>
-          <div class="flex gap-8 text-[11px] font-bold uppercase tracking-widest text-slate-400">
-            <a href="/" class="hover:text-white transition-colors">Dashboard</a>
-            <a href="/audit" class="hover:text-white transition-colors">Audit History</a>
-            <a href="/settings" class="hover:text-white transition-colors">Settings</a>
-            <form method="POST" action="/logout" class="inline">
-              <button type="submit" class="hover:text-white transition-colors">Logout</button>
+
+          {/* NAVIGATION */}
+          <nav class="flex-grow py-6 overflow-y-auto overflow-x-hidden">
+            <div class="px-4 space-y-2">
+              <a href="/" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Dashboard</span>
+              </a>
+
+              <a href="/events" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Events</span>
+              </a>
+
+              <a href="/processes" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7h-9l-3 3H2v12h20V7z"/><path d="M16 2v5"/><path d="M8 2v5"/><path d="M3 13h18"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Kernel</span>
+              </a>
+
+              <a href="/agents" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Agents</span>
+              </a>
+              
+              <a href="/sysinfo" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M20 15h2"/><path d="M9 2v2"/><path d="M9 20v2"/><path d="M2 9h2"/><path d="M20 9h2"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Sys_Info</span>
+              </a>
+
+              <a href="/audit" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10h10V2z"/><path d="M12 12H2v10h10V12z"/><path d="M22 2h-10v10h10V2z"/><path d="M22 12h-10v10h10V12z"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Audit Log</span>
+              </a>
+
+              <a href="/settings" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Settings</span>
+              </a>
+            </div>
+          </nav>
+
+          {/* FOOTER / LOGOUT */}
+          <div class="mt-auto border-t border-white/5 p-4">
+            <form method="POST" action="/logout" class="w-full">
+              <button type="submit" class="w-full flex items-center gap-4 p-3 hover:bg-red-950/20 text-slate-500 hover:text-red-500 transition-all">
+                <div class="w-6 h-6 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                </div>
+                <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Logout</span>
+              </button>
             </form>
           </div>
-        </nav>
-        
-        <main class="max-w-[1600px] mx-auto w-full p-8 flex-grow">
-          {props.children}
-        </main>
-        
-        <footer class="mt-auto border-t border-white/5 p-8 text-left text-slate-600 text-[10px] uppercase tracking-[0.2em]">
-          PROTECTION_ACTIVE // NODE: LOCALHOST // OS: LINUX
-        </footer>
+        </aside>
+
+        {/* MAIN CONTENT AREA */}
+        <div class="flex-grow h-screen flex flex-col overflow-hidden">
+          {/* HEADER / TOGGLE */}
+          <header class="h-20 border-b border-white/5 flex items-center px-8 bg-black/40 backdrop-blur-sm shrink-0">
+             <button id="sidebar-toggle" class="p-2 hover:bg-white/5 text-slate-400 hover:text-white transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+             </button>
+             <div class="ml-auto flex items-center gap-6">
+                <div class="flex flex-col items-end">
+                   <span class="text-[10px] font-black text-slate-500 tracking-widest uppercase">Node_Status</span>
+                   <span class="text-[11px] font-bold text-green-500 tracking-wider">SYNCED_0X44A</span>
+                </div>
+                <div class="w-10 h-10 bg-white/5 border border-white/5 flex items-center justify-center text-[10px] font-black">DR</div>
+             </div>
+          </header>
+
+          <main class="flex-grow overflow-y-auto">
+            <div class="max-w-[1500px] p-8 mx-auto">
+              {props.children}
+            </div>
+          </main>
+        </div>
+
+        <script dangerouslySetInnerHTML={{ __html: `
+          const sidebar = document.getElementById('sidebar');
+          const toggle = document.getElementById('sidebar-toggle');
+          
+          // Use localStorage to persist sidebar state
+          const isCompact = localStorage.getItem('sidebar-compact') === 'true';
+          if (isCompact) sidebar.classList.add('compact');
+
+          toggle.addEventListener('click', () => {
+            const nowCompact = sidebar.classList.toggle('compact');
+            localStorage.setItem('sidebar-compact', nowCompact);
+          });
+        `}} />
       </body>
     </html>
   );

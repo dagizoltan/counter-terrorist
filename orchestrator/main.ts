@@ -41,6 +41,7 @@ const sessionService = new SessionService(kv, loggingService, configProvider.get
 const apiKeysService = new ApiKeysService(kv, loggingService);
 const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager);
 await playbookService.init();
+await processTracker.fullScan();
 
 initBroadcaster({
   notificationService,
@@ -77,8 +78,6 @@ const web = new WebAdapter(
   configProvider,
   app.protection,
   app.command,
-  createDashboardStatus(app.systemStatus, app.platformInfo, pluginManager),
-  app.platformInfo,
   auditService,
   notificationService,
   baselineService,
