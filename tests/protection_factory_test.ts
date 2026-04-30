@@ -141,6 +141,17 @@ Deno.test("createPersistenceManager - Ubuntu platform", async () => {
   assertEquals(executor.lastArgs.includes("/etc/cron.d"), true);
 });
 
+Deno.test("createPersistenceManager - Default to Ubuntu for other platforms", async () => {
+  const executor = new MockExecutor();
+  const sidecar = new SidecarManager(executor);
+  const platform: PlatformInfo = { name: "macos", version: "15", tag: "macos_15" };
+
+  const manager = createPersistenceManager(sidecar, executor, platform);
+
+  await manager.audit();
+  assertEquals(executor.lastCmd, "ls");
+});
+
 Deno.test("createPcapManager", async () => {
   const executor = new MockExecutor();
   const sidecar = new MockSidecarManager(executor);
