@@ -28,6 +28,11 @@ export class FirewallManager {
     return await this.provider.unblockIp(ip);
   }
 
+  async killProcess(pid: number) {
+    broadcast({ type: "CRITICAL", message: `Quarantining process (PID: ${pid})` });
+    return await this.provider.killProcess(pid);
+  }
+
   async getStatus() {
     return await this.provider.getStatus();
   }

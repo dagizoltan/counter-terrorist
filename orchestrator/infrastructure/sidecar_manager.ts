@@ -263,6 +263,15 @@ export class SidecarManager {
     this.eventHandlers.get(name)!.push(handler);
   }
 
+  emitEvent(name: string, data: any) {
+    const handlers = this.eventHandlers.get(name);
+    if (handlers) {
+      for (const handler of handlers) {
+        handler(data);
+      }
+    }
+  }
+
   private handleSidecarExit(name: string, exitCode: number) {
     if (exitCode === 0) return; // Clean exit
     if (this.unsupportedSidecars.has(name)) return; // Don't restart unsupported sidecars

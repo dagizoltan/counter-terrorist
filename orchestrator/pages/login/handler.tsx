@@ -1,4 +1,5 @@
 import { Hono, Context } from "hono";
+import { jsx } from "hono/jsx";
 import { Login } from "./page.tsx";
 import { setCookie, getCookie, deleteCookie } from "hono/helper/cookie/index.ts";
 import { loggingService, SyslogSeverity } from "../../infrastructure/logging.ts";

@@ -98,93 +98,133 @@ class BlockingLog extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>
+        :host { display: block; background: #000; border-top: 1px solid rgba(255,255,255,0.05); }
         .controls {
-          padding: 1rem;
-          background: #0f172a;
-          border-bottom: 1px solid #1e293b;
+          padding: 1.5rem 2rem;
+          background: rgba(255,255,255,0.02);
+          border-bottom: 1px solid rgba(255,255,255,0.05);
           display: flex;
-          gap: 0.5rem;
+          gap: 1.5rem;
           align-items: center;
         }
         .filter-group {
           margin-left: auto;
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          font-size: 0.75rem;
-          color: #94a3b8;
+          gap: 1rem;
+          font-size: 10px;
+          font-weight: 800;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
         }
         select {
-          background: #1e293b;
-          border: 1px solid #334155;
+          background: #000;
+          border: 1px solid rgba(255,255,255,0.1);
           color: white;
-          padding: 0.15rem 0.3rem;
-          border-radius: 4px;
-          font-size: 0.75rem;
+          padding: 0.4rem 0.8rem;
+          border-radius: 0;
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          outline: none;
         }
         input {
-          background: #1e293b;
-          border: 1px solid #334155;
+          background: #000;
+          border: 1px solid rgba(255,255,255,0.1);
           color: white;
-          padding: 0.25rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.875rem;
+          padding: 0.6rem 1rem;
+          border-radius: 0;
+          font-size: 11px;
+          font-family: 'JetBrains Mono', monospace;
           flex-grow: 1;
+          outline: none;
         }
+        input:focus { border-color: rgba(255,255,255,0.3); }
         button {
-          background: #ef4444;
-          color: white;
+          background: #fff;
+          color: #000;
           border: none;
-          padding: 0.25rem 0.75rem;
-          border-radius: 4px;
-          font-size: 0.875rem;
-          font-weight: bold;
+          padding: 0.6rem 1.5rem;
+          border-radius: 0;
+          font-size: 10px;
+          font-weight: 900;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
           cursor: pointer;
+          transition: all 0.2s;
         }
-        button:hover { background: #dc2626; }
+        button:hover { background: #e2e8f0; }
         .log-container {
-          background: #020617;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-          font-size: 0.75rem;
-          height: 300px;
+          background: #000;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          height: 400px;
           overflow-y: auto;
-          padding: 1rem;
+          padding: 0;
         }
-        .entry { margin-bottom: 0.25rem; display: flex; gap: 0.5rem; }
-        .timestamp { color: #64748b; }
-        .type-INFO { color: #38bdf8; }
-        .type-WARN { color: #fbbf24; }
-        .type-BLOCK { color: #ef4444; font-weight: bold; }
-        .type-CRITICAL { color: #f43f5e; font-weight: bold; text-decoration: underline; }
-        .type-DRIFT_PORT { color: #a855f7; }
-        .type-DRIFT_PROCESS { color: #ec4899; }
-        .message { color: #cbd5e1; }
-        .details { color: #94a3b8; font-size: 0.7rem; margin-left: 1rem; }
+        .log-container::-webkit-scrollbar { width: 4px; }
+        .log-container::-webkit-scrollbar-track { background: transparent; }
+        .log-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+
+        .entry-group { 
+          display: grid;
+          grid-template-columns: 180px 100px 1fr;
+          gap: 1rem;
+          padding: 0.75rem 2rem;
+          border-bottom: 1px solid rgba(255,255,255,0.02);
+          align-items: center;
+          transition: background 0.1s;
+        }
+        .entry-group:hover { background: rgba(255,255,255,0.01); }
+        .timestamp { color: #475569; font-size: 10px; }
+        .type-label {
+          font-size: 9px;
+          font-weight: 900;
+          padding: 2px 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          text-align: center;
+          border-radius: 0;
+          width: fit-content;
+        }
+        .type-INFO { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
+        .type-WARN { background: rgba(251, 191, 36, 0.1); color: #fbbf24; }
+        .type-BLOCK { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .type-CRITICAL { background: #ef4444; color: #fff; }
+        .type-DRIFT_PORT { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
+        .type-DRIFT_PROCESS { background: rgba(236, 72, 153, 0.1); color: #ec4899; }
+        .message { color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .details { 
+           grid-column: 3;
+           color: #475569; 
+           font-size: 10px; 
+           margin-top: -0.25rem;
+           margin-bottom: 0.5rem;
+        }
       </style>
       <div class="controls">
-        <form id="block-form" style="display:flex; flex-grow:1; gap: 0.5rem;">
-            <input type="text" id="ip-input" placeholder="Enter IP to block..." />
-            <button type="submit">BLOCK IP</button>
+        <form id="block-form" style="display:flex; flex-grow:1; gap: 1rem;">
+            <input type="text" id="ip-input" placeholder="ENFORCEMENT_IP_ADDRESS" />
+            <button type="submit">COMMIT_BLOCK</button>
         </form>
         <div class="filter-group">
-            <span>Filter:</span>
+            <span>Filter_Level:</span>
             <select id="severity-filter">
-                <option value="ALL" ${this.filter === 'ALL' ? 'selected' : ''}>ALL</option>
-                <option value="INFO" ${this.filter === 'INFO' ? 'selected' : ''}>INFO</option>
-                <option value="WARN" ${this.filter === 'WARN' ? 'selected' : ''}>WARN+</option>
-                <option value="CRITICAL" ${this.filter === 'CRITICAL' ? 'selected' : ''}>CRITICAL</option>
-                <option value="BLOCK" ${this.filter === 'BLOCK' ? 'selected' : ''}>BLOCK</option>
+                <option value="ALL" ${this.filter === 'ALL' ? 'selected' : ''}>ALL_EVENTS</option>
+                <option value="INFO" ${this.filter === 'INFO' ? 'selected' : ''}>INFO_ONLY</option>
+                <option value="WARN" ${this.filter === 'WARN' ? 'selected' : ''}>WARNINGS+</option>
+                <option value="CRITICAL" ${this.filter === 'CRITICAL' ? 'selected' : ''}>CRITICAL_ONLY</option>
+                <option value="BLOCK" ${this.filter === 'BLOCK' ? 'selected' : ''}>BLOCK_ACTIONS</option>
             </select>
         </div>
       </div>
       <div class="log-container">
         ${filteredLogs.map(log => `
           <div class="entry-group">
-            <div class="entry">
-              <span class="timestamp">[${log.timestamp}]</span>
-              <span class="type-${log.type}">${log.type}</span>
-              <span class="message">${log.message}</span>
-            </div>
+            <span class="timestamp">${log.timestamp}</span>
+            <span class="type-label type-${log.type}">${log.type}</span>
+            <span class="message">${log.message}</span>
             ${log.data ? `<div class="details">${typeof log.data === 'string' ? log.data : JSON.stringify(log.data)}</div>` : ''}
           </div>
         `).join('')}

@@ -7,7 +7,7 @@ use chrono::Utc;
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", content = "payload")]
 enum PcapCommand {
-    StartCapture { interface: String, duration: u64, filename: String },
+    StartCapture { interface: String, duration: u64, filename: String, filter: Option<String> },
     StopCapture,
 }
 
@@ -111,10 +111,29 @@ async fn main() {
                 }
 
                 let safe_path = format!("{}/{}", capture_dir, sanitized_name);
+                let filter = cmd["payload"]["filter"].as_str();
 
-                // tcpdump -i <interface> -G <duration> -W 1 -w <filename>
+                // tcpdump -i <interface> -G <duration> -W 1 -w <filename> [filter]
+                let mut cmd_args = vec![
+                    "-i".to_string(), 
+                    interface.to_string(), 
+                    "-G".to_string(), 
+                    duration.to_string(), 
+                    "-W".to_string(), 
+                    "1".to_string(), 
+                    "-w".to_string(), 
+                    safe_path.clone()
+                ];
+
+                if let Some(f) = filter {
+                    // Simple validation for the filter
+                    if f.chars().all(|c| c.is_alphanumeric() || c == '.' || c == ':' || c == ' ' || c == '-') {
+                        cmd_args.push(f.to_string());
+                    }
+                }
+
                 let child = Command::new("tcpdump")
-                    .args(["-i", interface, "-G", &duration.to_string(), "-W", "1", "-w", &safe_path])
+                    .args(&cmd_args)
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .spawn();

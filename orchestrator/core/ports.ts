@@ -29,12 +29,14 @@ export interface CommandResult {
 export interface CommandPort {
   sendCommand(sidecar: string, command: any): Promise<CommandResult>;
   onEvent(sidecar: string, handler: (event: any) => void): void;
+  emitEvent(sidecar: string, event: any): void;
   getPersistentSidecar(sidecar: string): Promise<any>;
 }
 
 export interface FirewallPort {
   blockIp(ip: string): Promise<CommandResult>;
   unblockIp(ip: string): Promise<CommandResult>;
+  killProcess(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
 }
 

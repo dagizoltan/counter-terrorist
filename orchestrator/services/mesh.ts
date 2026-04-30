@@ -200,6 +200,22 @@ export class MeshManager {
   }
 
   /**
+   * Revokes trust from a node and removes it from the mesh.
+   */
+  isolateNode(nodeId: string) {
+    const node = this.nodes.get(nodeId);
+    if (node) {
+      this.nodes.delete(nodeId);
+      this.logging.log(`[MESH] ISOLATED NODE: ${node.hostname} (${nodeId}) revoked from mesh due to security policy.`, SyslogSeverity.CRITICAL);
+      broadcast({
+        type: "CRITICAL",
+        message: `Node ${node.hostname} isolated from mesh network!`,
+        data: { nodeId }
+      });
+    }
+  }
+
+  /**
    * Broadcasts a block command to all verified nodes in the mesh.
    */
   async broadcastBlock(ip: string) {

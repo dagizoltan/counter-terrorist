@@ -248,6 +248,9 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
 }
 
 export function validateResponse(sidecar: SidecarName, res: any): boolean {
+  // If it's an event payload, allow it without the success field
+  if (res.event) return true;
+
   if (typeof res.success !== "boolean") return false;
 
   // Additional sidecar-specific response validation can be added here

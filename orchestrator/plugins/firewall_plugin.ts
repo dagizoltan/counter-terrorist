@@ -15,10 +15,10 @@ export class FirewallPlugin implements Plugin {
     const status = await this.firewall.getStatus();
     if (status.success) {
       this.active = true;
-      console.log("[FIREWALL-PLUGIN] Firewall service plugin started.");
+      console.log("[FIREWALL-PLUGIN] Firewall service plugin started (Native).");
     } else {
-      console.error("[FIREWALL-PLUGIN] Failed to start: Firewall is unavailable.");
-      this.active = false;
+      console.warn("[FIREWALL-PLUGIN] Native firewall (ufw) restricted. Starting in SOFTWARE-ONLY mode.");
+      this.active = true; // Still allow it to be active for process-level protection
     }
   }
 

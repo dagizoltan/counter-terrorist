@@ -1,6 +1,6 @@
 use notify::{Watcher, RecursiveMode, Config, EventKind};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use chrono::Utc;
 use std::sync::mpsc::channel;
 
@@ -33,18 +33,25 @@ fn main() -> anyhow::Result<()> {
     // Automatically select the best implementation for the current platform
     let mut watcher = notify::RecommendedWatcher::new(tx, Config::default())?;
 
-    let paths_to_watch = vec![
+    let files_to_watch = vec![
         "/etc/shadow",
         "/etc/passwd",
+        "/etc/ssh/sshd_config",
+        "/etc/nginx/nginx.conf",
     ];
 
-    for path in paths_to_watch {
-        let p = PathBuf::from(path);
-        if p.exists() {
-            watcher.watch(&p, RecursiveMode::NonRecursive)?;
-            emit_event(FimEvent::Status {
-                message: format!("Watching {}", path),
-            });
+    for file_path in files_to_watch {
+        let path = Path::new(file_path);
+        if path.exists() {
+            if let Err(e) = watcher.watch(path, RecursiveMode::NonRecursive) {
+                eprintln!("Failed to watch {}: {}", file_path, e);
+            } else {
+                emit_event(FimEvent::Status {
+                    message: format!("Watching {}", file_path),
+                });
+            }
+        } else {
+            eprintln!("File not found, skipping: {}", file_path);
         }
     }
 

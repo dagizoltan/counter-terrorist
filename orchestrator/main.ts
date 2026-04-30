@@ -39,7 +39,7 @@ const processTracker = new ProcessTracker(loggingService);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
 const apiKeysService = new ApiKeysService(kv, loggingService);
-const playbookService = new PlaybookService(sidecarManager, protection, notificationService);
+const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager);
 await playbookService.init();
 
 initBroadcaster({
@@ -84,7 +84,8 @@ const web = new WebAdapter(
   baselineService,
   processTracker,
   sessionService,
-  apiKeysService
+  apiKeysService,
+  app.eventBus
 );
 
 // Handle eBPF events

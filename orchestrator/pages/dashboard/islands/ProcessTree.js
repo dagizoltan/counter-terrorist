@@ -47,13 +47,17 @@ class ProcessTree extends HTMLElement {
       <style>
         :host {
           display: block;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          font-size: 0.75rem;
-          color: #cbd5e1;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          color: #94a3b8;
         }
-        .node { margin-bottom: 0.25rem; }
-        .pid { color: #64748b; margin-right: 0.5rem; }
-        .comm { color: #38bdf8; font-weight: bold; }
+        .node { 
+          margin-bottom: 0.5rem; 
+          padding-left: 1rem;
+          border-left: 1px solid rgba(255,255,255,0.05);
+        }
+        .pid { color: #475569; margin-right: 0.75rem; font-size: 9px; }
+        .comm { color: #fff; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
       </style>
       <div class="tree-container">
         ${roots.map(r => renderNode(r)).join('')}

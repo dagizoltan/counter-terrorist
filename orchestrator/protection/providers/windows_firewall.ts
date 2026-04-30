@@ -22,6 +22,10 @@ export class WindowsFirewallProvider implements FirewallProvider {
     ]);
   }
 
+  async killProcess(pid: number): Promise<CommandResult> {
+    return await this.executor.execute("taskkill", ["/F", "/PID", pid.toString()]);
+  }
+
   async getStatus(): Promise<CommandResult> {
     return await this.executor.execute("netsh", ["advfirewall", "show", "allprofiles"]);
   }

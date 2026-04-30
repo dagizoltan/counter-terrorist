@@ -49,18 +49,6 @@ export const pluginCatalog: PlatformPluginDefinition[] = [
     create: ({ sidecarManager, firewall, pcap, broadcast }) =>
       new HoneypotPlugin(sidecarManager, firewall, pcap, broadcast),
   },
-  {
-    id: "ssh_honeypot",
-    supportedTags: ALL_TAGS,
-    create: ({ firewall, pcap, broadcast }) =>
-      new SshHoneypotPlugin(firewall, pcap, broadcast),
-  },
-  {
-    id: "redis_honeypot",
-    supportedTags: ALL_TAGS,
-    create: ({ firewall, pcap, broadcast }) =>
-      new RedisHoneypotPlugin(firewall, pcap, broadcast),
-  },
 ];
 
 const PLATFORM_FAMILIES: Record<string, string[]> = {

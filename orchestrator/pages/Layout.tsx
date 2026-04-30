@@ -16,9 +16,39 @@ export const Layout = (props: {
         <meta name="api-token" content={Deno.env.get("API_TOKEN") || ""} />
         <title>{props.title} | Security Orchestrator</title>
         
-        {/* Tailwind CDN for layout utilities */}
-        <script src="https://cdn.tailwindcss.com"></script>
+        {/* Modern Typography */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
         
+        {/* Tailwind CDN */}
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script dangerouslySetInnerHTML={{ __html: `
+          tailwind.config = {
+            theme: {
+              extend: {
+                fontFamily: {
+                  sans: ['Inter', 'sans-serif'],
+                  mono: ['JetBrains Mono', 'monospace'],
+                },
+                borderRadius: {
+                  'none': '0',
+                  'sm': '2px',
+                  'DEFAULT': '4px',
+                  'md': '6px',
+                  'lg': '8px',
+                  'xl': '12px',
+                }
+              }
+            }
+          }
+        `}} />
+        
+        <style dangerouslySetInnerHTML={{ __html: `
+          body { background-color: #050505; color: #e2e8f0; -webkit-font-smoothing: antialiased; }
+          .sharp-border { border-radius: 2px !important; }
+        `}} />
+
         {/* Global theme styles */}
         <link rel="stylesheet" href="/pages/global.css" />
 
@@ -32,28 +62,28 @@ export const Layout = (props: {
           <script type="module" src={path}></script>
         ))}
       </head>
-      <body class="min-h-screen flex flex-col">
-        <nav class="p-4 flex justify-between items-center">
-          <div class="flex items-center gap-2">
-            <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
-            <h1 class="font-bold text-xl tracking-tight">SECURE_ROOT</h1>
+      <body class="min-h-screen flex flex-col font-sans">
+        <nav class="p-6 border-b border-white/5 flex justify-between items-center sticky top-0 bg-black/80 backdrop-blur-md z-50">
+          <div class="flex items-center gap-3">
+            <div class="w-1.5 h-6 bg-red-600"></div>
+            <h1 class="font-extrabold text-lg tracking-widest uppercase">Orchestrator</h1>
           </div>
-          <div class="flex gap-6 text-sm font-medium">
-            <a href="/" class="hover:text-red-400 transition-colors">Dashboard</a>
-            <a href="/audit" class="hover:text-red-400 transition-colors">Audit History</a>
-            <a href="/settings" class="hover:text-red-400 transition-colors">Settings</a>
+          <div class="flex gap-8 text-[11px] font-bold uppercase tracking-widest text-slate-400">
+            <a href="/" class="hover:text-white transition-colors">Dashboard</a>
+            <a href="/audit" class="hover:text-white transition-colors">Audit History</a>
+            <a href="/settings" class="hover:text-white transition-colors">Settings</a>
             <form method="POST" action="/logout" class="inline">
-              <button type="submit" class="hover:text-red-400 transition-colors">Logout</button>
+              <button type="submit" class="hover:text-white transition-colors">Logout</button>
             </form>
           </div>
         </nav>
         
-        <main class="max-w-7xl mx-auto w-full p-6 flex-grow">
+        <main class="max-w-[1600px] mx-auto w-full p-8 flex-grow">
           {props.children}
         </main>
         
-        <footer class="mt-auto border-t border-slate-800 p-6 text-center text-slate-500 text-xs">
-          © 2024 Deno Security Orchestrator | Active Protection Enabled
+        <footer class="mt-auto border-t border-white/5 p-8 text-left text-slate-600 text-[10px] uppercase tracking-[0.2em]">
+          PROTECTION_ACTIVE // NODE: LOCALHOST // OS: LINUX
         </footer>
       </body>
     </html>

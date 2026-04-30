@@ -11,6 +11,10 @@ export class CommandAdapter implements CommandPort {
     this.manager.onEvent(sidecar, handler);
   }
 
+  emitEvent(sidecar: string, event: any): void {
+    this.manager.emitEvent(sidecar, event);
+  }
+
   async getPersistentSidecar(sidecar: string): Promise<any> {
     return await this.manager.getPersistentSidecar(sidecar);
   }

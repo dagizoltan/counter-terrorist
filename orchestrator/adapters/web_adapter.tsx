@@ -21,7 +21,8 @@ import { isValidIP, secureCompare } from "../infrastructure/validation.ts";
 import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
-import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role } from "../services/index.ts";
+import { createStatsApi } from "../api/stats.ts";
+import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role, EventBus } from "../services/index.ts";
 /**
  * IPs that must never be blocked via mesh sync gossip.
  * Prevents denial-of-service via loopback, link-local, or broadcast blocking.
@@ -104,6 +105,7 @@ export class WebAdapter implements WebPort {
     private processTracker: ProcessTracker,
     private sessionService: SessionService,
     private apiKeysService: ApiKeysService,
+    private eventBus: EventBusPort,
   ) {
     this.token = config.getToken();
     this.meshSecret = config.getMeshSecret();
@@ -362,6 +364,21 @@ export class WebAdapter implements WebPort {
       return c.json(result);
     });
 
+    this.app.post("/api/protection/blocker/kill", this.requireRole("admin"), async (c: Context) => {
+      const { pid } = await c.req.json();
+      if (!pid || typeof pid !== "number") {
+        return c.json({ success: false, message: "Invalid PID" }, 400);
+      }
+      const result = await this.protection.firewall.killProcess(pid);
+      return c.json(result);
+    });
+
+    this.app.post("/api/test/simulate-event", this.requireRole("admin"), async (c: Context) => {
+      const { sidecar, event } = await c.req.json();
+      this.command.emitEvent(sidecar, { event });
+      return c.json({ success: true });
+    });
+
     this.app.get("/api/protection/vpn/status", this.requireRole("admin", "operator", "viewer"), async (c: Context) => {
       const connected = await this.protection.vpn.isConnected();
       return c.json({ connected });
@@ -376,6 +393,9 @@ export class WebAdapter implements WebPort {
       const result = await this.protection.rkhunter.runScan();
       return c.json(result);
     });
+
+    // Stats
+    this.app.route("/api/stats", createStatsApi(this.eventBus));
 
     // Baseline
     this.app.post("/api/baseline/set", this.requireRole("admin", "operator"), async (c: Context) => {
