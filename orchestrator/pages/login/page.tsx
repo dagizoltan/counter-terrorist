@@ -1,7 +1,6 @@
 /** @jsx jsx */
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
-import { Layout } from "./Layout.tsx";
 
 export const Login = () => {
   return (
@@ -11,9 +10,11 @@ export const Login = () => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Login | Security Orchestrator</title>
         <script src="https://cdn.tailwindcss.com"></script>
+        <link rel="stylesheet" href="/pages/global.css" />
+        <link rel="stylesheet" href="/pages/login/style.css" />
       </head>
-      <body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center">
-        <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md">
+      <body class="login-container">
+        <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md login-box">
           <div class="flex items-center gap-2 mb-6 justify-center">
             <div class="w-4 h-4 rounded-full bg-red-500 animate-pulse"></div>
             <h1 class="font-bold text-2xl tracking-tight text-center">SECURE_ROOT</h1>
@@ -39,6 +40,9 @@ export const Login = () => {
               LOGIN
             </button>
           </form>
+          <div class="mt-4 text-center text-xs text-slate-500">
+            Unauthorized access is strictly prohibited and logged.
+          </div>
         </div>
       </body>
     </html>

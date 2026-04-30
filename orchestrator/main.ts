@@ -1,6 +1,6 @@
 import { bootstrap } from "./bootstrapper.ts";
 import { createProtection } from "./protection/index.ts";
-import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService, ProcessTracker, SessionService } from "./services/index.ts";
+import { pluginManager, getPlatformInfo, AuditService, NotificationService, EventBus, MeshManager, BaselineService, MeshAuthService, LoggingService, ProcessTracker, SessionService, ApiKeysService } from "./services/index.ts";
 import { setMeshManager } from "./services/mesh.ts";
 import { SidecarManager } from "./infrastructure/sidecar_manager.ts";
 import { SystemExecutor } from "./infrastructure/system_executor.ts";
@@ -38,11 +38,13 @@ setMeshManager(meshManager);
 const processTracker = new ProcessTracker(loggingService);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
+const apiKeysService = new ApiKeysService(kv, loggingService);
 
 initBroadcaster({
   notificationService,
   auditService,
   eventBus,
+  loggingService,
 });
 
 // Initialize Application via hexagonal core
@@ -79,7 +81,8 @@ const web = new WebAdapter(
   notificationService,
   baselineService,
   processTracker,
-  sessionService
+  sessionService,
+  apiKeysService
 );
 
 // Handle eBPF events

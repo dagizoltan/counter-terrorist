@@ -98,31 +98,94 @@ async fn main() {
 
     if let Some(ppid) = parent_pid {
         let ppid_u32 = ppid.as_u32();
-        tokio::spawn(async move {
-            let mut monitor_sys = System::new();
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                monitor_sys.refresh_process(Pid::from_u32(ppid_u32));
-                if monitor_sys.process(Pid::from_u32(ppid_u32)).is_none() {
-                    eprintln!("[CRITICAL] Parent orchestrator (PID {}) lost! Triggering lockdown...", ppid_u32);
-                    // Trigger Failsafe Lockdown (e.g., block all traffic except SSH)
-                    let _ = std::process::Command::new("ufw")
-                        .args(["default", "deny", "incoming"])
-                        .status();
-                    let _ = std::process::Command::new("ufw")
-                        .args(["default", "deny", "outgoing"])
-                        .status();
-                    // Allow SSH for recovery
-                    let _ = std::process::Command::new("ufw")
-                        .args(["allow", "22/tcp"])
-                        .status();
-                    let _ = std::process::Command::new("ufw")
-                        .arg("enable")
-                        .status();
-                    std::process::exit(1);
+
+        // --- Configurable lockdown ---
+        // CTS_LOCKDOWN_MODE: "lockdown" (default), "log" (alert only), "disabled"
+        let lockdown_mode = std::env::var("CTS_LOCKDOWN_MODE").unwrap_or_else(|_| "lockdown".to_string());
+        // CTS_LOCKDOWN_ALLOW_PORTS: Comma-separated ports to allow during lockdown (default "22/tcp")
+        let allow_ports_str = std::env::var("CTS_LOCKDOWN_ALLOW_PORTS").unwrap_or_else(|_| "22/tcp".to_string());
+        let allow_ports: Vec<String> = allow_ports_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        // CTS_LOCKDOWN_GRACE_RETRIES: Number of consecutive failures before triggering (default 3)
+        let grace_retries: u32 = std::env::var("CTS_LOCKDOWN_GRACE_RETRIES")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(3);
+        // CTS_LOCKDOWN_BREADCRUMB: Path to write lockdown breadcrumb file (for orchestrator recovery)
+        let breadcrumb_path = std::env::var("CTS_LOCKDOWN_BREADCRUMB")
+            .unwrap_or_else(|_| "/var/lib/cts/lockdown.triggered".to_string());
+
+        if lockdown_mode == "disabled" {
+            eprintln!("[INFO] Dead man's switch is DISABLED via CTS_LOCKDOWN_MODE=disabled");
+        } else {
+            tokio::spawn(async move {
+                let mut monitor_sys = System::new();
+                let mut consecutive_failures: u32 = 0;
+
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    monitor_sys.refresh_process(Pid::from_u32(ppid_u32));
+
+                    if monitor_sys.process(Pid::from_u32(ppid_u32)).is_none() {
+                        consecutive_failures += 1;
+                        eprintln!(
+                            "[WARNING] Parent orchestrator (PID {}) not found. Failure {}/{}.",
+                            ppid_u32, consecutive_failures, grace_retries
+                        );
+
+                        if consecutive_failures < grace_retries {
+                            continue; // Grace period — retry
+                        }
+
+                        eprintln!("[CRITICAL] Parent orchestrator (PID {}) lost after {} retries!", ppid_u32, grace_retries);
+
+                        if lockdown_mode == "log" {
+                            eprintln!("[LOCKDOWN] Mode is 'log' — alerting only, NOT modifying firewall.");
+                            // Write breadcrumb so the orchestrator knows lockdown was triggered
+                            let _ = std::fs::write(&breadcrumb_path, format!(
+                                "mode=log\ntimestamp={}\nppid={}\n",
+                                chrono::Utc::now().to_rfc3339(), ppid_u32
+                            ));
+                            std::process::exit(1);
+                        }
+
+                        // Mode: "lockdown" — apply firewall rules
+                        eprintln!("[LOCKDOWN] Triggering firewall lockdown...");
+                        let _ = std::process::Command::new("ufw")
+                            .args(["default", "deny", "incoming"])
+                            .status();
+                        let _ = std::process::Command::new("ufw")
+                            .args(["default", "deny", "outgoing"])
+                            .status();
+
+                        // Allow configured ports for recovery
+                        for port in &allow_ports {
+                            eprintln!("[LOCKDOWN] Allowing recovery port: {}", port);
+                            let _ = std::process::Command::new("ufw")
+                                .args(["allow", port])
+                                .status();
+                        }
+
+                        let _ = std::process::Command::new("ufw")
+                            .arg("enable")
+                            .status();
+
+                        // Write breadcrumb file for orchestrator recovery detection
+                        let breadcrumb_content = format!(
+                            "mode=lockdown\ntimestamp={}\nppid={}\nallowed_ports={}\n",
+                            chrono::Utc::now().to_rfc3339(),
+                            ppid_u32,
+                            allow_ports.join(",")
+                        );
+                        if let Err(e) = std::fs::write(&breadcrumb_path, &breadcrumb_content) {
+                            eprintln!("[LOCKDOWN] Failed to write breadcrumb to '{}': {}", breadcrumb_path, e);
+                        }
+
+                        std::process::exit(1);
+                    } else {
+                        // Parent is alive — reset counter
+                        consecutive_failures = 0;
+                    }
                 }
-            }
-        });
+            });
+        }
     }
 
     let stdin = tokio::io::stdin();

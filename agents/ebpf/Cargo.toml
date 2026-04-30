@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-aya = "0.12"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -12,9 +11,12 @@ chrono = "0.4"
 anyhow = "1.0"
 env_logger = "0.10"
 log = "0.4"
+bytes = "1.11"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+aya = "0.12"
 libc = "0.2"
 rlimit = "0.10"
-bytes = "1.11"
 ebpf-common = { path = "./common", features = ["user"] }
 
 [[bin]]

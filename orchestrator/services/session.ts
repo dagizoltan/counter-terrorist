@@ -6,11 +6,13 @@
  */
 
 import { LoggingPort, SyslogSeverity } from "../core/ports.ts";
+import { Role } from "./api_keys.ts";
 
 export interface Session {
   createdAt: number;
   expiresAt: number;
   csrfToken: string;
+  role: Role;
 }
 
 const SESSIONS_PREFIX = ["sessions"];
@@ -30,7 +32,7 @@ export class SessionService {
    * Creates a new session and returns the session ID + CSRF token.
    * The session ID is a random UUID stored in KV — not the API token.
    */
-  async createSession(): Promise<{ sessionId: string; csrfToken: string }> {
+  async createSession(role: Role = "admin"): Promise<{ sessionId: string; csrfToken: string }> {
     const sessionId = crypto.randomUUID();
     const csrfToken = crypto.randomUUID();
     const now = Date.now();
@@ -39,6 +41,7 @@ export class SessionService {
       createdAt: now,
       expiresAt: now + this.ttlMs,
       csrfToken,
+      role,
     };
 
     await this.kv.set([...SESSIONS_PREFIX, sessionId], session);

@@ -10,6 +10,7 @@ export class SidecarManager {
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
   private responseWaiters: Map<string, Map<string, { resolve: (data: SidecarResponse) => void, reject: (err: Error) => void }>> = new Map();
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
+  private unsupportedSidecars: Set<string> = new Set();
 
   constructor(private executor: SystemExecutor) {}
 
@@ -65,6 +66,10 @@ export class SidecarManager {
       throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     }
 
+    if (this.unsupportedSidecars.has(name)) {
+      return null;
+    }
+
     if (this.persistentProcesses.has(name)) {
       return this.persistentProcesses.get(name)!;
     }
@@ -97,6 +102,10 @@ export class SidecarManager {
           if (value) {
             const msg = new TextDecoder().decode(value);
             console.error(`[SIDECAR:${name}] ${msg.trim()}`);
+            if (msg.includes("UNSUPPORTED_OS")) {
+              this.unsupportedSidecars.add(name);
+              console.warn(`[SIDE-MAN] Marked sidecar ${name} as unsupported on this OS.`);
+            }
           }
         }
       } catch (e) {
@@ -158,6 +167,13 @@ export class SidecarManager {
 
         for (const line of lines) {
           if (!line.trim()) continue;
+
+          if (line.includes("UNSUPPORTED_OS")) {
+            this.unsupportedSidecars.add(name);
+            console.warn(`[SIDE-MAN] Marked sidecar ${name} as unsupported on this OS.`);
+            continue;
+          }
+
           try {
             const data = JSON.parse(line) as SidecarResponse;
 
@@ -249,6 +265,7 @@ export class SidecarManager {
 
   private handleSidecarExit(name: string, exitCode: number) {
     if (exitCode === 0) return; // Clean exit
+    if (this.unsupportedSidecars.has(name)) return; // Don't restart unsupported sidecars
 
     const now = Date.now();
     const restartInfo = this.restartCounts.get(name) || { count: 0, lastRestart: 0 };

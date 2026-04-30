@@ -1,8 +1,3 @@
-use aya::maps::PerfEventArray;
-use aya::programs::KProbe;
-use aya::{include_bytes_aligned, Bpf};
-use bytes::BytesMut;
-use ebpf_common::SyscallEvent;
 use serde::Serialize;
 use chrono::Utc;
 use std::io::{self, BufRead};
@@ -18,8 +13,15 @@ struct SyscallEventJson {
     timestamp: String,
 }
 
+#[cfg(target_os = "linux")]
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    use aya::maps::PerfEventArray;
+    use aya::programs::KProbe;
+    use aya::{include_bytes_aligned, Bpf};
+    use bytes::BytesMut;
+    use ebpf_common::SyscallEvent;
+
     env_logger::init();
 
     // Bump RLIMIT_MEMLOCK (required for BPF maps)
@@ -110,4 +112,14 @@ async fn main() -> Result<(), anyhow::Error> {
     loop {
         time::sleep(Duration::from_secs(60)).await;
     }
+}
+
+#[cfg(not(target_os = "linux"))]
+#[tokio::main]
+async fn main() -> Result<(), anyhow::Error> {
+    println!("[EBPF] UNSUPPORTED_OS: eBPF is only supported on Linux.");
+    
+    // Listen for shutdown so we don't block the orchestrator unnecessarily, 
+    // but we can exit cleanly immediately.
+    std::process::exit(0);
 }

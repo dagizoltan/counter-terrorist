@@ -136,16 +136,24 @@ fn block_ip(id: String, ip: String) -> BlockerResponse {
         };
     }
 
-    let os = std::env::consts::OS;
-    if os != "linux" {
+    os_block_ip(id, ip)
+}
+
+fn unblock_ip(id: String, ip: String) -> BlockerResponse {
+    if ip.parse::<std::net::IpAddr>().is_err() {
         return BlockerResponse {
-            id,
+            id: id.clone(),
             success: false,
-            message: format!("Unsupported OS: {}. Only Linux is supported.", os),
+            message: format!("Invalid IP address: {}", ip),
             timestamp: chrono::Utc::now().to_rfc3339(),
         };
     }
 
+    os_unblock_ip(id, ip)
+}
+
+#[cfg(target_os = "linux")]
+fn os_block_ip(id: String, ip: String) -> BlockerResponse {
     // Check if rule already exists (idempotency)
     let status_output = Command::new("ufw")
         .args(["status", "verbose"])
@@ -182,26 +190,8 @@ fn block_ip(id: String, ip: String) -> BlockerResponse {
     }
 }
 
-fn unblock_ip(id: String, ip: String) -> BlockerResponse {
-    if ip.parse::<std::net::IpAddr>().is_err() {
-        return BlockerResponse {
-            id: id.clone(),
-            success: false,
-            message: format!("Invalid IP address: {}", ip),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        };
-    }
-
-    let os = std::env::consts::OS;
-    if os != "linux" {
-        return BlockerResponse {
-            id,
-            success: false,
-            message: format!("Unsupported OS: {}. Only Linux is supported.", os),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        };
-    }
-
+#[cfg(target_os = "linux")]
+fn os_unblock_ip(id: String, ip: String) -> BlockerResponse {
     let output = Command::new("ufw")
         .args(["delete", "deny", "from", &ip])
         .output();
@@ -218,5 +208,69 @@ fn unblock_ip(id: String, ip: String) -> BlockerResponse {
             message: format!("Failed to execute firewall unblock command: {}", e),
             timestamp: chrono::Utc::now().to_rfc3339(),
         },
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn os_block_ip(id: String, ip: String) -> BlockerResponse {
+    // macOS uses pf (packet filter). We assume a table 'ct_blocked' exists or can be manipulated.
+    // sudo pfctl -t ct_blocked -T add <ip>
+    let output = Command::new("pfctl")
+        .args(["-t", "ct_blocked", "-T", "add", &ip])
+        .output();
+    match output {
+        Ok(out) => BlockerResponse {
+            id,
+            success: out.status.success(),
+            message: format!("pfctl add command executed for IP: {}", ip),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+        Err(e) => BlockerResponse {
+            id,
+            success: false,
+            message: format!("Failed to execute pfctl command: {}", e),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn os_unblock_ip(id: String, ip: String) -> BlockerResponse {
+    let output = Command::new("pfctl")
+        .args(["-t", "ct_blocked", "-T", "delete", &ip])
+        .output();
+    match output {
+        Ok(out) => BlockerResponse {
+            id,
+            success: out.status.success(),
+            message: format!("pfctl delete command executed for IP: {}", ip),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+        Err(e) => BlockerResponse {
+            id,
+            success: false,
+            message: format!("Failed to execute pfctl delete command: {}", e),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        },
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn os_block_ip(id: String, ip: String) -> BlockerResponse {
+    BlockerResponse {
+        id,
+        success: false,
+        message: format!("Unsupported OS for firewall operations"),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn os_unblock_ip(id: String, ip: String) -> BlockerResponse {
+    BlockerResponse {
+        id,
+        success: false,
+        message: format!("Unsupported OS for firewall operations"),
+        timestamp: chrono::Utc::now().to_rfc3339(),
     }
 }

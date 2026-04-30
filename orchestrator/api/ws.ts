@@ -6,7 +6,11 @@ import { WSContext } from "hono/helper/websocket/index.ts";
 import { NotificationService, AuditService, EventBus } from "../services/index.ts";
 import { LoggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 
+const MAX_CONNECTIONS = 100;
 const clients = new Set<WSContext>();
+
+// Rate limiting state per client (10 messages per second max)
+const clientRateLimits = new WeakMap<WSContext, { count: number; resetAt: number }>();
 
 export interface BroadcastData {
   type: string;
@@ -19,12 +23,15 @@ export interface BroadcasterDeps {
   notificationService: NotificationService;
   auditService: AuditService;
   eventBus: EventBus;
+  loggingService?: LoggingService;
 }
 
 let broadcasterDeps: BroadcasterDeps | null = null;
+let sharedLogging: LoggingService | null = null;
 
 export function initBroadcaster(deps: BroadcasterDeps) {
   broadcasterDeps = deps;
+  sharedLogging = deps.loggingService || new LoggingService();
 }
 
 export function broadcast(data: BroadcastData) {
@@ -33,7 +40,8 @@ export function broadcast(data: BroadcastData) {
     return;
   }
   const { notificationService, auditService, eventBus } = broadcasterDeps;
-  const timestamp = new Date().toLocaleTimeString();
+  // Use ISO 8601 instead of locale string for standardized cross-node correlation
+  const timestamp = new Date().toISOString();
   const eventToBroadcast = {
     ...data,
     timestamp
@@ -74,28 +82,81 @@ export function broadcast(data: BroadcastData) {
   else if (data.type?.startsWith("DRIFT")) severity = SyslogSeverity.WARNING;
   else if (data.type === "BLOCK") severity = SyslogSeverity.NOTICE;
 
-  const logging = new LoggingService();
-  logging.log(`${data.type}: ${data.message || ""}`, severity).catch(console.error);
+  if (sharedLogging) {
+    sharedLogging.log(`${data.type}: ${data.message || ""}`, severity).catch(console.error);
+  }
 }
 
 export const wsHandler = {
   onOpen(_event: Event, ws: WSContext) {
+    if (clients.size >= MAX_CONNECTIONS) {
+      console.warn("[WS] Max connections reached. Rejecting client.");
+      ws.close(1013, "Try Again Later - Server Too Busy");
+      return;
+    }
+
     clients.add(ws);
-    console.log("WebSocket client connected");
+    clientRateLimits.set(ws, { count: 0, resetAt: Date.now() + 1000 });
+    
+    if (sharedLogging) {
+      sharedLogging.log(`[WS] Client connected. Total connections: ${clients.size}`, SyslogSeverity.INFORMATIONAL);
+    }
+
     ws.send(JSON.stringify({
       type: "INFO",
       message: "Security Orchestrator WebSocket Connected",
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date().toISOString()
     }));
   },
-  onMessage(event: MessageEvent, _ws: WSContext) {
-    console.log("Message from client:", event.data);
+  
+  onMessage(event: MessageEvent, ws: WSContext) {
+    // Rate Limiting
+    const rateData = clientRateLimits.get(ws);
+    const now = Date.now();
+    if (rateData) {
+      if (now > rateData.resetAt) {
+        rateData.count = 1;
+        rateData.resetAt = now + 1000;
+      } else {
+        rateData.count++;
+        if (rateData.count > 10) {
+          if (sharedLogging) sharedLogging.log("[WS] Client rate limit exceeded. Disconnecting abuser.", SyslogSeverity.WARNING);
+          ws.close(1008, "Policy Violation - Rate Limit Exceeded");
+          return;
+        }
+      }
+    }
+
+    // Message Validation (Schema)
+    try {
+      if (typeof event.data !== "string") {
+        throw new Error("Payload must be a string");
+      }
+      
+      const payload = JSON.parse(event.data);
+      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+        throw new Error("Payload must be a JSON object");
+      }
+
+      // We only accept specific ping/pong or structured log payloads from clients
+      if (payload.type === "PING") {
+        ws.send(JSON.stringify({ type: "PONG", timestamp: new Date().toISOString() }));
+      } else {
+        // Unknown or invalid payload type from client
+        if (sharedLogging) sharedLogging.log(`[WS] Invalid message type received: ${payload.type}`, SyslogSeverity.WARNING);
+      }
+    } catch (e) {
+      if (sharedLogging) sharedLogging.log(`[WS] Malformed message received: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.WARNING);
+      ws.close(1003, "Unsupported Data");
+    }
   },
+  
   onClose(_event: Event, ws: WSContext) {
-    console.log("WebSocket client disconnected");
     clients.delete(ws);
+    clientRateLimits.delete(ws);
   },
+  
   onError(event: Event) {
-    console.error("WebSocket error:", event);
+    console.error("[WS] WebSocket error:", event);
   },
 };

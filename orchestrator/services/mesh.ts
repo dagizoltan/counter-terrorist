@@ -8,6 +8,8 @@ export interface MeshNode {
   address: string;
   port: number;
   lastSeen: number;
+  /** Whether this node has been validated via mTLS handshake. */
+  verified: boolean;
 }
 
 export class MeshManager {
@@ -17,9 +19,11 @@ export class MeshManager {
   private nodeId: string = "";
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
+  private meshSecret: string | undefined;
 
   constructor(private meshAuth: MeshAuthService, private logging: LoggingPort) {
     this.logging.log("[MESH] Initializing Mesh Infrastructure...", SyslogSeverity.NOTICE);
+    this.meshSecret = Deno.env.get("MESH_SECRET");
   }
 
   async init() {
@@ -84,12 +88,14 @@ export class MeshManager {
              const address = (addr as Deno.NetAddr).hostname;
 
              if (id !== this.nodeId) {
-               this.registerNode({
+               // Security: Don't trust mDNS alone — validate via mTLS before accepting
+               this.validateAndRegisterNode({
                  id,
                  hostname: id,
                  address,
                  port,
-                 lastSeen: Date.now()
+                 lastSeen: Date.now(),
+                 verified: false,
                });
              }
            }
@@ -116,12 +122,71 @@ export class MeshManager {
     }
   }
 
+  /**
+   * Validates a discovered node via mTLS handshake before trusting it.
+   * An mDNS announcement alone is not sufficient — any LAN host can spoof one.
+   */
+  private async validateAndRegisterNode(node: MeshNode) {
+    // If already known and verified, just update lastSeen
+    const existing = this.nodes.get(node.id);
+    if (existing?.verified) {
+      existing.lastSeen = Date.now();
+      return;
+    }
+
+    if (!this.httpClient) {
+      this.logging.log(
+        `[MESH] Cannot validate node ${node.id} — mTLS client not initialized. Skipping.`,
+        SyslogSeverity.WARNING
+      );
+      return;
+    }
+
+    try {
+      // Attempt mTLS handshake by hitting the node's /api/mesh/ping endpoint
+      const url = `https://${node.address}:${node.port}/api/mesh/ping`;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (this.meshSecret) {
+        headers["X-Mesh-Secret"] = this.meshSecret;
+      }
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        client: this.httpClient,
+        signal: AbortSignal.timeout(5000), // 5s timeout
+      });
+
+      if (!res.ok) {
+        throw new Error(`Ping returned status ${res.status}`);
+      }
+
+      const body = await res.json();
+      if (body.success && body.nodeId) {
+        // Verified — the node presented a valid mTLS certificate signed by our CA
+        node.verified = true;
+        this.registerNode(node);
+        this.logging.log(
+          `[MESH] Node ${node.id} at ${node.address}:${node.port} passed mTLS validation.`,
+          SyslogSeverity.NOTICE
+        );
+      } else {
+        throw new Error("Invalid ping response");
+      }
+    } catch (e) {
+      this.logging.log(
+        `[MESH] REJECTED node ${node.id} at ${node.address}:${node.port} — mTLS validation failed: ${e instanceof Error ? e.message : String(e)}`,
+        SyslogSeverity.WARNING
+      );
+    }
+  }
+
   registerNode(node: MeshNode) {
     const isNew = !this.nodes.has(node.id);
     this.nodes.set(node.id, { ...node, lastSeen: Date.now() });
 
     if (isNew) {
-      this.logging.log(`[MESH] New node discovered: ${node.hostname} (${node.address}:${node.port})`, SyslogSeverity.NOTICE);
+      this.logging.log(`[MESH] New node registered: ${node.hostname} (${node.address}:${node.port}) [verified=${node.verified}]`, SyslogSeverity.NOTICE);
       broadcast({
         type: "INFO",
         message: `New security node joined the mesh: ${node.hostname}`,
@@ -135,14 +200,15 @@ export class MeshManager {
   }
 
   /**
-   * Broadcasts a block command to all discovered nodes in the mesh.
+   * Broadcasts a block command to all verified nodes in the mesh.
    */
   async broadcastBlock(ip: string) {
-    if (this.nodes.size === 0) return;
+    const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+    if (verifiedNodes.length === 0) return;
 
-    this.logging.log(`[MESH] Gossip: Broadcasting block for ${ip} to ${this.nodes.size} nodes...`, SyslogSeverity.NOTICE);
+    this.logging.log(`[MESH] Gossip: Broadcasting block for ${ip} to ${verifiedNodes.length} verified nodes...`, SyslogSeverity.NOTICE);
 
-    for (const node of this.nodes.values()) {
+    for (const node of verifiedNodes) {
         this.sendSync(node, { type: "GOSSIP_BLOCK", ip }).catch(err => {
             console.warn(`[MESH] Failed to gossip with ${node.hostname}: ${err.message}`);
         });
@@ -153,10 +219,14 @@ export class MeshManager {
     if (!this.httpClient) await this.init();
 
     const url = `https://${node.address}:${node.port}/api/mesh/sync`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (this.meshSecret) {
+      headers["X-Mesh-Secret"] = this.meshSecret;
+    }
 
     const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
         client: this.httpClient!
     });

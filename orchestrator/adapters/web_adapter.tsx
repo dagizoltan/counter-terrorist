@@ -11,9 +11,9 @@ import {
 } from "hono/helper/cookie/index.ts";
 import { cors } from "hono/middleware/cors/index.ts";
 import { WebPort, ApplicationStatus, ProtectionPort, CommandPort, ConfigurationPort } from "../core/ports.ts";
-import { Dashboard } from "../views/Dashboard.tsx";
-import { Login } from "../views/Login.tsx";
 import { AppError } from "../core/errors.ts";
+import { createDashboardRouter } from "../pages/dashboard/handler.tsx";
+import { createLoginRouter, createLogoutRouter } from "../pages/login/handler.tsx";
 import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 import { wsHandler } from "../api/ws.ts";
 import { broadcast } from "../api/ws.ts";
@@ -21,8 +21,7 @@ import { isValidIP, secureCompare } from "../infrastructure/validation.ts";
 import { createReportsApi } from "../api/reports.ts";
 import { createNotificationsApi } from "../api/notifications.ts";
 import { createAuditApi } from "../api/audit.ts";
-import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService } from "../services/index.ts";
-
+import { AuditService, NotificationService, BaselineService, ProcessTracker, SessionService, ApiKeysService, Role } from "../services/index.ts";
 /**
  * IPs that must never be blocked via mesh sync gossip.
  * Prevents denial-of-service via loopback, link-local, or broadcast blocking.
@@ -104,6 +103,7 @@ export class WebAdapter implements WebPort {
     private baselineService: BaselineService,
     private processTracker: ProcessTracker,
     private sessionService: SessionService,
+    private apiKeysService: ApiKeysService,
   ) {
     this.token = config.getToken();
     this.meshSecret = config.getMeshSecret();
@@ -217,10 +217,12 @@ export class WebAdapter implements WebPort {
 
     // --- Standard user/API authentication middleware ---
     const authMiddleware = async (c: Context, next: Next) => {
-      // Session cookie auth (cookie contains a random session ID, NOT the API token)
+      // 1. Session cookie auth (cookie contains a random session ID, NOT the API token)
       const sessionId = getCookie(c, "session_token");
       const session = await this.sessionService.validateSession(sessionId);
       if (session) {
+        c.set("role", session.role || "admin");
+        
         // CSRF protection for state-changing methods when using cookie auth
         const method = c.req.method;
         if (method === "POST" || method === "DELETE" || method === "PUT" || method === "PATCH") {
@@ -233,11 +235,22 @@ export class WebAdapter implements WebPort {
         return next();
       }
 
-      // Bearer token auth (for API/automation clients — uses the real API_TOKEN)
+      // 2. Bearer token auth (for API/automation clients — uses the real API_TOKEN)
       const authHeader = c.req.header("Authorization");
       if (authHeader && authHeader.startsWith("Bearer ")) {
         const bearerToken = authHeader.substring(7);
         if (await this.isTokenValid(bearerToken)) {
+          c.set("role", "admin"); // Root token is always admin
+          return next();
+        }
+      }
+
+      // 3. API Key auth (for scoped operator/viewer roles)
+      const apiKeyHeader = c.req.header("X-Api-Key");
+      if (apiKeyHeader) {
+        const role = await this.apiKeysService.validateApiKey(apiKeyHeader);
+        if (role) {
+          c.set("role", role);
           return next();
         }
       }
@@ -262,6 +275,24 @@ export class WebAdapter implements WebPort {
     this.app.use("/", authMiddleware);
   }
 
+  /**
+   * Middleware to enforce role-based access control.
+   * Must be applied AFTER authMiddleware.
+   */
+  private requireRole(...allowedRoles: Role[]) {
+    return async (c: Context, next: Next) => {
+      const role = c.get("role") as Role;
+      if (!role) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+      if (!allowedRoles.includes(role)) {
+        loggingService.log(`[AUTH] Access denied for role '${role}' to ${c.req.method} ${c.req.path}`, SyslogSeverity.WARNING);
+        return c.json({ error: "Forbidden: insufficient permissions" }, 403);
+      }
+      return next();
+    };
+  }
+
   private setupRoutes() {
     // Platform info
     this.app.get("/api/platform", (c: Context) => {
@@ -272,12 +303,12 @@ export class WebAdapter implements WebPort {
       });
     });
 
-    this.app.get("/api/status", (c: Context) => {
+    this.app.get("/api/status", this.requireRole("admin", "operator", "viewer"), (c: Context) => {
       return c.json(this.dashboardStatus);
     });
 
     // Agent status
-    this.app.get("/api/agent/status", async (c: Context) => {
+    this.app.get("/api/agent/status", this.requireRole("admin", "operator", "viewer"), async (c: Context) => {
       const fwStatus = await this.protection.firewall.getStatus();
 
       let blockerExists = false;
@@ -313,7 +344,7 @@ export class WebAdapter implements WebPort {
     });
 
     // Protection routes
-    this.app.post("/api/protection/firewall/block", async (c: Context) => {
+    this.app.post("/api/protection/firewall/block", this.requireRole("admin"), async (c: Context) => {
       const { ip } = await c.req.json();
       if (!ip || !isValidIP(ip)) {
         return c.json({ success: false, message: "Invalid IP address" }, 400);
@@ -322,7 +353,7 @@ export class WebAdapter implements WebPort {
       return c.json(result);
     });
 
-    this.app.delete("/api/protection/firewall/block/:ip", async (c: Context) => {
+    this.app.delete("/api/protection/firewall/block/:ip", this.requireRole("admin"), async (c: Context) => {
       const ip = c.req.param("ip");
       if (!ip || !isValidIP(ip)) {
         return c.json({ success: false, message: "Invalid IP address" }, 400);
@@ -331,28 +362,28 @@ export class WebAdapter implements WebPort {
       return c.json(result);
     });
 
-    this.app.get("/api/protection/vpn/status", async (c: Context) => {
+    this.app.get("/api/protection/vpn/status", this.requireRole("admin", "operator", "viewer"), async (c: Context) => {
       const connected = await this.protection.vpn.isConnected();
       return c.json({ connected });
     });
 
-    this.app.get("/api/protection/av/status", async (c: Context) => {
+    this.app.get("/api/protection/av/status", this.requireRole("admin", "operator", "viewer"), async (c: Context) => {
       const status = await this.protection.antivirus.getStatus();
       return c.json(status);
     });
 
-    this.app.post("/api/protection/rkhunter/scan", async (c: Context) => {
+    this.app.post("/api/protection/rkhunter/scan", this.requireRole("admin", "operator"), async (c: Context) => {
       const result = await this.protection.rkhunter.runScan();
       return c.json(result);
     });
 
     // Baseline
-    this.app.post("/api/baseline/set", async (c: Context) => {
+    this.app.post("/api/baseline/set", this.requireRole("admin", "operator"), async (c: Context) => {
       const result = await this.baselineService.setBaseline();
       return c.json(result);
     });
 
-    this.app.post("/api/baseline/check", async (c: Context) => {
+    this.app.post("/api/baseline/check", this.requireRole("admin", "operator"), async (c: Context) => {
       const result = await this.baselineService.checkDrift();
       return c.json(result);
     });
@@ -361,100 +392,26 @@ export class WebAdapter implements WebPort {
     this.app.get("/api/ws/events", upgradeWebSocket(() => wsHandler));
 
     // Login
-    this.app.get("/login", (c: Context) => {
-      return c.html(<Login />);
-    });
-
-    this.app.post("/login", async (c: Context) => {
-      // Rate limiting: check per-IP attempt count
-      const clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
-        || c.req.header("x-real-ip")
-        || "unknown";
-
-      const rateCheck = checkLoginRateLimit(clientIp);
-      if (!rateCheck.allowed) {
-        const retryAfterSec = Math.ceil((rateCheck.retryAfterMs || 60_000) / 1000);
-        loggingService.log(
-          `[AUTH] Login rate limit exceeded for IP ${clientIp}. Retry after ${retryAfterSec}s.`,
-          SyslogSeverity.WARNING
-        );
-        c.header("Retry-After", String(retryAfterSec));
-        return c.json({ error: "Too many login attempts. Please try again later." }, 429);
-      }
-
-      let token: string | undefined;
-      const contentType = c.req.header("Content-Type");
-      if (contentType && contentType.includes("application/json")) {
-        const body = await c.req.json();
-        token = body.token;
-      } else {
-        const body = await c.req.parseBody();
-        token = body.password as string;
-      }
-
-      if (token && (await this.isTokenValid(token))) {
-        // Security: Generate an ephemeral session ID — never store the raw API token in cookies.
-        const { sessionId, csrfToken } = await this.sessionService.createSession();
-
-        const secureCookie = this.config.getBoolean("COOKIE_SECURE", true);
-        setCookie(c, "session_token", sessionId, {
-          httpOnly: true,
-          secure: secureCookie,
-          sameSite: "Strict",
-          maxAge: 86400, // 24 hours
-        });
-
-        if (contentType && contentType.includes("application/json")) {
-            return c.json({ success: true, csrfToken });
-        }
-
-        // For form-based login, provide the CSRF token via a redirect cookie.
-        // The dashboard JS will read this non-httpOnly cookie for X-CT-Token headers.
-        setCookie(c, "csrf_token", csrfToken, {
-          httpOnly: false,
-          secure: secureCookie,
-          sameSite: "Strict",
-          maxAge: 86400,
-        });
-
-        return c.redirect("/");
-      }
-
-      loggingService.log(
-        `[AUTH] Failed login attempt from IP ${clientIp}`,
-        SyslogSeverity.NOTICE
-      );
-      return c.json({ error: "Invalid token" }, 401);
-    });
+    this.app.route("/login", createLoginRouter({
+      checkLoginRateLimit,
+      isTokenValid: (t) => this.isTokenValid(t),
+      sessionService: this.sessionService,
+      config: this.config
+    }));
 
     // Logout
-    this.app.post("/logout", async (c: Context) => {
-      const sessionId = getCookie(c, "session_token");
-      if (sessionId) {
-        await this.sessionService.revokeSession(sessionId);
-      }
-      deleteCookie(c, "session_token");
-      deleteCookie(c, "csrf_token");
-      return c.redirect("/login");
-    });
+    this.app.route("/logout", createLogoutRouter({
+      sessionService: this.sessionService
+    }));
 
     // Dashboard
-    this.app.get("/", (c: Context) => {
-      return c.html(<Dashboard status={this.dashboardStatus} />);
-    });
+    this.app.route("/", createDashboardRouter(this.dashboardStatus));
 
     // Static assets
     this.app.get(
-      "/components/*",
+      "/pages/*",
       serveStatic({
-        root: "./public",
-      }),
-    );
-
-    this.app.get(
-      "/static/*",
-      serveStatic({
-        root: "./public",
+        root: "./orchestrator",
       }),
     );
 
@@ -487,10 +444,36 @@ export class WebAdapter implements WebPort {
       return c.json({ success: true });
     });
 
+    // Enforce roles on sub-routers
+    this.app.use("/api/reports/*", this.requireRole("admin", "operator", "viewer"));
+    this.app.use("/api/notifications/*", this.requireRole("admin"));
+    this.app.use("/api/audit/*", this.requireRole("admin", "operator", "viewer"));
+
     // API modules
     this.app.route("/api/reports", createReportsApi(this.baselineService, this.protection));
     this.app.route("/api/notifications", createNotificationsApi(this.notificationService));
     this.app.route("/api/audit", createAuditApi(this.auditService));
+
+    // Admin: API Key Management
+    this.app.post("/api/admin/api-keys", this.requireRole("admin"), async (c: Context) => {
+      const { name, role } = await c.req.json();
+      if (!name || !["operator", "viewer"].includes(role)) {
+        return c.json({ error: "Invalid name or role" }, 400);
+      }
+      const result = await this.apiKeysService.createApiKey(name, role);
+      return c.json(result);
+    });
+
+    this.app.get("/api/admin/api-keys", this.requireRole("admin"), async (c: Context) => {
+      const keys = await this.apiKeysService.listApiKeys();
+      return c.json({ keys });
+    });
+
+    this.app.delete("/api/admin/api-keys/:id", this.requireRole("admin"), async (c: Context) => {
+      const id = c.req.param("id");
+      await this.apiKeysService.revokeApiKey(id);
+      return c.json({ success: true });
+    });
   }
 
   /**
@@ -515,7 +498,28 @@ export class WebAdapter implements WebPort {
   }
 
   async start(port: number = 8000): Promise<void> {
-    console.log(`[WEB] Starting server on port ${port}`);
-    await Deno.serve({ port }, this.app.fetch);
+    const certPath = this.config.getEnv("TLS_CERT_PATH");
+    const keyPath = this.config.getEnv("TLS_KEY_PATH");
+
+    if (certPath && keyPath) {
+      try {
+        const cert = await Deno.readTextFile(certPath);
+        const key = await Deno.readTextFile(keyPath);
+
+        console.log(`[WEB] Starting HTTPS server on port ${port} (TLS enabled)`);
+        await Deno.serve({ port, cert, key }, this.app.fetch);
+      } catch (e) {
+        console.error(`[WEB] Failed to load TLS certificates: ${e}`);
+        console.error(`[WEB] cert: ${certPath}, key: ${keyPath}`);
+        throw new Error(`TLS configuration failed: ${e}`);
+      }
+    } else {
+      loggingService.log(
+        "[WEB] SECURITY WARNING: Running HTTP without TLS. Set TLS_CERT_PATH and TLS_KEY_PATH for HTTPS.",
+        SyslogSeverity.WARNING,
+      );
+      console.log(`[WEB] Starting HTTP server on port ${port} (no TLS)`);
+      await Deno.serve({ port }, this.app.fetch);
+    }
   }
 }

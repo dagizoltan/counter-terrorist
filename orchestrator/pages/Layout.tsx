@@ -2,7 +2,12 @@
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
 
-export const Layout = (props: { title: string; children: any }) => {
+export const Layout = (props: {
+  title: string;
+  children: any;
+  cssPaths?: string[];
+  islandPaths?: string[];
+}) => {
   return (
     <html lang="en">
       <head>
@@ -10,13 +15,25 @@ export const Layout = (props: { title: string; children: any }) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="api-token" content={Deno.env.get("API_TOKEN") || ""} />
         <title>{props.title} | Security Orchestrator</title>
+        
+        {/* Tailwind CDN for layout utilities */}
         <script src="https://cdn.tailwindcss.com"></script>
-        <script type="module" src="/components/StatusIndicator.js"></script>
-        <script type="module" src="/components/BlockingLog.js"></script>
-        <script type="module" src="/components/ProcessTree.js"></script>
+        
+        {/* Global theme styles */}
+        <link rel="stylesheet" href="/pages/global.css" />
+
+        {/* Page specific styles */}
+        {props.cssPaths?.map((path) => (
+          <link rel="stylesheet" href={path} />
+        ))}
+
+        {/* Page specific islands (Web Components) */}
+        {props.islandPaths?.map((path) => (
+          <script type="module" src={path}></script>
+        ))}
       </head>
-      <body class="bg-slate-900 text-slate-100 min-h-screen">
-        <nav class="border-b border-slate-800 p-4 flex justify-between items-center bg-slate-950">
+      <body class="min-h-screen flex flex-col">
+        <nav class="p-4 flex justify-between items-center">
           <div class="flex items-center gap-2">
             <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
             <h1 class="font-bold text-xl tracking-tight">SECURE_ROOT</h1>
@@ -25,11 +42,16 @@ export const Layout = (props: { title: string; children: any }) => {
             <a href="/" class="hover:text-red-400 transition-colors">Dashboard</a>
             <a href="/audit" class="hover:text-red-400 transition-colors">Audit History</a>
             <a href="/settings" class="hover:text-red-400 transition-colors">Settings</a>
+            <form method="POST" action="/logout" class="inline">
+              <button type="submit" class="hover:text-red-400 transition-colors">Logout</button>
+            </form>
           </div>
         </nav>
-        <main class="max-w-7xl mx-auto p-6">
+        
+        <main class="max-w-7xl mx-auto w-full p-6 flex-grow">
           {props.children}
         </main>
+        
         <footer class="mt-auto border-t border-slate-800 p-6 text-center text-slate-500 text-xs">
           © 2024 Deno Security Orchestrator | Active Protection Enabled
         </footer>
