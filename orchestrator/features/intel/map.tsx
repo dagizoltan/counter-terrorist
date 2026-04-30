@@ -1,4 +1,4 @@
-import { Layout } from "../Layout.tsx";
+import { Layout } from "../../components/Layout.tsx";
 
 export default function ThreatMapPage() {
   return (

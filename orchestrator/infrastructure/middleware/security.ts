@@ -21,7 +21,7 @@ export class SecurityMiddleware {
       const path = c.req.path;
       
       // 1. Skip auth for public routes
-      if (path === "/login" || path === "/logout" || path.startsWith("/pages/")) {
+      if (path === "/login" || path === "/logout" || path.startsWith("/features/") || path.startsWith("/components/")) {
         return next();
       }
 

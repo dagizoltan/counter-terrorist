@@ -1,7 +1,7 @@
 /** @jsx jsx */
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
-import { Layout } from "../Layout.tsx";
+import { Layout } from "../../components/Layout.tsx";
 
 export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: any }, csrfToken?: string }) => {
   const { agent } = props;

@@ -1,7 +1,7 @@
 /** @jsx jsx */
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
-import { Layout } from "../Layout.tsx";
+import { Layout } from "../../components/Layout.tsx";
 import { ApplicationStatus } from "../../core/ports.ts";
 
 export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: string }) => {

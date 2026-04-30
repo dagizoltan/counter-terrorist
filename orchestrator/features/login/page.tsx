@@ -10,7 +10,7 @@ export const Login = () => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Login | Security Orchestrator</title>
         <script src="https://cdn.tailwindcss.com"></script>
-        <link rel="stylesheet" href="/pages/global.css" />
+        <link rel="stylesheet" href="/components/theme.css" />
         <link rel="stylesheet" href="/pages/login/style.css" />
       </head>
       <body class="login-container">

@@ -1,7 +1,7 @@
 /** @jsx jsx */
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
-import { Layout } from "../../Layout.tsx";
+import { Layout } from "../../../components/Layout.tsx";
 
 export const FirewallPage = () => (
   <Layout title="Firewall Agent" islandPaths={['/pages/dashboard/islands/FirewallAgent.js']}>

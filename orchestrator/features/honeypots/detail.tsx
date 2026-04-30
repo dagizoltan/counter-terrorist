@@ -1,7 +1,7 @@
 /** @jsx jsx */
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
-import { Layout } from "../Layout.tsx";
+import { Layout } from "../../components/Layout.tsx";
 import { HoneypotModule } from "../../services/honeypot_service.ts";
 
 export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {

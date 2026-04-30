@@ -1,7 +1,7 @@
 /** @jsx jsx */
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
-import { Layout } from "../../Layout.tsx";
+import { Layout } from "../../../components/Layout.tsx";
 
 export const EbpfPage = () => (
   <Layout title="Kernel eBPF Observability" islandPaths={['/pages/dashboard/islands/BlockingLog.js']}>

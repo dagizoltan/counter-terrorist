@@ -1,7 +1,7 @@
 /** @jsx jsx */
 /** @jsxFrag Fragment */
 import { jsx, Fragment } from "hono/jsx";
-import { Layout } from "../Layout.tsx";
+import { Layout } from "../../components/Layout.tsx";
 
 export const NotificationsPage = (props: { csrfToken?: string }) => {
   const islandPaths = ['/pages/dashboard/islands/WebhookManager.js'];

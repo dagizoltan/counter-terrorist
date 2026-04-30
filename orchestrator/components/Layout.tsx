@@ -52,7 +52,7 @@ export const Layout = (props: {
         `}} />
 
         {/* Global theme styles */}
-        <link rel="stylesheet" href="/pages/global.css" />
+        <link rel="stylesheet" href="/components/theme.css" />
 
         {/* Page specific styles */}
         {props.cssPaths?.map((path) => (

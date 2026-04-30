@@ -5,7 +5,7 @@ import { Hono, Context } from "hono";
 import { serveStatic, upgradeWebSocket } from "hono/deno";
 import { WebPort, ApplicationStatus } from "../core/ports.ts";
 import { AppError } from "../core/errors.ts";
-import { createLoginRouter, createLogoutRouter } from "../pages/login/handler.tsx";
+import { createLoginRouter, createLogoutRouter } from "../features/login/handler.tsx";
 import { loggingService, SyslogSeverity } from "../infrastructure/logging.ts";
 import { wsHandler } from "../api/ws.ts";
 import { ServiceContainer } from "../core/container.ts";
@@ -51,7 +51,7 @@ export class WebAdapter implements WebPort {
     });
 
     // 3. Static Assets (Unified)
-    this.app.get("/pages/*", serveStatic({ root: "./orchestrator" }));
+    this.app.get("/features/*", serveStatic({ root: "./orchestrator" }));
     this.app.get("/components/*", serveStatic({ root: "./orchestrator" }));
 
     // 4. Public Access (Auth, Login, Logout)
