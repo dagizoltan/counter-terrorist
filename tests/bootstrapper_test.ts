@@ -20,6 +20,40 @@ Deno.test("checkDependency - which succeeds", async () => {
   }
 });
 
+Deno.test("checkDependency - empty string", async () => {
+  const commandStub = stub(Deno, "Command", (cmd: any, options?: any) => {
+    assertEquals(options?.args, [""]);
+    return {
+      output: () => Promise.resolve({ success: false, stdout: new Uint8Array(), stderr: new Uint8Array() }),
+    } as any;
+  });
+
+  try {
+    const result = await checkDependency("");
+    assertEquals(result, false);
+    assertEquals(commandStub.calls.length, 1);
+  } finally {
+    commandStub.restore();
+  }
+});
+
+Deno.test("checkDependency - special characters", async () => {
+  const commandStub = stub(Deno, "Command", (cmd: any, options?: any) => {
+    assertEquals(options?.args, ["cmd; rm -rf /"]);
+    return {
+      output: () => Promise.resolve({ success: false, stdout: new Uint8Array(), stderr: new Uint8Array() }),
+    } as any;
+  });
+
+  try {
+    const result = await checkDependency("cmd; rm -rf /");
+    assertEquals(result, false);
+    assertEquals(commandStub.calls.length, 1);
+  } finally {
+    commandStub.restore();
+  }
+});
+
 Deno.test("checkDependency - which fails", async () => {
   const commandStub = stub(Deno, "Command", (cmd: any, options?: any) => {
     assertEquals(cmd, "which");
