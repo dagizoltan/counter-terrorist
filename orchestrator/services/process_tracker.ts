@@ -89,7 +89,8 @@ export class ProcessTracker {
                 }
             }
         } catch (e) {
-            this.logging.log(`[PROCESS] Full scan failed: ${e.message}`, SyslogSeverity.ERROR);
+            const msg = e instanceof Error ? e.message : String(e);
+            this.logging.log(`[PROCESS] Full scan failed: ${msg}`, SyslogSeverity.ERROR);
         }
     }
 

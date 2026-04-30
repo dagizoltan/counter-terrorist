@@ -175,3 +175,9 @@ export function setMetricsService(instance: MetricsService) {
 export function getMetricsSnapshot(): SystemMetrics | null {
     return _metricsInstance?.getLatest() ?? null;
 }
+
+export function recordScannerResult(time: string, result: string) {
+    if (_metricsInstance) {
+        _metricsInstance.recordScan(time, result);
+    }
+}

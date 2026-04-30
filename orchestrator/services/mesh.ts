@@ -323,7 +323,8 @@ export class MeshManager {
             await this.sendSync(node, { type: "FETCH_STATE" });
             console.log(`[MESH] Reconciled state with ${node.hostname}`);
         } catch (e) {
-            console.warn(`[MESH] Failed to reconcile with ${node.hostname}: ${e.message}`);
+            const msg = e instanceof Error ? e.message : String(e);
+            console.warn(`[MESH] Failed to reconcile with ${node.hostname}: ${msg}`);
         }
     }
   }

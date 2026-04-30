@@ -60,7 +60,7 @@ export interface PersistencePort {
 }
 
 export interface PcapPort {
-  startCapture(interface_name?: string, duration?: number, filename?: string): Promise<CommandResult>;
+  startCapture(interface_name?: string, duration?: number, filename?: string, filter?: string): Promise<CommandResult>;
   stopCapture(): Promise<CommandResult>;
 }
 
