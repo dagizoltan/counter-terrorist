@@ -35,6 +35,27 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   router.route("/audit", createAuditRouter());
   router.route("/honeypots", createHoneypotsRouter(services.honeypot));
 
+  router.get("/network", async (c: Context) => {
+    const { NetworkShieldPage } = await import("../features/network/page.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<NetworkShieldPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/mesh", async (c: Context) => {
+    const { MeshTopologyPage } = await import("../features/mesh/page.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<MeshTopologyPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/threats", async (c: Context) => {
+    const { ThreatsPage } = await import("../features/threats/page.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<ThreatsPage status={status} csrfToken={csrfToken} />);
+  });
+
   router.get("/events", async (c: Context) => {
     const { EventsPage } = await import("../features/events/page.tsx");
     const csrfToken = c.get("csrfToken");

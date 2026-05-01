@@ -76,7 +76,7 @@ export const Layout = (props: {
 
         {/* Page specific islands */}
         {props.islandPaths?.map((path) => (
-          <script type="module" src={path.replace(/.*\/islands\//, '/components/islands/')}></script>
+          <script type="module" src={path}></script>
         ))}
       </head>
       <body class="min-h-screen flex bg-[#050505] font-sans overflow-hidden" 
@@ -94,57 +94,79 @@ export const Layout = (props: {
             </div>
 
             <nav class="flex-grow py-8 overflow-y-auto custom-scrollbar">
-              <div class="px-6 space-y-1">
-                <div class="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4 ml-2">Main_Systems</div>
+              <div class="px-6 space-y-2">
+                <div class="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-2 border-b border-white/5 pb-2">Operational_Command</div>
                 
-                <a href="/" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                <a href="/" class="nav-item flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
-                    <div class="w-1 h-1 bg-cyber rounded-full group-hover:scale-150 transition-transform"></div>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Dashboard</span>
-                  </div>
-                  <span class="text-[8px] font-black text-emerald-500/50 group-hover:text-emerald-400">ONLINE</span>
-                </a>
-
-                <a href="/agents" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Agent_Fleet</span>
-                  </div>
-                  <span class="text-[8px] font-black text-cyber/50">ACTIVE</span>
-                </a>
-
-                <div class="pt-6 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4 ml-2">Intelligence</div>
-
-                <a href="/audit" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Audit_Chain</span>
-                  </div>
-                  <span class="text-[8px] font-black text-warning/50">SECURED</span>
-                </a>
-
-                <a href="/honeypots" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Deception_Grid</span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <div class="w-1 h-1 bg-danger animate-ping"></div>
-                    <span class="text-[8px] font-black text-danger/50">MONITORED</span>
+                    <div class="w-1.5 h-1.5 bg-cyber rounded-full group-hover:scale-150 transition-transform shadow-[0_0_8px_rgba(0,210,255,0.4)]"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Command_Center</span>
                   </div>
                 </a>
 
-                <div class="pt-6 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4 ml-2">Orchestration</div>
-
-                <a href="/mesh" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                <div class="pt-8 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-2 border-b border-white/5 pb-2">Layer_01: Network_Envelope</div>
+                
+                <a href="/network" class="nav-item flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
-                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-emerald-500 transition-all"></div>
-                    <span class="text-[10px] font-bold uppercase tracking-widest">Mesh_Topology</span>
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Network_Shield</span>
                   </div>
-                  <span class="text-[8px] font-black text-emerald-500/50">CONSENSUS</span>
+                  <span class="text-[8px] font-black text-emerald-500/50">STEALTH</span>
+                </a>
+
+                <div class="pt-8 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-2 border-b border-white/5 pb-2">Layer_02: Mesh_Fabric</div>
+
+                <a href="/mesh" class="nav-item flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-emerald-500 transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Mesh_Topology</span>
+                  </div>
+                  <span class="text-[8px] font-black text-emerald-500/50">QUORUM</span>
+                </a>
+
+                <div class="pt-8 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-2 border-b border-white/5 pb-2">Layer_03: Node_Integrity</div>
+
+                <a href="/agents" class="nav-item flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Agent_Fleet</span>
+                  </div>
+                  <span class="text-[8px] font-black text-cyber/50">ENFORCED</span>
+                </a>
+
+                <div class="pt-8 text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-2 border-b border-white/5 pb-2">Tactical_Intelligence</div>
+
+                <a href="/threats" class="nav-item flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Threat_Index</span>
+                  </div>
+                </a>
+
+                <a href="/honeypots" class="nav-item flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Deception_Grid</span>
+                  </div>
+                </a>
+
+                <a href="/audit" class="nav-item flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-widest">Audit_Chain</span>
+                  </div>
                 </a>
               </div>
             </nav>
+
+            <script dangerouslySetInnerHTML={{ __html: `
+               document.querySelectorAll('.nav-item').forEach(item => {
+                  if (item.getAttribute('href') === window.location.pathname) {
+                     item.classList.add('bg-white/5', 'text-white', 'border-white/10');
+                     item.querySelector('div div').classList.add('scale-150');
+                  }
+               });
+            `}} />
 
             <div class="p-6 border-t border-white/5 bg-black/20">
               <div class="mb-6 px-4 py-3 rounded-lg bg-cyber/5 border border-cyber/20 shadow-[inset_0_0_20px_rgba(0,210,255,0.05)]">

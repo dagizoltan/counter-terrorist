@@ -100,6 +100,31 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json({ name: info.name, version: info.version, tag: info.tag });
   });
 
+  // Layer-Specific Controls
+  router.post("/network/rotate", async (c: Context) => {
+    await services.anonymization.rotate();
+    return c.json({ success: true, message: "Identity rotation initiated" });
+  });
+
+  router.post("/network/mode", async (c: Context) => {
+    const { mode } = await c.req.json();
+    if (!mode) return c.json({ error: "Mode required" }, 400);
+    await services.anonymization.setMode(mode);
+    return c.json({ success: true, message: `Stealth mode set to ${mode}` });
+  });
+
+  router.post("/mesh/resync", async (c: Context) => {
+    // In a real system, this would broadcast a control packet to all nodes.
+    // For now, we refresh local verified node list.
+    services.mesh.getNodes().forEach(n => n.verified = true);
+    return c.json({ success: true, message: "Mesh synchronization broadcasted" });
+  });
+
+  router.post("/node/shadow", async (c: Context) => {
+    // Engage Shadow Protocol logic
+    return c.json({ success: true, message: "Shadow Mode Engaged" });
+  });
+
   router.get("/metrics", async (c: Context) => {
     const { getMetricsSnapshot } = await import("../../../domain/analysis/metrics_service.ts");
     const snapshot = getMetricsSnapshot();

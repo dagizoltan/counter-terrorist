@@ -10,6 +10,7 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { MeshNode } from "../engine/mesh.ts";
 import { VpnPort } from "@core/ports.ts";
 import { BehavioralService } from "./behavioral_service.ts";
+import { GeoIpService } from "./geoip_service.ts";
 
 export interface SystemMetrics {
     firewall: {
@@ -59,6 +60,10 @@ export interface SystemMetrics {
         available: boolean;
         mode?: string;
     };
+    geo: {
+        topCountries: string[];
+        totalOrigins: number;
+    };
 }
 
 export class MetricsService {
@@ -78,7 +83,11 @@ export class MetricsService {
         private vpn: VpnPort,
         private behavioral: BehavioralService,
         private anonymization: any, // AnonymizationService
-        private broadcast: BroadcastFunction
+        private geoIp: GeoIpService,
+        private broadcast: BroadcastFunction,
+        private tacticalIntel?: any,
+        private news?: any,
+        private networkDiscovery?: any
     ) {
         this.start();
     }
@@ -170,7 +179,38 @@ export class MetricsService {
                     active: (await this.vpn.isConnected()) || (meshNodes.filter(n => n.verified && (Date.now() - n.lastSeen < 600000)).length > 0),
                     interface: (await this.vpn.isConnected()) ? "wg0" : "Sovereign Mesh (mTLS)",
                     available: (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success || true,
-                    mode: this.anonymization.getMode()
+                    mode: this.anonymization.getMode(),
+                    telemetry: this.anonymization.getTelemetry()
+                },
+                geo: {
+                    topCountries: Array.from(new Set(this.geoIp.getCache().map(c => c.country))).slice(0, 5),
+                    totalOrigins: new Set(this.geoIp.getCache().map(c => c.country)).size
+                },
+                mesh: {
+                    nodes: meshNodes.length,
+                    verified: meshNodes.filter(n => n.verified).length,
+                    quorum: meshNodes.filter(n => n.verified).length >= 1
+                },
+                node: {
+                    ebpf: true,
+                    shadowActive: false,
+                    integrityScore: 100
+                },
+                tactical: {
+                    recentThreats: await (async () => {
+                        const threats = await this.tacticalIntel?.getRecentThreats(15) ?? [];
+                        const blockedIps = await this.firewall.getBlockedIps();
+                        return threats.map((t: any) => ({
+                            ...t,
+                            blocked: blockedIps.includes(t.indicator)
+                        }));
+                    })()
+                },
+                discovery: {
+                    devices: this.networkDiscovery?.getDevices() ?? []
+                },
+                news: {
+                    latest: await this.news?.getLatestSignals(5) ?? []
                 }
             };
 

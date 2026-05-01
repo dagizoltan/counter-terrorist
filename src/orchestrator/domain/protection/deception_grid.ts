@@ -22,7 +22,24 @@ export class DeceptionGridService {
         // 2. Deploy "Shadow Admin" SSH keys
         await this.deployShadowKeys();
 
-        // 3. Register high-value web targets
+        // 3. Infrastructure & Identity Lures (Cloud/Env)
+        await this.canary.registerToken({
+            id: "aws-credentials",
+            path: "./.aws/credentials",
+            desc: "Fake AWS access keys for cloud-level entrapment."
+        });
+        await this.canary.registerToken({
+            id: "kube-config",
+            path: "./.kube/config",
+            desc: "Fake Kubernetes cluster config for lateral movement detection."
+        });
+        await this.canary.registerToken({
+            id: "shadow-backup",
+            path: "./secrets/shadow-bak.gpg",
+            desc: "Simulated shadow file backup for credential harvesting detection."
+        });
+
+        // 4. Register high-value web targets
         await this.honeypot.registerModule({
             id: "kubernetes-api",
             name: "K8s API Decoy",

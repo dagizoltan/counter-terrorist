@@ -36,8 +36,11 @@ export interface ServiceContainer {
   mesh: MeshManager;
   meshAuth: MeshAuthService;
   threatIntel: ThreatIntelService;
-  anonymization: AnonymizationService;
-  deceptionGrid: DeceptionGridService;
-  shadowProtocol: ShadowProtocolService;
+  anonymization: any;
+  deceptionGrid: any;
+  shadowProtocol: any;
+  curatedIntel: any;
+  news: any;
+  networkDiscovery: any;
   platformInfo: any;
 }

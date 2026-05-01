@@ -1,0 +1,125 @@
+import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+
+export interface ThreatInfo {
+    indicator: string;
+    type: "IP" | "DOMAIN" | "URL";
+    threatType: string;
+    provider: string;
+    lastSeen: string;
+    severity: "CRITICAL" | "HIGH" | "MEDIUM";
+}
+
+/**
+ * TacticalIntelIngestor
+ * Periodically fetches global threat intelligence from OSINT sources and stores it locally.
+ */
+export class TacticalIntelIngestor {
+    private kv: Deno.Kv | null = null;
+    private sources = [
+        { name: "FeodoTracker", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
+        { name: "BinaryDefense", url: "https://www.binarydefense.com/banlist.txt", type: "IP" },
+        { name: "OpenPhish", url: "https://openphish.com/feed.txt", type: "URL" },
+        { name: "EmergingThreats", url: "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt", type: "IP" },
+        { name: "SSLBlacklist", url: "https://sslbl.abuse.ch/blacklist/sslbl_abuse_ips.txt", type: "IP" },
+        { name: "TalosIntelligence", url: "https://www.talosintelligence.com/documents/ip-blacklist", type: "IP" }
+    ];
+
+    constructor(private logging: LoggingPort, private firewall: any) {}
+
+    async start() {
+        this.kv = await Deno.openKv();
+        this.logging.log("[INTEL] Tactical Ingestor active. Hardening perimeter...", SyslogSeverity.NOTICE);
+        
+        // Blocking initial sync to ensure protection before full start
+        await this.sync();
+
+        // High-frequency sync (every 6 hours)
+        setInterval(() => this.sync(), 6 * 60 * 60 * 1000);
+    }
+
+    async sync() {
+        this.logging.log("[INTEL] Syncing global threat feeds and enforcing blacklists...", SyslogSeverity.INFORMATIONAL);
+        
+        for (const source of this.sources) {
+            try {
+                this.logging.log(`[INTEL] Ingesting from ${source.name}...`, SyslogSeverity.DEBUG);
+                const response = await fetch(source.url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                
+                const data = await response.text();
+                await this.processSource(source, data);
+            } catch (e) {
+                this.logging.log(`[INTEL] Sync failed for ${source.name}: ${(e as Error).message}`, SyslogSeverity.WARNING);
+            }
+        }
+        
+        this.logging.log("[INTEL] Global intelligence enforced in kernel firewall.", SyslogSeverity.NOTICE);
+    }
+
+    private async processSource(source: any, data: string) {
+        const lines = data.split("\n");
+        let count = 0;
+
+        for (const line of lines) {
+            if (!line || line.startsWith("#") || line.length < 5) continue;
+
+            let indicator = line.trim();
+            let threatType = this.mapThreatType(source.name, line);
+
+            if (source.name === "FeodoTracker") {
+                const parts = line.split(",");
+                if (parts.length > 1) {
+                    indicator = parts[1].replace(/"/g, "");
+                    threatType = "Botnet C2 (Emotet/Trickbot)";
+                }
+            }
+
+            const threat: ThreatInfo = {
+                indicator,
+                type: source.type,
+                threatType,
+                provider: source.name,
+                lastSeen: new Date().toISOString(),
+                severity: "HIGH"
+            };
+
+            // ACTIVE ENFORCEMENT: Push to firewall
+            if (threat.type === "IP") {
+                await this.firewall.blockIp(threat.indicator).catch(() => {});
+            }
+
+            await this.kv?.set(["threats", threat.indicator], threat, { expireIn: 7 * 24 * 60 * 60 * 1000 });
+            count++;
+            if (count > 250) break; // Aggressive limit to keep firewall performant
+        }
+        
+        this.logging.log(`[INTEL] Blocked ${count} active threats from ${source.name}`, SyslogSeverity.DEBUG);
+    }
+
+    private mapThreatType(source: string, line: string): string {
+        switch (source) {
+            case "BinaryDefense": return "Artillery Blocklist (Brute Force/Scanner)";
+            case "OpenPhish": return "Active Phishing Drop-site";
+            case "EmergingThreats": return "Known Compromised/Malicious Host (ET Open)";
+            case "SSLBlacklist": return "C2 Infrastructure (Malicious SSL Cert)";
+            case "TalosIntelligence": return "Top Malicious Sender/Infrastructure (Cisco Talos)";
+            default: return "Known Malicious Infrastructure";
+        }
+    }
+
+    async lookup(indicator: string): Promise<ThreatInfo | null> {
+        const res = await this.kv?.get<ThreatInfo>(["threats", indicator]);
+        return res?.value || null;
+    }
+
+    async getRecentThreats(limit = 100): Promise<ThreatInfo[]> {
+        const threats: ThreatInfo[] = [];
+        const iter = this.kv?.list<ThreatInfo>({ prefix: ["threats"] }, { limit, reverse: true });
+        if (iter) {
+            for await (const entry of iter) {
+                threats.push(entry.value);
+            }
+        }
+        return threats;
+    }
+}

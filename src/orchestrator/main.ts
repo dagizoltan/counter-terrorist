@@ -19,10 +19,12 @@ import { broadcast, initBroadcaster } from "@api/ws.ts";
 import { PlaybookEngine } from "@domain/engine/playbook_engine.ts";
 import { BehavioralService } from "@domain/analysis/behavioral_service.ts";
 import { MetricsService, setMetricsService } from "@domain/analysis/metrics_service.ts";
-import { ThreatIntelService } from "@domain/protection/threat_intel.ts";
-import { AnonymizationService } from "@domain/protection/anonymization_service.ts";
-import { DeceptionGridService } from "@domain/protection/deception_grid.ts";
 import { ShadowProtocolService } from "@domain/protection/shadow_protocol_service.ts";
+import { GeoIpService } from "@domain/analysis/geoip_service.ts";
+import { AnonymizationService } from "@domain/protection/anonymization_service.ts";
+import { CuratedIntelService } from "@domain/analysis/curated_intel_service.ts";
+import { NewsSignalService } from "@domain/analysis/news_signal_service.ts";
+import { DeceptionGridService } from "@domain/protection/deception_grid.ts";
 import { MorphingService } from "@domain/protection/morphing_service.ts";
 import { ChaosEngine } from "@domain/engine/chaos_engine.ts";
 import { SupplyChainService } from "@domain/analysis/supply_chain.ts";
@@ -40,6 +42,8 @@ import { CovertChannelService } from "@domain/engine/covert_service.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { ProvisioningService } from "@domain/engine/provisioning_service.ts";
 import { SidecarEvent } from "@infrastructure/system/validation.ts";
+import { TacticalIntelIngestor } from "@domain/analysis/tactical_intel_ingestor.ts";
+import { NetworkDiscoveryService } from "@domain/analysis/network_discovery.ts";
 
 import { loadConfig } from "./core/config_schema.ts";
 
@@ -114,7 +118,7 @@ const shadowProtocol = new ShadowProtocolService(meshManager, anonymization, log
 const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager, shadowProtocol);
 
 const behavioralService = new BehavioralService(protection.firewall as any);
-const threatIntel = new ThreatIntelService(protection, loggingService);
+const geoIpService = new GeoIpService(loggingService);
 const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
 honeypotService.setBehavioralService(behavioralService);
 
@@ -130,7 +134,7 @@ const shadowService = new ShadowService(executor, loggingService);
 const covertService = new CovertChannelService(executor, loggingService);
 const deceptionGrid = new DeceptionGridService(honeypotService, canaryService, loggingService);
 
-// ── Phase 4: Start subsystems ─────────────────────────────────────────
+// Phase 4: Start subsystems ─────────────────────────────────────────
 await playbookService.init();
 await autopilotService.start();
 await morphingService.start();
@@ -153,7 +157,6 @@ if (ghosts.length > 0) {
         data: { ghosts }
     });
 }
-await threatIntel.start();
 await honeypotService.start();
 await canaryService.deploy();
 await kernelService.harden();
@@ -204,6 +207,10 @@ sidecarManager.onEvent("fim", (event: any) => {
   }
 });
 
+const curatedIntel = new CuratedIntelService(loggingService, protection.firewall);
+const newsSignal = new NewsSignalService(loggingService);
+const networkDiscovery = new NetworkDiscoveryService(loggingService);
+
 // ── Phase 6: Web adapter + MetricsService (started AFTER broadcaster is ready) ──
 const services: ServiceContainer = {
   config: configProvider,
@@ -223,10 +230,13 @@ const services: ServiceContainer = {
   supplyChain: supplyChain,
   mesh: meshManager,
   meshAuth: meshAuthService,
-  threatIntel: threatIntel,
+  threatIntel: curatedIntel as any,
   anonymization: anonymization,
   shadowProtocol: shadowProtocol,
   deceptionGrid: deceptionGrid,
+  curatedIntel,
+  news: newsSignal,
+  networkDiscovery,
   platformInfo
 };
 
@@ -236,11 +246,17 @@ const web = new WebAdapter(services);
 const metricsService = new MetricsService(
   protection.firewall as any, meshManager, honeypotService, processTracker,
   kernelService, auditService, canaryService, sidecarManager, protection.vpn,
-  behavioralService, anonymization, broadcast
+  behavioralService, anonymization, geoIpService, broadcast, 
+  curatedIntel, newsSignal, networkDiscovery
 );
 setMetricsService(metricsService);
 
-// ── Phase 7: Start persistent sidecars ────────────────────────────────
+// ── Phase 7: Start tactical services & Early Hardening ────────────────
+await curatedIntel.start();
+await newsSignal.start();
+await networkDiscovery.start();
+
+// ── Phase 8: Start persistent sidecars ────────────────────────────────
 const startDaemons = async () => {
   sidecarManager.getPersistentSidecar("honeypot").catch(() => {});
   sidecarManager.getPersistentSidecar("fim").catch(() => {});

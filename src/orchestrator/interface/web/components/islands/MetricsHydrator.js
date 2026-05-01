@@ -45,61 +45,26 @@ class MetricsHydrator extends HTMLElement {
   }
 
   updateMetrics(m) {
-    // Firewall
-    this.setText('stat-fw-blocked', m.firewall?.blockedCount ?? '—');
-    this.setText('stat-fw-rules', m.firewall?.rules ?? '—');
+    // Layer-01: Network
+    this.setText('stat-vpn-status', m.vpn?.telemetry?.status === 'ACTIVE' ? 'ENCRYPTED' : 'OFFLINE');
+    this.setText('stat-anon-mode', m.vpn?.mode ?? 'OFF');
+    this.setText('stat-vpn-rotations', `${m.vpn?.telemetry?.rotations ?? 0} Rotations`);
+    this.setText('stat-geo-diversity', `${m.geo?.totalOrigins ?? 0} Origins`);
 
-    // Mesh
-    const active = m.mesh?.activeNodes ?? 0;
-    const total = m.mesh?.totalNodes ?? 0;
-    this.setText('stat-mesh-nodes', total > 0 ? `${active}/${total}` : 'Solo');
-    this.setText('stat-mesh-handshakes', total > 0 ? `${active} verified` : '0');
+    // Layer-02: Mesh
+    const meshActive = m.mesh?.verified ?? 0;
+    const meshTotal = m.mesh?.nodes ?? 0;
+    this.setText('stat-mesh-nodes', meshTotal > 0 ? `${meshActive} / ${meshTotal} Nodes` : 'SOLO');
+    this.setText('stat-mesh-quorum', m.mesh?.quorum ? 'ESTABLISHED' : 'PENDING');
 
-    // Forensics
-    this.setText('stat-forensics-procs', m.forensics?.processCount ?? '—');
-    this.setText('stat-forensics-ebpf-status', m.forensics?.ebpfActive ? 'ACTIVE' : 'FALLBACK');
-    this.setText('stat-forensics-fim-status', m.forensics?.fimActive ? 'ACTIVE' : 'INACTIVE');
+    // Layer-03: Node
+    this.setText('stat-forensics-ebpf-status', m.node?.ebpf ? 'RUNNING' : 'STOPPED');
+    this.setText('stat-protection-count', `${m.node?.integrityScore ?? 100}% SCORE`);
 
-    // Honeypot
-    this.setText('stat-honeypot-active', m.honeypot?.activeDecoys ?? '—');
-    this.setText('stat-honeypot-hits', m.honeypot?.totalHits ?? '0');
-
-    // Kernel Hardening Matrix
-    if (m.kernel) {
-      this.setText('stat-kernel-aslr', m.kernel.aslr);
-      this.setText('stat-kernel-syncookies', m.kernel.syncookies);
-      this.setText('stat-kernel-rpfilter', m.kernel.rp_filter);
-      this.setStatusColor('stat-kernel-aslr', m.kernel.aslr);
-      this.setStatusColor('stat-kernel-syncookies', m.kernel.syncookies);
-      this.setStatusColor('stat-kernel-rpfilter', m.kernel.rp_filter);
-    }
-
-    // Canary
-    this.setText('stat-canary-deployed', m.canary?.deployed ?? '—');
-    this.setText('stat-canary-triggered', m.canary?.triggered ?? '0');
-
-    // Audit
+    // Legacy/Shared
+    this.setText('stat-fw-blocked', m.firewall?.blockedCount ?? '0');
     this.setText('stat-audit-chain', m.audit?.chainVerified ? 'VERIFIED' : 'BROKEN');
     this.setStatusColor('stat-audit-chain', m.audit?.chainVerified ? 'VERIFIED' : 'BROKEN');
-
-    // Scanner
-    this.setText('stat-scanner-last', m.scanner?.lastScanTime ?? 'NEVER');
-    this.setText('stat-scanner-result', m.scanner?.lastScanResult ?? 'PENDING');
-
-    // VPN
-    this.setText('stat-vpn-status', m.vpn?.active ? 'ENCRYPTED' : 'DISCONNECTED');
-    this.setStatusColor('stat-vpn-status', m.vpn?.active ? 'ACTIVE' : 'INACTIVE');
-    this.setText('stat-vpn-interface', m.vpn?.interface ?? '—');
-    this.setText('stat-anon-mode', m.vpn?.mode ?? 'OFF');
-    this.setStatusColor('stat-anon-mode', m.vpn?.mode !== 'OFF' ? 'ACTIVE' : 'INACTIVE');
-
-    // Protection layer count
-    const protectionCount = [m.vpn?.active, m.firewall?.rules > 0, m.scanner?.available].filter(Boolean).length;
-    this.setText('stat-protection-count', `${protectionCount} ACTIVE`);
-
-    // Forensic layer count
-    const forensicCount = [m.forensics?.ebpfActive, m.forensics?.fimActive, m.honeypot?.activeDecoys > 0].filter(Boolean).length;
-    this.setText('stat-forensic-count', `${forensicCount} ACTIVE`);
   }
 
   setText(id, text) {

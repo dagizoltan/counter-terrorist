@@ -7,9 +7,9 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
 
   return (
     <Layout title="Agents" islandPaths={[
-      '/pages/dashboard/islands/AgentCardIsland.js', 
-      '/pages/dashboard/islands/MetricsHydrator.js',
-      '/pages/agents/islands/SupplyChainIsland.js'
+      '/components/islands/AgentCardIsland.js', 
+      '/components/islands/MetricsHydrator.js',
+      '/components/islands/SupplyChainIsland.js'
     ]} csrfToken={props.csrfToken}>
       <div class="mb-12">
         <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Defense Agents</h2>
@@ -93,7 +93,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
 
       <script type="module" dangerouslySetInnerHTML={{ __html: `
         import { render } from 'preact';
-        import SupplyChainIsland from '/pages/agents/islands/SupplyChainIsland.js';
+        import SupplyChainIsland from '/components/islands/SupplyChainIsland.js';
         
         const container = document.getElementById('supply-chain-container');
         if (container) render(<SupplyChainIsland />, container);

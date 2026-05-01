@@ -7,9 +7,9 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
   const metrics = platform?.metrics;
 
   const islandPaths = [
-    '/features/dashboard/islands/BlockingLog.js',
-    '/features/dashboard/islands/ProcessTree.js',
-    '/features/dashboard/islands/MetricsHydrator.js'
+    '/components/islands/BlockingLog.js',
+    '/components/islands/ProcessTree.js',
+    '/components/islands/MetricsHydrator.js'
   ];
 
   return (
@@ -72,88 +72,111 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
         </div>
       </div>
 
+      {/* LAYERED TELEMETRY SECTORS */}
+      <div class="grid grid-cols-1 xl:grid-cols-3 gap-12 mb-16">
+        
+        {/* SECTOR 01: NETWORK ENVELOPE */}
+        <div class="glass-panel rounded-2xl border border-cyber/10 p-8 shadow-[0_0_50px_rgba(0,210,255,0.03)] flex flex-col">
+          <div class="flex items-center justify-between mb-8 pb-4 border-b border-cyber/10">
+             <div class="flex items-center gap-3">
+                <span class="text-[10px] font-black text-cyber uppercase tracking-[0.3em]">Sector_01 // Network_Envelope</span>
+             </div>
+             <div class="px-2 py-0.5 rounded bg-cyber/10 border border-cyber/30 text-cyber text-[8px] font-black uppercase italic">Stealth_Active</div>
+          </div>
+          <div class="flex-grow space-y-8">
+             <div class="flex justify-between items-end">
+                <div>
+                   <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Exit_Anonymizer</span>
+                   <div id="stat-vpn-status" class="text-xl font-black text-white italic">SEARCHING...</div>
+                </div>
+                <div id="stat-anon-mode" class="text-[10px] font-mono text-cyber/60">OFF</div>
+             </div>
+             <div>
+                <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Geo_Diversity</span>
+                <div id="stat-geo-diversity" class="text-3xl font-black text-white tracking-tighter">0 Origins</div>
+             </div>
+          </div>
+          <div class="mt-12 pt-6 border-t border-white/5">
+             <a href="/network" class="w-full flex items-center justify-center p-3 rounded-lg bg-cyber/5 hover:bg-cyber/10 border border-cyber/10 text-[9px] font-black text-cyber uppercase tracking-widest transition-all">Configure_Shield</a>
+          </div>
+        </div>
+
+        {/* SECTOR 02: MESH FABRIC */}
+        <div class="glass-panel rounded-2xl border border-emerald-500/10 p-8 shadow-[0_0_50px_rgba(16,185,129,0.03)] flex flex-col">
+          <div class="flex items-center justify-between mb-8 pb-4 border-b border-emerald-500/10">
+             <div class="flex items-center gap-3">
+                <span class="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Sector_02 // Mesh_Fabric</span>
+             </div>
+             <div class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black uppercase italic">Quorum_Lock</div>
+          </div>
+          <div class="flex-grow space-y-8">
+             <div class="flex justify-between items-end">
+                <div>
+                   <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Sync_Integrity</span>
+                   <div class="text-xl font-black text-white italic">VERIFIED</div>
+                </div>
+                <div class="text-[10px] font-mono text-emerald-500/60">99.9%</div>
+             </div>
+             <div>
+                <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Connected_Nodes</span>
+                <div id="stat-mesh-nodes" class="text-3xl font-black text-white tracking-tighter">1 ACTIVE</div>
+             </div>
+          </div>
+          <div class="mt-12 pt-6 border-t border-white/5">
+             <a href="/mesh" class="w-full flex items-center justify-center p-3 rounded-lg bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 text-[9px] font-black text-emerald-400 uppercase tracking-widest transition-all">Mesh_Topology</a>
+          </div>
+        </div>
+
+        {/* SECTOR 03: NODE INTEGRITY */}
+        <div class="glass-panel rounded-2xl border border-white/5 p-8 flex flex-col">
+          <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+             <div class="flex items-center gap-3">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Sector_03 // Node_Integrity</span>
+             </div>
+             <div class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-400 text-[8px] font-black uppercase italic">Active_Scan</div>
+          </div>
+          <div class="flex-grow space-y-8">
+             <div class="flex justify-between items-end">
+                <div>
+                   <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">eBPF_Guardian</span>
+                   <div id="stat-forensics-ebpf-status" class="text-xl font-black text-white italic">RUNNING</div>
+                </div>
+             </div>
+             <div>
+                <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Host_Defense_Count</span>
+                <div id="stat-protection-count" class="text-3xl font-black text-white tracking-tighter">3 ACTIVE</div>
+             </div>
+          </div>
+          <div class="mt-12 pt-6 border-t border-white/5">
+             <a href="/agents" class="w-full flex items-center justify-center p-3 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black text-white uppercase tracking-widest transition-all">Agent_Fleet</a>
+          </div>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
         {/* LEFT COLUMN: EVENTS */}
         <div class="lg:col-span-2 space-y-12">
           <section>
             <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-               <h2 class="text-xs font-black uppercase tracking-[0.4em] text-slate-400 italic">Intercepted_Packets</h2>
-               <div class="flex items-center gap-4">
-                  <div class="px-3 py-1 rounded-full bg-danger/10 border border-danger/20 text-danger text-[9px] font-black tracking-widest">LIVE_CAPTURE</div>
-               </div>
+               <h2 class="text-xs font-black uppercase tracking-[0.4em] text-slate-400 italic">Global_Signal_Stream</h2>
             </div>
             <div class="glass-panel rounded-xl overflow-hidden shadow-2xl h-[400px]">
                <blocking-log id="main-log"></blocking-log>
             </div>
           </section>
-
-          <section>
-            <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-               <h2 class="text-xs font-black uppercase tracking-[0.4em] text-slate-400 italic">Kernel_Behavior_Map</h2>
-            </div>
-            <div class="glass-panel rounded-xl p-8 h-[400px] overflow-y-auto custom-scrollbar">
-               <process-tree></process-tree>
-            </div>
-          </section>
         </div>
 
-        {/* RIGHT COLUMN: SIDEBAR CONTROLS */}
+        {/* RIGHT COLUMN: ANALYTICS */}
         <div class="space-y-12">
-          {/* NETWORK DEFENSE GRID */}
-          <section class="glass-panel rounded-xl p-8 border border-cyber/10 shadow-[0_0_50px_rgba(0,210,255,0.03)]">
-            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-cyber border-b border-cyber/10 pb-4">Network_Defense_Grid</h2>
-            <div class="space-y-6">
-               <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Firewall_Shield</span>
-                  <div class="px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black rounded uppercase">Active</div>
-               </div>
-               
-               <div class="pt-6 border-t border-white/5 space-y-4">
-                  <div class="flex justify-between items-center">
-                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Exit_Anonymizer</span>
-                    <div id="stat-vpn-status" class="text-[9px] font-mono text-white italic uppercase tracking-tighter">SEARCHING...</div>
-                  </div>
-                  <div id="stat-vpn-interface" class="text-[8px] font-bold text-cyber/40 uppercase tracking-tighter">Initializing stealth layer...</div>
-               </div>
-
-               <div class="pt-6 border-t border-white/5 space-y-4">
-                  <div class="flex justify-between items-center">
-                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Sovereign_Mesh</span>
-                     <span id="stat-mesh-nodes" class="text-[10px] font-mono text-white italic">Searching...</span>
-                  </div>
-                  <div id="stat-mesh-handshakes" class="text-[8px] font-bold text-cyber/40 uppercase tracking-tighter">Initializing discovery...</div>
-               </div>
-            </div>
-          </section>
-
-          {/* NODE INTEGRITY ENFORCEMENT */}
           <section class="glass-panel rounded-xl p-8 border border-white/5">
-            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-slate-300 border-b border-white/5 pb-4">Node_Integrity_Enforcement</h2>
+            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-slate-300 border-b border-white/5 pb-4">Tactical_Forensics</h2>
             <div class="space-y-6">
                <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">eBPF_Observer</span>
-                  <div id="stat-forensics-ebpf-status" class="px-2 py-1 bg-cyber/10 border border-cyber/30 text-cyber text-[8px] font-black rounded uppercase italic">Wait...</div>
+                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Audit_Chain</span>
+                  <div id="stat-audit-chain" class="text-[9px] font-mono text-emerald-400">VERIFIED</div>
                </div>
-               <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">FIM_Guardian</span>
-                  <div id="stat-forensics-fim-status" class="px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black rounded uppercase italic">Active</div>
-               </div>
-               <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Malware_Scanner</span>
-                  <div id="stat-scanner-result" class="text-[9px] font-mono text-white">PENDING</div>
-               </div>
-               <div id="stat-scanner-last" class="text-[8px] font-bold text-slate-600 uppercase tracking-tighter text-right">Never scanned</div>
-
                <div class="pt-6 border-t border-white/5 space-y-4">
-                  <div class="flex justify-between items-center">
-                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Audit_Chain</span>
-                    <span id="stat-audit-chain" class="text-[10px] font-mono text-emerald-400">VERIFIED</span>
-                  </div>
-               </div>
-               
-               <div class="pt-6 border-t border-white/5 space-y-4">
-                  <button class="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Rotate_Honeypots</button>
-                  <button class="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Emergency_Wipe</button>
+                  <button class="w-full py-3 bg-danger/5 hover:bg-danger/10 border border-danger/10 text-danger/80 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Emergency_Wipe</button>
                </div>
             </div>
           </section>

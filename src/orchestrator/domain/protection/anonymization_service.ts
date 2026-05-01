@@ -21,8 +21,8 @@ export enum StealthMode {
  * Provides multi-tier exit-node rotation and stealth.
  */
 export class AnonymizationService {
-    private mode: StealthMode = StealthMode.OFF;
-    private rotationInterval: number | null = null;
+    private rotationCount: number = 0;
+    private lastRotationTime: string = "NEVER";
 
     constructor(
         private vpn: VpnPort,
@@ -76,6 +76,8 @@ export class AnonymizationService {
                 default:
                     break;
             }
+            this.rotationCount++;
+            this.lastRotationTime = new Date().toISOString();
         } catch (e) {
             this.logging.log(`[ANON] Rotation failed for ${this.mode}: ${(e as Error).message}`, SyslogSeverity.ERROR);
         }
@@ -99,6 +101,15 @@ export class AnonymizationService {
 
     getMode(): StealthMode {
         return this.mode;
+    }
+
+    getTelemetry() {
+        return {
+            mode: this.mode,
+            rotations: this.rotationCount,
+            lastRotation: this.lastRotationTime,
+            status: this.mode !== StealthMode.OFF ? "ACTIVE" : "INACTIVE"
+        };
     }
 
     stop() {

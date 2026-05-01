@@ -5,12 +5,15 @@ import { FirewallProvider } from "../interfaces.ts";
 export type { FirewallProvider };
 
 export class FirewallManager {
+  private blockedIps: Set<string> = new Set();
+
   constructor(private provider: FirewallProvider) {}
 
   async blockIp(ip: string) {
     if (!isValidIP(ip)) {
       return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
+    this.blockedIps.add(ip);
     broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}`, data: { ip } });
 
     if (meshManager) {
@@ -37,8 +40,13 @@ export class FirewallManager {
     if (!isValidIP(ip)) {
       return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
+    this.blockedIps.delete(ip);
     broadcast({ type: "INFO", message: `Unblocking IP: ${ip}` });
     return await this.provider.unblockIp(ip);
+  }
+
+  async getBlockedIps(): Promise<string[]> {
+    return Array.from(this.blockedIps);
   }
 
   async killProcess(pid: number) {
