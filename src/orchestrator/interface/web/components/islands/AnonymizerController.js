@@ -42,9 +42,13 @@ class AnonymizerController extends HTMLElement {
     `;
 
     window.setStealthMode = async (mode) => {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
       const res = await fetch('/api/network/mode', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-CT-Token': csrfToken
+        },
         body: JSON.stringify({ mode })
       });
       if (res.ok) {

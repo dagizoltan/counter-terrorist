@@ -29,4 +29,8 @@ export class WindowsFirewallProvider implements FirewallProvider {
   async lockdown(): Promise<CommandResult> {
     return await this.executor.execute("netsh", ["advfirewall", "set", "allprofiles", "state", "on"]);
   }
+
+  async flushRules(): Promise<CommandResult> {
+    return await this.executor.execute("netsh", ["advfirewall", "firewall", "delete", "rule", "all"]);
+  }
 }

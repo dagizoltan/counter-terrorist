@@ -5,6 +5,12 @@ import { ServiceContainer } from "@core/container.ts";
 import { createAgentsRouter } from "../features/agents/handler.tsx";
 import { createAuditRouter } from "../features/audit/handler.tsx";
 import { createHoneypotsRouter } from "../features/honeypots/handler.tsx";
+import { FeedPage } from "../features/threats/FeedPage.tsx";
+import { IdentifiedPage } from "../features/threats/IdentifiedPage.tsx";
+import { LogsPage } from "../features/compliance/LogsPage.tsx";
+import { NetworkPage } from "../features/compliance/NetworkPage.tsx";
+import { AuditPage } from "../features/compliance/AuditPage.tsx";
+import { IncidentsPage } from "../features/compliance/IncidentsPage.tsx";
 
 /**
  * UI Router
@@ -104,6 +110,16 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     return c.html(<AuditIntegrity status={status} csrfToken={csrfToken} />);
   });
+
+  // Threat Protection
+  router.get("/threats/feed", (c) => c.html(<FeedPage />));
+  router.get("/threats/identified", (c) => c.html(<IdentifiedPage />));
+
+  // Compliance
+  router.get("/compliance/logs", (c) => c.html(<LogsPage />));
+  router.get("/compliance/network", (c) => c.html(<NetworkPage />));
+  router.get("/compliance/audit", (c) => c.html(<AuditPage />));
+  router.get("/compliance/incidents", (c) => c.html(<IncidentsPage />));
 
   return router;
 }

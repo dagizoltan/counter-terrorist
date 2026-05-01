@@ -62,28 +62,30 @@ export function broadcast(data: BroadcastData) {
   }
 
   // Trigger Deno KV Audit Event
-  auditService.logEvent({
-    type: data.type,
-    message: data.message || "",
-    data: data.data,
-    timestamp: eventToBroadcast.timestamp
-  }).catch(console.error);
+  if (data.type !== "METRICS_UPDATE") {
+    auditService.logEvent({
+      type: data.type,
+      message: data.message || "",
+      data: data.data,
+      timestamp: eventToBroadcast.timestamp
+    }).catch(console.error);
 
-  // Trigger external notifications
-  notificationService.notify({
-    type: data.type,
-    message: data.message || "",
-    data: data.data
-  }).catch(console.error);
+    // Trigger external notifications
+    notificationService.notify({
+      type: data.type,
+      message: data.message || "",
+      data: data.data
+    }).catch(console.error);
 
-  // Trigger Syslog
-  let severity = SyslogSeverity.INFORMATIONAL;
-  if (data.type === "CRITICAL") severity = SyslogSeverity.CRITICAL;
-  else if (data.type?.startsWith("DRIFT")) severity = SyslogSeverity.WARNING;
-  else if (data.type === "BLOCK") severity = SyslogSeverity.NOTICE;
+    // Trigger Syslog
+    let severity = SyslogSeverity.INFORMATIONAL;
+    if (data.type === "CRITICAL") severity = SyslogSeverity.CRITICAL;
+    else if (data.type?.startsWith("DRIFT")) severity = SyslogSeverity.WARNING;
+    else if (data.type === "BLOCK") severity = SyslogSeverity.NOTICE;
 
-  if (sharedLogging) {
-    sharedLogging.log(`${data.type}: ${data.message || ""}`, severity).catch(console.error);
+    if (sharedLogging) {
+      sharedLogging.log(`${data.type}: ${data.message || ""}`, severity).catch(console.error);
+    }
   }
 }
 

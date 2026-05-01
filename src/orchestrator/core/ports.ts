@@ -93,7 +93,7 @@ export enum SyslogSeverity {
 
 export interface LoggingPort {
   enableGlobalIntercept(): void;
-  log(message: string, severity?: SyslogSeverity): Promise<void>;
+  log(message: string, severity?: SyslogSeverity, source?: string, payload?: any): Promise<void>;
 }
 
 export interface BaselinePort {

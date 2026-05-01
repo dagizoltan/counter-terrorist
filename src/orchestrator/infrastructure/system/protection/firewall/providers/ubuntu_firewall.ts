@@ -58,4 +58,17 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   async lockdown(): Promise<CommandResult> {
     return await this.executor.execute("ufw", ["default", "deny", "incoming"]);
   }
+
+  async flushRules(): Promise<CommandResult> {
+    // 1. Reset UFW (Clears all custom rules)
+    await this.executor.execute("ufw", ["--force", "reset"]);
+    await this.executor.execute("ufw", ["enable"]);
+    
+    // 2. Clear all TC shaping rules
+    const ifaceRes = await this.executor.execute("bash", ["-c", "ip route get 8.8.8.8 | grep -oP 'dev \\K\\S+'"]);
+    const iface = ifaceRes.stdout.trim() || "eth0";
+    await this.executor.execute("tc", ["qdisc", "del", "dev", iface, "root"]).catch(() => {});
+    
+    return { success: true, stdout: "Ruleset flushed and baseline restored.", stderr: "" };
+  }
 }

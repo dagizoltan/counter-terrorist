@@ -121,7 +121,7 @@ export class MetricsService {
             const rejectCount = (firewallStatus.stdout?.match(/REJECT|DROP|DENY/g) || []).length;
             
             // Extract blocked IPs from iptables/ufw output
-            const blockedIps: string[] = [];
+            const blockedIps: string[] = await this.firewall.getBlockedIps();
             for (const line of fwLines) {
                 const ipMatch = line.match(/(\d+\.\d+\.\d+\.\d+)/);
                 if (ipMatch && (line.includes("DROP") || line.includes("REJECT") || line.includes("DENY"))) {

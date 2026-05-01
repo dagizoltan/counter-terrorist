@@ -15,11 +15,11 @@ import { WindowsFirewallProvider } from "./firewall/providers/windows_firewall.t
 import { WindowsPersistenceProvider } from "./persistence/providers/windows_persistence.ts";
 import { WindowsVpnProvider } from "./vpn/providers/windows_vpn.ts";
 
-export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): FirewallManager {
+export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo, networkLogs: any): FirewallManager {
   if (platform.name === "windows") {
-    return new FirewallManager(new WindowsFirewallProvider(executor));
+    return new FirewallManager(new WindowsFirewallProvider(executor), networkLogs);
   }
-  return new FirewallManager(new UbuntuFirewallProvider(sidecar, executor));
+  return new FirewallManager(new UbuntuFirewallProvider(sidecar, executor), networkLogs);
 }
 
 export function createVpnManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): VpnManager {

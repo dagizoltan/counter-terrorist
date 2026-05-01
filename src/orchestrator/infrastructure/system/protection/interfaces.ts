@@ -8,6 +8,7 @@ export interface FirewallProvider {
   dumpProcessForensics?(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
   lockdown(): Promise<CommandResult>;
+  flushRules(): Promise<CommandResult>;
 }
 
 export interface VpnResult {
@@ -21,6 +22,7 @@ export interface VpnProvider {
   disconnect(): Promise<VpnResult>;
   isConnected(): Promise<boolean>;
   getStatus(): Promise<any>;
+  flushRules(): Promise<VpnResult>;
 }
 
 export interface ScanResult {

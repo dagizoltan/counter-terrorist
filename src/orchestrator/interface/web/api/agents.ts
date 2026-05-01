@@ -59,6 +59,23 @@ export function createAgentsApi(services: ServiceContainer) {
     return c.json(result);
   });
 
+  router.post("/firewall/unblock", async (c: Context) => {
+    const { ip } = await c.req.json();
+    // Assuming unblockIp exists or using the provider directly
+    const result = await services.protection.firewall.unblockIp(ip);
+    return c.json(result);
+  });
+
+  router.post("/firewall/flush", async (c: Context) => {
+    const result = await services.protection.firewall.flushRules();
+    return c.json(result);
+  });
+
+  router.get("/firewall/status", async (c: Context) => {
+    const result = await services.protection.firewall.getStatus();
+    return c.json(result);
+  });
+
   // Scanner specific controls
   router.post("/scanner/scan", async (c: Context) => {
     const { path } = await c.req.json();

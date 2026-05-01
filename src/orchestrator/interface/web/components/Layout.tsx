@@ -58,61 +58,95 @@ export const Layout = (props: {
             <div class="p-8 flex items-center gap-4 border-b border-white/5 h-24">
               <div class="w-1.5 h-8 bg-cyber shadow-[0_0_20px_rgba(14,165,233,0.6)] rounded-full"></div>
               <div class="flex flex-col">
-                <span class="font-black text-sm tracking-[0.4em] uppercase text-white">Ghost_Command</span>
-                <span class="text-[9px] font-bold text-cyber/60 tracking-widest uppercase">Autonomous Defense Mesh</span>
+                <span class="font-black text-sm tracking-[0.4em] uppercase text-white">ORCHESTRATOR</span>
+                <span class="text-[9px] font-bold text-cyber/60 tracking-widest uppercase">Distributed Security Mesh</span>
               </div>
             </div>
 
             <nav class="flex-grow py-8 overflow-y-auto custom-scrollbar px-4">
               <div class="space-y-1">
-                <div class="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">Operational_Status</div>
+                <div class="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">SYSTEM_MONITORING</div>
                 
                 <a href="/" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
                     <div class="w-1.5 h-1.5 bg-cyber rounded-full group-hover:scale-150 transition-transform shadow-[0_0_8px_rgba(14,165,233,0.4)]"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Command_Center</span>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Operational Dashboard</span>
                   </div>
                 </a>
 
-                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">Perimeter_Control</div>
+                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">INFRASTRUCTURE</div>
                 
                 <a href="/network" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
                     <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Network_Shield</span>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Network Perimeter</span>
                   </div>
-                  <span class="text-[8px] font-black text-success/50 tracking-tighter">STEALTH</span>
                 </a>
 
                 <a href="/mesh" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
                     <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Mesh_Topology</span>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">P2P Mesh Network</span>
                   </div>
-                  <span class="text-[8px] font-black text-cyber/50 tracking-tighter">QUORUM</span>
                 </a>
 
-                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">Threat_Landscape</div>
+                <a href="/agents" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Endpoint Registry</span>
+                  </div>
+                </a>
 
-                <a href="/threats" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">THREAT_PROTECTION</div>
+
+                <a href="/threats/feed" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Security Feed</span>
+                  </div>
+                </a>
+
+                <a href="/threats/identified" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
                     <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Threat_Index</span>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Identified Threats</span>
                   </div>
-                  <span class="text-[8px] font-black text-danger/50 tracking-tighter">LIVE</span>
                 </a>
 
                 <a href="/honeypots" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
                     <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-orange-500 transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Deception_Grid</span>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Deception Assets</span>
                   </div>
                 </a>
 
-                <a href="/audit" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">COMPLIANCE</div>
+
+                <a href="/compliance/logs" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
                   <div class="flex items-center gap-4">
                     <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Audit_Chain</span>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">System Logs</span>
+                  </div>
+                </a>
+
+                <a href="/compliance/network" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Network Access Logs</span>
+                  </div>
+                </a>
+
+                <a href="/compliance/audit" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Audit Ledger</span>
+                  </div>
+                </a>
+
+                <a href="/compliance/incidents" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
+                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Incidents</span>
                   </div>
                 </a>
               </div>

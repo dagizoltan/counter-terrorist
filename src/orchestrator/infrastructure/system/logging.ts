@@ -67,16 +67,35 @@ export class LoggingService implements LoggingPort {
         };
     }
 
-    async log(message: string, severity: SyslogSeverity = SyslogSeverity.INFORMATIONAL) {
+    private ignoredSources = new Set(["WEB:UI", "METRICS", "HEARTBEAT"]);
+    private ignoredKeywords = ["GET /api/ws/events", "GET /api/metrics"];
+
+    async log(message: string, severity: SyslogSeverity = SyslogSeverity.INFORMATIONAL, source: string = "SYSTEM", payload?: any) {
+        // Filter out noisy logs
+        if (this.ignoredSources.has(source)) return;
+        for (const kw of this.ignoredKeywords) {
+            if (message.includes(kw)) return;
+        }
+
         const timestamp = new Date().toISOString();
         const hostname = Deno.hostname() || "unknown";
         const appName = "counter-terrorist";
         const procId = Deno.pid;
 
+        // Structured message: [SOURCE] Message {payload?}
+        let formattedMsg = `[${source}] ${message}`;
+        if (payload) {
+            try {
+                formattedMsg += ` | PAYLOAD: ${JSON.stringify(payload)}`;
+            } catch {
+                formattedMsg += ` | PAYLOAD: [Complex Object]`;
+            }
+        }
+
         // RFC 5424 format
         // <PRI>VERSION TIMESTAMP HOSTNAME APP-NAME PROCID MSGID STRUCTURED-DATA MSG
         const pri = (1 * 8) + severity; // Facility 1 (user-level)
-        const syslogMsg = `<${pri}>1 ${timestamp} ${hostname} ${appName} ${procId} - - ${message}`;
+        const syslogMsg = `<${pri}>1 ${timestamp} ${hostname} ${appName} ${procId} - - ${formattedMsg}`;
 
         // 1. Local File Logging
         this.writeToLocalFile(syslogMsg).catch(() => {});
@@ -84,7 +103,9 @@ export class LoggingService implements LoggingPort {
         if (this.remoteHost) {
             this.bufferLog(syslogMsg);
         } else {
-            // If no remote host, we still print to stdout but it's already done by console interception
+            // Also print to stdout for visibility, formatted for humans
+            const color = severity <= SyslogSeverity.ERROR ? "\x1b[31m" : severity <= SyslogSeverity.WARNING ? "\x1b[33m" : "\x1b[0m";
+            console.log(`${color}${timestamp} [${source}] [${SyslogSeverity[severity]}] ${message}\x1b[0m`);
         }
     }
 

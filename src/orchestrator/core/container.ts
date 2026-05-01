@@ -42,5 +42,7 @@ export interface ServiceContainer {
   curatedIntel: any;
   news: any;
   networkDiscovery: any;
+  networkLogs: any;
+  incidents: any;
   platformInfo: any;
 }

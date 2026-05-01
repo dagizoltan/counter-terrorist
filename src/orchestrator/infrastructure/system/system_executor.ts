@@ -9,15 +9,28 @@ export class SystemExecutor {
     "crontab", "which", "where", "powershell", "netsh", "taskkill", "tc", "kill",
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss", "cargo",
-    "unshare", "iptables"
+    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sudo"
+  ];
+
+  private static readonly PRIVILEGED_COMMANDS = [
+    "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread"
   ];
 
   async executeAsync(cmd: string, args: string[] = []): Promise<void> {
+    let finalCmd = cmd;
+    let finalArgs = [...args];
+
     if (!SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
         throw new Error(`Security Violation: Command '${cmd}' is not in the system whitelist.`);
     }
-    const command = new Deno.Command(cmd, {
-        args,
+
+    if (SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd) && Deno.uid() !== 0) {
+        finalCmd = "sudo";
+        finalArgs = ["-n", cmd, ...args];
+    }
+
+    const command = new Deno.Command(finalCmd, {
+        args: finalArgs,
         stdout: "null",
         stderr: "null",
     });
@@ -26,6 +39,9 @@ export class SystemExecutor {
   }
 
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
+    let finalCmd = cmd;
+    let finalArgs = [...args];
+
     // Security: Whitelist validation
     if (!SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
         return {
@@ -35,12 +51,18 @@ export class SystemExecutor {
         };
     }
 
+    // Privilege Elevation: Automatically use sudo for privileged commands if not already root
+    if (SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd) && Deno.uid() !== 0) {
+        finalCmd = "sudo";
+        finalArgs = ["-n", cmd, ...args];
+    }
+
     let timeoutId: number | undefined;
     let child: Deno.ChildProcess | undefined;
 
     try {
-      const command = new Deno.Command(cmd, {
-        args,
+      const command = new Deno.Command(finalCmd, {
+        args: finalArgs,
         stdout: "piped",
         stderr: "piped",
       });

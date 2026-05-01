@@ -34,20 +34,47 @@ export class WebAdapter implements WebPort {
 
   private async initialize() {
     if (this.app.routes.length > 0) return; // Prevent double initialization
-    // 1. Core Logging & Metrics
+    // 1. Core Logging & Metrics (High-Fidelity)
     this.app.use("*", async (c, next) => {
-      const msg = `[WEB] ${c.req.method} ${c.req.path}`;
-      console.log(msg);
+      const start = Date.now();
+      const traceId = crypto.randomUUID().slice(0, 8);
+      const { method, path } = c.req;
+      
+      // Mask sensitive data in logs
+      const body = await c.req.parseBody().catch(() => ({}));
+      const maskedBody = { ...body };
+      ["token", "password", "secret", "rawKey"].forEach(k => {
+        if (maskedBody[k]) maskedBody[k] = "********";
+      });
+
+      await loggingService.log(`[REQ:${traceId}] ${method} ${path}`, SyslogSeverity.INFORMATIONAL, "WEB:API", { body: maskedBody });
+
+      if (this.services.networkLogs) {
+        const ip = c.req.header("X-Forwarded-For") || "127.0.0.1";
+        await this.services.networkLogs.log({
+            direction: "INBOUND",
+            source: ip,
+            destination: "LOCAL:8001",
+            protocol: "HTTP",
+            length: Number(c.req.header("Content-Length") || 0),
+            action: "ALLOW"
+        });
+      }
+
       await next();
-      loggingService.log(`${msg} -> ${c.res.status}`, SyslogSeverity.DEBUG);
+      
+      const duration = Date.now() - start;
+      await loggingService.log(`[RES:${traceId}] ${method} ${path} -> ${c.res.status} (${duration}ms)`, SyslogSeverity.INFORMATIONAL, "WEB:API");
     });
 
     // 2. Error Handling
     this.app.onError((err, c) => {
+      const errorMsg = (err as Error).message;
       if (err instanceof AppError) {
+        loggingService.log(`[WEB:FAIL] ${errorMsg}`, SyslogSeverity.WARNING, "WEB:API", { code: err.statusCode });
         return c.json(err.toJSON(), err.statusCode as any);
       }
-      loggingService.log(`[WEB] Exception: ${(err as Error).message}`, SyslogSeverity.ERROR);
+      loggingService.log(`[WEB:CRITICAL] ${errorMsg}`, SyslogSeverity.ERROR, "WEB:API", { stack: (err as Error).stack });
       return c.json({ error: "Internal Server Error", code: "SERVER_FAULT" }, 500);
     });
 
@@ -116,13 +143,12 @@ export class WebAdapter implements WebPort {
     return {
       ...baseStatus,
       platform: this.services.platformInfo,
-      plugins: [
-        { name: "firewall", status: "ACTIVE", description: "Kernel-level packet filtering and isolation." },
-        { name: "vpn", status: "ACTIVE", description: "Secure mTLS mesh tunnel manager." },
-        { name: "ebpf", status: this.services.command.isRunning("ebpf") ? "ACTIVE" : "ERROR", description: "Kernel-level behavior monitoring and LSM.", details: this.services.command.isRunning("ebpf") ? "Running" : "Kernel mismatch or missing binary" },
-        { name: "fim", status: "ACTIVE", description: "File integrity monitoring and audit chain." },
-        { name: "scanner", status: "ACTIVE", description: "Vulnerability and process tree analysis." }
-      ]
+      plugins: Object.values(await import("@infrastructure/runtime/sidecar_registry.ts").then(m => m.SIDECAR_REGISTRY)).map(s => ({
+        name: s.name,
+        description: s.description,
+        status: this.services.command.isRunning(s.name) ? "ACTIVE" : "INACTIVE",
+        details: this.services.command.isRunning(s.name) ? "Running" : "Offline / Standby"
+      }))
     };
   }
 

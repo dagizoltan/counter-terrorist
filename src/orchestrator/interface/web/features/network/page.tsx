@@ -42,7 +42,7 @@ export const NetworkShieldPage = (props: { status: any, csrfToken?: string }) =>
               </div>
               <div class="pt-8 border-t border-white/5">
                  <button 
-                   onclick="fetch('/api/network/rotate', { method: 'POST' }).then(() => alert('Identity rotation initiated.'))"
+                   onclick="const t=document.querySelector('meta[name=\'csrf-token\']').content; fetch('/api/network/rotate', { method: 'POST', headers: {'X-CT-Token': t} }).then(() => alert('Identity rotation initiated.'))"
                    class="w-full py-4 bg-cyber/10 hover:bg-cyber/20 border border-cyber/20 text-cyber text-[10px] font-black uppercase tracking-[0.2em] rounded-lg transition-all"
                  >
                    Force_Identity_Rotation
@@ -51,6 +51,44 @@ export const NetworkShieldPage = (props: { status: any, csrfToken?: string }) =>
            </div>
         </div>
       </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
+        {/* FIREWALL CONTROLS */}
+        <div class="lg:col-span-2 glass-panel rounded-xl border border-white/5 p-8">
+           <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
+              <h3 class="text-xs font-black uppercase tracking-[0.2em] text-white/60">Perimeter_Enforcement_Buffer</h3>
+              <div class="flex items-center gap-4">
+                 <span id="fw-pid" class="text-[10px] font-mono text-slate-500">PID_N/A</span>
+                 <div class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div>
+              </div>
+           </div>
+           <div id="fw-blocked-list" class="space-y-2 mb-8 min-h-[100px]">
+              <p class="text-slate-500 text-[9px] uppercase font-bold">Querying firewall state...</p>
+           </div>
+           <div class="bg-black/40 border border-white/5 p-6 rounded-lg">
+              <h4 class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-4">Manual_Block_Instruction</h4>
+              <div class="flex gap-4">
+                 <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="flex-grow bg-obsidian border border-white/10 rounded px-4 py-2 text-[11px] font-mono text-white outline-none focus:border-red-500/50 transition-all" />
+                 <button 
+                   onclick="const ip=document.getElementById('fw-block-input').value; const t=document.querySelector('meta[name=\'csrf-token\']').content; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': t}, body: JSON.stringify({ip}) }).then(() => location.reload())"
+                   class="px-6 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-500 text-[9px] font-black uppercase tracking-widest rounded transition-all"
+                 >
+                   Enforce_Block
+                 </button>
+              </div>
+           </div>
+        </div>
+
+        {/* TRAFFIC LOGS */}
+        <div class="glass-panel rounded-xl border border-white/5 p-8">
+           <h3 class="text-xs font-black uppercase tracking-[0.2em] text-white/60 mb-8 pb-4 border-b border-white/5">Live_Traffic_Signals</h3>
+           <div id="fw-traffic-list" class="space-y-1 max-h-[400px] overflow-y-auto custom-scrollbar">
+              <p class="text-slate-500 text-[9px] italic">Awaiting packet stream...</p>
+           </div>
+        </div>
+      </div>
+
+      <firewall-agent></firewall-agent>
 
       <metrics-hydrator></metrics-hydrator>
     </Layout>

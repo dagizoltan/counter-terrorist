@@ -6,6 +6,11 @@ export function createAuditApi(auditService: AuditService) {
 
   auditApi.get("/", async (c) => {
       const limit = Number(c.req.query("limit")) || 50;
+      const cursor = c.req.query("cursor");
+      if (cursor) {
+          const result = await auditService.getEvents(limit, cursor);
+          return c.json(result);
+      }
       const events = await auditService.getRecentEvents(limit);
       return c.json(events);
   });

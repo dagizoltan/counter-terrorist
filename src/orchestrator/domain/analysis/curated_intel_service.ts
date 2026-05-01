@@ -48,8 +48,8 @@ export class CuratedIntelService {
         return this.blacklist;
     }
 
-    async start() {
-        this.kv = await Deno.openKv();
+    async start(kv?: Deno.Kv) {
+        this.kv = kv || await Deno.openKv();
         this.logging.log("[INTEL] Curated Intelligence Pipeline engaged. Scoring engine active.", SyslogSeverity.NOTICE);
         
         // Blocking initial sync for pre-start hardening
@@ -144,13 +144,29 @@ export class CuratedIntelService {
         this.logging.log(`[INTEL] Ingested ${ingestCount} from ${source.name} (Active Blocks: ${blockCount})`, SyslogSeverity.DEBUG);
     }
 
-    async getRecentThreats(limit = 10): Promise<IntelIndicator[]> {
+    async wipeDatabase() {
+        this.logging.log("[INTEL] Initiating complete intelligence purge...", SyslogSeverity.WARNING);
+        if (!this.kv) return;
+        const iter = this.kv.list({ prefix: ["curated_threats"] });
+        for await (const res of iter) {
+            await this.kv.delete(res.key);
+        }
+        this.blacklist.clear();
+        this.logging.log("[INTEL] Intelligence database wiped. Defensive rules reset.", SyslogSeverity.NOTICE);
+    }
+
+    async getThreats(type?: string, limit = 50): Promise<IntelIndicator[]> {
         if (!this.kv) return [];
-        const iter = this.kv.list<IntelIndicator>({ prefix: ["curated_threats"] }, { limit, reverse: true });
+        const iter = this.kv.list<IntelIndicator>({ prefix: ["curated_threats"] }, { limit });
         const threats: IntelIndicator[] = [];
         for await (const res of iter) {
+            if (type && res.value.type !== type) continue;
             threats.push(res.value);
         }
         return threats;
+    }
+
+    async getRecentThreats(limit = 10): Promise<IntelIndicator[]> {
+        return this.getThreats(undefined, limit);
     }
 }

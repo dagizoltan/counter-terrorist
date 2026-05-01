@@ -168,6 +168,15 @@ export class AuditService {
         return await this.repo.getLatest(limit);
     }
 
+    async getEvents(limit: number = 50, cursor?: string): Promise<{ items: AuditEvent[], cursor: string }> {
+        const iter = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { reverse: true, limit, cursor });
+        const items: AuditEvent[] = [];
+        for await (const entry of iter) {
+            items.push(entry.value);
+        }
+        return { items, cursor: iter.cursor };
+    }
+
     /**
      * Verifies the integrity of the audit log hash chain.
      * Returns verification result with details on any broken links.

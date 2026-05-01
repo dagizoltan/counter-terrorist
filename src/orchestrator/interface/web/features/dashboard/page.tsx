@@ -17,8 +17,8 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
       {/* Top Header Section */}
       <div class="flex justify-between items-center mb-12">
         <div>
-          <h1 class="text-3xl font-black tracking-widest uppercase mb-2">Tactical_Overview</h1>
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Autonomous_Defense_Mesh // v4.2-STABLE</p>
+          <h1 class="text-3xl font-black tracking-widest uppercase mb-2">Executive_Summary</h1>
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">Distributed Security Orchestrator // v4.2-STABLE</p>
         </div>
         <div class="flex gap-4">
            <button class="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all">
@@ -79,62 +79,62 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
         <div class="glass-panel rounded-2xl border border-cyber/10 p-8 shadow-[0_0_50px_rgba(0,210,255,0.03)] flex flex-col">
           <div class="flex items-center justify-between mb-8 pb-4 border-b border-cyber/10">
              <div class="flex items-center gap-3">
-                <span class="text-[10px] font-black text-cyber uppercase tracking-[0.3em]">Sector_01 // Network_Envelope</span>
-             </div>
-             <div class="px-2 py-0.5 rounded bg-cyber/10 border border-cyber/30 text-cyber text-[8px] font-black uppercase italic">Stealth_Active</div>
-          </div>
-          <div class="flex-grow space-y-8">
-             <div class="flex justify-between items-end">
-                <div>
-                   <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Exit_Anonymizer</span>
-                   <div id="stat-vpn-status" class="text-xl font-black text-white italic">SEARCHING...</div>
-                </div>
-                <div id="stat-anon-mode" class="text-[10px] font-mono text-cyber/60">OFF</div>
-             </div>
-             <div>
-                <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Geo_Diversity</span>
-                <div id="stat-geo-diversity" class="text-3xl font-black text-white tracking-tighter">0 Origins</div>
-             </div>
-          </div>
-          <div class="mt-12 pt-6 border-t border-white/5">
-             <a href="/network" class="w-full flex items-center justify-center p-3 rounded-lg bg-cyber/5 hover:bg-cyber/10 border border-cyber/10 text-[9px] font-black text-cyber uppercase tracking-widest transition-all">Configure_Shield</a>
-          </div>
-        </div>
+                 <span class="text-[10px] font-black text-cyber uppercase tracking-[0.3em]">Network Perimeter</span>
+              </div>
+              <div class="px-2 py-0.5 rounded bg-cyber/10 border border-cyber/30 text-cyber text-[8px] font-black uppercase italic">Enforcement_Active</div>
+           </div>
+           <div class="flex-grow space-y-8">
+              <div class="flex justify-between items-end">
+                 <div>
+                    <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Exit_Node_Status</span>
+                    <div id="stat-vpn-status" class="text-xl font-black text-white italic">SEARCHING...</div>
+                 </div>
+                 <div id="stat-anon-mode" class="text-[10px] font-mono text-cyber/60">OFF</div>
+              </div>
+              <div>
+                 <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Geolocation_Diversity</span>
+                 <div id="stat-geo-diversity" class="text-3xl font-black text-white tracking-tighter">0 Origins</div>
+              </div>
+           </div>
+           <div class="mt-12 pt-6 border-t border-white/5">
+              <a href="/network" class="w-full flex items-center justify-center p-3 rounded-lg bg-cyber/5 hover:bg-cyber/10 border border-cyber/10 text-[9px] font-black text-cyber uppercase tracking-widest transition-all">Network_Configuration</a>
+           </div>
+         </div>
 
-        {/* SECTOR 02: MESH FABRIC */}
-        <div class="glass-panel rounded-2xl border border-emerald-500/10 p-8 shadow-[0_0_50px_rgba(16,185,129,0.03)] flex flex-col">
-          <div class="flex items-center justify-between mb-8 pb-4 border-b border-emerald-500/10">
-             <div class="flex items-center gap-3">
-                <span class="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Sector_02 // Mesh_Fabric</span>
-             </div>
-             <div class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black uppercase italic">Quorum_Lock</div>
-          </div>
-          <div class="flex-grow space-y-8">
-             <div class="flex justify-between items-end">
-                <div>
-                   <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Sync_Integrity</span>
-                   <div class="text-xl font-black text-white italic">VERIFIED</div>
-                </div>
-                <div class="text-[10px] font-mono text-emerald-500/60">99.9%</div>
-             </div>
-             <div>
-                <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Connected_Nodes</span>
-                <div id="stat-mesh-nodes" class="text-3xl font-black text-white tracking-tighter">1 ACTIVE</div>
-             </div>
-          </div>
-          <div class="mt-12 pt-6 border-t border-white/5">
-             <a href="/mesh" class="w-full flex items-center justify-center p-3 rounded-lg bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 text-[9px] font-black text-emerald-400 uppercase tracking-widest transition-all">Mesh_Topology</a>
-          </div>
-        </div>
+         {/* SECTOR 02: MESH FABRIC */}
+         <div class="glass-panel rounded-2xl border border-emerald-500/10 p-8 shadow-[0_0_50px_rgba(16,185,129,0.03)] flex flex-col">
+           <div class="flex items-center justify-between mb-8 pb-4 border-b border-emerald-500/10">
+              <div class="flex items-center gap-3">
+                 <span class="text-[10px] font-black text-emerald-400 uppercase tracking-[0.3em]">Mesh Infrastructure</span>
+              </div>
+              <div class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black uppercase italic">Quorum_Locked</div>
+           </div>
+           <div class="flex-grow space-y-8">
+              <div class="flex justify-between items-end">
+                 <div>
+                    <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-1">Synchronization_Status</span>
+                    <div class="text-xl font-black text-white italic">VERIFIED</div>
+                 </div>
+                 <div class="text-[10px] font-mono text-emerald-500/60">99.9%</div>
+              </div>
+              <div>
+                 <span class="text-[9px] font-black text-slate-500 uppercase tracking-widest block mb-2">Authorized_Peers</span>
+                 <div id="stat-mesh-nodes" class="text-3xl font-black text-white tracking-tighter">1 ACTIVE</div>
+              </div>
+           </div>
+           <div class="mt-12 pt-6 border-t border-white/5">
+              <a href="/mesh" class="w-full flex items-center justify-center p-3 rounded-lg bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/10 text-[9px] font-black text-emerald-400 uppercase tracking-widest transition-all">Mesh_Orchestration</a>
+           </div>
+         </div>
 
-        {/* SECTOR 03: NODE INTEGRITY */}
-        <div class="glass-panel rounded-2xl border border-white/5 p-8 flex flex-col">
-          <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
-             <div class="flex items-center gap-3">
-                <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Sector_03 // Node_Integrity</span>
-             </div>
-             <div class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-400 text-[8px] font-black uppercase italic">Active_Scan</div>
-          </div>
+         {/* SECTOR 03: NODE INTEGRITY */}
+         <div class="glass-panel rounded-2xl border border-white/5 p-8 flex flex-col">
+           <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+              <div class="flex items-center gap-3">
+                 <span class="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Endpoint Integrity</span>
+              </div>
+              <div class="px-2 py-0.5 rounded bg-white/5 border border-white/10 text-slate-400 text-[8px] font-black uppercase italic">Active_Telemetry</div>
+           </div>
           <div class="flex-grow space-y-8">
              <div class="flex justify-between items-end">
                 <div>

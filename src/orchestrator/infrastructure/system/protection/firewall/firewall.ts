@@ -7,7 +7,7 @@ export type { FirewallProvider };
 export class FirewallManager {
   private blockedIps: Set<string> = new Set();
 
-  constructor(private provider: FirewallProvider) {}
+  constructor(private provider: FirewallProvider, private networkLogs?: any) {}
 
   async blockIp(ip: string) {
     if (!isValidIP(ip)) {
@@ -15,6 +15,17 @@ export class FirewallManager {
     }
     this.blockedIps.add(ip);
     broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}`, data: { ip } });
+
+    if (this.networkLogs) {
+        await this.networkLogs.log({
+            direction: "INBOUND",
+            source: ip,
+            destination: "LOCAL",
+            protocol: "ANY",
+            length: 0,
+            action: "BLOCK"
+        });
+    }
 
     if (meshManager) {
       meshManager.broadcastBlock(ip).catch(console.error);
@@ -29,6 +40,17 @@ export class FirewallManager {
     }
     broadcast({ type: "WARNING", message: `Shadow Banning IP: ${ip} (Throttling to 1KB/s)`, data: { ip } });
     
+    if (this.networkLogs) {
+        await this.networkLogs.log({
+            direction: "INBOUND",
+            source: ip,
+            destination: "LOCAL",
+            protocol: "ANY",
+            length: 0,
+            action: "SHADOW"
+        });
+    }
+
     if (meshManager) {
       meshManager.broadcastBlock(ip).catch(console.error);
     }
@@ -76,5 +98,11 @@ export class FirewallManager {
     }
 
     return await this.provider.lockdown();
+  }
+
+  async flushRules() {
+    broadcast({ type: "WARNING", message: "FLUSHING GLOBAL RULES" });
+    this.blockedIps.clear();
+    return await this.provider.flushRules();
   }
 }

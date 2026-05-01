@@ -264,6 +264,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       // Protocol fix: blocker sends { type: "BlockIp", ip: "...", ... } not always wrapped in payload
       const targetIp = req.ip || req.payload?.ip;
       if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
+      if (req.type === "BlockIp" && isCriticalInfrastructure(targetIp || "")) return false;
       return true;
     case "pcap":
       if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
@@ -295,6 +296,13 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       // Protocol fix: fim sends { type: "WatchPath", path: "...", ... } not always wrapped in payload
       const targetPath = req.path || req.payload?.path;
       if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof targetPath !== "string") return false;
+      return true;
+    case "ebpf":
+      if (!["SHADOW_BAN", "HIDE_PID", "SHUTDOWN"].includes(req.type)) return false;
+      if (req.type === "SHADOW_BAN") {
+        if (!isValidIP(req.ip || "")) return false;
+        if (isCriticalInfrastructure(req.ip || "")) return false;
+      }
       return true;
     default:
       return false; // Unknown sidecars are rejected by default

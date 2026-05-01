@@ -60,6 +60,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
             </div>
           </div>
         ))}
+        
       </div>
 
       {/* HARDENING MATRIX ROW */}

@@ -4,18 +4,18 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 export class UbuntuVpnProvider implements VpnProvider {
   constructor(private executor: SystemExecutor) {}
 
-  async connect(interfaceName: string): Promise<VpnResult> {
+  async connect(interfaceName: string = "wg0"): Promise<VpnResult> {
     const res = await this.executor.execute("wg-quick", ["up", interfaceName]);
     return { success: res.success, message: res.stdout + res.stderr };
   }
 
-  async disconnect(): Promise<VpnResult> {
-    const res = await this.executor.execute("wg-quick", ["down", "wg0"]);
+  async disconnect(interfaceName: string = "wg0"): Promise<VpnResult> {
+    const res = await this.executor.execute("wg-quick", ["down", interfaceName]);
     return { success: res.success, message: res.stdout + res.stderr };
   }
 
-  async isConnected(): Promise<boolean> {
-    const res = await this.executor.execute("wg", ["show", "wg0"]);
+  async isConnected(interfaceName: string = "wg0"): Promise<boolean> {
+    const res = await this.executor.execute("wg", ["show", interfaceName]);
     return res.success;
   }
 

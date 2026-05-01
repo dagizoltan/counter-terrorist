@@ -31,8 +31,9 @@ export function createProtection(
   sidecar: SidecarManager,
   executor: SystemExecutor,
   platformInfo: PlatformInfo,
+  networkLogs: any,
 ): Protection {
-  const firewall = createFirewallManager(sidecar, executor, platformInfo);
+  const firewall = createFirewallManager(sidecar, executor, platformInfo, networkLogs);
   return {
     firewall,
     vpn: createVpnManager(sidecar, executor, platformInfo),

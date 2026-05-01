@@ -9,6 +9,8 @@ import { createStatsApi } from "../api/stats.ts";
 import { createChaosApi } from "../api/chaos.ts";
 import { createSupplyChainApi } from "../api/supply_chain.ts";
 import { createAgentsApi } from "../api/agents.ts";
+import { createThreatsApi } from "../api/threats.ts";
+import { createComplianceApi } from "../api/compliance.ts";
 
 /**
  * API Router
@@ -94,6 +96,8 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   router.route("/stats", createStatsApi(services.eventBus));
   router.route("/chaos", createChaosApi(services.chaos, security.requireRole.bind(security)));
   router.route("/supply-chain", createSupplyChainApi(services.supplyChain));
+  router.route("/threats", createThreatsApi(services));
+  router.route("/compliance", createComplianceApi(services));
 
   router.get("/platform", (c: Context) => {
     const info = services.platformInfo;
@@ -101,6 +105,11 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   // Layer-Specific Controls
+  router.get("/network/logs", async (c: Context) => {
+    const logs = await services.networkLogs.getLogs(50);
+    return c.json(logs);
+  });
+
   router.post("/network/rotate", async (c: Context) => {
     await services.anonymization.rotate();
     return c.json({ success: true, message: "Identity rotation initiated" });
@@ -144,6 +153,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json({
       firewall: { 
         active: true,
+        pid: services.command.getPID("blocker"),
         capabilities: ["PACKET_FILTER", "RATE_LIMITING", "IP_ISOLATION"],
         root: true,
         metrics: metrics?.firewall
