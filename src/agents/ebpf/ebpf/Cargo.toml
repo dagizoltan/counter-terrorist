@@ -6,6 +6,10 @@ edition = "2021"
 [dependencies]
 aya-ebpf = "0.1"
 aya-log-ebpf = "0.1"
+ebpf-common = { path = "../common" }
+
+[profile.release]
+panic = "abort"
 
 [[bin]]
 name = "ebpf"

@@ -19,9 +19,10 @@ export class PlaybookService {
     loggingService.log("[PLAYBOOK] Initializing Automated Response Engine", SyslogSeverity.INFORMATIONAL);
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
-    this.sidecarManager.onEvent("honeypot", async (data) => {
-      if (data.event?.type === "PortAccess") {
-        const { port, source_ip } = data.event.payload;
+    this.sidecarManager.onEvent("honeypot", async (res) => {
+      const data = res.data;
+      if (data && data.type === "PortAccess") {
+        const { port, source_ip } = data;
         
         const { isValidIP, isCriticalInfrastructure } = await import("@infrastructure/system/validation.ts");
         if (!isValidIP(source_ip) || isCriticalInfrastructure(source_ip)) {
@@ -31,15 +32,10 @@ export class PlaybookService {
 
         loggingService.log(`[PLAYBOOK] Honeypot trigger on port ${port} from ${source_ip}. Executing auto-block.`, SyslogSeverity.WARNING);
         
-        // Increase threat score
         this.updateThreatScore("local", 1);
         
-        // Forensics: Automatically start a packet capture for this IP
-        // Security: source_ip is validated as a clean IP string by isValidIP above
         loggingService.log(`[PLAYBOOK] Starting forensic capture for IP: ${source_ip}`, SyslogSeverity.INFORMATIONAL);
-        this.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
-           loggingService.log(`[PLAYBOOK] Failed to start forensic capture: ${(err as Error).message}`, SyslogSeverity.ERROR);
-        });
+        this.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(() => {});
 
         try {
           await this.protection.firewall.blockIp(source_ip);
@@ -54,9 +50,10 @@ export class PlaybookService {
     });
 
     // FIM Playbook: High-priority notification on critical file change
-    this.sidecarManager.onEvent("fim", async (data) => {
-      if (data.event?.type === "FileAlert") {
-        const { path, action } = data.event.payload;
+    this.sidecarManager.onEvent("fim", async (res) => {
+      const data = res.data;
+      if (data && data.type === "FileAlert") {
+        const { path, action } = data;
         loggingService.log(`[PLAYBOOK] FIM trigger: ${action} detected on ${path}`, SyslogSeverity.CRITICAL);
         
         await this.notifications.notify({
@@ -69,9 +66,10 @@ export class PlaybookService {
     });
 
     // eBPF Playbook: Monitor suspicious syscalls and quarantine
-    this.sidecarManager.onEvent("ebpf", async (data) => {
-      if (data.event?.type === "SYSCALL_EVENT") {
-        const { pid, comm, syscall } = data.event;
+    this.sidecarManager.onEvent("ebpf", async (res) => {
+      const data = res.data;
+      if (data && data.type === "SYSCALL_EVENT") {
+        const { pid, comm, syscall } = data;
         
         if (syscall === "ptrace") {
           loggingService.log(`[PLAYBOOK] SUSPICIOUS PTRACE detected from ${comm} (PID: ${pid}). Executing Quarantine.`, SyslogSeverity.CRITICAL);
@@ -92,9 +90,10 @@ export class PlaybookService {
     });
 
     // Mesh Playbook: Monitor node threat levels
-    this.sidecarManager.onEvent("scanner", async (data) => {
-      if (data.event?.type === "ThreatDetected") {
-        const { nodeId, severity } = data.event.payload;
+    this.sidecarManager.onEvent("scanner", async (res) => {
+      const data = res.data;
+      if (data && data.type === "ThreatDetected") {
+        const { nodeId, severity } = data;
         if (severity === "HIGH" || severity === "CRITICAL") {
            this.updateThreatScore(nodeId, 1);
         }

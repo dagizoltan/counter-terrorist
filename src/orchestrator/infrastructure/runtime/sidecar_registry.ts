@@ -22,7 +22,7 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
     blocker: {
         name: "blocker",
         description: "Active enforcement agent for IP blocking and process termination.",
-        persistent: false,
+        persistent: true,
         privileged: true
     },
     ebpf: {

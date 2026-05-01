@@ -8,7 +8,8 @@ export class MorphingService {
     constructor(
         private honeypot: HoneypotService,
         private canary: CanaryService,
-        private audit: AuditService
+        private audit: AuditService,
+        private mesh: any // MeshManager
     ) {}
 
     start(intervalMs: number = 600000) { // Default 10 minutes
@@ -21,6 +22,11 @@ export class MorphingService {
             await this.honeypot.morph();
             await this.canary.morph();
             
+            // Randomly rotate mesh identity to prevent long-term fingerprinting (10% chance per morph)
+            if (Math.random() > 0.9) {
+                await this.mesh.rotateIdentity();
+            }
+
             await this.audit.logEvent({
                 type: "INFO",
                 message: "DECEPTION MORPH COMPLETE: Mesh infrastructure has successfully changed its footprint."

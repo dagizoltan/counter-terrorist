@@ -11,7 +11,8 @@ import {
   ChaosEngine,
   SupplyChainService,
   MeshManager,
-  EventBus
+  EventBus,
+  MeshAuthService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 
@@ -32,5 +33,6 @@ export interface ServiceContainer {
   chaos: ChaosEngine;
   supplyChain: SupplyChainService;
   mesh: MeshManager;
+  meshAuth: MeshAuthService;
   platformInfo: any;
 }

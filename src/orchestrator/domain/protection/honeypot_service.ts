@@ -2,6 +2,7 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { BroadcastFunction } from "../engine/plugins/types.ts";
+import { SyslogSeverity } from "@infrastructure/system/logging.ts";
 
 export interface HoneypotModule {
   id: string;
@@ -20,7 +21,8 @@ export class HoneypotService {
     private sidecarManager: SidecarManager,
     private firewall: FirewallManager,
     private pcap: PcapManager,
-    private broadcast: BroadcastFunction
+    private broadcast: BroadcastFunction,
+    private logging: any // loggingService
   ) {
     // Register default modules
     this.registerModule({
@@ -45,10 +47,17 @@ export class HoneypotService {
       active: true,
     });
     this.registerModule({
-      id: "telnet",
-      name: "Legacy Telnet",
-      port: 23,
-      description: "Detects legacy IoT botnets searching for open telnet ports.",
+      id: "postgres",
+      name: "PostgreSQL Decoy",
+      port: 5432,
+      description: "Emulates an exposed PostgreSQL instance to capture credential brute-force.",
+      active: true,
+    });
+    this.registerModule({
+      id: "rdp",
+      name: "RDP Decoy",
+      port: 3389,
+      description: "Fake Remote Desktop service to detect lateral movement attempts.",
       active: true,
     });
   }
@@ -81,7 +90,9 @@ export class HoneypotService {
       module.active = active;
       await this.sidecarManager.sendCommand("honeypot", {
         type: "ToggleModule",
-        payload: { module: id, active, port: module.port }
+        module: id, 
+        active, 
+        port: module.port
       });
     }
   }
@@ -98,8 +109,9 @@ export class HoneypotService {
   }
 
   private async handleEvent(event: any) {
-    if (event.event?.type === "PortAccess") {
-      const payload = event.event.payload;
+    // New unified protocol: { success: true, data: { type: "PortAccess", ... } }
+    const payload = event.data;
+    if (payload && payload.type === "PortAccess") {
       const { port, source_ip } = payload;
       
       this.hitCount++;
@@ -120,6 +132,42 @@ export class HoneypotService {
   }
 
   /**
+   * High-confidence trigger from the Web Ingress decoy routes.
+   */
+  async onWebTrigger(route: string, source_ip: string) {
+    this.hitCount++;
+    this.emitEvent({ type: "WebAccess", source_ip, route });
+
+    this.broadcast({
+      type: "CRITICAL",
+      message: `Web Decoy Triggered: Access to ${route} from ${source_ip}`,
+      data: { source_ip, route }
+    });
+
+    // Immediate blocking for web decoys as they are 100% malicious
+    this.firewall.blockIp(source_ip).catch(console.error);
+
+    // Active Sabotage: Initiate Breaker protocol on the attacker's session
+    this.sabotageSession(source_ip);
+  }
+
+  /**
+   * Initiates the 'Breaker' protocol to sabotage an attacker's session.
+   * Injects latency, jitter, and fake errors to frustrate the adversary.
+   */
+  async sabotageSession(source_ip: string) {
+    this.logging.log(`[SABOTAGE] Initiating Breaker Protocol against ${source_ip}`, SyslogSeverity.WARNING);
+    
+    // We send a Sabotage command to the honeypot sidecar
+    // The sidecar will then inject jitter and errors for this specific IP
+    await this.sidecarManager.sendCommand("honeypot", {
+        type: "Sabotage",
+        source_ip, 
+        level: "HIGH"
+    }).catch(() => {});
+  }
+
+  /**
    * Randomly rotates the ports of all active modules to confuse attackers.
    */
   async morph() {
@@ -127,20 +175,28 @@ export class HoneypotService {
     for (const [id, module] of this.modules) {
       if (!module.active) continue;
 
-      // Random high port (avoiding standard ones and our own port)
       const oldPort = module.port;
       let newPort: number;
       const protectedPorts = [8000, 8001, 8002]; // Orchestrator ports
       
       do {
-        newPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
+        // Preference for common but usually unused ports for better camouflage
+        const camouflagePorts = [111, 515, 1024, 2049, 4000, 5000, 9000];
+        const useCamouflage = Math.random() > 0.5;
+        if (useCamouflage) {
+           newPort = camouflagePorts[Math.floor(Math.random() * camouflagePorts.length)];
+        } else {
+           newPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
+        }
       } while (protectedPorts.includes(newPort) || Array.from(this.modules.values()).some(m => m.port === newPort));
 
       module.port = newPort;
 
       await this.sidecarManager.sendCommand("honeypot", {
         type: "UpdateModule",
-        payload: { module: id, oldPort, newPort }
+        module: id, 
+        oldPort, 
+        newPort
       });
 
       this.broadcast({

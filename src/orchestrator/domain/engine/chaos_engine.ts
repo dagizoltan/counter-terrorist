@@ -12,15 +12,16 @@ export class ChaosEngine {
   async simulateBruteForce(ip: string = "192.168.99.100") {
     console.log(`[CHAOS] Simulating SSH Brute Force from ${ip}`);
     
-    // Send fake events to the honeypot pipeline
-    for (let i = 0; i < 5; i++) {
+    // Send fake events to the honeypot pipeline (Unified Schema)
+    for (let i = 0; i < 6; i++) {
         this.sidecar.emitEvent("honeypot", {
-            sidecar: "honeypot",
-            event: {
+            success: true,
+            data: {
                 type: "PortAccess",
-                src_ip: ip,
-                dest_port: 22
-            }
+                source_ip: ip,
+                port: 22
+            },
+            timestamp: new Date().toISOString()
         });
         await new Promise(r => setTimeout(r, 200));
     }
@@ -35,13 +36,14 @@ export class ChaosEngine {
   async simulateCanaryTrigger(path: string = "./vault_credentials.xlsx") {
     console.log(`[CHAOS] Simulating Canary Trigger: ${path}`);
     
-    // FIM event schema expects { resource, expected, actual } or similar? 
-    // Actually fim is not in the registry yet, but let's be safe.
     this.sidecar.emitEvent("fim", {
-        type: "FILE_EVENT",
-        path: path,
-        comm: "scp",
-        action: "OPEN"
+        success: true,
+        data: {
+            type: "FileAlert",
+            path: path,
+            action: "OPEN"
+        },
+        timestamp: new Date().toISOString()
     });
 
     await this.auditService.logEvent({
@@ -55,13 +57,14 @@ export class ChaosEngine {
     console.log(`[CHAOS] Simulating Malware Execution: ${proc}`);
     
     this.sidecar.emitEvent("ebpf", {
-        type: "Syscall",
+        success: true,
         data: {
-            syscall: "execve",
+            type: "SYSCALL_EVENT",
+            syscall: "ptrace", // ptrace triggers immediate quarantine
             comm: proc,
-            pid: 8888,
-            args: ["--donate-level", "1"]
-        }
+            pid: 8888
+        },
+        timestamp: new Date().toISOString()
     });
 
     await this.auditService.logEvent({

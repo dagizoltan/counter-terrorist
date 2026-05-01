@@ -28,7 +28,10 @@ export class MeshAuthService {
   private readonly CA_KEY = ["mesh", "pki", "root_ca_v5"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v3"];
 
-  constructor(private kv: Deno.Kv) {}
+  constructor(
+    private kv: Deno.Kv,
+    private tpm?: any // TPMManager
+  ) {}
 
   /**
    * Generates or retrieves the root CA for the mesh.
@@ -38,7 +41,9 @@ export class MeshAuthService {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
     if (entry.value && entry.value.timestamp > thirtyDaysAgo) {
-      return await this.decryptCertPair(entry.value);
+      const decrypted = await this.decryptCertPair(entry.value);
+      if (decrypted) return decrypted;
+      console.warn("[PKI] Existing Root CA decryption failed. Secret may have rotated. Regenerating...");
     }
 
     console.log("[PKI] CA is missing or older than 30 days. Generating/Regenerating Root CA...");
@@ -60,7 +65,10 @@ export class MeshAuthService {
     const nodeKey = [...this.NODES_PREFIX, nodeId];
     const entry = await this.kv.get<EncryptedCertPair>(nodeKey);
 
-    if (entry.value) return await this.decryptCertPair(entry.value);
+    if (entry.value) {
+      const decrypted = await this.decryptCertPair(entry.value);
+      if (decrypted) return decrypted;
+    }
 
     const certPair = await this.issueNodeCert(nodeId);
     await this.kv!.set(nodeKey, await this.encryptCertPair(certPair));
@@ -81,11 +89,30 @@ export class MeshAuthService {
   /**
    * Gets the PKI encryption secret. Falls back to API_TOKEN if PKI_SECRET is not set.
    */
-  private getPkiSecret(): string {
-    const secret = Deno.env.get("PKI_SECRET");
-    if (!secret) {
-      throw new Error("[PKI] CRITICAL: PKI_SECRET is not set. PKI operations aborted for security.");
+  private async getPkiSecret(): Promise<string> {
+    // 1. Try TPM (Hardware-Rooted Root of Trust)
+    if (this.tpm) {
+        const sealed = await this.tpm.unsealSecret("PKI_SECRET");
+        if (sealed) return sealed;
     }
+
+    // 2. Fallback to ENV (Standard Production Mode)
+    let secret = Deno.env.get("PKI_SECRET");
+    
+    if (!secret) {
+      const fallback = Deno.env.get("API_TOKEN");
+      if (!fallback) {
+        throw new Error("[PKI] CRITICAL: Neither PKI_SECRET nor API_TOKEN are set. PKI operations aborted for security.");
+      }
+      console.warn("[PKI] WARNING: PKI_SECRET is not set. Falling back to API_TOKEN for key encryption.");
+      secret = fallback;
+    }
+
+    // 3. Seal to TPM for future cold-boot resilience
+    if (this.tpm && secret) {
+        await this.tpm.sealSecret("PKI_SECRET", secret);
+    }
+
     return secret;
   }
 
@@ -93,7 +120,7 @@ export class MeshAuthService {
    * Derives an AES-256-GCM key from the PKI secret using PBKDF2.
    */
   private async deriveKey(salt: Uint8Array): Promise<CryptoKey> {
-    const secret = this.getPkiSecret();
+    const secret = await this.getPkiSecret();
     const encoder = new TextEncoder();
     const secretBytes = encoder.encode(secret);
 
@@ -148,23 +175,28 @@ export class MeshAuthService {
   /**
    * Decrypts an EncryptedCertPair back to a CertPair.
    */
-  private async decryptCertPair(encrypted: EncryptedCertPair): Promise<CertPair> {
+  private async decryptCertPair(encrypted: EncryptedCertPair): Promise<CertPair | null> {
     const salt = this.fromBase64(encrypted.salt);
     const iv = this.fromBase64(encrypted.iv);
     const ciphertext = this.fromBase64(encrypted.encryptedKey);
     const key = await this.deriveKey(salt);
 
-    const decrypted = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
-      key,
-      ciphertext.buffer as ArrayBuffer
-    );
+    try {
+      const decrypted = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: iv.buffer as ArrayBuffer },
+        key,
+        ciphertext.buffer as ArrayBuffer
+      );
 
-    return {
-      cert: encrypted.cert,
-      key: new TextDecoder().decode(decrypted),
-      timestamp: encrypted.timestamp,
-    };
+      return {
+        cert: encrypted.cert,
+        key: new TextDecoder().decode(decrypted),
+        timestamp: encrypted.timestamp,
+      };
+    } catch (e) {
+      console.error(`[PKI] Decryption failed: ${(e as Error).message}. Possible secret mismatch.`);
+      return null;
+    }
   }
 
   private toBase64(bytes: Uint8Array): string {

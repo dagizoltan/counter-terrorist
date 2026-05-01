@@ -29,12 +29,19 @@ import { AutopilotService } from "@domain/engine/autopilot_service.ts";
 import { KernelService } from "@domain/protection/kernel_service.ts";
 import { createProtection } from "@infrastructure/system/protection/index.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
-import { bootstrap } from "./bootstrapper.ts";
+import { bootstrap, camouflage } from "./bootstrapper.ts";
+import { LedgerService } from "@domain/analysis/ledger_service.ts";
+import { GovernanceService } from "@domain/engine/governance_service.ts";
+import { ShadowService } from "@domain/protection/shadow_service.ts";
+import { CovertChannelService } from "@domain/engine/covert_service.ts";
+import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
+import { ProvisioningService } from "@domain/engine/provisioning_service.ts";
 import { SidecarEvent } from "@infrastructure/system/validation.ts";
 
 import { loadConfig } from "./core/config_schema.ts";
 
 // ── Phase 1: Core infrastructure ──────────────────────────────────────
+await camouflage();
 const config = loadConfig();
 const kv = await Deno.openKv("./volume/storage/orchestrator.db");
 const configProvider = new EnvConfigProvider(config);
@@ -47,7 +54,8 @@ const systemStatus = await bootstrap();
 const auditService = new AuditService(kv, loggingService);
 const notificationService = new NotificationService(kv, loggingService);
 const eventBus = new EventBus(loggingService);
-const meshAuthService = new MeshAuthService(kv);
+const tpmManager = new TPMManager(executor, loggingService);
+const meshAuthService = new MeshAuthService(kv, tpmManager);
 const meshManager = new MeshManager(meshAuthService, loggingService);
 setMeshManager(meshManager);
 await meshManager.init();
@@ -71,25 +79,46 @@ const playbookService = new PlaybookService(sidecarManager, protection, notifica
 
 const behavioralService = new BehavioralService(protection.firewall as any);
 const threatIntel = new ThreatIntelService(protection, loggingService);
-const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast);
+const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
 honeypotService.setBehavioralService(behavioralService);
 
 const canaryService = new CanaryService(auditService, sidecarManager);
 const kernelService = new KernelService(executor, auditService);
 const autopilotService = new AutopilotService(eventBus, playbookService, auditService);
-const morphingService = new MorphingService(honeypotService, canaryService, auditService);
+const morphingService = new MorphingService(honeypotService, canaryService, auditService, meshManager);
 const chaosEngine = new ChaosEngine(eventBus, auditService, sidecarManager);
 const supplyChain = new SupplyChainService();
+const provisioningService = new ProvisioningService(sidecarManager, meshManager, executor, loggingService);
+const governanceService = new GovernanceService(meshManager, protection, loggingService);
+const shadowService = new ShadowService(executor, loggingService);
+const covertService = new CovertChannelService(executor, loggingService);
 
 // ── Phase 4: Start subsystems ─────────────────────────────────────────
 await playbookService.init();
 await autopilotService.start();
 await morphingService.start();
+
+// Lateral Expansion (Defensive Worm) - Only if explicitly enabled
+if (Deno.env.get("PROVISIONING_ENABLED") === "true") {
+  provisioningService.run().catch(err => {
+    console.error(`[PROVISIONING] Engine failure: ${err.message}`);
+  });
+}
 await processTracker.fullScan();
+// INITIAL SUBTERRANEAN INTEGRITY SCAN (ROOTKIT DETECTION)
+const ghosts = await processTracker.scanForGhosts();
+if (ghosts.length > 0) {
+    await auditService.logEvent({
+        type: "THREAT",
+        message: `ROOTKIT IDENTIFIED ON STARTUP: PIDs ${ghosts.join(", ")} are hidden from /proc.`,
+        data: { ghosts }
+    });
+}
 await threatIntel.start();
 await honeypotService.start();
 await canaryService.deploy();
 await kernelService.harden();
+await covertService.startListener();
 
 // ── Phase 5: Wire event pipelines ─────────────────────────────────────
 // Honeypot events → EventBus (for stats API) + Behavioral Analysis
@@ -120,9 +149,14 @@ sidecarManager.onEvent("ebpf", async (event: SidecarEvent) => {
 
 // FIM sidecar → broadcast + canary pipeline
 sidecarManager.onEvent("fim", (event: any) => {
-  if (event.type === "FILE_EVENT") {
-    canaryService.handleFileAccess(event.path, event.comm);
-    broadcast({ type: "INFO", message: `FIM Alert: ${event.comm} ${event.action} ${event.path}`, data: event });
+  const payload = event.data;
+  if (payload && payload.type === "FileAlert") {
+    canaryService.handleFileAccess(payload.path, "UNKNOWN_COMM");
+    broadcast({ 
+      type: "INFO", 
+      message: `FIM Alert: ${payload.action} on ${payload.path}`, 
+      data: payload 
+    });
   }
 });
 
@@ -144,6 +178,7 @@ const services: ServiceContainer = {
   chaos: chaosEngine,
   supplyChain: supplyChain,
   mesh: meshManager,
+  meshAuth: meshAuthService,
   platformInfo
 };
 
@@ -161,7 +196,15 @@ const startDaemons = async () => {
   sidecarManager.getPersistentSidecar("honeypot").catch(() => {});
   sidecarManager.getPersistentSidecar("fim").catch(() => {});
   try {
-    await sidecarManager.getPersistentSidecar("ebpf");
+    const ebpf = await sidecarManager.getPersistentSidecar("ebpf");
+    if (ebpf) {
+      // Activate Kernel-Level Stealth: Hide our own PID from the system
+      await sidecarManager.sendCommand("ebpf", { 
+        type: "HIDE_PID", 
+        payload: { pid: Deno.pid } 
+      }).catch(err => console.warn(`[STEALTH] Kernel-level hiding failed: ${err.message}`));
+      console.log("[STEALTH] Kernel-level PID hiding activated via eBPF.");
+    }
   } catch (_e) {
     console.warn("[FORENSICS] eBPF fallback active — polling canary tokens.");
     setInterval(async () => {

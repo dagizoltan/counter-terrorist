@@ -10,6 +10,7 @@ import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "./middleware/security.ts";
 import { createUiRouter } from "./routes/ui.tsx";
 import { createApiRouter } from "./routes/api.tsx";
+import { MeshAuthService } from "@domain/index.ts";
 
 /**
  * WebAdapter
@@ -19,11 +20,13 @@ import { createApiRouter } from "./routes/api.tsx";
 export class WebAdapter implements WebPort {
   private app: Hono;
   private security: SecurityMiddleware;
+  private meshAuth?: MeshAuthService;
 
   constructor(private services: ServiceContainer) {
     const masterToken = services.config.getToken();
     if (!masterToken) throw new Error("CRITICAL: API_TOKEN not configured");
 
+    this.meshAuth = services.meshAuth;
     this.security = new SecurityMiddleware(services, masterToken);
     this.app = new Hono();
 
@@ -57,8 +60,27 @@ export class WebAdapter implements WebPort {
     this.app.get("/features/*", serveStatic({ root: webRoot }));
     this.app.get("/components/*", serveStatic({ root: webRoot }));
     this.app.get("/vendor/*", serveStatic({ root: webRoot }));
+    this.app.get("/assets/*", serveStatic({ root: webRoot }));
+    this.app.get("/style.css", serveStatic({ root: webRoot }));
+    
+    // 4. Deception: Honey-Endpoints (Publicly visible traps)
+    const honeyRoutes = ["/admin", "/.git/config", "/wp-config.php", "/.env", "/config.json"];
+    honeyRoutes.forEach(route => {
+      this.app.get(route, async (c) => {
+        const ip = c.req.header("X-Forwarded-For") || c.req.header("Remote-Addr") || "unknown";
+        loggingService.log(`[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`, SyslogSeverity.CRITICAL);
+        
+        // Notify deception service
+        await this.services.honeypot.onWebTrigger(route, ip);
+        
+        return c.json({ 
+          error: "Unauthorized access detected. Security event logged.", 
+          code: "DECEPTION_TRAP" 
+        }, 403);
+      });
+    });
 
-    // 4. Public Access (Auth, Login, Logout)
+    // 5. Public Access (Auth, Login, Logout)
     this.app.route("/login", createLoginRouter({
       checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
       isTokenValid: (t) => this.isTokenValid(t),
@@ -135,7 +157,22 @@ export class WebAdapter implements WebPort {
   }
 
   async start(port: number = 8000): Promise<void> {
-    console.log(`[WEB] Orchestrator Engine active on port ${port}`);
-    await Deno.serve({ port }, this.app.fetch);
+    if (this.meshAuth) {
+      console.log(`[WEB] Starting SOVEREIGN mTLS Orchestrator Engine on port ${port}...`);
+      const nodeCert = await this.meshAuth.generateNodeCert(Deno.hostname());
+      const rootCA = await this.meshAuth.getRootCA();
+      
+      // Enforce Tier-5 Sovereignty: Only clients with valid mesh certificates can connect.
+      await Deno.serve({ 
+        port,
+        cert: nodeCert.cert,
+        key: nodeCert.key,
+        // Enforce client certificate verification
+        caCerts: [rootCA.cert],
+      }, this.app.fetch);
+    } else {
+      console.log(`[WEB] Orchestrator Engine active on port ${port} (INSECURE MODE)`);
+      await Deno.serve({ port }, this.app.fetch);
+    }
   }
 }

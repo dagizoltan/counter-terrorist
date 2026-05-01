@@ -46,6 +46,14 @@ export class MeshManager {
     }
   }
 
+  getNodeId() {
+    return this.nodeId;
+  }
+
+  getActiveNodeCount() {
+    return Array.from(this.nodes.values()).filter(n => (Date.now() - n.lastSeen) < 600000).length;
+  }
+
   /**
    * Starts node discovery.
    * Zero-config: Attempts mDNS first, then falls back to Subnet Scanning.
@@ -97,24 +105,29 @@ export class MeshManager {
 
   private async probeNode(address: string) {
     try {
-      const url = `http://${address}:${this.port}/api/mesh/ping`; // Try HTTP first for discovery
-      const res = await fetch(url, { signal: AbortSignal.timeout(1000) });
+      // SECURE DISCOVERY: Always use HTTPS and mTLS client
+      const url = `https://${address}:${this.port}/api/mesh/ping`;
+      const res = await fetch(url, { 
+        client: this.httpClient!,
+        signal: AbortSignal.timeout(2000) 
+      });
+      
       if (res.ok) {
         const body = await res.json();
         if (body.success && body.nodeId) {
-          this.logging.log(`[MESH] Discovered potential peer at ${address}`, SyslogSeverity.NOTICE);
+          this.logging.log(`[MESH] Discovered verified peer at ${address}`, SyslogSeverity.NOTICE);
           this.validateAndRegisterNode({
             id: body.nodeId,
             hostname: body.nodeId,
             address,
             port: this.port,
             lastSeen: Date.now(),
-            verified: false,
+            verified: true, // If HTTPS+mTLS fetch succeeded, it's verified
           });
         }
       }
     } catch {
-      // Node not present or port closed
+      // Node not present, port closed, or TLS failed
     }
   }
 
@@ -445,10 +458,20 @@ export class MeshManager {
       headers["X-Mesh-Secret"] = this.meshSecret;
     }
 
+    // TRAFFIC CAMOUFLAGE: Random jitter and padding
+    const jitter = Math.floor(Math.random() * 500); // 0-500ms jitter
+    await new Promise(r => setTimeout(r, jitter));
+    
+    // Add random padding to the payload to mimic variable-size HTTPS requests
+    const paddedPayload = {
+      ...payload,
+      _p: crypto.randomUUID().repeat(Math.floor(Math.random() * 5))
+    };
+
     const res = await fetch(url, {
         method: "POST",
         headers,
-        body: JSON.stringify(payload),
+        body: JSON.stringify(paddedPayload),
         client: this.httpClient!
     });
 
@@ -457,6 +480,32 @@ export class MeshManager {
     }
 
     console.log(`[MESH] mTLS Sync sent to ${node.address}:${node.port}`);
+  }
+
+  /**
+   * Rotates the node's cryptographic identity and Node ID.
+   * This is an ultra-hardening measure to prevent long-term mesh persistence by an adversary.
+   */
+  async rotateIdentity() {
+    this.logging.log(`[MESH] Initiating Identity Rotation for ${this.nodeId}...`, SyslogSeverity.WARNING);
+    
+    // 1. Wipe existing mTLS client
+    this.httpClient = null;
+    
+    // 2. Generate a fresh Node ID (to evade fingerprinting)
+    const oldId = this.nodeId;
+    this.nodeId = Deno.hostname() + "-" + crypto.randomUUID().slice(0, 8);
+    
+    // 3. Re-initialize mTLS identity
+    await this.init();
+    
+    this.logging.log(`[MESH] Identity Rotation Complete: ${oldId} -> ${this.nodeId}`, SyslogSeverity.NOTICE);
+    
+    broadcast({
+        type: "INFO",
+        message: "Security Mesh Identity Phased",
+        data: { oldId, newId: this.nodeId }
+    });
   }
 }
 

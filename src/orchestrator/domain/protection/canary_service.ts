@@ -1,6 +1,7 @@
 import { AuditService } from "../analysis/audit.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
 
 export interface CanaryToken {
     id: string;
@@ -18,8 +19,13 @@ export interface CanaryToken {
 export class CanaryService {
     private tokens: CanaryToken[] = [];
     private readonly MASTER_DIR = "./volume/deception/bait";
+    private agingIntervalId?: number;
 
-    constructor(private auditService: AuditService, private sidecar: SidecarManager) {
+    constructor(
+        private auditService: AuditService, 
+        private sidecar: SidecarManager,
+        private logging: LoggingPort
+    ) {
         const baitFiles = [
             { id: "fin_01", path: "./vault_credentials.xlsx", desc: "Fake financial credentials" },
             { id: "aws_01", path: "./.aws/config", desc: "Fake cloud infrastructure config" },
@@ -71,14 +77,35 @@ export class CanaryService {
 
                 // Create the hardlink (Atomic projection)
                 await Deno.link(token.masterPath, token.projectionPath);
-                console.log(`[CANARY] Projected breadcrumb: ${token.projectionPath} -> ${token.masterPath}`);
+                this.logging.log(`[CANARY] Projected breadcrumb: ${token.projectionPath}`, SyslogSeverity.DEBUG);
 
                 // 3. Register with FIM
-                this.sidecar.sendCommand("fim", { type: "WatchPath", payload: { path: absProjection } }).catch(() => {});
+                this.sidecar.sendCommand("fim", { type: "WatchPath", path: absProjection }).catch(() => {});
             } catch (e) {
-                console.warn(`[CANARY] Projection failed for ${token.projectionPath}: ${(e as Error).message}`);
+                this.logging.log(`[CANARY] Projection failed for ${token.projectionPath}: ${(e as Error).message}`, SyslogSeverity.WARNING);
             }
         }
+        
+        this.startAging();
+    }
+
+    /**
+     * Periodically updates the 'Last Accessed' and 'Modified' timestamps of decoys.
+     * This makes honey-tokens look like active system files.
+     */
+    private startAging() {
+        if (this.agingIntervalId) clearInterval(this.agingIntervalId);
+        this.agingIntervalId = setInterval(async () => {
+            for (const token of this.tokens) {
+                try {
+                    // Update 'atime' and 'mtime' to current time to simulate activity
+                    await Deno.utime(token.projectionPath, new Date(), new Date());
+                    this.logging.log(`[CANARY] Lure aged (timestamp rotation): ${token.id}`, SyslogSeverity.DEBUG);
+                } catch {
+                    // Skip if file is locked or missing
+                }
+            }
+        }, 3600000); // Once per hour
     }
 
     /**

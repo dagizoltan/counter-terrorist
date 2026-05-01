@@ -1,37 +1,77 @@
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use chrono::Utc;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "type", content = "payload")]
-enum HoneypotEvent {
+struct SidecarResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
+    timestamp: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type")]
+enum Command {
+    UpdateModule { id: String, module: String, oldPort: u16, newPort: u16 },
+    ToggleModule { id: String, module: String, active: bool, port: u16 },
+    Sabotage { id: String, source_ip: String, level: String },
+    GetStatus { id: String },
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type")]
+enum SidecarEvent {
     PortAccess { port: u16, source_ip: String },
     Status { message: String },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct Message {
-    timestamp: String,
-    event: HoneypotEvent,
-}
-
-fn emit_event(event: HoneypotEvent) {
-    let msg = Message {
+fn emit_event(event: SidecarEvent) {
+    let resp = SidecarResponse {
+        id: None,
+        success: true,
+        message: None,
+        data: Some(serde_json::to_value(event).unwrap()),
         timestamp: Utc::now().to_rfc3339(),
-        event,
     };
-    if let Ok(json) = serde_json::to_string(&msg) {
+    if let Ok(json) = serde_json::to_string(&resp) {
         println!("{}", json);
     }
 }
 
-async fn start_port_listener(port: u16) {
+fn emit_response(id: String, success: bool, message: String) {
+    let resp = SidecarResponse {
+        id: Some(id),
+        success,
+        message: Some(message),
+        data: None,
+        timestamp: Utc::now().to_rfc3339(),
+    };
+    if let Ok(json) = serde_json::to_string(&resp) {
+        println!("{}", json);
+    }
+}
+
+struct ListenerState {
+    port: u16,
+    active: bool,
+    sabotage_ips: Vec<String>,
+}
+
+async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerState>>>) {
     let addr = format!("0.0.0.0:{}", port);
     let listener = match TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) => {
-            emit_event(HoneypotEvent::Status {
+            emit_event(SidecarEvent::Status {
                 message: format!("Failed to bind to port {}: {}", port, e),
             });
             return;
@@ -39,13 +79,29 @@ async fn start_port_listener(port: u16) {
     };
 
     loop {
+        {
+            let s = state.lock().await;
+            if let Some(ls) = s.get(&port) {
+                if !ls.active { break; }
+            } else {
+                break;
+            }
+        }
+
         match listener.accept().await {
             Ok((mut socket, addr)) => {
-                emit_event(HoneypotEvent::PortAccess {
+                let ip = addr.ip().to_string();
+                emit_event(SidecarEvent::PortAccess {
                     port,
-                    source_ip: addr.ip().to_string(),
+                    source_ip: ip.clone(),
                 });
-                // Immediate close to avoid providing any real interaction
+
+                let s = state.lock().await;
+                if let Some(ls) = s.get(&port) {
+                    if ls.sabotage_ips.contains(&ip) {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    }
+                }
                 let _ = socket.shutdown().await;
             }
             Err(_) => continue,
@@ -55,22 +111,66 @@ async fn start_port_listener(port: u16) {
 
 #[tokio::main]
 async fn main() {
-    // Honey ports to listen on
-    let ports = vec![2222, 23, 445, 3389];
+    let state: Arc<Mutex<HashMap<u16, ListenerState>>> = Arc::new(Mutex::new(HashMap::new()));
+    let mut stdin = BufReader::new(tokio::io::stdin());
+    let mut line = String::new();
 
-    // Launch port listeners
-    for port in ports {
-        tokio::spawn(async move {
-            start_port_listener(port).await;
-        });
-    }
-
-    emit_event(HoneypotEvent::Status {
-        message: "Micro-Honeypot Sidecar Started".to_string(),
+    emit_event(SidecarEvent::Status {
+        message: "Honeypot Sovereign Protocol V3 Active".to_string(),
     });
 
-    // Keep the main thread alive
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(3600)).await;
+        line.clear();
+        match stdin.read_line(&mut line).await {
+            Ok(0) => break,
+            Ok(_) => {
+                if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
+                    match cmd {
+                        Command::UpdateModule { id, oldPort, newPort, .. } => {
+                            {
+                                let mut s = state.lock().await;
+                                if let Some(ls) = s.get_mut(&oldPort) {
+                                    ls.active = false;
+                                }
+                            }
+                            let state_clone = Arc::clone(&state);
+                            state.lock().await.insert(newPort, ListenerState { port: newPort, active: true, sabotage_ips: vec![] });
+                            tokio::spawn(async move {
+                                start_port_listener(newPort, state_clone).await;
+                            });
+                            emit_response(id, true, format!("Morphed port {} to {}", oldPort, newPort));
+                        }
+                        Command::ToggleModule { id, active, port, .. } => {
+                            if active {
+                                let state_clone = Arc::clone(&state);
+                                state.lock().await.insert(port, ListenerState { port, active: true, sabotage_ips: vec![] });
+                                tokio::spawn(async move {
+                                    start_port_listener(port, state_clone).await;
+                                });
+                            } else {
+                                let mut s = state.lock().await;
+                                if let Some(ls) = s.get_mut(&port) {
+                                    ls.active = false;
+                                }
+                            }
+                            emit_response(id, true, "Toggle success".to_string());
+                        }
+                        Command::Sabotage { id, source_ip, .. } => {
+                            let mut s = state.lock().await;
+                            for ls in s.values_mut() {
+                                if !ls.sabotage_ips.contains(&source_ip) {
+                                    ls.sabotage_ips.push(source_ip.clone());
+                                }
+                            }
+                            emit_response(id, true, "Sabotage engaged".to_string());
+                        }
+                        Command::GetStatus { id } => {
+                            emit_response(id, true, "Active".to_string());
+                        }
+                    }
+                }
+            }
+            Err(_) => break,
+        }
     }
 }

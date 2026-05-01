@@ -97,4 +97,38 @@ export class ProcessTracker {
     getTree(): ProcessNode[] {
         return Array.from(this.tree.values());
     }
+
+    /**
+     * Scans for 'Ghost Processes'—PIDs that respond to signals but are hidden from /proc.
+     * This is a primary detection method for rootkits and stealth malware.
+     */
+    async scanForGhosts(): Promise<number[]> {
+        const ghosts: number[] = [];
+        const maxPid = 65535; // Standard Linux PID limit
+
+        for (let pid = 1; pid <= maxPid; pid++) {
+            try {
+                // kill -0 equivalent in Deno
+                Deno.kill(pid, "SIGCONT"); 
+                
+                // If we reach here, the process exists. Now check /proc
+                try {
+                    await Deno.stat(`/proc/${pid}`);
+                } catch {
+                    // Process exists in kernel but MISSING from /proc!
+                    ghosts.push(pid);
+                }
+            } catch {
+                // Process doesn't exist or no permission
+            }
+            
+            // Yield every 1000 PIDs to avoid blocking the event loop
+            if (pid % 1000 === 0) await new Promise(r => setTimeout(r, 0));
+        }
+
+        if (ghosts.length > 0) {
+            this.logging.log(`[FORENSICS] GHOST PROCESSES DETECTED: ${ghosts.join(", ")}`, SyslogSeverity.CRITICAL);
+        }
+        return ghosts;
+    }
 }

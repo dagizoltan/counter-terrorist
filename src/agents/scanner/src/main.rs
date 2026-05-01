@@ -84,9 +84,7 @@ fn compute_hash(path: &std::path::Path) -> (String, SystemTime) {
 #[tokio::main]
 async fn main() {
     // Phase 4: Basic Process Masquerading
-    // Note: On Linux, we can change the process name shown in some tools by modifying argv[0]
-    // For this baseline, we use an innocuous title for the internal logic
-    println!("[INFO] Initializing system-monitoring-helper...");
+    // Removed plain-text println to maintain JSON pipe integrity.
 
     let mut sys = System::new_all();
 

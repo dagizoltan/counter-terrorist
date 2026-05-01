@@ -34,12 +34,14 @@ export class ThreatIntelService {
 
       this.logging.log(`[INTEL] Synchronizing ${ips.length} high-confidence malicious IPs.`, SyslogSeverity.NOTICE);
       
-      // Parallelize blocking for performance
-      await Promise.all(ips.map(ip => 
-        this.protection.firewall.blockIp(ip).catch(err => 
-          this.logging.log(`[INTEL] Failed to block ${ip}: ${(err as Error).message}`, SyslogSeverity.WARNING)
-        )
-      ));
+      // Execute blocking sequentially to avoid process explosion and system instability
+      for (const ip of ips) {
+        try {
+          await this.protection.firewall.blockIp(ip);
+        } catch (err) {
+          this.logging.log(`[INTEL] Failed to block ${ip}: ${(err as Error).message}`, SyslogSeverity.WARNING);
+        }
+      }
     } catch (e) {
       this.logging.log(`[INTEL] Failed to fetch threat list: ${(e as Error).message}. Using local cache.`, SyslogSeverity.WARNING);
     }

@@ -224,7 +224,18 @@ export class SidecarManager implements CommandPort {
             const data = JSON.parse(line) as SidecarResponse;
 
             if (!validateResponse(name as SidecarName, data)) {
-              console.error(`[SIDE-MAN:${name}] Security violation: Invalid response from sidecar: ${line}`);
+              const msg = `[SIDE-MAN:${name}] Security violation: Invalid response schema from sidecar. Missing 'success' or invalid format. Payload: ${line}`;
+              console.error(msg);
+              
+              // If this was a response to a command, fail the command immediately
+              if (data.id && this.responseWaiters.has(name)) {
+                const waiters = this.responseWaiters.get(name)!;
+                const waiter = waiters.get(data.id);
+                if (waiter) {
+                  waiter.reject(new Error(msg));
+                  waiters.delete(data.id);
+                }
+              }
               continue;
             }
 
@@ -247,8 +258,9 @@ export class SidecarManager implements CommandPort {
             for (const handler of handlers) {
               handler(data);
             }
-          } catch {
-            console.error(`[SIDE-MAN:${name}] Failed to parse response: ${line}`);
+          } catch (e) {
+            console.error(`[SIDE-MAN:${name}] Failed to parse response JSON: ${line}. Error: ${(e as Error).message}`);
+            // We can't easily notify a waiter here because we don't have the 'id' yet
           }
         }
       }

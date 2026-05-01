@@ -98,110 +98,88 @@ class BlockingLog extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display: block; background: #000; border-top: 1px solid rgba(255,255,255,0.05); }
+        :host { display: block; background: rgba(10, 11, 16, 0.4); border-top: 1px solid rgba(60, 80, 120, 0.2); border-radius: 8px; overflow: hidden; backdrop-filter: blur(12px); }
         .controls {
-          padding: 1.5rem 2rem;
-          background: rgba(255,255,255,0.02);
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          padding: 1rem 1.5rem;
+          background: rgba(255, 255, 255, 0.02);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
           display: flex;
-          gap: 1.5rem;
+          gap: 1rem;
           align-items: center;
         }
         .filter-group {
           margin-left: auto;
           display: flex;
           align-items: center;
-          gap: 1rem;
-          font-size: 10px;
-          font-weight: 800;
-          color: #64748b;
+          gap: 0.5rem;
+          font-size: 9px;
+          font-weight: 700;
+          color: #94a3b8;
           text-transform: uppercase;
           letter-spacing: 0.1em;
         }
         select {
-          background: #000;
-          border: 1px solid rgba(255,255,255,0.1);
-          color: white;
-          padding: 0.4rem 0.8rem;
-          border-radius: 0;
-          font-size: 10px;
-          font-weight: 800;
+          background: #0f172a;
+          border: 1px solid rgba(60, 80, 120, 0.3);
+          color: #e2e8f0;
+          padding: 0.3rem 0.6rem;
+          border-radius: 4px;
+          font-size: 9px;
           text-transform: uppercase;
           outline: none;
         }
         input {
-          background: #000;
-          border: 1px solid rgba(255,255,255,0.1);
-          color: white;
-          padding: 0.6rem 1rem;
-          border-radius: 0;
-          font-size: 11px;
+          background: rgba(0, 0, 0, 0.3);
+          border: 1px solid rgba(60, 80, 120, 0.3);
+          color: #fff;
+          padding: 0.5rem 0.8rem;
+          border-radius: 4px;
+          font-size: 10px;
           font-family: 'JetBrains Mono', monospace;
           flex-grow: 1;
           outline: none;
         }
-        input:focus { border-color: rgba(255,255,255,0.3); }
         button {
-          background: #fff;
+          background: #00d2ff;
           color: #000;
           border: none;
-          padding: 0.6rem 1.5rem;
-          border-radius: 0;
-          font-size: 10px;
-          font-weight: 900;
+          padding: 0.5rem 1.2rem;
+          border-radius: 4px;
+          font-size: 9px;
+          font-weight: 800;
           text-transform: uppercase;
-          letter-spacing: 0.1em;
           cursor: pointer;
           transition: all 0.2s;
         }
-        button:hover { background: #e2e8f0; }
+        button:hover { background: #00b8e6; transform: translateY(-1px); }
         .log-container {
-          background: #000;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 11px;
-          height: 400px;
+          font-size: 10px;
+          height: 350px;
           overflow-y: auto;
-          padding: 0;
         }
-        .log-container::-webkit-scrollbar { width: 4px; }
-        .log-container::-webkit-scrollbar-track { background: transparent; }
-        .log-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
-
         .entry-group { 
           display: grid;
-          grid-template-columns: 180px 100px 1fr;
+          grid-template-columns: 150px 80px 1fr;
           gap: 1rem;
-          padding: 0.75rem 2rem;
-          border-bottom: 1px solid rgba(255,255,255,0.02);
+          padding: 0.6rem 1.5rem;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.02);
           align-items: center;
-          transition: background 0.1s;
         }
-        .entry-group:hover { background: rgba(255,255,255,0.01); }
-        .timestamp { color: #475569; font-size: 10px; }
+        .timestamp { color: #64748b; font-size: 9px; }
         .type-label {
-          font-size: 9px;
+          font-size: 8px;
           font-weight: 900;
-          padding: 2px 6px;
+          padding: 1px 6px;
           text-transform: uppercase;
-          letter-spacing: 0.05em;
           text-align: center;
-          border-radius: 0;
-          width: fit-content;
+          border-radius: 4px;
         }
-        .type-INFO { background: rgba(56, 189, 248, 0.1); color: #38bdf8; }
-        .type-WARN { background: rgba(251, 191, 36, 0.1); color: #fbbf24; }
-        .type-BLOCK { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-        .type-CRITICAL { background: #ef4444; color: #fff; }
-        .type-DRIFT_PORT { background: rgba(168, 85, 247, 0.1); color: #a855f7; }
-        .type-DRIFT_PROCESS { background: rgba(236, 72, 153, 0.1); color: #ec4899; }
-        .message { color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .details { 
-           grid-column: 3;
-           color: #475569; 
-           font-size: 10px; 
-           margin-top: -0.25rem;
-           margin-bottom: 0.5rem;
-        }
+        .type-INFO { background: rgba(0, 210, 255, 0.1); color: #00d2ff; }
+        .type-WARN { background: rgba(255, 170, 0, 0.1); color: #ffaa00; }
+        .type-BLOCK { background: rgba(255, 45, 85, 0.1); color: #ff2d55; }
+        .type-CRITICAL { background: #ff2d55; color: #fff; box-shadow: 0 0 10px rgba(255, 45, 85, 0.4); }
+        .message { color: #cbd5e1; }
       </style>
       <div class="controls">
         <form id="block-form" style="display:flex; flex-grow:1; gap: 1rem;">

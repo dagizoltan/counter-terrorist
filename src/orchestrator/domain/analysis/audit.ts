@@ -51,6 +51,10 @@ export class AuditService {
         this.verifyChain = withTelemetry("Audit:Verify", this.verifyChain.bind(this), logging) as any;
     }
 
+    public getLogging(): LoggingPort {
+        return this.logging;
+    }
+
     setMesh(mesh: MeshManager) {
         this.mesh = mesh;
     }
@@ -104,7 +108,8 @@ export class AuditService {
                 this.lastHash = hash;
                 
                 // Forward audit event to remote syslog
-                this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, SyslogSeverity.NOTICE);
+                const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? SyslogSeverity.NOTICE : SyslogSeverity.DEBUG;
+                this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, severity);
 
                 // Gossip to mesh if critical
                 if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
@@ -139,7 +144,7 @@ export class AuditService {
         eventsChecked: number;
         brokenAt?: { eventId: string; expected: string; actual: string };
     }> {
-        this.logging.log(`[AUDIT] Starting integrity verification for last ${limit} events…`, SyslogSeverity.INFORMATIONAL);
+        this.logging.log(`[AUDIT] Starting integrity verification for last ${limit} events…`, SyslogSeverity.DEBUG);
         
         // Get events in chronological order (oldest first)
         const events: AuditEvent[] = [];

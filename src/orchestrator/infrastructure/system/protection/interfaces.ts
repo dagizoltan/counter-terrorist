@@ -5,6 +5,7 @@ export interface FirewallProvider {
   shadowBanIp(ip: string): Promise<CommandResult>;
   unblockIp(ip: string): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
+  dumpProcessForensics?(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
   lockdown(): Promise<CommandResult>;
 }

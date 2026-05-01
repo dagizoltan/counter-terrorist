@@ -1,276 +1,114 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
-use std::env;
 use std::process::Command;
+use std::io;
+use chrono::Utc;
+use tokio::io::{AsyncBufReadExt, BufReader};
 
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type", content = "payload")]
-enum BlockerCommand {
-    KillProcess { pid: u32 },
-    BlockIp { ip: String },
-    UnblockIp { ip: String },
-}
-
-#[derive(Serialize, Debug)]
-struct BlockerResponse {
-    id: String,
+#[derive(Serialize, Deserialize, Debug)]
+struct SidecarResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
     success: bool,
-    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
     timestamp: String,
 }
 
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: blocker <json_command>");
-        std::process::exit(1);
-    }
-
-    let cmd_json = &args[1];
-
-    // We need to extract the ID manually or use a wrapper struct because the command is tagged
-    let raw_cmd: serde_json::Value = match serde_json::from_str(cmd_json) {
-        Ok(v) => v,
-        Err(e) => {
-             let res = BlockerResponse {
-                id: "unknown".to_string(),
-                success: false,
-                message: format!("Invalid JSON: {}", e),
-                timestamp: chrono::Utc::now().to_rfc3339(),
-            };
-            println!("{}", serde_json::to_string(&res).unwrap());
-            return;
-        }
-    };
-
-    let id = raw_cmd["id"].as_str().unwrap_or("unknown").to_string();
-
-    let command: BlockerCommand = match serde_json::from_value(raw_cmd) {
-        Ok(c) => c,
-        Err(e) => {
-            let res = BlockerResponse {
-                id,
-                success: false,
-                message: format!("Invalid command structure: {}", e),
-                timestamp: chrono::Utc::now().to_rfc3339(),
-            };
-            println!("{}", serde_json::to_string(&res).unwrap());
-            return;
-        }
-    };
-
-    let response = match command {
-        BlockerCommand::KillProcess { pid } => kill_process(id, pid),
-        BlockerCommand::BlockIp { ip } => block_ip(id, ip),
-        BlockerCommand::UnblockIp { ip } => unblock_ip(id, ip),
-    };
-
-    println!("{}", serde_json::to_string(&response).unwrap());
+#[derive(Deserialize, Debug)]
+#[serde(tag = "type")]
+enum BlockerCommand {
+    KillProcess { id: String, pid: u32 },
+    BlockIp { id: String, ip: String },
+    UnblockIp { id: String, ip: String },
 }
 
-fn kill_process(id: String, pid: u32) -> BlockerResponse {
-    let my_pid = std::process::id();
-
-    if pid < 100 {
-        return BlockerResponse {
-            id,
-            success: false,
-            message: format!("Refusing to kill system process {} (PID < 100)", pid),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        };
+fn emit_response(id: String, success: bool, message: String) {
+    let resp = SidecarResponse {
+        id: Some(id),
+        success,
+        message: Some(message),
+        data: None,
+        timestamp: Utc::now().to_rfc3339(),
+    };
+    if let Ok(json) = serde_json::to_string(&resp) {
+        println!("{}", json);
     }
+}
 
-    if pid == my_pid {
-        return BlockerResponse {
-            id,
-            success: false,
-            message: "Refusing to kill self".to_string(),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        };
-    }
+#[tokio::main]
+async fn main() {
+    let stdin = tokio::io::stdin();
+    let mut reader = BufReader::new(stdin).lines();
 
-    let mut sys = System::new_all();
-    sys.refresh_all();
-
-    // Check if process is parent
-    let my_process = sys.process(Pid::from_u32(my_pid));
-    if let Some(me) = my_process {
-        if let Some(ppid) = me.parent() {
-            if pid == ppid.as_u32() {
-                return BlockerResponse {
-                    id,
-                    success: false,
-                    message: "Refusing to kill parent orchestrator process".to_string(),
-                    timestamp: chrono::Utc::now().to_rfc3339(),
-                };
-            }
+    while let Ok(Some(line)) = reader.next_line().await {
+        if let Ok(cmd) = serde_json::from_str::<BlockerCommand>(line.trim()) {
+            tokio::spawn(async move {
+                match cmd {
+                    BlockerCommand::KillProcess { id, pid } => {
+                        let res = kill_process_task(pid).await;
+                        emit_response(id, res.0, res.1);
+                    },
+                    BlockerCommand::BlockIp { id, ip } => {
+                        let res = block_ip_task(ip).await;
+                        emit_response(id, res.0, res.1);
+                    },
+                    BlockerCommand::UnblockIp { id, ip } => {
+                        let res = unblock_ip_task(ip).await;
+                        emit_response(id, res.0, res.1);
+                    }
+                }
+            });
         }
     }
+}
 
+async fn kill_process_task(pid: u32) -> (bool, String) {
+    let mut sys = System::new();
+    let my_pid = std::process::id();
+    
+    if pid < 100 { return (false, format!("Refusing to kill system process {}", pid)); }
+    if pid == my_pid { return (false, "Refusing to kill self".to_string()); }
+
+    sys.refresh_process(Pid::from_u32(pid));
+    
     if let Some(process) = sys.process(Pid::from_u32(pid)) {
         let name = process.name().to_string();
         let success = process.kill();
-        BlockerResponse {
-            id,
-            success,
-            message: if success { format!("Killed process {} ({})", pid, name) } else { format!("Failed to kill process {}", pid) },
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        }
+        (success, if success { format!("Killed process {} ({})", pid, name) } else { format!("Failed to kill process {}", pid) })
     } else {
-        BlockerResponse {
-            id,
-            success: false,
-            message: format!("Process {} not found", pid),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        }
+        (false, format!("Process {} not found", pid))
     }
 }
 
-fn block_ip(id: String, ip: String) -> BlockerResponse {
+async fn block_ip_task(ip: String) -> (bool, String) {
     if ip.parse::<std::net::IpAddr>().is_err() {
-        return BlockerResponse {
-            id: id.clone(),
-            success: false,
-            message: format!("Invalid IP address: {}", ip),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        };
+        return (false, format!("Invalid IP: {}", ip));
     }
+    
+    let ip_clone = ip.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new("ufw").args(["deny", "from", &ip_clone]).output()
+    }).await;
 
-    os_block_ip(id, ip)
-}
-
-fn unblock_ip(id: String, ip: String) -> BlockerResponse {
-    if ip.parse::<std::net::IpAddr>().is_err() {
-        return BlockerResponse {
-            id: id.clone(),
-            success: false,
-            message: format!("Invalid IP address: {}", ip),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        };
-    }
-
-    os_unblock_ip(id, ip)
-}
-
-#[cfg(target_os = "linux")]
-fn os_block_ip(id: String, ip: String) -> BlockerResponse {
-    // Check if rule already exists (idempotency)
-    let status_output = Command::new("ufw")
-        .args(["status", "verbose"])
-        .output();
-
-    if let Ok(out) = status_output {
-        let stdout = String::from_utf8_lossy(&out.stdout);
-        if stdout.contains(&ip) && stdout.contains("DENY IN") {
-            return BlockerResponse {
-                id,
-                success: true,
-                message: format!("IP {} is already blocked", ip),
-                timestamp: chrono::Utc::now().to_rfc3339(),
-            };
-        }
-    }
-
-    let output = Command::new("ufw")
-        .args(["deny", "from", &ip])
-        .output();
     match output {
-        Ok(out) => BlockerResponse {
-            id,
-            success: out.status.success(),
-            message: format!("Firewall command executed for IP: {}", ip),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
-        Err(e) => BlockerResponse {
-            id,
-            success: false,
-            message: format!("Failed to execute firewall command: {}", e),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
+        Ok(Ok(out)) => (out.status.success(), format!("UFW block for {}", ip)),
+        Ok(Err(e)) => (false, format!("UFW failed: {}", e)),
+        Err(e) => (false, format!("Task panicked: {}", e)),
     }
 }
 
-#[cfg(target_os = "linux")]
-fn os_unblock_ip(id: String, ip: String) -> BlockerResponse {
-    let output = Command::new("ufw")
-        .args(["delete", "deny", "from", &ip])
-        .output();
+async fn unblock_ip_task(ip: String) -> (bool, String) {
+    let ip_clone = ip.clone();
+    let output = tokio::task::spawn_blocking(move || {
+        Command::new("ufw").args(["delete", "deny", "from", &ip_clone]).output()
+    }).await;
+
     match output {
-        Ok(out) => BlockerResponse {
-            id,
-            success: out.status.success(),
-            message: format!("Firewall unblock command executed for IP: {}", ip),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
-        Err(e) => BlockerResponse {
-            id,
-            success: false,
-            message: format!("Failed to execute firewall unblock command: {}", e),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn os_block_ip(id: String, ip: String) -> BlockerResponse {
-    // macOS uses pf (packet filter). We assume a table 'ct_blocked' exists or can be manipulated.
-    // sudo pfctl -t ct_blocked -T add <ip>
-    let output = Command::new("pfctl")
-        .args(["-t", "ct_blocked", "-T", "add", &ip])
-        .output();
-    match output {
-        Ok(out) => BlockerResponse {
-            id,
-            success: out.status.success(),
-            message: format!("pfctl add command executed for IP: {}", ip),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
-        Err(e) => BlockerResponse {
-            id,
-            success: false,
-            message: format!("Failed to execute pfctl command: {}", e),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn os_unblock_ip(id: String, ip: String) -> BlockerResponse {
-    let output = Command::new("pfctl")
-        .args(["-t", "ct_blocked", "-T", "delete", &ip])
-        .output();
-    match output {
-        Ok(out) => BlockerResponse {
-            id,
-            success: out.status.success(),
-            message: format!("pfctl delete command executed for IP: {}", ip),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
-        Err(e) => BlockerResponse {
-            id,
-            success: false,
-            message: format!("Failed to execute pfctl delete command: {}", e),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        },
-    }
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn os_block_ip(id: String, ip: String) -> BlockerResponse {
-    BlockerResponse {
-        id,
-        success: false,
-        message: format!("Unsupported OS for firewall operations"),
-        timestamp: chrono::Utc::now().to_rfc3339(),
-    }
-}
-
-#[cfg(not(any(target_os = "linux", target_os = "macos")))]
-fn os_unblock_ip(id: String, ip: String) -> BlockerResponse {
-    BlockerResponse {
-        id,
-        success: false,
-        message: format!("Unsupported OS for firewall operations"),
-        timestamp: chrono::Utc::now().to_rfc3339(),
+        Ok(Ok(out)) => (out.status.success(), format!("UFW unblock for {}", ip)),
+        Ok(Err(e)) => (false, format!("UFW failed: {}", e)),
+        Err(e) => (false, format!("Task panicked: {}", e)),
     }
 }

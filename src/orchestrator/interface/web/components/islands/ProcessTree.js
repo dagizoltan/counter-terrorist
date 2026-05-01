@@ -91,11 +91,11 @@ class ProcessTree extends HTMLElement {
         :host {
           display: block;
           font-family: 'JetBrains Mono', monospace;
-          font-size: 11px;
+          font-size: 10px;
           color: #94a3b8;
         }
         .tree-container {
-            padding: 1rem;
+            padding: 0.5rem;
         }
         .node-container {
             display: flex;
@@ -104,22 +104,25 @@ class ProcessTree extends HTMLElement {
         .node { 
           display: flex;
           align-items: center;
-          height: 20px;
-          padding-left: 10px;
-          border-left: 1px solid rgba(255,255,255,0.1);
-          transition: background 0.2s;
+          height: 22px;
+          padding-left: 12px;
+          border-left: 1px solid rgba(60, 80, 120, 0.2);
+          transition: all 0.2s;
           white-space: nowrap;
+          cursor: default;
         }
         .node:hover {
-            background: rgba(255,255,255,0.03);
+            background: rgba(0, 210, 255, 0.05);
+            color: #fff;
         }
         .pid { 
-            color: #ef4444; 
+            color: #00d2ff; 
             margin-right: 12px; 
-            font-size: 9px; 
+            font-size: 8px; 
             font-weight: 800;
             width: 45px;
             display: inline-block;
+            opacity: 0.7;
         }
         .comm { 
             color: #e2e8f0; 

@@ -10,8 +10,8 @@ use aya_ebpf::{
 
 // ... (other code)
 
-#[lsm(name = "file_open")]
-pub fn lsm_file_open(ctx: LsmContext) -> i32 {
+#[lsm]
+pub fn file_open(ctx: LsmContext) -> i32 {
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     let comm_str = core::str::from_utf8(&comm).unwrap_or("");
 
@@ -42,13 +42,13 @@ pub fn tc_ingress(ctx: TcContext) -> i32 {
 }
 
 fn try_tc_ingress(ctx: TcContext) -> Result<i32, ()> {
-    let eth_proto = u16::from_be(ctx.load(offset_of!(ethhdr, h_proto))?);
+    let eth_proto = u16::from_be(ctx.load::<u16>(12).map_err(|_| ())?);
     if eth_proto != 0x0800 { // ETH_P_IP
         return Ok(TC_ACT_OK);
     }
 
     // Load source IP (offset: eth(14) + ip_src(12) = 26)
-    let src_ip: u32 = ctx.load(26)?;
+    let src_ip: u32 = ctx.load(26).map_err(|_| ())?;
 
     if let Some(info) = unsafe { SHADOW_BANS.get_ptr_mut(&src_ip) } {
         let now = unsafe { bpf_ktime_get_ns() };
