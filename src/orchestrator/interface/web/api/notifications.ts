@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { NotificationService } from "@services/index.ts";
+import { NotificationService } from "@domain/index.ts";
 
 export function createNotificationsApi(notificationService: NotificationService) {
   const api = new Hono();

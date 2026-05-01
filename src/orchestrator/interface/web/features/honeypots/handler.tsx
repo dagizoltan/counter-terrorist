@@ -1,8 +1,8 @@
-import { Hono, Context } from "hono";
 import { jsx } from "hono/jsx";
+import { Hono, Context } from "hono";
 import { HoneypotsPage } from "./page.tsx";
 import { HoneypotDetailPage } from "./detail.tsx";
-import { HoneypotService } from "@services/defense/honeypot_service.ts";
+import { HoneypotService } from "@domain/protection/honeypot_service.ts";
 
 export function createHoneypotsRouter(honeypotService: HoneypotService) {
   const router = new Hono();

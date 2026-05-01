@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { BaselineService } from "@services/index.ts";
+import { BaselineService } from "@domain/index.ts";
 import { ProtectionPort } from "@core/ports.ts";
 
 export function createReportsApi(baseline: BaselineService, protection: ProtectionPort) {

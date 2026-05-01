@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { AuditService } from "@services/index.ts";
+import { AuditService } from "@domain/index.ts";
 
 export function createAuditApi(auditService: AuditService) {
   const auditApi = new Hono();
@@ -16,15 +16,13 @@ export function createAuditApi(auditService: AuditService) {
    */
   auditApi.get("/verify", async (c) => {
       const limit = Number(c.req.query("limit")) || 1000;
-      const result = await auditService.verifyChain(limit);
-      
-      if (!result.success) {
-        return c.json({ error: "Failed to verify chain", details: result.error.message }, 500);
+      try {
+        const result = await auditService.verifyChain(limit);
+        const status = result.valid ? 200 : 409; 
+        return c.json(result, status);
+      } catch (e) {
+        return c.json({ error: "Failed to verify chain", details: (e as Error).message }, 500);
       }
-
-      const data = result.data;
-      const status = data.valid ? 200 : 409; 
-      return c.json(data, status);
   });
 
   return auditApi;

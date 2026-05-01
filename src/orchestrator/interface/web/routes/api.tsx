@@ -1,3 +1,4 @@
+import { jsx } from "hono/jsx";
 import { Hono, Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "../middleware/security.ts";
@@ -40,16 +41,22 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   router.post("/admin/api-keys", async (c: Context) => {
     const { name, role } = await c.req.json();
     if (!name || !["operator", "viewer"].includes(role)) return c.json({ error: "Invalid name or role" }, 400);
-    const result = await services.apiKeys.createApiKey(name, role);
-    if (!result.success) return c.json({ error: result.error.message }, 500);
-    return c.json(result.data);
+    try {
+      const data = await services.apiKeys.createApiKey(name, role);
+      return c.json(data);
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 500);
+    }
   });
 
   router.delete("/admin/api-keys/:id", async (c: Context) => {
     const id = c.req.param("id");
-    const result = await services.apiKeys.revokeApiKey(id);
-    if (!result.success) return c.json({ error: result.error.message }, 500);
-    return c.json({ success: true });
+    try {
+      await services.apiKeys.revokeApiKey(id);
+      return c.json({ success: true });
+    } catch (e) {
+      return c.json({ error: (e as Error).message }, 500);
+    }
   });
 
   // 3. General Protected APIs
@@ -68,7 +75,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.get("/metrics", async (c: Context) => {
-    const { getMetricsSnapshot } = await import("../../../services/forensics/metrics_service.ts");
+    const { getMetricsSnapshot } = await import("../../../services/analysis/metrics_service.ts");
     const snapshot = getMetricsSnapshot();
     return c.json(snapshot || {});
   });

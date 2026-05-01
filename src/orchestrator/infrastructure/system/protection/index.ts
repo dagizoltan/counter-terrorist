@@ -15,6 +15,8 @@ import { AntivirusManager } from "./antivirus.ts";
 import { PersistenceManager } from "./persistence.ts";
 import { PcapManager } from "./pcap.ts";
 
+import { CommandResult } from "@core/ports.ts";
+
 export interface Protection {
   firewall: FirewallManager;
   vpn: VpnManager;
@@ -22,6 +24,7 @@ export interface Protection {
   persistence: PersistenceManager;
   pcap: PcapManager;
   rkhunter: RkhunterManager;
+  lockdown(): Promise<CommandResult>;
 }
 
 export function createProtection(
@@ -29,12 +32,14 @@ export function createProtection(
   executor: SystemExecutor,
   platformInfo: PlatformInfo,
 ): Protection {
+  const firewall = createFirewallManager(sidecar, executor, platformInfo);
   return {
-    firewall: createFirewallManager(sidecar, executor, platformInfo),
+    firewall,
     vpn: createVpnManager(sidecar, executor, platformInfo),
     antivirus: createAntivirusManager(sidecar, executor),
     persistence: createPersistenceManager(sidecar, executor, platformInfo),
     pcap: createPcapManager(sidecar),
     rkhunter: new RkhunterManager(sidecar),
+    lockdown: () => firewall.lockdown(),
   };
 }

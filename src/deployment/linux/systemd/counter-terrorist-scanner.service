@@ -1,0 +1,23 @@
+[Unit]
+Description=Counter-Terrorist Scanner Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=cts
+WorkingDirectory=/var/lib/cts
+# For the integrated model, the orchestrator manages this process directly.
+ExecStart=/usr/lib/counter-terrorist/agents/scanner
+Restart=always
+RestartSec=5
+
+# Hardening
+CapabilityBoundingSet=CAP_DAC_OVERRIDE
+AmbientCapabilities=CAP_DAC_OVERRIDE
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/cts
+
+[Install]
+WantedBy=multi-user.target

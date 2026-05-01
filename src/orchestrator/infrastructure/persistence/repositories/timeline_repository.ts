@@ -5,7 +5,7 @@ import { KvRepository } from "./kv_repository.ts";
  * Key format: [prefix, timestamp, id]
  */
 export class TimelineRepository<T extends { id: string; timestamp: string | number }> extends KvRepository<T> {
-  async set(id: string, data: T): Promise<void> {
+  override async set(id: string, data: T): Promise<void> {
     const ts = typeof data.timestamp === "string" ? new Date(data.timestamp).getTime() : data.timestamp;
     await this.kv.set([this.prefix, ts, id], data);
   }

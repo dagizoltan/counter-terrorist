@@ -15,6 +15,18 @@ export class WindowsFirewallProvider implements FirewallProvider {
     ]);
   }
 
+  async shadowBanIp(ip: string): Promise<CommandResult> {
+    // Windows doesn't natively support easy packet throttling via netsh like iptables.
+    // We fall back to a full block but with a different rule name to track it.
+    return await this.executor.execute("netsh", [
+        "advfirewall", "firewall", "add", "rule",
+        `name=CT-Shadow-${ip}`,
+        "dir=in",
+        "action=block",
+        `remoteip=${ip}`
+    ]);
+  }
+
   async unblockIp(ip: string): Promise<CommandResult> {
     return await this.executor.execute("netsh", [
         "advfirewall", "firewall", "delete", "rule",

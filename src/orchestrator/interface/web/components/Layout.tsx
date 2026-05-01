@@ -1,6 +1,4 @@
-/** @jsx jsx */
-/** @jsxFrag Fragment */
-import { jsx, Fragment } from "hono/jsx";
+import { jsx } from "hono/jsx";
 
 export const Layout = (props: {
   title: string;
@@ -20,7 +18,7 @@ export const Layout = (props: {
         
         {/* Modern Typography */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
         
         {/* Tailwind CDN */}
@@ -142,7 +140,7 @@ export const Layout = (props: {
                 <span class="text-[11px] font-bold uppercase tracking-[0.2em] truncate sidebar-label group-[.compact]:hidden">Global_Map</span>
               </a>
 
-              <a href="/forensics/replay" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
+              <a href="/analysis/replay" class="flex items-center gap-4 p-3 hover:bg-white/5 transition-all text-slate-400 hover:text-white group/item">
                 <div class="w-6 h-6 flex items-center justify-center">
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 1.9-1.9"/><path d="M3 3v18h18"/><path d="M7 15l4-4 4 4 5-5"/></svg>
                 </div>

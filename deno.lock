@@ -1,8 +1,14 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/dotenv@0.224": "0.224.2",
     "npm:zod@*": "4.4.1",
     "npm:zod@^4.4.1": "4.4.1"
+  },
+  "jsr": {
+    "@std/dotenv@0.224.2": {
+      "integrity": "29081695357e4534696c9e986b2560be29c141ccf52daa32b6c20ff5b5c64ab9"
+    }
   },
   "npm": {
     "zod@4.4.1": {

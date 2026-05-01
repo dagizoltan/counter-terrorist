@@ -1,5 +1,3 @@
-/** @jsx jsx */
-/** @jsxFrag Fragment */
 import { jsx } from "hono/jsx";
 import { Hono, Context } from "hono";
 import { serveStatic, upgradeWebSocket } from "hono/deno";
@@ -46,7 +44,7 @@ export class WebAdapter implements WebPort {
       if (err instanceof AppError) {
         return c.json(err.toJSON(), err.statusCode as any);
       }
-      loggingService.log(`[WEB] Exception: ${err.message}`, SyslogSeverity.ERROR);
+      loggingService.log(`[WEB] Exception: ${(err as Error).message}`, SyslogSeverity.ERROR);
       return c.json({ error: "Internal Server Error", code: "SERVER_FAULT" }, 500);
     });
 
@@ -94,11 +92,11 @@ export class WebAdapter implements WebPort {
       ...baseStatus,
       platform: this.services.platformInfo,
       plugins: [
-        { name: "firewall", status: "ACTIVE" },
-        { name: "vpn", status: "ACTIVE" },
-        { name: "ebpf", status: "ERROR", details: "Kernel mismatch" },
-        { name: "fim", status: "ACTIVE" },
-        { name: "scanner", status: "ACTIVE" }
+        { name: "firewall", status: "ACTIVE", description: "Kernel-level packet filtering and isolation." },
+        { name: "vpn", status: "ACTIVE", description: "Secure mTLS mesh tunnel manager." },
+        { name: "ebpf", status: "ERROR", description: "Kernel-level behavior monitoring and LSM.", details: "Kernel mismatch" },
+        { name: "fim", status: "ACTIVE", description: "File integrity monitoring and audit chain." },
+        { name: "scanner", status: "ACTIVE", description: "Vulnerability and process tree analysis." }
       ]
     };
   }
@@ -106,14 +104,14 @@ export class WebAdapter implements WebPort {
   /**
    * Bridge for the legacy login handler (to be refactored next).
    */
-  private async isTokenValid(token: string) {
+  private async isTokenValid(token: string | undefined) {
     const isMaster = await import("@infrastructure/system/validation.ts").then(m => 
       m.secureCompare(token, this.services.config.getToken())
     );
     if (isMaster) return "admin" as const;
 
-    const result = await this.services.apiKeys.validateApiKey(token);
-    return (result.success && result.data) ? result.data : null;
+    const role = await this.services.apiKeys.validateApiKey(token);
+    return role;
   }
 
   private loginAttempts = new Map<string, { count: number; resetAt: number }>();

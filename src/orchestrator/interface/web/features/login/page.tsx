@@ -1,6 +1,4 @@
-/** @jsx jsx */
-/** @jsxFrag Fragment */
-import { jsx, Fragment } from "hono/jsx";
+import { jsx } from "hono/jsx";
 
 export const Login = () => {
   return (

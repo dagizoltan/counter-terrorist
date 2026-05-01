@@ -1,4 +1,4 @@
-import { Plugin } from "@services/orchestration/plugin_manager.ts";
+import { Plugin } from "@domain/engine/plugin_manager.ts";
 import { PlatformInfo } from "@infrastructure/system/platform.ts";
 
 export interface StartupPort {
@@ -12,7 +12,7 @@ export interface PlatformPort {
 export interface PluginRegistryPort {
   register(plugin: Plugin): void;
   startAll(): Promise<void>;
-  listPlugins(): { name: string; status: string }[];
+  listPlugins(): { name: string; status: string; description: string; details?: any }[];
 }
 
 export interface PluginFactoryPort {
@@ -157,6 +157,6 @@ export interface ApplicationStatus {
   dependencies: Record<string, boolean>;
   platformTag: string;
   platform?: PlatformInfo;
-  plugins: { name: string; status: string; details?: any }[];
+  plugins: { name: string; status: string; description: string; details?: any }[];
 }
 

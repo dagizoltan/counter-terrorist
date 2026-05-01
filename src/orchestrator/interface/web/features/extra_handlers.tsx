@@ -1,5 +1,5 @@
-import { Hono, Context } from "hono";
 import { jsx } from "hono/jsx";
+import { Hono, Context } from "hono";
 import { EventsPage } from "./events/page.tsx";
 import { ProcessesPage } from "./processes/page.tsx";
 import { SysInfoPage } from "./sysinfo/page.tsx";

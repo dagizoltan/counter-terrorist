@@ -1,4 +1,4 @@
-import { ApiKeysService } from "@services/access/api_keys.ts";
+import { ApiKeysService } from "@domain/identity/api_keys.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 
 const kv = await Deno.openKv("./data/orchestrator.db");

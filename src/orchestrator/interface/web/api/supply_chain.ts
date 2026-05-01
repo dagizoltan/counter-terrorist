@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { SupplyChainService } from "@services/forensics/supply_chain.ts";
+import { SupplyChainService } from "@domain/analysis/supply_chain.ts";
 
 export function createSupplyChainApi(supplyChain: SupplyChainService) {
   const api = new Hono();

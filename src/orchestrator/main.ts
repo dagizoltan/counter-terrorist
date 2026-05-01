@@ -1,9 +1,10 @@
 import { WebAdapter } from "./interface/web/web_adapter.tsx";
+import { ProtectionAdapter } from "@infrastructure/system/protection/protection_adapter.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
-import { AuditService } from "@services/forensics/audit.ts";
-import { NotificationService } from "@services/orchestration/alerts.ts";
-import { BaselineService, ProcessTracker, SessionService, ApiKeysService, EventBus, MeshAuthService } from "@services/index.ts";
+import { AuditService } from "@domain/analysis/audit.ts";
+import { NotificationService } from "@domain/analysis/notifications.ts";
+import { BaselineService, ProcessTracker, SessionService, ApiKeysService, EventBus, MeshAuthService } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
 // Try to load .env but don't fail if some variables are missing from example
@@ -11,21 +12,21 @@ await load({ export: true, allowEmptyValues: true });
 
 import { z } from "npm:zod";
 import { ServiceContainer } from "@core/container.ts";
-import { MeshManager, setMeshManager } from "@services/orchestration/mesh.ts";
-import { PlaybookService } from "@services/orchestration/playbook_service.ts";
+import { MeshManager, setMeshManager } from "@domain/engine/mesh.ts";
+import { PlaybookService } from "@domain/engine/playbook_service.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { broadcast, initBroadcaster } from "@api/ws.ts";
-import { PlaybookEngine } from "@services/orchestration/playbook_engine.ts";
-import { BehavioralService } from "@services/forensics/behavioral_service.ts";
-import { MetricsService, setMetricsService } from "@services/forensics/metrics_service.ts";
-import { ThreatIntelService } from "@services/defense/threat_intel.ts";
-import { MorphingService } from "@services/defense/morphing_service.ts";
-import { ChaosEngine } from "@services/orchestration/chaos_engine.ts";
-import { SupplyChainService } from "@services/forensics/supply_chain.ts";
-import { HoneypotService } from "@services/defense/honeypot_service.ts";
-import { CanaryService } from "@services/defense/canary_service.ts";
-import { AutopilotService } from "@services/orchestration/autopilot_service.ts";
-import { KernelService } from "@services/orchestration/kernel_service.ts";
+import { PlaybookEngine } from "@domain/engine/playbook_engine.ts";
+import { BehavioralService } from "@domain/analysis/behavioral_service.ts";
+import { MetricsService, setMetricsService } from "@domain/analysis/metrics_service.ts";
+import { ThreatIntelService } from "@domain/protection/threat_intel.ts";
+import { MorphingService } from "@domain/protection/morphing_service.ts";
+import { ChaosEngine } from "@domain/engine/chaos_engine.ts";
+import { SupplyChainService } from "@domain/analysis/supply_chain.ts";
+import { HoneypotService } from "@domain/protection/honeypot_service.ts";
+import { CanaryService } from "@domain/protection/canary_service.ts";
+import { AutopilotService } from "@domain/engine/autopilot_service.ts";
+import { KernelService } from "@domain/protection/kernel_service.ts";
 import { createProtection } from "@infrastructure/system/protection/index.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
 import { bootstrap } from "./bootstrapper.ts";
@@ -59,17 +60,18 @@ initBroadcaster({
   loggingService,
 });
 
-const protection = createProtection(sidecarManager, executor, platformInfo);
+const rawProtection = createProtection(sidecarManager, executor, platformInfo);
+const protection = new ProtectionAdapter(rawProtection);
 
 const processTracker = new ProcessTracker(loggingService);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
 const apiKeysService = new ApiKeysService(kv, loggingService);
-const playbookService = new PlaybookService(sidecarManager, protection as any, notificationService, meshManager);
+const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager);
 
 const behavioralService = new BehavioralService(protection.firewall as any);
-const threatIntel = new ThreatIntelService(protection as any, loggingService);
-const honeypotService = new HoneypotService(sidecarManager, protection.firewall as any, protection.pcap as any, broadcast);
+const threatIntel = new ThreatIntelService(protection, loggingService);
+const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast);
 honeypotService.setBehavioralService(behavioralService);
 
 const canaryService = new CanaryService(auditService, sidecarManager);
@@ -96,7 +98,7 @@ honeypotService.onEvent((event) => {
   eventBus.emit("honeypot", event);
 });
 
-const playbookEngine = new PlaybookEngine(eventBus, protection as any, loggingService);
+const playbookEngine = new PlaybookEngine(eventBus, protection, loggingService);
 await playbookEngine.start();
 
 // eBPF sidecar → broadcast pipeline

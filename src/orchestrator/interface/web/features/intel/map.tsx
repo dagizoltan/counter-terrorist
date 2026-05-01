@@ -1,3 +1,4 @@
+import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 export default function ThreatMapPage() {

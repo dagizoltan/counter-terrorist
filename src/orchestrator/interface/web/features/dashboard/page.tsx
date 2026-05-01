@@ -1,6 +1,4 @@
-/** @jsx jsx */
-/** @jsxFrag Fragment */
-import { jsx, Fragment } from "hono/jsx";
+import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { ApplicationStatus } from "@core/ports.ts";
 import { PrimaryButton, GhostButton, Card, StatRow, Badge } from "@interface/components/ui/index.tsx";
@@ -43,10 +41,10 @@ export const Dashboard = (props: { status: ApplicationStatus, csrfToken?: string
           </p>
         </div>
         <div class="flex gap-4">
-          <a href="/api/forensics/export">
+          <a href="/api/analysis/export">
             <PrimaryButton>Export Report</PrimaryButton>
           </a>
-          <a href="/api/forensics/export-iac">
+          <a href="/api/analysis/export-iac">
             <GhostButton>Clone Posture</GhostButton>
           </a>
           <GhostButton 

@@ -1,4 +1,3 @@
-/** @jsx jsx */
 import { jsx } from "hono/jsx";
 
 export const Button = ({ children, class: className, ...props }: any) => (

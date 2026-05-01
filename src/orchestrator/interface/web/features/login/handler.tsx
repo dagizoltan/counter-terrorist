@@ -1,13 +1,13 @@
-import { Hono, Context } from "hono";
 import { jsx } from "hono/jsx";
+import { Hono, Context } from "hono";
 import { Login } from "./page.tsx";
 import { setCookie, getCookie, deleteCookie } from "hono/helper/cookie/index.ts";
 import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
-import { Role } from "@services/access/api_keys.ts";
+import { Role } from "@domain/identity/api_keys.ts";
 
 export interface LoginRouterDependencies {
   checkLoginRateLimit: (ip: string) => { allowed: boolean; retryAfterMs?: number };
-  isTokenValid: (token: string) => Promise<Role | null>;
+  isTokenValid: (token: string | undefined) => Promise<Role | null>;
   sessionService: any;
   config: any;
 }

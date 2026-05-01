@@ -1,0 +1,50 @@
+#!/bin/bash
+set -e
+
+# Create dedicated cts user
+if ! id "cts" &>/dev/null; then
+    useradd -r -s /bin/false cts
+fi
+
+# Set up required directories and permissions
+mkdir -p /var/lib/cts
+mkdir -p /etc/counter-terrorist
+chown -R cts:cts /var/lib/cts
+
+# Ensure env file is secure and populated
+ENV_FILE="/etc/counter-terrorist/orchestrator.env"
+if [ ! -f "$ENV_FILE" ]; then
+    echo "[CTS] Generating secure environment configuration..."
+    API_TOKEN=$(openssl rand -hex 24)
+    MESH_SECRET=$(openssl rand -hex 24)
+    cat <<EOF > "$ENV_FILE"
+PORT=8000
+API_TOKEN=$API_TOKEN
+MESH_SECRET=$MESH_SECRET
+LOG_LEVEL=INFO
+ENVIRONMENT=production
+EOF
+    chown cts:cts "$ENV_FILE"
+    chmod 600 "$ENV_FILE"
+fi
+
+# Set capabilities for the binary to allow security operations as non-root
+if [ -f "/usr/bin/counter-terrorist" ]; then
+    echo "[CTS] Setting capabilities for security orchestrator..."
+    setcap 'cap_net_admin,cap_kill,cap_dac_override,cap_bpf+ep' /usr/bin/counter-terrorist
+fi
+
+# Reload systemd and enable services
+systemctl daemon-reload
+# Enable any service starting with counter-terrorist
+for svc in /usr/lib/systemd/system/counter-terrorist*.service; do
+    if [ -f "$svc" ]; then
+        svc_name=$(basename "$svc")
+        echo "[CTS] Enabling service: $svc_name"
+        systemctl enable "$svc_name"
+    fi
+done
+
+echo "[CTS] Installation complete. Orchestrator ready and registered."
+echo "[CTS] Configuration: /etc/counter-terrorist/orchestrator.env"
+echo "[CTS] Run 'systemctl start counter-terrorist' to begin."

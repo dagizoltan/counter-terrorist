@@ -3,7 +3,7 @@
  * Compatible with Hono's upgradeWebSocket.
  */
 import { WSContext } from "hono/helper/websocket/index.ts";
-import { NotificationService, AuditService, EventBus } from "@services/index.ts";
+import { NotificationService, AuditService, EventBus } from "@domain/index.ts";
 import { LoggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
 
 const MAX_CONNECTIONS = 100;

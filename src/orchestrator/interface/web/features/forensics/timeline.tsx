@@ -1,6 +1,4 @@
-/** @jsx jsx */
-/** @jsxFrag Fragment */
-import { jsx, Fragment } from "hono/jsx";
+import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 export const TimelinePage = () => {
@@ -58,7 +56,7 @@ export const TimelinePage = () => {
                </div>
             </div>
             
-            <a href="/api/forensics/export" class="w-full block text-center bg-white text-black py-4 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-200 transition-all">Download_Forensic_Bundle</a>
+            <a href="/api/analysis/export" class="w-full block text-center bg-white text-black py-4 text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-200 transition-all">Download_Forensic_Bundle</a>
          </div>
       </div>
       <timeline-island></timeline-island>

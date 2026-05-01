@@ -12,7 +12,7 @@ export class PcapManager {
       return result;
     } catch (error) {
       console.error("[PCAP] Error starting capture:", error);
-      return { success: false, message: String(error) };
+      return { success: false, stdout: "", stderr: String(error) };
     }
   }
 
@@ -24,7 +24,7 @@ export class PcapManager {
       return result;
     } catch (error) {
       console.error("[PCAP] Error stopping capture:", error);
-      return { success: false, message: String(error) };
+      return { success: false, stdout: "", stderr: String(error) };
     }
   }
 }

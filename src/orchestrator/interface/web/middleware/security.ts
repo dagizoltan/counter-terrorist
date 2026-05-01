@@ -1,6 +1,6 @@
 import { Context, Next } from "hono";
 import { getCookie } from "hono/helper/cookie/index.ts";
-import { Role } from "@services/access/api_keys.ts";
+import { Role } from "@domain/identity/api_keys.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
@@ -49,9 +49,8 @@ export class SecurityMiddleware {
       // 3. Session Cookie Auth
       const sessionId = getCookie(c, "session_token");
       if (sessionId) {
-        const result = await this.services.sessions.validateSession(sessionId);
-        if (result.success && result.data) {
-          const session = result.data;
+        const session = await this.services.sessions.validateSession(sessionId);
+        if (session) {
           c.set("role", session.role || "viewer");
           c.set("session", session);
           
@@ -80,9 +79,9 @@ export class SecurityMiddleware {
       // 5. API Key Header (Scoped)
       const apiKey = c.req.header("X-Api-Key");
       if (apiKey) {
-        const result = await this.services.apiKeys.validateApiKey(apiKey);
-        if (result.success && result.data) {
-          c.set("role", result.data);
+        const role = await this.services.apiKeys.validateApiKey(apiKey);
+        if (role) {
+          c.set("role", role);
           return next();
         }
       }

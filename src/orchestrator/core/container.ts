@@ -12,7 +12,7 @@ import {
   SupplyChainService,
   MeshManager,
   EventBus
-} from "@services/index.ts";
+} from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 
 export interface ServiceContainer {

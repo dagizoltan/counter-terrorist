@@ -11,7 +11,7 @@ import { CommandPort } from "@core/ports.ts";
 export class SidecarManager implements CommandPort {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
-  private responseWaiters: Map<string, Map<string, { resolve: (data: SidecarResponse) => void, reject: (err: Error) => void }>> = new Map();
+  private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
   private unsupportedSidecars: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
@@ -232,7 +232,12 @@ export class SidecarManager implements CommandPort {
               const waiters = this.responseWaiters.get(name)!;
               const waiter = waiters.get(data.id);
               if (waiter) {
-                waiter.resolve(data);
+                waiter.resolve({
+                    success: !!data.success,
+                    stdout: data.stdout || "",
+                    stderr: data.stderr || "",
+                    data: data.data
+                });
                 waiters.delete(data.id);
                 continue;
               }
@@ -263,7 +268,7 @@ export class SidecarManager implements CommandPort {
     }
   }
 
-  async sendCommand(name: string, cmd: string | object): Promise<SidecarResponse> {
+  async sendCommand(name: string, cmd: string | object): Promise<CommandResult> {
     const child = await this.getPersistentSidecar(name);
     if (!child) throw new Error(`Sidecar ${name} not found`);
 
@@ -279,7 +284,7 @@ export class SidecarManager implements CommandPort {
       throw new Error(`Security violation: Invalid command for sidecar '${name}'`);
     }
 
-    const responsePromise = new Promise<SidecarResponse>((resolve, reject) => {
+    const responsePromise = new Promise<CommandResult>((resolve, reject) => {
       if (!this.responseWaiters.has(name)) {
         this.responseWaiters.set(name, new Map());
       }

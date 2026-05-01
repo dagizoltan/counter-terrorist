@@ -1,5 +1,5 @@
-import { Hono, Context } from "hono";
 import { jsx } from "hono/jsx";
+import { Hono, Context } from "hono";
 import { SecurityMiddleware } from "../middleware/security.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { createAgentsRouter } from "../features/agents/handler.tsx";
@@ -20,8 +20,8 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   router.get("/", async (c: Context) => {
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
-    const { Dashboard } = await import("../features/dashboard/page.tsx");
-    return c.html(<Dashboard status={status} csrfToken={csrfToken} />);
+    const { Dashboard: DashboardPage } = await import("../features/dashboard/page.tsx") as any;
+    return c.html(<DashboardPage status={status} csrfToken={csrfToken} />);
   });
 
   // Feature Pages
@@ -57,17 +57,17 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   // Sub-routes for forensics and intel
   router.get("/intel/map", async (c: Context) => {
-     const { ThreatMapPage } = await import("../features/intel/map.tsx");
+     const { default: ThreatMapPage } = await import("../features/intel/map.tsx");
      return c.html(<ThreatMapPage />);
   });
 
-  router.get("/forensics/timeline", async (c: Context) => {
-     const { TimelinePage } = await import("../features/forensics/timeline.tsx");
+  router.get("/analysis/timeline", async (c: Context) => {
+     const { TimelinePage } = await import("../features/analysis/timeline.tsx");
      return c.html(<TimelinePage />);
   });
 
-  router.get("/forensics/replay", async (c: Context) => {
-    const { default: ForensicReplay } = await import("../features/forensics/replay.tsx");
+  router.get("/analysis/replay", async (c: Context) => {
+    const { default: ForensicReplay } = await import("../features/analysis/replay.tsx");
     return c.html(<ForensicReplay />);
   });
 

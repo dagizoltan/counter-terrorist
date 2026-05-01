@@ -1,8 +1,6 @@
-/** @jsx jsx */
-/** @jsxFrag Fragment */
-import { jsx, Fragment } from "hono/jsx";
+import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
-import { HoneypotModule } from "@services/defense/honeypot_service.ts";
+import { HoneypotModule } from "@domain/protection/honeypot_service.ts";
 
 export const HoneypotsPage = (props: { modules: HoneypotModule[] }) => {
   return (

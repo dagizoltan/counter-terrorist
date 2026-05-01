@@ -1,5 +1,5 @@
 import { broadcast } from "@api/ws.ts";
-import { meshManager } from "@services/orchestration/mesh.ts";
+import { meshManager } from "@domain/engine/mesh.ts";
 import { isValidIP } from "../validation.ts";
 import { FirewallProvider } from "./interfaces.ts";
 
@@ -8,7 +8,7 @@ export class FirewallManager {
 
   async blockIp(ip: string) {
     if (!isValidIP(ip)) {
-      return { success: false, message: `Invalid IP address: ${ip}` };
+      return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
     broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}`, data: { ip } });
 
@@ -22,7 +22,7 @@ export class FirewallManager {
 
   async shadowBanIp(ip: string) {
     if (!isValidIP(ip)) {
-      return { success: false, message: `Invalid IP address: ${ip}` };
+      return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
     broadcast({ type: "WARNING", message: `Shadow Banning IP: ${ip} (Throttling to 1KB/s)`, data: { ip } });
     
@@ -37,7 +37,7 @@ export class FirewallManager {
 
   async unblockIp(ip: string) {
     if (!isValidIP(ip)) {
-      return { success: false, message: `Invalid IP address: ${ip}` };
+      return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
     broadcast({ type: "INFO", message: `Unblocking IP: ${ip}` });
     return await this.provider.unblockIp(ip);

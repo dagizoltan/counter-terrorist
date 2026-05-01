@@ -20,10 +20,11 @@
     "hono/jsx": "https://deno.land/x/hono@v4.3.7/jsx/index.ts",
     "zod": "npm:zod@^4.4.1",
     "@core/": "./src/orchestrator/core/",
-    "@services/": "./src/orchestrator/services/",
+    "@domain/": "./src/orchestrator/domain/",
     "@infrastructure/": "./src/orchestrator/infrastructure/",
     "@api/": "./src/orchestrator/interface/web/api/",
     "@interface/": "./src/orchestrator/interface/web/",
+    "@orchestrator/": "./src/orchestrator/",
     "@std/dotenv": "jsr:@std/dotenv@^0.224.0"
   }
 }
