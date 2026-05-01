@@ -7,7 +7,7 @@ import { createLoginRouter, createLogoutRouter } from "./features/login/handler.
 import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
 import { wsHandler } from "@api/ws.ts";
 import { ServiceContainer } from "@core/container.ts";
-import { Sec urityMiddleware } from "./middleware/security.ts";
+import { SecurityMiddleware } from "./middleware/security.ts";
 import { createUiRouter } from "./routes/ui.tsx";
 import { createApiRouter } from "./routes/api.tsx";
 

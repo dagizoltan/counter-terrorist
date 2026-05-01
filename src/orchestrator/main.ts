@@ -167,8 +167,8 @@ const startDaemons = async () => {
     setInterval(async () => {
       try {
         for (const token of canaryService.getTokens()) {
-          const res = await executor.execute("fuser", [token.path]);
-          if (res.success && res.stdout) canaryService.handleFileAccess(token.path, `PID:${res.stdout.trim()}`);
+          const res = await executor.execute("fuser", [token.projectionPath]);
+          if (res.success && res.stdout) canaryService.handleFileAccess(token.projectionPath, `PID:${res.stdout.trim()}`);
         }
       } catch {}
     }, 5000);
