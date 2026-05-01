@@ -402,8 +402,8 @@ export class MeshManager {
   async requestApproval(action: string, data: any, threshold: number = 2): Promise<boolean> {
     const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
     if (verifiedNodes.length < threshold) {
-        this.logging.log(`[MESH] Consensus threshold not met (${verifiedNodes.length}/${threshold}). Proceeding with LOCAL_AUTHORITY.`, SyslogSeverity.WARNING);
-        return true; 
+        this.logging.log(`[MESH] Consensus threshold not met (${verifiedNodes.length}/${threshold}). REJECTED (Fail-Closed).`, SyslogSeverity.CRITICAL);
+        return false; 
     }
 
     let approvals = 0;

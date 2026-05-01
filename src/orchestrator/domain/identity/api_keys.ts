@@ -91,8 +91,9 @@ export class ApiKeysService {
       // 3. Re-hash the provided key with the stored salt
       const providedHash = await this.hashKey(rawKey, metadata.salt);
 
-      // 4. Compare hashes
-      if (providedHash === expectedHash) {
+      // 4. Constant-time comparison to prevent timing attacks
+      const { secureCompare } = await import("@infrastructure/system/validation.ts");
+      if (await secureCompare(providedHash, expectedHash)) {
         metadata.lastUsed = Date.now();
         this.hashRepo.set(expectedHash, metadata).catch(() => {});
         return metadata.role;

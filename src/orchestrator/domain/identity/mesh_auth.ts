@@ -82,9 +82,9 @@ export class MeshAuthService {
    * Gets the PKI encryption secret. Falls back to API_TOKEN if PKI_SECRET is not set.
    */
   private getPkiSecret(): string {
-    const secret = Deno.env.get("PKI_SECRET") || Deno.env.get("API_TOKEN");
+    const secret = Deno.env.get("PKI_SECRET");
     if (!secret) {
-      throw new Error("[PKI] Neither PKI_SECRET nor API_TOKEN is set. Cannot encrypt/decrypt PKI keys.");
+      throw new Error("[PKI] CRITICAL: PKI_SECRET is not set. PKI operations aborted for security.");
     }
     return secret;
   }

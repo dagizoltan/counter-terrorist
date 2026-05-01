@@ -12,6 +12,7 @@ export class LoggingService implements LoggingPort {
     private maxBufferSize = 1000;
     private isForwarding = false;
     private tlsCaCertPath: string | null = null;
+    private logFilePath = "./volume/logs/orchestrator.log";
 
     /** Persistent TCP/TLS connection, reused across flushes. */
     private persistentConn: Deno.Conn | Deno.TlsConn | null = null;
@@ -77,10 +78,22 @@ export class LoggingService implements LoggingPort {
         const pri = (1 * 8) + severity; // Facility 1 (user-level)
         const syslogMsg = `<${pri}>1 ${timestamp} ${hostname} ${appName} ${procId} - - ${message}`;
 
+        // 1. Local File Logging
+        this.writeToLocalFile(syslogMsg).catch(() => {});
+
         if (this.remoteHost) {
             this.bufferLog(syslogMsg);
         } else {
             // If no remote host, we still print to stdout but it's already done by console interception
+        }
+    }
+
+    private async writeToLocalFile(msg: string) {
+        try {
+            await Deno.mkdir("./volume/logs", { recursive: true });
+            await Deno.writeTextFile(this.logFilePath, msg + "\n", { append: true });
+        } catch {
+            // Silently fail to avoid crashing the orchestrator if disk is full
         }
     }
 

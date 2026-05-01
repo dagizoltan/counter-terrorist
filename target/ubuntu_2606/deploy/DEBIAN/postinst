@@ -28,6 +28,12 @@ EOF
     chmod 600 "$ENV_FILE"
 fi
 
+# Set capabilities for the binary to allow security operations as non-root
+if [ -f "/usr/bin/counter-terrorist" ]; then
+    echo "[CTS] Setting capabilities for security orchestrator..."
+    setcap 'cap_net_admin,cap_kill,cap_dac_override,cap_bpf+ep' /usr/bin/counter-terrorist
+fi
+
 # Reload systemd and enable services
 systemctl daemon-reload
 # Enable any service starting with counter-terrorist
@@ -39,7 +45,6 @@ for svc in /usr/lib/systemd/system/counter-terrorist*.service; do
     fi
 done
 
-echo "[CTS] Installation complete. Orchestrator ready."
-echo "[CTS] Installation complete. Orchestrator and agents registered."
+echo "[CTS] Installation complete. Orchestrator ready and registered."
 echo "[CTS] Configuration: /etc/counter-terrorist/orchestrator.env"
 echo "[CTS] Run 'systemctl start counter-terrorist' to begin."

@@ -36,7 +36,7 @@ import { loadConfig } from "./core/config_schema.ts";
 
 // ── Phase 1: Core infrastructure ──────────────────────────────────────
 const config = loadConfig();
-const kv = await Deno.openKv("./data/orchestrator.db");
+const kv = await Deno.openKv("./volume/storage/orchestrator.db");
 const configProvider = new EnvConfigProvider(config);
 const executor = new SystemExecutor();
 const sidecarManager = new SidecarManager(executor);

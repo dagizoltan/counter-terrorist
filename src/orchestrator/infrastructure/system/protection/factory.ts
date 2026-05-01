@@ -10,6 +10,7 @@ import { UbuntuAntivirusProvider } from "./antivirus/providers/ubuntu_antivirus.
 import { UbuntuFirewallProvider } from "./firewall/providers/ubuntu_firewall.ts";
 import { UbuntuPersistenceProvider } from "./persistence/providers/ubuntu_persistence.ts";
 import { UbuntuVpnProvider } from "./vpn/providers/ubuntu_vpn.ts";
+import { UbuntuPcapProvider } from "./pcap/providers/ubuntu_pcap.ts";
 import { WindowsFirewallProvider } from "./firewall/providers/windows_firewall.ts";
 import { WindowsPersistenceProvider } from "./persistence/providers/windows_persistence.ts";
 import { WindowsVpnProvider } from "./vpn/providers/windows_vpn.ts";
@@ -42,6 +43,6 @@ export function createPersistenceManager(sidecar: SidecarManager, executor: Syst
   return new PersistenceManager(new UbuntuPersistenceProvider(executor));
 }
 
-export function createPcapManager(sidecar: SidecarManager): PcapManager {
-  return new PcapManager(sidecar);
+export function createPcapManager(sidecar: SidecarManager, executor: SystemExecutor): PcapManager {
+  return new PcapManager(new UbuntuPcapProvider(executor));
 }

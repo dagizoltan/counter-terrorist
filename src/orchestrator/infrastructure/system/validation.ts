@@ -10,6 +10,19 @@ export function isValidIP(ip: string): boolean {
 }
 
 /**
+ * Checks if an IP is part of the critical infrastructure that should NEVER be blocked.
+ */
+export function isCriticalInfrastructure(ip: string): boolean {
+  const whitelist = [
+    "1.1.1.1", "8.8.8.8", "8.8.4.4", // DNS
+    "127.0.0.1", "::1",              // Loopback
+    Deno.env.get("GATEWAY_IP") || "", // Gateway
+  ].filter(i => i !== "");
+
+  return whitelist.includes(ip);
+}
+
+/**
  * Interface name validation pattern.
  * Only alphanumeric, hyphens, underscores, and dots are allowed.
  */

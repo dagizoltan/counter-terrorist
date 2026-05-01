@@ -1,31 +1,18 @@
-import { SidecarManager } from "../../../runtime/sidecar_manager.ts";
+import { PcapProvider } from "../interfaces.ts";
+export type { PcapProvider };
 
 export class PcapManager {
-  constructor(private sidecar: SidecarManager) {}
+  constructor(private provider: PcapProvider) {}
 
   async startCapture(interface_name: string = "any", duration: number = 60, filename: string = `capture_${Date.now()}.pcap`, filter?: string) {
-    try {
-      const result = await this.sidecar.sendCommand("pcap", {
-        type: "StartCapture",
-        payload: { interface: interface_name, duration, filename, filter }
-      });
-      return result;
-    } catch (error) {
-      console.error("[PCAP] Error starting capture:", error);
-      return { success: false, stdout: "", stderr: String(error) };
-    }
+    return await this.provider.startCapture(interface_name, duration, filename, filter);
   }
 
-  async stopCapture() {
-    try {
-      const result = await this.sidecar.sendCommand("pcap", {
-        type: "StopCapture"
-      });
-      return result;
-    } catch (error) {
-      console.error("[PCAP] Error stopping capture:", error);
-      return { success: false, stdout: "", stderr: String(error) };
-    }
+  async stopCapture(filename: string) {
+    return await this.provider.stopCapture(filename);
+  }
+
+  async getStatus() {
+    return await this.provider.getStatus();
   }
 }
-

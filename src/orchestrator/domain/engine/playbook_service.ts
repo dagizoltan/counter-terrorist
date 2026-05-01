@@ -22,12 +22,20 @@ export class PlaybookService {
     this.sidecarManager.onEvent("honeypot", async (data) => {
       if (data.event?.type === "PortAccess") {
         const { port, source_ip } = data.event.payload;
+        
+        const { isValidIP, isCriticalInfrastructure } = await import("@infrastructure/system/validation.ts");
+        if (!isValidIP(source_ip) || isCriticalInfrastructure(source_ip)) {
+          loggingService.log(`[PLAYBOOK] Honeypot trigger from ${source_ip} (WHITELISTED/INVALID). Skipping block.`, SyslogSeverity.NOTICE);
+          return;
+        }
+
         loggingService.log(`[PLAYBOOK] Honeypot trigger on port ${port} from ${source_ip}. Executing auto-block.`, SyslogSeverity.WARNING);
         
-        // Increase threat score for the local node (or remote if tracked)
+        // Increase threat score
         this.updateThreatScore("local", 1);
         
         // Forensics: Automatically start a packet capture for this IP
+        // Security: source_ip is validated as a clean IP string by isValidIP above
         loggingService.log(`[PLAYBOOK] Starting forensic capture for IP: ${source_ip}`, SyslogSeverity.INFORMATIONAL);
         this.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
            loggingService.log(`[PLAYBOOK] Failed to start forensic capture: ${(err as Error).message}`, SyslogSeverity.ERROR);

@@ -1,92 +1,121 @@
 import { AuditService } from "../analysis/audit.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
+import { normalize, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
 
 export interface CanaryToken {
+    id: string;
     path: string;
+    originalPath: string;
     description: string;
     triggered: boolean;
 }
 
+/**
+ * Canary Service: Manages active deception artifacts (Honeyfiles).
+ * These files are strategically placed to lure and detect intruders.
+ */
 export class CanaryService {
     private tokens: CanaryToken[] = [];
 
     constructor(private auditService: AuditService, private sidecar: SidecarManager) {
         this.tokens = [
-            { path: "./vault_credentials.xlsx", description: "Fake financial credentials", triggered: false },
-            { path: "./.aws/config", description: "Fake cloud infrastructure config", triggered: false },
-            { path: "/tmp/sql_dump.sql", description: "Fake database backup", triggered: false },
-            { path: "/etc/ct-orchestrator/.master_key", description: "Fake orchestrator master key", triggered: false },
-            { path: "./deployment_secrets.yaml", description: "Fake CI/CD secrets", triggered: false },
-            { path: "/home/dagizoltan/.ssh/id_ed25519_production", description: "Fake production SSH key", triggered: false }
+            { id: "fin_01", path: "./vault_credentials.xlsx", originalPath: "./vault_credentials.xlsx", description: "Fake financial credentials", triggered: false },
+            { id: "aws_01", path: "./.aws/config", originalPath: "./.aws/config", description: "Fake cloud infrastructure config", triggered: false },
+            { id: "ssh_01", path: "./.ssh/id_ed25519_production", originalPath: "./.ssh/id_ed25519_production", description: "Fake production SSH key", triggered: false },
+            { id: "k8s_01", path: "./.kube/config", originalPath: "./.kube/config", description: "Fake Kubernetes cluster config", triggered: false },
+            { id: "env_01", path: "./deployment_secrets.env", originalPath: "./deployment_secrets.env", description: "Fake CI/CD environment secrets", triggered: false }
         ];
     }
 
+    /**
+     * Deploys all deception artifacts to their target locations.
+     */
     async deploy() {
         for (const token of this.tokens) {
             try {
-                // Ensure directory exists if it's a hidden folder
-                if (token.path.includes("/")) {
-                    const dir = token.path.substring(0, token.path.lastIndexOf("/"));
-                    if (dir && dir !== "." && dir !== "/tmp") {
-                        await Deno.mkdir(dir, { recursive: true }).catch(() => {});
-                    }
-                }
-                
-                // Safety: Don't overwrite existing files
+                // Ensure parent directory exists
+                const absolutePath = resolve(token.path);
+                const dir = absolutePath.substring(0, absolutePath.lastIndexOf("/"));
+                await Deno.mkdir(dir, { recursive: true }).catch(() => {});
+
+                // Safety: Don't overwrite legitimate files that aren't ours
                 try {
-                  await Deno.stat(token.path);
-                  console.warn(`[CANARY] Path ${token.path} already exists. Skipping.`);
-                  continue;
+                    const info = await Deno.stat(token.path);
+                    if (info.isFile) {
+                        const content = await Deno.readTextFile(token.path);
+                        if (!content.includes("DECEPTION_TOKEN")) {
+                            console.warn(`[CANARY] Legitimate file exists at ${token.path}. Skipping deployment to avoid data loss.`);
+                            continue;
+                        }
+                    }
                 } catch {
-                  // Proceed
+                    // File doesn't exist, proceed
                 }
 
-                await Deno.writeTextFile(token.path, `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\n`);
-                console.log(`[CANARY] Deployed breadcrumb: ${token.path}`);
+                const content = `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
+                await Deno.writeTextFile(token.path, content);
+                console.log(`[CANARY] Deployed: ${token.path}`);
 
-                // Tell FIM sidecar to watch this new file
-                const fullPath = await Deno.realPath(token.path).catch(() => token.path);
-                this.sidecar.sendCommand("fim", { type: "WATCH", path: fullPath }).catch(() => {});
+                // Register with FIM sidecar
+                this.sidecar.sendCommand("fim", { type: "WatchPath", payload: { path: absolutePath } }).catch(() => {});
             } catch (e) {
-                console.warn(`[CANARY] Failed to deploy ${token.path}: ${(e as Error).message}`);
+                console.warn(`[CANARY] Deployment failed for ${token.path}: ${(e as Error).message}`);
             }
         }
     }
 
-    handleFileAccess(path: string, process: string) {
-        const token = this.tokens.find(t => path.includes(t.path.replace("./", "")));
-        if (token) {
-            token.triggered = true;
-            this.auditService.logEvent({
-                type: "THREAT",
-                message: `CANARY TRIGGERED: ${process} accessed ${token.path} (${token.description})`,
-                data: { path: token.path, process }
-            });
+    /**
+     * Validates if an accessed path matches an active canary.
+     * Uses strict absolute path comparison to prevent false positives.
+     */
+    async handleFileAccess(accessedPath: string, process: string) {
+        const normalizedAccessed = resolve(accessedPath);
+
+        for (const token of this.tokens) {
+            const tokenPath = resolve(token.path);
+            if (normalizedAccessed === tokenPath) {
+                token.triggered = true;
+                this.auditService.logEvent({
+                    type: "THREAT",
+                    message: `CANARY TRIGGERED: ${process} accessed ${token.description}`,
+                    data: { path: token.path, process, description: token.description }
+                });
+                return true;
+            }
         }
+        return false;
     }
 
     /**
-     * Rotates bait files to prevent attacker mapping.
+     * Rotates bait files by moving them to new realistic locations 
+     * and cleaning up old ones.
      */
     async morph() {
-        console.log("[CANARY] Rotating breadcrumbs...");
+        console.log("[CANARY] Executing bait rotation...");
         for (const token of this.tokens) {
             try {
                 const oldPath = token.path;
-                // Add a random suffix for rotation
                 const suffix = Math.random().toString(36).substring(7);
-                const newPath = oldPath.includes(".") 
-                    ? oldPath.replace(".", `_${suffix}.`) 
-                    : `${oldPath}_${suffix}`;
                 
-                await Deno.rename(oldPath, newPath).catch(() => {});
+                // Construct a new "realistic" path name
+                let newPath = token.originalPath;
+                if (newPath.includes(".")) {
+                    const parts = newPath.split(".");
+                    const ext = parts.pop();
+                    newPath = `${parts.join(".")}_${suffix}.${ext}`;
+                } else {
+                    newPath = `${newPath}_${suffix}`;
+                }
+
+                // Cleanup old bait
+                await Deno.remove(oldPath).catch(() => {});
+                
                 token.path = newPath;
                 token.triggered = false;
-
-                const fullPath = await Deno.realPath(newPath).catch(() => newPath);
-                this.sidecar.sendCommand("fim", { type: "WATCH", path: fullPath }).catch(() => {});
+                
+                await this.deploy();
             } catch (e) {
-                console.warn(`[CANARY] Morph failed for ${token.path}: ${(e as Error).message}`);
+                console.warn(`[CANARY] Morphing failed for ${token.path}: ${(e as Error).message}`);
             }
         }
     }

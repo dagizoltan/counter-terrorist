@@ -1,0 +1,26 @@
+[0m[32mTask[0m [0m[36mpackage[0m deno run --allow-run --allow-read --allow-write --allow-net src/orchestrator/tools/build/package.ts
+--- 🌍 Generating Production Unified Artifact Matrix ---
+
+📦 [Distro: ubuntu_2404]
+[RUN] deno compile --allow-all --unstable-kv --unstable-net --no-check --target x86_64-unknown-linux-gnu --output target/ubuntu_2404/build/counter-terrorist src/orchestrator/main.ts
+[DEB] Packaging ubuntu_2404...
+[RUN] dpkg-deb --build target/ubuntu_2404/deploy target/ubuntu_2404/release/counter-terrorist_ubuntu_2404.deb
+
+📦 [Distro: ubuntu_2606]
+[RUN] deno compile --allow-all --unstable-kv --unstable-net --no-check --target x86_64-unknown-linux-gnu --output target/ubuntu_2606/build/counter-terrorist src/orchestrator/main.ts
+[DEB] Packaging ubuntu_2606...
+[RUN] dpkg-deb --build target/ubuntu_2606/deploy target/ubuntu_2606/release/counter-terrorist_ubuntu_2606.deb
+
+📦 [Distro: win_10]
+[RUN] deno compile --allow-all --unstable-kv --unstable-net --no-check --target x86_64-pc-windows-msvc --output target/win_10/build/counter-terrorist.exe src/orchestrator/main.ts
+
+📦 [Distro: win_11]
+[RUN] deno compile --allow-all --unstable-kv --unstable-net --no-check --target x86_64-pc-windows-msvc --output target/win_11/build/counter-terrorist.exe src/orchestrator/main.ts
+
+📦 [Distro: macos_arm]
+[RUN] deno compile --allow-all --unstable-kv --unstable-net --no-check --target aarch64-apple-darwin --output target/macos_arm/build/counter-terrorist src/orchestrator/main.ts
+
+📦 [Distro: macos_intel]
+[RUN] deno compile --allow-all --unstable-kv --unstable-net --no-check --target x86_64-apple-darwin --output target/macos_intel/build/counter-terrorist src/orchestrator/main.ts
+
+✅ Unified Artifact Matrix ready in ./target/

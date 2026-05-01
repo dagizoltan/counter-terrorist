@@ -44,3 +44,9 @@ export interface PersistenceAuditResult {
 export interface PersistenceProvider {
   auditPersistence(): Promise<PersistenceAuditResult>;
 }
+
+export interface PcapProvider {
+  startCapture(interfaceName: string, duration: number, filename: string, filter?: string): Promise<CommandResult>;
+  stopCapture(filename: string): Promise<CommandResult>;
+  getStatus(): Promise<CommandResult>;
+}

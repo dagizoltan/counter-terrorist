@@ -225,7 +225,7 @@ Deno.test("createPcapManager", async () => {
   const executor = new MockExecutor();
   const sidecar = new MockSidecarManager(executor);
 
-  const manager = createPcapManager(sidecar);
+  const manager = createPcapManager(sidecar, executor);
 
   // PcapManager interacts with persistent sidecar 'pcap'
   // Since we are mocking runSidecar, we can't easily test persistent sidecar interaction without more mocks
