@@ -62,9 +62,13 @@ await meshManager.init();
 
 // HARDWARE INTEGRITY ENFORCEMENT (Tier-5 Sovereign Check)
 const isHardwareSecure = await tpmManager.verifyIntegrity();
-if (!isHardwareSecure) {
+const bypassHardware = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true";
+
+if (!isHardwareSecure && !bypassHardware) {
     console.error("[CRITICAL] HARDWARE INTEGRITY FAILURE DETECTED. PCR REGISTERS TAMPERED.");
     await selfDestruct(kv, auditService);
+} else if (!isHardwareSecure && bypassHardware) {
+    console.warn("[SECURITY] HARDWARE INTEGRITY BYPASS ACTIVE. Running in software-only trust mode.");
 }
 
 async function selfDestruct(kv: Deno.Kv, audit: AuditService) {
@@ -108,7 +112,7 @@ const threatIntel = new ThreatIntelService(protection, loggingService);
 const honeypotService = new HoneypotService(sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
 honeypotService.setBehavioralService(behavioralService);
 
-const canaryService = new CanaryService(auditService, sidecarManager);
+const canaryService = new CanaryService(auditService, sidecarManager, loggingService);
 const kernelService = new KernelService(executor, auditService);
 const autopilotService = new AutopilotService(eventBus, playbookService, auditService);
 const morphingService = new MorphingService(honeypotService, canaryService, auditService, meshManager);
@@ -218,7 +222,8 @@ const web = new WebAdapter(services);
 // MetricsService starts AFTER broadcaster is initialized
 const metricsService = new MetricsService(
   protection.firewall as any, meshManager, honeypotService, processTracker,
-  kernelService, auditService, canaryService, sidecarManager, broadcast
+  kernelService, auditService, canaryService, sidecarManager, protection.vpn,
+  behavioralService, broadcast
 );
 setMetricsService(metricsService);
 
@@ -236,6 +241,8 @@ const startDaemons = async () => {
       }).catch(err => console.warn(`[STEALTH] Kernel-level hiding failed: ${err.message}`));
       console.log("[STEALTH] Kernel-level PID hiding activated via eBPF.");
     }
+    // Phase 4: Deploy Shadow Watchdog (Unkillable Architecture)
+    await shadowService.startWatchdog().catch(err => console.warn(`[SHADOW] Watchdog deployment failed: ${err.message}`));
   } catch (_e) {
     console.warn("[FORENSICS] eBPF fallback active — polling canary tokens.");
     setInterval(async () => {

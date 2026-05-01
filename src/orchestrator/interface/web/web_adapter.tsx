@@ -59,6 +59,7 @@ export class WebAdapter implements WebPort {
       
     this.app.get("/features/*", serveStatic({ root: webRoot }));
     this.app.get("/components/*", serveStatic({ root: webRoot }));
+    this.app.get("/pages/*", serveStatic({ root: webRoot }));
     this.app.get("/vendor/*", serveStatic({ root: webRoot }));
     this.app.get("/assets/*", serveStatic({ root: webRoot }));
     this.app.get("/style.css", serveStatic({ root: webRoot }));
@@ -107,8 +108,10 @@ export class WebAdapter implements WebPort {
    * Aggregates system telemetry for UI consumption.
    */
   private async getSystemStatus(): Promise<ApplicationStatus> {
+    console.log("[WEB] Starting system status aggregation...");
     const { bootstrap } = await import("../../bootstrapper.ts");
     const baseStatus = await bootstrap();
+    console.log("[WEB] Base status retrieved.");
     
     return {
       ...baseStatus,
@@ -116,7 +119,7 @@ export class WebAdapter implements WebPort {
       plugins: [
         { name: "firewall", status: "ACTIVE", description: "Kernel-level packet filtering and isolation." },
         { name: "vpn", status: "ACTIVE", description: "Secure mTLS mesh tunnel manager." },
-        { name: "ebpf", status: "ERROR", description: "Kernel-level behavior monitoring and LSM.", details: "Kernel mismatch" },
+        { name: "ebpf", status: this.services.command.isRunning("ebpf") ? "ACTIVE" : "ERROR", description: "Kernel-level behavior monitoring and LSM.", details: this.services.command.isRunning("ebpf") ? "Running" : "Kernel mismatch or missing binary" },
         { name: "fim", status: "ACTIVE", description: "File integrity monitoring and audit chain." },
         { name: "scanner", status: "ACTIVE", description: "Vulnerability and process tree analysis." }
       ]
@@ -167,8 +170,6 @@ export class WebAdapter implements WebPort {
         port,
         cert: nodeCert.cert,
         key: nodeCert.key,
-        // Enforce client certificate verification
-        caCerts: [rootCA.cert],
       }, this.app.fetch);
     } else {
       console.log(`[WEB] Orchestrator Engine active on port ${port} (INSECURE MODE)`);

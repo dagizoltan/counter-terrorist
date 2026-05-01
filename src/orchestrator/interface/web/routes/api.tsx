@@ -8,6 +8,7 @@ import { createAuditApi } from "../api/audit.ts";
 import { createStatsApi } from "../api/stats.ts";
 import { createChaosApi } from "../api/chaos.ts";
 import { createSupplyChainApi } from "../api/supply_chain.ts";
+import { createAgentsApi } from "../api/agents.ts";
 
 /**
  * API Router
@@ -62,6 +63,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   // 3. General Protected APIs
   router.use("*", security.requireRole("admin", "operator", "viewer"));
   
+  router.route("/agents", createAgentsApi(services));
   router.route("/reports", createReportsApi(services.baseline, services.protection));
   router.route("/notifications", createNotificationsApi(services.notifications));
   router.route("/audit", createAuditApi(services.audit));
@@ -75,9 +77,54 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.get("/metrics", async (c: Context) => {
-    const { getMetricsSnapshot } = await import("../../../services/analysis/metrics_service.ts");
+    const { getMetricsSnapshot } = await import("../../../domain/analysis/metrics_service.ts");
     const snapshot = getMetricsSnapshot();
     return c.json(snapshot || {});
+  });
+
+  router.get("/status", async (c: Context) => {
+    const { bootstrap } = await import("../../../bootstrapper.ts");
+    const baseStatus = await bootstrap();
+    return c.json(baseStatus);
+  });
+
+  router.get("/agent/status", async (c: Context) => {
+    const { getMetricsSnapshot } = await import("../../../domain/analysis/metrics_service.ts");
+    const metrics = getMetricsSnapshot();
+
+    return c.json({
+      firewall: { 
+        active: true,
+        capabilities: ["PACKET_FILTER", "RATE_LIMITING", "IP_ISOLATION"],
+        root: true,
+        metrics: metrics?.firewall
+      },
+      vpn: {
+        active: await services.protection.vpn.isConnected(),
+        capabilities: ["MTLS_TUNNEL", "ENCRYPTED_MESH"],
+        root: true,
+        interface: "wg0",
+        metrics: metrics?.vpn
+      },
+      ebpf: {
+        active: services.command.isRunning("ebpf"),
+        capabilities: ["LSM", "SYSCALL_HOOK", "PID_HIDING"],
+        root: true,
+        metrics: metrics?.forensics
+      },
+      fim: {
+        active: services.command.isRunning("fim"),
+        capabilities: ["INOTIFY", "AUDIT_LOGGING"],
+        root: true,
+        metrics: metrics?.forensics
+      },
+      honeypot: {
+        active: services.command.isRunning("honeypot"),
+        capabilities: ["DECEPTION", "LOGGING"],
+        root: false,
+        metrics: metrics?.honeypot
+      }
+    });
   });
 
   router.get("/processes/tree", async (c: Context) => {

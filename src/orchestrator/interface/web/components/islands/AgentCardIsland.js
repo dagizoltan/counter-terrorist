@@ -66,10 +66,11 @@ class AgentCardIsland extends HTMLElement {
       color = value > 0 ? '#f97316' : '#22c55e';
       percentage = Math.min((value / 50) * 100, 100);
     } else if (this.agentName === 'scanner') {
-      value = m.scanner?.lastScanResult === 'OK' ? 'OK' : 'WAIT';
-      label = 'SCAN_STATE';
-      color = value === 'OK' ? '#22c55e' : '#eab308';
-      percentage = value === 'OK' ? 100 : 50;
+      const isAvailable = m.scanner?.available !== false;
+      value = isAvailable ? (m.scanner?.lastScanResult === 'OK' ? 'OK' : 'WAIT') : 'ABSENT';
+      label = 'MALWARE_SCAN';
+      color = !isAvailable ? '#64748b' : (value === 'OK' ? '#22c55e' : '#eab308');
+      percentage = value === 'OK' ? 100 : (isAvailable ? 50 : 0);
     } else if (this.agentName === 'ebpf') {
       value = m.forensics?.ebpfActive ? 'LIVE' : 'FAIL';
       label = 'KERNEL_LSM';
@@ -80,6 +81,12 @@ class AgentCardIsland extends HTMLElement {
       label = 'FILE_INTEGRITY';
       color = value === 'WATCH' ? '#22c55e' : '#ef4444';
       percentage = value === 'WATCH' ? 100 : 0;
+    } else if (this.agentName === 'vpn') {
+      const isAvailable = m.vpn?.available !== false;
+      value = isAvailable ? (m.vpn?.active ? 'LINK' : 'FAIL') : 'ABSENT';
+      label = 'MESH_TUNNEL';
+      color = value === 'LINK' ? '#22c55e' : '#ef4444';
+      percentage = value === 'LINK' ? 100 : 0;
     }
 
     // Update UI elements

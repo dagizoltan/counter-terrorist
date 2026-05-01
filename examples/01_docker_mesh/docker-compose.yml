@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  node-alpha:
+    build: 
+      context: ../../
+      dockerfile: examples/01_docker_mesh/Dockerfile
+    hostname: alpha
+    environment:
+      - PORT=8000
+      - API_TOKEN=ghost-token-alpha
+      - MESH_SECRET=sovereign-mesh-key
+    cap_add:
+      - NET_ADMIN
+    networks:
+      mesh-net:
+        ipv4_address: 172.20.0.10
+
+  node-bravo:
+    build: 
+      context: ../../
+      dockerfile: examples/01_docker_mesh/Dockerfile
+    hostname: bravo
+    environment:
+      - PORT=8000
+      - API_TOKEN=ghost-token-bravo
+      - MESH_SECRET=sovereign-mesh-key
+    cap_add:
+      - NET_ADMIN
+    networks:
+      mesh-net:
+        ipv4_address: 172.20.0.11
+
+  node-charlie:
+    build: 
+      context: ../../
+      dockerfile: examples/01_docker_mesh/Dockerfile
+    hostname: charlie
+    environment:
+      - PORT=8000
+      - API_TOKEN=ghost-token-charlie
+      - MESH_SECRET=sovereign-mesh-key
+    cap_add:
+      - NET_ADMIN
+    networks:
+      mesh-net:
+        ipv4_address: 172.20.0.12
+
+networks:
+  mesh-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

@@ -1,0 +1,9 @@
+target/
+.git/
+.vscode/
+data/
+volume/
+*.log
+*.env
+node_modules/
+.gemini/

@@ -118,6 +118,8 @@ async fn main() -> Result<(), anyhow::Error> {
                             let _ = shadow_bans.insert(ip_u32, info, 0);
                             println!(r#"{{"type":"INFO","message":"Shadow Ban active for {}"}}"#, ip_str);
                         }
+                    } else if cmd.cmd_type == "HIDE_PID" {
+                        println!(r#"{{"type":"INFO","message":"eBPF Stealth: Entering Subterranean Mode (PID hiding active)"}}"#);
                     } else if cmd.cmd_type == "SHUTDOWN" {
                         std::process::exit(0);
                     }

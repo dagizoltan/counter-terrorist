@@ -75,9 +75,10 @@ class BlockingLog extends HTMLElement {
     if (!ip) return;
 
     const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
     const headers = {
       'Content-Type': 'application/json',
-      'X-CT-Token': token
+      'X-CT-Token': csrfToken || token
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

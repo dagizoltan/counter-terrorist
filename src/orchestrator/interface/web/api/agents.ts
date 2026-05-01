@@ -1,0 +1,75 @@
+import { Hono, Context } from "hono";
+import { ServiceContainer } from "@core/container.ts";
+import { SidecarName } from "@infrastructure/system/validation.ts";
+
+export function createAgentsApi(services: ServiceContainer) {
+  const router = new Hono();
+
+  // Restart a sidecar
+  router.post("/:name/restart", async (c: Context) => {
+    const name = c.req.param("name") as SidecarName;
+    try {
+      await services.command.restartSidecar(name);
+      return c.json({ success: true, message: `Agent ${name} restarted.` });
+    } catch (e) {
+      return c.json({ success: false, error: (e as Error).message }, 500);
+    }
+  });
+
+  // Stop a sidecar
+  router.post("/:name/stop", async (c: Context) => {
+    const name = c.req.param("name") as SidecarName;
+    try {
+      await services.command.stopSidecar(name);
+      return c.json({ success: true, message: `Agent ${name} deactivated.` });
+    } catch (e) {
+      return c.json({ success: false, error: (e as Error).message }, 500);
+    }
+  });
+
+  // Send a custom command to an agent
+  router.post("/:name/command", async (c: Context) => {
+    const name = c.req.param("name");
+    const payload = await c.req.json();
+    
+    try {
+      const result = await services.command.sendCommand(name, payload);
+      return c.json(result);
+    } catch (e) {
+      return c.json({ success: false, error: (e as Error).message }, 500);
+    }
+  });
+
+  // VPN specific controls
+  router.post("/vpn/connect", async (c: Context) => {
+    const { interface: iface } = await c.req.json();
+    const result = await services.protection.vpn.connect(iface || "wg0");
+    return c.json(result);
+  });
+
+  router.post("/vpn/disconnect", async (c: Context) => {
+    const result = await services.protection.vpn.disconnect();
+    return c.json(result);
+  });
+
+  // Firewall specific controls
+  router.post("/firewall/block", async (c: Context) => {
+    const { ip } = await c.req.json();
+    const result = await services.protection.firewall.blockIp(ip);
+    return c.json(result);
+  });
+
+  // Scanner specific controls
+  router.post("/scanner/scan", async (c: Context) => {
+    const { path } = await c.req.json();
+    const result = await services.protection.antivirus.scanPath(path || "/");
+    
+    // Update metrics service with the result
+    const { recordScannerResult } = await import("../../../domain/analysis/metrics_service.ts");
+    recordScannerResult(new Date().toLocaleTimeString(), result.success ? "OK" : "THREAT_FOUND");
+    
+    return c.json(result);
+  });
+
+  return router;
+}

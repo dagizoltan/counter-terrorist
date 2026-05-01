@@ -59,10 +59,12 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       const { sessionId, csrfToken } = result.data;
 
       const secureCookie = deps.config.getBoolean("COOKIE_SECURE", true);
+      const isLocal = clientIp === "127.0.0.1" || clientIp === "::1" || clientIp === "localhost" || clientIp === "unknown";
+      console.log(`[AUTH:HANDLER] Setting session cookie: ${sessionId.slice(0, 8)}… (secure: false, Lax)`);
       setCookie(c, "session_token", sessionId, {
         httpOnly: true,
-        secure: secureCookie,
-        sameSite: "Strict",
+        secure: false,
+        sameSite: "Lax",
         maxAge: 86400, // 24 hours
       });
 
@@ -72,8 +74,8 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
 
       setCookie(c, "csrf_token", csrfToken, {
         httpOnly: false,
-        secure: secureCookie,
-        sameSite: "Strict",
+        secure: false,
+        sameSite: "Lax",
         maxAge: 86400,
       });
 
@@ -84,7 +86,11 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       `[AUTH] Failed login attempt from IP ${clientIp}`,
       SyslogSeverity.NOTICE
     );
-    return c.json({ error: "Invalid token" }, 401);
+
+    if (contentType && contentType.includes("application/json")) {
+        return c.json({ error: "Invalid token" }, 401);
+    }
+    return c.html(<Login error="Invalid token" />);
   });
 
   return router;

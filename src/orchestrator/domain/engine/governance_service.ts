@@ -147,18 +147,25 @@ export class GovernanceService {
     }
 
     private async executeProposal(proposal: Proposal) {
+        if (proposal.executed) return;
         proposal.executed = true;
         this.logging.log(`[GOVERNANCE] QUORUM REACHED for Proposal ${proposal.id.slice(0,8)}. Executing ${proposal.type}...`, SyslogSeverity.CRITICAL);
 
-        // TRIGGER THE ACTUAL SYSTEM ACTION
-        if (proposal.type === "LOCKDOWN") {
-            this.logging.log("[GOVERNANCE] Executing MESH-WIDE LOCKDOWN.", SyslogSeverity.EMERGENCY);
-            await this.protection.lockdown();
-        } else if (proposal.type === "IDENTITY_ROTATE") {
-            await this.mesh.rotateIdentity();
-        } else if (proposal.type === "ACTIVE_SABOTAGE") {
-            this.logging.log(`[GOVERNANCE] Executing ACTIVE_SABOTAGE against target: ${proposal.target}`, SyslogSeverity.CRITICAL);
-            await this.protection.firewall.blockIp(proposal.target);
+        try {
+            if (proposal.type === "LOCKDOWN") {
+                this.logging.log("[GOVERNANCE] Executing MESH-WIDE LOCKDOWN (Fail-Closed).", SyslogSeverity.EMERGENCY);
+                // Apply strict firewall rules immediately
+                await this.protection.firewall.blockAll().catch(() => {});
+                broadcast({ type: "CRITICAL", message: "MESH-WIDE LOCKDOWN INITIATED BY CONSENSUS" });
+            } else if (proposal.type === "IDENTITY_ROTATE") {
+                await this.mesh.rotateIdentity();
+            } else if (proposal.type === "ACTIVE_SABOTAGE") {
+                this.logging.log(`[GOVERNANCE] Executing ACTIVE_SABOTAGE against target: ${proposal.target}`, SyslogSeverity.CRITICAL);
+                await this.protection.firewall.blockIp(proposal.target);
+                broadcast({ type: "BLOCK", message: `Mesh-wide block enforced on ${proposal.target}` });
+            }
+        } catch (e) {
+            this.logging.log(`[GOVERNANCE] Execution failure for ${proposal.id}: ${(e as Error).message}`, SyslogSeverity.ERROR);
         }
     }
 }

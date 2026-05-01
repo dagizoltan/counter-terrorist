@@ -267,6 +267,18 @@ export class MeshManager {
     }
   }
 
+  /**
+   * Generic mesh broadcast (Gossip).
+   */
+  async broadcast(payload: any) {
+    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
+    for (const node of verifiedNodes) {
+        this.sendSync(node, payload).catch(err => {
+            console.warn(`[MESH] Gossip failure to ${node.hostname}: ${(err as Error).message}`);
+        });
+    }
+  }
+
   getNodes(): MeshNode[] {
     return Array.from(this.nodes.values());
   }

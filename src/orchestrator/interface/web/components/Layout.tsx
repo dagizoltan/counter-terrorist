@@ -81,45 +81,87 @@ export const Layout = (props: {
         ))}
       </head>
       <body class="min-h-screen flex bg-[#050505] font-sans overflow-hidden" 
-            style="background-image: url('/assets/cyber_command_bg.png'); background-size: cover; background-position: center;">
+            style="background-image: url('/assets/command_bg.png'); background-size: cover; background-position: center;">
         {/* Glassmorphic Overlay */}
-        <div class="min-h-screen flex-grow flex bg-[#050a15]/90 backdrop-blur-md">
+        <div class="min-h-screen flex-grow flex bg-obsidian/95 backdrop-blur-xl">
           {/* SIDEBAR */}
-          <aside id="sidebar" class="h-screen bg-black/40 backdrop-blur-xl border-r border-white/10 flex flex-col w-64 z-50">
-            <div class="p-6 flex items-center gap-3 border-b border-white/5 h-20">
-              <div class="w-2 h-6 bg-cyber shadow-[0_0_15px_rgba(0,210,255,0.5)]"></div>
-              <span class="font-black text-sm tracking-widest uppercase bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">Ghost_Command</span>
+          <aside id="sidebar" class="h-screen bg-black/40 backdrop-blur-2xl border-r border-white/5 flex flex-col w-72 z-50 shadow-[20px_0_50px_rgba(0,0,0,0.5)]">
+            <div class="p-8 flex items-center gap-4 border-b border-white/5 h-24">
+              <div class="w-1.5 h-8 bg-cyber shadow-[0_0_20px_rgba(0,210,255,0.6)] rounded-full"></div>
+              <div class="flex flex-col">
+                <span class="font-black text-sm tracking-[0.3em] uppercase text-white">Ghost_Command</span>
+                <span class="text-[9px] font-bold text-cyber/60 tracking-widest uppercase">Sovereign_Orchestrator</span>
+              </div>
             </div>
 
-            <nav class="flex-grow py-6 overflow-y-auto">
-              <div class="px-4 space-y-2">
-                <a href="/" class="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/10">
-                  <span class="text-[10px] font-bold uppercase tracking-widest">Dashboard</span>
+            <nav class="flex-grow py-8 overflow-y-auto custom-scrollbar">
+              <div class="px-6 space-y-1">
+                <div class="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4 ml-2">Main_Systems</div>
+                
+                <a href="/" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1 h-1 bg-cyber rounded-full group-hover:scale-150 transition-transform"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Dashboard</span>
+                  </div>
+                  <span class="text-[8px] font-black text-emerald-500/50 group-hover:text-emerald-400">ONLINE</span>
                 </a>
-                <a href="/events" class="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/10">
-                  <span class="text-[10px] font-bold uppercase tracking-widest">Threat_Matrix</span>
+
+                <a href="/agents" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Agent_Fleet</span>
+                  </div>
+                  <span class="text-[8px] font-black text-cyber/50">ACTIVE</span>
                 </a>
-                <a href="/agents" class="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/10">
-                  <span class="text-[10px] font-bold uppercase tracking-widest">Agent_Fleet</span>
+
+                <div class="pt-6 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4 ml-2">Intelligence</div>
+
+                <a href="/audit" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Audit_Chain</span>
+                  </div>
+                  <span class="text-[8px] font-black text-warning/50">SECURED</span>
                 </a>
-                <a href="/honeypots" class="flex items-center gap-4 p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/10">
-                  <span class="text-[10px] font-bold uppercase tracking-widest">Deception_Grid</span>
+
+                <a href="/honeypots" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Deception_Grid</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <div class="w-1 h-1 bg-danger animate-ping"></div>
+                    <span class="text-[8px] font-black text-danger/50">MONITORED</span>
+                  </div>
+                </a>
+
+                <div class="pt-6 text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] mb-4 ml-2">Orchestration</div>
+
+                <a href="/mesh" class="flex items-center justify-between p-3 rounded-lg hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
+                  <div class="flex items-center gap-4">
+                    <div class="w-1 h-1 bg-slate-600 rounded-full group-hover:bg-emerald-500 transition-all"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-widest">Mesh_Topology</span>
+                  </div>
+                  <span class="text-[8px] font-black text-emerald-500/50">CONSENSUS</span>
                 </a>
               </div>
             </nav>
 
-            <div class="p-4 border-t border-white/5">
-              <div class="mb-4 px-3 py-2 rounded bg-cyber/5 border border-cyber/20">
-                 <div class="flex items-center gap-2 mb-1">
-                    <div class="w-1.5 h-1.5 rounded-full bg-cyber animate-pulse"></div>
-                    <span class="text-[9px] font-bold text-cyber uppercase tracking-tighter">Consensus_Active</span>
+            <div class="p-6 border-t border-white/5 bg-black/20">
+              <div class="mb-6 px-4 py-3 rounded-lg bg-cyber/5 border border-cyber/20 shadow-[inset_0_0_20px_rgba(0,210,255,0.05)]">
+                 <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                      <div class="w-1.5 h-1.5 rounded-full bg-cyber animate-pulse shadow-[0_0_10px_rgba(0,210,255,1)]"></div>
+                      <span class="text-[9px] font-black text-cyber uppercase tracking-widest">Consensus_Lock</span>
+                    </div>
+                    <span class="text-[9px] font-mono text-cyber/60">99.9%</span>
                  </div>
                  <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-                    <div class="h-full bg-cyber w-3/4"></div>
+                    <div class="h-full bg-gradient-to-r from-cyber/40 to-cyber w-full"></div>
                  </div>
               </div>
               <form method="POST" action="/logout">
-                <button type="submit" class="w-full flex items-center gap-4 p-3 rounded-lg text-[10px] font-bold uppercase tracking-widest text-danger hover:bg-danger/10 border border-danger/20 transition-all">
+                <button type="submit" class="w-full flex items-center justify-center gap-4 p-3 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] text-danger/80 hover:text-danger hover:bg-danger/10 border border-danger/10 hover:border-danger/30 transition-all duration-300">
                   Terminate_Session
                 </button>
               </form>
@@ -127,26 +169,36 @@ export const Layout = (props: {
           </aside>
 
           {/* MAIN CONTENT AREA */}
-          <div class="flex-grow h-screen flex flex-col overflow-hidden bg-gradient-to-br from-transparent to-black/40">
-            <header class="h-20 border-b border-white/10 flex items-center px-8 bg-black/20 backdrop-blur-md shrink-0">
-               <div class="flex items-center gap-4">
-                  <div class="live-dot"></div>
-                  <span class="text-[10px] font-black text-slate-300 tracking-widest uppercase">Sovereign_Mesh_Active</span>
+          <div class="flex-grow h-screen flex flex-col overflow-hidden">
+            <header class="h-24 border-b border-white/5 flex items-center px-10 bg-black/40 backdrop-blur-xl shrink-0 z-40">
+               <div class="flex items-center gap-6">
+                  <div class="flex items-center gap-3">
+                    <div class="live-dot"></div>
+                    <span class="text-[11px] font-black text-white tracking-[0.3em] uppercase">Sovereign_Active</span>
+                  </div>
+                  <div class="h-4 w-px bg-white/10"></div>
+                  <div class="flex items-center gap-4">
+                    <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase">Status:</span>
+                    <span class="px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black uppercase tracking-tighter">Normal_Operations</span>
+                  </div>
                </div>
-               <div class="ml-auto flex items-center gap-8">
+               <div class="ml-auto flex items-center gap-12">
                   <div class="flex flex-col items-end">
-                     <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase">Node_Stability</span>
-                     <span class="text-[10px] font-mono text-emerald-400">99.9%</span>
+                     <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase mb-1">Global_Sync</span>
+                     <div class="flex items-center gap-2">
+                        <span class="text-[10px] font-mono text-emerald-400">SYNCHRONIZED</span>
+                        <div class="w-1 h-1 bg-emerald-500 rounded-full"></div>
+                     </div>
                   </div>
                   <div class="flex flex-col items-end">
-                     <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase">Node_Identity</span>
+                     <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase mb-1">Local_Node_ID</span>
                      <span class="text-[10px] font-mono text-cyber">{Deno.hostname()}</span>
                   </div>
                </div>
             </header>
 
-            <main class="flex-grow overflow-y-auto">
-              <div class="max-w-[1600px] p-8 mx-auto">
+            <main class="flex-grow overflow-y-auto custom-scrollbar bg-obsidian/40">
+              <div class="max-w-[1600px] p-12 mx-auto">
                 {props.children}
               </div>
             </main>

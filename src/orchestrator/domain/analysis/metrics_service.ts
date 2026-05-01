@@ -8,12 +8,15 @@ import { CanaryService, CanaryToken } from "../protection/canary_service.ts";
 import { BroadcastFunction } from "../engine/plugins/types.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { MeshNode } from "../engine/mesh.ts";
+import { VpnPort } from "@core/ports.ts";
+import { BehavioralService } from "./behavioral_service.ts";
 
 export interface SystemMetrics {
     firewall: {
         blockedCount: number;
         rules: number;
         blockedIps: string[];
+        suspiciousIps: any[];
     };
     mesh: {
         activeNodes: number;
@@ -48,6 +51,12 @@ export interface SystemMetrics {
     scanner: {
         lastScanTime: string;
         lastScanResult: string;
+        available: boolean;
+    };
+    vpn: {
+        active: boolean;
+        interface: string;
+        available: boolean;
     };
 }
 
@@ -65,6 +74,8 @@ export class MetricsService {
         private auditService: AuditService,
         private canaryService: CanaryService,
         private sidecarManager: SidecarManager,
+        private vpn: VpnPort,
+        private behavioral: BehavioralService,
         private broadcast: BroadcastFunction
     ) {
         this.start();
@@ -96,13 +107,13 @@ export class MetricsService {
 
             // Parse real firewall data
             const fwLines = firewallStatus.stdout?.split('\n').filter((l: string) => l.trim()) || [];
-            const rejectCount = (firewallStatus.stdout?.match(/REJECT|DROP/g) || []).length;
+            const rejectCount = (firewallStatus.stdout?.match(/REJECT|DROP|DENY/g) || []).length;
             
-            // Extract blocked IPs from iptables output
+            // Extract blocked IPs from iptables/ufw output
             const blockedIps: string[] = [];
             for (const line of fwLines) {
                 const ipMatch = line.match(/(\d+\.\d+\.\d+\.\d+)/);
-                if (ipMatch && (line.includes("DROP") || line.includes("REJECT"))) {
+                if (ipMatch && (line.includes("DROP") || line.includes("REJECT") || line.includes("DENY"))) {
                     blockedIps.push(ipMatch[1]);
                 }
             }
@@ -116,6 +127,7 @@ export class MetricsService {
                     blockedCount: rejectCount,
                     rules: fwLines.length,
                     blockedIps: [...new Set(blockedIps)].slice(0, 20),
+                    suspiciousIps: this.behavioral.getSuspiciousIps().slice(0, 10),
                 },
                 mesh: {
                     activeNodes: meshNodes.filter((n: MeshNode) => Date.now() - n.lastSeen < 60000).length,
@@ -150,7 +162,13 @@ export class MetricsService {
                 scanner: {
                     lastScanTime: this.lastScanTime,
                     lastScanResult: this.lastScanResult,
+                    available: (await this.sidecarManager.getExecutor().execute("which", ["clamscan"])).success
                 },
+                vpn: {
+                    active: await this.vpn.isConnected(),
+                    interface: "wg0",
+                    available: (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success
+                }
             };
 
             this.cachedMetrics = metrics;

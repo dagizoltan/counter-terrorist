@@ -1,6 +1,6 @@
 import { jsx } from "hono/jsx";
 
-export const Login = () => {
+export const Login = (props: { error?: string }) => {
   return (
     <html lang="en">
       <head>
@@ -9,10 +9,15 @@ export const Login = () => {
         <title>Login | Security Orchestrator</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="/components/theme.css" />
-        <link rel="stylesheet" href="/pages/login/style.css" />
+        <link rel="stylesheet" href="/features/login/style.css" />
       </head>
       <body class="login-container">
         <div class="bg-slate-800 p-8 rounded-xl border border-slate-700 shadow-2xl w-full max-w-md login-box">
+          {props.error && (
+            <div class="bg-red-500/20 border border-red-500/50 text-red-200 text-xs py-2 px-4 rounded mb-6 text-center">
+              {props.error}
+            </div>
+          )}
           <div class="flex items-center gap-2 mb-6 justify-center">
             <div class="w-4 h-4 rounded-full bg-red-500 animate-pulse"></div>
             <h1 class="font-bold text-2xl tracking-tight text-center">SECURE_ROOT</h1>

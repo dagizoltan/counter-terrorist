@@ -31,6 +31,7 @@ export interface CommandPort {
   onEvent(sidecar: string, handler: (event: any) => void): void;
   emitEvent(sidecar: string, event: any): void;
   getPersistentSidecar(sidecar: string): Promise<any>;
+  isRunning(sidecar: string): boolean;
   restartSidecar(sidecar: string): Promise<void>;
   stopSidecar(sidecar: string): Promise<void>;
 }

@@ -73,6 +73,26 @@ export class ShadowService {
         // Implementation of honey-file injection into the mount namespace
     }
 
+    /**
+     * Deploys the Shadow Watchdog.
+     * Spawns a secondary process that monitors this orchestrator and resurrects it if killed.
+     */
+    async startWatchdog() {
+        const myPid = Deno.pid;
+        const scriptPath = new URL("../../../tools/watchdog.ts", import.meta.url).pathname;
+        
+        this.logging.log(`[SHADOW] Deploying Watchdog for PID ${myPid}...`, SyslogSeverity.NOTICE);
+
+        const command = new Deno.Command(Deno.execPath(), {
+            args: ["run", "-A", scriptPath, myPid.toString()],
+            stdout: "null",
+            stderr: "null",
+            unref: true, // Allow the orchestrator to exit while the watchdog stays alive
+        });
+
+        command.spawn();
+    }
+
     getEnvironments() {
         return Array.from(this.environments.values());
     }

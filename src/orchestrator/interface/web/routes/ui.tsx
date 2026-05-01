@@ -18,10 +18,16 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   // Dashboard
   router.get("/", async (c: Context) => {
+    console.log("[WEB:UI] Rendering Dashboard...");
     const status = await getStatus();
+    console.log("[WEB:UI] Status aggregated.");
     const csrfToken = c.get("csrfToken");
+    console.log("[WEB:UI] Importing DashboardPage component...");
     const { Dashboard: DashboardPage } = await import("../features/dashboard/page.tsx") as any;
-    return c.html(<DashboardPage status={status} csrfToken={csrfToken} />);
+    console.log("[WEB:UI] Rendering HTML...");
+    const html = c.html(<DashboardPage status={status} csrfToken={csrfToken} />);
+    console.log("[WEB:UI] HTML render complete.");
+    return html;
   });
 
   // Feature Pages

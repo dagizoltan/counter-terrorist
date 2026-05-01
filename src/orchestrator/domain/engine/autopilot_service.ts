@@ -85,8 +85,22 @@ export class AutopilotService {
     });
 
     if (targetIp) {
-        // Find a relevant playbook or execute hard-coded safety steps
         await this.playbookService.runPlaybook("Emergency Isolation");
+    }
+  }
+
+  private async spawnLureProcess() {
+    try {
+        const scriptPath = new URL("../../tools/lure.ts", import.meta.url).pathname;
+        const command = new Deno.Command(Deno.execPath(), {
+            args: ["run", "-A", scriptPath],
+            stdout: "null",
+            stderr: "null",
+        });
+        command.spawn();
+        console.log("[AUTOPILOT] Subterranean Lure deployed: hashicorp-vault-proxy");
+    } catch (e) {
+        console.warn(`[AUTOPILOT] Failed to deploy lure: ${(e as Error).message}`);
     }
   }
 }

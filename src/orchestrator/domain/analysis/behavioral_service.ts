@@ -11,6 +11,14 @@ export class BehavioralService {
   private readonly MAX_HISTORY = 10;
 
   constructor(private firewall: FirewallManager) {}
+  
+  getSuspiciousIps() {
+    return Array.from(this.history.entries()).map(([ip, stats]) => ({
+      ip,
+      attempts: stats.timestamps.length,
+      lastSeen: stats.timestamps[stats.timestamps.length - 1]
+    }));
+  }
 
   async analyze(ip: string) {
     const now = Date.now();

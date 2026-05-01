@@ -1,5 +1,6 @@
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "../analysis/audit.ts";
+import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
 
 export interface KernelHardeningStatus {
     aslr: string;
@@ -13,8 +14,11 @@ export interface KernelHardeningStatus {
 
 export class KernelService {
     private lastHardened: string = "";
+    private logging: LoggingPort;
 
-    constructor(private executor: SystemExecutor, private auditService: AuditService) {}
+    constructor(private executor: SystemExecutor, private auditService: AuditService) {
+        this.logging = auditService.getLogging();
+    }
 
     async harden() {
         const params = [

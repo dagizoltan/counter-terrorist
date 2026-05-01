@@ -20,6 +20,10 @@ export class SidecarManager implements CommandPort {
     this.registerCleanup();
   }
 
+  getExecutor(): SystemExecutor {
+    return this.executor;
+  }
+
   private registerCleanup() {
     if (this.cleanupRegistered) return;
     

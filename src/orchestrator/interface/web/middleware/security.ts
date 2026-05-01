@@ -53,16 +53,26 @@ export class SecurityMiddleware {
         if (session) {
           c.set("role", session.role || "viewer");
           c.set("session", session);
+          c.set("csrfToken", session.csrfToken);
           
           // CSRF enforcement for state-changing methods
           if (["POST", "DELETE", "PUT", "PATCH"].includes(c.req.method)) {
             const csrfHeader = c.req.header("X-CT-Token");
             if (!csrfHeader || !session.csrfToken || !(await secureCompare(csrfHeader, session.csrfToken))) {
-              loggingService.log(`[SECURITY] CSRF blocked for ${c.req.path}`, SyslogSeverity.WARNING);
+              loggingService.log(`[SECURITY] CSRF blocked for ${c.req.path}. Expected: ${session.csrfToken?.slice(0, 8)}, Got: ${csrfHeader?.slice(0, 8)}`, SyslogSeverity.WARNING);
               return c.json({ error: "CSRF Validation Failed" }, 403);
             }
           }
           return next();
+        } else {
+          loggingService.log(`[SECURITY] Invalid or expired session ID: ${sessionId.slice(0, 8)}…`, SyslogSeverity.NOTICE);
+        }
+      } else {
+        if (!path.startsWith("/api/")) {
+           // Silently ignore missing cookies for public assets, but log for pages
+           if (path === "/" || path.endsWith(".html")) {
+             loggingService.log(`[SECURITY] No session cookie found for page: ${path}`, SyslogSeverity.NOTICE);
+           }
         }
       }
 
