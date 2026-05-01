@@ -55,8 +55,9 @@ export class SecurityMiddleware {
       // 3. Session Cookie Auth
       const sessionId = getCookie(c, "session_token");
       if (sessionId) {
-        const session = await this.services.sessions.validateSession(sessionId);
-        if (session) {
+        const result = await this.services.sessions.validateSession(sessionId);
+        if (result.success && result.data) {
+          const session = result.data;
           c.set("role", session.role || "viewer");
           c.set("session", session);
           c.set("csrfToken", session.csrfToken);
@@ -95,9 +96,9 @@ export class SecurityMiddleware {
       // 5. API Key Header (Scoped)
       const apiKey = c.req.header("X-Api-Key");
       if (apiKey) {
-        const role = await this.services.apiKeys.validateApiKey(apiKey);
-        if (role) {
-          c.set("role", role);
+        const result = await this.services.apiKeys.validateApiKey(apiKey);
+        if (result.success && result.data) {
+          c.set("role", result.data);
           return next();
         }
       }
@@ -105,13 +106,16 @@ export class SecurityMiddleware {
       // 6. Query Parameter Token (Helper for WebSockets/Handshakes)
       const queryToken = c.req.query("token");
       if (queryToken) {
-          if (await secureCompare(queryToken, this.masterToken)) {
+          const masterResult = await import("@infrastructure/system/validation.ts").then(m => 
+              m.secureCompare(queryToken, this.masterToken)
+          );
+          if (masterResult) {
               c.set("role", "admin");
               return next();
           }
-          const role = await this.services.apiKeys.validateApiKey(queryToken);
-          if (role) {
-              c.set("role", role);
+          const result = await this.services.apiKeys.validateApiKey(queryToken);
+          if (result.success && result.data) {
+              c.set("role", result.data);
               return next();
           }
       }

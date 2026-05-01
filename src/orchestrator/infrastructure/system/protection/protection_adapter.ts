@@ -1,5 +1,4 @@
-import { CommandResult } from "../command_manager.ts";
-import { ProtectionPort } from "@core/ports.ts";
+import { CommandResult, ProtectionPort } from "@core/ports.ts";
 import { createProtection } from "./index.ts";
 
 export class ProtectionAdapter implements ProtectionPort {

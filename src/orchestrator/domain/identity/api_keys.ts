@@ -15,15 +15,18 @@ export interface ApiKeyMetadata {
 export class ApiKeysService {
   private hashRepo: KvRepository<ApiKeyMetadata>;
   private idRepo: KvRepository<string>;
+  public createApiKey: (name: string, role: Role) => Promise<any>;
+  public validateApiKey: (rawKey: string | undefined) => Promise<any>;
+  public revokeApiKey: (id: string) => Promise<any>;
 
   constructor(private kv: Deno.Kv, private logging: LoggingPort) {
     this.hashRepo = new KvRepository<ApiKeyMetadata>(kv, "api_keys_hash");
     this.idRepo = new KvRepository<string>(kv, "api_keys_id");
 
     // Wrap public methods
-    this.createApiKey = withTelemetry("Auth:CreateKey", this.createApiKey.bind(this), logging) as any;
-    this.validateApiKey = withTelemetry("Auth:ValidateKey", this.validateApiKey.bind(this), logging) as any;
-    this.revokeApiKey = withTelemetry("Auth:RevokeKey", this.revokeApiKey.bind(this), logging) as any;
+    this.createApiKey = withTelemetry("Auth:CreateKey", this._createApiKey.bind(this), logging);
+    this.validateApiKey = withTelemetry("Auth:ValidateKey", this._validateApiKey.bind(this), logging);
+    this.revokeApiKey = withTelemetry("Auth:RevokeKey", this._revokeApiKey.bind(this), logging);
   }
 
   /**
@@ -40,7 +43,7 @@ export class ApiKeysService {
   /**
    * Generates a new API key for a specific role.
    */
-  async createApiKey(name: string, role: Role): Promise<{ rawKey: string; id: string }> {
+  private async _createApiKey(name: string, role: Role): Promise<{ rawKey: string; id: string }> {
     if (role === "admin" || role === "mesh_peer") {
       throw new Error("Cannot create API keys for internal or admin roles");
     }
@@ -73,7 +76,7 @@ export class ApiKeysService {
   /**
    * Validates a raw API key.
    */
-  async validateApiKey(rawKey: string | undefined): Promise<Role | null> {
+  private async _validateApiKey(rawKey: string | undefined): Promise<Role | null> {
     if (!rawKey) return null;
     const parts = rawKey.split("_");
     if (parts.length < 4 || parts[0] !== "ct") return null;
@@ -122,7 +125,7 @@ export class ApiKeysService {
   /**
    * Revokes an API key by its ID.
    */
-  async revokeApiKey(id: string): Promise<void> {
+  private async _revokeApiKey(id: string): Promise<void> {
     const keyHash = await this.idRepo.get(id);
     if (!keyHash) return;
 

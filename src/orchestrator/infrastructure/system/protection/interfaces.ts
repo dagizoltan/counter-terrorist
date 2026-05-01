@@ -1,4 +1,4 @@
-import { CommandResult } from "../command_manager.ts";
+import { CommandResult } from "@core/ports.ts";
 
 export interface FirewallProvider {
   blockIp(ip: string): Promise<CommandResult>;

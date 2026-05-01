@@ -1,4 +1,4 @@
-import { CommandResult } from "./command_manager.ts";
+import { CommandResult } from "@core/ports.ts";
 
 /**
  * Executes one-off system commands.
@@ -8,8 +8,22 @@ export class SystemExecutor {
     "clamscan", "mkdir", "mv", "chmod", "ls", "sha256sum", "bash", "systemctl",
     "crontab", "which", "where", "powershell", "netsh", "taskkill", "tc", "kill",
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
-    "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss", "cargo"
+    "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss", "cargo",
+    "unshare", "iptables"
   ];
+
+  async executeAsync(cmd: string, args: string[] = []): Promise<void> {
+    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+        throw new Error(`Security Violation: Command '${cmd}' is not in the system whitelist.`);
+    }
+    const command = new Deno.Command(cmd, {
+        args,
+        stdout: "null",
+        stderr: "null",
+    });
+    const child = command.spawn();
+    child.unref();
+  }
 
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
     // Security: Whitelist validation

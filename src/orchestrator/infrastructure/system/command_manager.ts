@@ -1,15 +1,29 @@
-import { SidecarManager } from "../runtime/sidecar_manager.ts";
-import { SystemExecutor } from "./system_executor.ts";
+import { CommandResult } from "@core/ports.ts";
 
-/**
- * Manages command routing and sidecar interactions.
- * Alias for SidecarManager to maintain compatibility with Milestone 1 tests and references.
- */
-export class CommandManager extends SidecarManager {
-    constructor() {
-        super(new SystemExecutor());
-    }
+export interface CommandManager {
+  execute(cmd: string, args: string[]): Promise<CommandResult>;
 }
 
-export const commandManager = new CommandManager();
-export type { CommandResult } from "@core/ports.ts";
+export class SystemCommandManager implements CommandManager {
+  async execute(cmd: string, args: string[]): Promise<CommandResult> {
+    try {
+      const command = new Deno.Command(cmd, {
+        args: args,
+        stdout: "piped",
+        stderr: "piped",
+      });
+      const { success, stdout, stderr } = await command.output();
+      return {
+        success,
+        stdout: new TextDecoder().decode(stdout),
+        stderr: new TextDecoder().decode(stderr),
+      };
+    } catch (e) {
+      return {
+        success: false,
+        stdout: "",
+        stderr: (e as Error).message,
+      };
+    }
+  }
+}

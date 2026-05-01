@@ -1,7 +1,7 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export default function AuditIntegrity() {
+export default function AuditIntegrity({ status, csrfToken }: { status?: any, csrfToken?: string }) {
   return (
     <Layout title="Mesh Integrity // Autonomous Defense Mesh">
       <div class="p-8 max-w-7xl mx-auto">

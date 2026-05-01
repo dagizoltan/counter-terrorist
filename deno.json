@@ -8,9 +8,8 @@
     "package": "deno run --allow-run --allow-read --allow-write --allow-net src/orchestrator/tools/build/package.ts"
   },
   "compilerOptions": {
-    "jsx": "react",
-    "jsxFactory": "jsx",
-    "jsxFragmentFactory": "Fragment"
+    "jsx": "react-jsx",
+    "jsxImportSource": "hono/jsx"
   },
   "imports": {
     "hono": "https://deno.land/x/hono@v4.3.7/mod.ts",
@@ -18,6 +17,7 @@
     "hono/bearer-auth": "https://deno.land/x/hono@v4.3.7/middleware/bearer-auth/index.ts",
     "hono/deno": "https://deno.land/x/hono@v4.3.7/adapter/deno/index.ts",
     "hono/jsx": "https://deno.land/x/hono@v4.3.7/jsx/index.ts",
+    "hono/jsx/jsx-runtime": "https://deno.land/x/hono@v4.3.7/jsx/jsx-runtime.ts",
     "zod": "npm:zod@^4.4.1",
     "@core/": "./src/orchestrator/core/",
     "@domain/": "./src/orchestrator/domain/",

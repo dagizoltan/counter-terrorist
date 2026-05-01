@@ -89,10 +89,26 @@ async function selfDestruct(kv: Deno.Kv, audit: AuditService) {
         await kv.delete(entry.key);
     }
     
-    // Wipe volume files
+    // Wipe volume files securely (one-pass overwrite)
     try {
+        const wipeFile = async (path: string) => {
+            const info = await Deno.stat(path);
+            if (info.isFile) {
+                const file = await Deno.open(path, { write: true });
+                const zeros = new Uint8Array(info.size);
+                await file.write(zeros);
+                file.close();
+            } else if (info.isDirectory) {
+                for await (const entry of Deno.readDir(path)) {
+                    await wipeFile(`${path}/${entry.name}`);
+                }
+            }
+        };
+        await wipeFile("./volume");
         await Deno.remove("./volume", { recursive: true });
-    } catch {}
+    } catch (e) {
+        console.error(`[SOVEREIGN] Wipe error: ${(e as Error).message}`);
+    }
     
     console.error("[SOVEREIGN] Local data purged. Halting execution.");
     Deno.exit(1);
@@ -207,7 +223,7 @@ sidecarManager.onEvent("fim", (event: any) => {
   }
 });
 
-const curatedIntel = new CuratedIntelService(loggingService, protection.firewall);
+const curatedIntel = new CuratedIntelService(loggingService, protection.firewall, configProvider);
 const newsSignal = new NewsSignalService(loggingService);
 const networkDiscovery = new NetworkDiscoveryService(loggingService);
 
@@ -252,9 +268,9 @@ const metricsService = new MetricsService(
 setMetricsService(metricsService);
 
 // ── Phase 7: Start tactical services & Early Hardening ────────────────
-await curatedIntel.start();
-await newsSignal.start();
-await networkDiscovery.start();
+curatedIntel.start().catch(err => console.error(`[INTEL] Start failure: ${err.message}`));
+newsSignal.start().catch(err => console.error(`[NEWS] Start failure: ${err.message}`));
+networkDiscovery.start().catch(err => console.error(`[DISCOVERY] Start failure: ${err.message}`));
 
 // ── Phase 8: Start persistent sidecars ────────────────────────────────
 const startDaemons = async () => {

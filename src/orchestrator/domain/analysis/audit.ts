@@ -83,7 +83,7 @@ export class AuditService {
                 }
             }
         } catch (e) {
-            this.logging.log(`[AUDIT] Failed to restore chain head: ${e}`, SyslogSeverity.WARNING);
+            this.logging.log(`[AUDIT] Failed to restore chain head: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.WARNING);
         }
     }
 
@@ -261,7 +261,7 @@ export class AuditService {
                 );
             }
         } catch (e) {
-            this.logging.log(`[AUDIT] Retention purge failed: ${e}`, SyslogSeverity.ERROR);
+            this.logging.log(`[AUDIT] Retention purge failed: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.ERROR);
         }
     }
 

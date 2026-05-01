@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { ConfigurationPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
 
 export interface IntelIndicator {
     indicator: string;
@@ -24,10 +24,7 @@ const SOURCE_WEIGHTS: Record<string, number> = {
     "TalosIntelligence": 90
 };
 
-const ALLOWLIST = [
-    "1.1.1.1", "1.0.0.1", "8.8.8.8", "8.8.4.4", // DNS
-    "127.0.0.1", "0.0.0.0", "192.168.", "10.", "172.16." // Local/Internal
-];
+
 
 export class CuratedIntelService {
     private kv?: Deno.Kv;
@@ -39,7 +36,17 @@ export class CuratedIntelService {
         { name: "TalosIntelligence", url: "https://www.talosintelligence.com/documents/ip-blacklist", type: "IP" }
     ];
 
-    constructor(private logging: LoggingPort, private firewall: any) {}
+    private allowlist: string[] = [];
+    private blacklist: Set<string> = new Set();
+
+    constructor(private logging: LoggingPort, private firewall: any, private config: ConfigurationPort) {
+        const list = config.getEnv("INTEL_ALLOWLIST") || "";
+        this.allowlist = list.split(",").map(i => i.trim()).filter(Boolean);
+    }
+
+    getBlacklist(): Set<string> {
+        return this.blacklist;
+    }
 
     async start() {
         this.kv = await Deno.openKv();
@@ -48,23 +55,26 @@ export class CuratedIntelService {
         // Blocking initial sync for pre-start hardening
         await this.sync();
 
-        // High-fidelity sync (Critical feeds every 1h, others 6h)
-        setInterval(() => this.sync(), 60 * 60 * 1000); 
+        // High-fidelity sync (Critical feeds every configurable interval)
+        const intervalHours = this.config.getNumber("INTEL_SYNC_INTERVAL_HOURS", 1);
+        setInterval(() => this.sync(), intervalHours * 60 * 60 * 1000); 
     }
 
     async sync() {
         this.logging.log("[INTEL] Commencing weighted intelligence ingestion...", SyslogSeverity.INFORMATIONAL);
         
-        for (const source of this.sources) {
+        const fetchTasks = this.sources.map(async (source) => {
             try {
                 const response = await fetch(source.url);
-                if (!response.ok) continue;
+                if (!response.ok) return;
                 const data = await response.text();
                 await this.processSource(source, data);
             } catch (e) {
                 this.logging.log(`[INTEL] Source failure (${source.name}): ${(e as Error).message}`, SyslogSeverity.WARNING);
             }
-        }
+        });
+
+        await Promise.all(fetchTasks);
         
         this.logging.log("[INTEL] Reputation weighting and perimeter enforcement complete.", SyslogSeverity.NOTICE);
     }
@@ -84,7 +94,7 @@ export class CuratedIntelService {
             }
 
             // 1. Sanity Check (Allowlist)
-            if (ALLOWLIST.some(a => indicator.startsWith(a))) continue;
+            if (this.allowlist.some(a => indicator.startsWith(a))) continue;
 
             // 2. Fetch existing reputation to correlate
             const existing = await this.kv?.get<IntelIndicator>(["curated_threats", indicator]);
@@ -116,10 +126,14 @@ export class CuratedIntelService {
             if (curated.score >= 85 && curated.type === "IP") {
                 // Tier 01: High Confidence Block
                 await this.firewall.blockIp(curated.indicator).catch(() => {});
+                this.blacklist.add(curated.indicator);
                 blockCount++;
             } else if (curated.score >= 60 && curated.type === "IP") {
                 // Tier 02: Suspicious - Shadow Ban
                 await this.firewall.shadowBanIp(curated.indicator).catch(() => {});
+                this.blacklist.delete(curated.indicator); // Ensure it's not in full block if it degraded
+            } else {
+                this.blacklist.delete(curated.indicator);
             }
 
             await this.kv?.set(["curated_threats", indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });

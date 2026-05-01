@@ -98,96 +98,121 @@ class BlockingLog extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       <style>
-        :host { display: block; background: rgba(10, 11, 16, 0.4); border-top: 1px solid rgba(60, 80, 120, 0.2); border-radius: 8px; overflow: hidden; backdrop-filter: blur(12px); }
+        :host { display: flex; flex-direction: column; height: 100%; background: transparent; overflow: hidden; }
         .controls {
-          padding: 1rem 1.5rem;
-          background: rgba(255, 255, 255, 0.02);
+          padding: 1rem;
+          background: rgba(0, 0, 0, 0.2);
           border-bottom: 1px solid rgba(255, 255, 255, 0.05);
           display: flex;
-          gap: 1rem;
-          align-items: center;
+          flex-direction: column;
+          gap: 0.75rem;
         }
         .filter-group {
-          margin-left: auto;
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          font-size: 9px;
-          font-weight: 700;
-          color: #94a3b8;
+          justify-content: space-between;
+          font-size: 8px;
+          font-weight: 900;
+          color: #64748b;
           text-transform: uppercase;
-          letter-spacing: 0.1em;
+          letter-spacing: 0.2em;
         }
         select {
           background: #0f172a;
-          border: 1px solid rgba(60, 80, 120, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.05);
           color: #e2e8f0;
-          padding: 0.3rem 0.6rem;
+          padding: 0.2rem 0.4rem;
           border-radius: 4px;
-          font-size: 9px;
+          font-size: 8px;
           text-transform: uppercase;
           outline: none;
         }
         input {
           background: rgba(0, 0, 0, 0.3);
-          border: 1px solid rgba(60, 80, 120, 0.3);
+          border: 1px solid rgba(255, 255, 255, 0.05);
           color: #fff;
-          padding: 0.5rem 0.8rem;
-          border-radius: 4px;
+          padding: 0.5rem;
+          border-radius: 8px;
           font-size: 10px;
           font-family: 'JetBrains Mono', monospace;
-          flex-grow: 1;
+          width: 100%;
           outline: none;
         }
         button {
-          background: #00d2ff;
-          color: #000;
-          border: none;
-          padding: 0.5rem 1.2rem;
-          border-radius: 4px;
+          background: rgba(14, 165, 233, 0.1);
+          color: #0ea5e9;
+          border: 1px solid rgba(14, 165, 233, 0.2);
+          padding: 0.5rem;
+          border-radius: 8px;
           font-size: 9px;
           font-weight: 800;
           text-transform: uppercase;
           cursor: pointer;
           transition: all 0.2s;
+          letter-spacing: 0.1em;
         }
-        button:hover { background: #00b8e6; transform: translateY(-1px); }
+        button:hover { background: #0ea5e9; color: #fff; }
         .log-container {
+          flex-grow: 1;
           font-family: 'JetBrains Mono', monospace;
           font-size: 10px;
-          height: 350px;
           overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
         }
+        .log-container::-webkit-scrollbar { width: 4px; }
+        .log-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); }
+
         .entry-group { 
-          display: grid;
-          grid-template-columns: 150px 80px 1fr;
-          gap: 1rem;
-          padding: 0.6rem 1.5rem;
+          padding: 0.75rem 1rem;
           border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .entry-group:hover { background: rgba(255, 255, 255, 0.02); }
+        
+        .entry-header {
+          display: flex;
           align-items: center;
+          gap: 0.75rem;
+          margin-bottom: 0.25rem;
         }
-        .timestamp { color: #64748b; font-size: 9px; }
+        .timestamp { color: #475569; font-size: 8px; font-weight: 700; }
         .type-label {
-          font-size: 8px;
+          font-size: 7px;
           font-weight: 900;
-          padding: 1px 6px;
+          padding: 1px 4px;
           text-transform: uppercase;
-          text-align: center;
-          border-radius: 4px;
+          border-radius: 3px;
         }
-        .type-INFO { background: rgba(0, 210, 255, 0.1); color: #00d2ff; }
-        .type-WARN { background: rgba(255, 170, 0, 0.1); color: #ffaa00; }
-        .type-BLOCK { background: rgba(255, 45, 85, 0.1); color: #ff2d55; }
-        .type-CRITICAL { background: #ff2d55; color: #fff; box-shadow: 0 0 10px rgba(255, 45, 85, 0.4); }
-        .message { color: #cbd5e1; }
+        .type-INFO { background: rgba(14, 165, 233, 0.1); color: #0ea5e9; }
+        .type-WARN { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
+        .type-BLOCK { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .type-CRITICAL { background: #ef4444; color: #fff; }
+        
+        .message { color: #94a3b8; line-height: 1.4; word-break: break-all; }
+        
+        .details {
+          max-height: 0;
+          overflow: hidden;
+          transition: all 0.3s ease-out;
+          background: rgba(0, 0, 0, 0.3);
+          border-radius: 4px;
+          margin-top: 0;
+          font-size: 8px;
+        }
+        .entry-group.expanded .details {
+          max-height: 300px;
+          margin-top: 0.75rem;
+          padding: 0.75rem;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          overflow-x: auto;
+        }
+        pre { margin: 0; white-space: pre-wrap; color: #60a5fa; }
       </style>
       <div class="controls">
-        <form id="block-form" style="display:flex; flex-grow:1; gap: 1rem;">
-            <input type="text" id="ip-input" placeholder="ENFORCEMENT_IP_ADDRESS" />
-            <button type="submit">COMMIT_BLOCK</button>
-        </form>
         <div class="filter-group">
-            <span>Filter_Level:</span>
+            <span>Filter_Level</span>
             <select id="severity-filter">
                 <option value="ALL" ${this.filter === 'ALL' ? 'selected' : ''}>ALL_EVENTS</option>
                 <option value="INFO" ${this.filter === 'INFO' ? 'selected' : ''}>INFO_ONLY</option>
@@ -196,14 +221,22 @@ class BlockingLog extends HTMLElement {
                 <option value="BLOCK" ${this.filter === 'BLOCK' ? 'selected' : ''}>BLOCK_ACTIONS</option>
             </select>
         </div>
+        <form id="block-form" style="display:flex; gap: 0.5rem;">
+            <input type="text" id="ip-input" placeholder="ENFORCEMENT_IP" />
+            <button type="submit">BLOCK</button>
+        </form>
       </div>
       <div class="log-container">
-        ${filteredLogs.map(log => `
-          <div class="entry-group">
-            <span class="timestamp">${log.timestamp}</span>
-            <span class="type-label type-${log.type}">${log.type}</span>
-            <span class="message">${log.message}</span>
-            ${log.data ? `<div class="details">${typeof log.data === 'string' ? log.data : JSON.stringify(log.data)}</div>` : ''}
+        ${filteredLogs.map((log, index) => `
+          <div class="entry-group" data-index="${index}">
+            <div class="entry-header">
+              <span class="timestamp">${new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+              <span class="type-label type-${log.type}">${log.type}</span>
+            </div>
+            <div class="message">${log.message}</div>
+            <div class="details">
+               <pre>${JSON.stringify(log.data || { info: "No additional metadata" }, null, 2)}</pre>
+            </div>
           </div>
         `).join('')}
       </div>
@@ -212,6 +245,11 @@ class BlockingLog extends HTMLElement {
     this.shadowRoot.querySelector('#severity-filter').addEventListener('change', (e) => {
         this.filter = e.target.value;
         this.render();
+    });
+    this.shadowRoot.querySelectorAll('.entry-group').forEach(el => {
+      el.addEventListener('click', () => {
+        el.classList.toggle('expanded');
+      });
     });
   }
 }

@@ -45,7 +45,7 @@ export class BehavioralService {
     }
 
     // Only analyze after we have enough intervals
-    if (stats.intervals.length >= 5) {
+    if (stats.intervals.length >= 8) {
       const entropy = this.calculateEntropy(stats.intervals);
       
       broadcast({
@@ -54,14 +54,14 @@ export class BehavioralService {
         data: { ip, entropy }
       });
 
-      if (entropy < 1.2) {
-        // Highly predictable (Bot/Brute-force script)
-        await this.firewall.shadowBanIp(ip);
-        return "SHADOW_BAN";
-      } else {
-        // High entropy (Human/Manual manipulation)
+      if (entropy < 1.0) {
+        // Highly predictable (Bot/Brute-force script) - Full Block
         await this.firewall.blockIp(ip);
         return "BLOCK";
+      } else {
+        // High entropy (Human/Manual manipulation or noise) - Shadow Ban (Throttle)
+        await this.firewall.shadowBanIp(ip);
+        return "SHADOW_BAN";
       }
     }
 

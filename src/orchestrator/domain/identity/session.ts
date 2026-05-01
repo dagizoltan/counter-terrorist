@@ -20,8 +20,9 @@ export interface Session {
 }
 
 export class SessionService {
-  private ttlMs: number;
-  private repo: KvRepository<Session>;
+  public createSession: (role?: Role) => Promise<any>;
+  public validateSession: (sessionId: string | undefined) => Promise<any>;
+  public revokeAllSessions: () => Promise<any>;
 
   constructor(
     private kv: Deno.Kv,
@@ -32,12 +33,12 @@ export class SessionService {
     this.repo = new KvRepository<Session>(kv, "sessions");
 
     // Wrap public methods
-    this.createSession = withTelemetry("Session:Create", this.createSession.bind(this), logging);
-    this.validateSession = withTelemetry("Session:Validate", this.validateSession.bind(this), logging);
-    this.revokeAllSessions = withTelemetry("Session:RevokeAll", this.revokeAllSessions.bind(this), logging);
+    this.createSession = withTelemetry("Session:Create", this._createSession.bind(this), logging);
+    this.validateSession = withTelemetry("Session:Validate", this._validateSession.bind(this), logging);
+    this.revokeAllSessions = withTelemetry("Session:RevokeAll", this._revokeAllSessions.bind(this), logging);
   }
 
-  async createSession(role: Role = "admin"): Promise<{ sessionId: string; csrfToken: string }> {
+  private async _createSession(role: Role = "admin"): Promise<{ sessionId: string; csrfToken: string }> {
     const sessionId = crypto.randomUUID();
     const csrfToken = crypto.randomUUID();
     const now = Date.now();
@@ -57,7 +58,7 @@ export class SessionService {
   /**
    * Validates a session ID. Returns the session if valid and not expired, null otherwise.
    */
-  async validateSession(sessionId: string | undefined): Promise<Session | null> {
+  private async _validateSession(sessionId: string | undefined): Promise<Session | null> {
     if (!sessionId) return null;
 
     try {
@@ -82,11 +83,11 @@ export class SessionService {
   async validateCsrf(sessionId: string | undefined, csrfToken: string | undefined): Promise<boolean> {
     if (!sessionId || !csrfToken) return false;
 
-    const session = await this.validateSession(sessionId);
-    if (!session) return false;
+    const result = await this.validateSession(sessionId);
+    if (!result.success || !result.data) return false;
 
     // Constant-time comparison for CSRF token
-    return await secureCompare(session.csrfToken, csrfToken);
+    return await secureCompare(result.data.csrfToken, csrfToken);
   }
 
   /**
@@ -99,7 +100,7 @@ export class SessionService {
   /**
    * Revokes all sessions (e.g. on token rotation or security incident).
    */
-  async revokeAllSessions(): Promise<void> {
+  private async _revokeAllSessions(): Promise<void> {
     const sessions = await this.repo.list();
     for (const session of sessions) {
       await this.repo.delete(session.id);

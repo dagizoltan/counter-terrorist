@@ -23,6 +23,8 @@ export enum StealthMode {
 export class AnonymizationService {
     private rotationCount: number = 0;
     private lastRotationTime: string = "NEVER";
+    private mode: StealthMode = StealthMode.OFF;
+    private rotationInterval?: number;
 
     constructor(
         private vpn: VpnPort,

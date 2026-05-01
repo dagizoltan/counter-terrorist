@@ -36,47 +36,47 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   router.route("/honeypots", createHoneypotsRouter(services.honeypot));
 
   router.get("/network", async (c: Context) => {
-    const { NetworkShieldPage } = await import("../features/network/page.tsx");
+    const { NetworkShieldPage } = await import("../features/network/page.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<NetworkShieldPage status={status} csrfToken={csrfToken} />);
   });
 
   router.get("/mesh", async (c: Context) => {
-    const { MeshTopologyPage } = await import("../features/mesh/page.tsx");
+    const { MeshTopologyPage } = await import("../features/mesh/page.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<MeshTopologyPage status={status} csrfToken={csrfToken} />);
   });
 
   router.get("/threats", async (c: Context) => {
-    const { ThreatsPage } = await import("../features/threats/page.tsx");
+    const { ThreatsPage } = await import("../features/threats/page.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<ThreatsPage status={status} csrfToken={csrfToken} />);
   });
 
   router.get("/events", async (c: Context) => {
-    const { EventsPage } = await import("../features/events/page.tsx");
+    const { EventsPage } = await import("../features/events/page.tsx") as any;
     const csrfToken = c.get("csrfToken");
     return c.html(<EventsPage csrfToken={csrfToken} />);
   });
 
   router.get("/processes", async (c: Context) => {
-    const { ProcessesPage } = await import("../features/processes/page.tsx");
+    const { ProcessesPage } = await import("../features/processes/page.tsx") as any;
     const csrfToken = c.get("csrfToken");
     return c.html(<ProcessesPage csrfToken={csrfToken} />);
   });
 
   router.get("/sysinfo", async (c: Context) => {
-    const { SysInfoPage } = await import("../features/sysinfo/page.tsx");
+    const { SysInfoPage } = await import("../features/sysinfo/page.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<SysInfoPage status={status} csrfToken={csrfToken} />);
   });
 
   router.get("/settings", async (c: Context) => {
-    const { NotificationsPage } = await import("../features/settings/notifications.tsx");
+    const { NotificationsPage } = await import("../features/settings/notifications.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<NotificationsPage status={status} csrfToken={csrfToken} />);
@@ -84,22 +84,22 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   // Sub-routes for forensics and intel
   router.get("/intel/map", async (c: Context) => {
-     const { default: ThreatMapPage } = await import("../features/intel/map.tsx");
+     const { default: ThreatMapPage } = await import("../features/intel/map.tsx") as any;
      return c.html(<ThreatMapPage />);
   });
 
   router.get("/analysis/timeline", async (c: Context) => {
-     const { TimelinePage } = await import("../features/analysis/timeline.tsx");
+     const { TimelinePage } = await import("../features/analysis/timeline.tsx") as any;
      return c.html(<TimelinePage />);
   });
 
   router.get("/analysis/replay", async (c: Context) => {
-    const { default: ForensicReplay } = await import("../features/analysis/replay.tsx");
+    const { default: ForensicReplay } = await import("../features/analysis/replay.tsx") as any;
     return c.html(<ForensicReplay />);
   });
 
   router.get("/audit/integrity", async (c: Context) => {
-    const { default: AuditIntegrity } = await import("../features/audit/integrity.tsx");
+    const { default: AuditIntegrity } = await import("../features/audit/integrity.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<AuditIntegrity status={status} csrfToken={csrfToken} />);

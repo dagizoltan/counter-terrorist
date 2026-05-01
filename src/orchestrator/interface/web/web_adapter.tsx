@@ -135,8 +135,8 @@ export class WebAdapter implements WebPort {
     );
     if (isMaster) return "admin" as const;
 
-    const role = await this.services.apiKeys.validateApiKey(token);
-    return role;
+    const result = await this.services.apiKeys.validateApiKey(token);
+    return result.success ? result.data : null;
   }
 
   private loginAttempts = new Map<string, { count: number; resetAt: number }>();

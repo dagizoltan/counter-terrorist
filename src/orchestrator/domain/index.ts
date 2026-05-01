@@ -1,5 +1,5 @@
 // Infrastructure (Re-exports for convenience)
-export { CommandManager } from "@infrastructure/system/command_manager.ts";
+export * from "@infrastructure/system/command_manager.ts";
 export { getPlatformInfo } from "@infrastructure/system/platform.ts";
 export { LoggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
 

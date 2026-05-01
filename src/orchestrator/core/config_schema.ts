@@ -14,6 +14,8 @@ export const ConfigSchema = z.object({
   LOG_LEVEL: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).default("INFO"),
   ENVIRONMENT: z.enum(["development", "production", "test"]).default("development"),
   REMOTE_SYSLOG_URL: z.string().url().optional(),
+  INTEL_ALLOWLIST: z.string().default("1.1.1.1,1.0.0.1,8.8.8.8,8.8.4.4,127.0.0.1,0.0.0.0,192.168.,10.,172.16."),
+  INTEL_SYNC_INTERVAL_HOURS: z.coerce.number().default(1),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
@@ -34,6 +36,8 @@ export function loadConfig(): AppConfig {
     LOG_LEVEL: Deno.env.get("LOG_LEVEL"),
     ENVIRONMENT: Deno.env.get("ENVIRONMENT"),
     REMOTE_SYSLOG_URL: Deno.env.get("REMOTE_SYSLOG_URL"),
+    INTEL_ALLOWLIST: Deno.env.get("INTEL_ALLOWLIST"),
+    INTEL_SYNC_INTERVAL_HOURS: Deno.env.get("INTEL_SYNC_INTERVAL_HOURS"),
   };
 
   const result = ConfigSchema.safeParse(rawConfig);

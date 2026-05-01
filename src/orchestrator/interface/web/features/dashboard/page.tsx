@@ -153,34 +153,25 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
         </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        {/* LEFT COLUMN: EVENTS */}
-        <div class="lg:col-span-2 space-y-12">
-          <section>
-            <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-               <h2 class="text-xs font-black uppercase tracking-[0.4em] text-slate-400 italic">Global_Signal_Stream</h2>
-            </div>
-            <div class="glass-panel rounded-xl overflow-hidden shadow-2xl h-[400px]">
-               <blocking-log id="main-log"></blocking-log>
-            </div>
-          </section>
-        </div>
-
-        {/* RIGHT COLUMN: ANALYTICS */}
-        <div class="space-y-12">
-          <section class="glass-panel rounded-xl p-8 border border-white/5">
-            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-slate-300 border-b border-white/5 pb-4">Tactical_Forensics</h2>
-            <div class="space-y-6">
-               <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Audit_Chain</span>
-                  <div id="stat-audit-chain" class="text-[9px] font-mono text-emerald-400">VERIFIED</div>
-               </div>
-               <div class="pt-6 border-t border-white/5 space-y-4">
-                  <button class="w-full py-3 bg-danger/5 hover:bg-danger/10 border border-danger/10 text-danger/80 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Emergency_Wipe</button>
-               </div>
-            </div>
-          </section>
-        </div>
+      <div class="grid grid-cols-1 lg:grid-cols-1 gap-12">
+        {/* ANALYTICS SECTORS */}
+        <section class="glass-panel rounded-xl p-8 border border-white/5">
+          <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-slate-300 border-b border-white/5 pb-4">Tactical_Forensics</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+             <div class="flex justify-between items-center">
+                <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Audit_Chain</span>
+                <div id="stat-audit-chain" class="text-[9px] font-mono text-emerald-400">VERIFIED</div>
+             </div>
+             <div class="flex justify-between items-center">
+                <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Integrity_Hash</span>
+                <div class="text-[9px] font-mono text-cyber/60">SHA-256_ACTIVE</div>
+             </div>
+          </div>
+          <div class="mt-8 pt-6 border-t border-white/5 flex gap-4">
+             <button class="flex-grow py-3 bg-danger/5 hover:bg-danger/10 border border-danger/10 text-danger/80 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Emergency_Wipe</button>
+             <button class="flex-grow py-3 bg-white/5 hover:bg-white/10 border border-white/5 text-slate-400 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Export_Audit_Logs</button>
+          </div>
+        </section>
       </div>
 
       <metrics-hydrator></metrics-hydrator>

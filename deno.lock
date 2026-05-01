@@ -214,6 +214,8 @@
     "https://deno.land/x/hono@v4.3.7/jsx/hooks/index.ts": "de5f54058c8a268b7bf9e9a015edf1ef0ff614f6a398519b98ebee0da2b79f9d",
     "https://deno.land/x/hono@v4.3.7/jsx/index.ts": "fe3e582c2a4e24e5f8b6027925bddccaae0283747d8f0161eb6f5a34616edd11",
     "https://deno.land/x/hono@v4.3.7/jsx/intrinsic-elements.ts": "21c3a8f6ba07f0d7d7c0ec7293c79c26b9b62df2894e26cb6c17b6c7ec381264",
+    "https://deno.land/x/hono@v4.3.7/jsx/jsx-dev-runtime.ts": "6a8d2d976858adec5e703a009a6f606c4e2ac9d74a21b720ee78bf492749ea23",
+    "https://deno.land/x/hono@v4.3.7/jsx/jsx-runtime.ts": "59a357099522aee816b292f80c362769963ba3fb65a921f58b4ba0e50d1c05a7",
     "https://deno.land/x/hono@v4.3.7/jsx/streaming.ts": "5e5dde9a546041353b9a3860fc9020471f762813f10e1290009ab6bd40e7bdcf",
     "https://deno.land/x/hono@v4.3.7/jsx/types.ts": "51c2bdbb373860e2570ad403546a7fdbbb1cf00a47ce7ed10b2aece922031ac4",
     "https://deno.land/x/hono@v4.3.7/jsx/utils.ts": "4b8299d402ba5395472c552d1fe3297ee60112bfc32e0ef86cfe8e40086f7d54",

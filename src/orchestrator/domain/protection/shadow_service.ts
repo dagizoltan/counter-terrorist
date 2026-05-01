@@ -48,7 +48,7 @@ export class ShadowService {
             await this.startHoneyListener(2222);
 
             // 3. Spawn Mirror World Asynchronously (Do NOT block the orchestrator)
-            this.executor.executeAsync(cmd, args).catch(err => {
+            this.executor.executeAsync(cmd, args).catch((err: Error) => {
                 this.logging.log(`[SHADOW] Mirror World failure: ${err.message}`, SyslogSeverity.ERROR);
             });
 
@@ -93,10 +93,9 @@ export class ShadowService {
             args: ["run", "-A", scriptPath, myPid.toString()],
             stdout: "null",
             stderr: "null",
-            unref: true, // Allow the orchestrator to exit while the watchdog stays alive
         });
-
-        command.spawn();
+        const child = command.spawn();
+        child.unref();
     }
 
     getEnvironments() {
