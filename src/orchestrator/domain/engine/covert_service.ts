@@ -29,7 +29,7 @@ export class CovertChannelService {
      * This uses the DNS query itself to leak/receive mesh alerts.
      */
     async signalViaDNS(subdomain: string) {
-        const meshDomain = `cts-mesh.local`;
+        const meshDomain = Deno.env.get("MESH_DOMAIN") || `cts-mesh.internal`;
         const target = `${subdomain}.${meshDomain}`;
         
         this.logging.log(`[COVERT] Signaling mesh state via DNS query: ${target}`, SyslogSeverity.DEBUG);

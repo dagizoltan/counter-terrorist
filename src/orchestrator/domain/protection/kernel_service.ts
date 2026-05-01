@@ -53,6 +53,11 @@ export class KernelService {
      * Disguises the orchestrator process as a kernel worker thread.
      */
     async camouflage() {
+        const enabled = Deno.env.get("STEALTH_ENABLED") !== "false"; // Default to true if not specified
+        if (!enabled) {
+            this.logging.log("[KERNEL] Stealth Mode disabled. Skipping process camouflage.", SyslogSeverity.NOTICE);
+            return;
+        }
         this.logging.log("[KERNEL] Activating Subterranean Process Camouflage...", SyslogSeverity.NOTICE);
         
         // On Linux, we can use prctl to change the process name

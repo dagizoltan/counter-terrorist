@@ -59,11 +59,17 @@ export class ShadowService {
                 startTime: Date.now()
             });
             return id;
-            throw new Error(result.stderr);
         } catch (e) {
             this.logging.log(`[SHADOW] Failed to spawn Mirror World: ${(e as Error).message}`, SyslogSeverity.ERROR);
             throw e;
         }
+    }
+
+    /**
+     * Placeholder for the honey-listener service.
+     */
+    private async startHoneyListener(port: number) {
+        this.logging.log(`[SHADOW] Starting Honey-Listener on port ${port}...`, SyslogSeverity.DEBUG);
     }
 
     /**

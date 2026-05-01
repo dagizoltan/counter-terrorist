@@ -402,35 +402,45 @@ export class MeshManager {
    * Master secrets are only unlocked if a quorum of peer approvals is received.
    */
   async requestQuorumUnlock(secretType: "PKI" | "MESH"): Promise<boolean> {
-      this.logging.log(`[QUORUM] Requesting ${secretType} secret unlock from mesh...`, SyslogSeverity.NOTICE);
+      return await this.requestQuorumCommand(`UNLOCK_${secretType}`, { secretType });
+  }
+
+  /**
+   * Universal Quorum Handshake: Requires P2P consensus for any critical command.
+   */
+  async requestQuorumCommand(action: string, data: any): Promise<boolean> {
+      this.logging.log(`[QUORUM] Requesting mesh consensus for action: ${action}`, SyslogSeverity.NOTICE);
       
       const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
-      const totalNodes = verifiedNodes.length + 1; // Include self
-      const threshold = Math.floor(totalNodes / 2) + 1;
+      const threshold = Math.floor((verifiedNodes.length + 1) / 2) + 1;
       
+      if (verifiedNodes.length + 1 < threshold) {
+          this.logging.log(`[QUORUM] Consensus impossible. Active nodes (${verifiedNodes.length + 1}) < Threshold (${threshold}).`, SyslogSeverity.CRITICAL);
+          return false;
+      }
+
       let approvals = 1; // Self approval
       
       for (const node of verifiedNodes) {
           try {
-              const res = await this.sendSync(node, { type: "CONSENSUS_UNLOCK", secretType, requester: this.nodeId });
+              const res = await this.sendSync(node, { 
+                  type: "CONSENSUS_REQUEST", 
+                  action, 
+                  data, 
+                  requester: this.nodeId 
+              });
               if (res && (res as any).approved) {
                   approvals++;
-                  this.logging.log(`[QUORUM] Received approval from ${node.hostname}. Total: ${approvals}/${threshold}`, SyslogSeverity.DEBUG);
               }
           } catch (e) {
-              console.warn(`[QUORUM] Peer ${node.hostname} denied or timed out.`);
+              console.warn(`[QUORUM] Node ${node.hostname} denied or timed out.`);
           }
           
           if (approvals >= threshold) break;
       }
       
       const success = approvals >= threshold;
-      if (success) {
-          this.logging.log(`[QUORUM] Consensus reached. Unlocking ${secretType} master identity.`, SyslogSeverity.NOTICE);
-      } else {
-          this.logging.log(`[QUORUM] Consensus failed. Insufficient peer approvals for ${secretType} (${approvals}/${threshold}).`, SyslogSeverity.WARNING);
-      }
-      
+      this.logging.log(`[QUORUM] Result for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold})`, success ? SyslogSeverity.NOTICE : SyslogSeverity.WARNING);
       return success;
   }
 
@@ -531,23 +541,36 @@ export class MeshManager {
     const url = `https://${node.address}:${node.port}/api/mesh/sync`;
     const headers: Record<string, string> = { 
         "Content-Type": "application/json",
-        // NETWORK STEALTH: Mimic a standard browser to avoid traffic classification
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        // TACTICAL MIMICRY: Disguise as legitimate Cloudflare/Akamai traffic
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5"
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "max-age=0",
+        "Sec-Ch-Ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
     };
     if (this.meshSecret) {
       headers["X-Mesh-Secret"] = this.meshSecret;
     }
 
-    // TRAFFIC CAMOUFLAGE: Random jitter and padding
-    const jitter = Math.floor(Math.random() * 500); // 0-500ms jitter
+    // TRAFFIC CAMOUFLAGE: Random jitter and truly variable padding
+    const jitter = Math.floor(Math.random() * 800); 
     await new Promise(r => setTimeout(r, jitter));
     
-    // Add random padding to the payload to mimic variable-size HTTPS requests
+    // Improved padding: Random length and random content to avoid divisibility/repeat fingerprinting
+    const paddingLength = Math.floor(Math.random() * 256);
+    const padding = Array.from({ length: paddingLength }, () => Math.random().toString(36)[2]).join('');
+
     const paddedPayload = {
       ...payload,
-      _p: crypto.randomUUID().repeat(Math.floor(Math.random() * 5))
+      _p: padding
     };
 
     const res = await fetch(url, {

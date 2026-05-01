@@ -1,8 +1,11 @@
 import { ProtectionPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
 
 export class ThreatIntelService {
-  private updateInterval: number | undefined;
-  private intelUrl = "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt";
+  private intelSources = [
+    "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
+    "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
+  ];
+  private blacklist: Set<string> = new Set();
 
   constructor(
     private protection: ProtectionPort,
@@ -10,7 +13,7 @@ export class ThreatIntelService {
   ) {}
 
   async start() {
-    this.logging.log("[INTEL] Threat Intelligence Service initialized.", SyslogSeverity.NOTICE);
+    this.logging.log("[INTEL] Threat Intelligence Service initialized with multi-source ingestion.", SyslogSeverity.NOTICE);
     
     // Initial fetch
     await this.updateThreatList();
@@ -19,32 +22,39 @@ export class ThreatIntelService {
     this.updateInterval = setInterval(() => this.updateThreatList(), 4 * 60 * 60 * 1000);
   }
 
-  async updateThreatList() {
-    this.logging.log("[INTEL] Fetching latest threat intelligence...", SyslogSeverity.INFORMATIONAL);
-    
-    try {
-      const res = await fetch(this.intelUrl, { signal: AbortSignal.timeout(10000) });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      
-      const text = await res.text();
-      const ips = text.split("\n")
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith("#"))
-        .slice(0, 500); // Increased limit for better production coverage
+  getBlacklist(): Set<string> {
+    return this.blacklist;
+  }
 
-      this.logging.log(`[INTEL] Synchronizing ${ips.length} high-confidence malicious IPs.`, SyslogSeverity.NOTICE);
-      
-      // Execute blocking sequentially to avoid process explosion and system instability
-      for (const ip of ips) {
-        try {
-          await this.protection.firewall.blockIp(ip);
-        } catch (err) {
-          this.logging.log(`[INTEL] Failed to block ${ip}: ${(err as Error).message}`, SyslogSeverity.WARNING);
+  async updateThreatList() {
+    this.logging.log("[INTEL] Synchronizing threat intelligence from multiple distributed databases...", SyslogSeverity.INFORMATIONAL);
+    
+    let totalLoaded = 0;
+    for (const url of this.intelSources) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) continue;
+        
+        const text = await res.text();
+        const ips = text.split("\n")
+          .map(line => line.trim())
+          .filter(line => line && !line.startsWith("#") && !line.startsWith("//"))
+          .slice(0, 1000);
+
+        for (const ip of ips) {
+          if (!this.blacklist.has(ip)) {
+            this.blacklist.add(ip);
+            totalLoaded++;
+            // Still attempt to block via firewall sidecar for system-level protection
+            this.protection.firewall.blockIp(ip).catch(() => {});
+          }
         }
+      } catch (e) {
+        this.logging.log(`[INTEL] Source ${url} failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
       }
-    } catch (e) {
-      this.logging.log(`[INTEL] Failed to fetch threat list: ${(e as Error).message}. Using local cache.`, SyslogSeverity.WARNING);
     }
+    
+    this.logging.log(`[INTEL] Threat database synchronized. ${this.blacklist.size} unique malicious IPs tracked.`, SyslogSeverity.NOTICE);
   }
 
   stop() {

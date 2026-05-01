@@ -18,11 +18,7 @@ class BlockingLog extends HTMLElement {
 
   async loadHistory() {
     try {
-      const token = document.querySelector('meta[name="api-token"]')?.content || "";
-      const headers = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/audit?limit=50', { headers });
+      const res = await fetch('/api/audit?limit=50');
       if (res.ok) {
         const history = await res.json();
         this.logs = history;
@@ -35,11 +31,7 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
-    
-    // Pass token via query parameter for WebSocket handshake authentication
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
-    if (token) url.searchParams.set('token', token);
 
     const socket = new WebSocket(url.toString());
 
@@ -74,13 +66,17 @@ class BlockingLog extends HTMLElement {
     const ip = input.value;
     if (!ip) return;
 
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || "";
+    
+    if (!csrfToken) {
+      console.error("Missing CSRF token. Request aborted for security.");
+      return;
+    }
+
     const headers = {
       'Content-Type': 'application/json',
-      'X-CT-Token': csrfToken || token
+      'X-CT-Token': csrfToken
     };
-    if (token) headers['Authorization'] = `Bearer ${token}`;
 
     input.disabled = true;
     try {

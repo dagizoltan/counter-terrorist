@@ -32,9 +32,9 @@ export class SessionService {
     this.repo = new KvRepository<Session>(kv, "sessions");
 
     // Wrap public methods
-    this.createSession = withTelemetry("Session:Create", this.createSession.bind(this), logging) as any;
-    this.validateSession = withTelemetry("Session:Validate", this.validateSession.bind(this), logging) as any;
-    this.revokeAllSessions = withTelemetry("Session:RevokeAll", this.revokeAllSessions.bind(this), logging) as any;
+    this.createSession = withTelemetry("Session:Create", this.createSession.bind(this), logging);
+    this.validateSession = withTelemetry("Session:Validate", this.validateSession.bind(this), logging);
+    this.revokeAllSessions = withTelemetry("Session:RevokeAll", this.revokeAllSessions.bind(this), logging);
   }
 
   async createSession(role: Role = "admin"): Promise<{ sessionId: string; csrfToken: string }> {

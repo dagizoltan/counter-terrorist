@@ -261,7 +261,9 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
     case "blocker":
       if (!["KillProcess", "BlockIp", "UnblockIp"].includes(req.type)) return false;
       if (req.type === "KillProcess" && typeof req.payload?.pid !== "number") return false;
-      if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(req.payload?.ip || "")) return false;
+      // Protocol fix: blocker sends { type: "BlockIp", ip: "...", ... } not always wrapped in payload
+      const targetIp = req.ip || req.payload?.ip;
+      if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
       return true;
     case "pcap":
       if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
@@ -290,7 +292,9 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       return true;
     case "fim":
       if (!["WatchPath", "UnwatchPath", "GetStatus"].includes(req.type)) return false;
-      if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof req.payload?.path !== "string") return false;
+      // Protocol fix: fim sends { type: "WatchPath", path: "...", ... } not always wrapped in payload
+      const targetPath = req.path || req.payload?.path;
+      if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof targetPath !== "string") return false;
       return true;
     default:
       return false; // Unknown sidecars are rejected by default

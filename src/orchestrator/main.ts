@@ -20,6 +20,9 @@ import { PlaybookEngine } from "@domain/engine/playbook_engine.ts";
 import { BehavioralService } from "@domain/analysis/behavioral_service.ts";
 import { MetricsService, setMetricsService } from "@domain/analysis/metrics_service.ts";
 import { ThreatIntelService } from "@domain/protection/threat_intel.ts";
+import { AnonymizationService } from "@domain/protection/anonymization_service.ts";
+import { DeceptionGridService } from "@domain/protection/deception_grid.ts";
+import { ShadowProtocolService } from "@domain/protection/shadow_protocol_service.ts";
 import { MorphingService } from "@domain/protection/morphing_service.ts";
 import { ChaosEngine } from "@domain/engine/chaos_engine.ts";
 import { SupplyChainService } from "@domain/analysis/supply_chain.ts";
@@ -59,6 +62,7 @@ const meshAuthService = new MeshAuthService(kv, tpmManager);
 const meshManager = new MeshManager(meshAuthService, loggingService, auditService);
 setMeshManager(meshManager);
 await meshManager.init();
+meshManager.startDiscovery();
 
 // HARDWARE INTEGRITY ENFORCEMENT (Tier-5 Sovereign Check)
 const isHardwareSecure = await tpmManager.verifyIntegrity();
@@ -105,7 +109,9 @@ const processTracker = new ProcessTracker(loggingService);
 const baselineService = new BaselineService(kv, sidecarManager, executor, loggingService);
 const sessionService = new SessionService(kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
 const apiKeysService = new ApiKeysService(kv, loggingService);
-const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager);
+const anonymization = new AnonymizationService(protection.vpn, loggingService);
+const shadowProtocol = new ShadowProtocolService(meshManager, anonymization, loggingService);
+const playbookService = new PlaybookService(sidecarManager, protection, notificationService, meshManager, shadowProtocol);
 
 const behavioralService = new BehavioralService(protection.firewall as any);
 const threatIntel = new ThreatIntelService(protection, loggingService);
@@ -122,11 +128,14 @@ const provisioningService = new ProvisioningService(sidecarManager, meshManager,
 const governanceService = new GovernanceService(meshManager, protection, loggingService);
 const shadowService = new ShadowService(executor, loggingService);
 const covertService = new CovertChannelService(executor, loggingService);
+const deceptionGrid = new DeceptionGridService(honeypotService, canaryService, loggingService);
 
 // ── Phase 4: Start subsystems ─────────────────────────────────────────
 await playbookService.init();
 await autopilotService.start();
 await morphingService.start();
+await anonymization.start();
+await deceptionGrid.start();
 
 // Lateral Expansion (Defensive Worm) - Only if explicitly enabled
 if (Deno.env.get("PROVISIONING_ENABLED") === "true") {
@@ -214,6 +223,10 @@ const services: ServiceContainer = {
   supplyChain: supplyChain,
   mesh: meshManager,
   meshAuth: meshAuthService,
+  threatIntel: threatIntel,
+  anonymization: anonymization,
+  shadowProtocol: shadowProtocol,
+  deceptionGrid: deceptionGrid,
   platformInfo
 };
 
@@ -223,7 +236,7 @@ const web = new WebAdapter(services);
 const metricsService = new MetricsService(
   protection.firewall as any, meshManager, honeypotService, processTracker,
   kernelService, auditService, canaryService, sidecarManager, protection.vpn,
-  behavioralService, broadcast
+  behavioralService, anonymization, broadcast
 );
 setMetricsService(metricsService);
 

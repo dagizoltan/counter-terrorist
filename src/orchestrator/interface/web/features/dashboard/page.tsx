@@ -99,44 +99,61 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
 
         {/* RIGHT COLUMN: SIDEBAR CONTROLS */}
         <div class="space-y-12">
+          {/* NETWORK DEFENSE GRID */}
           <section class="glass-panel rounded-xl p-8 border border-cyber/10 shadow-[0_0_50px_rgba(0,210,255,0.03)]">
-            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-cyber border-b border-cyber/10 pb-4">Defense_Enforcement</h2>
+            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-cyber border-b border-cyber/10 pb-4">Network_Defense_Grid</h2>
             <div class="space-y-6">
                <div class="flex justify-between items-center">
                   <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Firewall_Shield</span>
                   <div class="px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black rounded uppercase">Active</div>
                </div>
+               
+               <div class="pt-6 border-t border-white/5 space-y-4">
+                  <div class="flex justify-between items-center">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Exit_Anonymizer</span>
+                    <div id="stat-vpn-status" class="text-[9px] font-mono text-white italic uppercase tracking-tighter">SEARCHING...</div>
+                  </div>
+                  <div id="stat-vpn-interface" class="text-[8px] font-bold text-cyber/40 uppercase tracking-tighter">Initializing stealth layer...</div>
+               </div>
+
+               <div class="pt-6 border-t border-white/5 space-y-4">
+                  <div class="flex justify-between items-center">
+                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Sovereign_Mesh</span>
+                     <span id="stat-mesh-nodes" class="text-[10px] font-mono text-white italic">Searching...</span>
+                  </div>
+                  <div id="stat-mesh-handshakes" class="text-[8px] font-bold text-cyber/40 uppercase tracking-tighter">Initializing discovery...</div>
+               </div>
+            </div>
+          </section>
+
+          {/* NODE INTEGRITY ENFORCEMENT */}
+          <section class="glass-panel rounded-xl p-8 border border-white/5">
+            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-slate-300 border-b border-white/5 pb-4">Node_Integrity_Enforcement</h2>
+            <div class="space-y-6">
                <div class="flex justify-between items-center">
-                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">eBPF_Sidecar</span>
+                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">eBPF_Observer</span>
                   <div id="stat-forensics-ebpf-status" class="px-2 py-1 bg-cyber/10 border border-cyber/30 text-cyber text-[8px] font-black rounded uppercase italic">Wait...</div>
                </div>
                <div class="flex justify-between items-center">
                   <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">FIM_Guardian</span>
                   <div id="stat-forensics-fim-status" class="px-2 py-1 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[8px] font-black rounded uppercase italic">Active</div>
                </div>
+               <div class="flex justify-between items-center">
+                  <span class="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Malware_Scanner</span>
+                  <div id="stat-scanner-result" class="text-[9px] font-mono text-white">PENDING</div>
+               </div>
+               <div id="stat-scanner-last" class="text-[8px] font-bold text-slate-600 uppercase tracking-tighter text-right">Never scanned</div>
+
+               <div class="pt-6 border-t border-white/5 space-y-4">
+                  <div class="flex justify-between items-center">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Audit_Chain</span>
+                    <span id="stat-audit-chain" class="text-[10px] font-mono text-emerald-400">VERIFIED</span>
+                  </div>
+               </div>
                
                <div class="pt-6 border-t border-white/5 space-y-4">
                   <button class="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Rotate_Honeypots</button>
-                  <button class="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Flush_Audit_Logs</button>
-               </div>
-            </div>
-          </section>
-
-          <section class="glass-panel rounded-xl p-8 border border-white/5">
-            <h2 class="text-[11px] font-black uppercase tracking-[0.3em] mb-8 text-slate-300 border-b border-white/5 pb-4">Mesh_Status</h2>
-            <div class="space-y-4">
-               <div class="p-4 bg-black/40 rounded-lg border border-white/5">
-                  <div class="flex justify-between items-center mb-2">
-                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Active_Nodes</span>
-                     <span id="stat-mesh-nodes" class="text-[10px] font-mono text-white italic">Searching...</span>
-                  </div>
-                  <div id="stat-mesh-handshakes" class="text-[8px] font-bold text-cyber/40 uppercase tracking-tighter">Initializing discovery...</div>
-               </div>
-               <div class="p-4 bg-black/40 rounded-lg border border-white/5">
-                  <div class="flex justify-between items-center mb-2">
-                     <span class="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Audit_Integrity</span>
-                     <span id="stat-audit-chain" class="text-[10px] font-mono text-emerald-400">UNVERIFIED</span>
-                  </div>
+                  <button class="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all">Emergency_Wipe</button>
                </div>
             </div>
           </section>

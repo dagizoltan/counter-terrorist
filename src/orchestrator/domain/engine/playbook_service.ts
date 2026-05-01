@@ -4,12 +4,15 @@ import { NotificationService } from "../analysis/notifications.ts";
 import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
 import { MeshManager } from "./mesh.ts";
 
+import { ShadowProtocolService } from "../protection/shadow_protocol_service.ts";
+
 export class PlaybookService {
   constructor(
     private sidecarManager: SidecarManager,
     private protection: ProtectionPort,
     private notifications: NotificationService,
-    private meshManager: MeshManager
+    private meshManager: MeshManager,
+    private shadowProtocol: ShadowProtocolService
   ) {}
 
   private threatScores: Map<string, number> = new Map();
@@ -76,9 +79,10 @@ export class PlaybookService {
           
           try {
             await this.protection.firewall.killProcess(pid);
+            await this.shadowProtocol.activate(); // ENGAGE SHADOW MODE
             await this.notifications.notify({
               type: "CRITICAL",
-              message: `Process ${comm} (PID: ${pid}) quarantined after suspicious ptrace() syscall.`
+              message: `Process ${comm} (PID: ${pid}) quarantined. SHADOW PROTOCOL ENGAGED.`
             });
           } catch (err: any) {
             loggingService.log(`[PLAYBOOK] Failed to quarantine process ${pid}: ${(err as Error).message}`, SyslogSeverity.ERROR);

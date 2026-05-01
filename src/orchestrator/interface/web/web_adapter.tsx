@@ -30,10 +30,10 @@ export class WebAdapter implements WebPort {
     this.security = new SecurityMiddleware(services, masterToken);
     this.app = new Hono();
 
-    this.initialize();
   }
 
   private async initialize() {
+    if (this.app.routes.length > 0) return; // Prevent double initialization
     // 1. Core Logging & Metrics
     this.app.use("*", async (c, next) => {
       const msg = `[WEB] ${c.req.method} ${c.req.path}`;
@@ -160,6 +160,8 @@ export class WebAdapter implements WebPort {
   }
 
   async start(port: number = 8000): Promise<void> {
+    await this.initialize();
+
     if (this.meshAuth) {
       console.log(`[WEB] Starting SOVEREIGN mTLS Orchestrator Engine on port ${port}...`);
       const nodeCert = await this.meshAuth.generateNodeCert(Deno.hostname());
@@ -169,7 +171,7 @@ export class WebAdapter implements WebPort {
       await Deno.serve({ 
         port,
         cert: nodeCert.cert,
-        key: nodeCert.key,
+        key: nodeCert.key
       }, this.app.fetch);
     } else {
       console.log(`[WEB] Orchestrator Engine active on port ${port} (INSECURE MODE)`);

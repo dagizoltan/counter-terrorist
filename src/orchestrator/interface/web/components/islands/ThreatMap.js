@@ -31,10 +31,14 @@ class ThreatMap extends HTMLElement {
 
   async plotIp(ip) {
     try {
-      // Use ip-api.com for free GeoIP lookup (no auth required for small volume)
+      // SECURITY: External GeoIP lookups leak internal threat data.
+      // We'll use a local mock or redacted view for now.
+      /*
       const res = await fetch(`http://ip-api.com/json/${ip}`);
       if (!res.ok) return;
       const geo = await res.json();
+      */
+      const geo = { lat: (Math.random() * 140) - 70, lon: (Math.random() * 300) - 150, city: "REDACTED", country: "Sovereign_Node" };
       
       if (geo.lat && geo.lon) {
         // Convert lat/lon to map percentages

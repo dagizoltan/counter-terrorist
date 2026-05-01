@@ -33,6 +33,30 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     });
   });
 
+  const syncRateLimits = new Map<string, { count: number; resetAt: number }>();
+  router.post("/mesh/sync", async (c: Context) => {
+    const peerIp = c.req.header("x-forwarded-for") || "unknown";
+    const now = Date.now();
+    const limit = syncRateLimits.get(peerIp) || { count: 0, resetAt: now + 1000 };
+    if (now > limit.resetAt) {
+      limit.count = 1;
+      limit.resetAt = now + 1000;
+    } else {
+      limit.count++;
+      if (limit.count > 100) return c.json({ error: "Rate limit exceeded" }, 429);
+    }
+    syncRateLimits.set(peerIp, limit);
+
+    const payload = await c.req.json();
+    console.log(`[MESH:API] Received sync from ${peerIp}: ${payload.type}`);
+    
+    if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
+        await services.protection.firewall.blockIp(payload.ip);
+    }
+
+    return c.json({ success: true });
+  });
+
   // 2. Admin Operations (Strict Role Check)
   router.use("/admin/*", security.requireRole("admin"));
   router.get("/admin/api-keys", async (c: Context) => {

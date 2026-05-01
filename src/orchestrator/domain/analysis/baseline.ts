@@ -98,8 +98,12 @@ export class BaselineService {
       ports = result.stdout.split("\n")
         .filter(l => l.includes("LISTEN"))
         .map(l => {
-          const parts = l.split(/\s+/);
-          return parts[4] || ""; // Local Address:Port is typically the 5th column
+          const parts = l.trim().split(/\s+/);
+          // Standard ss output format:
+          // Netid State Recv-Q Send-Q Local Address:Port Peer Address:Port
+          // Column 4 is Local Address:Port (0-indexed)
+          const addrPort = parts[4] || "";
+          return addrPort;
         })
         .filter(p => p !== "");
     } else if (os === "windows") {

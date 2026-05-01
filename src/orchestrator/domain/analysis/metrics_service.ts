@@ -57,6 +57,7 @@ export interface SystemMetrics {
         active: boolean;
         interface: string;
         available: boolean;
+        mode?: string;
     };
 }
 
@@ -76,6 +77,7 @@ export class MetricsService {
         private sidecarManager: SidecarManager,
         private vpn: VpnPort,
         private behavioral: BehavioralService,
+        private anonymization: any, // AnonymizationService
         private broadcast: BroadcastFunction
     ) {
         this.start();
@@ -165,9 +167,10 @@ export class MetricsService {
                     available: (await this.sidecarManager.getExecutor().execute("which", ["clamscan"])).success
                 },
                 vpn: {
-                    active: await this.vpn.isConnected(),
-                    interface: "wg0",
-                    available: (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success
+                    active: (await this.vpn.isConnected()) || (meshNodes.filter(n => n.verified && (Date.now() - n.lastSeen < 600000)).length > 0),
+                    interface: (await this.vpn.isConnected()) ? "wg0" : "Sovereign Mesh (mTLS)",
+                    available: (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success || true,
+                    mode: this.anonymization.getMode()
                 }
             };
 

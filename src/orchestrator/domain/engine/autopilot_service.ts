@@ -40,11 +40,11 @@ export class AutopilotService {
 
   private threatDatabase: Map<string, { ports: Set<number>, events: any[] }> = new Map();
 
-  private async evaluate(event: any) {
-    const data = event.data;
-    if (!data || !data.source_ip) return;
+  private async evaluate(data: any) {
+    if (!data) return;
+    const sourceIp = data.source_ip || data.ip || data.remote_addr;
+    if (!sourceIp) return;
 
-    const sourceIp = data.source_ip;
     let entry = this.threatDatabase.get(sourceIp);
     if (!entry) {
         entry = { ports: new Set(), events: [] };

@@ -1,5 +1,6 @@
 import { MeshManager } from "./mesh.ts";
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { broadcast } from "@api/ws.ts";
 
 export interface Proposal {
     id: string;

@@ -28,14 +28,14 @@ export class ShadowBanService {
 
         try {
             // Using TC (Traffic Control) for shadow banning
-            // 1. Create a qdisc on the interface
-            await this.executor.execute("tc", ["qdisc", "add", "dev", this.interface, "root", "handle", "1:", "htb", "default", "10"]);
+            // 1. Add qdisc if not exists
+            await this.executor.execute("tc", ["qdisc", "add", "dev", this.interface, "root", "handle", "1:", "htb", "default", "10"]).catch(() => {});
             
-            // 2. Create a class with 1kbps (simulating 1 byte/sec effectively for most tools)
-            await this.executor.execute("tc", ["class", "add", "dev", this.interface, "parent", "1:", "classid", "1:1", "htb", "rate", "1kbps", "ceil", "1kbps"]);
+            // 2. Create a class for shadow banning (ID 1:2 to avoid conflict with firewall provider)
+            await this.executor.execute("tc", ["class", "add", "dev", this.interface, "parent", "1:", "classid", "1:2", "htb", "rate", "1kbps", "ceil", "1kbps"]).catch(() => {});
             
             // 3. Filter the IP into this class
-            await this.executor.execute("tc", ["filter", "add", "dev", this.interface, "protocol", "ip", "parent", "1:", "prio", "1", "u32", "match", "ip", "src", ip, "flowid", "1:1"]);
+            await this.executor.execute("tc", ["filter", "add", "dev", this.interface, "protocol", "ip", "parent", "1:", "prio", "1", "u32", "match", "ip", "src", ip, "flowid", "1:2"]);
 
             this.throttledIps.add(ip);
             this.auditService.logEvent({

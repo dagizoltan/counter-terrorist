@@ -108,8 +108,8 @@ export class ProcessTracker {
 
         for (let pid = 1; pid <= maxPid; pid++) {
             try {
-                // kill -0 equivalent in Deno
-                Deno.kill(pid, "SIGCONT"); 
+                // Existence check using null signal (stealthy, non-disruptive)
+                Deno.kill(pid, 0 as any); 
                 
                 // If we reach here, the process exists. Now check /proc
                 try {

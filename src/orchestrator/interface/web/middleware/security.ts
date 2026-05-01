@@ -18,6 +18,12 @@ export class SecurityMiddleware {
     return async (c: Context, next: Next) => {
       const path = c.req.path;
       const ip = c.req.header("X-Forwarded-For") || "unknown";
+
+      // 0. Threat Intel Blacklist Check (Software Firewall Fallback)
+      if (this.services.threatIntel.getBlacklist().has(ip)) {
+        loggingService.log(`[SECURITY] REJECTED: Request from blacklisted IP ${ip} to ${path}`, SyslogSeverity.CRITICAL);
+        return c.json({ error: "Access Denied: Malicious IP Detected", code: "BLACK_LIST_REJECT" }, 403);
+      }
       
       // 1. Rate Limiting for API routes
       if (path.startsWith("/api/")) {

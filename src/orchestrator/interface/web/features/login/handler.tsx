@@ -63,7 +63,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       console.log(`[AUTH:HANDLER] Setting session cookie: ${sessionId.slice(0, 8)}… (secure: false, Lax)`);
       setCookie(c, "session_token", sessionId, {
         httpOnly: true,
-        secure: false,
+        secure: !isLocal,
         sameSite: "Lax",
         maxAge: 86400, // 24 hours
       });
@@ -74,7 +74,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
 
       setCookie(c, "csrf_token", csrfToken, {
         httpOnly: false,
-        secure: false,
+        secure: !isLocal,
         sameSite: "Lax",
         maxAge: 86400,
       });

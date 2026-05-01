@@ -100,6 +100,12 @@ export class ProvisioningService {
     }
 
     async run() {
+        const enabled = Deno.env.get("PROVISIONING_ENABLED") === "true";
+        if (!enabled) {
+            this.logging.log("[PROVISIONING] Mesh expansion disabled via PROVISIONING_ENABLED=false.", SyslogSeverity.NOTICE);
+            return;
+        }
+
         // Continuous expansion loop
         while (true) {
             await this.discoverTargets();

@@ -17,31 +17,31 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         name: "honeypot",
         description: "Multi-vector deception service with SSH, Telnet, and HTTP decoys.",
         persistent: true,
-        privileged: true
+        privileged: false
     },
     blocker: {
         name: "blocker",
         description: "Active enforcement agent for IP blocking and process termination.",
         persistent: true,
-        privileged: true
+        privileged: false
     },
     ebpf: {
         name: "ebpf",
         description: "Kernel-level observer and LSM enforcer for zero-trust access control.",
         persistent: true,
-        privileged: true
+        privileged: false
     },
     fim: {
         name: "fim",
         description: "File Integrity Monitor for tracking unauthorized access to canary breadcrumbs.",
         persistent: true,
-        privileged: true
+        privileged: false
     },
     pcap: {
         name: "pcap",
         description: "Packet capture and deep packet inspection for mesh traffic.",
         persistent: true,
-        privileged: true
+        privileged: false
     }
 };
 

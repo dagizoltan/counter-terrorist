@@ -11,11 +11,7 @@ class MetricsHydrator extends HTMLElement {
 
   async fetchInitial() {
     try {
-      const token = document.querySelector('meta[name="api-token"]')?.content || "";
-      const headers = {};
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const res = await fetch('/api/metrics', { headers });
+      const res = await fetch('/api/metrics');
       if (res.ok) {
         const data = await res.json();
         this.updateMetrics(data);
@@ -27,9 +23,7 @@ class MetricsHydrator extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
-    if (token) url.searchParams.set('token', token);
 
     const ws = new WebSocket(url.toString());
 
@@ -92,8 +86,15 @@ class MetricsHydrator extends HTMLElement {
     this.setText('stat-scanner-last', m.scanner?.lastScanTime ?? 'NEVER');
     this.setText('stat-scanner-result', m.scanner?.lastScanResult ?? 'PENDING');
 
+    // VPN
+    this.setText('stat-vpn-status', m.vpn?.active ? 'ENCRYPTED' : 'DISCONNECTED');
+    this.setStatusColor('stat-vpn-status', m.vpn?.active ? 'ACTIVE' : 'INACTIVE');
+    this.setText('stat-vpn-interface', m.vpn?.interface ?? '—');
+    this.setText('stat-anon-mode', m.vpn?.mode ?? 'OFF');
+    this.setStatusColor('stat-anon-mode', m.vpn?.mode !== 'OFF' ? 'ACTIVE' : 'INACTIVE');
+
     // Protection layer count
-    const protectionCount = [true, true, m.firewall?.rules > 0].filter(Boolean).length;
+    const protectionCount = [m.vpn?.active, m.firewall?.rules > 0, m.scanner?.available].filter(Boolean).length;
     this.setText('stat-protection-count', `${protectionCount} ACTIVE`);
 
     // Forensic layer count

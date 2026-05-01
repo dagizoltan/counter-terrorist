@@ -13,6 +13,10 @@ export { HoneypotService } from "./protection/honeypot_service.ts";
 export { CanaryService } from "./protection/canary_service.ts";
 export { MorphingService } from "./protection/morphing_service.ts";
 export { KernelService } from "./protection/kernel_service.ts";
+export { ThreatIntelService } from "./protection/threat_intel.ts";
+export { AnonymizationService } from "./protection/anonymization_service.ts";
+export { DeceptionGridService } from "./protection/deception_grid.ts";
+export { ShadowProtocolService } from "./protection/shadow_protocol_service.ts";
 
 // Analysis Domain
 export { AuditService } from "./analysis/audit.ts";

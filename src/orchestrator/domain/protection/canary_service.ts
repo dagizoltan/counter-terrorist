@@ -43,6 +43,42 @@ export class CanaryService {
         }));
     }
 
+    async registerToken(token: { id: string, path: string, desc: string }) {
+        const newToken: CanaryToken = {
+            id: token.id,
+            projectionPath: token.path,
+            masterPath: `${this.MASTER_DIR}/${token.id}_${Math.random().toString(36).substring(7)}`,
+            description: token.desc,
+            triggered: false
+        };
+        this.tokens.push(newToken);
+        
+        // Immediate deployment if initialized
+        await this.deploySingle(newToken);
+    }
+
+    private async deploySingle(token: CanaryToken) {
+        try {
+            await Deno.mkdir(this.MASTER_DIR, { recursive: true }).catch(() => {});
+            const content = `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
+            await Deno.writeTextFile(token.masterPath, content);
+
+            const isDev = Deno.env.get("ENVIRONMENT") === "development";
+            if (isDev) return;
+
+            const absProjection = resolve(token.projectionPath);
+            await Deno.mkdir(dirname(absProjection), { recursive: true }).catch(() => {});
+            
+            try {
+                await Deno.stat(token.projectionPath);
+                return;
+            } catch {}
+
+            await Deno.link(token.masterPath, token.projectionPath);
+            this.sidecar.sendCommand("fim", { type: "WatchPath", path: absProjection }).catch(() => {});
+        } catch {}
+    }
+
     /**
      * Deploys deception artifacts by creating master files and hardlinking them.
      */

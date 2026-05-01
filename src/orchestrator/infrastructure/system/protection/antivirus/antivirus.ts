@@ -8,7 +8,7 @@ export class AntivirusManager {
     return await this.provider.getStatus();
   }
 
-  private static readonly ALLOWED_DIRS = ["/tmp/", "/var/tmp/", "/home/dagizoltan/Downloads/"];
+  private static readonly ALLOWED_DIRS = ["/tmp/", "/var/tmp/", "/home/"];
 
   private validatePath(p: string): boolean {
     if (!p) return false;

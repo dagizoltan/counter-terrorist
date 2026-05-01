@@ -12,7 +12,8 @@ import {
   SupplyChainService,
   MeshManager,
   EventBus,
-  MeshAuthService
+  MeshAuthService,
+  ThreatIntelService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 
@@ -34,5 +35,9 @@ export interface ServiceContainer {
   supplyChain: SupplyChainService;
   mesh: MeshManager;
   meshAuth: MeshAuthService;
+  threatIntel: ThreatIntelService;
+  anonymization: AnonymizationService;
+  deceptionGrid: DeceptionGridService;
+  shadowProtocol: ShadowProtocolService;
   platformInfo: any;
 }

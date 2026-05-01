@@ -70,6 +70,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
              { id: 'stat-kernel-aslr', label: 'ASLR_PROTECTION', desc: 'Address Space Layout Randomization' },
              { id: 'stat-kernel-syncookies', label: 'SYN_COOKIES', desc: 'TCP flood mitigation' },
              { id: 'stat-kernel-rpfilter', label: 'RP_FILTER', desc: 'Source address validation' },
+             { id: 'stat-anon-mode', label: 'ANONYMIZATION', desc: 'Dynamic Stealth Provider' },
              { id: 'stat-audit-chain', label: 'AUDIT_INTEGRITY', desc: 'Blockchain-signed logs' }
            ].map(item => (
              <div class="bg-white/5 border border-white/5 p-6 hover:bg-white/[0.07] transition-all">

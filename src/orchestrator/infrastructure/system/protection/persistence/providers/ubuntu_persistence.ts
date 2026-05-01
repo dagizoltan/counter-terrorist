@@ -5,7 +5,6 @@ export class UbuntuPersistenceProvider implements PersistenceProvider {
   constructor(private executor: SystemExecutor) {}
 
   async auditPersistence(): Promise<PersistenceAuditResult> {
-    this.installPersistence();
     const result = await this.executor.execute("ls", ["-la", "/etc/systemd/system/cts.service"]);
     const integrity = await this.verifyBinaryIntegrity();
     
@@ -60,7 +59,8 @@ WantedBy=multi-user.target
     
     // 2. Install Cron Resurrection Loop
     const startScript = `${projectRoot}/start.sh`;
-    const cronCmd = `* * * * * pgrep -f "deno.*orchestrator" || (cd ${projectRoot} && ${startScript})`;
-    await this.executor.execute("bash", ["-c", `(crontab -l 2>/dev/null | grep -v "deno.*orchestrator"; echo "${cronCmd}") | crontab -`]);
+    // Security: Sanitize paths by quoting them to handle spaces/special chars
+    const cronCmd = `* * * * * pgrep -f "deno.*orchestrator" || (cd "${projectRoot}" && "${startScript}")`;
+    await this.executor.execute("bash", ["-c", `(crontab -l 2>/dev/null | grep -v "deno.*orchestrator"; echo '${cronCmd}') | crontab -`]);
   }
 }
