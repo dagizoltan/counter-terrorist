@@ -11,6 +11,7 @@ export interface AuditEvent {
     data?: any;
     hash: string;
     prevHash: string;
+    hwSignature?: string; // Phase 3: Hardware-rooted signature
 }
 
 interface RetentionConfig {
@@ -28,6 +29,7 @@ export class AuditService {
     constructor(
         private kv: Deno.Kv, 
         private logging: LoggingPort,
+        private tpm: any | null = null,
         private mesh: MeshManager | null = null
     ) {
         this.repo = new TimelineRepository<AuditEvent>(kv, "audit");
@@ -65,9 +67,20 @@ export class AuditService {
             if (latest.length > 0 && latest[0].hash) {
                 this.lastHash = latest[0].hash;
                 this.logging.log(
-                    `[AUDIT] Chain restored from last event: ${this.lastHash.slice(0, 12)}…`,
+                    `[AUDIT] Chain head restored: ${this.lastHash.slice(0, 12)}…`,
                     SyslogSeverity.INFORMATIONAL
                 );
+
+                // PERFORM STARTUP INTEGRITY VERIFICATION
+                const verification = await this.verifyChain(100);
+                if (!verification.valid) {
+                    this.logging.log(
+                        `[AUDIT] [CRITICAL] CHAIN INTEGRITY FAILURE. TAMPERING DETECTED AT EVENT ${verification.brokenAt?.eventId}`,
+                        SyslogSeverity.EMERGENCY
+                    );
+                } else {
+                    this.logging.log(`[AUDIT] Verified integrity of recent history (${verification.eventsChecked} events).`, SyslogSeverity.DEBUG);
+                }
             }
         } catch (e) {
             this.logging.log(`[AUDIT] Failed to restore chain head: ${e}`, SyslogSeverity.WARNING);
@@ -94,6 +107,12 @@ export class AuditService {
                 prevHash,
             });
             const hash = await this.computeHash(hashInput);
+            
+            // Phase 3: Hardware signing
+            let hwSignature: string | undefined;
+            if (this.tpm) {
+                hwSignature = await this.tpm.sign(hash);
+            }
 
             const auditEvent: AuditEvent = {
                 ...event,
@@ -101,6 +120,7 @@ export class AuditService {
                 timestamp,
                 hash,
                 prevHash,
+                hwSignature,
             };
 
             try {
@@ -129,6 +149,19 @@ export class AuditService {
     async getChainStatus() {
         const count = await this.repo.count();
         return { lastHash: this.lastHash, count };
+    }
+
+    async syncEvents(events: AuditEvent[]) {
+        for (const event of events) {
+            const existing = await this.repo.get(event.id);
+            if (!existing) {
+                await this.repo.set(event.id, event);
+                // Update chain head if this event is newer
+                if (event.hash && (!this.lastHash || this.lastHash === "GENESIS")) {
+                    this.lastHash = event.hash;
+                }
+            }
+        }
     }
 
     async getRecentEvents(limit: number = 50): Promise<AuditEvent[]> {

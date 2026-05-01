@@ -281,11 +281,12 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       }
       return true;
     case "honeypot":
-      if (!["ToggleModule", "UpdateModule", "GetStatus"].includes(req.type)) return false;
+      if (!["ToggleModule", "UpdateModule", "Sabotage", "GetStatus"].includes(req.type)) return false;
       if (req.type === "ToggleModule" || req.type === "UpdateModule") {
-        if (typeof req.payload?.module !== "string") return false;
-        if (typeof req.payload?.port !== "number" && typeof req.payload?.newPort !== "number") return false;
+        if (typeof req.module !== "string") return false;
+        if (typeof req.port !== "number" && typeof req.newPort !== "number") return false;
       }
+      if (req.type === "Sabotage" && typeof req.source_ip !== "string") return false;
       return true;
     case "fim":
       if (!["WatchPath", "UnwatchPath", "GetStatus"].includes(req.type)) return false;

@@ -100,6 +100,9 @@ export class HoneypotService {
   async start() {
     await this.sidecarManager.getPersistentSidecar("honeypot");
     this.sidecarManager.onEvent("honeypot", (event) => this.handleEvent(event));
+
+    // Phase 3: Deception Morphing - Periodically rotate decoy ports
+    setInterval(() => this.morph(), 600000); // Every 10 minutes
   }
 
   private behavioralService?: any; // Injected later or passed in constructor
@@ -128,6 +131,9 @@ export class HoneypotService {
       } else {
         this.firewall.blockIp(source_ip).catch(console.error);
       }
+
+      // Automated Forensics: Start capture for the attacker's traffic
+      this.pcap.startCapture("any", 300, `honeypot_hit_${source_ip.replace(/\./g, '_')}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
       this.logging.log(`[HONEYPOT] Session transcript from ${source_ip}:${port} -> ${data}`, SyslogSeverity.DEBUG);
@@ -152,6 +158,9 @@ export class HoneypotService {
 
     // Immediate blocking for web decoys as they are 100% malicious
     this.firewall.blockIp(source_ip).catch(console.error);
+
+    // Automated Forensics: Start capture for the attacker's traffic
+    this.pcap.startCapture("any", 300, `web_decoy_${source_ip.replace(/\./g, '_')}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
 
     // Active Sabotage: Initiate Breaker protocol on the attacker's session
     this.sabotageSession(source_ip);

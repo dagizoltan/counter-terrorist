@@ -18,13 +18,13 @@ class BlockingLog extends HTMLElement {
 
   async loadHistory() {
     try {
-      // In a real environment, the session cookie will handle auth.
-      // If using Bearer tokens, we'd need to inject them here.
-      const res = await fetch('/api/audit?limit=50');
+      const token = document.querySelector('meta[name="api-token"]')?.content || "";
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/audit?limit=50', { headers });
       if (res.ok) {
         const history = await res.json();
-        // The API returns most recent first, which is the same order we want in our logs array.
-        // We will replace this.logs with history.
         this.logs = history;
         this.render();
       }
@@ -35,8 +35,11 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // Use session cookie for WebSocket authentication
+    const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    
+    // Pass token via query parameter for WebSocket handshake authentication
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+    if (token) url.searchParams.set('token', token);
 
     const socket = new WebSocket(url.toString());
 

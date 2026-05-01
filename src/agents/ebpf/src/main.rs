@@ -45,6 +45,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut bpf = match Bpf::load(bpf_bytes) {
         Ok(b) => b,
         Err(e) => {
+            let err_json = serde_json::json!({
+                "type": "ERROR",
+                "message": format!("Critical: Failed to load BPF object. ELF parsing or kernel mismatch: {}", e),
+                "timestamp": Utc::now().to_rfc3339()
+            });
+            println!("{}", err_json.to_string());
             eprintln!("[EBPF] Critical: Failed to load BPF object. ELF parsing or kernel mismatch: {}", e);
             loop { time::sleep(Duration::from_secs(3600)).await; }
         }

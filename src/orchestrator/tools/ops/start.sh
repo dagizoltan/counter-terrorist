@@ -15,9 +15,15 @@ fi
 SHA_ACTUAL=$(sha256sum src/orchestrator/main.ts | awk '{print $1}')
 echo "[BOOT] Main Orchestrator Hash: $SHA_ACTUAL"
 
-# 3. Environment Sanitization
+# 3. Environment Sanitization & Sourcing
+if [ -f .env ]; then
+    echo "[BOOT] Sourcing .env file..."
+    export $(grep -v '^#' .env | xargs)
+fi
+
 if [ -z "$PKI_SECRET" ]; then
-    echo "[CRITICAL] PKI_SECRET is missing. Sovereignty compromised. Aborting."
+    echo "[CRITICAL] PKI_SECRET is missing. Environment check failed."
+    echo "Usage: export PKI_SECRET=... && export API_TOKEN=... && ./start.sh"
     exit 1
 fi
 

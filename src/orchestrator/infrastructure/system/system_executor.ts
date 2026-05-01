@@ -4,7 +4,23 @@ import { CommandResult } from "./command_manager.ts";
  * Executes one-off system commands.
  */
 export class SystemExecutor {
+  private static readonly WHITELISTED_COMMANDS = [
+    "clamscan", "mkdir", "mv", "chmod", "ls", "sha256sum", "bash", "systemctl",
+    "crontab", "which", "where", "powershell", "netsh", "taskkill", "tc", "kill",
+    "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
+    "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss", "cargo"
+  ];
+
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
+    // Security: Whitelist validation
+    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+        return {
+            success: false,
+            stdout: "",
+            stderr: `Security Violation: Command '${cmd}' is not in the system whitelist.`,
+        };
+    }
+
     let timeoutId: number | undefined;
     let child: Deno.ChildProcess | undefined;
 

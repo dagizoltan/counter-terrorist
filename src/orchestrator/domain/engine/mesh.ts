@@ -21,7 +21,11 @@ export class MeshManager {
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
 
-  constructor(private meshAuth: MeshAuthService, private logging: LoggingPort) {
+  constructor(
+    private meshAuth: MeshAuthService, 
+    private logging: LoggingPort,
+    private audit: any // AuditService
+  ) {
     this.logging.log("[MESH] Initializing Mesh Infrastructure...", SyslogSeverity.NOTICE);
     this.meshSecret = Deno.env.get("MESH_SECRET");
   }
@@ -355,11 +359,10 @@ export class MeshManager {
             this.logging.log(`[MESH] Requesting state reconciliation from ${node.hostname}...`, SyslogSeverity.DEBUG);
             const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
             
-            // If the response contains KV state, we would merge it here.
-            // This requires a differential sync logic to avoid overwriting newer local state.
-            if (res && (res as any).kv_snapshot) {
+            // Phase 3: Differential state synchronization
+            if (res && (res as any).kv_snapshot && Array.isArray((res as any).kv_snapshot)) {
                 this.logging.log(`[MESH] Received state snapshot from ${node.hostname}. Synchronizing...`, SyslogSeverity.NOTICE);
-                // Implementation of KV merge logic...
+                await this.audit.syncEvents((res as any).kv_snapshot);
             }
             
             console.log(`[MESH] Reconciled state with ${node.hostname}`);
@@ -374,12 +377,11 @@ export class MeshManager {
    * Generates a snapshot of the local security state for a peer.
    */
   async getLocalStateSnapshot(): Promise<any> {
-      // In a real implementation, this would iterate KV entries 
-      // and return a signed, encrypted bundle of the audit and configuration logs.
+      const recentEvents = await this.audit.getRecentEvents(100);
       return {
           timestamp: Date.now(),
           nodeId: this.nodeId,
-          kv_snapshot: "ENCRYPTED_STATE_BUNDLE" 
+          kv_snapshot: recentEvents 
       };
   }
 
@@ -390,9 +392,11 @@ export class MeshManager {
   async requestQuorumUnlock(secretType: "PKI" | "MESH"): Promise<boolean> {
       this.logging.log(`[QUORUM] Requesting ${secretType} secret unlock from mesh...`, SyslogSeverity.NOTICE);
       
-      let approvals = 1; // Self approval
-      const threshold = 3;
       const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+      const totalNodes = verifiedNodes.length + 1; // Include self
+      const threshold = Math.floor(totalNodes / 2) + 1;
+      
+      let approvals = 1; // Self approval
       
       for (const node of verifiedNodes) {
           try {
@@ -412,7 +416,7 @@ export class MeshManager {
       if (success) {
           this.logging.log(`[QUORUM] Consensus reached. Unlocking ${secretType} master identity.`, SyslogSeverity.NOTICE);
       } else {
-          this.logging.log(`[QUORUM] Consensus failed. Insufficient peer approvals for ${secretType}.`, SyslogSeverity.WARNING);
+          this.logging.log(`[QUORUM] Consensus failed. Insufficient peer approvals for ${secretType} (${approvals}/${threshold}).`, SyslogSeverity.WARNING);
       }
       
       return success;
@@ -469,10 +473,13 @@ export class MeshManager {
    * Requests approval from peers for a critical action.
    * Uses P2P signatures to ensure identity.
    */
-  async requestApproval(action: string, data: any, threshold: number = 2): Promise<boolean> {
+  async requestApproval(action: string, data: any, threshold?: number): Promise<boolean> {
     const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
-    if (verifiedNodes.length < threshold) {
-        this.logging.log(`[MESH] Consensus threshold not met (${verifiedNodes.length}/${threshold}). REJECTED (Fail-Closed).`, SyslogSeverity.CRITICAL);
+    const totalNodes = verifiedNodes.length + 1; // Include self
+    const targetThreshold = threshold ?? (Math.floor(totalNodes / 2) + 1);
+
+    if (totalNodes < targetThreshold) {
+        this.logging.log(`[MESH] Consensus threshold impossible to meet (${totalNodes}/${targetThreshold}). REJECTED.`, SyslogSeverity.CRITICAL);
         return false; 
     }
 
@@ -501,8 +508,8 @@ export class MeshManager {
         }
     }
 
-    const success = approvals >= threshold;
-    this.logging.log(`[MESH] Consensus for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold} votes)`, success ? SyslogSeverity.NOTICE : SyslogSeverity.CRITICAL);
+    const success = approvals >= targetThreshold;
+    this.logging.log(`[MESH] Consensus for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${targetThreshold} votes)`, success ? SyslogSeverity.NOTICE : SyslogSeverity.CRITICAL);
     return success;
   }
 

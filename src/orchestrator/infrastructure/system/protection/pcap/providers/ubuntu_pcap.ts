@@ -10,7 +10,7 @@ export class UbuntuPcapProvider implements PcapProvider {
   async startCapture(interfaceName: string, duration: number, filename: string, filter?: string): Promise<CommandResult> {
     const args = [
       "-i", interfaceName,
-      "-w", `/tmp/${filename}`,
+      "-w", `./volume/pcaps/${filename}`,
       "-G", duration.toString(),
       "-W", "1"
     ];

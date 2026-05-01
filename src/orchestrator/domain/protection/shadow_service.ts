@@ -47,17 +47,18 @@ export class ShadowService {
 
             await this.startHoneyListener(2222);
 
-            const result = await this.executor.execute(cmd, args);
-            
-            if (result.success) {
-                this.environments.set(id, {
-                    id,
-                    sourceIp,
-                    pid: 0, 
-                    startTime: Date.now()
-                });
-                return id;
-            }
+            // 3. Spawn Mirror World Asynchronously (Do NOT block the orchestrator)
+            this.executor.executeAsync(cmd, args).catch(err => {
+                this.logging.log(`[SHADOW] Mirror World failure: ${err.message}`, SyslogSeverity.ERROR);
+            });
+
+            this.environments.set(id, {
+                id,
+                sourceIp,
+                pid: 0, 
+                startTime: Date.now()
+            });
+            return id;
             throw new Error(result.stderr);
         } catch (e) {
             this.logging.log(`[SHADOW] Failed to spawn Mirror World: ${(e as Error).message}`, SyslogSeverity.ERROR);

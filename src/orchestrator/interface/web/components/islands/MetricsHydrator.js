@@ -11,7 +11,11 @@ class MetricsHydrator extends HTMLElement {
 
   async fetchInitial() {
     try {
-      const res = await fetch('/api/metrics');
+      const token = document.querySelector('meta[name="api-token"]')?.content || "";
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/metrics', { headers });
       if (res.ok) {
         const data = await res.json();
         this.updateMetrics(data);
@@ -23,7 +27,11 @@ class MetricsHydrator extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const token = document.querySelector('meta[name="api-token"]')?.content || "";
+    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+    if (token) url.searchParams.set('token', token);
+
+    const ws = new WebSocket(url.toString());
 
     ws.onmessage = (event) => {
       try {

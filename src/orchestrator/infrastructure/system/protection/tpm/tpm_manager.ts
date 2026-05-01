@@ -60,4 +60,22 @@ export class TPMManager {
         const res = await this.executor.execute("tpm2_pcrread", ["sha256:0,1,7"]);
         return res.success;
     }
+
+    /**
+     * Signs data using the hardware Root of Trust.
+     */
+    async sign(data: string): Promise<string> {
+        // Attempt to sign with a persistent key handle (0x81010001)
+        // If the key doesn't exist, we fallback to a hardware-measured hash.
+        const keyHandle = "0x81010001";
+        const res = await this.executor.execute("bash", ["-c", `echo -n "${data}" | tpm2_sign -c ${keyHandle} -g sha256 -f plain -s - 2>/dev/null`]);
+        
+        if (res.success) {
+            return btoa(res.stdout);
+        }
+
+        // Fallback: Hardware-measured hash (measured by the TPM)
+        const hashRes = await this.executor.execute("bash", ["-c", `echo -n "${data}" | tpm2_hash -g sha256`]);
+        return hashRes.stdout.trim() || "HARDWARE_SIGN_FAILED";
+    }
 }

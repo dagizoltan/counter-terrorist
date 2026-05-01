@@ -51,12 +51,12 @@ const platformInfo = await getPlatformInfo();
 const systemStatus = await bootstrap();
 
 // ── Phase 2: Service layer ────────────────────────────────────────────
-const auditService = new AuditService(kv, loggingService);
+const tpmManager = new TPMManager(executor, loggingService);
+const auditService = new AuditService(kv, loggingService, tpmManager);
 const notificationService = new NotificationService(kv, loggingService);
 const eventBus = new EventBus(loggingService);
-const tpmManager = new TPMManager(executor, loggingService);
 const meshAuthService = new MeshAuthService(kv, tpmManager);
-const meshManager = new MeshManager(meshAuthService, loggingService);
+const meshManager = new MeshManager(meshAuthService, loggingService, auditService);
 setMeshManager(meshManager);
 await meshManager.init();
 
@@ -158,6 +158,11 @@ await playbookEngine.start();
 
 // eBPF sidecar → broadcast pipeline
 sidecarManager.onEvent("ebpf", async (event: SidecarEvent) => {
+  if (event.type === "ERROR") {
+    broadcast({ type: "WARN", message: `eBPF Sidecar Error: ${event.message}`, data: event });
+    return;
+  }
+  
   if (event.type === "SYSCALL_EVENT") {
     let type = "INFO";
     let message = `eBPF Alert: ${event.comm} (PID: ${event.pid}) called ${event.syscall}`;

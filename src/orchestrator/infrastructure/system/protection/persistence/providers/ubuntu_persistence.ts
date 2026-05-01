@@ -30,6 +30,8 @@ export class UbuntuPersistenceProvider implements PersistenceProvider {
     const serviceName = "cts.service";
     const servicePath = `/etc/systemd/system/${serviceName}`;
     const binaryPath = Deno.execPath();
+    const projectRoot = await Deno.realPath(".");
+    const mainScript = `${projectRoot}/src/orchestrator/main.ts`;
     
     const serviceContent = `
 [Unit]
@@ -38,7 +40,8 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=${binaryPath} run --allow-all --unstable-kv src/orchestrator/main.ts
+WorkingDirectory=${projectRoot}
+ExecStart=${binaryPath} run --allow-all --unstable-kv ${mainScript}
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -48,11 +51,16 @@ StandardError=journal
 WantedBy=multi-user.target
 `;
 
-    // 1. Install Systemd Service, 2. Install Cron Resurrection Loop
-    await this.executor.execute("bash", ["-c", `echo '${serviceContent}' > ${servicePath}`]);
-    await this.executor.execute("systemctl", ["enable", serviceName]);
+    // 1. Install Systemd Service (only if root)
+    if (Deno.uid() === 0) {
+      await this.executor.execute("bash", ["-c", `echo '${serviceContent}' > ${servicePath}`]);
+      await this.executor.execute("systemctl", ["daemon-reload"]);
+      await this.executor.execute("systemctl", ["enable", serviceName]);
+    }
     
-    const cronCmd = `* * * * * pgrep -f "deno.*orchestrator" || (cd /home/dagizoltan/workspace/counter-terrorist && ./start.sh)`;
-    await this.executor.execute("bash", ["-c", `(crontab -l 2>/dev/null; echo "${cronCmd}") | sort -u | crontab -`]);
+    // 2. Install Cron Resurrection Loop
+    const startScript = `${projectRoot}/start.sh`;
+    const cronCmd = `* * * * * pgrep -f "deno.*orchestrator" || (cd ${projectRoot} && ${startScript})`;
+    await this.executor.execute("bash", ["-c", `(crontab -l 2>/dev/null | grep -v "deno.*orchestrator"; echo "${cronCmd}") | crontab -`]);
   }
 }

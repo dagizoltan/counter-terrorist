@@ -255,10 +255,14 @@ async fn main() {
                 }
             }).collect();
 
-            // Evict old entries from hash_cache only if they are not in seen_paths AND not existing files
-            hash_cache.retain(|k, _| {
-                seen_paths.contains(k) || std::path::Path::new(k).exists()
-            });
+            // Evict old entries from hash_cache. 
+            // Only keep if currently running. If a file is re-executed, we re-hash (safe vs TOCTOU).
+            hash_cache.retain(|k, _| seen_paths.contains(k));
+
+            // Hard limit: If cache still exceeds 5000 entries (very high), clear it to be safe
+            if hash_cache.len() > 5000 {
+                hash_cache.clear();
+            }
 
             // Sort by CPU
             let mut processes_list = processes_list;

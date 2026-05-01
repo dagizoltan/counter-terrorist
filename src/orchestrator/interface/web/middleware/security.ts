@@ -86,7 +86,21 @@ export class SecurityMiddleware {
         }
       }
 
-      // 6. Fallback
+      // 6. Query Parameter Token (Helper for WebSockets/Handshakes)
+      const queryToken = c.req.query("token");
+      if (queryToken) {
+          if (await secureCompare(queryToken, this.masterToken)) {
+              c.set("role", "admin");
+              return next();
+          }
+          const role = await this.services.apiKeys.validateApiKey(queryToken);
+          if (role) {
+              c.set("role", role);
+              return next();
+          }
+      }
+
+      // 7. Fallback
       if (path.startsWith("/api/")) {
         return c.json({ error: "Unauthorized" }, 401);
       }
