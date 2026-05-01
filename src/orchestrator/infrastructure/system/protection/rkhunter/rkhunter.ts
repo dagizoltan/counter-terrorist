@@ -1,5 +1,5 @@
 import { broadcast } from "@api/ws.ts";
-import { SidecarManager } from "../../runtime/sidecar_manager.ts";
+import { SidecarManager } from "../../../runtime/sidecar_manager.ts";
 
 export interface RkhunterResult {
     success: boolean;

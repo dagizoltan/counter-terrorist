@@ -1,4 +1,5 @@
-import { AntivirusProvider, ScanResult } from "./interfaces.ts";
+import { AntivirusProvider, ScanResult } from "../interfaces.ts";
+export type { AntivirusProvider, ScanResult };
 
 export class AntivirusManager {
   constructor(private provider: AntivirusProvider) {}

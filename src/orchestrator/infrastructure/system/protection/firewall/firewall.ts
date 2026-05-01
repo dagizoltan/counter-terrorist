@@ -1,7 +1,8 @@
 import { broadcast } from "@api/ws.ts";
 import { meshManager } from "@domain/engine/mesh.ts";
-import { isValidIP } from "../validation.ts";
-import { FirewallProvider } from "./interfaces.ts";
+import { isValidIP } from "../../validation.ts";
+import { FirewallProvider } from "../interfaces.ts";
+export type { FirewallProvider };
 
 export class FirewallManager {
   constructor(private provider: FirewallProvider) {}
@@ -12,7 +13,6 @@ export class FirewallManager {
     }
     broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}`, data: { ip } });
 
-    // Mesh Gossip (Phase 4)
     if (meshManager) {
       meshManager.broadcastBlock(ip).catch(console.error);
     }
@@ -26,9 +26,7 @@ export class FirewallManager {
     }
     broadcast({ type: "WARNING", message: `Shadow Banning IP: ${ip} (Throttling to 1KB/s)`, data: { ip } });
     
-    // Notify mesh peers about the shadow ban
     if (meshManager) {
-      // Re-use broadcastBlock for now or add broadcastShadowBan
       meshManager.broadcastBlock(ip).catch(console.error);
     }
 
@@ -55,7 +53,6 @@ export class FirewallManager {
   async lockdown() {
     broadcast({ type: "CRITICAL", message: "LOCKDOWN PROTOCOL INITIATED" });
     
-    // Mesh Gossip
     if (meshManager) {
       meshManager.broadcastLockdown().catch(console.error);
     }

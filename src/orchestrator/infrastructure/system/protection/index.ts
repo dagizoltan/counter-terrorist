@@ -8,12 +8,12 @@ import {
   createPcapManager,
   createVpnManager,
 } from "./factory.ts";
-import { RkhunterManager } from "./rkhunter.ts";
-import { FirewallManager } from "./firewall.ts";
-import { VpnManager } from "./vpn.ts";
-import { AntivirusManager } from "./antivirus.ts";
-import { PersistenceManager } from "./persistence.ts";
-import { PcapManager } from "./pcap.ts";
+import { RkhunterManager } from "./rkhunter/rkhunter.ts";
+import { FirewallManager } from "./firewall/firewall.ts";
+import { VpnManager } from "./vpn/vpn.ts";
+import { AntivirusManager } from "./antivirus/antivirus.ts";
+import { PersistenceManager } from "./persistence/persistence.ts";
+import { PcapManager } from "./pcap/pcap.ts";
 
 import { CommandResult } from "@core/ports.ts";
 

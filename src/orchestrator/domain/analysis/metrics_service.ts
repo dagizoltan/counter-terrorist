@@ -1,4 +1,4 @@
-import { FirewallManager } from "@infrastructure/system/protection/firewall.ts";
+import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { MeshManager } from "../engine/mesh.ts";
 import { HoneypotService, HoneypotModule } from "../protection/honeypot_service.ts";
 import { ProcessTracker } from "./process_tracker.ts";

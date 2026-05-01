@@ -1,4 +1,4 @@
-import { FirewallManager } from "@infrastructure/system/protection/firewall.ts";
+import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { broadcast } from "@api/ws.ts";
 
 interface IpHistory {

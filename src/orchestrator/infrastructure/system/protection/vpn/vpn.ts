@@ -1,4 +1,5 @@
-import { VpnProvider, VpnResult } from "./interfaces.ts";
+import { VpnProvider, VpnResult } from "../interfaces.ts";
+export type { VpnProvider, VpnResult };
 
 export class VpnManager {
   constructor(private provider: VpnProvider) {}

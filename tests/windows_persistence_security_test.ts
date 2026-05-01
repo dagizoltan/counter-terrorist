@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { WindowsPersistenceProvider } from "@infrastructure/system/protection/providers/windows_persistence.ts";
+import { WindowsPersistenceProvider } from "@infrastructure/system/protection/persistence/providers/windows_persistence.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { CommandResult } from "@infrastructure/system/command_manager.ts";
 

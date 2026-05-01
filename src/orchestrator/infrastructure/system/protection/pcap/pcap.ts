@@ -1,4 +1,4 @@
-import { SidecarManager } from "../../runtime/sidecar_manager.ts";
+import { SidecarManager } from "../../../runtime/sidecar_manager.ts";
 
 export class PcapManager {
   constructor(private sidecar: SidecarManager) {}

@@ -1,7 +1,7 @@
 import { Plugin } from "../plugin_manager.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { FirewallManager } from "@infrastructure/system/protection/firewall.ts";
-import { PcapManager } from "@infrastructure/system/protection/pcap.ts";
+import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
+import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { BroadcastFunction } from "./types.ts";
 
 export class HoneypotPlugin implements Plugin {

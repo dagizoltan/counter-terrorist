@@ -1,18 +1,18 @@
 import { SidecarManager } from "../../runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { PlatformInfo } from "../platform.ts";
-import { AntivirusManager } from "./antivirus.ts";
-import { FirewallManager } from "./firewall.ts";
-import { PersistenceManager } from "./persistence.ts";
-import { PcapManager } from "./pcap.ts";
-import { VpnManager } from "./vpn.ts";
-import { UbuntuAntivirusProvider } from "./providers/ubuntu_antivirus.ts";
-import { UbuntuFirewallProvider } from "./providers/ubuntu_firewall.ts";
-import { UbuntuPersistenceProvider } from "./providers/ubuntu_persistence.ts";
-import { UbuntuVpnProvider } from "./providers/ubuntu_vpn.ts";
-import { WindowsFirewallProvider } from "./providers/windows_firewall.ts";
-import { WindowsPersistenceProvider } from "./providers/windows_persistence.ts";
-import { WindowsVpnProvider } from "./providers/windows_vpn.ts";
+import { AntivirusManager } from "./antivirus/antivirus.ts";
+import { FirewallManager } from "./firewall/firewall.ts";
+import { PersistenceManager } from "./persistence/persistence.ts";
+import { PcapManager } from "./pcap/pcap.ts";
+import { VpnManager } from "./vpn/vpn.ts";
+import { UbuntuAntivirusProvider } from "./antivirus/providers/ubuntu_antivirus.ts";
+import { UbuntuFirewallProvider } from "./firewall/providers/ubuntu_firewall.ts";
+import { UbuntuPersistenceProvider } from "./persistence/providers/ubuntu_persistence.ts";
+import { UbuntuVpnProvider } from "./vpn/providers/ubuntu_vpn.ts";
+import { WindowsFirewallProvider } from "./firewall/providers/windows_firewall.ts";
+import { WindowsPersistenceProvider } from "./persistence/providers/windows_persistence.ts";
+import { WindowsVpnProvider } from "./vpn/providers/windows_vpn.ts";
 
 export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): FirewallManager {
   if (platform.name === "windows") {

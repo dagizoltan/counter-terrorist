@@ -1,14 +1,14 @@
 import { Plugin } from "../plugin_manager.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { FirewallManager } from "@infrastructure/system/protection/firewall.ts";
-import { PcapManager } from "@infrastructure/system/protection/pcap.ts";
+import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
+import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { HoneypotPlugin } from "./honeypot.ts";
 import { SshHoneypotPlugin } from "./ssh_honeypot.ts";
 import { RedisHoneypotPlugin } from "./redis_honeypot.ts";
 import { FirewallPlugin } from "./firewall_plugin.ts";
 import { VpnPlugin } from "./vpn_plugin.ts";
 import { BroadcastFunction } from "./types.ts";
-import { VpnManager } from "@infrastructure/system/protection/vpn.ts";
+import { VpnManager } from "@infrastructure/system/protection/vpn/vpn.ts";
 
 export interface PluginFactoryDependencies {
   sidecarManager: SidecarManager;
