@@ -16,11 +16,15 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     console.log(`[FIREWALL] Shadow Banning IP: ${ip} via Traffic Control (tc)`);
     
     try {
+        // Dynamic Interface Detection: Get the default route interface
+        const ifaceRes = await this.executor.execute("bash", ["-c", "ip route get 8.8.8.8 | grep -oP 'dev \\K\\S+'"]);
+        const iface = ifaceRes.stdout.trim() || "eth0";
+
         // 1. Add qdisc if not exists, 2. Add filter for the specific IP
-        await this.executor.execute("tc", ["qdisc", "add", "dev", "eth0", "root", "handle", "1:", "htb", "default", "10"]).catch(() => {});
-        await this.executor.execute("tc", ["class", "add", "dev", "eth0", "parent", "1:", "classid", "1:1", "htb", "rate", "1kbps", "ceil", "1kbps"]).catch(() => {});
+        await this.executor.execute("tc", ["qdisc", "add", "dev", iface, "root", "handle", "1:", "htb", "default", "10"]).catch(() => {});
+        await this.executor.execute("tc", ["class", "add", "dev", iface, "parent", "1:", "classid", "1:1", "htb", "rate", "1kbps", "ceil", "1kbps"]).catch(() => {});
         
-        return await this.executor.execute("tc", ["filter", "add", "dev", "eth0", "protocol", "ip", "parent", "1:0", "prio", "1", "u32", "match", "ip", "dst", ip, "flowid", "1:1"]);
+        return await this.executor.execute("tc", ["filter", "add", "dev", iface, "protocol", "ip", "parent", "1:0", "prio", "1", "u32", "match", "ip", "dst", ip, "flowid", "1:1"]);
     } catch (e) {
         return { success: false, stdout: "", stderr: `TC failed: ${(e as Error).message}` };
     }

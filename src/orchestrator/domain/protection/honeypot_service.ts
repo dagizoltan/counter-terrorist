@@ -109,11 +109,11 @@ export class HoneypotService {
   }
 
   private async handleEvent(event: any) {
-    // New unified protocol: { success: true, data: { type: "PortAccess", ... } }
     const payload = event.data;
-    if (payload && payload.type === "PortAccess") {
+    if (!payload) return;
+
+    if (payload.type === "PortAccess") {
       const { port, source_ip } = payload;
-      
       this.hitCount++;
       this.emitEvent({ type: "PortAccess", source_ip, port });
 
@@ -128,6 +128,12 @@ export class HoneypotService {
       } else {
         this.firewall.blockIp(source_ip).catch(console.error);
       }
+    } else if (payload.type === "SessionData") {
+      const { port, source_ip, data } = payload;
+      this.logging.log(`[HONEYPOT] Session transcript from ${source_ip}:${port} -> ${data}`, SyslogSeverity.DEBUG);
+      
+      // Store session data in the audit chain for behavioral modeling
+      this.emitEvent({ type: "SessionData", source_ip, port, data });
     }
   }
 

@@ -10,9 +10,13 @@ export class AutopilotService {
     private auditService: AuditService
   ) {}
 
-  start() {
+  async start() {
     console.log("[AUTOPILOT] Self-Healing Engine engaged.");
     
+    // Phase 6: Subterranean Deception - Spawn a Lure Process
+    // This process looks like a sensitive vault proxy but is actually a sensor.
+    this.spawnLureProcess();
+
     this.eventBus.on("honeypot", (event) => this.evaluate(event));
     this.eventBus.on("fim", (event) => this.evaluate(event));
     this.eventBus.on("ebpf", (event) => this.evaluate(event));

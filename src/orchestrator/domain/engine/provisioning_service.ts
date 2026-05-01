@@ -73,16 +73,25 @@ export class ProvisioningService {
     }
 
     private async provisionLinux(ip: string) {
-        // 1. Identify the correct binary for the target (assuming same architecture for now)
+        // 1. Prepare Provisioning Payload
         const binaryPath = "./target/ubuntu_2606/build/counter-terrorist";
-        
-        // 2. Transfer binary via SCP (Requires SSH keys to be pre-shared or available)
-        await this.executor.execute("scp", ["-o", "StrictHostKeyChecking=no", binaryPath, `root@${ip}:/usr/local/bin/counter-terrorist`]);
-        
-        // 3. Start the orchestrator as a background daemon
-        // We inject the MESH_SECRET and API_TOKEN so it can join the mesh automatically
-        const startCmd = `ENVIRONMENT=production MESH_SECRET=${Deno.env.get("MESH_SECRET")} API_TOKEN=${Deno.env.get("API_TOKEN")} /usr/local/bin/counter-terrorist > /var/log/cts.log 2>&1 &`;
-        await this.executor.execute("ssh", ["-o", "StrictHostKeyChecking=no", `root@${ip}`, startCmd]);
+        const envPath = await Deno.makeTempFile();
+        const envContent = `ENVIRONMENT=production\nMESH_SECRET=${Deno.env.get("MESH_SECRET")}\nAPI_TOKEN=${Deno.env.get("API_TOKEN")}\n`;
+        await Deno.writeTextFile(envPath, envContent);
+
+        try {
+            // 2. Transfer Binary and Secure Env File
+            await this.executor.execute("scp", ["-o", "StrictHostKeyChecking=no", binaryPath, `root@${ip}:/usr/local/bin/counter-terrorist`]);
+            await this.executor.execute("scp", ["-o", "StrictHostKeyChecking=no", envPath, `root@${ip}:/etc/cts.env`]);
+            
+            // 3. Start Orchestrator using the secure env file (Secrets NOT in process list)
+            const startCmd = `chmod 600 /etc/cts.env && env $(cat /etc/cts.env | xargs) /usr/local/bin/counter-terrorist > /var/log/cts.log 2>&1 &`;
+            await this.executor.execute("ssh", ["-o", "StrictHostKeyChecking=no", `root@${ip}`, startCmd]);
+            
+            this.logging.log(`[PROVISIONING] Securely established node on ${ip}.`, SyslogSeverity.NOTICE);
+        } finally {
+            await Deno.remove(envPath);
+        }
     }
 
     private async provisionWindows(ip: string) {

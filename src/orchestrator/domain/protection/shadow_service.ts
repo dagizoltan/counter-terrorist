@@ -45,11 +45,7 @@ export class ShadowService {
             await this.executor.execute(redirectCmd, redirectArgs);
             this.logging.log(`[SHADOW] IPTables redirection active for ${sourceIp} -> port 2222`, SyslogSeverity.NOTICE);
 
-            // 3. Engage Attacker with Deceptive Listener (Honey Proxy)
-            // This ensures they don't get 'connection refused' and stay in the Mirror World
-            const honeyListener = "bash";
-            const honeyArgs = ["-c", "while true; do { echo -e 'Sovereign Node v1.0 - Authorized Personnel Only\\nPassword: '; read -s p; echo -e '\\nAccess Granted.'; /bin/bash; } | nc -lk -p 2222; done"];
-            this.executor.execute(honeyListener, honeyArgs).catch(() => {}); // Background daemon
+            await this.startHoneyListener(2222);
 
             const result = await this.executor.execute(cmd, args);
             

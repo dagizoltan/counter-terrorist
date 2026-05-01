@@ -31,6 +31,7 @@ enum Command {
 #[serde(tag = "type")]
 enum SidecarEvent {
     PortAccess { port: u16, source_ip: String },
+    SessionData { port: u16, source_ip: String, data: String },
     Status { message: String },
 }
 
@@ -91,18 +92,52 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
         match listener.accept().await {
             Ok((mut socket, addr)) => {
                 let ip = addr.ip().to_string();
-                emit_event(SidecarEvent::PortAccess {
-                    port,
-                    source_ip: ip.clone(),
-                });
+                let state_clone = Arc::clone(&state);
+                
+                tokio::spawn(async move {
+                    emit_event(SidecarEvent::PortAccess {
+                        port,
+                        source_ip: ip.clone(),
+                    });
 
-                let s = state.lock().await;
-                if let Some(ls) = s.get(&port) {
-                    if ls.sabotage_ips.contains(&ip) {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    // Check for sabotage
+                    {
+                        let s = state_clone.lock().await;
+                        if let Some(ls) = s.get(&port) {
+                            if ls.sabotage_ips.contains(&ip) {
+                                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                            }
+                        }
                     }
-                }
-                let _ = socket.shutdown().await;
+
+                    // INTERACTIVE ENGAGEMENT: Present a fake prompt and capture session data
+                    let _ = socket.write_all(b"Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ").await;
+                    
+                    let mut reader = BufReader::new(socket);
+                    let mut line = String::new();
+                    
+                    // Capture up to 5 lines of interaction for forensic modeling
+                    for _ in 0..5 {
+                        line.clear();
+                        if let Ok(n) = reader.read_line(&mut line).await {
+                            if n == 0 { break; }
+                            emit_event(SidecarEvent::SessionData {
+                                port,
+                                source_ip: ip.clone(),
+                                data: line.trim().to_string(),
+                            });
+                            // Mimic a "Password:" prompt after login
+                            if line.contains("login") || line.len() > 0 {
+                                let _ = reader.get_mut().write_all(b"password: ").await;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    let _ = reader.get_mut().write_all(b"\nAccess Denied. Connection logged.\n").await;
+                    let _ = reader.get_mut().shutdown().await;
+                });
             }
             Err(_) => continue,
         }
@@ -116,7 +151,7 @@ async fn main() {
     let mut line = String::new();
 
     emit_event(SidecarEvent::Status {
-        message: "Honeypot Sovereign Protocol V3 Active".to_string(),
+        message: "Honeypot Sovereign Protocol V3.1 (Interactive) Active".to_string(),
     });
 
     loop {

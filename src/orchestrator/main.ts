@@ -60,6 +60,32 @@ const meshManager = new MeshManager(meshAuthService, loggingService);
 setMeshManager(meshManager);
 await meshManager.init();
 
+// HARDWARE INTEGRITY ENFORCEMENT (Tier-5 Sovereign Check)
+const isHardwareSecure = await tpmManager.verifyIntegrity();
+if (!isHardwareSecure) {
+    console.error("[CRITICAL] HARDWARE INTEGRITY FAILURE DETECTED. PCR REGISTERS TAMPERED.");
+    await selfDestruct(kv, auditService);
+}
+
+async function selfDestruct(kv: Deno.Kv, audit: AuditService) {
+    console.error("[SOVEREIGN] Initiating self-destruct protocol...");
+    await audit.logEvent({ type: "EMERGENCY", message: "SELF-DESTRUCT TRIGGERED DUE TO HARDWARE TAMPER." });
+    
+    // Wipe all KV data
+    const iter = kv.list({ prefix: [] });
+    for await (const entry of iter) {
+        await kv.delete(entry.key);
+    }
+    
+    // Wipe volume files
+    try {
+        await Deno.remove("./volume", { recursive: true });
+    } catch {}
+    
+    console.error("[SOVEREIGN] Local data purged. Halting execution.");
+    Deno.exit(1);
+}
+
 // ── Phase 3: Initialize Broadcaster BEFORE any service calls broadcast() ──
 initBroadcaster({
   notificationService,
