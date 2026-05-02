@@ -1,9 +1,0 @@
-Package: counter-terrorist
-Version: 0.1.0
-Section: security
-Priority: optional
-Architecture: amd64
-Maintainer: Security Architect <architect@example.com>
-Description: High-performance security orchestrator for Ubuntu.
- Provides a unified dashboard for monitoring system health, managing firewalls and VPNs, and conducting automated security audits.
- Depends: ufw, wireguard, clamav, libcap2-bin, openssl
