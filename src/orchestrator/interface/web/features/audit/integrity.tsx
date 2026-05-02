@@ -1,25 +1,26 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
+/**
+ * Audit Integrity Page
+ * Decentralized audit verification view.
+ */
 export default function AuditIntegrity({ status, csrfToken }: { status?: any, csrfToken?: string }) {
   return (
     <Layout title="Mesh Integrity // Autonomous Defense Mesh">
-      <div class="p-8 max-w-7xl mx-auto">
-        <header class="mb-12">
-          <div class="flex items-center gap-3 mb-2">
-            <div class="h-[1px] w-8 bg-blue-500"></div>
-            <span class="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500">System Security</span>
-          </div>
-          <h1 class="text-5xl font-black tracking-tighter text-white mb-4 italic">
+      <div style="max-width:1200px; margin:0 auto;">
+        <header style="margin-bottom:3rem;">
+          <div class="section-header">System Security</div>
+          <h1 style="font-size:3.5rem; color:white; margin:0 0 1rem 0; font-style:italic;">
             MESH_INTEGRITY
           </h1>
-          <p class="text-slate-500 max-w-2xl font-medium leading-relaxed">
+          <p style="font-size:14px; font-weight:500; color:var(--text-secondary); line-height:1.6; max-width:800px;">
             Decentralized audit verification. The defense mesh uses a tamper-evident SHA-256 hash chain to ensure all security events are immutable and verified across the cluster.
           </p>
         </header>
 
-        <div id="integrity-island-container">
-           {/* IntegrityIsland.js will be hydrated here */}
+        <div id="integrity-island-container" class="glass-panel" style="min-height:400px; display:flex; align-items:center; justify-content:center;">
+           <span class="mono-label pulse" style="opacity:0.3;">Initializing_Integrity_Chain_Validator...</span>
         </div>
       </div>
 
@@ -29,6 +30,7 @@ export default function AuditIntegrity({ status, csrfToken }: { status?: any, cs
         
         const container = document.getElementById('integrity-island-container');
         if (container) {
+          container.innerHTML = ''; // Clear loader
           render(h(IntegrityIsland), container);
         }
       `}} />

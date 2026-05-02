@@ -1,5 +1,0 @@
-# CTS Sovereign Orchestrator - Passwordless Sudo for Security Agents
-# Created by Antigravity on 2026-05-01
-
-# User dagizoltan can run these specific binaries as root without a password
-dagizoltan ALL=(ALL) NOPASSWD: /usr/sbin/ufw, /usr/sbin/tc, /usr/sbin/iptables, /usr/bin/wg-quick, /usr/bin/wg, /usr/bin/systemctl, /usr/bin/gcore, /usr/bin/unshare, /usr/bin/clamscan, /usr/bin/tpm2_sign, /usr/bin/tpm2_nvdefine, /usr/bin/tpm2_nvwrite, /usr/bin/tpm2_nvread, /usr/bin/tpm2_pcrread, /usr/bin/tpm2_hash

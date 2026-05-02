@@ -4,3 +4,17 @@ node_modules/
 volume/
 .data/
 target/
+.aws/
+.kube/
+.ssh/
+secrets/
+*.xlsx
+*.db
+*.db-shm
+*.db-wal
+deployment_secrets.env
+cts_sudoers
+data/
+.env
+!.env.example
+*.log

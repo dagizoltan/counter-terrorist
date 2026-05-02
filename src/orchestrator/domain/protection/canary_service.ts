@@ -83,7 +83,10 @@ export class CanaryService {
      * Deploys deception artifacts by creating master files and hardlinking them.
      */
     async deploy() {
-        // Ensure master directory exists
+        // Ensure master directory exists and is clean
+        try {
+            await Deno.remove(this.MASTER_DIR, { recursive: true });
+        } catch { /* Directory might not exist */ }
         await Deno.mkdir(this.MASTER_DIR, { recursive: true }).catch(() => {});
 
         for (const token of this.tokens) {

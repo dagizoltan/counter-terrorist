@@ -1,6 +1,10 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
+/**
+ * Threats Page
+ * Global OSINT ingestion and tactical intelligence.
+ */
 export const ThreatsPage = (props: { status: any, csrfToken?: string }) => {
   return (
     <Layout title="Threat Intelligence Index" islandPaths={[
@@ -9,59 +13,64 @@ export const ThreatsPage = (props: { status: any, csrfToken?: string }) => {
       '/components/islands/ThreatIntelList.js',
       '/components/islands/NewsFeed.js'
     ]} csrfToken={props.csrfToken}>
-      <div class="mb-12">
-        <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Threat_Intelligence_Index</h2>
-        <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Global OSINT Ingestion // Reputation-Weighted Attribution // Tactical_Signals</p>
+      <div style="margin-bottom:3rem;">
+        <div style="display:flex; align-items:center; gap:1.5rem;">
+          <div style="width:8px; height:40px; background:var(--cyber-orange); border-radius:4px; box-shadow:0 0 20px var(--cyber-orange-glow);"></div>
+          <div>
+            <h1 style="font-size:2.5rem; margin:0;">THREAT_INTELLIGENCE_INDEX</h1>
+            <p class="mono-label" style="color:var(--text-muted); margin-top:0.25rem;">Global OSINT Ingestion // Reputation-Weighted Attribution // Tactical_Signals</p>
+          </div>
+        </div>
       </div>
 
-      <div class="grid grid-cols-1 lg:grid-cols-4 gap-8 mb-16">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(400px, 1fr)); gap:2rem; margin-bottom:2rem;">
         {/* THREAT STREAM */}
-        <div class="lg:col-span-2 glass-panel rounded-xl border border-white/5 p-8 flex flex-col">
-           <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-              <h3 class="text-xs font-black uppercase tracking-[0.2em] text-white/60">Global_Threat_Enforcement_Stream</h3>
-              <div class="flex items-center gap-2">
-                 <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
-                 <span class="text-[9px] font-black text-emerald-500 uppercase tracking-widest italic">Weighted_Reputation_Active</span>
+        <div style="grid-column: span 2;" class="glass-panel">
+           <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:1rem; border-bottom:1px solid var(--border-color); margin-bottom:2rem;">
+              <h3 class="mono-label" style="opacity:0.6;">Global_Threat_Enforcement_Stream</h3>
+              <div style="display:flex; align-items:center; gap:0.5rem;">
+                 <div class="status-dot active pulse"></div>
+                 <span class="mono-label" style="color:var(--cyber-green); font-style:italic;">Weighted_Reputation_Active</span>
               </div>
            </div>
-           <div class="flex-grow overflow-y-auto custom-scrollbar pr-2 max-h-[600px]">
+           <div style="overflow-y:auto; max-height:600px;" class="log-stream">
               <threat-intel-list></threat-intel-list>
            </div>
         </div>
 
         {/* NEWS FEED */}
-        <div class="glass-panel rounded-xl border border-white/5 p-8 flex flex-col">
-           <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-              <h3 class="text-xs font-black uppercase tracking-[0.2em] text-white/60">Tactical_News_Signals</h3>
+        <div class="glass-panel">
+           <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:1rem; border-bottom:1px solid var(--border-color); margin-bottom:2rem;">
+              <h3 class="mono-label" style="opacity:0.6;">Tactical_News_Signals</h3>
            </div>
-           <div class="flex-grow overflow-y-auto custom-scrollbar pr-2 max-h-[600px]">
+           <div style="overflow-y:auto; max-height:600px;" class="log-stream">
               <news-feed></news-feed>
            </div>
         </div>
 
         {/* GEOLOCATION & ANALYTICS */}
-        <div class="space-y-8">
-           <div class="glass-panel rounded-xl border border-white/5 p-8 relative overflow-hidden h-[300px]">
-              <div class="flex justify-between items-center mb-8">
-                 <h3 class="text-xs font-black uppercase tracking-[0.2em] text-white/60">Geospatial_Map</h3>
+        <div style="display:flex; flex-direction:column; gap:2rem;">
+           <div class="glass-panel" style="height:300px; padding:0; overflow:hidden; position:relative;">
+              <div style="padding:1.5rem; border-bottom:1px solid var(--border-color); position:relative; z-index:1; background:rgba(0,0,0,0.4);">
+                 <h3 class="mono-label" style="opacity:0.6;">Geospatial_Map</h3>
               </div>
               <threat-map></threat-map>
            </div>
 
-           <div class="glass-panel rounded-xl border border-white/5 p-8">
-              <h3 class="text-xs font-black uppercase tracking-[0.2em] text-white/60 mb-8 pb-4 border-b border-white/5">Curated_Providers</h3>
-              <div class="space-y-4">
+           <div class="glass-panel">
+              <h3 class="mono-label" style="opacity:0.6; padding-bottom:1rem; border-bottom:1px solid var(--border-color); margin-bottom:1.5rem;">Curated_Providers</h3>
+              <div style="display:flex; flex-direction:column; gap:1rem;">
                  {[
                    { name: 'Abuse.ch', weight: 'CRITICAL', score: 95 },
                    { name: 'Spamhaus', weight: 'MAX', score: 98 },
                    { name: 'Talos', weight: 'HIGH', score: 90 },
                    { name: 'FireHOL', weight: 'MED', score: 80 }
                  ].map(prov => (
-                   <div class="flex justify-between items-center">
-                      <span class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">{prov.name}</span>
-                      <div class="flex items-center gap-3">
-                         <span class="text-[9px] font-mono text-white/60">{prov.score}%</span>
-                         <span class="text-[8px] font-black text-cyber uppercase">${prov.weight}</span>
+                   <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <span class="mono-label" style="opacity:0.5;">{prov.name}</span>
+                      <div style="display:flex; align-items:center; gap:0.75rem;">
+                         <span class="mono-label" style="color:white; opacity:0.6;">{prov.score}%</span>
+                         <span class="mono-label" style="color:var(--cyber-blue);">{prov.weight}</span>
                       </div>
                    </div>
                  ))}

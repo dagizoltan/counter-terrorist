@@ -1,73 +1,90 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "../../components/Layout.tsx";
 
+/**
+ * Network Page
+ * Perimeter access logs.
+ */
 export const NetworkPage = () => {
   return (
     <Layout title="Network Access Logs // Perimeter Audit">
-      <div class="mb-12">
-        <h1 class="text-4xl font-black tracking-tighter uppercase mb-2 flex items-center gap-4">
-          <span class="w-2 h-10 bg-cyber rounded-full"></span>
-          NETWORK_ACCESS_LOGS
-        </h1>
-        <p class="text-slate-500 text-xs font-bold tracking-[0.4em] uppercase ml-6">Granular Traffic Telemetry // Ingress & Egress // Global_Perimeter_Audit</p>
+      <div style="margin-bottom:3rem;">
+        <div style="display:flex; align-items:center; gap:1.5rem;">
+          <div style="width:8px; height:40px; background:var(--cyber-blue); border-radius:4px; box-shadow:0 0 20px var(--cyber-blue-glow);"></div>
+          <div>
+            <h1 style="font-size:2.5rem; margin:0;">NETWORK_ACCESS_LOGS</h1>
+            <p class="mono-label" style="color:var(--text-muted); margin-top:0.25rem;">Granular Traffic Telemetry // Ingress & Egress // Global_Perimeter_Audit</p>
+          </div>
+        </div>
       </div>
 
-      <div class="mb-12">
-        <h2 class="text-[11px] font-black uppercase tracking-[0.5em] text-slate-500 mb-6 flex items-center gap-3">
-          <span class="w-8 h-px bg-slate-800"></span>
-          01_PERIMETER_TRAFFIC_TELEMETRY
-        </h2>
-        <div class="glass-panel overflow-hidden rounded-3xl border border-white/5 bg-black/40 group hover:border-white/10 transition-all shadow-2xl">
-           <div class="overflow-x-auto custom-scrollbar">
-              <table class="w-full text-left border-collapse">
-                 <thead class="bg-white/5 border-b border-white/10">
+      <div style="margin-bottom:3rem;">
+        <h2 class="section-header">01_PERIMETER_TRAFFIC_TELEMETRY</h2>
+        <div class="glass-panel" style="padding:0; overflow:hidden;">
+            <div style="overflow-x:auto;">
+              <table style="width:100%; text-align:left; border-collapse:collapse;">
+                 <thead style="background:rgba(255,255,255,0.05); border-bottom:1px solid var(--border-color);">
                     <tr>
-                       <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Timestamp</th>
-                       <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Direction</th>
-                       <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Source</th>
-                       <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Destination</th>
-                       <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Protocol</th>
-                       <th class="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Action</th>
+                       <th style="padding:1.25rem 2rem;" class="mono-label">Timestamp</th>
+                       <th style="padding:1.25rem 2rem;" class="mono-label">Direction</th>
+                       <th style="padding:1.25rem 2rem;" class="mono-label">Source</th>
+                       <th style="padding:1.25rem 2rem;" class="mono-label">Destination</th>
+                       <th style="padding:1.25rem 2rem;" class="mono-label">Protocol</th>
+                       <th style="padding:1.25rem 2rem;" class="mono-label">Action</th>
                     </tr>
                  </thead>
                  <tbody id="network-logs-body">
-                    <tr class="animate-pulse">
-                       <td colspan="6" class="px-8 py-20 text-center text-[11px] font-black text-slate-600 uppercase tracking-widest italic opacity-50">
+                    <tr>
+                       <td colspan="6" style="padding:5rem; text-align:center; font-style:italic;" class="mono-label pulse">
                           Accessing_Network_Forensic_Buffer...
                        </td>
                     </tr>
                  </tbody>
               </table>
-           </div>
-           <div class="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyber/20 to-transparent"></div>
+            </div>
         </div>
       </div>
 
       <script dangerouslySetInnerHTML={{ __html: `
         async function loadNetworkLogs() {
-          const res = await fetch('/api/compliance/network');
-          const logs = await res.json();
-          const body = document.getElementById('network-logs-body');
-          
-          if (logs.length === 0) {
-            body.innerHTML = '<tr><td colspan="6" class="px-8 py-20 text-center text-[11px] font-black text-slate-600 uppercase tracking-widest italic opacity-50">No network traffic events recorded.</td></tr>';
-            return;
-          }
+          try {
+            const res = await fetch('/api/compliance/network');
+            const logs = await res.json();
+            const body = document.getElementById('network-logs-body');
+            if (!body) return;
+            
+            if (!logs || logs.length === 0) {
+              body.innerHTML = '<tr><td colspan="6" style="padding:5rem; text-align:center; opacity:0.3;" class="mono-label">No network traffic events recorded.</td></tr>';
+              return;
+            }
 
-          body.innerHTML = logs.map(l => \`
-            <tr class="border-b border-white/5 hover:bg-white/[0.03] transition-all group/row">
-              <td class="px-8 py-5 font-mono text-[11px] text-slate-500 group-hover/row:text-slate-300 transition-colors">\${new Date(l.timestamp).toLocaleTimeString()}</td>
-              <td class="px-8 py-5">
-                 <span class="px-3 py-1 rounded-full border \${l.direction === 'INBOUND' ? 'bg-cyber/10 border-cyber/30 text-cyber' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'} text-[9px] font-black uppercase tracking-widest shadow-inner shadow-black/20">\${l.direction}</span>
-              </td>
-              <td class="px-8 py-5 font-mono text-[11px] text-white/80 tracking-tight">\${l.source}</td>
-              <td class="px-8 py-5 font-mono text-[11px] text-white/80 tracking-tight">\${l.destination}</td>
-              <td class="px-8 py-5 font-mono text-[11px] text-slate-500 uppercase tracking-widest">\${l.protocol}</td>
-              <td class="px-8 py-5">
-                 <span class="px-3 py-1 rounded-full border \${l.action === 'BLOCK' ? 'bg-danger/10 border-danger/30 text-danger' : 'bg-success/10 border-success/30 text-success'} text-[9px] font-black uppercase tracking-widest shadow-inner shadow-black/20">\${l.action}</span>
-              </td>
-            </tr>
-          \`).join('');
+            body.innerHTML = logs.map(l => {
+              const directionStyle = l.direction === 'INBOUND' 
+                ? 'background:var(--cyber-blue-glow); color:var(--cyber-blue); border:1px solid rgba(14,165,233,0.3);' 
+                : 'background:var(--cyber-green-glow); color:var(--cyber-green); border:1px solid rgba(16,185,129,0.3);';
+              
+              const actionStyle = l.action === 'BLOCK' || l.action === 'DENY'
+                ? 'background:var(--cyber-red-glow); color:var(--cyber-red); border:1px solid rgba(239,68,68,0.3);'
+                : 'background:var(--cyber-green-glow); color:var(--cyber-green); border:1px solid rgba(16,185,129,0.3);';
+
+              return \`
+                <tr style="border-bottom:1px solid var(--border-color); transition:background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.02)'" onmouseout="this.style.background='transparent'">
+                  <td style="padding:1.25rem 2rem;" class="mono-label">\${new Date(l.timestamp).toLocaleTimeString()}</td>
+                  <td style="padding:1.25rem 2rem;">
+                     <span style="padding:0.25rem 0.75rem; border-radius:2rem; font-size:9px; font-weight:900; \${directionStyle}">\${l.direction}</span>
+                  </td>
+                  <td style="padding:1.25rem 2rem;" class="mono-label" style="color:white; opacity:0.8;">\${l.source}</td>
+                  <td style="padding:1.25rem 2rem;" class="mono-label" style="color:white; opacity:0.8;">\${l.destination}</td>
+                  <td style="padding:1.25rem 2rem;" class="mono-label">\${l.protocol}</td>
+                  <td style="padding:1.25rem 2rem;">
+                     <span style="padding:0.25rem 0.75rem; border-radius:2rem; font-size:9px; font-weight:900; \${actionStyle}">\${l.action}</span>
+                  </td>
+                </tr>
+              \`;
+            }).join('');
+          } catch (e) {
+            console.error("Failed to load network logs:", e);
+          }
         }
         loadNetworkLogs();
         setInterval(loadNetworkLogs, 10000);

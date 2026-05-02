@@ -33,6 +33,14 @@ export { PlaybookService } from "./engine/playbook_service.ts";
 export { AutopilotService } from "./engine/autopilot_service.ts";
 export { ChaosEngine } from "./engine/chaos_engine.ts";
 export { pluginManager } from "./engine/plugin_manager.ts";
+export { GovernanceService } from "./engine/governance_service.ts";
+export { CovertChannelService } from "./engine/covert_service.ts";
+
+// Analysis Domain Additions
+export { LedgerService } from "./analysis/ledger_service.ts";
+
+// Protection Domain Additions
+export { ShadowService } from "./protection/shadow_service.ts";
 
 // Types
 export type { Role } from "./identity/api_keys.ts";
