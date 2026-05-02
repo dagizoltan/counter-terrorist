@@ -4,6 +4,22 @@ import { ServiceContainer } from "@core/container.ts";
 export function createComplianceApi(services: ServiceContainer) {
     const router = new Hono();
 
+    /**
+     * Returns a real-time integrity snapshot for auditor review.
+     */
+    router.get("/snapshot", async (c) => {
+        const snapshot = await services.compliance.generateSnapshot();
+        return c.json(snapshot);
+    });
+
+    /**
+     * Exports a signed compliance bundle.
+     */
+    router.get("/export", async (c) => {
+        const bundle = await services.compliance.exportSignedBundle();
+        return c.json(bundle);
+    });
+
     router.get("/logs", async (c) => {
         try {
             const logs = await Deno.readTextFile("./volume/logs/orchestrator.log");
@@ -19,7 +35,7 @@ export function createComplianceApi(services: ServiceContainer) {
     });
 
     router.get("/audit", async (c) => {
-        const events = await services.audit.getRecentEvents(200);
+        const events = await services.audit.verifyChain(500); // verify last 500
         return c.json(events);
     });
 

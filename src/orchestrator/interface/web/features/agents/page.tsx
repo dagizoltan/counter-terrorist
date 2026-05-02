@@ -2,8 +2,20 @@ import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { ApplicationStatus } from "@core/ports.ts";
 
+/**
+ * Atomic Agents Page
+ * Hardened agent management with zero-class dependency.
+ */
 export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: string }) => {
   const { plugins } = props.status;
+
+  const styles = {
+    card: "padding:2rem; border-radius:1.5rem; background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.05); position:relative; overflow:hidden;",
+    headerLine: "width:8px; height:40px; background:#0ea5e9; border-radius:4px; box-shadow:0 0 20px rgba(14,165,233,0.3);",
+    badge: "padding:0.4rem 0.75rem; border-radius:2rem; font-size:9px; font-weight:900; text-transform:uppercase; letter-spacing:0.1em;",
+    grid: "display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:2rem;",
+    label: "font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:0.5em; color:rgba(148,163,184,0.4); display:flex; align-items:center; gap:1rem; margin-bottom:2rem;"
+  };
 
   return (
     <Layout title="Agents" islandPaths={[
@@ -11,94 +23,93 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
       '/components/islands/MetricsHydrator.js',
       '/components/islands/SupplyChainIsland.js'
     ]} csrfToken={props.csrfToken}>
-      <div class="mb-12">
-        <h2 class="text-4xl font-black tracking-tighter uppercase mb-2">Defense Agents</h2>
-        <p class="text-slate-500 text-xs font-medium tracking-widest uppercase">Orchestrated Security Sidecars // Active Enforcers</p>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-        {plugins.map((agent) => (
-          <div class="bg-black/40 border border-white/5 hover:border-blue-500/30 transition-all p-1 group relative">
-            {/* Corner Accents */}
-            <div class="absolute top-0 left-0 w-4 h-4 border-t border-l border-white/20 group-hover:border-blue-500 transition-all"></div>
-            <div class="absolute bottom-0 right-0 w-4 h-4 border-b border-r border-white/20 group-hover:border-blue-500 transition-all"></div>
-            
-            <div class="p-6">
-              <div class="flex justify-between items-center mb-6">
-                <div class="flex items-center gap-3">
-                  <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-                  <h3 class="text-lg font-black uppercase tracking-tight text-white/90">{agent.name}</h3>
-                </div>
-                <span class={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${agent.status === 'ACTIVE' || agent.status === 'RUNNING' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
-                  {agent.status}
-                </span>
-              </div>
-
-              {/* DYNAMIC WIDGET AREA */}
-              <div class="bg-white/[0.02] border border-white/5 rounded p-4 mb-6">
-                 <agent-card-island agent={agent.name}></agent-card-island>
-              </div>
-
-              <p class="text-[9px] text-slate-500 font-bold uppercase leading-relaxed mb-6 h-8 overflow-hidden">
-                {agent.description || "Active security sidecar providing autonomous enforcement and real-time mesh telemetry."}
-              </p>
-
-              <div class="flex justify-between items-center pt-4 border-t border-white/5">
-                <a href={`/agents/${agent.name}`} class="text-[9px] font-black uppercase tracking-widest text-blue-500 hover:text-white transition-all flex items-center gap-1">
-                  <span>Open_Console</span>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
-                </a>
-                <div class="flex gap-3">
-                   <button class="text-slate-600 hover:text-white transition-colors" title="Restart Agent">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
-                   </button>
-                   <button class="text-slate-600 hover:text-white transition-colors" title="View Config">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                   </button>
-                </div>
-              </div>
-            </div>
+      
+      <div style="margin-bottom:3rem;">
+        <div style="display:flex; align-items:center; gap:1.5rem;">
+          <div style={styles.headerLine}></div>
+          <div>
+            <h1 style="font-size:2.5rem; font-weight:900; letter-spacing:-0.05em; text-transform:uppercase; margin:0;">DEFENSE_AGENTS</h1>
+            <p style="font-size:10px; font-weight:900; color:rgba(148,163,184,0.5); text-transform:uppercase; letter-spacing:0.4em; margin-top:0.25rem;">Orchestrated Security Sidecars // Active Enforcers // Mesh_Intelligence</p>
           </div>
-        ))}
-        
+        </div>
       </div>
 
-      {/* HARDENING MATRIX ROW */}
-      <div class="mb-6">
-        <h3 class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-4">Hardening Matrix // Kernel Parameters</h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-           {[
-             { id: 'stat-kernel-aslr', label: 'ASLR_PROTECTION', desc: 'Address Space Layout Randomization' },
-             { id: 'stat-kernel-syncookies', label: 'SYN_COOKIES', desc: 'TCP flood mitigation' },
-             { id: 'stat-kernel-rpfilter', label: 'RP_FILTER', desc: 'Source address validation' },
-             { id: 'stat-anon-mode', label: 'ANONYMIZATION', desc: 'Dynamic Stealth Provider' },
-             { id: 'stat-audit-chain', label: 'AUDIT_INTEGRITY', desc: 'Blockchain-signed logs' }
-           ].map(item => (
-             <div class="bg-white/5 border border-white/5 p-6 hover:bg-white/[0.07] transition-all">
-                <div class="flex justify-between items-start mb-4">
-                  <span class="text-[9px] font-black text-slate-500 tracking-widest uppercase">{item.label}</span>
-                  <div class="w-2 h-2 bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+      <div style="margin-bottom:4rem;">
+        <h2 style={styles.label}>
+          <div style="width:32px; height:1px; background:rgba(255,255,255,0.1);"></div>
+          01_ENDPOINT_REGISTRY
+        </h2>
+        <div style={styles.grid}>
+          {plugins.map((agent) => (
+            <div style={styles.card}>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2rem;">
+                  <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <div style="width:10px; height:10px; border-radius:50%; background:#0ea5e9; box-shadow:0 0 10px #0ea5e9;"></div>
+                    <h3 style="font-size:1.25rem; font-weight:900; color:white; margin:0; text-transform:uppercase; italic;">\${agent.name}</h3>
+                  </div>
+                  <div style={styles.badge + (agent.status === 'ACTIVE' || agent.status === 'RUNNING' ? ' background:rgba(16,185,129,0.1); color:#10b981;' : ' background:rgba(239,68,68,0.1); color:#ef4444;')}>
+                    {agent.status}
+                  </div>
                 </div>
-                <div id={item.id} class="text-xl font-black text-white mb-2">LOADING...</div>
-                <p class="text-[8px] text-slate-600 font-bold uppercase">{item.desc}</p>
+
+                <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.05); border-radius:1.5rem; padding:1.5rem; margin-bottom:1.5rem;">
+                   <agent-card-island agent={agent.name}></agent-card-island>
+                </div>
+
+                <p style="font-size:10px; color:rgba(148,163,184,0.6); font-weight:900; text-transform:uppercase; margin-bottom:2rem; line-height:1.5;">
+                  {agent.description || "Active security sidecar providing autonomous enforcement and real-time mesh telemetry."}
+                </p>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(255,255,255,0.05); padding-top:1.5rem;">
+                  <a href={`/agents/${agent.name}`} style="font-size:10px; font-weight:900; color:#0ea5e9; text-decoration:none; text-transform:uppercase; letter-spacing:0.1em;">Open_Console</a>
+                  <div style="display:flex; gap:1rem;">
+                      <div style="width:32px; height:32px; background:rgba(255,255,255,0.05); border-radius:0.5rem; display:flex; align-items:center; justify-content:center; color:#94a3b8; cursor:pointer;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </div>
+                  </div>
+                </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* HARDENING MATRIX */}
+      <div style="margin-bottom:4rem;">
+        <h2 style={styles.label}>
+          <div style="width:32px; height:1px; background:rgba(255,255,255,0.1);"></div>
+          02_HARDENING_MATRIX
+        </h2>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1.5rem;">
+           {[
+             { id: 'stat-kernel-aslr', label: 'ASLR_PROTECTION', desc: 'Layout Randomization' },
+             { id: 'stat-kernel-syncookies', label: 'SYN_COOKIES', desc: 'Flood Mitigation' },
+             { id: 'stat-kernel-rpfilter', label: 'RP_FILTER', desc: 'Source Validation' },
+             { id: 'stat-anon-mode', label: 'ANONYMIZATION', desc: 'Stealth Provider' },
+             { id: 'stat-audit-chain', label: 'AUDIT_INTEGRITY', desc: 'Immutable Logs' }
+           ].map(item => (
+             <div style={styles.card + " padding:1.5rem;"}>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                  <span style="font-size:8px; font-weight:900; color:rgba(148,163,184,0.4); text-transform:uppercase; letter-spacing:0.1em;">{item.label}</span>
+                  <div style="width:6px; height:6px; background:#10b981; border-radius:50%;"></div>
+                </div>
+                <div id={item.id} style="font-size:1.25rem; font-weight:900; color:white; font-style:italic; margin-bottom:0.25rem;">LOADING...</div>
+                <p style="font-size:8px; font-weight:900; color:rgba(148,163,184,0.3); text-transform:uppercase; margin:0;">{item.desc}</p>
              </div>
            ))}
         </div>
       </div>
-      {/* SUPPLY CHAIN INTEGRITY */}
-      <div class="mt-16">
-        <div id="supply-chain-container"></div>
+
+      <div style="margin-top:4rem;">
+        <h2 style={styles.label}>
+          <div style="width:32px; height:1px; background:rgba(255,255,255,0.1);"></div>
+          03_SUPPLY_CHAIN_INTEGRITY
+        </h2>
+        <div id="supply-chain-container" style="background:rgba(15,23,42,0.4); border-radius:2rem; border:1px solid rgba(255,255,255,0.05); padding:3rem; text-align:center;">
+            <div style="font-size:11px; font-weight:900; text-transform:uppercase; color:rgba(148,163,184,0.3);">Initializing_Supply_Chain_Validator...</div>
+        </div>
       </div>
 
       <metrics-hydrator></metrics-hydrator>
-
-      <script type="module" dangerouslySetInnerHTML={{ __html: `
-        import { render } from 'preact';
-        import SupplyChainIsland from '/components/islands/SupplyChainIsland.js';
-        
-        const container = document.getElementById('supply-chain-container');
-        if (container) render(<SupplyChainIsland />, container);
-      `}} />
     </Layout>
   );
 };

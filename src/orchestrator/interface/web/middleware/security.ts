@@ -4,6 +4,7 @@ import { Role } from "@domain/identity/api_keys.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
+import { ActorContext } from "@domain/analysis/audit.ts";
 
 /**
  * Security Middleware Factory
@@ -14,18 +15,61 @@ export class SecurityMiddleware {
 
   constructor(private services: ServiceContainer, private masterToken: string) {}
 
+  /**
+   * Enforces hardened security headers globally.
+   */
+  public hardenedHeaders() {
+    return async (c: Context, next: Next) => {
+      c.res.headers.set(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+      );
+      c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+      c.res.headers.set("X-Frame-Options", "DENY");
+      c.res.headers.set("X-Content-Type-Options", "nosniff");
+      c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      c.res.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+      c.res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+      await next();
+    };
+  }
+
+  /**
+   * Helper to extract actor context for audit logging.
+   */
+  public getActor(c: Context): ActorContext {
+    const session = c.get("session");
+    const ip = c.req.header("X-Forwarded-For") || "unknown";
+    const userAgent = c.req.header("User-Agent");
+
+    if (session) {
+      return {
+        id: session.name || session.id,
+        role: session.role || "viewer",
+        ip,
+        userAgent
+      };
+    }
+
+    const role = c.get("role") || "anonymous";
+    return {
+      id: role === "admin" ? "MASTER_TOKEN" : "ANONYMOUS",
+      role,
+      ip,
+      userAgent
+    };
+  }
+
   public auth() {
     return async (c: Context, next: Next) => {
       const path = c.req.path;
       const ip = c.req.header("X-Forwarded-For") || "unknown";
 
-      // 0. Threat Intel Blacklist Check (Software Firewall Fallback)
       if (this.services.threatIntel.getBlacklist().has(ip)) {
         loggingService.log(`[SECURITY] REJECTED: Request from blacklisted IP ${ip} to ${path}`, SyslogSeverity.CRITICAL);
         return c.json({ error: "Access Denied: Malicious IP Detected", code: "BLACK_LIST_REJECT" }, 403);
       }
       
-      // 1. Rate Limiting for API routes
       if (path.startsWith("/api/")) {
         const now = Date.now();
         const limit = this.apiRateLimits.get(ip) || { count: 0, resetAt: now + 60000 };
@@ -38,13 +82,12 @@ export class SecurityMiddleware {
         }
         this.apiRateLimits.set(ip, limit);
 
-        if (limit.count > 100) { // 100 req/min
+        if (limit.count > 100) {
            loggingService.log(`[SECURITY] Rate limit exceeded for IP: ${ip}`, SyslogSeverity.WARNING);
            return c.json({ error: "Too Many Requests", code: "RATE_LIMIT_EXCEEDED" }, 429);
         }
       }
 
-      // 2. Skip auth for public routes and essential static assets
       if (path === "/login" || path === "/logout") return next();
       
       if (path.startsWith("/features/") || path.startsWith("/components/")) {
@@ -52,7 +95,6 @@ export class SecurityMiddleware {
         if (isStaticAsset) return next();
       }
 
-      // 3. Session Cookie Auth
       const sessionId = getCookie(c, "session_token");
       if (sessionId) {
         const result = await this.services.sessions.validateSession(sessionId);
@@ -62,28 +104,17 @@ export class SecurityMiddleware {
           c.set("session", session);
           c.set("csrfToken", session.csrfToken);
           
-          // CSRF enforcement for state-changing methods
           if (["POST", "DELETE", "PUT", "PATCH"].includes(c.req.method)) {
             const csrfHeader = c.req.header("X-CT-Token");
             if (!csrfHeader || !session.csrfToken || !(await secureCompare(csrfHeader, session.csrfToken))) {
-              loggingService.log(`[SECURITY] CSRF blocked for ${c.req.path}. Expected: ${session.csrfToken?.slice(0, 8)}, Got: ${csrfHeader?.slice(0, 8)}`, SyslogSeverity.WARNING);
+              loggingService.log(`[SECURITY] CSRF blocked for ${c.req.path}`, SyslogSeverity.WARNING);
               return c.json({ error: "CSRF Validation Failed" }, 403);
             }
           }
           return next();
-        } else {
-          loggingService.log(`[SECURITY] Invalid or expired session ID: ${sessionId.slice(0, 8)}…`, SyslogSeverity.NOTICE);
-        }
-      } else {
-        if (!path.startsWith("/api/")) {
-           // Silently ignore missing cookies for public assets, but log for pages
-           if (path === "/" || path.endsWith(".html")) {
-             loggingService.log(`[SECURITY] No session cookie found for page: ${path}`, SyslogSeverity.NOTICE);
-           }
         }
       }
 
-      // 4. Bearer Token (Master)
       const authHeader = c.req.header("Authorization");
       if (authHeader?.startsWith("Bearer ")) {
         const token = authHeader.substring(7).trim();
@@ -93,7 +124,6 @@ export class SecurityMiddleware {
         }
       }
 
-      // 5. API Key Header (Scoped)
       const apiKey = c.req.header("X-Api-Key");
       if (apiKey) {
         const result = await this.services.apiKeys.validateApiKey(apiKey);
@@ -103,24 +133,6 @@ export class SecurityMiddleware {
         }
       }
 
-      // 6. Query Parameter Token (Helper for WebSockets/Handshakes)
-      const queryToken = c.req.query("token");
-      if (queryToken) {
-          const masterResult = await import("@infrastructure/system/validation.ts").then(m => 
-              m.secureCompare(queryToken, this.masterToken)
-          );
-          if (masterResult) {
-              c.set("role", "admin");
-              return next();
-          }
-          const result = await this.services.apiKeys.validateApiKey(queryToken);
-          if (result.success && result.data) {
-              c.set("role", result.data);
-              return next();
-          }
-      }
-
-      // 7. Fallback
       if (path.startsWith("/api/")) {
         return c.json({ error: "Unauthorized" }, 401);
       }
@@ -128,9 +140,6 @@ export class SecurityMiddleware {
     };
   }
 
-  /**
-   * Role-Based Access Control Middleware
-   */
   public requireRole(...allowedRoles: Role[]) {
     return async (c: Context, next: Next) => {
       const role = c.get("role") as Role;
@@ -142,19 +151,13 @@ export class SecurityMiddleware {
     };
   }
 
-  /**
-   * Mesh-Specific PSK Authentication
-   */
   public meshAuth(meshSecret?: string) {
     return async (c: Context, next: Next) => {
       const psk = c.req.header("X-Mesh-Secret");
       if (meshSecret && psk && await secureCompare(psk, meshSecret)) {
         return next();
       }
-      
-      // Fall through to standard auth (allows admins to call mesh APIs)
       return this.auth()(c, next);
     };
   }
-
 }

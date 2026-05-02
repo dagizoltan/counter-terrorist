@@ -24,8 +24,10 @@ const SOURCE_WEIGHTS: Record<string, number> = {
     "TalosIntelligence": 90
 };
 
-
-
+/**
+ * CuratedIntelService
+ * Orchestrates multi-source intelligence ingestion with weighted reputation scoring.
+ */
 export class CuratedIntelService {
     private kv?: Deno.Kv;
     private sources = [
@@ -48,14 +50,20 @@ export class CuratedIntelService {
         return this.blacklist;
     }
 
+    /**
+     * Starts the intelligence pipeline.
+     * Refactored to be non-blocking to allow the web console to start immediately.
+     */
     async start(kv?: Deno.Kv) {
         this.kv = kv || await Deno.openKv();
-        this.logging.log("[INTEL] Curated Intelligence Pipeline engaged. Scoring engine active.", SyslogSeverity.NOTICE);
+        this.logging.log("[INTEL] Curated Intelligence Pipeline engaged. Background sync initiated.", SyslogSeverity.NOTICE);
         
-        // Blocking initial sync for pre-start hardening
-        await this.sync();
+        // Background initial sync (prevents boot-blocking)
+        this.sync().catch(e => {
+            this.logging.log(`[INTEL] Initial synchronization warning: ${e.message}`, SyslogSeverity.WARNING);
+        });
 
-        // High-fidelity sync (Critical feeds every configurable interval)
+        // Periodic sync
         const intervalHours = this.config.getNumber("INTEL_SYNC_INTERVAL_HOURS", 1);
         setInterval(() => this.sync(), intervalHours * 60 * 60 * 1000); 
     }
@@ -65,17 +73,22 @@ export class CuratedIntelService {
         
         const fetchTasks = this.sources.map(async (source) => {
             try {
-                const response = await fetch(source.url);
+                // Use a short timeout for intelligence fetches to prevent hanging the pipeline
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+                
+                const response = await fetch(source.url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
                 if (!response.ok) return;
                 const data = await response.text();
                 await this.processSource(source, data);
             } catch (e) {
-                this.logging.log(`[INTEL] Source failure (${source.name}): ${(e as Error).message}`, SyslogSeverity.WARNING);
+                this.logging.log(`[INTEL] Source failure (${source.name}): ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.WARNING);
             }
         });
 
         await Promise.all(fetchTasks);
-        
         this.logging.log("[INTEL] Reputation weighting and perimeter enforcement complete.", SyslogSeverity.NOTICE);
     }
 
@@ -93,16 +106,13 @@ export class CuratedIntelService {
                 if (parts.length > 1) indicator = parts[1].replace(/"/g, "");
             }
 
-            // 1. Sanity Check (Allowlist)
             if (this.allowlist.some(a => indicator.startsWith(a))) continue;
 
-            // 2. Fetch existing reputation to correlate
             const existing = await this.kv?.get<IntelIndicator>(["curated_threats", indicator]);
             const weight = SOURCE_WEIGHTS[source.name] || 50;
             
             let curated: IntelIndicator;
             if (existing?.value) {
-                // Cross-Correlation Boost: Increase score if seen in multiple sources
                 curated = {
                     ...existing.value,
                     score: Math.min(100, existing.value.score + (weight * 0.5)),
@@ -118,27 +128,24 @@ export class CuratedIntelService {
                     firstSeen: new Date().toISOString(),
                     lastSeen: new Date().toISOString(),
                     score: weight,
-                    ttl: 72 // 72h default TTL
+                    ttl: 72 
                 };
             }
 
-            // 3. Tiered Enforcement Policy
             if (curated.score >= 85 && curated.type === "IP") {
-                // Tier 01: High Confidence Block
                 await this.firewall.blockIp(curated.indicator).catch(() => {});
                 this.blacklist.add(curated.indicator);
                 blockCount++;
             } else if (curated.score >= 60 && curated.type === "IP") {
-                // Tier 02: Suspicious - Shadow Ban
                 await this.firewall.shadowBanIp(curated.indicator).catch(() => {});
-                this.blacklist.delete(curated.indicator); // Ensure it's not in full block if it degraded
+                this.blacklist.delete(curated.indicator); 
             } else {
                 this.blacklist.delete(curated.indicator);
             }
 
             await this.kv?.set(["curated_threats", indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
             ingestCount++;
-            if (ingestCount > 300) break; // Keep KV churn manageable
+            if (ingestCount > 200) break; // Reduced count to further speed up ingestion
         }
 
         this.logging.log(`[INTEL] Ingested ${ingestCount} from ${source.name} (Active Blocks: ${blockCount})`, SyslogSeverity.DEBUG);

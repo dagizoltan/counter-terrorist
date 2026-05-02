@@ -11,6 +11,8 @@
   --cyber-orange: #f59e0b; /* Amber 500 */
   --border-color: rgba(255, 255, 255, 0.05);
   --accent-glow: 0 0 20px rgba(14, 165, 233, 0.15);
+  --sidebar-width: 320px;
+  --sidebar-compact-width: 80px;
 }
 
 * {
@@ -155,7 +157,7 @@ h1, h2, h3, h4, .tactical-header {
 }
 
 .compact-state::before {
-  content: "LOGS";
+  content: "STREAM";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -191,5 +193,55 @@ h1, h2, h3, h4, .tactical-header {
   max-height: 200px;
   padding: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* New Navigation Styles */
+.nav-section-header {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  color: var(--text-secondary);
+  opacity: 0.4;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  padding-left: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-section-header::before {
+  content: "";
+  display: block;
+  width: 12px;
+  height: 1px;
+  background: currentColor;
+}
+
+.nav-item-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.5;
+  transition: all 0.3s;
+}
+
+.nav-item:hover .nav-item-icon,
+.nav-item.active .nav-item-icon {
+  opacity: 1;
+  color: var(--cyber-blue);
+  filter: drop-shadow(0 0 5px rgba(14, 165, 233, 0.5));
+}
+
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.nav-item.active .status-indicator {
+  scale: 1.5;
+  background-color: var(--cyber-blue);
+  box-shadow: 0 0 8px var(--cyber-blue);
 }
 

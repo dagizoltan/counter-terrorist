@@ -2,91 +2,99 @@ import { EventBus } from "@domain/index.ts";
 import { PlaybookService } from "./playbook_service.ts";
 import { broadcast } from "@api/ws.ts";
 import { AuditService } from "../analysis/audit.ts";
+import { AutonomousResponseEngine } from "./autonomous_response.ts";
+import { ProtectionPort, LoggingPort } from "@core/ports.ts";
+import { NotificationService } from "../analysis/notifications.ts";
+import { MeshManager } from "./mesh.ts";
 
 export class AutopilotService {
+  private engine: AutonomousResponseEngine;
+
   constructor(
     private eventBus: EventBus,
     private playbookService: PlaybookService,
-    private auditService: AuditService
-  ) {}
-
-  async start() {
-    console.log("[AUTOPILOT] Self-Healing Engine engaged.");
-    
-    // Phase 6: Subterranean Deception - Spawn a Lure Process
-    // This process looks like a sensitive vault proxy but is actually a sensor.
-    this.spawnLureProcess();
-
-    this.eventBus.on("honeypot", (event) => this.evaluate(event));
-    this.eventBus.on("fim", (event) => this.evaluate(event));
-    this.eventBus.on("ebpf", (event) => this.evaluate(event));
-
-    // Periodic Subterranean Integrity Scan (Rootkit Detection)
-    setInterval(async () => {
-        const { ProcessTracker } = await import("../analysis/process_tracker.ts");
-        const tracker = new ProcessTracker(this.auditService.getLogging());
-        const ghosts = await tracker.scanForGhosts();
-        
-        if (ghosts.length > 0) {
-            await this.auditService.logEvent({
-                type: "THREAT",
-                message: `ROOTKIT DETECTED: Ghost processes identified: ${ghosts.join(", ")}`,
-                data: { ghosts }
-            });
-            await this.triggerSelfHeal(`ROOTKIT DETECTED: Ghost processes identified: ${ghosts.join(", ")}`, "local");
-        }
-    }, 300000); // Every 5 minutes
-  }
-
-  private threatDatabase: Map<string, { ports: Set<number>, events: any[] }> = new Map();
-
-  private async evaluate(data: any) {
-    if (!data) return;
-    const sourceIp = data.source_ip || data.ip || data.remote_addr;
-    if (!sourceIp) return;
-
-    let entry = this.threatDatabase.get(sourceIp);
-    if (!entry) {
-        entry = { ports: new Set(), events: [] };
-        this.threatDatabase.set(sourceIp, entry);
-    }
-
-    // 1. Port Scan Detection (Horizontal/Vertical)
-    if (data.type === "PortAccess") {
-        entry.ports.add(data.port);
-        entry.events.push(data);
-
-        if (entry.ports.size > 5) {
-            await this.triggerSelfHeal(`PORT SCAN DETECTED: IP ${sourceIp} probed ${entry.ports.size} ports.`, sourceIp);
-            entry.ports.clear(); // Reset after trigger
-        }
-    }
-
-    // 2. High-Confidence Deception Trigger (Immediate Action)
-    if (data.type === "PortAccess" && (data.port === 22 || data.port === 3389)) {
-        await this.triggerSelfHeal(`CRITICAL SERVICE ACCESS: Unauthorized attempt on port ${data.port} by ${sourceIp}.`, sourceIp);
-    }
+    private auditService: AuditService,
+    private protection: ProtectionPort,
+    private mesh: MeshManager,
+    private notifications: NotificationService,
+    private logging: LoggingPort
+  ) {
+    this.engine = new AutonomousResponseEngine(
+        protection,
+        mesh,
+        notifications,
+        auditService,
+        logging
+    );
   }
 
   /**
-   * Triggers a self-healing playbook based on a high-confidence threat.
+   * Exposes real-time threat intelligence from the response engine.
    */
-  async triggerSelfHeal(reason: string, targetIp?: string) {
-    this.auditService.logEvent({
-        type: "CRITICAL",
-        message: `AUTOPILOT: Critical threat detected (${reason}). Engaging Self-Healing Playbook.`,
-        data: { targetIp }
+  getTacticalIntelligence() {
+    return this.engine.getTacticalIntelligence();
+  }
+
+  async start() {
+    this.logging.log("[AUTOPILOT] Autonomous Defense Mesh engaged.", 6); 
+    
+    this.spawnLureProcess();
+
+    this.eventBus.on("honeypot", async (event) => {
+        if (event.type === "PortAccess") {
+            await this.engine.evaluate({
+                source: event.source_ip || event.ip,
+                type: "HONEYPOT_TRIGGER",
+                severity: 2,
+                description: `Accessed honey-port ${event.port}`,
+                data: event
+            });
+        }
     });
 
-    broadcast({ 
-        type: "CRITICAL", 
-        message: `AUTOPILOT: Self-Healing Active // ${reason}`,
-        data: { autopilot: true }
+    this.eventBus.on("fim", async (event) => {
+        if (event.type === "FileAlert") {
+            await this.engine.evaluate({
+                source: "local",
+                type: "FILE_TAMPERING",
+                severity: 5,
+                description: `${event.action} on ${event.path}`,
+                data: event
+            });
+        }
     });
 
-    if (targetIp) {
-        await this.playbookService.runPlaybook("Emergency Isolation");
-    }
+    this.eventBus.on("ebpf", async (event) => {
+        if (event.type === "SYSCALL_EVENT") {
+            let severity = 1;
+            if (event.syscall === "ptrace") severity = 4;
+            if (event.syscall === "execve" && event.comm === "nc") severity = 3;
+            
+            await this.engine.evaluate({
+                source: event.pid?.toString() || "kernel",
+                type: `SUSPICIOUS_SYSCALL:${event.syscall}`,
+                severity,
+                description: `Process ${event.comm} called ${event.syscall}`,
+                data: event
+            });
+        }
+    });
+
+    setInterval(async () => {
+        const { ProcessTracker } = await import("../analysis/process_tracker.ts");
+        const tracker = new ProcessTracker(this.logging);
+        const ghosts = await tracker.scanForGhosts();
+        
+        if (ghosts.length > 0) {
+            await this.engine.evaluate({
+                source: "local",
+                type: "ROOTKIT_DETECTION",
+                severity: 10,
+                description: `Ghost processes identified: ${ghosts.join(", ")}`,
+                data: { ghosts }
+            });
+        }
+    }, 300000); 
   }
 
   private async spawnLureProcess() {
@@ -98,9 +106,9 @@ export class AutopilotService {
             stderr: "null",
         });
         command.spawn();
-        console.log("[AUTOPILOT] Subterranean Lure deployed: hashicorp-vault-proxy");
+        this.logging.log("[AUTOPILOT] Deception lure deployed: hashicorp-vault-proxy", 6);
     } catch (e) {
-        console.warn(`[AUTOPILOT] Failed to deploy lure: ${(e as Error).message}`);
+        this.logging.log(`[AUTOPILOT] Lure deployment failed: ${(e as Error).message}`, 4);
     }
   }
 }

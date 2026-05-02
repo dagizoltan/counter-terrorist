@@ -46,6 +46,7 @@ import { TacticalIntelIngestor } from "@domain/analysis/tactical_intel_ingestor.
 import { NetworkDiscoveryService } from "@domain/analysis/network_discovery.ts";
 import { NetworkLogService } from "@domain/analysis/network_log_service.ts";
 import { IncidentService } from "@domain/analysis/incident_service.ts";
+import { ComplianceService } from "@domain/analysis/compliance_service.ts";
 
 import { loadConfig } from "./core/config_schema.ts";
 
@@ -75,12 +76,30 @@ setMeshManager(meshManager);
 await meshManager.init();
 meshManager.startDiscovery();
 
-// HARDWARE INTEGRITY ENFORCEMENT (Tier-5 Sovereign Check)
-const isHardwareSecure = await tpmManager.verifyIntegrity();
+const complianceService = new ComplianceService(auditService, kv);
+
+// HARDWARE INTEGRITY ENFORCEMENT
+const goldenPcrs: Record<number, string> = {};
+for (const [key, value] of Object.entries(Deno.env.toObject())) {
+    if (key.startsWith("TPM_GOLDEN_PCR_")) {
+        const index = parseInt(key.replace("TPM_GOLDEN_PCR_", ""));
+        if (!isNaN(index)) goldenPcrs[index] = value;
+    }
+}
+
+const isHardwareSecure = await tpmManager.verifyIntegrity(goldenPcrs);
 const bypassHardware = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true";
 
 if (!isHardwareSecure && !bypassHardware) {
-    await loggingService.log("HARDWARE INTEGRITY FAILURE. TAMPER DETECTED.", SyslogSeverity.EMERGENCY, "SECURITY");
+    await loggingService.log("HARDWARE INTEGRITY FAILURE. TAMPER DETECTED OR NO BASELINE SET.", SyslogSeverity.EMERGENCY, "SECURITY");
+    if (Object.keys(goldenPcrs).length === 0) {
+        const current = await tpmManager.getPcrs();
+        console.log("\n[SETUP] No Golden PCR baseline found. To establish trust, set the following environment variables:");
+        for (const [idx, val] of Object.entries(current)) {
+            console.log(`TPM_GOLDEN_PCR_${idx}=${val}`);
+        }
+        console.log("");
+    }
     await selfDestruct(kv, auditService);
 } else if (!isHardwareSecure && bypassHardware) {
     await loggingService.log("Hardware integrity bypass active. Running in software-trust mode.", SyslogSeverity.WARNING, "SECURITY");
@@ -89,44 +108,30 @@ if (!isHardwareSecure && !bypassHardware) {
 async function selfDestruct(kv: Deno.Kv, audit: AuditService) {
     await loggingService.log("Initiating self-destruct protocol...", SyslogSeverity.EMERGENCY, "SOVEREIGN");
     await audit.logEvent({ type: "EMERGENCY", message: "SELF-DESTRUCT TRIGGERED DUE TO HARDWARE TAMPER." });
-    
-    // Wipe all KV data
     const iter = kv.list({ prefix: [] });
-    for await (const entry of iter) {
-        await kv.delete(entry.key);
-    }
-    
-    // Wipe volume files securely (one-pass overwrite)
+    for await (const entry of iter) await kv.delete(entry.key);
     try {
         const wipeFile = async (path: string) => {
-            const info = await Deno.stat(path);
+            const info = await Deno.stat(path).catch(() => null);
+            if (!info) return;
             if (info.isFile) {
                 const file = await Deno.open(path, { write: true });
-                const zeros = new Uint8Array(info.size);
-                await file.write(zeros);
+                await file.write(new Uint8Array(info.size));
                 file.close();
             } else if (info.isDirectory) {
-                for await (const entry of Deno.readDir(path)) {
-                    await wipeFile(`${path}/${entry.name}`);
-                }
+                for await (const entry of Deno.readDir(path)) await wipeFile(`${path}/${entry.name}`);
             }
         };
         await wipeFile("./volume");
-        await Deno.remove("./volume", { recursive: true });
+        await Deno.remove("./volume", { recursive: true }).catch(() => {});
     } catch (e) {
         await loggingService.log(`Purge error: ${(e as Error).message}`, SyslogSeverity.ERROR, "SOVEREIGN");
     }
-    
     Deno.exit(1);
 }
 
-// ── Phase 3: Initialize Broadcaster BEFORE any service calls broadcast() ──
-initBroadcaster({
-  notificationService,
-  auditService,
-  eventBus,
-  loggingService,
-});
+// ── Phase 3: Initialize Broadcaster ──
+initBroadcaster({ notificationService, auditService, eventBus, loggingService });
 
 const rawProtection = createProtection(sidecarManager, executor, platformInfo, networkLogService);
 const protection = new ProtectionAdapter(rawProtection);
@@ -146,7 +151,17 @@ honeypotService.setBehavioralService(behavioralService);
 
 const canaryService = new CanaryService(auditService, sidecarManager, loggingService);
 const kernelService = new KernelService(executor, auditService);
-const autopilotService = new AutopilotService(eventBus, playbookService, auditService);
+
+const autopilotService = new AutopilotService(
+    eventBus, 
+    playbookService, 
+    auditService, 
+    protection, 
+    meshManager, 
+    notificationService, 
+    loggingService
+);
+
 const morphingService = new MorphingService(honeypotService, canaryService, auditService, meshManager);
 const chaosEngine = new ChaosEngine(eventBus, auditService, sidecarManager);
 const supplyChain = new SupplyChainService();
@@ -156,7 +171,18 @@ const shadowService = new ShadowService(executor, loggingService);
 const covertService = new CovertChannelService(executor, loggingService);
 const deceptionGrid = new DeceptionGridService(honeypotService, canaryService, loggingService);
 
-// Phase 4: Start subsystems ─────────────────────────────────────────
+// ── Phase 4: Wire Sidecar System Events ──────────────────────────────
+sidecarManager.onEvent("SYSTEM_ERROR", (event) => {
+    loggingService.log(`[SIDECAR] System Error: ${event.type} for ${event.sidecar}`, SyslogSeverity.CRITICAL, "SIDE-MAN", event);
+    auditService.logEvent({ type: "SYSTEM_ERROR", message: `Sidecar failure: ${event.type} on ${event.sidecar}`, data: event });
+    broadcast({ type: "CRITICAL", message: `System Component Failure: ${event.sidecar} (${event.type})`, data: event });
+});
+
+sidecarManager.onEvent("SIDECAR_ALERT", (event) => {
+    broadcast({ type: event.type, message: `Sidecar Alert: ${event.sidecar} - ${event.message}`, data: event });
+});
+
+// Phase 5: Start subsystems ─────────────────────────────────────────
 await loggingService.log("Deploying active defense subsystems", SyslogSeverity.INFORMATIONAL, "BOOT");
 await playbookService.init();
 await autopilotService.start();
@@ -164,22 +190,14 @@ await morphingService.start();
 await anonymization.start();
 await deceptionGrid.start();
 
-// Lateral Expansion (Defensive Worm) - Only if explicitly enabled
 if (Deno.env.get("PROVISIONING_ENABLED") === "true") {
-  provisioningService.run().catch(err => {
-    loggingService.log(`Provisioning Engine failure: ${err.message}`, SyslogSeverity.ERROR, "PROVISIONING");
-  });
+  provisioningService.run().catch(err => loggingService.log(`Provisioning Engine failure: ${err.message}`, SyslogSeverity.ERROR, "PROVISIONING"));
 }
 await processTracker.fullScan();
-// INITIAL SUBTERRANEAN INTEGRITY SCAN (ROOTKIT DETECTION)
 const ghosts = await processTracker.scanForGhosts();
 if (ghosts.length > 0) {
     await loggingService.log("ROOTKIT IDENTIFIED ON STARTUP", SyslogSeverity.CRITICAL, "SECURITY", { ghosts });
-    await auditService.logEvent({
-        type: "THREAT",
-        message: `ROOTKIT IDENTIFIED ON STARTUP: PIDs ${ghosts.join(", ")} are hidden from /proc.`,
-        data: { ghosts }
-    });
+    await auditService.logEvent({ type: "THREAT", message: `ROOTKIT IDENTIFIED ON STARTUP: PIDs ${ghosts.join(", ")} are hidden from /proc.`, data: { ghosts } });
 }
 await honeypotService.start();
 await canaryService.deploy();
@@ -187,23 +205,16 @@ await kernelService.harden();
 await covertService.startListener();
 await loggingService.log("Defense subsystems operational", SyslogSeverity.NOTICE, "BOOT");
 
-// ── Phase 5: Wire event pipelines ─────────────────────────────────────
-// Honeypot events → EventBus (for stats API) + Behavioral Analysis
-honeypotService.onEvent((event) => {
-  // Publish to EventBus so /api/stats/honeypot receives the event
-  eventBus.emit("honeypot", event);
-});
-
+// ── Phase 6: Wire event pipelines ─────────────────────────────────────
+honeypotService.onEvent((event) => eventBus.emit("honeypot", event));
 const playbookEngine = new PlaybookEngine(eventBus, protection, loggingService);
 await playbookEngine.start();
 
-// eBPF sidecar → broadcast pipeline
 sidecarManager.onEvent("ebpf", async (event: SidecarEvent) => {
   if (event.type === "ERROR") {
     broadcast({ type: "EBPF_ERROR", message: `eBPF Sidecar Error: ${event.message}`, data: event });
     return;
   }
-  
   if (event.type === "SYSCALL_EVENT") {
     let type = "EBPF_SYSCALL";
     let message = `eBPF Alert: ${event.comm} (PID: ${event.pid}) called ${event.syscall}`;
@@ -216,29 +227,25 @@ sidecarManager.onEvent("ebpf", async (event: SidecarEvent) => {
       }
     }
     broadcast({ type, message, data: event });
+    eventBus.emit("ebpf", event); // Forward to autopilot
   }
 });
 
-// FIM sidecar → broadcast + canary pipeline
 sidecarManager.onEvent("fim", (event: any) => {
   const payload = event.data;
   if (payload && payload.type === "FileAlert") {
     canaryService.handleFileAccess(payload.path, "UNKNOWN_COMM");
-    broadcast({ 
-      type: "INFO", 
-      message: `FIM Alert: ${payload.action} on ${payload.path}`, 
-      data: payload 
-    });
+    broadcast({ type: "INFO", message: `FIM Alert: ${payload.action} on ${payload.path}`, data: payload });
+    eventBus.emit("fim", payload); // Forward to autopilot
   }
 });
 
-// PCAP sidecar → NetworkLogService
 sidecarManager.onEvent("pcap", (event: any) => {
   if (event.type === "PACKET") {
     networkLogService.log({
       direction: event.direction || "INBOUND",
       source: event.source || "UNKNOWN",
-      destination: event.destination || "LOCAL",
+      destination: "LOCAL",
       protocol: event.protocol || "TCP",
       length: event.length || 0,
       action: event.action || "ALLOW"
@@ -250,40 +257,20 @@ const curatedIntel = new CuratedIntelService(loggingService, protection.firewall
 const newsSignal = new NewsSignalService(loggingService);
 const networkDiscovery = new NetworkDiscoveryService(loggingService);
 
-// ── Phase 6: Web adapter + MetricsService (started AFTER broadcaster is ready) ──
+// ── Phase 7: Web adapter + MetricsService ──
 const services: ServiceContainer = {
-  config: configProvider,
-  protection,
-  command: sidecarManager,
-  audit: auditService,
-  notifications: notificationService,
-  baseline: baselineService,
-  processTracker,
-  sessions: sessionService,
-  apiKeys: apiKeysService,
-  eventBus: eventBus,
-  honeypot: honeypotService,
-  autopilot: autopilotService,
-  morphing: morphingService,
-  chaos: chaosEngine,
-  supplyChain: supplyChain,
-  mesh: meshManager,
-  meshAuth: meshAuthService,
-  threatIntel: curatedIntel as any,
-  anonymization: anonymization,
-  shadowProtocol: shadowProtocol,
-  deceptionGrid: deceptionGrid,
-  curatedIntel,
-  news: newsSignal,
-  networkDiscovery,
-  networkLogs: networkLogService,
-  incidents: incidentService,
-  platformInfo
+  config: configProvider, protection, command: sidecarManager, audit: auditService,
+  notifications: notificationService, baseline: baselineService, processTracker,
+  sessions: sessionService, apiKeys: apiKeysService, eventBus: eventBus,
+  honeypot: honeypotService, autopilot: autopilotService, morphing: morphingService,
+  chaos: chaosEngine, supplyChain: supplyChain, mesh: meshManager,
+  meshAuth: meshAuthService, threatIntel: curatedIntel as any, compliance: complianceService,
+  anonymization: anonymization, shadowProtocol: shadowProtocol, deceptionGrid: deceptionGrid,
+  curatedIntel, news: newsSignal, networkDiscovery, networkLogs: networkLogService,
+  incidents: incidentService, platformInfo
 };
 
 const web = new WebAdapter(services);
-
-// MetricsService starts AFTER broadcaster is initialized
 const metricsService = new MetricsService(
   protection.firewall as any, meshManager, honeypotService, processTracker,
   kernelService, auditService, canaryService, sidecarManager, protection.vpn,
@@ -292,14 +279,14 @@ const metricsService = new MetricsService(
 );
 setMetricsService(metricsService);
 
-// ── Phase 7: Start tactical services & Early Hardening ────────────────
+// ── Phase 8: Start tactical services ──
 await loggingService.log("Initiating tactical intelligence ingestion...", SyslogSeverity.NOTICE, "BOOT");
 await curatedIntel.start(kv).catch(err => console.error(`[INTEL] Start failure: ${err.message}`));
 newsSignal.start().catch(err => console.error(`[NEWS] Start failure: ${err.message}`));
 networkDiscovery.start().catch(err => console.error(`[DISCOVERY] Start failure: ${err.message}`));
 anonymization.start().catch(err => console.error(`[ANON] Start failure: ${err.message}`));
 
-// ── Phase 8: Start persistent sidecars ────────────────────────────────
+// ── Phase 9: Start persistent sidecars ────────────────────────────────
 const startDaemons = async () => {
   sidecarManager.getPersistentSidecar("honeypot").catch(() => {});
   sidecarManager.getPersistentSidecar("fim").catch(() => {});
@@ -308,17 +295,10 @@ const startDaemons = async () => {
   try {
     const ebpf = await sidecarManager.getPersistentSidecar("ebpf");
     if (ebpf) {
-      // Activate Kernel-Level Stealth: Hide our own PID from the system
-      await sidecarManager.sendCommand("ebpf", { 
-        type: "HIDE_PID", 
-        payload: { pid: Deno.pid } 
-      }).catch(err => console.warn(`[STEALTH] Kernel-level hiding failed: ${err.message}`));
-      console.log("[STEALTH] Kernel-level PID hiding activated via eBPF.");
+      await sidecarManager.sendCommand("ebpf", { type: "HIDE_PID", payload: { pid: Deno.pid } }).catch(() => {});
     }
-    // Phase 4: Deploy Shadow Watchdog (Unkillable Architecture)
-    await shadowService.startWatchdog().catch(err => console.warn(`[SHADOW] Watchdog deployment failed: ${err.message}`));
+    await shadowService.startWatchdog().catch(() => {});
   } catch (_e) {
-    console.warn("[FORENSICS] eBPF fallback active — polling canary tokens.");
     setInterval(async () => {
       try {
         for (const token of canaryService.getTokens()) {
@@ -331,37 +311,13 @@ const startDaemons = async () => {
 };
 
 startDaemons();
-// ── Phase 9: Forensic Data Seeding (Mock for UI verification) ────────
+// ── Phase 10: Forensic Data Seeding ──
 const seedForensics = async () => {
-    // Only seed if this is a fresh start (no incidents yet)
     const incidents = await incidentService.getIncidents();
-    if (incidents.length > 0) {
-        return;
-    }
-
-    await loggingService.log("Seeding initial forensic data for fresh system...", SyslogSeverity.INFORMATIONAL, "BOOT");
-    // Seed Network Logs
+    if (incidents.length > 0) return;
     await networkLogService.log({ direction: "INBOUND", source: "185.220.101.42", destination: "LOCAL", protocol: "TCP/443", length: 512, action: "BLOCK" });
     await networkLogService.log({ direction: "INBOUND", source: "45.33.22.11", destination: "LOCAL", protocol: "TCP/22", length: 128, action: "SHADOW" });
-    await networkLogService.log({ direction: "OUTBOUND", source: "LOCAL", destination: "8.8.8.8", protocol: "UDP/53", length: 64, action: "ALLOW" });
-    await networkLogService.log({ direction: "INBOUND", source: "192.168.1.5", destination: "LOCAL", protocol: "ICMP", length: 32, action: "ALLOW" });
-    await networkLogService.log({ direction: "OUTBOUND", source: "LOCAL", destination: "1.1.1.1", protocol: "TCP/443", length: 1024, action: "ALLOW" });
-
-    // Seed Incidents
-    await incidentService.reportIncident({
-        severity: "HIGH",
-        title: "Suspicious Inbound Connection to Vault",
-        description: "Multiple failed connection attempts from a known Tor exit node targeting the HashiCorp Vault proxy.",
-        source: "Network_Perimeter",
-        indicators: ["185.220.101.42", "TOR_EXIT_NODE"]
-    });
-    await incidentService.reportIncident({
-        severity: "MEDIUM",
-        title: "SSH Brute Force Attempt",
-        description: "Automated brute force signature detected on port 22. Source IP has been shadow-banned.",
-        source: "Intrusion_Analytics",
-        indicators: ["45.33.22.11", "BRUTE_FORCE"]
-    });
+    await incidentService.reportIncident({ severity: "HIGH", title: "Suspicious Inbound Connection to Vault", description: "Multiple failed connection attempts from a known Tor exit node.", source: "Network_Perimeter", indicators: ["185.220.101.42", "TOR_EXIT_NODE"] });
 };
 
 seedForensics();

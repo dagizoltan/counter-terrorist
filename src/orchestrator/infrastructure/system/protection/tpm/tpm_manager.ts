@@ -73,12 +73,64 @@ export class TPMManager {
     }
 
     /**
-     * Verifies system integrity via PCR (Platform Configuration Registers)
+     * Reads current PCR values from the TPM.
      */
-    async verifyIntegrity(): Promise<boolean> {
-        this.logging.log("[TPM] Verifying system integrity via hardware PCRs...", SyslogSeverity.DEBUG);
-        const res = await this.executor.execute("tpm2_pcrread", ["sha256:0,1,7"]);
-        return res.success;
+    async getPcrs(indices: number[] = [0, 1, 7]): Promise<Record<number, string>> {
+        const pcrString = indices.join(",");
+        const res = await this.executor.execute("tpm2_pcrread", [`sha256:${pcrString}`]);
+        
+        if (!res.success) {
+            throw new Error(`Failed to read PCRs: ${res.stderr}`);
+        }
+
+        const pcrs: Record<number, string> = {};
+        const lines = res.stdout.split("\n");
+        for (const line of lines) {
+            const match = line.match(/\s*(\d+)\s*:\s*(0x[0-9a-fA-F]+)/);
+            if (match) {
+                pcrs[parseInt(match[1])] = match[2].toLowerCase();
+            }
+        }
+        return pcrs;
+    }
+
+    /**
+     * Verifies system integrity via PCR (Platform Configuration Registers) comparison.
+     */
+    async verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean> {
+        this.logging.log("[TPM] Verifying system integrity via hardware PCR attestation...", SyslogSeverity.DEBUG);
+        
+        try {
+            const currentPcrs = await this.getPcrs();
+            
+            if (!goldenPcrs || Object.keys(goldenPcrs).length === 0) {
+                this.logging.log("[TPM] WARNING: No Golden PCR baseline provided. Integrity check is performative only.", SyslogSeverity.WARNING);
+                return true; 
+            }
+
+            for (const [index, expected] of Object.entries(goldenPcrs)) {
+                const idx = parseInt(index);
+                const actual = currentPcrs[idx];
+                
+                if (!actual) {
+                    this.logging.log(`[TPM] PCR ${idx} not found in hardware output.`, SyslogSeverity.ERROR);
+                    return false;
+                }
+
+                if (actual !== expected.toLowerCase()) {
+                    this.logging.log(`[TPM] INTEGRITY FAILURE: PCR ${idx} mismatch!`, SyslogSeverity.CRITICAL);
+                    this.logging.log(`[TPM] Expected: ${expected}`, SyslogSeverity.CRITICAL);
+                    this.logging.log(`[TPM] Actual:   ${actual}`, SyslogSeverity.CRITICAL);
+                    return false;
+                }
+            }
+
+            this.logging.log("[TPM] Hardware integrity verified against Golden PCR baseline.", SyslogSeverity.INFORMATIONAL);
+            return true;
+        } catch (e) {
+            this.logging.log(`[TPM] Integrity check failed to execute: ${(e as Error).message}`, SyslogSeverity.ERROR);
+            return false;
+        }
     }
 
     private static missingBinaries: Set<string> = new Set();
@@ -87,7 +139,6 @@ export class TPMManager {
      * Signs data using the hardware Root of Trust.
      */
     async sign(data: string): Promise<string> {
-        // Fallback to software hash if binary is known to be missing
         if (TPMManager.missingBinaries.has("tpm2_sign")) {
             return this.softwareFallback(data);
         }
@@ -118,36 +169,38 @@ export class TPMManager {
             }
         }
 
-        return this.fallbackHash(data);
+        return this.softwareFallback(data);
     }
 
-    private async fallbackHash(data: string): Promise<string> {
-        if (TPMManager.missingBinaries.has("tpm2_hash")) {
-            return this.softwareFallback(data);
+    /**
+     * Verifies a hardware signature against data.
+     */
+    async verify(data: string, signature: string): Promise<boolean> {
+        if (TPMManager.missingBinaries.has("tpm2_verifysignature") || TPMManager.missingBinaries.has("tpm2_sign")) {
+            // Software fallback verification (simple hash check)
+            const expected = await this.softwareFallback(data);
+            return signature === expected;
         }
 
         try {
-            const hashCmd = new Deno.Command("tpm2_hash", {
-                args: ["-g", "sha256"],
-                stdin: "piped",
-                stdout: "piped"
-            });
-            const hashChild = hashCmd.spawn();
-            const hashWriter = hashChild.stdin.getWriter();
-            await hashWriter.write(new TextEncoder().encode(data));
-            await hashWriter.close();
-            const hashRes = await hashChild.output();
+            const keyHandle = "0x81010001";
+            const sigBytes = atob(signature);
+            const tempSigFile = await Deno.makeTempFile();
+            await Deno.writeTextFile(tempSigFile, sigBytes);
 
-            if (hashRes.success) {
-                return new TextDecoder().decode(hashRes.stdout).trim();
-            }
+            const verifyRes = await this.executor.execute("tpm2_verifysignature", [
+                "-c", keyHandle,
+                "-g", "sha256",
+                "-s", tempSigFile,
+                "-m", "-" // Read message from stdin
+            ]);
+
+            await Deno.remove(tempSigFile);
+            return verifyRes.success;
         } catch (e) {
-            if (e instanceof Deno.errors.NotFound) {
-                TPMManager.missingBinaries.add("tpm2_hash");
-            }
+            this.logging.log(`[TPM] Verification failed: ${(e as Error).message}`, SyslogSeverity.DEBUG);
+            return false;
         }
-
-        return this.softwareFallback(data);
     }
 
     private async softwareFallback(data: string): Promise<string> {

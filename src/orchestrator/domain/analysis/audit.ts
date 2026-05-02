@@ -3,15 +3,23 @@ import { MeshManager } from "../engine/mesh.ts";
 import { TimelineRepository } from "@infrastructure/persistence/repositories/timeline_repository.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 
+export interface ActorContext {
+    id: string;
+    role: string;
+    ip: string;
+    userAgent?: string;
+}
+
 export interface AuditEvent {
     id: string;
     timestamp: string;
     type: string;
     message: string;
+    actor?: ActorContext; // Traceability: Who performed the action
     data?: any;
     hash: string;
     prevHash: string;
-    hwSignature?: string; // Phase 3: Hardware-rooted signature
+    hwSignature?: string; 
 }
 
 interface RetentionConfig {
@@ -19,8 +27,13 @@ interface RetentionConfig {
     maxEvents: number;
 }
 
+/**
+ * AuditService
+ * Hardware-rooted immutable ledger for security and compliance.
+ */
 export class AuditService {
     private lastHash: string = "GENESIS";
+    private lastVerifiedHash: string = "GENESIS";
     private retentionConfig: RetentionConfig;
     private purgeIntervalId: number | undefined;
     private logQueue: Promise<void> = Promise.resolve();
@@ -48,7 +61,8 @@ export class AuditService {
           }
         }, 5 * 60 * 1000);
 
-        // Wrap public methods with telemetry
+        setInterval(() => this.verifyChainIncremental(), 60 * 1000);
+
         this.logEvent = withTelemetry("Audit:Log", this.logEvent.bind(this), logging) as any;
         this.verifyChain = withTelemetry("Audit:Verify", this.verifyChain.bind(this), logging) as any;
     }
@@ -57,10 +71,13 @@ export class AuditService {
         return this.logging;
     }
 
-    setMesh(mesh: MeshManager) {
-        this.mesh = mesh;
+    /**
+     * Retrieves recent audit events. Required by Metrics and Compliance services.
+     */
+    public async getRecentEvents(limit: number = 100): Promise<AuditEvent[]> {
+        return await this.repo.getLatest(limit);
     }
-    
+
     private async restoreChainHead() {
         try {
             const latest = await this.repo.getLatest(1);
@@ -71,14 +88,14 @@ export class AuditService {
                     SyslogSeverity.INFORMATIONAL
                 );
 
-                // PERFORM STARTUP INTEGRITY VERIFICATION
                 const verification = await this.verifyChain(100);
                 if (!verification.valid) {
                     this.logging.log(
-                        `[AUDIT] [CRITICAL] CHAIN INTEGRITY FAILURE. TAMPERING DETECTED AT EVENT ${verification.brokenAt?.eventId}`,
+                        `[AUDIT] [CRITICAL] CHAIN INTEGRITY FAILURE. TAMPERING DETECTED AT EVENT ${verification.brokenAt?.eventId || "UNKNOWN"}`,
                         SyslogSeverity.EMERGENCY
                     );
                 } else {
+                    this.lastVerifiedHash = this.lastHash;
                     this.logging.log(`[AUDIT] Verified integrity of recent history (${verification.eventsChecked} events).`, SyslogSeverity.DEBUG);
                 }
             }
@@ -88,8 +105,7 @@ export class AuditService {
     }
 
     /**
-     * Logs an audit event with hash chain integrity.
-     * Uses a sequential queue to ensure the hash chain is strictly linear even with concurrent calls.
+     * Records a cryptographically signed event in the audit trail.
      */
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string }) {
         this.logQueue = this.logQueue.then(async () => {
@@ -97,18 +113,17 @@ export class AuditService {
             const timestamp = event.timestamp || new Date().toISOString();
             const prevHash = this.lastHash;
 
-            // Compute hash over the event content + prevHash for chain integrity
             const hashInput = JSON.stringify({
                 id,
                 timestamp,
                 type: event.type,
                 message: event.message,
+                actor: event.actor,
                 data: event.data,
                 prevHash,
             });
             const hash = await this.computeHash(hashInput);
             
-            // Phase 3: Hardware signing
             let hwSignature: string | undefined;
             if (this.tpm) {
                 hwSignature = await this.tpm.sign(hash);
@@ -127,16 +142,14 @@ export class AuditService {
                 await this.repo.set(id, auditEvent);
                 this.lastHash = hash;
                 
-                // Forward audit event to remote syslog
                 const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? SyslogSeverity.NOTICE : SyslogSeverity.DEBUG;
-                this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message}`, severity);
+                this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`, severity);
 
-                // Gossip to mesh if critical
                 if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
                   this.mesh.broadcastAuditEvent({
                     ...auditEvent,
                     node: Deno.hostname()
-                  }).catch(console.error);
+                  }).catch(() => {});
                 }
             } catch (e) {
                 console.error("[AUDIT] Failed to save event:", e);
@@ -148,67 +161,42 @@ export class AuditService {
 
     async getChainStatus() {
         const count = await this.repo.count();
-        return { lastHash: this.lastHash, count };
+        return { lastHash: this.lastHash, count, lastVerifiedHash: this.lastVerifiedHash };
     }
 
-    async syncEvents(events: AuditEvent[]) {
-        for (const event of events) {
-            const existing = await this.repo.get(event.id);
-            if (!existing) {
-                await this.repo.set(event.id, event);
-                // Update chain head if this event is newer
-                if (event.hash && (!this.lastHash || this.lastHash === "GENESIS")) {
-                    this.lastHash = event.hash;
-                }
-            }
+    async verifyChainIncremental() {
+        if (this.lastHash === this.lastVerifiedHash) return;
+        const res = await this.verifyChain(100);
+        if (res.valid) {
+            this.lastVerifiedHash = this.lastHash;
         }
     }
 
-    async getRecentEvents(limit: number = 50): Promise<AuditEvent[]> {
-        return await this.repo.getLatest(limit);
-    }
-
-    async getEvents(limit: number = 50, cursor?: string): Promise<{ items: AuditEvent[], cursor: string }> {
-        const iter = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { reverse: true, limit, cursor });
-        const items: AuditEvent[] = [];
-        for await (const entry of iter) {
-            items.push(entry.value);
-        }
-        return { items, cursor: iter.cursor };
-    }
-
-    /**
-     * Verifies the integrity of the audit log hash chain.
-     * Returns verification result with details on any broken links.
-     */
     async verifyChain(limit: number = 1000): Promise<{
         valid: boolean;
         eventsChecked: number;
-        brokenAt?: { eventId: string; expected: string; actual: string };
+        brokenAt?: { eventId: string; expected: string; actual: string; type: string };
     }> {
-        this.logging.log(`[AUDIT] Starting integrity verification for last ${limit} events…`, SyslogSeverity.DEBUG);
-        
-        // Get events in chronological order (oldest first)
         const events: AuditEvent[] = [];
-        const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { limit });
+        const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { limit, reverse: true });
 
         for await (const entry of entries) {
             events.push(entry.value);
         }
 
-        if (events.length === 0) {
-            return { valid: true, eventsChecked: 0 };
-        }
+        if (events.length === 0) return { valid: true, eventsChecked: 0 };
+
+        events.reverse();
 
         for (let i = 0; i < events.length; i++) {
             const event = events[i];
 
-            // 1. Recompute current hash
             const hashInput = JSON.stringify({
                 id: event.id,
                 timestamp: event.timestamp,
                 type: event.type,
                 message: event.message,
+                actor: event.actor,
                 data: event.data,
                 prevHash: event.prevHash,
             });
@@ -218,65 +206,48 @@ export class AuditService {
                 return {
                     valid: false,
                     eventsChecked: i + 1,
-                    brokenAt: {
-                        eventId: event.id,
-                        expected: expectedHash,
-                        actual: event.hash,
-                    },
+                    brokenAt: { eventId: event.id, expected: expectedHash, actual: event.hash, type: "HASH_MISMATCH" },
                 };
             }
 
-            // 2. Check chain link (only if the previous event is present in this window)
-            // If i > 0, we have the previous event in our list due to chronological sorting.
-            if (i > 0) {
-                const prevEvent = events[i - 1];
-                if (event.prevHash !== prevEvent.hash) {
-                    // Check if there's a gap (meaning events were purged)
-                    // If the current event's prevHash doesn't match the immediate predecessor's hash,
-                    // it MUST be a broken chain UNLESS we can prove the predecessor was purged.
-                    // But since we listed ALL events in this range, if it doesn't match the predecessor, it's broken.
+            if (this.tpm && event.hwSignature) {
+                const isSigValid = await this.tpm.verify(event.hash, event.hwSignature);
+                if (!isSigValid) {
                     return {
                         valid: false,
                         eventsChecked: i + 1,
-                        brokenAt: {
-                            eventId: event.id,
-                            expected: prevEvent.hash,
-                            actual: event.prevHash,
-                        },
+                        brokenAt: { eventId: event.id, expected: "VALID_HW_SIG", actual: "INVALID_HW_SIG", type: "HW_SIG_FAILURE" },
                     };
                 }
-            } else {
-                // For the very first event in our window, we can't check its prevHash 
-                // because the predecessor might have been purged. This is expected.
+            }
+
+            if (i > 0) {
+                const prevEvent = events[i - 1];
+                if (event.prevHash !== prevEvent.hash) {
+                    return {
+                        valid: false,
+                        eventsChecked: i + 1,
+                        brokenAt: { eventId: event.id, expected: prevEvent.hash, actual: event.prevHash, type: "CHAIN_BREAK" },
+                    };
+                }
             }
         }
 
         return { valid: true, eventsChecked: events.length };
     }
 
-    /**
-     * Purges expired audit events based on retention policy.
-     * Removes events older than maxAgeDays and trims to maxEvents.
-     */
     private async purgeExpired() {
         const cutoffTimestamp = Date.now() - (this.retentionConfig.maxAgeDays * 24 * 60 * 60 * 1000);
         try {
             const purgedCount = await this.repo.deleteBefore(cutoffTimestamp);
-
             if (purgedCount > 0) {
-                this.logging.log(
-                    `[AUDIT] Retention purge: removed ${purgedCount} expired events.`,
-                    SyslogSeverity.INFORMATIONAL
-                );
+                this.logging.log(`[AUDIT] Retention purge: removed ${purgedCount} expired events.`, SyslogSeverity.INFORMATIONAL);
             }
         } catch (e) {
             this.logging.log(`[AUDIT] Retention purge failed: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.ERROR);
         }
     }
 
-    /**
-     * Computes SHA-256 hash of the input string, returned as hex.
-     */
     private async computeHash(input: string): Promise<string> {
         const data = new TextEncoder().encode(input);
         const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);

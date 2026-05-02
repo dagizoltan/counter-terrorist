@@ -95,12 +95,12 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   });
 
   router.get("/analysis/timeline", async (c: Context) => {
-     const { TimelinePage } = await import("../features/analysis/timeline.tsx") as any;
-     return c.html(<TimelinePage />);
+    const { TimelinePage } = await import("../features/forensics/timeline.tsx") as any;
+    return c.html(<TimelinePage />);
   });
 
   router.get("/analysis/replay", async (c: Context) => {
-    const { default: ForensicReplay } = await import("../features/analysis/replay.tsx") as any;
+    const { default: ForensicReplay } = await import("../features/forensics/replay.tsx") as any;
     return c.html(<ForensicReplay />);
   });
 

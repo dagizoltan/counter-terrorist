@@ -16,6 +16,7 @@ import {
   ThreatIntelService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
+import { ComplianceService } from "../domain/analysis/compliance_service.ts";
 
 export interface ServiceContainer {
   config: ConfigurationPort;
@@ -36,6 +37,7 @@ export interface ServiceContainer {
   mesh: MeshManager;
   meshAuth: MeshAuthService;
   threatIntel: ThreatIntelService;
+  compliance: ComplianceService;
   anonymization: any;
   deceptionGrid: any;
   shadowProtocol: any;

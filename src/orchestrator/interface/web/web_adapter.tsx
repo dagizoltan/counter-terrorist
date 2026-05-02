@@ -15,7 +15,6 @@ import { MeshAuthService } from "@domain/index.ts";
 /**
  * WebAdapter
  * The primary ingress controller for the Security Orchestrator.
- * Orchestrates middleware, security, and routing via modular sub-routers.
  */
 export class WebAdapter implements WebPort {
   private app: Hono;
@@ -29,19 +28,20 @@ export class WebAdapter implements WebPort {
     this.meshAuth = services.meshAuth;
     this.security = new SecurityMiddleware(services, masterToken);
     this.app = new Hono();
-
   }
 
   private async initialize() {
-    if (this.app.routes.length > 0) return; // Prevent double initialization
-    // 1. Core Logging & Metrics (High-Fidelity)
+    if (this.app.routes.length > 0) return;
+    
+    this.app.use("*", this.security.hardenedHeaders());
+
+    // Unified Logging, Metrics, and Audit Lifecycle
     this.app.use("*", async (c, next) => {
       const start = Date.now();
       const traceId = crypto.randomUUID().slice(0, 8);
       const { method, path } = c.req;
       
-      // Mask sensitive data in logs
-      const body = await c.req.parseBody().catch(() => ({}));
+      const body = await (method === "GET" ? Promise.resolve({}) : c.req.parseBody().catch(() => ({})));
       const maskedBody = { ...body };
       ["token", "password", "secret", "rawKey"].forEach(k => {
         if (maskedBody[k]) maskedBody[k] = "********";
@@ -54,7 +54,7 @@ export class WebAdapter implements WebPort {
         await this.services.networkLogs.log({
             direction: "INBOUND",
             source: ip,
-            destination: "LOCAL:8001",
+            destination: `LOCAL:${c.req.header("host") || "8000"}`,
             protocol: "HTTP",
             length: Number(c.req.header("Content-Length") || 0),
             action: "ALLOW"
@@ -64,10 +64,25 @@ export class WebAdapter implements WebPort {
       await next();
       
       const duration = Date.now() - start;
-      await loggingService.log(`[RES:${traceId}] ${method} ${path} -> ${c.res.status} (${duration}ms)`, SyslogSeverity.INFORMATIONAL, "WEB:API");
+      const status = c.res.status;
+      await loggingService.log(`[RES:${traceId}] ${method} ${path} -> ${status} (${duration}ms)`, SyslogSeverity.INFORMATIONAL, "WEB:API");
+
+      // ── COMPLIANCE: Audit state-changing requests ───────────────────
+      const isMutation = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
+      const isSuccess = status >= 200 && status < 300;
+      const isSensitiveApi = path.startsWith("/api/admin") || path.startsWith("/api/mesh") || path.startsWith("/api/agents");
+
+      if (isMutation && isSuccess && isSensitiveApi) {
+          const actor = this.security.getActor(c);
+          await this.services.audit.logEvent({
+              type: "ADMIN_ACTION",
+              message: `${actor.id} executed ${method} on ${path}`,
+              actor,
+              data: { method, path, status, duration }
+          });
+      }
     });
 
-    // 2. Error Handling
     this.app.onError((err, c) => {
       const errorMsg = (err as Error).message;
       if (err instanceof AppError) {
@@ -78,67 +93,49 @@ export class WebAdapter implements WebPort {
       return c.json({ error: "Internal Server Error", code: "SERVER_FAULT" }, 500);
     });
 
-    // 3. Static Assets (Unified)
-    // In release mode, we serve from ./web. In dev mode, we serve from src/...
+    // ── STATIC ASSETS ────────────────────────────────────────────────
     const webRoot = await Deno.stat("./web").then(s => s.isDirectory).catch(() => false) 
       ? "./web" 
       : "./src/orchestrator/interface/web";
-      
-    this.app.get("/features/*", serveStatic({ root: webRoot }));
-    this.app.get("/components/*", serveStatic({ root: webRoot }));
-    this.app.get("/pages/*", serveStatic({ root: webRoot }));
-    this.app.get("/vendor/*", serveStatic({ root: webRoot }));
-    this.app.get("/assets/*", serveStatic({ root: webRoot }));
-    this.app.get("/style.css", serveStatic({ root: webRoot }));
     
-    // 4. Deception: Honey-Endpoints (Publicly visible traps)
+    // Use path-specific serveStatic for better reliability in Deno
+    this.app.use("/style.css", serveStatic({ path: "./style.css", root: webRoot }));
+    this.app.use("/features/*", serveStatic({ root: webRoot }));
+    this.app.use("/components/*", serveStatic({ root: webRoot }));
+    this.app.use("/pages/*", serveStatic({ root: webRoot }));
+    this.app.use("/vendor/*", serveStatic({ root: webRoot }));
+    this.app.use("/assets/*", serveStatic({ root: webRoot }));
+    
     const honeyRoutes = ["/admin", "/.git/config", "/wp-config.php", "/.env", "/config.json"];
     honeyRoutes.forEach(route => {
       this.app.get(route, async (c) => {
         const ip = c.req.header("X-Forwarded-For") || c.req.header("Remote-Addr") || "unknown";
         loggingService.log(`[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`, SyslogSeverity.CRITICAL);
-        
-        // Notify deception service
         await this.services.honeypot.onWebTrigger(route, ip);
-        
-        return c.json({ 
-          error: "Unauthorized access detected. Security event logged.", 
-          code: "DECEPTION_TRAP" 
-        }, 403);
+        return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
       });
     });
 
-    // 5. Public Access (Auth, Login, Logout)
     this.app.route("/login", createLoginRouter({
       checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
       isTokenValid: (t) => this.isTokenValid(t),
       sessionService: this.services.sessions,
       config: this.services.config
     }));
-    this.app.route("/logout", createLogoutRouter({
-      sessionService: this.services.sessions
-    }));
+    this.app.route("/logout", createLogoutRouter({ sessionService: this.services.sessions }));
 
-    // 5. Global Security Layer
     this.app.use("*", this.security.auth());
 
-    // 6. Primary Routing Modules
     const statusAggregator = () => this.getSystemStatus();
     this.app.route("/", createUiRouter(this.services, this.security, statusAggregator));
     this.app.route("/api", createApiRouter(this.services, this.security));
 
-    // 7. Real-time Events (WebSockets)
     this.app.get("/api/ws/events", upgradeWebSocket(() => wsHandler));
   }
 
-  /**
-   * Aggregates system telemetry for UI consumption.
-   */
   private async getSystemStatus(): Promise<ApplicationStatus> {
-    console.log("[WEB] Starting system status aggregation...");
     const { bootstrap } = await import("../../bootstrapper.ts");
     const baseStatus = await bootstrap();
-    console.log("[WEB] Base status retrieved.");
     
     return {
       ...baseStatus,
@@ -152,9 +149,6 @@ export class WebAdapter implements WebPort {
     };
   }
 
-  /**
-   * Bridge for the legacy login handler (to be refactored next).
-   */
   private async isTokenValid(token: string | undefined) {
     const isMaster = await import("@infrastructure/system/validation.ts").then(m => 
       m.secureCompare(token, this.services.config.getToken())
@@ -170,7 +164,6 @@ export class WebAdapter implements WebPort {
   private checkLoginRateLimit(ip: string) {
       const now = Date.now();
       const limit = this.loginAttempts.get(ip) || { count: 0, resetAt: now + 60000 };
-      
       if (now > limit.resetAt) {
           limit.count = 1;
           limit.resetAt = now + 60000;
@@ -178,29 +171,26 @@ export class WebAdapter implements WebPort {
           limit.count++;
       }
       this.loginAttempts.set(ip, limit);
-
-      if (limit.count > 5) {
-          return { allowed: false, retryAfterMs: limit.resetAt - now };
-      }
+      if (limit.count > 5) return { allowed: false, retryAfterMs: limit.resetAt - now };
       return { allowed: true };
   }
 
   async start(port: number = 8000): Promise<void> {
     await this.initialize();
 
-    if (this.meshAuth) {
-      console.log(`[WEB] Starting SOVEREIGN mTLS Orchestrator Engine on port ${port}...`);
+    const useHttps = this.meshAuth && Deno.env.get("DISABLE_HTTPS") !== "true";
+
+    if (useHttps && this.meshAuth) {
       const nodeCert = await this.meshAuth.generateNodeCert(Deno.hostname());
-      const rootCA = await this.meshAuth.getRootCA();
+      console.log(`[WEB] SOVEREIGN mTLS Active. Tactical Console: https://localhost:${port}`);
       
-      // Enforce Tier-5 Sovereignty: Only clients with valid mesh certificates can connect.
       await Deno.serve({ 
         port,
         cert: nodeCert.cert,
         key: nodeCert.key
       }, this.app.fetch);
     } else {
-      console.log(`[WEB] Orchestrator Engine active on port ${port} (INSECURE MODE)`);
+      console.log(`[WEB] Orchestrator Engine active (INSECURE HTTP). Tactical Console: http://localhost:${port}`);
       await Deno.serve({ port }, this.app.fetch);
     }
   }

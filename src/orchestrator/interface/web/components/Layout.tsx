@@ -1,254 +1,150 @@
 import { jsx } from "hono/jsx";
 
+/**
+ * Sovereign Tri-Pane Layout (Atomic)
+ * Restored original complexity with zero-class hardening.
+ * Includes: Global Navigation, Center Stage, and Forensic Telemetry Sidebar.
+ */
 export const Layout = (props: {
   title: string;
   children: any;
-  cssPaths?: string[];
-  islandPaths?: string[];
   csrfToken?: string;
+  islandPaths?: string[];
 }) => {
+  const styles = {
+    body: "background-color:#020617; color:#f8fafc; margin:0; padding:0; height:100vh; width:100vw; overflow:hidden; font-family:sans-serif; display:flex;",
+    bgGlow: "position:fixed; inset:0; pointer-events:none; z-index:-1; background:radial-gradient(circle at 50% 0%, rgba(14, 165, 233, 0.1), transparent 70%);",
+    leftSidebar: "width:280px; height:100vh; background:rgba(15, 23, 42, 0.8); border-right:1px solid rgba(255, 255, 255, 0.05); display:flex; flex-direction:column; flex-shrink:0; backdrop-filter:blur(20px); z-index:100;",
+    rightSidebar: "width:360px; height:100vh; background:rgba(2, 6, 23, 0.6); border-left:1px solid rgba(255, 255, 255, 0.05); display:flex; flex-direction:column; flex-shrink:0; backdrop-filter:blur(20px); z-index:100;",
+    centerStage: "flex-grow:1; height:100vh; display:flex; flex-direction:column; overflow:hidden; position:relative;",
+    header: "height:5rem; border-bottom:1px solid rgba(255, 255, 255, 0.05); display:flex; align-items:center; justify-content:space-between; padding:0 2.5rem; background:rgba(2, 6, 23, 0.4); backdrop-filter:blur(10px); flex-shrink:0;",
+    mainContent: "flex-grow:1; overflow-y:auto; padding:3rem; scrollbar-width:thin;",
+    navItem: "display:flex; align-items:center; padding:0.85rem 1.25rem; border-radius:0.75rem; text-decoration:none; color:#94a3b8; font-size:10px; font-weight:900; text-transform:uppercase; letter-spacing:0.15em; margin:0.2rem 1rem; transition:all 0.2s;",
+    label: "font-size:9px; font-weight:900; letter-spacing:0.3em; color:rgba(148, 163, 184, 0.3); text-transform:uppercase; margin:1.5rem 0 0.5rem 2rem;",
+    statusDot: "width:8px; height:8px; border-radius:50%; background:#10b981; box-shadow:0 0 10px #10b981;",
+    logEntry: "padding:0.75rem 1rem; border-bottom:1px solid rgba(255,255,255,0.03); font-family:monospace; font-size:10px; color:rgba(148,163,184,0.7);"
+  };
+
   return (
-    <html lang="en" class="bg-[#020617]">
+    <html lang="en" style="background-color:#020617;">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="csrf-token" content={props.csrfToken || ""} />
         <title>{props.title} | GHOST_COMMAND</title>
-        
-        {/* Tailwind CDN */}
-        <script src="https://cdn.tailwindcss.com"></script>
-        <script dangerouslySetInnerHTML={{ __html: `
-          tailwind.config = {
-            theme: {
-              extend: {
-                fontFamily: {
-                  sans: ['Outfit', 'sans-serif'],
-                  mono: ['JetBrains Mono', 'monospace'],
-                },
-                colors: {
-                  obsidian: '#020617',
-                  cyber: '#0ea5e9',
-                  danger: '#ef4444',
-                  warning: '#f59e0b',
-                  success: '#10b981'
-                }
-              }
-            }
-          }
+        <style dangerouslySetInnerHTML={{ __html: `
+            body { scrollbar-color: rgba(255,255,255,0.1) transparent; scrollbar-width: thin; }
+            .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+            @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+            .pulse { animation: pulse 2s infinite; }
         `}} />
-        
-        {/* Global theme styles */}
-        <link rel="stylesheet" href="/style.css" />
-
-        {/* Page specific islands */}
-        {props.islandPaths?.map((path) => (
-          <script type="module" src={path}></script>
-        ))}
       </head>
-      <body class="min-h-screen flex font-sans overflow-hidden">
-        {/* Main Background with Noise and Gradients */}
-        <div class="fixed inset-0 pointer-events-none opacity-50">
-           <div class="absolute inset-0 bg-[radial-gradient(circle_at_50%_-20%,rgba(14,165,233,0.15),transparent_60%)]"></div>
-           <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150"></div>
-        </div>
+      <body style={styles.body}>
+        <div style={styles.bgGlow}></div>
 
-        <div class="relative min-h-screen flex-grow flex w-full overflow-hidden">
-          {/* LEFT SIDEBAR (Static Navigation) */}
-          <aside id="sidebar" class="h-screen glass-panel border-r border-white/5 flex flex-col w-80 z-50 shrink-0">
-            <div class="p-8 flex items-center gap-4 border-b border-white/5 h-24">
-              <div class="w-1.5 h-8 bg-cyber shadow-[0_0_20px_rgba(14,165,233,0.6)] rounded-full"></div>
-              <div class="flex flex-col">
-                <span class="font-black text-sm tracking-[0.4em] uppercase text-white">ORCHESTRATOR</span>
-                <span class="text-[9px] font-bold text-cyber/60 tracking-widest uppercase">Distributed Security Mesh</span>
-              </div>
+        {/* LEFT SIDEBAR: GLOBAL NAVIGATION */}
+        <aside style={styles.leftSidebar}>
+          <div style="height:5rem; display:flex; align-items:center; padding:0 2rem; border-bottom:1px solid rgba(255,255,255,0.05);">
+            <div style="width:4px; height:24px; background:#0ea5e9; border-radius:2px; box-shadow:0 0 15px #0ea5e9;"></div>
+            <div style="display:flex; flex-direction:column; margin-left:1rem;">
+              <span style="font-weight:900; font-size:12px; letter-spacing:0.3em; color:white;">GHOST_COMMAND</span>
+              <span style="font-weight:900; font-size:8px; color:#0ea5e9; opacity:0.6;">SOVEREIGN_NODE_v4.2</span>
             </div>
-
-            <nav class="flex-grow py-8 overflow-y-auto custom-scrollbar px-4">
-              <div class="space-y-1">
-                <div class="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">SYSTEM_MONITORING</div>
-                
-                <a href="/" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-cyber rounded-full group-hover:scale-150 transition-transform shadow-[0_0_8px_rgba(14,165,233,0.4)]"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Operational Dashboard</span>
-                  </div>
-                </a>
-
-                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">INFRASTRUCTURE</div>
-                
-                <a href="/network" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Network Perimeter</span>
-                  </div>
-                </a>
-
-                <a href="/mesh" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">P2P Mesh Network</span>
-                  </div>
-                </a>
-
-                <a href="/agents" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Endpoint Registry</span>
-                  </div>
-                </a>
-
-                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">THREAT_PROTECTION</div>
-
-                <a href="/threats/feed" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-cyber transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Security Feed</span>
-                  </div>
-                </a>
-
-                <a href="/threats/identified" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Identified Threats</span>
-                  </div>
-                </a>
-
-                <a href="/honeypots" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-orange-500 transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Deception Assets</span>
-                  </div>
-                </a>
-
-                <div class="pt-8 text-[9px] font-black text-slate-500 uppercase tracking-[0.4em] mb-4 ml-4 opacity-50">COMPLIANCE</div>
-
-                <a href="/compliance/logs" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">System Logs</span>
-                  </div>
-                </a>
-
-                <a href="/compliance/network" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Network Access Logs</span>
-                  </div>
-                </a>
-
-                <a href="/compliance/audit" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-warning transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Audit Ledger</span>
-                  </div>
-                </a>
-
-                <a href="/compliance/incidents" class="nav-item flex items-center justify-between p-4 rounded-xl hover:bg-white/5 transition-all text-slate-400 hover:text-white group border border-transparent hover:border-white/5">
-                  <div class="flex items-center gap-4">
-                    <div class="w-1.5 h-1.5 bg-slate-600 rounded-full group-hover:bg-danger transition-all"></div>
-                    <span class="text-[10px] font-black uppercase tracking-[0.2em]">Incidents</span>
-                  </div>
-                </a>
-              </div>
-            </nav>
-
-            <script dangerouslySetInnerHTML={{ __html: `
-               document.querySelectorAll('.nav-item').forEach(item => {
-                  if (item.getAttribute('href') === window.location.pathname) {
-                     item.classList.add('bg-white/5', 'text-white', 'border-white/10');
-                     item.querySelector('div div').classList.add('scale-150');
-                  }
-               });
-            `}} />
-
-            <div class="p-8 border-t border-white/5">
-              <form method="POST" action="/logout">
-                <button type="submit" class="w-full flex items-center justify-center gap-4 p-4 rounded-xl text-[10px] font-black uppercase tracking-[0.3em] text-danger/80 hover:text-danger hover:bg-danger/10 border border-danger/10 hover:border-danger/30 transition-all duration-300">
-                  Exit_Session
-                </button>
-              </form>
-            </div>
-          </aside>
-
-          {/* MAIN CONTENT AREA */}
-          <div class="flex-grow h-screen flex flex-col overflow-hidden relative">
-            <header class="h-24 border-b border-white/5 flex items-center px-12 bg-obsidian/40 backdrop-blur-xl shrink-0 z-40">
-               <div class="flex items-center gap-8">
-                  <div class="flex items-center gap-3">
-                    <div class="status-dot active animate-pulse"></div>
-                    <span class="text-[11px] font-black text-white tracking-[0.4em] uppercase italic">System_Ready</span>
-                  </div>
-                  <div class="h-4 w-px bg-white/10"></div>
-                  <div class="flex items-center gap-4">
-                    <span class="text-[9px] font-bold text-slate-500 tracking-widest uppercase">Node_Hash:</span>
-                    <span class="text-[10px] font-mono text-cyber/80 tracking-tighter">{Deno.hostname().slice(0, 16)}</span>
-                  </div>
-               </div>
-               <div class="ml-auto flex items-center gap-8">
-                  <div class="flex flex-col items-end">
-                     <span class="text-[9px] font-bold text-slate-500 tracking-[0.3em] uppercase mb-1">Mesh_Sovereignty</span>
-                     <div class="flex items-center gap-2">
-                        <span class="text-[10px] font-black text-success uppercase italic">Synchronized</span>
-                        <div class="w-1 h-1 bg-success rounded-full"></div>
-                     </div>
-                  </div>
-                  <button id="toggle-right-sidebar" class="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 transition-all">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/></svg>
-                  </button>
-               </div>
-            </header>
-
-            <main class="flex-grow overflow-y-auto custom-scrollbar">
-              <div class="max-w-[1400px] p-12 mx-auto animate-fade-in">
-                {props.children}
-              </div>
-            </main>
           </div>
 
-          {/* RIGHT SIDEBAR (Signal Stream) */}
-          <aside id="right-sidebar" class="h-screen glass-panel border-l border-white/5 flex flex-col w-[450px] z-50 shrink-0 transition-all duration-500 ease-in-out relative">
-            <div class="p-8 flex items-center justify-between border-b border-white/5 h-24 shrink-0">
-               <div class="flex items-center gap-3">
-                  <div class="w-2 h-2 bg-cyber rounded-full animate-pulse shadow-[0_0_10px_rgba(14,165,233,0.5)]"></div>
-                  <span class="text-[11px] font-black text-white tracking-[0.3em] uppercase italic">Global_Signal_Stream</span>
+          <nav style="flex-grow:1; overflow-y:auto; padding-top:1rem;">
+            <div style={styles.label}>01_Situational</div>
+            <a href="/" style={styles.navItem}>Dashboard</a>
+            <a href="/intel/map" style={styles.navItem}>Tactical Overlay</a>
+            
+            <div style={styles.label}>02_Defense</div>
+            <a href="/network" style={styles.navItem}>Network Perimeter</a>
+            <a href="/mesh" style={styles.navItem}>Mesh Fabric</a>
+            <a href="/honeypots" style={styles.navItem}>Deception Grid</a>
+            
+            <div style={styles.label}>03_Forensics</div>
+            <a href="/compliance/audit" style={styles.navItem}>Audit Ledger</a>
+            <a href="/compliance/incidents" style={styles.navItem}>Incident Portal</a>
+            <a href="/processes" style={styles.navItem}>Process Integrity</a>
+
+            <div style={styles.label}>04_Core</div>
+            <a href="/agents" style={styles.navItem}>Agent Fleet</a>
+            <a href="/settings" style={styles.navItem}>Node Config</a>
+          </nav>
+
+          <div style="padding:1.5rem; border-top:1px solid rgba(255,255,255,0.05);">
+             <form method="POST" action="/logout">
+                <button type="submit" style="width:100%; padding:0.75rem; border-radius:0.75rem; background:rgba(239,68,68,0.05); color:#ef4444; border:1px solid rgba(239,68,68,0.1); font-weight:900; font-size:9px; text-transform:uppercase; letter-spacing:0.2em; cursor:pointer;">
+                  Terminate_Session
+                </button>
+             </form>
+          </div>
+        </aside>
+
+        {/* CENTER STAGE: PRIMARY INTERFACE */}
+        <div style={styles.centerStage}>
+          <header style={styles.header}>
+            <div style="display:flex; align-items:center; gap:2rem;">
+               <div style="display:flex; align-items:center; gap:0.5rem;">
+                  <div style={styles.statusDot} class="pulse"></div>
+                  <span style="font-weight:900; font-size:10px; letter-spacing:0.1em; color:#10b981; font-style:italic;">GRID_NOMINAL</span>
                </div>
-               <div class="flex items-center gap-2">
-                  <span class="text-[9px] font-mono text-slate-500">LIVE_TELEMETRY</span>
+               <div style="width:1px; height:16px; background:rgba(255,255,255,0.1);"></div>
+               <div style="display:flex; align-items:center; gap:0.5rem;">
+                  <span style="font-size:9px; font-weight:900; color:rgba(148,163,184,0.4);">HOSTNAME:</span>
+                  <span style="font-size:9px; font-weight:900; color:white;">{Deno.hostname()}</span>
                </div>
             </div>
             
-            <div class="flex-grow overflow-hidden flex flex-col bg-obsidian/20">
-               <blocking-log id="main-log" class="h-full"></blocking-log>
+            <div style="display:flex; align-items:center; gap:1.5rem;">
+               <div style="text-align:right;">
+                  <div style="font-size:8px; font-weight:900; color:rgba(148,163,184,0.3); text-transform:uppercase;">Encryption_Layer</div>
+                  <div style="font-size:9px; font-weight:900; color:#0ea5e9;">CHACHA20_POLY1305</div>
+               </div>
+               <div style="width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; color:white;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+               </div>
             </div>
+          </header>
 
-            {/* Sidebar State Logic */}
-            <script dangerouslySetInnerHTML={{ __html: `
-              const rightSidebar = document.getElementById('right-sidebar');
-              const toggleBtn = document.getElementById('toggle-right-sidebar');
-              let isSidebarOpen = localStorage.getItem('rightSidebarOpen') !== 'false';
-
-              function updateSidebarState() {
-                if (isSidebarOpen) {
-                  rightSidebar.style.width = '450px';
-                  rightSidebar.style.opacity = '1';
-                  rightSidebar.classList.remove('compact-state');
-                } else {
-                  rightSidebar.style.width = '60px';
-                  rightSidebar.classList.add('compact-state');
-                }
-                localStorage.setItem('rightSidebarOpen', isSidebarOpen);
-              }
-
-              toggleBtn.addEventListener('click', () => {
-                isSidebarOpen = !isSidebarOpen;
-                updateSidebarState();
-              });
-
-              // Initial state
-              updateSidebarState();
-            `}} />
-          </aside>
+          <main style={styles.mainContent}>
+            <div style="max-width:1400px; margin:0 auto;">
+              {props.children}
+            </div>
+          </main>
         </div>
+
+        {/* RIGHT SIDEBAR: FORENSIC TELEMETRY STREAM */}
+        <aside style={styles.rightSidebar}>
+          <div style="height:5rem; display:flex; align-items:center; padding:0 2rem; border-bottom:1px solid rgba(255,255,255,0.05); justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+               <span style="font-weight:900; font-size:10px; letter-spacing:0.2em; color:white;">FORENSIC_STREAM</span>
+            </div>
+            <div style="width:8px; height:8px; border-radius:50%; background:#ef4444; opacity:0.5;" class="pulse"></div>
+          </div>
+          
+          <div id="telemetry-log-stream" style="flex-grow:1; overflow-y:auto; padding:1rem; display:flex; flex-direction:column-reverse; gap:0.5rem; scrollbar-width:none;">
+             <div style={styles.logEntry}>[SYSTEM] Listening for subliminal mesh signals...</div>
+             <div style={styles.logEntry}>[KERNEL] Adaptive hardening active (ASLR=1)</div>
+             <div style={styles.logEntry}>[AUTH] Sovereign session established for root</div>
+             <div style={styles.logEntry}>[BOOT] Deploying active defense sidecars...</div>
+          </div>
+
+          <div style="padding:1.5rem; background:rgba(0,0,0,0.2); border-top:1px solid rgba(255,255,255,0.05);">
+             <div style="display:flex; justify-content:space-between; margin-bottom:1rem;">
+                <span style="font-size:8px; font-weight:900; color:rgba(148,163,184,0.4); text-transform:uppercase;">Stream_Health</span>
+                <span style="font-size:8px; font-weight:900; color:#10b981;">SYNCED</span>
+             </div>
+             <div style="height:2px; background:rgba(255,255,255,0.05); border-radius:1px;">
+                <div style="height:100%; width:100%; background:#10b981;"></div>
+             </div>
+          </div>
+        </aside>
+
+        {/* Global Hydration Islands */}
+        {props.islandPaths?.map(path => (
+          <script type="module" src={path} />
+        ))}
       </body>
     </html>
   );

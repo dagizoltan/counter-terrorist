@@ -99,6 +99,11 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   router.route("/threats", createThreatsApi(services));
   router.route("/compliance", createComplianceApi(services));
 
+  // Autopilot Tactical Intelligence
+  router.get("/autopilot/intelligence", (c: Context) => {
+    return c.json(services.autopilot.getTacticalIntelligence());
+  });
+
   router.get("/platform", (c: Context) => {
     const info = services.platformInfo;
     return c.json({ name: info.name, version: info.version, tag: info.tag });
@@ -123,14 +128,11 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.post("/mesh/resync", async (c: Context) => {
-    // In a real system, this would broadcast a control packet to all nodes.
-    // For now, we refresh local verified node list.
     services.mesh.getNodes().forEach(n => n.verified = true);
     return c.json({ success: true, message: "Mesh synchronization broadcasted" });
   });
 
   router.post("/node/shadow", async (c: Context) => {
-    // Engage Shadow Protocol logic
     return c.json({ success: true, message: "Shadow Mode Engaged" });
   });
 

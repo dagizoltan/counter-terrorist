@@ -32,7 +32,7 @@ export class SidecarManager implements CommandPort {
       for (const name of Array.from(this.persistentProcesses.keys())) {
         await this.stopSidecar(name);
       }
-      Deno.exit(0);
+      // Deno.exit(0); // Removing explicit exit as it might interfere with Deno's own cleanup
     };
 
     Deno.addSignalListener("SIGINT", cleanup);
@@ -42,44 +42,27 @@ export class SidecarManager implements CommandPort {
 
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
     if (!isAllowedSidecar(name)) {
-      return {
-        success: false,
-        stdout: "",
-        stderr: `Sidecar '${name}' is not in the allowlist.`,
-      };
+      return { success: false, stdout: "", stderr: `Sidecar '${name}' is not in the allowlist.` };
     }
 
     if (PERSISTENT_SIDECARS.includes(name)) {
-      return {
-        success: false,
-        stdout: "",
-        stderr: `Sidecar '${name}' is a persistent daemon. Use getPersistentSidecar() instead.`,
-      };
+      return { success: false, stdout: "", stderr: `Sidecar '${name}' is a persistent daemon. Use getPersistentSidecar() instead.` };
     }
 
     const binPath = await this.findBinary(name);
     if (!binPath) {
-      return {
-        success: false,
-        stdout: "",
-        stderr: `Sidecar binary '${name}' not found in agents/target/`,
-      };
+      return { success: false, stdout: "", stderr: `Sidecar binary '${name}' not found.` };
     }
 
-    // Security: If first arg is JSON, validate it
+    // Security: Validate JSON payload if present
     if (args.length > 0) {
       try {
         const payload = JSON.parse(args[0]);
         if (!validateRequest(name as SidecarName, payload)) {
-          return {
-            success: false,
-            stdout: "",
-            stderr: `Security violation: Invalid payload for sidecar '${name}'`,
-          };
+          return { success: false, stdout: "", stderr: `Security violation: Invalid payload for sidecar '${name}'` };
         }
-      } catch (e) {
-        // Not JSON, skip validation for now
-        console.debug?.(`[SIDE-MAN:${name}] Payload is not JSON, skipping validation: ${e}`);
+      } catch {
+        // Not JSON, continue
       }
     }
 
@@ -87,20 +70,15 @@ export class SidecarManager implements CommandPort {
   }
 
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
-    if (!isAllowedSidecar(name)) {
-      throw new Error(`Sidecar '${name}' is not in the allowlist.`);
-    }
-
-    if (this.unsupportedSidecars.has(name)) {
-      return null;
-    }
-
-    if (this.persistentProcesses.has(name)) {
-      return this.persistentProcesses.get(name)!;
-    }
+    if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
+    if (this.unsupportedSidecars.has(name)) return null;
+    if (this.persistentProcesses.has(name)) return this.persistentProcesses.get(name)!;
 
     const binPath = await this.findBinary(name);
-    if (!binPath) return null;
+    if (!binPath) {
+        this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_NOT_FOUND", sidecar: name });
+        return null;
+    }
 
     const isPrivileged = PRIVILEGED_SIDECARS.includes(name);
     const isAlreadyRoot = Deno.uid() === 0;
@@ -112,58 +90,63 @@ export class SidecarManager implements CommandPort {
       stderr: "piped",
     });
 
-    const child = command.spawn();
-    console.log(`[SIDE-MAN] Spawned persistent sidecar: ${name}`);
+    try {
+        const child = command.spawn();
+        console.log(`[SIDE-MAN] Spawned persistent sidecar: ${name}`);
 
-    child.status.then((status) => {
-      console.warn(`[SIDE-MAN] Sidecar ${name} exited with code ${status.code}.`);
-      this.persistentProcesses.delete(name);
-      this.handleSidecarExit(name, status.code);
-    });
+        child.status.then((status) => {
+            console.warn(`[SIDE-MAN] Sidecar ${name} exited with code ${status.code}.`);
+            this.persistentProcesses.delete(name);
+            this.handleSidecarExit(name, status.code);
+        });
 
-    // Handle stderr
-    (async () => {
-      const reader = child.stderr.getReader();
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (value) {
-            const msg = new TextDecoder().decode(value);
-            console.error(`[SIDECAR:${name}] ${msg.trim()}`);
-            if (msg.includes("UNSUPPORTED_OS")) {
-              this.unsupportedSidecars.add(name);
-              console.warn(`[SIDE-MAN] Marked sidecar ${name} as unsupported on this OS.`);
+        // Handle stderr for error detection
+        (async () => {
+            const reader = child.stderr.getReader();
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    if (value) {
+                        const msg = new TextDecoder().decode(value);
+                        console.error(`[SIDECAR:${name}] ${msg.trim()}`);
+                        if (msg.includes("UNSUPPORTED_OS")) {
+                            this.unsupportedSidecars.add(name);
+                            this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_UNSUPPORTED", sidecar: name });
+                        }
+                        if (msg.includes("PANIC") || msg.includes("error:")) {
+                            this.emitEvent("SIDECAR_ALERT", { type: "CRITICAL", sidecar: name, message: msg.trim() });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error(`[SIDE-MAN:${name}] Stderr reader error:`, e);
+            } finally {
+                reader.releaseLock();
             }
-          }
-        }
-      } catch (e) {
-        console.error(`[SIDE-MAN:${name}] Stderr reader error:`, e);
-      } finally {
-        reader.releaseLock();
-      }
-    })();
+        })();
 
-    this.persistentProcesses.set(name, child);
-    this.startResponseReader(name, child);
-    return child;
+        this.persistentProcesses.set(name, child);
+        this.startResponseReader(name, child);
+        return child;
+    } catch (e) {
+        this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_SPAWN_FAILED", sidecar: name, error: (e as Error).message });
+        return null;
+    }
   }
 
   private async findBinary(name: string): Promise<string | null> {
     const isWindows = Deno.build.os === "windows";
     const extension = isWindows ? ".exe" : "";
-
-    // Define search paths in order of preference (release bundle first, then dev)
     const paths = [
-      `./agents/${name}${extension}`, // Local release folder
-      `./src/agents/target/release/${name}${extension}`, // Dev monorepo release
-      `./src/agents/target/debug/${name}${extension}`, // Dev monorepo debug
-      `/usr/local/bin/cts-${name}${extension}`, // System install
+      `./agents/${name}${extension}`,
+      `./src/agents/target/release/${name}${extension}`,
+      `./src/agents/target/debug/${name}${extension}`,
+      `/usr/local/bin/cts-${name}${extension}`,
     ];
 
     let agentsDir: string;
     try {
-      // Prioritize local agents dir in release bundle
       const localAgents = await Deno.stat("./agents").catch(() => null);
       if (localAgents?.isDirectory) {
         agentsDir = await Deno.realPath("./agents");
@@ -177,18 +160,10 @@ export class SidecarManager implements CommandPort {
 
     for (const p of paths) {
       try {
-        // First check if the file exists before calling realPath (which throws if not found)
         const info = await Deno.stat(p);
         if (!info.isFile) continue;
-
         const absolutePath = await Deno.realPath(p);
-
-        // Security: If we are looking in ./agents, ensure the binary stays within it
-        if (p.startsWith("./src/agents") && agentsDir && !absolutePath.startsWith(agentsDir)) {
-          console.error(`[SIDE-MAN] Security violation: Binary ${absolutePath} is outside agents directory`);
-          continue;
-        }
-
+        if (p.startsWith("./src/agents") && agentsDir && !absolutePath.startsWith(agentsDir)) continue;
         return absolutePath;
       } catch {
         continue;
@@ -218,28 +193,11 @@ export class SidecarManager implements CommandPort {
         for (const line of lines) {
           if (!line.trim()) continue;
 
-          if (line.includes("UNSUPPORTED_OS")) {
-            this.unsupportedSidecars.add(name);
-            console.warn(`[SIDE-MAN] Marked sidecar ${name} as unsupported on this OS.`);
-            continue;
-          }
-
           try {
             const data = JSON.parse(line) as SidecarResponse;
 
             if (!validateResponse(name as SidecarName, data)) {
-              const msg = `[SIDE-MAN:${name}] Security violation: Invalid response schema from sidecar. Missing 'success' or invalid format. Payload: ${line}`;
-              console.error(msg);
-              
-              // If this was a response to a command, fail the command immediately
-              if (data.id && this.responseWaiters.has(name)) {
-                const waiters = this.responseWaiters.get(name)!;
-                const waiter = waiters.get(data.id);
-                if (waiter) {
-                  waiter.reject(new Error(msg));
-                  waiters.delete(data.id);
-                }
-              }
+              console.error(`[SIDE-MAN:${name}] Security violation: Invalid response schema.`);
               continue;
             }
 
@@ -247,12 +205,7 @@ export class SidecarManager implements CommandPort {
               const waiters = this.responseWaiters.get(name)!;
               const waiter = waiters.get(data.id);
               if (waiter) {
-                waiter.resolve({
-                    success: !!data.success,
-                    stdout: data.stdout || "",
-                    stderr: data.stderr || "",
-                    data: data.data
-                });
+                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data });
                 waiters.delete(data.id);
                 continue;
               }
@@ -262,9 +215,8 @@ export class SidecarManager implements CommandPort {
             for (const handler of handlers) {
               handler(data);
             }
-          } catch (e) {
-            console.error(`[SIDE-MAN:${name}] Failed to parse response JSON: ${line}. Error: ${(e as Error).message}`);
-            // We can't easily notify a waiter here because we don't have the 'id' yet
+          } catch {
+            // Not JSON or parse failed
           }
         }
       }
@@ -273,14 +225,6 @@ export class SidecarManager implements CommandPort {
     } finally {
       reader.releaseLock();
       this.persistentProcesses.delete(name);
-
-      if (this.responseWaiters.has(name)) {
-        const waiters = this.responseWaiters.get(name)!;
-        for (const [_, waiter] of waiters.entries()) {
-          waiter.reject(new Error(`Sidecar ${name} terminated`));
-        }
-      }
-      this.responseWaiters.delete(name);
     }
   }
 
@@ -289,29 +233,20 @@ export class SidecarManager implements CommandPort {
     if (!child) throw new Error(`Sidecar ${name} not found`);
 
     const id = crypto.randomUUID();
-    let commandObj: any;
-    if (typeof cmd === "string") {
-      commandObj = { id, type: cmd };
-    } else {
-      commandObj = { ...cmd, id };
-    }
+    let commandObj: any = typeof cmd === "string" ? { id, type: cmd } : { ...cmd, id };
 
     if (!validateRequest(name as SidecarName, commandObj)) {
       throw new Error(`Security violation: Invalid command for sidecar '${name}'`);
     }
 
     const responsePromise = new Promise<CommandResult>((resolve, reject) => {
-      if (!this.responseWaiters.has(name)) {
-        this.responseWaiters.set(name, new Map());
-      }
+      if (!this.responseWaiters.has(name)) this.responseWaiters.set(name, new Map());
       this.responseWaiters.get(name)!.set(id, { resolve, reject });
     });
 
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
-        if (this.responseWaiters.has(name)) {
-          this.responseWaiters.get(name)!.delete(id);
-        }
+        if (this.responseWaiters.has(name)) this.responseWaiters.get(name)!.delete(id);
         reject(new Error(`Command ${commandObj.type} to ${name} timed out after 60s`));
       }, 60000);
     });
@@ -324,18 +259,14 @@ export class SidecarManager implements CommandPort {
   }
 
   onEvent(name: string, handler: (data: any) => void) {
-    if (!this.eventHandlers.has(name)) {
-      this.eventHandlers.set(name, []);
-    }
+    if (!this.eventHandlers.has(name)) this.eventHandlers.set(name, []);
     this.eventHandlers.get(name)!.push(handler);
   }
 
   emitEvent(name: string, data: any) {
     const handlers = this.eventHandlers.get(name);
     if (handlers) {
-      for (const handler of handlers) {
-        handler(data);
-      }
+      for (const handler of handlers) handler(data);
     }
   }
 
@@ -349,9 +280,7 @@ export class SidecarManager implements CommandPort {
     if (process) {
       try {
         process.kill("SIGTERM");
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        console.warn(`[SIDE-MAN] Failed to kill ${name} with SIGTERM, forcing SIGKILL:`, msg);
+      } catch {
         process.kill("SIGKILL");
       }
       this.persistentProcesses.delete(name);
@@ -359,31 +288,26 @@ export class SidecarManager implements CommandPort {
   }
 
   private handleSidecarExit(name: string, exitCode: number) {
-    if (exitCode === 0) return; // Clean exit
-    if (this.unsupportedSidecars.has(name)) return; // Don't restart unsupported sidecars
+    if (exitCode === 0) return;
+    if (this.unsupportedSidecars.has(name)) return;
 
     const now = Date.now();
     const restartInfo = this.restartCounts.get(name) || { count: 0, lastRestart: 0 };
 
-    // Reset count if last restart was more than 5 minutes ago
-    if (now - restartInfo.lastRestart > 300000) {
-      restartInfo.count = 0;
-    }
+    if (now - restartInfo.lastRestart > 300000) restartInfo.count = 0;
 
     if (restartInfo.count < 3) {
       restartInfo.count++;
       restartInfo.lastRestart = now;
       this.restartCounts.set(name, restartInfo);
-
       console.log(`[SIDE-MAN] Restarting sidecar ${name} (attempt ${restartInfo.count}/3)...`);
-      const backoffMs = Math.pow(2, restartInfo.count - 1) * 1000;
       setTimeout(() => {
-        this.getPersistentSidecar(name).catch(err => {
-          console.error(`[SIDE-MAN] Failed to restart sidecar ${name}:`, err.message);
-        });
-      }, backoffMs);
+        this.getPersistentSidecar(name).catch(() => {});
+      }, Math.pow(2, restartInfo.count - 1) * 1000);
     } else {
-      console.error(`[SIDE-MAN] Sidecar ${name} failed too many times. Giving up.`);
+      const msg = `Sidecar ${name} failed too many times. Giving up.`;
+      console.error(`[SIDE-MAN] ${msg}`);
+      this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
     }
   }
 }
