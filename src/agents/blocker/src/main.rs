@@ -1,9 +1,13 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
 use std::process::Command;
-use std::io;
 use chrono::Utc;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use once_cell::sync::Lazy;
+
+static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SidecarResponse {
@@ -25,7 +29,7 @@ enum BlockerCommand {
     UnblockIp { id: String, ip: String },
 }
 
-fn emit_response(id: String, success: bool, message: String) {
+async fn emit_response(id: String, success: bool, message: String) {
     let resp = SidecarResponse {
         id: Some(id),
         success,
@@ -34,6 +38,7 @@ fn emit_response(id: String, success: bool, message: String) {
         timestamp: Utc::now().to_rfc3339(),
     };
     if let Ok(json) = serde_json::to_string(&resp) {
+        let _lock = STDOUT_LOCK.lock().await;
         println!("{}", json);
     }
 }
@@ -49,15 +54,15 @@ async fn main() {
                 match cmd {
                     BlockerCommand::KillProcess { id, pid } => {
                         let res = kill_process_task(pid).await;
-                        emit_response(id, res.0, res.1);
+                        emit_response(id, res.0, res.1).await;
                     },
                     BlockerCommand::BlockIp { id, ip } => {
                         let res = block_ip_task(ip).await;
-                        emit_response(id, res.0, res.1);
+                        emit_response(id, res.0, res.1).await;
                     },
                     BlockerCommand::UnblockIp { id, ip } => {
                         let res = unblock_ip_task(ip).await;
-                        emit_response(id, res.0, res.1);
+                        emit_response(id, res.0, res.1).await;
                     }
                 }
             });
@@ -101,6 +106,9 @@ async fn block_ip_task(ip: String) -> (bool, String) {
 }
 
 async fn unblock_ip_task(ip: String) -> (bool, String) {
+    if ip.parse::<std::net::IpAddr>().is_err() {
+        return (false, format!("Invalid IP: {}", ip));
+    }
     let ip_clone = ip.clone();
     let output = tokio::task::spawn_blocking(move || {
         Command::new("ufw").args(["delete", "deny", "from", &ip_clone]).output()

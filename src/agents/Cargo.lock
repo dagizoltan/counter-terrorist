@@ -208,6 +208,8 @@ name = "blocker"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "once_cell",
+ "parking_lot",
  "serde",
  "serde_json",
  "sysinfo",
@@ -393,6 +395,8 @@ dependencies = [
  "env_logger",
  "libc",
  "log",
+ "once_cell",
+ "parking_lot",
  "rlimit",
  "serde",
  "serde_json",
@@ -406,15 +410,6 @@ dependencies = [
  "aya",
  "aya-ebpf",
  "aya-log-ebpf",
-]
-
-[[package]]
-name = "ebpf-ebpf"
-version = "0.1.0"
-dependencies = [
- "aya-ebpf",
- "aya-log-ebpf",
- "ebpf-common",
 ]
 
 [[package]]
@@ -464,6 +459,8 @@ dependencies = [
  "anyhow",
  "chrono",
  "notify",
+ "once_cell",
+ "parking_lot",
  "serde",
  "serde_json",
  "tokio",
@@ -528,6 +525,8 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "inotify 0.10.2",
+ "once_cell",
+ "parking_lot",
  "serde",
  "serde_json",
  "tokio",
@@ -812,6 +811,8 @@ name = "pcap"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "once_cell",
+ "parking_lot",
  "serde",
  "serde_json",
  "tokio",
@@ -957,6 +958,8 @@ dependencies = [
  "chrono",
  "dashmap",
  "hex",
+ "once_cell",
+ "parking_lot",
  "rayon",
  "serde",
  "serde_json",

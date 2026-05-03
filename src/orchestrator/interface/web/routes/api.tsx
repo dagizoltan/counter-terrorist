@@ -221,9 +221,25 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   router.post("/defense/purge", async (c: Context) => {
     const { pid } = await c.req.json();
     if (!pid) return c.json({ error: "PID required" }, 400);
-    // Use the process tracker or sidecar manager to kill
-    await services.command.stop(pid.toString()); // Simple kill if pid matches a service, or use executor
-    return c.json({ success: true, message: `Purge initiated for PID ${pid}` });
+    const pidNum = parseInt(pid.toString());
+    if (isNaN(pidNum)) return c.json({ error: "Invalid PID" }, 400);
+    
+    const result = await services.protection.firewall.killProcess(pidNum);
+    return c.json(result);
+  });
+  
+  // 5. Governance & Policy (Restricted to Admin)
+  router.get("/governance/policy", (c: Context) => {
+    return c.json(services.policy.getPolicy());
+  });
+
+  router.post("/governance/policy", async (c: Context) => {
+    const newPolicy = await c.req.json();
+    if (!newPolicy) return c.json({ error: "Policy manifest required" }, 400);
+    
+    // Verifying integrity (In production, this would verify a signature)
+    services.policy.updatePolicy(newPolicy);
+    return c.json({ success: true, message: "Security Policy synchronized and active." });
   });
 
   return router;

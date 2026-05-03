@@ -22,7 +22,10 @@ class MeshGraph extends HTMLElement {
 
   async fetchNodes() {
     try {
-      const res = await fetch('/api/mesh/nodes');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/mesh/nodes', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         this.nodes = data.peers;

@@ -120,6 +120,10 @@ export class AnonymizationService {
         await this.vpn.connect("sovereign-exit-alpha");
     }
 
+    getMode() {
+        return this.mode;
+    }
+
     getTelemetry() {
         return {
             mode: this.mode,

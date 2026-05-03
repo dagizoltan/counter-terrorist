@@ -4,6 +4,39 @@ use std::path::{Path};
 use chrono::Utc;
 use std::sync::mpsc::channel;
 use std::io::{self, BufRead};
+use std::sync::Arc;
+use parking_lot::Mutex;
+use once_cell::sync::Lazy;
+
+static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+
+fn emit_event(event: SidecarEvent) {
+    let resp = SidecarResponse {
+        id: None,
+        success: true,
+        message: None,
+        data: Some(serde_json::to_value(event).unwrap()),
+        timestamp: Utc::now().to_rfc3339(),
+    };
+    if let Ok(json) = serde_json::to_string(&resp) {
+        let _lock = STDOUT_LOCK.lock();
+        println!("{}", json);
+    }
+}
+
+fn emit_response(id: String, success: bool, message: String) {
+    let resp = SidecarResponse {
+        id: Some(id),
+        success,
+        message: Some(message),
+        data: None,
+        timestamp: Utc::now().to_rfc3339(),
+    };
+    if let Ok(json) = serde_json::to_string(&resp) {
+        let _lock = STDOUT_LOCK.lock();
+        println!("{}", json);
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SidecarResponse {
@@ -32,31 +65,7 @@ enum SidecarEvent {
     Status { message: String },
 }
 
-fn emit_event(event: SidecarEvent) {
-    let resp = SidecarResponse {
-        id: None,
-        success: true,
-        message: None,
-        data: Some(serde_json::to_value(event).unwrap()),
-        timestamp: Utc::now().to_rfc3339(),
-    };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        println!("{}", json);
-    }
-}
-
-fn emit_response(id: String, success: bool, message: String) {
-    let resp = SidecarResponse {
-        id: Some(id),
-        success,
-        message: Some(message),
-        data: None,
-        timestamp: Utc::now().to_rfc3339(),
-    };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        println!("{}", json);
-    }
-}
+// Standardized event emission logic relocated to top for global access.
 
 fn main() -> anyhow::Result<()> {
     let (tx, rx) = channel();

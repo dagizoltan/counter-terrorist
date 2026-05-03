@@ -15,12 +15,16 @@ class HoneypotChart extends HTMLElement {
     this.fetchData();
     this.interval = setInterval(() => this.fetchData(), 20000);
     
-    // Resize handler
-    window.addEventListener('resize', () => this.updateChart());
+    // Resize handler with debounce
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+       clearTimeout(resizeTimer);
+       resizeTimer = setTimeout(() => this.updateChart(), 250);
+    });
   }
 
   disconnectedCallback() {
-    clearInterval(this.interval);
+    clearInterval(this._interval);
   }
 
   async fetchData() {
@@ -29,8 +33,11 @@ class HoneypotChart extends HTMLElement {
       const res = await fetch('/api/stats/honeypot', {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
-      this.data = await res.json();
-      this.updateChart();
+      const data = await res.json();
+      if (data && data.length > 0) {
+        this.data = data;
+        this.updateChart();
+      }
     } catch (e) {}
   }
 
@@ -41,8 +48,8 @@ class HoneypotChart extends HTMLElement {
            <div class="flex flex-col gap-2">
               <span class="mono-xs text-slate-700 uppercase tracking-[0.3em] font-black">Total_Adversary_Hits</span>
               <div class="flex items-baseline gap-4">
-                 <span id="total-hits" class="text-6xl font-black text-white tracking-tighter tabular-nums leading-none">0</span>
-                 <span class="mono-xs font-black text-warning uppercase tracking-widest bg-warning/5 px-2 py-1 rounded border border-warning/10">+2.4%</span>
+                 <span id="total-hits" class="mono-lg font-black text-white tracking-widest tabular-nums leading-none">0</span>
+                 <span class="status-pill warning pulse">+2.4%</span>
               </div>
            </div>
            <div class="flex items-center gap-4 bg-warning/5 border border-warning/20 px-5 py-2.5 rounded-full shadow-warning/5 group-hover:border-warning/40 transition-all">
@@ -56,10 +63,9 @@ class HoneypotChart extends HTMLElement {
         </div>
         <div class="mt-8 flex justify-between items-center opacity-40 border-t border-white/5 pt-6">
            <div class="flex items-center gap-3">
-              <div class="w-1.5 h-1.5 bg-warning rounded-full shadow-warning"></div>
-              <span class="mono-xs font-black text-slate-600 uppercase tracking-widest">TEMPORAL_WINDOW: 24H_CYCLE</span>
+              <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">TEMPORAL_WINDOW: 24H_CYCLE</span>
            </div>
-           <span class="mono-xs font-black text-slate-600 uppercase tracking-widest">SOURCE: DISTRIBUTED_HONEYNET_V4</span>
+           <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">SOURCE: DISTRIBUTED_HONEYNET_V4</span>
         </div>
       </div>
     `;
@@ -150,7 +156,7 @@ class HoneypotChart extends HTMLElement {
       const y = drawHeight - padding - (d.hits / maxHits) * (drawHeight - padding * 2);
       
       ctx.beginPath();
-      ctx.fillStyle = 'var(--bg-black)';
+      ctx.fillStyle = 'var(--bg)';
       ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.fill();
       

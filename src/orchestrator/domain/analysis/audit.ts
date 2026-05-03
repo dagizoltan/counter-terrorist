@@ -237,11 +237,29 @@ export class AuditService {
     }
 
     private async purgeExpired() {
+        // 1. Chronological Purge
         const cutoffTimestamp = Date.now() - (this.retentionConfig.maxAgeDays * 24 * 60 * 60 * 1000);
         try {
-            const purgedCount = await this.repo.deleteBefore(cutoffTimestamp);
-            if (purgedCount > 0) {
-                this.logging.log(`[AUDIT] Retention purge: removed ${purgedCount} expired events.`, SyslogSeverity.INFORMATIONAL);
+            const purgedByAge = await this.repo.deleteBefore(cutoffTimestamp);
+            if (purgedByAge > 0) {
+                this.logging.log(`[AUDIT] Retention purge: removed ${purgedByAge} expired events (Age).`, SyslogSeverity.INFORMATIONAL);
+            }
+
+            // 2. Volume Purge (Double-pass if still over limit)
+            const currentCount = await this.repo.count();
+            if (currentCount > this.retentionConfig.maxEvents) {
+                const overLimit = currentCount - this.retentionConfig.maxEvents;
+                this.logging.log(`[AUDIT] Ledger volume exceeds threshold (${currentCount}/${this.retentionConfig.maxEvents}). Truncating ${overLimit} oldest events...`, SyslogSeverity.NOTICE);
+                
+                // Get the timestamp of the N-th oldest event to use deleteBefore
+                const oldestEvents = await this.kv.list<AuditEvent>({ prefix: ["audit"] }, { limit: overLimit });
+                let lastTs = Date.now();
+                for await (const entry of oldestEvents) {
+                    lastTs = Number(entry.key[1]);
+                }
+                
+                const purgedByVolume = await this.repo.deleteBefore(lastTs + 1);
+                this.logging.log(`[AUDIT] Volume purge complete: removed ${purgedByVolume} events.`, SyslogSeverity.INFORMATIONAL);
             }
         } catch (e) {
             this.logging.log(`[AUDIT] Retention purge failed: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.ERROR);

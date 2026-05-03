@@ -1,5 +1,6 @@
 import { AuditService } from "./audit.ts";
-import { LoggingPort } from "../../core/ports.ts";
+import { LoggingPort, SyslogSeverity } from "../../core/ports.ts";
+import { ProcessTracker } from "./process_tracker.ts";
 
 /**
  * ForensicService
@@ -9,59 +10,67 @@ export class ForensicService {
   constructor(
     private audit: AuditService,
     private logging: LoggingPort,
-    private kv: Deno.Kv
+    private kv: Deno.Kv,
+    private processTracker: ProcessTracker
   ) {}
 
   /**
    * Generates a cryptographically signed bundle of all security events and system snapshots.
    */
   async generateEvidenceBundle(limit = 1000) {
-    this.logging.log("[FORENSICS] Initiating evidence bundle generation...", 6);
+    this.logging.log("[FORENSICS] Initiating evidence bundle generation...", SyslogSeverity.NOTICE);
     
     // 1. Gather Audit Logs
-    const logs = await this.audit.getLogs(limit);
+    const logs = await this.audit.getRecentEvents(limit);
     
-    // 2. Gather System Snapshots (Placeholder for now, could include process lists, etc.)
-    const snapshots = [];
-    const iter = this.kv.list({ prefix: ["snapshots"] });
-    for await (const entry of iter) {
-      snapshots.push(entry.value);
-    }
-
+    // 2. Gather Current Process Tree
+    const processTree = this.processTracker.getTree();
+    
     // 3. Construct the Manifest
-    const manifest = {
-      version: "1.0",
+    const bundle = {
+      version: "1.2",
+      id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       node: Deno.hostname(),
-      integrity_check: "SHA-256",
-      events_count: logs.length,
-      snapshots_count: snapshots.length,
       data: {
         logs,
-        snapshots
+        processTree,
+        networkSnapshot: [] // Placeholder for PCAP links
       }
     };
 
-    // 4. In a real system, we would zip this and sign it.
-    // For now, we return the JSON structure which the API can serve.
-    this.logging.log(`[FORENSICS] Bundle generated: ${logs.length} events captured.`, 6);
-    return manifest;
+    await this.audit.logEvent({
+        type: "SUCCESS",
+        message: `Forensic Evidence Bundle Generated: ${bundle.id}`,
+        data: { bundleId: bundle.id, size: JSON.stringify(bundle).length }
+    });
+
+    this.logging.log(`[FORENSICS] Bundle generated: ${logs.length} events, ${processTree.length} processes captured.`, SyslogSeverity.INFORMATIONAL);
+    return bundle;
   }
 
   /**
-   * Triggers immediate isolation of a threat source.
+   * Captures a deep snapshot of a specific process including its environment and open files.
    */
-  async isolateSource(source: string, reason: string) {
-    this.logging.log(`[DEFENSE] EMERGENCY ISOLATION TRIGGERED for ${source}. Reason: ${reason}`, 1);
-    
-    await this.audit.logEvent({
-      type: "BLOCK",
-      message: `SOURCE ISOLATED: ${source}`,
-      data: { source, reason, action: "ISOLATION_PROTOCOL_ENGAGED" }
-    });
+  async captureProcessForensics(pid: number) {
+    try {
+        const [maps, fd, status] = await Promise.all([
+            Deno.readTextFile(`/proc/${pid}/maps`).catch(() => "ACCESS_DENIED"),
+            Deno.readDir(`/proc/${pid}/fd`).then(async (entries) => {
+                const list = [];
+                for await (const e of entries) list.push(e.name);
+                return list;
+            }).catch(() => []),
+            Deno.readTextFile(`/proc/${pid}/status`).catch(() => "ACCESS_DENIED")
+        ]);
 
-    // Here we would call the Blocker sidecar via the protection port
-    // For now, we emit the audit event which the UI will pick up.
-    return { success: true, source, action: "ISOLATED" };
+        const forensicData = { pid, timestamp: new Date().toISOString(), maps, fd, status };
+        await this.kv.set(["snapshots", pid, forensicData.timestamp], forensicData);
+        
+        return forensicData;
+    } catch (e) {
+        this.logging.log(`[FORENSICS] Failed to capture PID ${pid}: ${(e as Error).message}`, SyslogSeverity.ERROR);
+        return null;
+    }
   }
 }

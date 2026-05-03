@@ -23,9 +23,10 @@ export function createComplianceApi(services: ServiceContainer) {
     router.get("/logs", async (c) => {
         try {
             const logs = await Deno.readTextFile("./volume/logs/orchestrator.log");
-            return c.text(logs.split("\n").slice(-1000).join("\n"));
+            const tail = logs.split("\n").slice(-1000).join("\n");
+            return c.json({ logs: tail });
         } catch {
-            return c.text("No system logs available.");
+            return c.json({ logs: "No system logs available." });
         }
     });
 

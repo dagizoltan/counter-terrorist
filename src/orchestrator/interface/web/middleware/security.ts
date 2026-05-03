@@ -91,9 +91,11 @@ export class SecurityMiddleware {
       const isAuthRoute = path === "/login" || path === "/login/" || path === "/logout" || path === "/logout/";
       if (isAuthRoute) return next();
       
-      if (path.startsWith("/features/") || path.startsWith("/components/")) {
-        const isStaticAsset = /\.(css|js|png|jpg|jpeg|svg|json|ico)$/.test(path);
-        if (isStaticAsset) return next();
+      const isStaticAsset = /\.(css|js|png|jpg|jpeg|svg|json|ico|woff2?|ttf|otf)$/i.test(path);
+      const isPublicPath = path.startsWith("/features/") || path.startsWith("/components/") || path.startsWith("/vendor/") || path.startsWith("/assets/");
+      
+      if (isStaticAsset || isPublicPath) {
+        return next();
       }
 
       const sessionId = getCookie(c, "session_token");
@@ -107,9 +109,18 @@ export class SecurityMiddleware {
           
           if (["POST", "DELETE", "PUT", "PATCH"].includes(c.req.method)) {
             const csrfHeader = c.req.header("X-CT-Token");
-            if (!csrfHeader || !session.csrfToken || !(await secureCompare(csrfHeader, session.csrfToken))) {
-              loggingService.log(`[SECURITY] CSRF blocked for ${c.req.path}`, SyslogSeverity.WARNING);
-              return c.json({ error: "CSRF Validation Failed" }, 403);
+            let csrfBody: string | undefined;
+            
+            // Try to extract from body if header is missing (for standard form posts)
+            if (!csrfHeader && c.req.header("Content-Type")?.includes("application/x-www-form-urlencoded")) {
+              const body = await c.req.parseBody().catch(() => ({}));
+              csrfBody = body.csrfToken as string;
+            }
+
+            const providedToken = csrfHeader || csrfBody;
+            if (!providedToken || !session.csrfToken || !(await secureCompare(providedToken, session.csrfToken))) {
+              loggingService.log(`[SECURITY] CSRF blocked for ${c.req.path}. Method: ${c.req.method}`, SyslogSeverity.WARNING);
+              return c.json({ error: "CSRF Validation Failed", code: "CSRF_FAULT" }, 403);
             }
           }
           return next();

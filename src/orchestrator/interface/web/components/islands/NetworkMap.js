@@ -12,11 +12,11 @@ class NetworkMap extends HTMLElement {
   connectedCallback() {
     this.renderBase();
     this.fetchTopology();
-    this.interval = setInterval(() => this.fetchTopology(), 15000);
+    this._interval = setInterval(() => this.fetchTopology(), 15000);
   }
 
   disconnectedCallback() {
-    if (this.interval) clearInterval(this.interval);
+    clearInterval(this._interval);
   }
 
   async fetchTopology() {
@@ -27,7 +27,10 @@ class NetworkMap extends HTMLElement {
       });
       if (res.ok) {
         const data = await res.json();
-        this.devices = Array.isArray(data) ? data : [];
+        // SWR: Only update if data exists and differs
+        if (Array.isArray(data) && (data.length > 0 || !this.devices.length)) {
+           this.devices = data;
+        }
         this.isScanning = false;
         this.render();
       }
@@ -118,13 +121,13 @@ class NetworkMap extends HTMLElement {
     }
     
     wifi.innerHTML = wifis.length ? wifis.map(d => this.renderSignal(d, d.state === 'OPEN' ? 'danger' : 'primary')).join('') 
-                     : '<div class="p-8 bg-black/40 border border-white/5 rounded-lg mono-xs text-slate-800 italic uppercase font-black text-center tracking-widest opacity-30">No_Active_Signals</div>';
+                     : '<div class="empty-state">No_Active_Signals</div>';
     
     eth.innerHTML = eths.length ? eths.map(d => this.renderSignal(d, 'primary')).join('')
-                     : '<div class="p-8 bg-black/40 border border-white/5 rounded-lg mono-xs text-slate-800 italic uppercase font-black text-center tracking-widest opacity-30">Bus_Clear</div>';
+                     : '<div class="empty-state">Bus_Clear</div>';
     
     bt.innerHTML = bts.length ? bts.map(d => this.renderSignal(d, 'primary')).join('')
-                     : '<div class="p-8 bg-black/40 border border-white/5 rounded-lg mono-xs text-slate-800 italic uppercase font-black text-center tracking-widest opacity-30">No_Devices</div>';
+                     : '<div class="empty-state">No_Devices</div>';
   }
 
   renderNode(d, theme) {
@@ -136,10 +139,10 @@ class NetworkMap extends HTMLElement {
             <span class="dot active shadow-primary" style="background: ${color}"></span>
             <div class="flex flex-col gap-1">
                <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Sovereign_Peer</span>
-               <span class="text-xl font-black text-white uppercase tracking-tighter italic select-all">${d.hostname || d.ip || 'UNKNOWN'}</span>
+               <span class="mono-md font-black text-white uppercase tracking-tighter italic select-all">${d.hostname || d.ip || 'UNKNOWN'}</span>
             </div>
           </div>
-          <span class="mono-xs text-primary font-black tabular-nums tracking-widest select-all bg-primary/5 px-3 py-1 rounded border border-primary/20">${d.mac || '??:??:??:??'}</span>
+          <div class="status-pill active primary">${d.mac || '??:??:??:??'}</div>
         </div>
         <div class="flex justify-between items-center pt-6 border-t border-white/5">
           <div class="flex items-center gap-2">
@@ -176,10 +179,10 @@ class NetworkMap extends HTMLElement {
           </div>
         </div>
         <div class="flex justify-between items-center pt-3 border-t border-white/5">
-           <div class="status-pill ${isDanger ? 'danger' : 'active'} py-0.5 px-2 opacity-50 group-hover:opacity-100 transition-all" style="font-size: 8px; ${!isDanger ? 'background:var(--primary-glow); border-color:var(--primary-glow); color:var(--primary)' : ''}">
+           <div class="status-pill ${isDanger ? 'danger' : 'active'} opacity-50 group-hover:opacity-100 transition-all">
              ${d.encryption || d.state || 'SECURE'}
            </div>
-           <span class="mono-xs text-slate-800 font-black group-hover:text-slate-600 transition-colors uppercase select-all" style="font-size: 9px;">H_IDX: ${(d.mac || '').slice(-8)}</span>
+           <span class="mono-xs text-slate-600 font-bold uppercase select-all">H_IDX: ${(d.mac || '').slice(-8)}</span>
         </div>
       </div>
     `;

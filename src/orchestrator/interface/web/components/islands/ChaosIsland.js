@@ -35,9 +35,8 @@ export default function ChaosIsland() {
 
   return html`
     <div class="t-panel glass-panel border-t-2 border-danger/40 p-10 overflow-hidden relative group">
-      {/* Background Ambience */}
       <div class="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transition-transform group-hover:scale-110">
-         <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+         <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
       </div>
 
       <header class="flex items-center gap-6 mb-10 pb-6 border-b border-white/5">
@@ -64,8 +63,8 @@ export default function ChaosIsland() {
                <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_01</span>
                <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
             </div>
-            <div class="text-sm font-black text-white uppercase tracking-tighter">SSH_Brute_Force</div>
-            <div class="mono-xs text-[9px] text-slate-700 mt-2 font-bold uppercase">TARGET: SECURE_NODE_01</div>
+            <div class="mono-md font-black text-white uppercase tracking-tighter">SSH_Brute_Force</div>
+            <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: SECURE_NODE_01</div>
          </button>
 
          <button 
@@ -77,8 +76,8 @@ export default function ChaosIsland() {
                <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_02</span>
                <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
             </div>
-            <div class="text-sm font-black text-white uppercase tracking-tighter">Canary_Exfiltration</div>
-            <div class="mono-xs text-[9px] text-slate-700 mt-2 font-bold uppercase">TARGET: FS_VAULT_ROOT</div>
+            <div class="mono-md font-black text-white uppercase tracking-tighter">Canary_Exfiltration</div>
+            <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: FS_VAULT_ROOT</div>
          </button>
 
          <button 
@@ -90,8 +89,8 @@ export default function ChaosIsland() {
                <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_03</span>
                <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
             </div>
-            <div class="text-sm font-black text-white uppercase tracking-tighter">Kernel_Malware</div>
-            <div class="mono-xs text-[9px] text-slate-700 mt-2 font-bold uppercase">TARGET: EBPF_RUNTIME</div>
+            <div class="mono-md font-black text-white uppercase tracking-tighter">Kernel_Malware</div>
+            <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: EBPF_RUNTIME</div>
          </button>
       </div>
 
@@ -105,8 +104,8 @@ export default function ChaosIsland() {
       `}
 
       ${loading && html`
-        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-6 z-20">
-           <div class="w-16 h-16 border-2 border-danger border-t-transparent rounded-full animate-spin shadow-danger"></div>
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center gap-8 z-20">
+           <div class="skeleton h-24 w-64"></div>
            <span class="mono-xs font-black text-danger uppercase tracking-[0.5em] animate-pulse">Initializing_Synthetic_Payload...</span>
         </div>
       `}

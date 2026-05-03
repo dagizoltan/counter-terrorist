@@ -115,9 +115,10 @@ class TimelineIsland extends HTMLElement {
 
     if (this.isHydrating && this.events.length === 0) {
       container.innerHTML = `
-        <div class="t-panel glass-panel text-center p-32 border-dashed opacity-30">
-           <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin shadow-primary mx-auto mb-8"></div>
-           <span class="mono-xs font-black uppercase tracking-[0.4em] animate-pulse text-primary">Reconstructing_Event_Horizon...</span>
+        <div class="flex flex-col gap-6">
+           <div class="skeleton h-32 w-full"></div>
+           <div class="skeleton h-32 w-full opacity-60"></div>
+           <div class="skeleton h-32 w-full opacity-30"></div>
         </div>
       `;
       return;
@@ -125,8 +126,8 @@ class TimelineIsland extends HTMLElement {
 
     if (this.events.length === 0) {
       container.innerHTML = `
-        <div class="t-panel glass-panel text-center p-32 border-dashed opacity-20">
-           <span class="mono-xs font-black uppercase tracking-widest text-slate-500 italic">No_Security_Events_Found_In_Temporal_Buffer</span>
+        <div class="empty-state">
+           <span class="mono-xs font-bold uppercase tracking-widest text-slate-500 italic">No_Security_Events_Found_In_Temporal_Buffer</span>
         </div>
       `;
       return;
@@ -137,8 +138,8 @@ class TimelineIsland extends HTMLElement {
     
     if (this.visibleCount < this.events.length) {
       const loadMore = document.createElement('div');
-      loadMore.className = 'py-16 text-center opacity-30';
-      loadMore.innerHTML = `<span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em] animate-pulse">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
+      loadMore.className = 'py-12 text-center opacity-30';
+      loadMore.innerHTML = `<span class="mono-xs font-bold text-slate-500 uppercase tracking-widest animate-pulse">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
       container.appendChild(loadMore);
     }
   }
@@ -147,7 +148,6 @@ class TimelineIsland extends HTMLElement {
     const isCritical = ev.type === 'CRITICAL' || ev.severity >= 8;
     const isWarning = ev.type === 'BLOCK' || ev.type === 'WARN' || (ev.severity >= 5 && ev.severity < 8);
     const theme = isCritical ? 'danger' : (isWarning ? 'warning' : 'primary');
-    const color = `var(--${theme})`;
     
     const ts = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '00:00:00';
     let nodeName = 'LOCAL_NODE';
@@ -162,32 +162,29 @@ class TimelineIsland extends HTMLElement {
     }
 
     return `
-      <div class="t-panel glass-panel border-l-4 group transition-all hover:bg-white/[0.03] hover:translate-x-2 animate-fade-in p-8 mb-6" style="border-left-color: ${color}">
+      <div class="t-panel glass-panel border-l-4 group transition-all hover:bg-white/[0.03] animate-fade-in p-8 mb-6" style="border-left-color: var(--${theme})">
         <div class="flex justify-between items-start mb-8">
            <div class="flex items-center gap-8">
               <div class="flex flex-col gap-1">
-                 <span class="mono-xs text-slate-700 font-black uppercase tracking-widest">Timestamp</span>
-                 <span class="mono text-lg font-black text-white tabular-nums tracking-tighter">${ts}</span>
+                 <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Timestamp</span>
+                 <span class="mono-md font-black text-white tabular-nums tracking-widest">${ts}</span>
               </div>
-              <span class="text-slate-800 font-bold opacity-30 text-2xl">//</span>
+              <span class="text-slate-800 font-bold opacity-30 text-xl">//</span>
               <div class="flex flex-col gap-1">
-                 <span class="mono-xs text-slate-700 font-black uppercase tracking-widest">Source_Node</span>
+                 <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Source_Node</span>
                  <div class="flex items-center gap-3">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" opacity="0.6"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    <span class="mono-xs font-black text-primary tracking-widest uppercase shadow-primary">${this.escape(nodeName)}</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-primary/60"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    <span class="mono-xs font-black text-primary tracking-widest uppercase">${this.escape(nodeName)}</span>
                  </div>
               </div>
            </div>
-           <div class="flex items-center gap-4 bg-black/40 px-4 py-2 rounded border border-white/5 shadow-inner">
-              <span class="dot active shadow-${theme}" style="background: ${color}"></span>
-              <span class="mono-xs font-black uppercase tracking-[0.2em]" style="color: ${color}">${this.escape(ev.type || 'EVENT')}</span>
-           </div>
+           <div class="status-pill ${theme} pulse">${this.escape(ev.type || 'EVENT')}</div>
         </div>
-        <h4 class="text-2xl font-black text-white uppercase tracking-tighter mb-6 group-hover:text-primary transition-colors leading-tight">${this.escape(msg)}</h4>
+        <h4 class="text-xl font-bold text-white uppercase tracking-tighter mb-8 group-hover:text-primary transition-colors leading-tight">${this.escape(msg)}</h4>
         ${ev.data ? `
-          <div class="p-6 bg-black/60 border border-white/5 rounded-lg font-mono text-[11px] text-primary/60 break-all select-all opacity-40 group-hover:opacity-100 transition-opacity relative group/data">
-            <div class="absolute top-4 right-4 mono-xs text-slate-800 font-black opacity-0 group-hover/data:opacity-100 transition-opacity uppercase tracking-widest">Raw_Telemetry</div>
-            <pre class="whitespace-pre-wrap leading-relaxed">${this.escape(typeof ev.data === 'string' ? ev.data : JSON.stringify(ev.data, null, 2))}</pre>
+          <div class="p-8 bg-black/40 border border-white/5 rounded-xl font-mono text-primary/60 break-all select-all opacity-40 group-hover:opacity-100 transition-opacity relative group/data">
+            <div class="absolute top-6 right-6 mono-xs text-slate-800 font-black opacity-0 group-hover/data:opacity-100 transition-opacity uppercase tracking-widest">Raw_Telemetry</div>
+            <pre class="whitespace-pre-wrap leading-relaxed text-[10px]">${this.escape(typeof ev.data === 'string' ? ev.data : JSON.stringify(ev.data, null, 2))}</pre>
           </div>
         ` : ''}
       </div>

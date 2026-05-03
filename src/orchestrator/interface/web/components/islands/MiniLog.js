@@ -33,7 +33,8 @@ class MiniLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
@@ -48,35 +49,35 @@ class MiniLog extends HTMLElement {
   render() {
     const escape = window.escapeHTML || ((s) => s);
     this.innerHTML = `
-      <div class="flex flex-col">
+      <div class="flex flex-col gap-4">
         ${this.logs.length === 0 ? `
-          <div class="flex flex-col items-center justify-center p-16 opacity-10">
-             <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mb-6"></div>
-             <div class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em] text-center">Synchronizing_Forensic_Buffer...</div>
+          <div class="flex flex-col gap-4">
+             <div class="skeleton h-16 w-full"></div>
+             <div class="skeleton h-16 w-full opacity-60"></div>
+             <div class="skeleton h-16 w-full opacity-30"></div>
           </div>
         ` : this.logs.map((log, idx) => {
           const color = this.getColor(log.type);
           const isCritical = ['BLOCK', 'THREAT', 'CRITICAL', 'EMERGENCY', 'DRIFT_PROCESS'].includes(log.type);
           return `
-            <div class="border-l-4 pl-5 py-4 group transition-all animate-fade-in border-white/5 hover:bg-white/[0.03] relative overflow-hidden" 
-                 style="border-left-color: ${isCritical ? 'var(--danger)' : color}; animation-delay: ${idx * 20}ms">
+            <div class="p-6 border-l-4 border-slate-800 hover:border-primary bg-black/20 hover:bg-black/40 transition-all animate-fade-in relative overflow-hidden" 
+                 style="border-left-color: ${isCritical ? 'var(--danger)' : 'var(--border-subtle)'};">
               ${isCritical ? `<div class="absolute inset-0 bg-danger/5 animate-pulse pointer-events-none"></div>` : ''}
-              <div class="flex justify-between items-center mb-2 relative z-10">
-                <span class="mono-xs font-black uppercase tracking-widest px-2 py-0.5 rounded" 
-                      style="background: ${isCritical ? 'var(--danger)' : 'transparent'}; color: ${isCritical ? 'white' : color}">
+              <div class="flex justify-between items-center mb-4 relative z-10">
+                <span class="status-pill ${isCritical ? 'danger' : 'primary'} border-none p-0 bg-transparent">
                   ${log.type}
                 </span>
-                <span class="mono-xs text-slate-600 uppercase font-bold text-[8px] tracking-widest">
+                <span class="mono-xs text-slate-600 font-bold tracking-widest">
                   ${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}
                 </span>
               </div>
-              <div class="mono-xs font-bold text-slate-400 group-hover:text-white transition-colors leading-relaxed uppercase tracking-tight text-[10px] relative z-10">
+              <div class="mono-xs font-bold text-slate-400 group-hover:text-white transition-colors leading-relaxed uppercase tracking-tight relative z-10">
                 ${escape(log.message)}
               </div>
               ${log.data?.source ? `
-                <div class="mt-2 flex items-center gap-2 opacity-40 group-hover:opacity-100 transition-opacity">
-                  <span class="mono-xs text-[8px] text-slate-500 font-black">SRC:</span>
-                  <span class="mono-xs text-[8px] text-primary font-black">${log.data.source}</span>
+                <div class="mt-4 flex items-center gap-3 opacity-40 group-hover:opacity-100 transition-opacity">
+                  <span class="mono-xs text-slate-500 font-bold">SOURCE:</span>
+                  <span class="mono-xs text-primary font-bold">${log.data.source}</span>
                 </div>
               ` : ''}
             </div>

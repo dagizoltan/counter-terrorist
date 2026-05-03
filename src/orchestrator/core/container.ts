@@ -13,10 +13,35 @@ import {
   MeshManager,
   EventBus,
   MeshAuthService,
-  ThreatIntelService
+  ThreatIntelService,
+  ComplianceService,
+  AnonymizationService,
+  DeceptionGridService,
+  ShadowProtocolService,
+  CuratedIntelService,
+  NewsSignalService,
+  NetworkDiscoveryService,
+  NetworkLogService,
+  IncidentService,
+  CanaryService,
+  KernelService,
+  ForensicService,
+  PlaybookService,
+  ShadowService,
+  CovertChannelService,
+  LedgerService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
-import { ComplianceService } from "../domain/analysis/compliance_service.ts";
+import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
+
+export interface PlatformInfo {
+  name: string;
+  version: string;
+  tag: string;
+  isRoot: boolean;
+  tpm?: { available: boolean; pcrs: Record<number, string> };
+  metrics?: any;
+}
 
 export interface ServiceContainer {
   config: ConfigurationPort;
@@ -31,6 +56,7 @@ export interface ServiceContainer {
   eventBus: EventBus;
   honeypot: HoneypotService;
   autopilot: AutopilotService;
+  playbook: PlaybookService;
   morphing: MorphingService;
   chaos: ChaosEngine;
   supplyChain: SupplyChainService;
@@ -38,15 +64,21 @@ export interface ServiceContainer {
   meshAuth: MeshAuthService;
   threatIntel: ThreatIntelService;
   compliance: ComplianceService;
-  anonymization: any;
-  deceptionGrid: any;
-  shadowProtocol: any;
-  curatedIntel: any;
-  news: any;
-  networkDiscovery: any;
-  networkLogs: any;
-  incidents: any;
-  canaryService: any;
-  kernelService: any;
-  forensicService: any;
+  anonymization: AnonymizationService;
+  shadowProtocol: ShadowProtocolService;
+  deceptionGrid: DeceptionGridService;
+  curatedIntel: CuratedIntelService;
+  news: NewsSignalService;
+  networkDiscovery: NetworkDiscoveryService;
+  networkLogs: NetworkLogService;
+  incidents: IncidentService;
+  canaryService: CanaryService;
+  kernelService: KernelService;
+  forensicService: ForensicService;
+  shadow: ShadowService;
+  covert: CovertChannelService;
+  ledger: LedgerService;
+  tpm: TPMManager;
+  policy: any; // PolicyEngine
+  platformInfo: PlatformInfo;
 }

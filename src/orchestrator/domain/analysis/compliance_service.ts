@@ -1,4 +1,5 @@
 import { AuditService, AuditEvent } from "./audit.ts";
+import { ProcessTracker } from "./process_tracker.ts";
 
 export interface ComplianceReport {
     timestamp: string;
@@ -10,6 +11,7 @@ export interface ComplianceReport {
         tamperAttempts: number;
         adminActions: number;
         pcrVerification: "SUCCESS" | "FAILURE";
+        stealthDetections: number;
     };
     recentMutations: any[];
     violations: any[];
@@ -20,7 +22,11 @@ export interface ComplianceReport {
  * Aggregates audit data into auditor-ready reports and snapshots.
  */
 export class ComplianceService {
-    constructor(private audit: AuditService, private kv: Deno.Kv) {}
+    constructor(
+        private audit: AuditService, 
+        private kv: Deno.Kv,
+        private processTracker: ProcessTracker
+    ) {}
 
     /**
      * Generates a high-fidelity compliance snapshot of the current node.
@@ -38,7 +44,7 @@ export class ComplianceService {
         for await (const entry of entries) {
             const event = entry.value;
             if (event.type === "ADMIN_ACTION") adminActions.push(event);
-            if (event.type === "SYSTEM_ERROR" || event.type === "EMERGENCY") {
+            if (event.type === "SYSTEM_ERROR" || event.type === "EMERGENCY" || event.type === "CRITICAL") {
                 violations.push({
                     timestamp: event.timestamp,
                     message: event.message,
@@ -50,8 +56,11 @@ export class ComplianceService {
             }
         }
 
-        const overallStatus = (verification.valid && violations.length === 0) ? "COMPLIANT" : "NON_COMPLIANT";
-        const integrityScore = verification.valid ? 100 : 0;
+        // Check for active ghost processes
+        const ghosts = this.processTracker.getTree().filter(p => p.isGhost);
+
+        const overallStatus = (verification.valid && violations.length === 0 && ghosts.length === 0) ? "COMPLIANT" : "NON_COMPLIANT";
+        const integrityScore = verification.valid ? (ghosts.length > 0 ? 70 : 100) : 0;
 
         return {
             timestamp: new Date().toISOString(),
@@ -62,7 +71,8 @@ export class ComplianceService {
                 totalEvents: status.count,
                 tamperAttempts,
                 adminActions: adminActions.length,
-                pcrVerification: verification.valid ? "SUCCESS" : "FAILURE"
+                pcrVerification: verification.valid ? "SUCCESS" : "FAILURE",
+                stealthDetections: ghosts.length
             },
             recentMutations: adminActions.slice(0, 10).map(a => ({
                 timestamp: a.timestamp,
@@ -78,7 +88,6 @@ export class ComplianceService {
      */
     async exportSignedBundle() {
         const snapshot = await this.generateSnapshot();
-        // In a real system, we would sign this JSON using the TPM's identity key.
         return {
             ...snapshot,
             signature: "HW_SIGNED_MOCK_SIGNATURE"

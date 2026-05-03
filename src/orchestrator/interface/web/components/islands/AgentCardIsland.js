@@ -13,7 +13,8 @@ class AgentCardIsland extends HTMLElement {
 
   connectWS() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
@@ -21,7 +22,7 @@ class AgentCardIsland extends HTMLElement {
         if (payload.type === 'METRICS_UPDATE' && payload.data) {
           this.updateMetrics(payload.data);
         }
-        if (payload.type === 'THREAT' || payload.type === 'CRITICAL' || payload.type === 'INFO') {
+        if (['THREAT', 'CRITICAL', 'INFO', 'HONEYPOT', 'DRIFT_PROCESS', 'EBPF_STRAY_SHELL', 'EBPF_CRITICAL', 'BLOCK'].includes(payload.type)) {
            this.handleEvent(payload);
         }
       } catch (e) {

@@ -40,6 +40,8 @@ export interface CommandPort {
 export interface FirewallPort {
   blockIp(ip: string): Promise<CommandResult>;
   unblockIp(ip: string): Promise<CommandResult>;
+  shadowBanIp(ip: string): Promise<CommandResult>;
+  lockdown(): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
 }

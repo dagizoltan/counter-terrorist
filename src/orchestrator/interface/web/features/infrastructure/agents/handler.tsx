@@ -23,13 +23,13 @@ export function createAgentsRouter(getStatus: () => Promise<ApplicationStatus>) 
 
     const { FirewallPage, VpnPage, ScannerPage, EbpfPage, FimPage, PcapPage, HoneypotPage } = await import("./subpages/core.tsx");
     
-    if (name === "firewall") return c.html(<FirewallPage />);
-    if (name === "vpn") return c.html(<VpnPage />);
-    if (name === "scanner") return c.html(<ScannerPage />);
-    if (name === "ebpf") return c.html(<EbpfPage />);
-    if (name === "fim") return c.html(<FimPage />);
-    if (name === "pcap") return c.html(<PcapPage />);
-    if (name === "honeypot") return c.html(<HoneypotPage />);
+    if (name === "firewall") return c.html(<FirewallPage csrfToken={csrfToken} />);
+    if (name === "vpn") return c.html(<VpnPage csrfToken={csrfToken} />);
+    if (name === "scanner") return c.html(<ScannerPage csrfToken={csrfToken} />);
+    if (name === "ebpf") return c.html(<EbpfPage csrfToken={csrfToken} />);
+    if (name === "fim") return c.html(<FimPage csrfToken={csrfToken} />);
+    if (name === "pcap") return c.html(<PcapPage csrfToken={csrfToken} />);
+    if (name === "honeypot") return c.html(<HoneypotPage csrfToken={csrfToken} />);
 
     return c.html(<AgentDetailPage agent={agent} csrfToken={csrfToken} />);
   });

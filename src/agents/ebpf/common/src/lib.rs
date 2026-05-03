@@ -5,7 +5,7 @@
 pub struct SyscallEvent {
     pub pid: u32,
     pub comm: [u8; 16],
-    pub syscall_id: u32, // 1: ptrace, 2: mmap, 3: execve
+    pub syscall_id: u32, // x86_64: 101 (ptrace), 9 (mmap), 59 (execve)
 }
 
 #[repr(C)]

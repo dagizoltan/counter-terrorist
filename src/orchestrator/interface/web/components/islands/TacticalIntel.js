@@ -28,9 +28,10 @@ function TacticalIntel() {
 
   if (loading && intel.length === 0) {
     return (
-      <div class="flex flex-col items-center justify-center p-32 gap-6">
-        <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin shadow-primary"></div>
-        <div class="mono-xs font-black text-primary uppercase tracking-[0.4em] animate-pulse">Hydrating_Tactical_Intelligence_Buffer...</div>
+      <div class="flex flex-col gap-6">
+        <div class="skeleton h-32 w-full"></div>
+        <div class="skeleton h-32 w-full opacity-60"></div>
+        <div class="skeleton h-32 w-full opacity-30"></div>
       </div>
     );
   }
@@ -53,34 +54,34 @@ function TacticalIntel() {
         const color = `var(--${theme})`;
 
         return (
-          <div key={item.source} class={`t-panel glass-panel border-l-4 transition-all hover:bg-white/[0.02] hover:translate-x-1 p-8`} style={{ borderLeftColor: color }}>
-            <div class="flex justify-between items-start mb-8">
+          <div key={item.source} class={`t-panel glass-panel border-l-4 transition-all hover:bg-white/[0.02] p-10 mb-8`} style={{ borderLeftColor: color }}>
+            <div class="flex justify-between items-start mb-10">
               <div class="flex flex-col gap-2">
-                <div class="mono-xs font-black text-slate-600 uppercase tracking-widest">Incursion_Vector</div>
-                <div class="text-3xl font-black text-white tracking-tighter uppercase italic select-all">{item.source}</div>
+                <div class="mono-xs font-bold text-slate-500 uppercase tracking-widest">Incursion_Vector</div>
+                <div class="mono-md font-black text-white uppercase tracking-tighter italic select-all">{item.source}</div>
               </div>
               <div class="text-right flex flex-col items-end gap-2">
-                <div class="mono-xs font-black text-slate-600 uppercase tracking-widest">Tactical_Threat_Score</div>
-                <div class={`text-4xl font-black tabular-nums tracking-tighter shadow-sm`} style={{ color, textShadow: `0 0 10px ${color}44` }}>
+                <div class="mono-xs font-bold text-slate-500 uppercase tracking-widest">Tactical_Threat_Score</div>
+                <div class="mono-lg font-black tabular-nums tracking-widest" style={{ color, textShadow: `0 0 15px ${color}66` }}>
                   {item.score.toFixed(1)}
                 </div>
               </div>
             </div>
 
             {item.remediation && (
-              <div class={`mb-8 p-6 rounded-lg border-2 flex items-center gap-6 bg-black/60 transition-colors hover:bg-black/80`} style={{ borderColor: `${color}44` }}>
-                 <div class="p-4 bg-black/40 rounded border border-white/10 shadow-inner" style={{ color }}>
-                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+              <div class={`mb-10 p-8 rounded-xl border flex items-center gap-8 bg-black/60 transition-colors hover:bg-black/80`} style={{ borderColor: `${color}33` }}>
+                 <div class="p-4 bg-black/40 rounded border border-white/5 shadow-inner" style={{ color }}>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                  </div>
                  <div class="flex-grow">
-                    <div class="flex items-center gap-3 mb-1">
-                       <span class="dot active shadow-primary animate-pulse" style={{ background: color }}></span>
-                       <div class="mono-xs font-black uppercase tracking-[0.2em]" style={{ color }}>{item.remediation.tier}_NEUTRALIZATION_PROTOCOL</div>
+                    <div class="flex items-center gap-4 mb-2">
+                       <span class="dot pulse" style={{ background: color }}></span>
+                       <div class="mono-xs font-black uppercase tracking-widest" style={{ color }}>{item.remediation.tier}_NEUTRALIZATION_PROTOCOL</div>
                     </div>
-                    <div class="mono-xs text-slate-500 uppercase font-black tracking-widest leading-none mt-2 italic">\${item.remediation.reason}</div>
+                    <div class="mono-xs text-slate-500 uppercase font-bold tracking-widest leading-none mt-2 italic">${item.remediation.reason}</div>
                  </div>
-                 <div class="mono-xs text-slate-700 font-black tabular-nums bg-white/5 px-3 py-1 rounded">
-                    T- \${new Date(item.remediation.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit'})}
+                 <div class="status-pill active primary">
+                    T- ${new Date(item.remediation.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit'})}
                  </div>
               </div>
             )}
@@ -94,7 +95,7 @@ function TacticalIntel() {
                  <span class="mono-xs text-slate-800 font-black uppercase tracking-[0.3em]">SEC_AUDIT_VERIFIED</span>
                </div>
                
-               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+               <div class="grid grid-cols-2 gap-4">
                  {item.events.map((ev, i) => (
                     <div key={i} class="flex justify-between items-center group/ev p-4 bg-black/40 border border-white/5 rounded transition-all hover:border-primary/20">
                        <div class="flex items-center gap-4">

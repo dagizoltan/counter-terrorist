@@ -95,6 +95,39 @@ export class KernelService {
         }
     }
 
+    /**
+     * Enforces a syscall block via eBPF Kernel hooks.
+     */
+    async blockSyscall(pid: number, syscall: string) {
+        if (!this.sidecarManager) return;
+        
+        this.logging.log(`[KERNEL] LSM Enforcement: Blocking syscall '${syscall}' for PID ${pid}`, SyslogSeverity.CRITICAL);
+        await this.sidecarManager.sendCommand("ebpf", {
+            type: "BLOCK_SYSCALL",
+            pid,
+            syscall
+        }).catch(err => console.warn("[KERNEL] eBPF syscall block failed:", err));
+        
+        this.auditService.logEvent({
+            type: "LSM_ENFORCEMENT",
+            message: `Blocked ${syscall} for process ${pid}`,
+            data: { pid, syscall }
+        });
+    }
+
+    /**
+     * Deploys a global LSM policy to the eBPF agent.
+     */
+    async enforceLsmPolicy(policy: { blockedSyscalls: string[], restrictedPids: number[] }) {
+        if (!this.sidecarManager) return;
+        
+        this.logging.log(`[KERNEL] Deploying Deep LSM Policy...`, SyslogSeverity.NOTICE);
+        await this.sidecarManager.sendCommand("ebpf", {
+            type: "LSM_POLICY",
+            policy
+        }).catch(err => console.warn("[KERNEL] eBPF LSM policy deployment failed:", err));
+    }
+
     async getStatus(): Promise<KernelHardeningStatus> {
         const [aslrVal, syncookiesVal, rpFilterVal, timestampsVal, srcRouteVal, icmpBroadVal] = await Promise.all([
             this.readSysctl("kernel.randomize_va_space"),

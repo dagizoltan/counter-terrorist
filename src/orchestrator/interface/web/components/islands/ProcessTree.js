@@ -95,7 +95,7 @@ class ProcessTree extends HTMLElement {
               </div>
               <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-6">
                  <span class="mono-xs text-slate-700 uppercase font-bold tracking-widest">PPID: ${node.ppid}</span>
-                 <button class="t-btn danger p-1 text-[8px] h-6 px-3" onclick="confirm('Execute SIGKILL on PID ${node.pid}?') && fetch('/api/processes/kill/${node.pid}', {method:'POST'}).then(() => location.reload())">Terminate</button>
+                 <button class="t-btn danger p-1 text-[8px] h-6 px-3" onclick="const csrf = document.querySelector('meta[name=\'csrf-token\']')?.content; confirm('Execute SIGKILL on PID ${node.pid}?') && fetch('/api/processes/kill/${node.pid}', {method:'POST', headers:{'X-CT-Token':csrf}}).then(() => location.reload())">Terminate</button>
               </div>
            </div>
         </div>

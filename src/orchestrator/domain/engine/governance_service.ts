@@ -156,7 +156,7 @@ export class GovernanceService {
             if (proposal.type === "LOCKDOWN") {
                 this.logging.log("[GOVERNANCE] Executing MESH-WIDE LOCKDOWN (Fail-Closed).", SyslogSeverity.EMERGENCY);
                 // Apply strict firewall rules immediately
-                await this.protection.firewall.blockAll().catch(() => {});
+                await this.protection.firewall.lockdown().catch(() => {});
                 broadcast({ type: "CRITICAL", message: "MESH-WIDE LOCKDOWN INITIATED BY CONSENSUS" });
             } else if (proposal.type === "IDENTITY_ROTATE") {
                 await this.mesh.rotateIdentity();

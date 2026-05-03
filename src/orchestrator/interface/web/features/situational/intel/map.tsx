@@ -5,31 +5,24 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Atomic Threat Map
  * Hardened tactical overlay with high-fidelity spatial intelligence.
  */
-export default function ThreatMapPage() {
+export default function ThreatMapPage(props: { csrfToken?: string }) {
   return (
-    <Layout title="Spatial Intelligence // Tactical Map">
+    <Layout title="Spatial Intelligence // Tactical Map" csrfToken={props.csrfToken}>
       
-      {/* 01_Header_Section */}
-      <header class="flex justify-between items-end mb-16 animate-fade-in">
-        <div class="flex items-center gap-8">
-          <div class="w-3 h-16 bg-primary rounded shadow-primary"></div>
-          <div class="flex flex-col gap-2">
-            <h1 class="text-6xl font-black text-white tracking-tighter leading-none m-0 uppercase italic">Spatial_Intel</h1>
-            <div class="flex items-center gap-6">
-              <div class="flex items-center gap-2">
-                <span class="dot active shadow-primary animate-pulse"></span>
-                <span class="mono-xs font-black text-primary tracking-widest uppercase">Mesh_Gossip_Live</span>
-              </div>
-              <span class="text-slate-700">/</span>
-              <div class="mono-xs font-bold text-slate-500 tracking-widest uppercase">Propagation_State: STABLE</div>
-            </div>
-          </div>
+      {/* 01_Unified_Page_Header */}
+      <header class="page-header">
+        <div class="title-group">
+          <h1>Spatial Intelligence</h1>
+          <span class="subtitle">Mesh Gossip Live // Propagation State: Stable</span>
+        </div>
+        <div class="flex items-center gap-4">
+           <div class="status-pill success pulse">Gossip Active</div>
         </div>
       </header>
 
       {/* 02_Tactical_Overlay */}
       <div class="grid grid-cols-12 gap-8 animate-fade-in" style="animation-delay: 100ms;">
-        <div class="col-span-12 t-panel glass-panel p-0 overflow-hidden relative border-t-2 border-slate-800" style="min-height:640px;">
+        <div class="col-span-12 t-panel glass-panel p-0 relative border-t-2 border-slate-800" style="min-height:720px;">
            <header class="absolute top-8 left-8 z-10 flex flex-col gap-2">
               <div class="flex items-center gap-4 bg-black/80 backdrop-blur-md border border-white/5 px-6 py-3 rounded-lg shadow-2xl">
                  <div class="w-2 h-2 bg-primary rounded shadow-primary animate-pulse"></div>
@@ -40,22 +33,13 @@ export default function ThreatMapPage() {
               </div>
            </header>
 
-           <div id="heatmap-island-container" class="w-full h-full flex flex-col items-center justify-center bg-black/40 group">
-              <div class="flex flex-col items-center gap-6 opacity-30">
-                 <div class="w-16 h-16 border-2 border-primary border-t-transparent rounded-full animate-spin shadow-primary"></div>
-                 <span class="mono-xs font-black text-primary uppercase tracking-[0.4em] animate-pulse">Initializing_Spatial_Engine...</span>
-              </div>
+           <div id="heatmap-island-container" class="w-full h-full min-h-[720px] flex flex-col gap-6 p-10 bg-black/40 group">
+              <div class="skeleton h-full w-full"></div>
            </div>
            
-           <div class="absolute bottom-8 left-8 z-10 flex gap-4 pointer-events-none">
-              <div class="px-6 py-3 bg-black/60 border border-white/5 rounded-full flex items-center gap-3">
-                 <div class="w-2 h-2 bg-success rounded shadow-success"></div>
-                 <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">Threat_Low</span>
-              </div>
-              <div class="px-6 py-3 bg-black/60 border border-white/5 rounded-full flex items-center gap-3">
-                 <div class="w-2 h-2 bg-danger rounded shadow-danger"></div>
-                 <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">Anomalous_Signal</span>
-              </div>
+           <div class="absolute bottom-10 left-10 z-10 flex gap-6 pointer-events-none">
+              <div class="status-pill success">Threat_Low</div>
+              <div class="status-pill danger pulse">Anomalous_Signal</div>
            </div>
         </div>
 
@@ -104,3 +88,4 @@ export default function ThreatMapPage() {
     </Layout>
   );
 }
+

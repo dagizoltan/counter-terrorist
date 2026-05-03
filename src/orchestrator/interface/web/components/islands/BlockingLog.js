@@ -25,11 +25,14 @@ class BlockingLog extends HTMLElement {
     this.render();
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
       const url = this.cursor 
         ? `/api/audit?limit=50&cursor=${this.cursor}`
         : '/api/audit?limit=50';
       
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         const newLogs = Array.isArray(data) ? data : (data.items || []);
@@ -47,7 +50,8 @@ class BlockingLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);

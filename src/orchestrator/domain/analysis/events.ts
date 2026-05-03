@@ -1,7 +1,7 @@
 import { LoggingPort, SyslogSeverity, EventBusPort } from "@core/ports.ts";
 import { validateEvent, EventName } from "@core/event_schema.ts";
 
-export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS";
+export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY";
 
 export interface SystemEvent {
   type: EventType;
@@ -11,12 +11,12 @@ export interface SystemEvent {
 }
 
 export class EventBus implements EventBusPort {
-  private handlers: ((event: SystemEvent) => void)[] = [];
-  private keyedListeners: Map<string, ((data: any) => void)[]> = new Map();
+  private handlers: ((event: SystemEvent) => void | Promise<void>)[] = [];
+  private keyedListeners: Map<string, ((data: any) => void | Promise<void>)[]> = new Map();
 
   constructor(private logging: LoggingPort) {}
 
-  subscribe(handler: (event: SystemEvent) => void): () => void {
+  subscribe(handler: (event: SystemEvent) => void | Promise<void>): () => void {
     this.handlers.push(handler);
     return () => this.unsubscribe(handler);
   }
@@ -38,7 +38,7 @@ export class EventBus implements EventBusPort {
     }
   }
 
-  on(event: string, callback: (data: any) => void): () => void {
+  on(event: string, callback: (data: any) => void | Promise<void>): () => void {
     if (!this.keyedListeners.has(event)) {
       this.keyedListeners.set(event, []);
     }
@@ -79,9 +79,12 @@ export class EventBus implements EventBusPort {
     }
   }
 
-  private safelyExecute(fn: () => void) {
+  private async safelyExecute(fn: () => void | Promise<void>) {
     try {
-      fn();
+      const res = fn();
+      if (res instanceof Promise) {
+        await res;
+      }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
       console.error(`[EVENTBUS] Handler error: ${errorMsg}`);
@@ -92,11 +95,17 @@ export class EventBus implements EventBusPort {
 
   private mapTypeToSeverity(type: string): SyslogSeverity {
     switch (type) {
-      case "CRITICAL": return SyslogSeverity.CRITICAL;
-      case "BLOCK": return SyslogSeverity.ALERT;
+      case "EMERGENCY": return SyslogSeverity.EMERGENCY;
+      case "CRITICAL": 
+      case "EBPF_CRITICAL":
+          return SyslogSeverity.CRITICAL;
+      case "BLOCK": 
+      case "THREAT":
+          return SyslogSeverity.ALERT;
       case "WARN":
       case "DRIFT_PORT":
       case "DRIFT_PROCESS":
+      case "EBPF_STRAY_SHELL":
           return SyslogSeverity.WARNING;
       default:
           return SyslogSeverity.INFORMATIONAL;

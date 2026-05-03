@@ -6,6 +6,7 @@ export interface ProcessNode {
     comm: string;
     exe?: string;
     children: number[];
+    isGhost?: boolean;
 }
 
 export class ProcessTracker {
@@ -15,13 +16,14 @@ export class ProcessTracker {
 
     constructor(private logging: LoggingPort) {}
 
-    updateProcess(pid: number, ppid: number, comm: string) {
+    updateProcess(pid: number, ppid: number, comm: string, isGhost: boolean = false) {
         let node = this.tree.get(pid);
         if (node) {
             node.ppid = ppid;
             node.comm = comm;
+            node.isGhost = isGhost || node.isGhost;
         } else {
-            node = { pid, ppid, comm, children: [] };
+            node = { pid, ppid, comm, children: [], isGhost };
             this.tree.set(pid, node);
         }
 
@@ -34,7 +36,9 @@ export class ProcessTracker {
     }
 
     async analyzeEvent(pid: number, comm: string): Promise<{ isStrayShell: boolean; reason?: string; ppid?: number }> {
-        let ppid = await this.getPPID(pid);
+        const stats = await this.getStat(pid);
+        const ppid = stats?.ppid || null;
+        
         if (ppid) {
             this.updateProcess(pid, ppid, comm);
         }
@@ -42,12 +46,12 @@ export class ProcessTracker {
         // Stray shell detection
         if (this.shells.includes(comm)) {
             if (ppid) {
-                const parentComm = await this.getComm(ppid);
-                if (parentComm) {
-                    this.updateProcess(ppid, 0, parentComm); // Update parent if known
+                const parentStats = await this.getStat(ppid);
+                if (parentStats) {
+                    this.updateProcess(ppid, 0, parentStats.comm); // Update parent if known
 
-                    if (this.suspiciousParents.some(p => parentComm.includes(p))) {
-                        return { isStrayShell: true, reason: `Shell spawned by suspicious parent: ${parentComm}`, ppid };
+                    if (this.suspiciousParents.some(p => parentStats.comm.includes(p))) {
+                        return { isStrayShell: true, reason: `Shell spawned by suspicious parent: ${parentStats.comm}`, ppid };
                     }
                 }
             }
@@ -56,21 +60,20 @@ export class ProcessTracker {
         return { isStrayShell: false, ppid: ppid || undefined };
     }
 
-    private async getPPID(pid: number): Promise<number | null> {
+    private async getStat(pid: number): Promise<{ ppid: number; comm: string } | null> {
         try {
             const stat = await Deno.readTextFile(`/proc/${pid}/stat`);
+            const firstParen = stat.indexOf("(");
             const lastParen = stat.lastIndexOf(")");
+            
+            const comm = stat.substring(firstParen + 1, lastParen);
             const afterComm = stat.substring(lastParen + 2);
             const fields = afterComm.split(" ");
-            return parseInt(fields[1]); // PPID is 4th field (index 1 after comm)
-        } catch {
-            return null;
-        }
-    }
-
-    private async getComm(pid: number): Promise<string | null> {
-        try {
-            return (await Deno.readTextFile(`/proc/${pid}/comm`)).trim();
+            
+            return {
+                ppid: parseInt(fields[1]), // PPID is 4th field (index 1 after comm)
+                comm
+            };
         } catch {
             return null;
         }
@@ -78,16 +81,20 @@ export class ProcessTracker {
 
     async fullScan() {
         try {
+            // 1. Regular Proc Scan
             for await (const entry of Deno.readDir("/proc")) {
                 if (entry.isDirectory && /^\d+$/.test(entry.name)) {
                     const pid = parseInt(entry.name);
-                    const ppid = await this.getPPID(pid);
-                    const comm = await this.getComm(pid);
-                    if (ppid !== null && comm !== null) {
-                        this.updateProcess(pid, ppid, comm);
+                    const stats = await this.getStat(pid);
+                    if (stats) {
+                        this.updateProcess(pid, stats.ppid, stats.comm);
                     }
                 }
             }
+            
+            // 2. Ghost Process Reconciliation
+            await this.scanForGhosts();
+            
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
             this.logging.log(`[PROCESS] Full scan failed: ${msg}`, SyslogSeverity.ERROR);
@@ -105,9 +112,12 @@ export class ProcessTracker {
         const deadPids: number[] = [];
         for (const pid of Array.from(this.tree.keys())) {
             try {
-                await Deno.stat(`/proc/${pid}`);
-            } catch {
-                deadPids.push(pid);
+                // Use Deno.kill with harmless signal to check existence
+                Deno.kill(pid, "SIGURG");
+            } catch (e) {
+                if (!(e instanceof Deno.errors.PermissionDenied)) {
+                    deadPids.push(pid);
+                }
             }
         }
 
@@ -129,46 +139,45 @@ export class ProcessTracker {
      */
     async scanForGhosts(): Promise<number[]> {
         const ghosts: number[] = [];
-        let maxPid = 65535;
+        let maxPid = 32768; // Conservative fallback
         
         try {
             const pidMax = await Deno.readTextFile("/proc/sys/kernel/pid_max");
-            maxPid = parseInt(pidMax.trim());
-        } catch {
-            // Fallback to 65535
-        }
+            maxPid = Math.min(parseInt(pidMax.trim()), 100000); // Caps scan range for performance
+        } catch { /* use fallback */ }
 
-        // Performance: Only scan every 5th PID for a quick audit, or full scan if requested
-        // For this sovereign implementation, we do a full scan on boot but limited to active ranges
         for (let pid = 1; pid <= maxPid; pid++) {
-            // Skip the orchestrator's own PID if eBPF hiding is active (to avoid false positives)
+            // Skip the orchestrator's own PID if eBPF hiding is active
             if (pid === Deno.pid && Deno.env.get("STEALTH_ENABLED") !== "false") continue;
 
             try {
-                // Existence check using 'kill -0' via SystemExecutor or Deno.Command
-                // Note: Deno.kill(pid, 0) is not supported in all Deno versions, so we use a faster check
+                // Fast-fail if already in tree and not a ghost
+                const existing = this.tree.get(pid);
+                if (existing && !existing.isGhost) continue;
+
                 const procDir = await Deno.stat(`/proc/${pid}`).catch(() => null);
                 
-                // If the process is NOT in /proc, check if it's actually alive
                 if (!procDir) {
-                    const killRes = new Deno.Command("kill", {
-                        args: ["-0", pid.toString()],
-                        stdout: "null",
-                        stderr: "null"
-                    });
-                    const { success } = await killRes.output();
-                    
-                    if (success) {
-                        // Process exists in kernel but MISSING from /proc!
+                    try {
+                        // Use Deno.kill with a harmless signal to check existence.
+                        // If it doesn't throw, the PID exists in the kernel.
+                        Deno.kill(pid, "SIGURG");
+                        
                         ghosts.push(pid);
+                        this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                    } catch (e) {
+                        if (e instanceof Deno.errors.PermissionDenied) {
+                            // PID exists but we can't signal it - still a ghost if not in /proc!
+                            ghosts.push(pid);
+                            this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                        }
+                        // Otherwise (NotFound), it doesn't exist.
                     }
                 }
-            } catch {
-                // Permission denied or other error
-            }
+            } catch { /* No permission or other error */ }
             
-            // Yield to avoid blocking the event loop
-            if (pid % 500 === 0) await new Promise(r => setTimeout(r, 0));
+            // Yield every 1000 PIDs to avoid blocking
+            if (pid % 1000 === 0) await new Promise(r => setTimeout(r, 0));
         }
 
         if (ghosts.length > 0) {

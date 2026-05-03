@@ -61,16 +61,19 @@ export default function ReplayIsland() {
   }, [playing, filteredEvents.length]);
 
   if (loading) return html`
-    <div class="t-panel glass-panel text-center p-32">
-       <div class="w-16 h-16 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-primary"></div>
-       <span class="mono-xs font-black uppercase tracking-[0.4em] animate-pulse text-primary">Hydrating_Forensic_Buffer...</span>
+    <div class="flex flex-col gap-8">
+       <div class="skeleton h-64 w-full"></div>
+       <div class="grid grid-cols-12 gap-8">
+          <div class="col-span-8 skeleton h-[600px]"></div>
+          <div class="col-span-4 skeleton h-[400px]"></div>
+       </div>
     </div>
   `;
 
   if (filteredEvents.length === 0) return html`
-    <div class="t-panel glass-panel text-center p-24 border-dashed opacity-50">
-       <span class="mono-xs font-black uppercase tracking-widest text-slate-500">No_Events_Match_Filter_Criteria</span>
-       <button onClick=${() => setFilter('ALL')} class="t-btn mt-6 mx-auto">Reset_Filter</button>
+    <div class="empty-state">
+       <span class="mono-xs font-bold uppercase tracking-widest text-slate-500">No_Events_Match_Filter_Criteria</span>
+       <button onClick=${() => setFilter('ALL')} class="t-btn mt-8">Reset_Filter</button>
     </div>
   `;
 
@@ -121,12 +124,12 @@ export default function ReplayIsland() {
       <div class="t-panel glass-panel p-10">
         <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 mb-12">
            <div class="flex items-center gap-8">
-              <button onClick=${() => setPlaying(!playing)} class=${`w-16 h-16 flex items-center justify-center rounded-full transition-all border-2 ${playing ? 'bg-danger/10 text-danger border-danger/30 shadow-danger' : 'bg-primary/10 text-primary border-primary/30 shadow-primary'}`}>
+              <button onClick=${() => setPlaying(!playing)} class=${`w-16 h-16 flex items-center justify-center rounded-full transition-all border-2 ${playing ? 'bg-primary/10 text-primary border-primary/30 shadow-primary' : 'bg-white/5 text-slate-500 border-white/5 hover:border-primary/50'}`}>
                 ${playing ? html`<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>` : html`<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="m7 4 12 8-12 8V4z"/></svg>`}
               </button>
               <div>
                 <div class="metric-tag mb-1">Timeline_Reconstruction</div>
-                <div class=${`mono-lg font-black tracking-[0.2em] ${playing ? 'text-danger animate-pulse' : 'text-primary'}`}>${playing ? "SEQUENCER_ACTIVE" : "SEQUENCER_PAUSED"}</div>
+                <div class=${`mono-md font-black tracking-widest ${playing ? 'text-primary animate-pulse' : 'text-slate-500'}`}>${playing ? "SEQUENCER_ACTIVE" : "SEQUENCER_PAUSED"}</div>
               </div>
            </div>
            <div class="flex flex-wrap gap-3">
@@ -134,7 +137,7 @@ export default function ReplayIsland() {
            </div>
            <div class="text-right">
               <div class="metric-tag mb-1">Temporal_Sequence</div>
-              <div class="mono text-4xl font-black text-white tabular-nums tracking-tighter">${(currentIndex + 1).toString().padStart(3, '0')} <span class="opacity-20 mx-2">/</span> <span class="text-slate-500">${filteredEvents.length.toString().padStart(3, '0')}</span></div>
+              <div class="mono-md font-black text-white tabular-nums tracking-widest">${(currentIndex + 1).toString().padStart(3, '0')} <span class="opacity-20 mx-2">/</span> <span class="text-slate-500">${filteredEvents.length.toString().padStart(3, '0')}</span></div>
            </div>
         </div>
         <div class="relative h-2 bg-white/5 rounded-full mb-8 group overflow-visible">
@@ -152,9 +155,9 @@ export default function ReplayIsland() {
          <div class="lg:col-span-8 space-y-8">
             <div class="t-panel glass-panel p-10 relative overflow-hidden border-l-4" style=${{ borderLeftColor: color }}>
                <div class="absolute top-0 right-0 p-12 opacity-[0.05] pointer-events-none transform rotate-12"><svg width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
-               <div class="flex justify-between items-start mb-10"><div class=${`status-pill ${theme === 'danger' ? 'error' : theme === 'warning' ? 'warning' : 'active'}`}>${severity}</div><div class="flex flex-col items-end"><span class="metric-tag mb-1">EVENT_ID</span><span class="mono-xs font-black text-white bg-white/5 px-3 py-1 rounded">CT-${currentEvent.id?.toString().slice(-6) || 'UNK'}</span></div></div>
-               <h4 class="text-4xl font-black text-white mb-10 leading-tight tracking-tighter uppercase italic">${currentEvent.message}</h4>
-               <div class="bg-black/60 rounded-lg border border-white/5 p-8 shadow-inner"><div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5"><div class="flex items-center gap-3"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="3"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span class="mono-xs text-primary font-black tracking-widest uppercase">Telemetry_Manifest</span></div><span class="mono-xs text-slate-700">SHA256_VERIFIED</span></div><pre class="mono-xs text-slate-400 leading-relaxed overflow-x-auto custom-scrollbar max-h-[400px]">${JSON.stringify(currentEvent.data || {}, null, 2)}</pre></div>
+               <div class="flex justify-between items-start mb-10"><div class=${`status-pill ${theme} pulse`}>${severity}</div><div class="flex flex-col items-end"><span class="metric-tag mb-1">EVENT_ID</span><span class="mono-xs font-black text-white bg-white/5 px-3 py-1 rounded">CT-${currentEvent.id?.toString().slice(-6) || 'UNK'}</span></div></div>
+               <h4 class="text-2xl font-bold text-white mb-10 leading-tight tracking-tighter uppercase italic">${currentEvent.message}</h4>
+               <div class="bg-black/60 rounded-xl border border-white/5 p-8 shadow-inner"><div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5"><div class="flex items-center gap-4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="3"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span class="mono-xs text-primary font-black tracking-widest uppercase">Telemetry_Manifest</span></div><span class="mono-xs text-slate-700">SHA256_VERIFIED</span></div><pre class="mono-xs text-slate-400 leading-relaxed overflow-x-auto custom-scrollbar max-h-[400px]">${JSON.stringify(currentEvent.data || {}, null, 2)}</pre></div>
             </div>
             <div class=${`t-panel border-l-4 p-8 transition-all ${theme === 'danger' ? 'border-danger bg-danger/5' : 'border-primary bg-primary/5'}`}>
                <div class="flex items-center justify-between mb-8"><div class="flex items-center gap-4 text-white"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tactical-title text-base tracking-widest">BLOCKCHAIN_LEDGER_INTEGRITY</span></div><div class="status-pill active bg-success/20 text-success border-success/30 px-4">VALIDATED</div></div>

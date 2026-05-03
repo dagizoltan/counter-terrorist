@@ -60,12 +60,14 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
 
       const secureCookie = deps.config.getBoolean("COOKIE_SECURE", true);
       const isLocal = clientIp === "127.0.0.1" || clientIp === "::1" || clientIp === "localhost" || clientIp === "unknown";
-      console.log(`[AUTH:HANDLER] Setting session cookie: ${sessionId.slice(0, 8)}… (secure: false, Lax)`);
+      const shouldBeSecure = secureCookie && !isLocal;
+
+      console.log(`[AUTH:HANDLER] Setting session cookie: ${sessionId.slice(0, 8)}… (secure: ${shouldBeSecure}, Strict)`);
       setCookie(c, "session_token", sessionId, {
         httpOnly: true,
-        secure: !isLocal,
-        sameSite: "Lax",
-        maxAge: 86400, // 24 hours
+        secure: shouldBeSecure,
+        sameSite: "Strict",
+        maxAge: deps.config.getNumber("SESSION_TTL_HOURS", 24) * 3600,
       });
 
       if (contentType && contentType.includes("application/json")) {
@@ -74,9 +76,9 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
 
       setCookie(c, "csrf_token", csrfToken, {
         httpOnly: false,
-        secure: !isLocal,
-        sameSite: "Lax",
-        maxAge: 86400,
+        secure: shouldBeSecure,
+        sameSite: "Strict",
+        maxAge: deps.config.getNumber("SESSION_TTL_HOURS", 24) * 3600,
       });
 
       return c.redirect("/");

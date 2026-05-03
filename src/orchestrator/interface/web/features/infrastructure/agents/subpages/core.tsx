@@ -1,10 +1,13 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const FirewallPage = () => (
-  <Layout title="Firewall Agent" islandPaths={['/components/islands/FirewallAgent.js']}>
+export const FirewallPage = (props: { csrfToken?: string }) => (
+  <Layout title="Firewall Agent" islandPaths={['/components/islands/FirewallAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-danger/40 transition-all text-slate-500 hover:text-danger group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
         <div style="width:12px; height:60px; background:var(--danger); border-radius:4px; box-shadow:0 0 20px var(--danger-glow);"></div>
         <div class="flex flex-col gap-2">
           <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">FIREWALL_ENFORCER</h1>
@@ -37,8 +40,8 @@ export const FirewallPage = () => (
           <div class="space-y-4">
              <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none transition-all text-white" />
              <div class="grid grid-cols-2 gap-4">
-                <button onclick="const ip=document.getElementById('fw-block-input').value; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ip}) }).then(() => location.reload())" class="t-btn danger" style="padding:1rem;">Block_IP</button>
-                <button onclick="if(confirm('Flush all rules?')) fetch('/api/agents/firewall/flush', { method: 'POST' }).then(() => location.reload())" class="t-btn" style="padding:1rem; background:transparent; border-color:var(--border-subtle);">Flush_All</button>
+                <button onclick="const ip=document.getElementById('fw-block-input').value; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({ip}) }).then(() => location.reload())" class="t-btn danger" style="padding:1rem;">Block_IP</button>
+                <button onclick="if(confirm('Flush all rules?')) fetch('/api/agents/firewall/flush', { method: 'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content} }).then(() => location.reload())" class="t-btn" style="padding:1rem; background:transparent; border-color:var(--border-subtle);">Flush_All</button>
              </div>
           </div>
         </div>
@@ -66,10 +69,13 @@ export const FirewallPage = () => (
   </Layout>
 );
 
-export const FimPage = () => (
-  <Layout title="Sentinel Monitor" islandPaths={['/components/islands/FimAgent.js']}>
+export const FimPage = (props: { csrfToken?: string }) => (
+  <Layout title="Sentinel Monitor" islandPaths={['/components/islands/FimAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
           <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SENTINEL_MONITOR</h1>
@@ -97,10 +103,13 @@ export const FimPage = () => (
   </Layout>
 );
 
-export const PcapPage = () => (
-  <Layout title="Interceptor DPI" islandPaths={['/components/islands/PcapAgent.js']}>
+export const PcapPage = (props: { csrfToken?: string }) => (
+  <Layout title="Interceptor DPI" islandPaths={['/components/islands/PcapAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
           <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">INTERCEPTOR_DPI</h1>
@@ -140,10 +149,13 @@ export const PcapPage = () => (
   </Layout>
 );
 
-export const HoneypotPage = () => (
-  <Layout title="Deception Grid" islandPaths={['/components/islands/HoneypotChart.js']}>
+export const HoneypotPage = (props: { csrfToken?: string }) => (
+  <Layout title="Deception Grid" islandPaths={['/components/islands/HoneypotChart.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-warning/40 transition-all text-slate-500 hover:text-warning group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
         <div style="width:12px; height:60px; background:var(--warning); border-radius:4px; box-shadow:0 0 20px var(--warning-glow);"></div>
         <div class="flex flex-col gap-2">
           <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">DECEPTION_GRID</h1>
@@ -172,7 +184,7 @@ export const HoneypotPage = () => (
           <div class="t-panel">
              <span class="metric-tag mb-8 block">Tactical_Controls</span>
              <div class="space-y-4">
-                <button onclick="fetch('/api/agents/honeypot/command', {method:'POST', body: JSON.stringify({type:'Sabotage', source_ip: 'GLOBAL', level: 'HIGH'})})" class="t-btn danger w-full" style="padding:1.5rem; background:transparent; border-color:var(--danger); color:var(--danger); font-style:italic;">Engage_Active_Sabotage</button>
+                <button onclick="fetch('/api/agents/honeypot/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'Sabotage', source_ip: 'GLOBAL', level: 'HIGH'})})" class="t-btn danger w-full" style="padding:1.5rem; background:transparent; border-color:var(--danger); color:var(--danger); font-style:italic;">Engage_Active_Sabotage</button>
                 <button class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle); padding:1.2rem;">Morph_Trap_Architecture</button>
              </div>
           </div>
@@ -198,10 +210,13 @@ export const HoneypotPage = () => (
   </Layout>
 );
 
-export const VpnPage = () => (
-  <Layout title="VPN Tunnels" islandPaths={['/components/islands/VpnAgent.js']}>
+export const VpnPage = (props: { csrfToken?: string }) => (
+  <Layout title="VPN Tunnels" islandPaths={['/components/islands/VpnAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-success/40 transition-all text-slate-500 hover:text-success group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
         <div style="width:12px; height:60px; background:var(--success); border-radius:4px; box-shadow:0 0 20px var(--success-glow);"></div>
         <div class="flex flex-col gap-2">
           <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SECURE_TUNNELS</h1>
@@ -244,10 +259,13 @@ export const VpnPage = () => (
   </Layout>
 );
 
-export const EbpfPage = () => (
-  <Layout title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']}>
+export const EbpfPage = (props: { csrfToken?: string }) => (
+  <Layout title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
           <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">KERNEL_GUARDIAN</h1>
@@ -271,8 +289,8 @@ export const EbpfPage = () => (
         </div>
         <div class="t-panel">
           <span class="metric-tag mb-8 block">LSM_Directives</span>
-          <button onclick="fetch('/api/agents/ebpf/command', {method:'POST', body: JSON.stringify({type:'HIDE_PID'})})" class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
-          <button onclick="fetch('/api/agents/ebpf/command', {method:'POST', body: JSON.stringify({type:'RESTRICT_NETWORK'})})" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
+          <button onclick="fetch('/api/agents/ebpf/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'HIDE_PID'})})" class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
+          <button onclick="fetch('/api/agents/ebpf/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'RESTRICT_NETWORK'})})" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
         </div>
       </div>
       <div class="col-span-12 lg:col-span-8 t-panel p-0 overflow-hidden">
@@ -288,10 +306,13 @@ export const EbpfPage = () => (
   </Layout>
 );
 
-export const ScannerPage = () => (
-  <Layout title="Vulnerability Scanner" islandPaths={['/components/islands/ScannerAgent.js']}>
+export const ScannerPage = (props: { csrfToken?: string }) => (
+  <Layout title="Vulnerability Scanner" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
           <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SEC_VULN_SCANNER</h1>

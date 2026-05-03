@@ -29,8 +29,7 @@ class AnonymizerController extends HTMLElement {
         <div class="grid grid-cols-2 gap-4">
            ${['TRADITIONAL', 'VPNGATE', 'TOR', 'OFF'].map(mode => `
              <button 
-               id="mode-${mode}"
-               onclick="window.setStealthMode('${mode}')"
+               data-mode="${mode}"
                class="mode-btn group relative flex flex-col items-center justify-center p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all"
              >
                 <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-white transition-colors">${mode}</div>
@@ -41,25 +40,29 @@ class AnonymizerController extends HTMLElement {
       </div>
     `;
 
-    window.setStealthMode = async (mode) => {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const res = await fetch('/api/network/mode', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-CT-Token': csrfToken
-        },
-        body: JSON.stringify({ mode })
-      });
-      if (res.ok) {
-        console.log(`Stealth mode set to ${mode}`);
-      }
-    };
+    this.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => this.setMode(btn.dataset.mode));
+    });
+  }
+
+  async setMode(mode) {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const res = await fetch('/api/network/mode', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'X-CT-Token': csrfToken
+      },
+      body: JSON.stringify({ mode })
+    });
+    if (res.ok) {
+        // UI feedback handled by WS update
+    }
   }
 
   updateState(activeMode) {
     this.querySelectorAll('.mode-btn').forEach(btn => {
-      const mode = btn.id.replace('mode-', '');
+      const mode = btn.dataset.mode;
       const indicator = btn.querySelector('.indicator');
       if (mode === activeMode) {
         btn.classList.add('border-primary/40', 'bg-primary/10');

@@ -51,8 +51,11 @@ class WebhookManager extends HTMLElement {
     btn.addEventListener('click', async () => {
       btn.textContent = 'TESTING...';
       try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
         // Trigger a test notification through the audit system
-        await fetch('/api/infrastructure/system/protection/firewall/status');
+        await fetch('/api/infrastructure/system/protection/firewall/status', {
+           headers: csrf ? { 'X-CT-Token': csrf } : {}
+        });
         btn.textContent = 'TEST SENT';
         setTimeout(() => btn.textContent = 'TEST_ALL', 2000);
       } catch {
@@ -66,7 +69,10 @@ class WebhookManager extends HTMLElement {
     if (!container) return;
 
     try {
-      const res = await fetch('/api/notifications');
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/notifications', {
+         headers: csrf ? { 'X-CT-Token': csrf } : {}
+      });
       const webhooks = await res.json();
 
       if (!webhooks || webhooks.length === 0) {
@@ -90,7 +96,7 @@ class WebhookManager extends HTMLElement {
             </div>
             <p class="text-[9px] text-slate-500 font-mono truncate max-w-lg italic opacity-60">${this.esc(wh.url)}</p>
           </div>
-          <button onclick="const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/notifications/${wh.id}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="t-btn danger" style="padding: 0.5rem 1rem; font-size: 8px;">
+          <button onclick="const csrf=document.querySelector('meta[name=\\'csrf-token\\']')?.content;fetch('/api/notifications/${wh.id}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="t-btn danger" style="padding: 0.5rem 1rem; font-size: 8px;">
             Remove
           </button>
         </div>

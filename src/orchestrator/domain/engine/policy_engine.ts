@@ -1,0 +1,78 @@
+import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+
+export type RemediationAction = "LOG" | "WATCH" | "SHADOW" | "BLOCK" | "ISOLATE" | "LOCKDOWN";
+
+export interface ThresholdRule {
+    score: number;
+    action: RemediationAction;
+    description: string;
+}
+
+export interface SecurityPolicy {
+    version: string;
+    thresholds: ThresholdRule[];
+    defaultAction: RemediationAction;
+    strictMode: boolean;
+}
+
+/**
+ * PolicyEngine
+ * Evaluates behavioral threat scores against the Sovereign Governance Policy.
+ * Implements "Policy-as-Code" for automated remediation.
+ */
+export class PolicyEngine {
+    private policy: SecurityPolicy;
+
+    constructor(
+        private logging: LoggingPort,
+        initialPolicy?: Partial<SecurityPolicy>
+    ) {
+        // Default Sovereign Policy
+        this.policy = {
+            version: "1.2.0",
+            strictMode: Deno.env.get("STRICT_POLICY_ENFORCEMENT") === "true",
+            defaultAction: "LOG",
+            thresholds: [
+                { score: 10, action: "WATCH", description: "Increase forensic sampling rate" },
+                { score: 30, action: "SHADOW", description: "Redirect to deceptive mirror world" },
+                { score: 60, action: "BLOCK", description: "Local firewall IP rejection" },
+                { score: 90, action: "ISOLATE", description: "Full node network isolation" },
+                { score: 100, action: "LOCKDOWN", description: "Mesh-wide quorum lockdown" }
+            ],
+            ...initialPolicy
+        };
+
+        this.logging.log(`[POLICY] Sovereign Engine Active. Mode: ${this.policy.strictMode ? 'STRICT' : 'ADAPTIVE'}`, SyslogSeverity.NOTICE);
+    }
+
+    /**
+     * Determines the appropriate remediation action for a given threat score.
+     */
+    evaluate(score: number): ThresholdRule {
+        const sortedThresholds = [...this.policy.thresholds].sort((a, b) => b.score - a.score);
+        
+        for (const rule of sortedThresholds) {
+            if (score >= rule.score) {
+                return rule;
+            }
+        }
+
+        return {
+            score: 0,
+            action: this.policy.defaultAction,
+            description: "Baseline operational state"
+        };
+    }
+
+    /**
+     * Dynamically updates the security policy from a manifest.
+     */
+    updatePolicy(newPolicy: Partial<SecurityPolicy>) {
+        this.policy = { ...this.policy, ...newPolicy };
+        this.logging.log(`[POLICY] Security Policy synchronized to v${this.policy.version}`, SyslogSeverity.NOTICE);
+    }
+
+    getPolicy() {
+        return { ...this.policy };
+    }
+}

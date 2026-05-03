@@ -9,8 +9,8 @@ import { LoggingService, SyslogSeverity } from "@infrastructure/system/logging.t
 const MAX_CONNECTIONS = 100;
 const clients = new Set<WSContext>();
 
-// Rate limiting state per client (10 messages per second max)
-const clientRateLimits = new WeakMap<WSContext, { count: number; resetAt: number }>();
+// Rate limiting and role storage per client
+const clientMetadata = new WeakMap<WSContext, { count: number; resetAt: number; role: string }>();
 
 export interface BroadcastData {
   type: string;
@@ -55,6 +55,15 @@ export function broadcast(data: BroadcastData) {
 
   for (const client of clients) {
     try {
+      const metadata = clientMetadata.get(client);
+      const role = metadata?.role || "viewer";
+
+      // RBAC Filtering: Viewers only get non-sensitive telemetry
+      if (role === "viewer" && (data.type === "CRITICAL" || data.type?.startsWith("ADMIN"))) {
+          // Send a sanitized version or skip
+          continue;
+      }
+
       client.send(message);
     } catch {
       clients.delete(client);
@@ -89,76 +98,64 @@ export function broadcast(data: BroadcastData) {
   }
 }
 
-export const wsHandler = {
-  onOpen(_event: Event, ws: WSContext) {
-    if (clients.size >= MAX_CONNECTIONS) {
-      console.warn("[WS] Max connections reached. Rejecting client.");
-      ws.close(1013, "Try Again Later - Server Too Busy");
-      return;
-    }
+export function createWsHandler(role: string = "viewer") {
+  return {
+    onOpen(_event: Event, ws: WSContext) {
+      if (clients.size >= MAX_CONNECTIONS) {
+        console.warn("[WS] Max connections reached. Rejecting client.");
+        ws.close(1013, "Try Again Later - Server Too Busy");
+        return;
+      }
 
-    clients.add(ws);
-    clientRateLimits.set(ws, { count: 0, resetAt: Date.now() + 1000 });
+      clients.add(ws);
+      clientMetadata.set(ws, { count: 0, resetAt: Date.now() + 1000, role });
+      
+      if (sharedLogging) {
+        sharedLogging.log(`[WS] Client connected (Role: ${role}). Total connections: ${clients.size}`, SyslogSeverity.INFORMATIONAL);
+      }
+
+      ws.send(JSON.stringify({
+        type: "INFO",
+        message: `Security Orchestrator Connected // Role: ${role.toUpperCase()}`,
+        timestamp: new Date().toISOString()
+      }));
+    },
     
-    if (sharedLogging) {
-      sharedLogging.log(`[WS] Client connected. Total connections: ${clients.size}`, SyslogSeverity.INFORMATIONAL);
-    }
-
-    ws.send(JSON.stringify({
-      type: "INFO",
-      message: "Security Orchestrator WebSocket Connected",
-      timestamp: new Date().toISOString()
-    }));
-  },
-  
-  onMessage(event: MessageEvent, ws: WSContext) {
-    // Rate Limiting
-    const rateData = clientRateLimits.get(ws);
-    const now = Date.now();
-    if (rateData) {
-      if (now > rateData.resetAt) {
-        rateData.count = 1;
-        rateData.resetAt = now + 1000;
-      } else {
-        rateData.count++;
-        if (rateData.count > 10) {
-          if (sharedLogging) sharedLogging.log("[WS] Client rate limit exceeded. Disconnecting abuser.", SyslogSeverity.WARNING);
-          ws.close(1008, "Policy Violation - Rate Limit Exceeded");
-          return;
+    onMessage(event: MessageEvent, ws: WSContext) {
+      const meta = clientMetadata.get(ws);
+      const now = Date.now();
+      if (meta) {
+        if (now > meta.resetAt) {
+          meta.count = 1;
+          meta.resetAt = now + 1000;
+        } else {
+          meta.count++;
+          if (meta.count > 10) {
+            if (sharedLogging) sharedLogging.log("[WS] Client rate limit exceeded. Disconnecting abuser.", SyslogSeverity.WARNING);
+            ws.close(1008, "Policy Violation - Rate Limit Exceeded");
+            return;
+          }
         }
       }
-    }
 
-    // Message Validation (Schema)
-    try {
-      if (typeof event.data !== "string") {
-        throw new Error("Payload must be a string");
+      try {
+        if (typeof event.data !== "string") throw new Error("Payload must be a string");
+        const payload = JSON.parse(event.data);
+        if (payload.type === "PING") {
+          ws.send(JSON.stringify({ type: "PONG", timestamp: new Date().toISOString() }));
+        }
+      } catch (e) {
+        ws.close(1003, "Unsupported Data");
       }
-      
-      const payload = JSON.parse(event.data);
-      if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-        throw new Error("Payload must be a JSON object");
-      }
-
-      // We only accept specific ping/pong or structured log payloads from clients
-      if (payload.type === "PING") {
-        ws.send(JSON.stringify({ type: "PONG", timestamp: new Date().toISOString() }));
-      } else {
-        // Unknown or invalid payload type from client
-        if (sharedLogging) sharedLogging.log(`[WS] Invalid message type received: ${payload.type}`, SyslogSeverity.WARNING);
-      }
-    } catch (e) {
-      if (sharedLogging) sharedLogging.log(`[WS] Malformed message received: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.WARNING);
-      ws.close(1003, "Unsupported Data");
-    }
-  },
-  
-  onClose(_event: Event, ws: WSContext) {
-    clients.delete(ws);
-    clientRateLimits.delete(ws);
-  },
-  
-  onError(event: Event) {
-    console.error("[WS] WebSocket error:", event);
-  },
-};
+    },
+    
+    onClose(_event: Event, ws: WSContext) {
+      clients.delete(ws);
+      clientMetadata.delete(ws);
+    },
+    
+    onError(event: Event) {
+      console.error("[WS] WebSocket error:", event);
+    },
+  };
+}

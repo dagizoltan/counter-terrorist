@@ -9,3 +9,5 @@ serde_json = { workspace = true }
 sysinfo = { workspace = true }
 chrono = { workspace = true }
 tokio = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }

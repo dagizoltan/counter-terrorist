@@ -1,11 +1,12 @@
 import { jsx } from "hono/jsx";
 import { Hono, Context } from "hono";
 import { serveStatic, upgradeWebSocket } from "hono/deno";
+import { getCookie } from "hono/helper/cookie/index.ts";
 import { WebPort, ApplicationStatus } from "@core/ports.ts";
 import { AppError } from "@core/errors.ts";
 import { createLoginRouter, createLogoutRouter } from "./features/auth/login/handler.tsx";
 import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
-import { wsHandler } from "@api/ws.ts";
+import { createWsHandler } from "@api/ws.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "./middleware/security.ts";
 import { createUiRouter } from "./routes/ui.tsx";
@@ -25,6 +26,11 @@ export class WebAdapter implements WebPort {
     const masterToken = services.config.getToken();
     if (!masterToken) throw new Error("CRITICAL: API_TOKEN not configured");
 
+    console.log(`[WEB] Initializing with services: ${Object.keys(services).join(", ")}`);
+    if (!services.honeypot) {
+        console.error("[WEB] CRITICAL: honeypot service is MISSING in container!");
+    }
+
     this.meshAuth = services.meshAuth;
     this.security = new SecurityMiddleware(services, masterToken);
     this.app = new Hono();
@@ -32,6 +38,7 @@ export class WebAdapter implements WebPort {
 
   private async initialize() {
     if (this.app.routes.length > 0) return;
+    console.log("[WEB] Initializing routes and middleware...");
     
     this.app.use("*", this.security.hardenedHeaders());
 
@@ -41,13 +48,13 @@ export class WebAdapter implements WebPort {
       const traceId = crypto.randomUUID().slice(0, 8);
       const { method, path } = c.req;
       
-      const body = await (method === "GET" ? Promise.resolve({}) : c.req.parseBody().catch(() => ({})));
-      const maskedBody = { ...body };
-      ["token", "password", "secret", "rawKey"].forEach(k => {
-        if (maskedBody[k]) maskedBody[k] = "********";
-      });
+      // 1. FAST PATH: WebSocket Upgrades must bypass middleware logic that touches the request body or response
+      if (c.req.header("upgrade") === "websocket") {
+        return await next();
+      }
 
-      await loggingService.log(`[REQ:${traceId}] ${method} ${path}`, SyslogSeverity.INFORMATIONAL, "WEB:API", { body: maskedBody });
+      // 2. Logging (No body parsing here to avoid stream consumption issues)
+      await loggingService.log(`[REQ:${traceId}] ${method} ${path}`, SyslogSeverity.INFORMATIONAL, "WEB:API");
 
       if (this.services.networkLogs) {
         const ip = c.req.header("X-Forwarded-For") || "127.0.0.1";
@@ -61,13 +68,13 @@ export class WebAdapter implements WebPort {
         });
       }
 
-      await next();
+      const result = await next();
       
       const duration = Date.now() - start;
       const status = c.res.status;
       await loggingService.log(`[RES:${traceId}] ${method} ${path} -> ${status} (${duration}ms)`, SyslogSeverity.INFORMATIONAL, "WEB:API");
 
-      // ── COMPLIANCE: Audit state-changing requests ───────────────────
+      // 3. COMPLIANCE: Audit state-changing requests
       const isMutation = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
       const isSuccess = status >= 200 && status < 300;
       const isSensitiveApi = path.startsWith("/api/admin") || path.startsWith("/api/mesh") || path.startsWith("/api/agents");
@@ -81,6 +88,8 @@ export class WebAdapter implements WebPort {
               data: { method, path, status, duration }
           });
       }
+      
+      return result;
     });
 
     this.app.onError((err, c) => {
@@ -97,6 +106,7 @@ export class WebAdapter implements WebPort {
     const webRoot = await Deno.stat("./web").then(s => s.isDirectory).catch(() => false) 
       ? "./web" 
       : "./src/orchestrator/interface/web";
+    loggingService.log(`[WEB] Static Asset Root: ${webRoot}`, SyslogSeverity.INFORMATIONAL);
     
     // Use path-specific serveStatic for better reliability in Deno
     this.app.use("/style.css", serveStatic({ path: "./style.css", root: webRoot }));
@@ -106,15 +116,19 @@ export class WebAdapter implements WebPort {
     this.app.use("/vendor/*", serveStatic({ root: webRoot }));
     this.app.use("/assets/*", serveStatic({ root: webRoot }));
     
-    const honeyRoutes = this.services.honeypot.getDecoyRoutes();
-    honeyRoutes.forEach(route => {
-      this.app.get(route, async (c) => {
-        const ip = c.req.header("X-Forwarded-For") || c.req.header("Remote-Addr") || "unknown";
-        loggingService.log(`[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`, SyslogSeverity.CRITICAL);
-        await this.services.honeypot.onWebTrigger(route, ip);
-        return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
+    if (this.services.honeypot) {
+      const honeyRoutes = this.services.honeypot.getDecoyRoutes();
+      honeyRoutes.forEach(route => {
+        this.app.get(route, async (c) => {
+          const ip = c.req.header("X-Forwarded-For") || c.req.header("Remote-Addr") || "unknown";
+          loggingService.log(`[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`, SyslogSeverity.CRITICAL);
+          await this.services.honeypot.onWebTrigger(route, ip);
+          return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
+        });
       });
-    });
+    } else {
+      loggingService.log("[WEB] Honeypot service unavailable. Skipping decoy routes.", SyslogSeverity.WARNING);
+    }
 
     this.app.route("/login", createLoginRouter({
       checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
@@ -162,7 +176,7 @@ export class WebAdapter implements WebPort {
         };
       }
       
-      return wsHandler;
+      return createWsHandler(role);
     }));
   }
 

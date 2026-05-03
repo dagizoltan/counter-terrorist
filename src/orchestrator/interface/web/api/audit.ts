@@ -30,5 +30,10 @@ export function createAuditApi(auditService: AuditService) {
       }
   });
 
+  auditApi.get("/status", async (c) => {
+    const status = await auditService.getChainStatus();
+    return c.json(status);
+  });
+
   return auditApi;
 }

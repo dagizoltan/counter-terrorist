@@ -141,7 +141,11 @@ export class HoneypotService {
       if (this.behavioralService) {
         await this.behavioralService.analyze(source_ip);
       } else {
-        this.firewall.blockIp(source_ip).catch(console.error);
+        // Phase 3: Shadow Blocking instead of immediate drop
+        // This allows the Sabotage protocol (jitter/latency) to affect the attacker
+        // while we collect forensic telemetry.
+        this.firewall.shadowBanIp(source_ip).catch(console.error);
+        this.sabotageSession(source_ip);
       }
 
       // Automated Forensics: Start capture for the attacker's traffic

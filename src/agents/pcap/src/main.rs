@@ -3,6 +3,24 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use chrono::Utc;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use once_cell::sync::Lazy;
+
+static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+
+async fn emit_response(id: String, success: bool, message: String) {
+    let resp = PcapResponse {
+        id,
+        success,
+        message,
+        timestamp: Utc::now().to_rfc3339(),
+    };
+    if let Ok(json) = serde_json::to_string(&resp) {
+        let _lock = STDOUT_LOCK.lock().await;
+        println!("{}", json);
+    }
+}
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", content = "payload")]
@@ -39,13 +57,7 @@ async fn main() {
                 // Check if process is still running
                 if let Some(ref mut child) = current_child {
                     if child.try_wait().unwrap_or(None).is_none() {
-                        let resp = PcapResponse {
-                            id,
-                            success: false,
-                            message: "Capture already in progress".to_string(),
-                            timestamp: Utc::now().to_rfc3339(),
-                        };
-                        println!("{}", serde_json::to_string(&resp).unwrap());
+                        emit_response(id, false, "Capture already in progress".to_string()).await;
                         continue;
                     } else {
                         current_child = None;
@@ -61,13 +73,7 @@ async fn main() {
                 let interface = if raw_interface.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') && !raw_interface.is_empty() {
                     raw_interface
                 } else {
-                    let resp = PcapResponse {
-                        id,
-                        success: false,
-                        message: format!("Invalid interface name: '{}'", raw_interface),
-                        timestamp: Utc::now().to_rfc3339(),
-                    };
-                    println!("{}", serde_json::to_string(&resp).unwrap());
+                    emit_response(id, false, format!("Invalid interface name: '{}'", raw_interface)).await;
                     continue;
                 };
 
@@ -100,13 +106,7 @@ async fn main() {
                 let capture_dir = std::env::var("CTS_CAPTURE_DIR").unwrap_or_else(|_| "/var/lib/cts/captures".to_string());
                 // Ensure the capture directory exists
                 if let Err(e) = std::fs::create_dir_all(&capture_dir) {
-                    let resp = PcapResponse {
-                        id,
-                        success: false,
-                        message: format!("Failed to create capture directory '{}': {}", capture_dir, e),
-                        timestamp: Utc::now().to_rfc3339(),
-                    };
-                    println!("{}", serde_json::to_string(&resp).unwrap());
+                    emit_response(id, false, format!("Failed to create capture directory '{}': {}", capture_dir, e)).await;
                     continue;
                 }
 
@@ -141,43 +141,19 @@ async fn main() {
                 match child {
                     Ok(c) => {
                         current_child = Some(c);
-                        let resp = PcapResponse {
-                            id,
-                            success: true,
-                            message: format!("Started capture on {} for {}s to {}", interface, duration, safe_path),
-                            timestamp: Utc::now().to_rfc3339(),
-                        };
-                        println!("{}", serde_json::to_string(&resp).unwrap());
+                        emit_response(id, true, format!("Started capture on {} for {}s to {}", interface, duration, safe_path)).await;
                     }
                     Err(e) => {
-                        let resp = PcapResponse {
-                            id,
-                            success: false,
-                            message: format!("Failed to start tcpdump: {}", e),
-                            timestamp: Utc::now().to_rfc3339(),
-                        };
-                        println!("{}", serde_json::to_string(&resp).unwrap());
+                        emit_response(id, false, format!("Failed to start tcpdump: {}", e)).await;
                     }
                 }
             }
             "StopCapture" => {
                 if let Some(mut child) = current_child.take() {
                     let _ = child.kill().await;
-                    let resp = PcapResponse {
-                        id,
-                        success: true,
-                        message: "Capture stopped".to_string(),
-                        timestamp: Utc::now().to_rfc3339(),
-                    };
-                    println!("{}", serde_json::to_string(&resp).unwrap());
+                    emit_response(id, true, "Capture stopped".to_string()).await;
                 } else {
-                    let resp = PcapResponse {
-                        id,
-                        success: false,
-                        message: "No capture in progress".to_string(),
-                        timestamp: Utc::now().to_rfc3339(),
-                    };
-                    println!("{}", serde_json::to_string(&resp).unwrap());
+                    emit_response(id, false, "No capture in progress".to_string()).await;
                 }
             }
             _ => {

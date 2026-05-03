@@ -10,184 +10,157 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
     '/components/islands/MetricsHydrator.js',
     '/components/islands/NetworkMap.js',
     '/components/islands/HoneypotChart.js',
-    '/components/islands/ReplayIsland.js',
-    '/components/islands/EbpfAgent.js'
+    '/components/islands/EbpfAgent.js',
+    '/components/islands/NewsFeed.js'
   ];
 
   return (
     <Layout title="Command Dashboard" islandPaths={islandPaths} csrfToken={props.csrfToken}>
-      {/* 1. Header Section */}
-      <header class="flex justify-between items-end mb-12 animate-fade-in">
-        <div class="flex items-center gap-10">
-          <div class="relative">
-            <div class="w-4 h-20 bg-primary rounded shadow-primary"></div>
-            <div class="absolute inset-0 bg-primary/20 blur-xl animate-pulse"></div>
-          </div>
-          <div class="flex flex-col gap-3">
-            <h1 class="text-7xl font-black text-white tracking-tighter leading-none m-0 uppercase italic skew-x-[-4deg]">Tactical_Overview</h1>
-            <div class="flex items-center gap-8">
-              <div class="flex items-center gap-3">
-                <span class="dot active shadow-primary pulse"></span>
-                <span class="mono-xs font-black text-primary tracking-[0.3em] uppercase">MESH_CONSOLIDATED_LINK</span>
-              </div>
-              <span class="text-slate-800 font-black">//</span>
-              <div class="mono-xs font-bold text-slate-500 tracking-[0.3em] uppercase">SOVEREIGN_NODE: {platform?.hostname || "UNKNOWN"}</div>
-            </div>
-          </div>
+      {/* 1. Unified Page Header */}
+      <header class="page-header">
+        <div class="title-group">
+          <h1>Tactical Dashboard</h1>
+          <span class="subtitle">Operational Node: {platform?.hostname || "localhost"} // v4.2.0-stable</span>
         </div>
-        <div class="flex gap-6">
-          <button class="t-btn py-5 px-8 text-xs shadow-primary/20 group border-2">
-            <svg class="mr-3 transition-transform group-hover:rotate-180" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            GLOBAL_SWEEP
+        <div class="flex gap-4">
+          <button class="t-btn px-6 py-3 group">
+            <svg class="transition-transform group-hover:rotate-180" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            System_Sweep
           </button>
-          <button class="t-btn danger py-5 px-8 text-xs shadow-danger/20 group border-2">
-            <svg class="mr-3 group-hover:animate-bounce" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-            FORCE_PURGE
+          <button class="t-btn danger px-6 py-3 group" onclick="confirm('CRITICAL: FORCE_PURGE will terminate all active processes. PROCEED?')">
+            <svg class="group-hover:animate-bounce" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+            Force_Purge
           </button>
         </div>
       </header>
 
-      {/* 2. Vital Metrics Grid */}
-      <div class="grid grid-cols-12 gap-8 mb-16 animate-fade-in" style="animation-delay: 100ms;">
-        {/* Main Hero Metrics */}
-        <div class="col-span-12 lg:col-span-4 t-panel glass-panel p-12 border-l-4 border-l-danger group hover:bg-danger/[0.03] transition-all">
-          <div class="flex justify-between items-center mb-12">
-            <div class="status-pill danger text-[10px] py-1.5 px-5 shadow-danger font-black">Autonomous_Kill_Chain</div>
-            <div class="mono-xs font-black text-slate-700 tracking-[0.4em]">ENGAGED</div>
-          </div>
-          
-          <div class="flex items-baseline gap-8 mb-10">
-            <span class="text-9xl font-black text-white leading-none tabular-nums tracking-tighter" id="stat-fw-blocked">...</span>
-            <div class="flex flex-col">
-              <span class="mono-sm font-black text-danger tracking-widest uppercase leading-tight">THREATS</span>
-              <span class="mono-sm font-black text-danger tracking-widest uppercase leading-tight">NEUTRALIZED</span>
+      {/* 2. Unified Stat Cards */}
+      <div class="grid grid-cols-12 gap-10 mb-16">
+        <div class="col-span-12 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-primary group">
+          <div class="flex justify-between items-center mb-4">
+            <span class="label">Defense Intelligence</span>
+            <div class="flex items-center gap-2">
+              <span class="dot active shadow-primary pulse"></span>
+              <span class="mono-xs text-primary font-black uppercase tracking-widest">Active</span>
             </div>
           </div>
-          
-          <div class="mono-xs font-black text-slate-600 uppercase tracking-[0.3em] mb-12 pb-8 border-b border-white/5">Perimeter_Defense_Active</div>
-          
-          <div class="space-y-6">
-            <div class="flex justify-between items-center bg-black/40 p-5 rounded-lg border border-white/5 group-hover:border-danger/20 transition-all">
-              <div class="flex items-center gap-4">
-                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                 <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">VPN_SHIELD</span>
-              </div>
-              <span class="status-pill active py-1.5 px-4" id="stat-vpn-status">WAITING</span>
-            </div>
+          <div class="value-group">
+            <span class="value tabular-nums" id="stat-fw-blocked">0</span>
+            <span class="unit">Threats Neutralized</span>
+          </div>
+          <div class="footer flex justify-between items-center mt-6 pt-6 border-t border-white/5">
+            <span class="mono-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Shield_Active</span>
+            <span class="status-pill success pulse" id="stat-vpn-status">WAITING</span>
           </div>
         </div>
 
-        <div class="col-span-12 lg:col-span-4 t-panel glass-panel p-12 border-l-4 border-l-success group hover:bg-success/[0.03] transition-all">
-          <div class="flex justify-between items-center mb-12">
-            <div class="status-pill success text-[10px] py-1.5 px-5 shadow-success font-black">Resource_Dynamics</div>
-            <div class="mono-xs font-black text-slate-700 tracking-[0.4em]">OPTIMAL</div>
-          </div>
-          
-          <div class="flex items-baseline gap-8 mb-12">
-            <span class="text-9xl font-black text-success leading-none tabular-nums tracking-tighter" id="stat-mem-val">
-              {Math.floor((metrics?.memory?.used || 0) / 1024 / 1024)}
-            </span>
-            <div class="flex flex-col">
-              <span class="mono-sm font-black text-success tracking-widest uppercase leading-tight">MB</span>
-              <span class="mono-sm font-black text-success tracking-widest uppercase leading-tight">ALLOCATED</span>
+        <div class="col-span-12 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-success group">
+          <div class="flex justify-between items-center mb-4">
+            <span class="label">Memory Utilization</span>
+            <div class="flex items-center gap-2">
+              <span class="dot active shadow-success"></span>
+              <span class="mono-xs text-success font-black uppercase tracking-widest">Stable</span>
             </div>
           </div>
-          
-          <div class="space-y-6">
+          <div class="value-group">
+            <span class="value tabular-nums" id="stat-mem-val">{Math.floor((metrics?.memory?.used || 0) / 1024 / 1024)}</span>
+            <span class="unit">MB Allocated</span>
+          </div>
+          <div class="footer mt-6 pt-6 border-t border-white/5">
             <div class="flex justify-between mb-4">
-              <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">Core_Memory_Load</span>
-              <span class="mono-xs font-black text-success tabular-nums">{Math.floor(((metrics?.memory?.used || 0) / (metrics?.memory?.total || 1)) * 100)}%</span>
+              <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Load: {Math.floor(((metrics?.memory?.used || 0) / (metrics?.memory?.total || 1)) * 100)}%</span>
+              <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Uptime: {Math.floor(platform?.uptime / 3600) || 0}H</span>
             </div>
-            <div class="h-3 bg-black/60 rounded-full overflow-hidden border border-white/10 shadow-inner">
-              <div class="h-full bg-success shadow-success transition-all duration-1000" style={`width:${Math.min(((metrics?.memory?.used || 0) / (metrics?.memory?.total || 1)) * 100, 100)}%`}></div>
-            </div>
-            <div class="flex justify-between mt-10 pt-8 border-t border-white/5">
-               <div class="flex flex-col">
-                  <span class="mono-xs text-slate-700 font-black uppercase tracking-widest">UPTIME</span>
-                  <span class="mono-xs text-white font-black uppercase tracking-widest mt-1">14D_02H_12M</span>
-               </div>
-               <div class="flex flex-col text-right">
-                  <span class="mono-xs text-slate-700 font-black uppercase tracking-widest">SYSTEM_LOAD</span>
-                  <span class="mono-xs text-success font-black uppercase tracking-widest mt-1">STABLE</span>
-               </div>
+            <div class="h-2 bg-black/40 rounded-full overflow-hidden shadow-inner border border-white/5">
+              <div class="h-full bg-success shadow-success transition-all duration-700" style={`width:${Math.min(((metrics?.memory?.used || 0) / (metrics?.memory?.total || 1)) * 100, 100)}%`}></div>
             </div>
           </div>
         </div>
 
-        <div class="col-span-12 lg:col-span-4 t-panel glass-panel p-12 border-l-4 border-l-warning group hover:bg-warning/[0.03] transition-all">
-          <div class="flex justify-between items-center mb-12">
-            <div class="status-pill warning text-[10px] py-1.5 px-5 shadow-warning font-black">Mesh_Quorum</div>
-            <div class="mono-xs font-black text-slate-700 tracking-[0.4em]">DISTRIBUTED</div>
-          </div>
-          
-          <div class="flex items-baseline gap-8 mb-12">
-            <span class="text-9xl font-black text-warning leading-none tabular-nums tracking-tighter" id="stat-mesh-nodes">...</span>
-            <div class="flex flex-col">
-              <span class="mono-sm font-black text-warning tracking-widest uppercase leading-tight">ACTIVE</span>
-              <span class="mono-sm font-black text-warning tracking-widest uppercase leading-tight">NODES</span>
+        <div class="col-span-12 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-warning group">
+          <div class="flex justify-between items-center mb-4">
+            <span class="label">Mesh Network Quorum</span>
+            <div class="flex items-center gap-2">
+              <span class="dot warning shadow-warning animate-pulse"></span>
+              <span class="mono-xs text-warning font-black uppercase tracking-widest">Syncing</span>
             </div>
           </div>
-          
-          <div class="pt-8 border-t border-white/5">
-            <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] block mb-8">Consensus_Vector_State</span>
-            <div class="flex gap-3">
-               {[1,1,1,1,1,1,0,0,0,0,0,0].map((v, i) => (
-                 <div class="flex-grow h-4 bg-black/60 rounded border border-white/10 relative overflow-hidden">
-                    {v ? <div class="absolute inset-0 bg-warning shadow-warning animate-pulse" style={`animation-delay: ${i * 100}ms`}></div> : null}
-                 </div>
-               ))}
+          <div class="value-group">
+            <span class="value tabular-nums" id="stat-mesh-nodes">0</span>
+            <span class="unit">Nodes Active</span>
+          </div>
+          <div class="footer flex justify-between items-center mt-6 pt-6 border-t border-white/5">
+            <span class="mono-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Topology: Mesh</span>
+            <span class="mono-xs text-warning font-black animate-pulse tracking-widest">SYNC_IN_PROGRESS</span>
+          </div>
+        </div>
+
+        <div class="col-span-12 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-primary group">
+          <div class="flex justify-between items-center mb-4">
+            <span class="label">Autonomous Governance</span>
+            <div class="flex items-center gap-2">
+              <span class="dot active shadow-primary"></span>
+              <span class="mono-xs text-primary font-black uppercase tracking-widest" id="stat-policy-mode">ADAPTIVE</span>
             </div>
-            <div class="flex justify-between mt-10">
-               <span class="mono-xs text-slate-700 font-black uppercase tracking-widest">Latency: 12ms</span>
-               <span class="mono-xs text-warning font-black uppercase tracking-widest animate-pulse">SYNC_LOCKED</span>
-            </div>
+          </div>
+          <div class="value-group">
+            <span class="value tabular-nums" id="stat-policy-remediations">0</span>
+            <span class="unit">Auto Remediation</span>
+          </div>
+          <div class="footer flex justify-between items-center mt-6 pt-6 border-t border-white/5">
+            <span class="mono-xs text-slate-500 font-bold uppercase tracking-[0.2em]">Policy: v1.2.0</span>
+            <span class="status-pill success pulse" id="stat-policy-status">ENFORCING</span>
           </div>
         </div>
       </div>
 
       {/* 3. Real-time Analysis Section */}
-      <div class="grid grid-cols-12 gap-8 mb-16 animate-fade-in" style="animation-delay: 200ms;">
-        <div class="col-span-12 lg:col-span-7 flex flex-col gap-8">
-          <div class="t-panel glass-panel p-12 h-full">
-            <div class="flex justify-between items-center mb-12 pb-8 border-b border-white/5">
-              <div class="flex items-center gap-8">
-                <div class="w-2 h-10 bg-primary rounded shadow-primary"></div>
-                <h2 class="tactical-title text-2xl uppercase tracking-[0.2em]">AUTOPILOT_SIGNALS</h2>
+      <div class="grid grid-cols-12 gap-10 mb-20 animate-fade-in" style="animation-delay: 200ms;">
+        <div class="col-span-12 lg:col-span-7 flex flex-col gap-10">
+          <div class="t-panel glass-panel relative group h-full">
+            <div class="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-30 transition-opacity">
+               <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div class="flex justify-between items-center mb-16 pb-10 border-b border-white/5">
+              <div class="flex items-center gap-10">
+                <div class="w-2.5 h-12 bg-primary rounded-full shadow-primary"></div>
+                <h2 class="tactical-title text-3xl tracking-[0.3em]">AUTOPILOT_SIGNALS</h2>
               </div>
-              <div class="flex items-center gap-5 bg-primary/10 px-8 py-4 rounded-full border border-primary/30 shadow-primary/20">
-                <span class="dot active shadow-primary animate-pulse"></span>
-                <span class="mono-xs font-black text-primary tracking-[0.3em] uppercase">LIVE_INTEL_FEED</span>
+              <div class="flex items-center gap-6 bg-primary/10 px-10 py-5 rounded-full border border-primary/20 shadow-primary/10">
+                <span class="dot active shadow-primary"></span>
+                <span class="status-pill primary border-none bg-transparent p-0">LIVE_INTEL_FEED</span>
               </div>
             </div>
-            <div id="tactical-intel-root" class="min-h-[500px]"></div>
+            <div id="tactical-intel-root" class="min-h-[600px]"></div>
           </div>
         </div>
 
-        <div class="col-span-12 lg:col-span-5 flex flex-col gap-8">
-           <div class="t-panel glass-panel p-10 group border-l-4 border-success">
-              <div class="flex justify-between items-center mb-10 pb-6 border-b border-white/5">
-                <div class="flex items-center gap-5">
+        <div class="col-span-12 lg:col-span-5 flex flex-col gap-10">
+           <div class="t-panel glass-panel p-12 group border-l-4 border-success h-full flex flex-col">
+              <div class="flex justify-between items-center mb-12 pb-8 border-b border-white/5">
+                <div class="flex items-center gap-6">
                    <div id="ebpf-status-dot" class="dot active shadow-success"></div>
-                   <h3 id="ebpf-status-label" class="tactical-title text-sm tracking-[0.3em] uppercase">Kernel_Guardian</h3>
+                   <h3 id="ebpf-status-label" class="tactical-title text-base tracking-[0.3em] uppercase">Kernel_Guardian</h3>
                 </div>
-                <span class="mono-xs font-black text-success tracking-widest">REALTIME</span>
+                <span class="mono-xs font-black text-success tracking-[0.2em] uppercase">REALTIME_FUSION</span>
               </div>
               
-              <div class="grid grid-cols-2 gap-8 mb-10">
-                 <div class="bg-black/40 p-6 rounded-lg border border-white/5">
-                    <div class="metric-tag mb-2">Intercepts</div>
-                    <div id="ebpf-stat-intercepted" class="text-4xl font-black text-white mono tabular-nums">0000</div>
+              <div class="grid grid-cols-2 gap-10 mb-12">
+                 <div class="bg-black/30 p-8 rounded-xl border border-white/5 shadow-inner">
+                    <div class="metric-tag mb-3 font-black">Intercepts</div>
+                    <div id="ebpf-stat-intercepted" class="text-5xl font-black text-white mono tabular-nums tracking-tighter">0000</div>
                  </div>
-                 <div class="bg-black/40 p-6 rounded-lg border border-white/5">
-                    <div class="metric-tag mb-2">Process_Drifts</div>
-                    <div id="ebpf-stat-drifts" class="text-4xl font-black text-white mono tabular-nums">00</div>
+                 <div class="bg-black/30 p-8 rounded-xl border border-white/5 shadow-inner">
+                    <div class="metric-tag mb-3 font-black">Process_Drifts</div>
+                    <div id="ebpf-stat-drifts" class="text-5xl font-black text-white mono tabular-nums tracking-tighter">00</div>
                  </div>
               </div>
 
-              <div id="ebpf-event-log" class="max-h-[300px] overflow-y-auto custom-scrollbar bg-black/60 rounded-lg border border-white/5">
-                 <div class="p-12 text-center opacity-20">
-                    <div class="w-8 h-8 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <span class="mono-xs font-black tracking-widest uppercase">Initializing_Kernel_Stream...</span>
+              <div id="ebpf-event-log" class="flex-grow overflow-y-auto custom-scrollbar bg-black/50 rounded-xl border border-white/5 p-8">
+                 <div class="flex flex-col items-center justify-center h-full gap-8">
+                    <div class="skeleton h-12 w-full"></div>
+                    <div class="skeleton h-12 w-full opacity-60"></div>
+                    <div class="skeleton h-12 w-full opacity-30"></div>
                  </div>
               </div>
               <ebpf-agent></ebpf-agent>
@@ -196,87 +169,82 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
       </div>
 
       {/* 4. Forensic Reconstruction Engine */}
-      <div class="t-panel glass-panel p-12 mb-16 animate-fade-in" style="animation-delay: 300ms;">
-         <div class="flex justify-between items-center mb-12 pb-8 border-b border-white/10">
-            <div class="flex items-center gap-8">
-               <div class="p-5 bg-warning/10 border border-warning/30 text-warning rounded-lg shadow-warning/20">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div class="t-panel glass-panel mb-20 animate-fade-in group" style="animation-delay: 300ms;">
+         <div class="flex justify-between items-center mb-16 pb-10 border-b border-white/10">
+            <div class="flex items-center gap-10">
+               <div class="p-6 bg-warning/10 border border-warning/30 text-warning rounded-xl shadow-warning/20 group-hover:scale-110 transition-transform duration-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                </div>
                <div>
-                  <h2 class="tactical-title text-3xl uppercase tracking-[0.2em]">Forensic_Timeline_Reconstruction</h2>
-                  <p class="mono-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-2">Post-mortem audit and causality analysis</p>
+                  <h2 class="tactical-title text-4xl tracking-[0.25em]">Forensic_Timeline</h2>
+                  <p class="mono-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-3">Post-mortem audit and causality analysis engine</p>
                </div>
             </div>
-            <div class="flex items-center gap-6">
-               <div class="status-pill warning px-6 py-2 shadow-warning font-black">BUFFERED: 500_EVENTS</div>
+            <div class="flex items-center gap-8">
+               <div class="status-pill warning pulse">BUFFERED: 500_EVENTS</div>
             </div>
          </div>
-         <div id="replay-island-root">
-            <div class="p-32 text-center opacity-20">
-               <div class="w-16 h-16 border-4 border-slate-700 border-t-transparent rounded-full animate-spin mx-auto mb-8"></div>
-               <span class="mono-xs font-black tracking-[0.5em] uppercase">Deploying_Forensic_UI...</span>
-            </div>
-         </div>
-         <script dangerouslySetInnerHTML={{ __html: `
+          <div id="replay-island-root">
+             <div class="flex flex-col gap-8">
+                <div class="skeleton h-64 w-full"></div>
+                <div class="grid grid-cols-12 gap-8">
+                   <div class="col-span-8 skeleton h-[400px]"></div>
+                   <div class="col-span-4 skeleton h-[400px]"></div>
+                </div>
+             </div>
+          </div>
+         <script type="module" dangerouslySetInnerHTML={{ __html: `
             import { h, render } from '/vendor/preact.js';
             import ReplayIsland from '/components/islands/ReplayIsland.js';
             const root = document.getElementById('replay-island-root');
-            if (root) render(h(ReplayIsland), root);
+            if (root) {
+              root.innerHTML = '';
+              render(h(ReplayIsland), root);
+            }
          ` }} />
       </div>
       
       {/* 5. Topology & Deception Row */}
       <div class="grid grid-cols-12 gap-10 animate-fade-in" style="animation-delay: 400ms;">
-         <div class="col-span-12 lg:col-span-8 t-panel glass-panel p-12">
-            <div class="flex justify-between items-center mb-12 pb-8 border-b border-white/5">
-               <div class="flex items-center gap-8">
-                  <div class="p-5 bg-primary/10 border border-primary/30 text-primary rounded-lg shadow-primary/20">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+        <div class="col-span-12 lg:col-span-8 t-panel glass-panel relative group">
+            <div class="flex justify-between items-center mb-16 pb-10 border-b border-white/5">
+               <div class="flex items-center gap-10">
+                  <div class="p-6 bg-primary/10 border border-primary/30 text-primary rounded-xl shadow-primary/20 group-hover:rotate-12 transition-transform duration-500">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
                   </div>
                   <div>
-                     <h2 class="tactical-title text-2xl uppercase tracking-widest">MESH_TOPOLOGY_VECTOR</h2>
-                     <p class="mono-xs text-slate-500 font-bold uppercase tracking-[0.3em] mt-1">Real-time node discovery and geometric propagation</p>
+                     <h2 class="tactical-title text-3xl tracking-widest">MESH_TOPOLOGY</h2>
+                     <p class="mono-xs text-slate-500 font-bold uppercase tracking-[0.4em] mt-2">Real-time node discovery and geometric propagation</p>
                   </div>
                </div>
-               <div class="flex items-center gap-5 bg-black/60 border border-white/10 px-8 py-4 rounded-full shadow-inner">
+               <div class="flex items-center gap-6 bg-black/60 border border-white/10 px-10 py-5 rounded-full shadow-inner">
                   <span class="dot active shadow-primary pulse"></span>
-                  <span class="mono-xs font-black text-primary tracking-[0.3em] uppercase">SYSTEM_SWEEP</span>
+                  <span class="mono-xs font-black text-primary tracking-[0.4em] uppercase">SYSTEM_SWEEP</span>
                </div>
             </div>
-            <div class="bg-black/60 rounded-xl p-16 border border-white/5 min-h-[600px] relative overflow-hidden group shadow-2xl">
-               <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none duration-700"></div>
-               <div class="absolute inset-0 pointer-events-none opacity-30" style="background-image: radial-gradient(var(--primary) 1.5px, transparent 1.5px); background-size: 40px 40px;"></div>
-               <div class="animate-scan-y opacity-30"></div>
+            <div class="bg-black/40 rounded-2xl p-10 border border-white/5 min-h-[700px] relative overflow-hidden group shadow-2xl">
+               <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none duration-1000"></div>
+               <div class="absolute inset-0 pointer-events-none opacity-[0.15]" style="background-image: radial-gradient(var(--primary) 1.5px, transparent 1.5px); background-size: 50px 50px;"></div>
+               <div class="animate-scan-y opacity-40"></div>
                <network-map></network-map>
             </div>
          </div>
 
-         <div class="col-span-12 lg:col-span-4 t-panel glass-panel p-12 flex flex-col">
-            <div class="flex justify-between items-center mb-12 pb-8 border-b border-white/5">
-               <h2 class="tactical-title text-2xl uppercase tracking-widest">DECEPTION_GRID</h2>
-               <div class="status-pill active shadow-success animate-pulse px-6 py-2 font-black">STRIKE_BACK_READY</div>
+         <div class="col-span-12 lg:col-span-4 t-panel glass-panel group h-full">
+            <div class="flex justify-between items-center mb-16 pb-10 border-b border-white/5">
+               <h2 class="tactical-title text-3xl tracking-widest">DECEPTION_GRID</h2>
+               <div class="status-pill success pulse">STRIKE_BACK</div>
             </div>
-            <div class="flex-grow flex items-center justify-center p-10 bg-black/60 rounded-xl border border-white/10 shadow-inner group">
-               <div class="relative w-full h-full flex items-center justify-center">
-                  <div class="absolute inset-0 bg-primary/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <honeypot-chart></honeypot-chart>
-               </div>
+            <div class="flex-grow flex items-center justify-center p-12 bg-black/40 rounded-2xl border border-white/10 shadow-inner group-hover:border-primary/20 transition-colors relative">
+               <div class="absolute inset-0 bg-primary/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+               <honeypot-chart></honeypot-chart>
             </div>
-            <div class="mt-12 pt-10 border-t border-white/5">
-               <div class="flex items-center gap-5 mb-8">
-                  <div class="w-16 h-1.5 bg-primary rounded shadow-primary"></div>
-                  <span class="mono-xs text-slate-600 font-black uppercase tracking-[0.4em]">DECEPTION_MANIFEST</span>
+            <div class="mt-16 pt-12 border-t border-white/5">
+               <div class="flex items-center gap-6 mb-10">
+                  <div class="w-20 h-2 bg-primary rounded-full shadow-primary"></div>
+                  <span class="mono-xs text-slate-500 font-black uppercase tracking-[0.5em]">Tactical_Signal_Feed</span>
                </div>
-               <div class="space-y-6">
-                 <p class="mono-xs text-slate-400 font-bold leading-relaxed uppercase tracking-widest">
-                   MONITORING: <span class="text-white">12_DISTRIBUTED_LURES</span> <br/> 
-                   ACTIVE_SPOOF: <br/> 
-                   <span class="text-primary bg-primary/10 p-4 rounded-lg inline-block mt-4 border border-primary/30 shadow-primary/20 font-black tracking-widest w-full text-center">
-                     [OP_SSH_9.2_MIMICRY]
-                   </span>
-                 </p>
-                 <button class="t-btn w-full justify-center py-4 uppercase font-black tracking-widest text-[10px]">ROTATE_DECEPTION_KEYS</button>
-               </div>
+               <news-feed></news-feed>
             </div>
          </div>
       </div>

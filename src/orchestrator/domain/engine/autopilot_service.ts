@@ -1,14 +1,17 @@
-import { EventBus } from "@domain/index.ts";
+import { EventBus, ProcessTracker } from "@domain/index.ts";
 import { PlaybookService } from "./playbook_service.ts";
 import { broadcast } from "@api/ws.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { AutonomousResponseEngine } from "./autonomous_response.ts";
-import { ProtectionPort, LoggingPort } from "@core/ports.ts";
+import { ProtectionPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
 import { NotificationService } from "../analysis/notifications.ts";
 import { MeshManager } from "./mesh.ts";
 
+import { PolicyEngine } from "./policy_engine.ts";
+
 export class AutopilotService {
   private engine: AutonomousResponseEngine;
+  private policy: PolicyEngine;
 
   constructor(
     private eventBus: EventBus,
@@ -17,15 +20,24 @@ export class AutopilotService {
     private protection: ProtectionPort,
     private mesh: MeshManager,
     private notifications: NotificationService,
-    private logging: LoggingPort
+    private logging: LoggingPort,
+    private processTracker: ProcessTracker,
+    private kernel: any // KernelService
   ) {
+    this.policy = new PolicyEngine(logging);
     this.engine = new AutonomousResponseEngine(
+        this.policy,
         protection,
+        kernel,
         mesh,
         notifications,
         auditService,
         logging
     );
+  }
+
+  getPolicy() {
+    return this.policy;
   }
 
   /**
@@ -35,56 +47,61 @@ export class AutopilotService {
     return this.engine.getTacticalIntelligence();
   }
 
+  private isStarted = false;
+  private lureProcess: Deno.ChildProcess | null = null;
+
   async start() {
-    this.logging.log("[AUTOPILOT] Autonomous Defense Mesh engaged.", 6); 
+    if (this.isStarted) return;
+    this.isStarted = true;
+
+    this.logging.log("[AUTOPILOT] Autonomous Defense Mesh engaged.", SyslogSeverity.NOTICE); 
     
-    this.spawnLureProcess();
+    await this.spawnLureProcess();
 
-    this.eventBus.on("honeypot", async (event) => {
-        if (event.type === "PortAccess") {
-            await this.engine.evaluate({
-                source: event.source_ip || event.ip,
-                type: "HONEYPOT_TRIGGER",
-                severity: 2,
-                description: `Accessed honey-port ${event.port}`,
-                data: event
-            });
-        }
+    // Keyed Listeners for domain-specific events
+    this.eventBus.on("HONEYPOT", async (data) => {
+        await this.engine.evaluate({
+            source: data.source_ip || data.ip || "unknown",
+            type: "HONEYPOT_TRIGGER",
+            severity: 2,
+            description: `Accessed honey-port ${data.port}`,
+            data
+        });
     });
 
-    this.eventBus.on("fim", async (event) => {
-        if (event.type === "FileAlert") {
-            await this.engine.evaluate({
-                source: "local",
-                type: "FILE_TAMPERING",
-                severity: 5,
-                description: `${event.action} on ${event.path}`,
-                data: event
-            });
-        }
+    this.eventBus.on("DRIFT_PROCESS", async (data) => {
+        await this.engine.evaluate({
+            source: "local",
+            type: "FILE_TAMPERING",
+            severity: 5,
+            description: `Unauthorized change detected in ${data.resource}`,
+            data
+        });
     });
 
-    this.eventBus.on("ebpf", async (event) => {
-        if (event.type === "SYSCALL_EVENT") {
-            let severity = 1;
-            if (event.syscall === "ptrace") severity = 4;
-            if (event.syscall === "execve" && event.comm === "nc") severity = 3;
-            
-            await this.engine.evaluate({
-                source: event.pid?.toString() || "kernel",
-                type: `SUSPICIOUS_SYSCALL:${event.syscall}`,
-                severity,
-                description: `Process ${event.comm} called ${event.syscall}`,
-                data: event
-            });
-        }
+    this.eventBus.on("EBPF_STRAY_SHELL", async (data) => {
+        await this.engine.evaluate({
+            source: data.pid?.toString() || "kernel",
+            type: `SUSPICIOUS_SHELL`,
+            severity: 8,
+            description: `Stray shell detected: ${data.comm} (PID: ${data.pid})`,
+            data
+        });
     });
 
+    this.eventBus.on("EBPF_CRITICAL", async (data) => {
+        await this.engine.evaluate({
+            source: data.pid?.toString() || "kernel",
+            type: `PRIVILEGE_ESCALATION_ATTEMPT`,
+            severity: 9,
+            description: `Critical syscall (${data.syscall}) from ${data.comm}`,
+            data
+        });
+    });
+
+    // Periodic integrity check using injected authoritative tracker
     setInterval(async () => {
-        const { ProcessTracker } = await import("../analysis/process_tracker.ts");
-        const tracker = new ProcessTracker(this.logging);
-        const ghosts = await tracker.scanForGhosts();
-        
+        const ghosts = await this.processTracker.scanForGhosts();
         if (ghosts.length > 0) {
             await this.engine.evaluate({
                 source: "local",
@@ -105,10 +122,10 @@ export class AutopilotService {
             stdout: "null",
             stderr: "null",
         });
-        command.spawn();
-        this.logging.log("[AUTOPILOT] Deception lure deployed: hashicorp-vault-proxy", 6);
+        this.lureProcess = command.spawn();
+        this.logging.log("[AUTOPILOT] Deception lure deployed: hashicorp-vault-proxy", SyslogSeverity.NOTICE);
     } catch (e) {
-        this.logging.log(`[AUTOPILOT] Lure deployment failed: ${(e as Error).message}`, 4);
+        this.logging.log(`[AUTOPILOT] Lure deployment failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
     }
   }
 }

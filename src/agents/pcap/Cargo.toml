@@ -7,4 +7,6 @@ edition = "2021"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
 chrono = { workspace = true }

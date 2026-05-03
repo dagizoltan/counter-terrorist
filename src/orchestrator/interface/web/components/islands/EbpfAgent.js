@@ -56,13 +56,13 @@ class EbpfAgent extends HTMLElement {
       if (ebpf?.active) {
         if (statusLabel) statusLabel.textContent = 'Kernel_Guardian_Active';
         if (statusDot) {
-          statusDot.className = 'w-3 h-16 bg-success shadow-success rounded-full transition-all duration-1000';
+          statusDot.className = 'dot active shadow-success pulse';
           statusDot.style.background = 'var(--success)';
         }
       } else {
         if (statusLabel) statusLabel.textContent = 'Guardian_Offline';
         if (statusDot) {
-          statusDot.className = 'w-3 h-16 bg-slate-800 rounded-full transition-all duration-1000';
+          statusDot.className = 'dot shadow-slate-800';
           statusDot.style.background = '#1e293b';
         }
       }
@@ -122,17 +122,22 @@ class EbpfAgent extends HTMLElement {
 
     if (this.logs.length === 0) {
       container.innerHTML = `
-        <div class="flex flex-col items-center justify-center p-24 opacity-20 group">
-           <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mb-6"></div>
-           <div class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em] animate-pulse">Awaiting_Kernel_Signals...</div>
+        <div class="flex flex-col gap-6">
+           <div class="skeleton h-16 w-full"></div>
+           <div class="skeleton h-16 w-full opacity-60"></div>
+           <div class="skeleton h-16 w-full opacity-30"></div>
         </div>
       `;
       return;
     }
 
-    // Bind event listeners globally for the custom element if needed, or use a trick.
-    // For simple shadowless elements, we can just use inline onclick if we define it on the element instance.
-    window.ebpfPurge = (pid) => this.handlePurge(pid);
+    // Standardize event handling
+    this.removeEventListener('click', this._clickHandler);
+    this._clickHandler = (e) => {
+       const btn = e.target.closest('[data-purge-pid]');
+       if (btn) this.handlePurge(btn.getAttribute('data-purge-pid'));
+    };
+    this.addEventListener('click', this._clickHandler);
 
     container.innerHTML = this.logs.map(log => {
       const isCritical = log.type === 'DRIFT_PROCESS' || log.message?.toLowerCase().includes('unauthorized');
@@ -140,27 +145,26 @@ class EbpfAgent extends HTMLElement {
       const typeLabel = log.type.replace('EBPF_', '');
 
       return `
-        <div class="p-6 border-b border-white/[0.03] hover:bg-white/[0.02] transition-all animate-fade-in group" 
+        <div class="p-8 border-b border-white/[0.03] hover:bg-white/[0.02] transition-all animate-fade-in group relative" 
              style="border-left: 4px solid ${isCritical ? 'var(--danger)' : 'transparent'}">
-          <div class="flex justify-between items-center mb-3">
+          <div class="flex justify-between items-center mb-4 relative z-10">
              <div class="flex items-center gap-4">
-                <span class="mono-xs font-black uppercase tracking-widest ${isCritical ? 'text-danger shadow-danger' : 'text-primary shadow-primary'}">
+                <span class="status-pill ${isCritical ? 'danger' : 'primary'}">
                   ${typeLabel}
                 </span>
-                <span class="dot ${isCritical ? 'danger shadow-danger' : 'active shadow-primary'}" style="width: 4px; height: 4px;"></span>
-                <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest">Syscall_Intercept</span>
+                <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Syscall_Intercept</span>
              </div>
              <span class="mono-xs text-slate-600 font-bold">${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
           </div>
-          <div class="flex items-start gap-4">
+          <div class="flex items-start gap-4 relative z-10">
              <div class="mono-sm font-bold ${isCritical ? 'text-danger' : 'text-slate-400'} uppercase tracking-tight leading-relaxed">
                ${window.escapeHTML(log.message)}
              </div>
           </div>
           ${isCritical ? `
-            <div class="mt-4 flex gap-4">
-               <div class="status-pill danger py-1 px-3 text-[8px] font-black uppercase tracking-widest shadow-danger/20">POLICY_VIOLATION</div>
-               <button onclick="ebpfPurge('${pid}')" class="status-pill py-1 px-3 text-[8px] font-black uppercase tracking-widest bg-danger/10 border border-danger/30 text-danger hover:bg-danger hover:text-white transition-all">PURGE_PROCESS</button>
+            <div class="mt-6 flex gap-4 relative z-10">
+               <div class="status-pill danger pulse">POLICY_VIOLATION</div>
+               <button data-purge-pid="${pid}" class="t-btn danger px-4 py-2">PURGE_PROCESS</button>
             </div>
           ` : ''}
         </div>

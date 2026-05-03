@@ -108,11 +108,13 @@ export class MeshManager {
   }
 
   private async probeNode(address: string) {
+    if (!this.httpClient) return;
+
     try {
       // SECURE DISCOVERY: Always use HTTPS and mTLS client
       const url = `https://${address}:${this.port}/api/mesh/ping`;
       const res = await fetch(url, { 
-        client: this.httpClient!,
+        client: this.httpClient,
         signal: AbortSignal.timeout(2000) 
       });
       
@@ -130,8 +132,12 @@ export class MeshManager {
           });
         }
       }
-    } catch {
-      // Node not present, port closed, or TLS failed
+    } catch (e) {
+      // Log only if it's not a common timeout/connection refused to avoid log spam
+      const msg = (e as Error).message;
+      if (!msg.includes("timeout") && !msg.includes("refused") && !msg.includes("reset")) {
+        this.logging.log(`[MESH] Probe failed for ${address}: ${msg}`, SyslogSeverity.DEBUG);
+      }
     }
   }
 
@@ -173,7 +179,7 @@ export class MeshManager {
         }
       }
     } catch (e) {
-      // Silent fail
+      this.logging.log(`[MESH] Passive mDNS listener failed: ${(e as Error).message}. Zero-config discovery might be limited.`, SyslogSeverity.WARNING);
     }
   }
 
@@ -577,14 +583,15 @@ export class MeshManager {
         method: "POST",
         headers,
         body: JSON.stringify(paddedPayload),
-        client: this.httpClient!
+        client: this.httpClient!,
+        signal: AbortSignal.timeout(15000)
     });
 
     if (!res.ok) {
       throw new Error(`Sync failed with status ${res.status}`);
     }
 
-    console.log(`[MESH] mTLS Sync sent to ${node.address}:${node.port}`);
+    this.logging.log(`[MESH] Tactical mTLS Sync completed with ${node.address}:${node.port}`, SyslogSeverity.DEBUG);
   }
 
   /**

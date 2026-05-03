@@ -5,6 +5,9 @@ use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use once_cell::sync::Lazy;
+
+static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SidecarResponse {
@@ -23,7 +26,9 @@ struct SidecarResponse {
 enum Command {
     UpdateModule { id: String, module: String, oldPort: u16, newPort: u16 },
     ToggleModule { id: String, module: String, active: bool, port: u16 },
+    RemoveModule { id: String, port: u16 },
     Sabotage { id: String, source_ip: String, level: String },
+    ClearSabotage { id: String, source_ip: String },
     GetStatus { id: String },
 }
 
@@ -35,7 +40,7 @@ enum SidecarEvent {
     Status { message: String },
 }
 
-fn emit_event(event: SidecarEvent) {
+async fn emit_event(event: SidecarEvent) {
     let resp = SidecarResponse {
         id: None,
         success: true,
@@ -44,11 +49,12 @@ fn emit_event(event: SidecarEvent) {
         timestamp: Utc::now().to_rfc3339(),
     };
     if let Ok(json) = serde_json::to_string(&resp) {
+        let _lock = STDOUT_LOCK.lock().await;
         println!("{}", json);
     }
 }
 
-fn emit_response(id: String, success: bool, message: String) {
+async fn emit_response(id: String, success: bool, message: String) {
     let resp = SidecarResponse {
         id: Some(id),
         success,
@@ -57,6 +63,7 @@ fn emit_response(id: String, success: bool, message: String) {
         timestamp: Utc::now().to_rfc3339(),
     };
     if let Ok(json) = serde_json::to_string(&resp) {
+        let _lock = STDOUT_LOCK.lock().await;
         println!("{}", json);
     }
 }
@@ -74,7 +81,7 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
         Err(e) => {
             emit_event(SidecarEvent::Status {
                 message: format!("Failed to bind to port {}: {}", port, e),
-            });
+            }).await;
             return;
         }
     };
@@ -98,7 +105,7 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                     emit_event(SidecarEvent::PortAccess {
                         port,
                         source_ip: ip.clone(),
-                    });
+                    }).await;
 
                     // Check for sabotage
                     {
@@ -125,7 +132,7 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                                 port,
                                 source_ip: ip.clone(),
                                 data: line.trim().to_string(),
-                            });
+                            }).await;
                             // Mimic a "Password:" prompt after login
                             if line.contains("login") || line.len() > 0 {
                                 let _ = reader.get_mut().write_all(b"password: ").await;
@@ -152,7 +159,7 @@ async fn main() {
 
     emit_event(SidecarEvent::Status {
         message: "Honeypot Sovereign Protocol V3.1 (Interactive) Active".to_string(),
-    });
+    }).await;
 
     loop {
         line.clear();
@@ -173,7 +180,7 @@ async fn main() {
                             tokio::spawn(async move {
                                 start_port_listener(newPort, state_clone).await;
                             });
-                            emit_response(id, true, format!("Morphed port {} to {}", oldPort, newPort));
+                            emit_response(id, true, format!("Morphed port {} to {}", oldPort, newPort)).await;
                         }
                         Command::ToggleModule { id, active, port, .. } => {
                             if active {
@@ -188,7 +195,7 @@ async fn main() {
                                     ls.active = false;
                                 }
                             }
-                            emit_response(id, true, "Toggle success".to_string());
+                            emit_response(id, true, "Toggle success".to_string()).await;
                         }
                         Command::Sabotage { id, source_ip, .. } => {
                             let mut s = state.lock().await;
@@ -197,10 +204,26 @@ async fn main() {
                                     ls.sabotage_ips.push(source_ip.clone());
                                 }
                             }
-                            emit_response(id, true, "Sabotage engaged".to_string());
+                            emit_response(id, true, "Sabotage engaged".to_string()).await;
+                        }
+                        Command::ClearSabotage { id, source_ip } => {
+                            let mut s = state.lock().await;
+                            for ls in s.values_mut() {
+                                ls.sabotage_ips.retain(|x| x != &source_ip);
+                            }
+                            emit_response(id, true, "Sabotage cleared".to_string()).await;
+                        }
+                        Command::RemoveModule { id, port } => {
+                            let mut s = state.lock().await;
+                            if let Some(mut ls) = s.remove(&port) {
+                                ls.active = false;
+                                emit_response(id, true, format!("Module on port {} purged", port)).await;
+                            } else {
+                                emit_response(id, false, "Module not found".to_string()).await;
+                            }
                         }
                         Command::GetStatus { id } => {
-                            emit_response(id, true, "Active".to_string());
+                            emit_response(id, true, "Active".to_string()).await;
                         }
                     }
                 }

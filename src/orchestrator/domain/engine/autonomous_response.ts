@@ -1,9 +1,8 @@
-import { ProtectionPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
-import { NotificationService } from "../analysis/notifications.ts";
 import { MeshManager } from "./mesh.ts";
 import { AuditService } from "../analysis/audit.ts";
+import { PolicyEngine, RemediationAction } from "./policy_engine.ts";
 
-export type RemediationTier = "PASSIVE" | "TACTICAL" | "EMERGENCY";
+export type RemediationTier = RemediationAction;
 
 export interface ThreatEvent {
     source: string; // IP or PID
@@ -23,17 +22,20 @@ export class AutonomousResponseEngine {
     private history: Map<string, ThreatEvent[]> = new Map();
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
     
-    // Configurable thresholds
-    private readonly TACTICAL_THRESHOLD = 3;
-    private readonly EMERGENCY_THRESHOLD = 10;
+    private readonly MAX_HISTORY_PER_SOURCE = 20;
 
     constructor(
+        private policy: PolicyEngine,
         private protection: ProtectionPort,
+        private kernel: any, // KernelService
         private mesh: MeshManager,
         private notifications: NotificationService,
         private audit: AuditService,
         private logging: LoggingPort
-    ) {}
+    ) {
+        // Automatically decay scores every 5 minutes to allow recovery
+        setInterval(() => this.decayScores(), 300000);
+    }
 
     /**
      * Ingests a threat event and determines the required remediation tier.
@@ -43,19 +45,36 @@ export class AutonomousResponseEngine {
         const currentScore = (this.scores.get(key) || 0) + event.severity;
         this.scores.set(key, currentScore);
         
-        const events = this.history.get(key) || [];
+        let events = this.history.get(key) || [];
         event.timestamp = event.timestamp || new Date().toISOString();
         events.push(event);
+        
+        // Limit history to prevent memory bloat
+        if (events.length > this.MAX_HISTORY_PER_SOURCE) {
+            events = events.slice(-this.MAX_HISTORY_PER_SOURCE);
+        }
         this.history.set(key, events);
 
         await this.logging.log(`[AUTONOMOUS] Evaluating threat from ${key}. Score: ${currentScore}`, SyslogSeverity.DEBUG);
 
-        if (currentScore >= this.EMERGENCY_THRESHOLD) {
-            await this.executeRemediation(key, "EMERGENCY", event);
-        } else if (currentScore >= this.TACTICAL_THRESHOLD) {
-            await this.executeRemediation(key, "TACTICAL", event);
-        } else {
-            await this.executeRemediation(key, "PASSIVE", event);
+        const decision = this.policy.evaluate(currentScore);
+        await this.executeRemediation(key, decision.action, event);
+    }
+
+    private decayScores() {
+        for (const [source, score] of this.scores.entries()) {
+            if (score <= 0) {
+                this.scores.delete(source);
+                continue;
+            }
+            // Slowly decay score
+            const newScore = Math.max(0, score - 1);
+            if (newScore === 0) {
+                this.scores.delete(source);
+                this.history.delete(source);
+            } else {
+                this.scores.set(source, newScore);
+            }
         }
     }
 
@@ -78,40 +97,50 @@ export class AutonomousResponseEngine {
         });
 
         switch (tier) {
-            case "EMERGENCY":
-                await this.logging.log(`[AUTONOMOUS] EMERGENCY ISOLATION for ${source}`, SyslogSeverity.EMERGENCY);
+            case "LOCKDOWN":
+                await this.logging.log(`[AUTONOMOUS] GLOBAL LOCKDOWN for ${source}`, SyslogSeverity.EMERGENCY);
+                await this.protection.firewall.lockdown();
+                break;
+
+            case "ISOLATE":
+                await this.logging.log(`[AUTONOMOUS] NODE ISOLATION for ${source}`, SyslogSeverity.EMERGENCY);
                 if (source.includes(".")) {
                     await this.protection.firewall.blockIp(source);
                 } else {
                     await this.mesh.isolateNode("local");
                 }
-                await this.notifications.notify({
-                    type: "CRITICAL",
-                    message: `CRITICAL: Autonomous Emergency Isolation engaged for ${source}`
-                });
                 break;
 
-            case "TACTICAL":
-                await this.logging.log(`[AUTONOMOUS] TACTICAL RESPONSE for ${source}`, SyslogSeverity.CRITICAL);
+            case "BLOCK":
+                await this.logging.log(`[AUTONOMOUS] ENFORCED BLOCK for ${source}`, SyslogSeverity.CRITICAL);
                 if (source.includes(".")) {
-                    try {
-                        await (this.protection as any).firewall.sendCommand("ebpf", {
-                            type: "SHADOW_BAN",
-                            ip: source
-                        });
-                    } catch {
-                        await this.protection.firewall.blockIp(source);
-                    }
+                    await this.protection.firewall.blockIp(source);
                 } else {
                     const pid = parseInt(source);
                     if (!isNaN(pid)) await this.protection.firewall.killProcess(pid);
                 }
                 break;
 
-            case "PASSIVE":
+            case "SHADOW":
+                await this.logging.log(`[AUTONOMOUS] SHADOW REDIRECTION for ${source}`, SyslogSeverity.CRITICAL);
+                if (source.includes(".")) {
+                    await this.protection.firewall.shadowBanIp(source);
+                } else {
+                    const pid = parseInt(source);
+                    if (!isNaN(pid)) {
+                        await this.kernel.blockSyscall(pid, "execve");
+                    }
+                }
+                break;
+
+            case "WATCH":
                 if (source.includes(".")) {
                     this.protection.pcap.startCapture("any", 30, `forensics_${source}.pcap`, `host ${source}`).catch(() => {});
                 }
+                break;
+                
+            case "LOG":
+            default:
                 break;
         }
     }

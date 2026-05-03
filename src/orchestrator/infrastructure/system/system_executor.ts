@@ -13,7 +13,7 @@ export class SystemExecutor {
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [
-    "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread"
+    "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread"
   ];
 
   async executeAsync(cmd: string, args: string[] = []): Promise<void> {

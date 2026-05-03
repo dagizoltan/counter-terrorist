@@ -7,16 +7,17 @@ export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
 
   return (
     <Layout title={`${props.module.name} // Forensic Detail`} islandPaths={islandPaths}>
-      <div class="mb-12 flex justify-between items-end">
-        <div>
-          <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-4">Honeypot Node: {props.module.id}</p>
-          <h2 class="text-4xl font-black tracking-tighter uppercase">{props.module.name}</h2>
+      {/* 1. Unified Page Header */}
+      <header class="page-header">
+        <div class="title-group">
+          <h1>{props.module.name}</h1>
+          <span class="subtitle">Honeypot Node: {props.module.id} // Port: {props.module.port}</span>
         </div>
         <div class="flex gap-4">
-           <button class="bg-white text-black px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all">Download_Logs</button>
-           <button class="border border-white/20 px-6 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all">Reset_Metrics</button>
+          <button class="t-btn px-6 py-3 text-[9px]">Download Logs</button>
+          <button class="t-btn px-6 py-3 text-[9px] border-slate-800">Reset Metrics</button>
         </div>
-      </div>
+      </header>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* STATS GRID */}

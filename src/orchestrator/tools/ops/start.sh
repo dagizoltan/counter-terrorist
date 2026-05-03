@@ -18,7 +18,13 @@ echo "[BOOT] Main Orchestrator Hash: $SHA_ACTUAL"
 # 3. Environment Sanitization & Sourcing
 if [ -f .env ]; then
     echo "[BOOT] Sourcing .env file..."
-    export $(grep -v '^#' .env | xargs)
+    # Strip comments and export variables
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^#.*$ ]] && continue
+        [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+        key_val=$(echo "$line" | sed 's/[[:space:]]*#.*//')
+        export "$key_val"
+    done < .env
 fi
 
 if [ -z "$PKI_SECRET" ]; then
@@ -33,11 +39,24 @@ if [ ! -f "src/agents/target/release/honeypot" ]; then
     (cd src/agents && cargo build --release)
 fi
 
-# 5. Engage Orchestrator
-echo "[BOOT] Integrity verified. Engaging Sovereign Mesh..."
-sudo env "PATH=$PATH" ENVIRONMENT=production \
-     API_TOKEN=$API_TOKEN \
-     MESH_SECRET=$MESH_SECRET \
-     PKI_SECRET=$PKI_SECRET \
-     PROVISIONING_ENABLED=true \
-     $(which deno) run --allow-all --unstable-kv src/orchestrator/main.ts
+# 5. Volume Integrity Check (Data-at-Rest Protection)
+if [ -d "./volume" ]; then
+    MOUNT_INFO=$(df ./volume | tail -1)
+    if [[ ! "$MOUNT_INFO" =~ "/dev/mapper/" ]] && [[ "$MOUNT_INFO" != *"tmpfs"* ]]; then
+        echo "[SECURITY WARNING] ./volume is not on an encrypted mapper device (LUKS). Data-at-rest is vulnerable."
+        # In a strict environment, we might exit here:
+        # exit 1
+    fi
+fi
+
+# 6. Engage Orchestrator (NON-PRIVILEGED)
+# We run the orchestrator as the current user. 
+# Privileged operations are delegated to sidecars via sudo with NOPASSWD or setcap.
+echo "[BOOT] Integrity verified. Engaging Sovereign Mesh (unprivileged)..."
+
+ENVIRONMENT=production \
+API_TOKEN=${API_TOKEN:-$API_TOKEN} \
+MESH_SECRET=${MESH_SECRET:-$MESH_SECRET} \
+PKI_SECRET=${PKI_SECRET:-$PKI_SECRET} \
+PROVISIONING_ENABLED=${PROVISIONING_ENABLED:-false} \
+deno run --allow-all --unstable-kv --unstable-net src/orchestrator/main.ts

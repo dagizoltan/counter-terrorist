@@ -10,7 +10,7 @@ export default function IntegrityIsland() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    fetch("/api/audit/integrity/status")
+    fetch("/api/audit/status")
       .then(r => r.json())
       .then(setStatus);
   }, []);
@@ -18,7 +18,7 @@ export default function IntegrityIsland() {
   const runVerification = async () => {
     setVerifying(true);
     try {
-      const res = await fetch("/api/audit/integrity/verify", { method: "POST" });
+      const res = await fetch("/api/audit/verify", { method: "GET" });
       const data = await res.json();
       setResult(data);
     } catch (e) {

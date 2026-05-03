@@ -8,6 +8,11 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use rayon::prelude::*;
 use std::sync::{Arc};
 use dashmap::DashMap;
+use tokio::sync::Mutex;
+use once_cell::sync::Lazy;
+
+static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+static RKH_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Command {
@@ -278,6 +283,7 @@ async fn main() {
                 files: None,
             };
 
+            let _lock = STDOUT_LOCK.lock().await;
             println!("{}", serde_json::to_string(&result).unwrap());
         } else if command.cmd_type == "DIR_SCAN" {
             let mut paths_to_scan = Vec::new();
@@ -345,11 +351,13 @@ async fn main() {
                 files: Some(file_infos),
             };
 
+            let _lock = STDOUT_LOCK.lock().await;
             println!("{}", serde_json::to_string(&result).unwrap());
         } else if command.cmd_type == "RKH_SCAN" {
             let cmd_id = command.id;
             // Run rkhunter in a separate thread to avoid blocking the main loop
             tokio::spawn(async move {
+                let _rkh_guard = RKH_LOCK.lock().await;
                 let output = std::process::Command::new("rkhunter")
                     .args(["--check", "--sk", "--nocolors"])
                     .output();
@@ -367,6 +375,7 @@ async fn main() {
                             "type": "RKH_SCAN_RESULT",
                             "timestamp": chrono::Utc::now().to_rfc3339(),
                         });
+                        let _lock = STDOUT_LOCK.lock().await;
                         println!("{}", result.to_string());
                     }
                     Err(e) => {
@@ -377,6 +386,7 @@ async fn main() {
                             "type": "RKH_SCAN_RESULT",
                             "timestamp": chrono::Utc::now().to_rfc3339(),
                         });
+                        let _lock = STDOUT_LOCK.lock().await;
                         println!("{}", result.to_string());
                     }
                 }

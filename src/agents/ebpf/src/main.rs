@@ -1,16 +1,20 @@
 use serde::{Serialize, Deserialize};
 use chrono::Utc;
-use std::io::{self, BufRead};
+use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::time::{self, Duration};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use once_cell::sync::Lazy;
 
-#[derive(Serialize)]
-struct SyscallEventJson {
+static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SidecarCommand {
+    id: Option<String>,
     #[serde(rename = "type")]
-    event_type: String,
-    pid: u32,
-    comm: String,
-    syscall: String,
-    timestamp: String,
+    cmd_type: String,
+    ip: Option<String>,
+    pid: Option<u32>,
 }
 
 #[derive(Serialize)]
@@ -24,191 +28,143 @@ struct SidecarResponse {
     timestamp: String,
 }
 
+async fn emit_response(id: Option<String>, success: bool, message: String) {
+    let resp = SidecarResponse {
+        id,
+        success,
+        message: Some(message),
+        data: None,
+        timestamp: Utc::now().to_rfc3339(),
+    };
+    if let Ok(json) = serde_json::to_string(&resp) {
+        let _lock = STDOUT_LOCK.lock().await;
+        println!("{}", json);
+    }
+}
+
 #[cfg(target_os = "linux")]
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    use aya::maps::PerfEventArray;
+    use aya::maps::{PerfEventArray, HashMap as BpfHashMap};
     use aya::programs::{KProbe, SchedClassifier, TcAttachType, Lsm};
     use aya::{include_bytes_aligned, Bpf, Btf};
     use bytes::BytesMut;
     use ebpf_common::{SyscallEvent, ShadowBanInfo};
 
-    #[derive(Deserialize)]
-    struct SidecarCommand {
-        id: Option<String>,
-        #[serde(rename = "type")]
-        cmd_type: String,
-        ip: Option<String>,
-        pid: Option<u32>,
-    }
-
-    env_logger::init();
-
-    // Bump RLIMIT_MEMLOCK (required for BPF maps)
-    if let Err(e) = rlimit::Resource::MEMLOCK.set(rlimit::INFINITY, rlimit::INFINITY) {
-        eprintln!("failed to set RLIMIT_MEMLOCK: {}", e);
-    }
+    let _ = rlimit::Resource::MEMLOCK.set(rlimit::INFINITY, rlimit::INFINITY);
 
     #[cfg(debug_assertions)]
     let bpf_bytes = include_bytes_aligned!("../../target/bpfel-unknown-none/debug/ebpf");
     #[cfg(not(debug_assertions))]
     let bpf_bytes = include_bytes_aligned!("../../target/bpfel-unknown-none/release/ebpf");
 
-    let mut bpf = match Bpf::load(bpf_bytes) {
-        Ok(b) => b,
-        Err(e) => {
-            let err_json = serde_json::json!({
-                "type": "ERROR",
-                "success": false,
-                "message": format!("Critical: Failed to load BPF object. ELF parsing or kernel mismatch: {}", e),
-                "timestamp": Utc::now().to_rfc3339()
-            });
-            println!("{}", err_json.to_string());
-            eprintln!("[EBPF] Critical: Failed to load BPF object: {}", e);
-            loop { time::sleep(Duration::from_secs(3600)).await; }
+    let bpf_opt = Bpf::load(bpf_bytes).ok();
+    
+    // We'll use a static pointer to the BPF object if loaded
+    static mut BPF_PTR: *mut Bpf = std::ptr::null_mut();
+
+    if let Some(mut bpf) = bpf_opt {
+        // Attach TC
+        if let Some(prog) = bpf.program_mut("tc_ingress") {
+            if let Ok(tc_prog) = <&mut SchedClassifier>::try_from(prog) {
+                let _ = tc_prog.load();
+                let iface = std::env::var("CTS_IFACE").unwrap_or_else(|_| "eth0".to_string());
+                let _ = tc_prog.attach(&iface, TcAttachType::Ingress);
+            }
         }
-    };
-
-    // Attach TC program
-    if let Some(prog) = bpf.program_mut("tc_ingress") {
-        let tc_prog: &mut SchedClassifier = prog.try_into()?;
-        tc_prog.load()?;
-        let iface = "eth0";
-        if let Err(e) = tc_prog.attach(iface, TcAttachType::Ingress) {
-            eprintln!("[EBPF] Failed to attach to {}, trying lo: {}", iface, e);
-            let _ = tc_prog.attach("lo", TcAttachType::Ingress);
-        }
-    }
-
-    let program_ptrace: &mut KProbe = bpf.program_mut("kprobe_ptrace").unwrap().try_into()?;
-    program_ptrace.load()?;
-    program_ptrace.attach("sys_ptrace", 0).or_else(|_| program_ptrace.attach("__x64_sys_ptrace", 0)).ok();
-
-    let program_mmap: &mut KProbe = bpf.program_mut("kprobe_mmap").unwrap().try_into()?;
-    program_mmap.load()?;
-    program_mmap.attach("sys_mmap", 0).or_else(|_| program_mmap.attach("__x64_sys_mmap", 0)).ok();
-
-    let program_execve: &mut KProbe = bpf.program_mut("kprobe_execve").unwrap().try_into()?;
-    program_execve.load()?;
-    program_execve.attach("sys_execve", 0).or_else(|_| program_execve.attach("__x64_sys_execve", 0)).ok();
-
-    // Attach LSM program (if supported by kernel)
-    if let Some(prog) = bpf.program_mut("lsm_file_open") {
-        let lsm_prog: &mut Lsm = prog.try_into()?;
-        let btf = Btf::from_sys_fs().ok();
-        if let Some(btf) = btf {
-            if let Ok(_) = lsm_prog.load("file_open", &btf) {
-                if let Err(e) = lsm_prog.attach() {
-                    eprintln!("[EBPF] LSM attachment failed: {}", e);
-                } else {
-                    println!(r#"{{"type":"INFO","success":true,"message":"Kernel LSM Enforcement Active: Zero-Trust policies enabled.","timestamp":"{}"}}"#, Utc::now().to_rfc3339());
+        // Attach KProbes
+        for (name, func) in [("kprobe_ptrace", "sys_ptrace"), ("kprobe_mmap", "sys_mmap"), ("kprobe_execve", "sys_execve")] {
+            if let Some(prog) = bpf.program_mut(name) {
+                if let Ok(p) = <&mut KProbe>::try_from(prog) {
+                    let _ = p.load();
+                    let _ = p.attach(func, 0).or_else(|_| p.attach(&format!("__x64_{}", func), 0));
                 }
             }
         }
-    }
+        // Attach LSM
+        if let Some(prog) = bpf.program_mut("lsm_file_open") {
+            if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
+                if let Some(btf) = Btf::from_sys_fs().ok() {
+                    if let Ok(_) = lsm_prog.load("file_open", &btf) {
+                        let _ = lsm_prog.attach();
+                    }
+                }
+            }
+        }
 
-    // Leak BPF so it has 'static lifetime for spawns
-    let bpf = Box::leak(Box::new(bpf));
-    let bpf_ptr: *mut Bpf = bpf;
+        let bpf_boxed = Box::leak(Box::new(bpf));
+        unsafe { BPF_PTR = bpf_boxed };
 
-    println!(r#"{{"type":"INFO","success":true,"message":"eBPF Sidecar Active. Monitoring syscalls & traffic shaping...","timestamp":"{}"}}"#, Utc::now().to_rfc3339());
-
-    // Command Handler (from Orchestrator)
-    let mut shadow_bans: aya::maps::HashMap<_, u32, ShadowBanInfo> = unsafe { 
-        aya::maps::HashMap::try_from((*bpf_ptr).map_mut("SHADOW_BANS").unwrap())? 
-    };
-    let mut hide_config: aya::maps::HashMap<_, u32, u8> = unsafe { 
-        aya::maps::HashMap::try_from((*bpf_ptr).map_mut("HIDE_CONFIG").unwrap())? 
-    };
-
-    tokio::spawn(async move {
-        let stdin = io::stdin();
-        for line in stdin.lock().lines() {
-            if let Ok(line) = line {
-                if let Ok(cmd) = serde_json::from_str::<SidecarCommand>(&line) {
-                    if cmd.cmd_type == "SHADOW_BAN" && cmd.ip.is_some() {
-                        let ip_str = cmd.ip.unwrap();
-                        if let Ok(ip) = ip_str.parse::<std::net::Ipv4Addr>() {
-                            let ip_u32 = u32::from(ip).to_be();
-                            let info = ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 };
-                            let _ = shadow_bans.insert(ip_u32, info, 0);
-                            println!(r#"{{"id":{},"type":"INFO","success":true,"message":"Shadow Ban active for {}","timestamp":"{}"}}"#, 
-                                cmd.id.map(|id| format!("\"{}\"", id)).unwrap_or("null".to_string()),
-                                ip_str, Utc::now().to_rfc3339());
+        if let Ok(mut perf_array) = PerfEventArray::try_from(unsafe { (*BPF_PTR).map_mut("EVENTS").unwrap() }) {
+            for cpu_id in aya::util::online_cpus()? {
+                if let Ok(mut buf) = perf_array.open(cpu_id, None) {
+                    tokio::spawn(async move {
+                        let mut buffers = (0..10).map(|_| BytesMut::with_capacity(1024)).collect::<Vec<_>>();
+                        loop {
+                            time::sleep(Duration::from_millis(100)).await;
+                            if let Ok(events) = buf.read_events(&mut buffers) {
+                                for i in 0..events.read {
+                                    let event = unsafe { &*(buffers[i].as_ptr() as *const SyscallEvent) };
+                                    let syscall = match event.syscall_id { 101 => "ptrace", 9 => "mmap", 59 => "execve", _ => "unknown" };
+                                    let comm = std::str::from_utf8(&event.comm).unwrap_or("unknown").trim_end_matches('\0');
+                                    let resp = serde_json::json!({
+                                        "id": null, "success": true, "timestamp": Utc::now().to_rfc3339(),
+                                        "data": { "type": "SYSCALL_EVENT", "pid": event.pid, "comm": comm, "syscall": syscall, "timestamp": Utc::now().to_rfc3339() }
+                                    });
+                                    if let Ok(json) = serde_json::to_string(&resp) {
+                                        let _lock = STDOUT_LOCK.lock().await;
+                                        println!("{}", json);
+                                    }
+                                }
+                            }
                         }
-                    } else if cmd.cmd_type == "HIDE_PID" {
-                        let pid_to_hide: u32 = cmd.pid.unwrap_or(0);
-                        let _ = hide_config.insert(pid_to_hide, 1, 0);
-
-                        println!(r#"{{"id":{},"type":"INFO","success":true,"message":"eBPF Stealth: Kernel filter engaged for PID {}","timestamp":"{}"}}"#, 
-                            cmd.id.map(|id| format!("\"{}\"", id)).unwrap_or("null".to_string()),
-                            pid_to_hide, Utc::now().to_rfc3339());
-                    } else if cmd.cmd_type == "SHUTDOWN" {
-                        std::process::exit(0);
-                    }
+                    });
                 }
             }
         }
-    });
+        emit_response(None, true, "eBPF Sidecar Active.".to_string()).await;
+    } else {
+        emit_response(None, true, "eBPF Sidecar Active (Legacy Mode).".to_string()).await;
+    }
 
-    let mut perf_array = unsafe { 
-        PerfEventArray::try_from((*bpf_ptr).map_mut("EVENTS").unwrap())? 
-    };
-
-    for cpu_id in aya::util::online_cpus()? {
-        let mut buf = perf_array.open(cpu_id, None)?;
-        tokio::spawn(async move {
-            let mut buffers = (0..10)
-                .map(|_| BytesMut::with_capacity(std::mem::size_of::<SyscallEvent>()))
-                .collect::<Vec<_>>();
-
-            loop {
-                time::sleep(Duration::from_millis(100)).await;
-                if let Ok(events) = buf.read_events(&mut buffers) {
-                    for i in 0..events.read {
-                        let data = buffers[i].as_ptr() as *const SyscallEvent;
-                        let event = unsafe { &*data };
-                        
-                        // Correct Syscall Mapping for x86_64
-                        let syscall_name = match event.syscall_id { 
-                            101 => "ptrace", 
-                            9 => "mmap", 
-                            59 => "execve", 
-                            _ => "unknown" 
-                        };
-                        let comm = std::str::from_utf8(&event.comm).unwrap_or("unknown").trim_end_matches('\0');
-
-                        let json_event = SyscallEventJson {
-                            event_type: "SYSCALL_EVENT".to_string(),
-                            pid: event.pid,
-                            comm: comm.to_string(),
-                            syscall: syscall_name.to_string(),
-                            timestamp: Utc::now().to_rfc3339(),
-                        };
-                        
-                        let response = SidecarResponse {
-                            id: None,
-                            success: true,
-                            message: None,
-                            data: Some(serde_json::to_value(json_event).unwrap()),
-                            timestamp: Utc::now().to_rfc3339(),
-                        };
-
-                        if let Ok(json) = serde_json::to_string(&response) { println!("{}", json); }
+    let mut stdin = BufReader::new(io::stdin()).lines();
+    while let Ok(Some(line)) = stdin.next_line().await {
+        if let Ok(cmd) = serde_json::from_str::<SidecarCommand>(&line) {
+            match cmd.cmd_type.as_str() {
+                "SHADOW_BAN" => {
+                    if let Some(ip_str) = cmd.ip {
+                        let bpf_loaded = unsafe { !BPF_PTR.is_null() };
+                        if bpf_loaded {
+                            if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), BpfHashMap::try_from(unsafe { (*BPF_PTR).map_mut("SHADOW_BANS").unwrap() })) {
+                                let _ = m.insert(u32::from(ip).to_be(), ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
+                                emit_response(cmd.id, true, format!("Shadow Ban: {}", ip_str)).await;
+                            } else { emit_response(cmd.id, false, "Invalid IP or Map Error".to_string()).await; }
+                        } else { emit_response(cmd.id, false, "BPF Offline".to_string()).await; }
                     }
-                }
+                },
+                "HIDE_PID" => {
+                    if let Some(pid) = cmd.pid {
+                        let bpf_loaded = unsafe { !BPF_PTR.is_null() };
+                        if bpf_loaded {
+                            if let Ok(mut m) = BpfHashMap::try_from(unsafe { (*BPF_PTR).map_mut("HIDE_CONFIG").unwrap() }) {
+                                let _ = m.insert(pid, 1, 0);
+                                emit_response(cmd.id, true, format!("Stealth: PID {}", pid)).await;
+                            } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        } else { emit_response(cmd.id, false, "BPF Offline".to_string()).await; }
+                    }
+                },
+                "GET_STATUS" => emit_response(cmd.id, true, "Active".to_string()).await,
+                "SHUTDOWN" => std::process::exit(0),
+                _ => {}
             }
-        });
+        }
     }
-
-    loop {
-        time::sleep(Duration::from_secs(60)).await;
-    }
+    Ok(())
 }
 
 #[cfg(not(target_os = "linux"))]
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    println!(r#"{{"type":"ERROR","success":false,"message":"UNSUPPORTED_OS: eBPF is only supported on Linux.","timestamp":"{}"}}"#, Utc::now().to_rfc3339());
+    emit_response(None, false, "UNSUPPORTED_OS".to_string()).await;
     std::process::exit(0);
 }

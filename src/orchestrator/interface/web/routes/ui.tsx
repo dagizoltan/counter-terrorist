@@ -29,7 +29,8 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   router.get("/intel/map", async (c: Context) => {
      const { default: ThreatMapPage } = await import("../features/situational/intel/map.tsx") as any;
-     return c.html(<ThreatMapPage />);
+     const csrfToken = c.get("csrfToken");
+     return c.html(<ThreatMapPage csrfToken={csrfToken} />);
   });
 
   router.get("/sysinfo", async (c: Context) => {
@@ -61,12 +62,18 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   router.route("/honeypots", createHoneypotsRouter(services.honeypot));
 
-  router.get("/threats", async (c: Context) => {
-    const { ThreatsPage } = await import("../features/defense/threats/page.tsx") as any;
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<ThreatsPage status={status} csrfToken={csrfToken} />);
-  });
+    router.get("/threats", async (c: Context) => {
+      const { ThreatsPage } = await import("../features/defense/threats/page.tsx") as any;
+      const status = await getStatus();
+      const csrfToken = c.get("csrfToken");
+      return c.html(<ThreatsPage status={status} csrfToken={csrfToken} />);
+    });
+  
+    router.get("/events", async (c: Context) => {
+      const { EventsPage } = await import("../features/defense/threats/events/page.tsx") as any;
+      const csrfToken = c.get("csrfToken");
+      return c.html(<EventsPage csrfToken={csrfToken} />);
+    });
 
   // ── 04: FORENSICS & AUDIT ───────────────────────────────────────────
 
@@ -80,12 +87,14 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   router.get("/analysis/timeline", async (c: Context) => {
     const { TimelinePage } = await import("../features/forensic/timeline/timeline.tsx") as any;
-    return c.html(<TimelinePage />);
+    const csrfToken = c.get("csrfToken");
+    return c.html(<TimelinePage csrfToken={csrfToken} />);
   });
 
   router.get("/analysis/replay", async (c: Context) => {
     const { default: ForensicReplay } = await import("../features/forensic/timeline/replay.tsx") as any;
-    return c.html(<ForensicReplay />);
+    const csrfToken = c.get("csrfToken");
+    return c.html(<ForensicReplay csrfToken={csrfToken} />);
   });
 
   // ── 05: GOVERNANCE & POLICY ────────────────────────────────────────
@@ -100,7 +109,8 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   // Compliance Map (Legacy support & categorization)
   router.get("/compliance/audit", async (c) => {
     const { AuditPage } = await import("../features/forensic/audit/page.tsx") as any;
-    return c.html(<AuditPage />);
+    const csrfToken = c.get("csrfToken");
+    return c.html(<AuditPage csrfToken={csrfToken} />);
   });
 
   router.get("/supply-chain", async (c) => {

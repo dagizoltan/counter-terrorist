@@ -15,8 +15,9 @@ export class SidecarManager implements CommandPort {
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
   private unsupportedSidecars: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
+  private defaultInterface: string | null = null;
 
-  constructor(private executor: SystemExecutor) {
+  constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
   }
 
@@ -28,7 +29,7 @@ export class SidecarManager implements CommandPort {
     if (this.cleanupRegistered) return;
     
     const cleanup = async () => {
-      console.log("[SIDE-MAN] Orchestrator exiting, cleaning up sidecars...");
+      this.logging.log("[SIDE-MAN] Orchestrator exiting, cleaning up sidecars...", 6);
       for (const name of Array.from(this.persistentProcesses.keys())) {
         await this.stopSidecar(name);
       }
@@ -69,88 +70,86 @@ export class SidecarManager implements CommandPort {
     return this.executor.execute(binPath, args);
   }
 
+  private spawningPromises: Map<string, Promise<Deno.ChildProcess | null>> = new Map();
+
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     if (this.unsupportedSidecars.has(name)) return null;
+    
+    // If already running, return it
     if (this.persistentProcesses.has(name)) return this.persistentProcesses.get(name)!;
 
-    const binPath = await this.findBinary(name);
-    if (!binPath) {
-        this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_NOT_FOUND", sidecar: name });
-        return null;
+    // If currently spawning, wait for the existing promise
+    if (this.spawningPromises.has(name)) {
+        return await this.spawningPromises.get(name)!;
     }
 
-    const isPrivileged = PRIVILEGED_SIDECARS.includes(name);
-    const isAlreadyRoot = Deno.uid() === 0;
+    // Initiate spawn with a lock
+    const spawnPromise = (async () => {
+        try {
+            const binPath = await this.findBinary(name);
+            if (!binPath) {
+                this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_NOT_FOUND", sidecar: name });
+                return null;
+            }
 
-    const command = new Deno.Command((isPrivileged && !isAlreadyRoot) ? "sudo" : binPath, {
-      args: (isPrivileged && !isAlreadyRoot) ? ["-n", binPath] : [],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    });
-
-    try {
-        const child = command.spawn();
-        
-        // Immediate check for sudo failure
-        if (isPrivileged && !isAlreadyRoot) {
-          const status = await Promise.race([
-            child.status,
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 1000))
-          ]);
-          if (status && status.code !== 0) {
-            this.emitEvent("SYSTEM_ERROR", { 
-              type: "PRIVILEGE_ERROR", 
-              sidecar: name, 
-              message: "Sudo failed or requires interaction. Ensure CTS binaries have NOPASSWD in sudoers or setcap." 
+            const env = await this.getSidecarEnv(name);
+            const command = new Deno.Command(binPath, {
+                args: [],
+                stdin: "piped",
+                stdout: "piped",
+                stderr: "piped",
+                env
             });
-            this.unsupportedSidecars.add(name);
-            child.kill();
-            return null;
-          }
-        }
-        console.log(`[SIDE-MAN] Spawned persistent sidecar: ${name}`);
 
-        child.status.then((status) => {
-            console.warn(`[SIDE-MAN] Sidecar ${name} exited with code ${status.code}.`);
-            this.persistentProcesses.delete(name);
-            this.handleSidecarExit(name, status.code);
-        });
+            const child = command.spawn();
+            console.log(`[SIDE-MAN] Spawned persistent sidecar: ${name}`);
 
-        // Handle stderr for error detection
-        (async () => {
-            const reader = child.stderr.getReader();
-            try {
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    if (value) {
-                        const msg = new TextDecoder().decode(value);
-                        console.error(`[SIDECAR:${name}] ${msg.trim()}`);
-                        if (msg.includes("UNSUPPORTED_OS")) {
-                            this.unsupportedSidecars.add(name);
-                            this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_UNSUPPORTED", sidecar: name });
-                        }
-                        if (msg.includes("PANIC") || msg.includes("error:")) {
-                            this.emitEvent("SIDECAR_ALERT", { type: "CRITICAL", sidecar: name, message: msg.trim() });
+            child.status.then((status) => {
+                console.warn(`[SIDE-MAN] Sidecar ${name} exited with code ${status.code}.`);
+                this.persistentProcesses.delete(name);
+                this.handleSidecarExit(name, status.code);
+            });
+
+            // Handle stderr for error detection
+            (async () => {
+                const reader = child.stderr.getReader();
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        if (value) {
+                            const msg = new TextDecoder().decode(value);
+                            console.error(`[SIDECAR:${name}] ${msg.trim()}`);
+                            if (msg.includes("UNSUPPORTED_OS")) {
+                                this.unsupportedSidecars.add(name);
+                                this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_UNSUPPORTED", sidecar: name });
+                            }
+                            if (msg.includes("PANIC") || msg.includes("error:")) {
+                                this.emitEvent("SIDECAR_ALERT", { type: "CRITICAL", sidecar: name, message: msg.trim() });
+                            }
                         }
                     }
+                } catch (e) {
+                    console.error(`[SIDE-MAN:${name}] Stderr reader error:`, e);
+                } finally {
+                    reader.releaseLock();
                 }
-            } catch (e) {
-                console.error(`[SIDE-MAN:${name}] Stderr reader error:`, e);
-            } finally {
-                reader.releaseLock();
-            }
-        })();
+            })();
 
-        this.persistentProcesses.set(name, child);
-        this.startResponseReader(name, child);
-        return child;
-    } catch (e) {
-        this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_SPAWN_FAILED", sidecar: name, error: (e as Error).message });
-        return null;
-    }
+            this.persistentProcesses.set(name, child);
+            this.startResponseReader(name, child);
+            return child;
+        } catch (e) {
+            this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_SPAWN_FAILED", sidecar: name, error: (e as Error).message });
+            return null;
+        } finally {
+            this.spawningPromises.delete(name);
+        }
+    })();
+
+    this.spawningPromises.set(name, spawnPromise);
+    return await spawnPromise;
   }
 
   private async findBinary(name: string): Promise<string | null> {
@@ -183,12 +182,11 @@ export class SidecarManager implements CommandPort {
     }
 
     for (const p of paths) {
+      if (!p) continue;
       try {
         const info = await Deno.stat(p);
         if (!info.isFile) continue;
-        const absolutePath = await Deno.realPath(p);
-        if (p.startsWith("./src/agents") && agentsDir && !absolutePath.startsWith(agentsDir)) continue;
-        return absolutePath;
+        return await Deno.realPath(p);
       } catch {
         continue;
       }
@@ -252,6 +250,27 @@ export class SidecarManager implements CommandPort {
     }
   }
 
+  private async getSidecarEnv(name: string): Promise<Record<string, string>> {
+    const env: Record<string, string> = {
+        "CTS_SIDECAR_NAME": name,
+        "RUST_LOG": "info"
+    };
+
+    if (name === "ebpf" || name === "pcap") {
+        if (!this.defaultInterface) {
+            const { getDefaultInterface } = await import("../system/network.ts");
+            this.defaultInterface = await getDefaultInterface();
+        }
+        env["CTS_IFACE"] = this.defaultInterface;
+    }
+
+    if (name === "pcap") {
+        env["CTS_CAPTURE_DIR"] = "./volume/storage/captures";
+    }
+
+    return env;
+  }
+
   async sendCommand(name: string, cmd: string | object): Promise<CommandResult> {
     const child = await this.getPersistentSidecar(name);
     if (!child) throw new Error(`Sidecar ${name} not found`);
@@ -308,10 +327,30 @@ export class SidecarManager implements CommandPort {
     if (process) {
       try {
         process.kill("SIGTERM");
+        
+        // Wait for exit with 2s timeout
+        const timeout = setTimeout(() => {
+          try { process.kill("SIGKILL"); } catch { /* ignore */ }
+        }, 2000);
+        
+        await process.status;
+        clearTimeout(timeout);
       } catch {
-        process.kill("SIGKILL");
+        try {
+           process.kill("SIGKILL");
+        } catch {
+           // Process already dead
+        }
       }
       this.persistentProcesses.delete(name);
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    this.logging.log("[SIDE-MAN] Shutting down agent fleet...", 6);
+    const names = Array.from(this.persistentProcesses.keys());
+    for (const name of names) {
+      await this.stopSidecar(name);
     }
   }
 
