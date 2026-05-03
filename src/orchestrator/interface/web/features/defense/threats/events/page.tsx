@@ -21,43 +21,53 @@ export const EventsPage = (props: { csrfToken?: string }) => {
               <span class="dot danger shadow-danger animate-pulse"></span>
               <span class="mono-xs font-black text-danger tracking-[0.4em] uppercase">Stream_Engaged</span>
            </div>
-           <button class="t-btn px-6 py-4 text-[10px] font-black tracking-widest group">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-180 transition-transform duration-700"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-              CLEAR_CACHE
+           <button class="t-btn px-6 py-4 text-[10px] font-black tracking-widest group" onclick="window.location.reload()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-180 transition-transform duration-700"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7 L3 16"/></svg>
+              RESET_PIPELINE
            </button>
         </div>
       </header>
 
-      {/* 2. Tactical Stats Row */}
+      {/* 2. Tactical Stats Row - Updated to 4 Cards for Optimal Grid Density */}
       <div class="grid grid-cols-12 gap-10 mb-16 animate-fade-in">
-        <div class="col-span-12 lg:col-span-4 t-panel glass-panel stat-card border-t-2 border-danger group">
-          <span class="label">Live Vectors Blocked</span>
-          <div class="value-group mt-4">
-            <span class="value text-5xl tabular-nums tracking-tighter" id="evt-blocked-count">1,402</span>
-            <span class="unit text-lg">Vectors</span>
+        <div class="col-span-12 md:col-span-6 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-danger group">
+          <span class="label">Vectors Blocked</span>
+          <div class="value-group">
+            <span class="value text-5xl tabular-nums" id="evt-blocked-count">1,402</span>
+            <span class="unit">Vect</span>
           </div>
-          <div class="mt-6 pt-6 border-t border-white/5 mono-xs font-black text-slate-600 uppercase tracking-widest">
-             PPS_PEAK: 12.4k
-          </div>
-        </div>
-        <div class="col-span-12 lg:col-span-4 t-panel glass-panel stat-card border-t-2 border-warning group">
-          <span class="label">Active Global Bans</span>
-          <div class="value-group mt-4">
-            <span class="value text-5xl tabular-nums tracking-tighter" id="evt-ban-count">842</span>
-            <span class="unit text-lg">Nodes</span>
-          </div>
-          <div class="mt-6 pt-6 border-t border-white/5 mono-xs font-black text-slate-600 uppercase tracking-widest">
-             TTL_EXPIRE: 24H_AVG
+          <div class="mt-4 pt-4 border-t border-white/5 mono-xs font-black text-slate-600 uppercase tracking-widest">
+             PPS: 12.4k
           </div>
         </div>
-        <div class="col-span-12 lg:col-span-4 t-panel glass-panel stat-card border-t-2 border-primary group">
+        <div class="col-span-12 md:col-span-6 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-warning group">
+          <span class="label">Global Bans</span>
+          <div class="value-group">
+            <span class="value text-5xl tabular-nums" id="evt-ban-count">842</span>
+            <span class="unit">Nodes</span>
+          </div>
+          <div class="mt-4 pt-4 border-t border-white/5 mono-xs font-black text-slate-600 uppercase tracking-widest">
+             TTL: 24H_AVG
+          </div>
+        </div>
+        <div class="col-span-12 md:col-span-6 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-primary group">
           <span class="label">Pipeline Latency</span>
-          <div class="value-group mt-4">
-            <span class="value text-5xl tabular-nums tracking-tighter" id="evt-latency">0.4</span>
-            <span class="unit text-lg">ms</span>
+          <div class="value-group">
+            <span class="value text-5xl tabular-nums" id="evt-latency">0.4</span>
+            <span class="unit">ms</span>
           </div>
-          <div class="mt-6 pt-6 border-t border-white/5 mono-xs font-black text-slate-600 uppercase tracking-widest">
-             BUFFER: 100%_HEALTHY
+          <div class="mt-4 pt-4 border-t border-white/5 mono-xs font-black text-slate-600 uppercase tracking-widest">
+             HEALTH: 100%
+          </div>
+        </div>
+        <div class="col-span-12 md:col-span-6 lg:col-span-3 t-panel glass-panel stat-card border-t-2 border-success group">
+          <span class="label">Signal Integrity</span>
+          <div class="value-group">
+            <span class="value text-5xl tabular-nums">99.9</span>
+            <span class="unit">%</span>
+          </div>
+          <div class="mt-4 pt-4 border-t border-white/5 mono-xs font-black text-slate-600 uppercase tracking-widest">
+             HASH_VERIFIED
           </div>
         </div>
       </div>

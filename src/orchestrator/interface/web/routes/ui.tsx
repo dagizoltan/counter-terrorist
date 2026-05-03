@@ -33,6 +33,13 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
      return c.html(<ThreatMapPage csrfToken={csrfToken} />);
   });
 
+  router.get("/intel/news", async (c: Context) => {
+    const { NewsPage } = await import("../features/situational/intel/news.tsx") as any;
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<NewsPage status={status} csrfToken={csrfToken} />);
+  });
+
   router.get("/sysinfo", async (c: Context) => {
     const { SysInfoPage } = await import("../features/situational/sysinfo/page.tsx") as any;
     const status = await getStatus();

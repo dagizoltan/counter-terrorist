@@ -38,6 +38,10 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     return await this.executor.execute("kill", ["-9", pid.toString()]);
   }
 
+  async quarantineProcess(pid: number): Promise<CommandResult> {
+    return await this.executor.execute("kill", ["-STOP", pid.toString()]);
+  }
+
   async dumpProcessForensics(pid: number): Promise<CommandResult> {
     const dumpPath = `./volume/logs/forensics_process_${pid}_${Date.now()}.dump`;
     console.log(`[FORENSICS] Dumping process ${pid} memory to ${dumpPath}`);

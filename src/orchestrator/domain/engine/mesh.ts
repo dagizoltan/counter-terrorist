@@ -1,6 +1,7 @@
 import { broadcast } from "@api/ws.ts";
 import { MeshAuthService } from "../index.ts";
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 
 export interface MeshNode {
   id: string;
@@ -74,7 +75,7 @@ export class MeshManager {
     this.discoveryInterval = setInterval(() => {
         this.discoverSubnet();
         this.scanNetwork();
-    }, 300000); // Every 5 minutes
+    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS);
 
     // 3. Start listening for mDNS (Passive discovery)
     this.listenForDiscovery();
@@ -98,9 +99,9 @@ export class MeshManager {
 
         probes.push(this.probeNode(targetIp));
         
-        if (probes.length >= 20) {
-          await Promise.all(probes);
-          probes.length = 0;
+        if (probes.length >= TACTICAL_CONSTANTS.MESH.MAX_PARALLEL_PROBES) {
+            await Promise.all(probes);
+            probes.length = 0;
         }
       }
       await Promise.all(probes);
@@ -232,7 +233,7 @@ export class MeshManager {
         method: "GET",
         headers,
         client: this.httpClient,
-        signal: AbortSignal.timeout(5000), // 5s timeout
+        signal: AbortSignal.timeout(TACTICAL_CONSTANTS.MESH.MTLS_HANDSHAKE_TIMEOUT_MS), 
       });
 
       if (!res.ok) {
@@ -317,6 +318,22 @@ export class MeshManager {
     for (const node of verifiedNodes) {
         this.sendSync(node, { type: "GOSSIP_BLOCK", ip }).catch(err => {
             console.warn(`[MESH] Failed to gossip with ${node.hostname}: ${(err as Error).message}`);
+        });
+    }
+  }
+
+  /**
+   * Broadcasts a malicious binary hash to the mesh.
+   */
+  async broadcastThreatHash(hash: string, sourceNode: string) {
+    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
+    if (verifiedNodes.length === 0) return;
+
+    this.logging.log(`[MESH] Gossip: Broadcasting threat hash ${hash.slice(0, 8)} to ${verifiedNodes.length} nodes...`, SyslogSeverity.NOTICE);
+
+    for (const node of verifiedNodes) {
+        this.sendSync(node, { type: "GOSSIP_THREAT_HASH", hash, sourceNode }).catch(err => {
+            console.warn(`[MESH] Failed to gossip threat to ${node.hostname}: ${(err as Error).message}`);
         });
     }
   }

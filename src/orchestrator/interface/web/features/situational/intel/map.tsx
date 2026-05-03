@@ -5,9 +5,14 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Atomic Threat Map
  * Hardened tactical overlay with high-fidelity spatial intelligence.
  */
-export default function ThreatMapPage(props: { csrfToken?: string }) {
+export default function ThreatMapPage(props: { status?: any; csrfToken?: string }) {
+  const islandPaths = [
+    '/components/islands/MetricsHydrator.js',
+    '/components/islands/MeshHeatmap.js'
+  ];
+
   return (
-    <Layout title="Spatial Intelligence // Tactical Map" csrfToken={props.csrfToken}>
+    <Layout title="Spatial Intelligence // Tactical Map" csrfToken={props.csrfToken} islandPaths={islandPaths}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
@@ -33,8 +38,8 @@ export default function ThreatMapPage(props: { csrfToken?: string }) {
               </div>
            </header>
 
-           <div id="heatmap-island-container" class="w-full h-full min-h-[720px] flex flex-col gap-6 p-10 bg-black/40 group">
-              <div class="skeleton h-full w-full"></div>
+           <div class="w-full h-full min-h-[720px] flex flex-col gap-6 p-10 bg-black/40 group overflow-hidden rounded-2xl">
+              <mesh-heatmap></mesh-heatmap>
            </div>
            
            <div class="absolute bottom-10 left-10 z-10 flex gap-6 pointer-events-none">
@@ -75,17 +80,7 @@ export default function ThreatMapPage(props: { csrfToken?: string }) {
         </div>
       </div>
 
-      <script type="module" dangerouslySetInnerHTML={{ __html: `
-        import { h, render } from '/vendor/preact.js';
-        import MeshHeatmap from '/components/islands/MeshHeatmap.js';
-        
-        const container = document.getElementById('heatmap-island-container');
-        if (container) {
-          container.innerHTML = ''; // Clear loader
-          render(h(MeshHeatmap), container);
-        }
-      `}} />
+      <metrics-hydrator></metrics-hydrator>
     </Layout>
   );
 }
-

@@ -11,6 +11,10 @@ import { createSupplyChainApi } from "../api/supply_chain.ts";
 import { createAgentsApi } from "../api/agents.ts";
 import { createThreatsApi } from "../api/threats.ts";
 import { createComplianceApi } from "../api/compliance.ts";
+import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
+import { bootstrap as getBootstrapInfo } from "../../../bootstrapper.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
+import { SignatureService } from "@infrastructure/system/protection/signature_service.ts";
 
 /**
  * API Router
@@ -60,10 +64,27 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     syncRateLimits.set(peerIp, limit);
 
     const payload = await c.req.json();
-    console.log(`[MESH:API] Received sync from ${peerIp}: ${payload.type}`);
+    loggingService.log(`Received mesh sync from ${peerIp}: ${payload.type}`, 6, "MESH:API");
     
     if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
         await services.protection.firewall.blockIp(payload.ip);
+    }
+
+    if (payload.type === "GOSSIP_THREAT_HASH" && payload.hash) {
+        loggingService.log(`Mesh Threat Intelligence: Blacklisting binary hash ${payload.hash.slice(0, 8)} reported by node ${payload.sourceNode}`, 4, "MESH:THREAT");
+        // In a full implementation, this would update a local 'BinaryBlacklist' or trigger a scan
+        await services.audit.logEvent({
+            type: "MESH_THREAT",
+            message: `Mesh-wide binary blacklist updated: ${payload.hash.slice(0, 8)}`,
+            data: payload
+        });
+    }
+
+    // Periodically cleanup rate limit map
+    if (Math.random() < 0.05) {
+      for (const [ip, l] of syncRateLimits.entries()) {
+        if (now > l.resetAt) syncRateLimits.delete(ip);
+      }
     }
 
     return c.json({ success: true });
@@ -140,8 +161,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json({ success: true, message: "Shadow Mode Engaged" });
   });
 
-  router.get("/metrics", async (c: Context) => {
-    const { getMetricsSnapshot } = await import("../../../domain/analysis/metrics_service.ts");
+  router.get("/metrics", (c: Context) => {
     const snapshot = getMetricsSnapshot();
     return c.json(snapshot || {});
   });
@@ -152,13 +172,11 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.get("/status", async (c: Context) => {
-    const { bootstrap } = await import("../../../bootstrapper.ts");
-    const baseStatus = await bootstrap();
+    const baseStatus = await getBootstrapInfo();
     return c.json(baseStatus);
   });
 
   router.get("/agent/status", async (c: Context) => {
-    const { getMetricsSnapshot } = await import("../../../domain/analysis/metrics_service.ts");
     const metrics = getMetricsSnapshot();
 
     return c.json({
@@ -234,11 +252,35 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.post("/governance/policy", async (c: Context) => {
-    const newPolicy = await c.req.json();
-    if (!newPolicy) return c.json({ error: "Policy manifest required" }, 400);
+    const payload = await c.req.json();
+    const { policy: newPolicy, signature } = payload;
     
-    // Verifying integrity (In production, this would verify a signature)
+    if (!newPolicy || typeof newPolicy !== "object") return c.json({ error: "Invalid Policy manifest" }, 400);
+    
+    // 1. Schema Validation
+    const required = ["version", "mode", "rules"];
+    const missing = required.filter(k => !(k in newPolicy));
+    if (missing.length > 0) return c.json({ error: `Policy missing fields: ${missing.join(", ")}` }, 400);
+
+    // 2. Cryptographic Integrity Check (If policy has a public key defined)
+    const currentPolicy = services.policy.getPolicy();
+    if (currentPolicy.publicKey && currentPolicy.strictMode) {
+        if (!signature) return c.json({ error: "Strict Mode Active: Policy signature required." }, 401);
+        
+        const sigService = new SignatureService();
+        const isValid = await sigService.verify(newPolicy, signature, currentPolicy.publicKey);
+        if (!isValid) {
+            loggingService.log(`SECURITY ALERT: Rejected unsigned/invalid policy manifest v${newPolicy.version}`, 2, "GOVERNANCE");
+            return c.json({ error: "Invalid cryptographic signature." }, 401);
+        }
+    }
+
+    if (!["STRICT", "ADAPTIVE", "MONITOR"].includes(newPolicy.mode)) {
+        return c.json({ error: "Invalid policy mode" }, 400);
+    }
+    
     services.policy.updatePolicy(newPolicy);
+    loggingService.log(`Security Policy updated: v${newPolicy.version} (${newPolicy.mode})`, 5, "GOVERNANCE");
     return c.json({ success: true, message: "Security Policy synchronized and active." });
   });
 

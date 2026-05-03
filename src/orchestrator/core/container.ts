@@ -27,9 +27,12 @@ import {
   KernelService,
   ForensicService,
   PlaybookService,
-  ShadowService,
   CovertChannelService,
-  LedgerService
+  LedgerService,
+  HealthService,
+  EventMediator,
+  BehavioralService,
+  GeoIpService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
@@ -80,5 +83,9 @@ export interface ServiceContainer {
   ledger: LedgerService;
   tpm: TPMManager;
   policy: any; // PolicyEngine
+  health: HealthService;
+  mediator: EventMediator;
+  behavioral: BehavioralService;
+  geoIp: GeoIpService;
   platformInfo: PlatformInfo;
 }

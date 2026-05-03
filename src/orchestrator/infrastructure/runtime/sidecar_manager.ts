@@ -15,6 +15,7 @@ export class SidecarManager implements CommandPort {
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
   private unsupportedSidecars: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
+  private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
@@ -29,6 +30,7 @@ export class SidecarManager implements CommandPort {
     if (this.cleanupRegistered) return;
     
     const cleanup = async () => {
+      this.isShuttingDown = true;
       this.logging.log("[SIDE-MAN] Orchestrator exiting, cleaning up sidecars...", 6);
       for (const name of Array.from(this.persistentProcesses.keys())) {
         await this.stopSidecar(name);
@@ -368,7 +370,7 @@ export class SidecarManager implements CommandPort {
 
     if (now - restartInfo.lastRestart > 300000) restartInfo.count = 0;
 
-    if (restartInfo.count < 3) {
+    if (restartInfo.count < 3 && !this.isShuttingDown) {
       restartInfo.count++;
       restartInfo.lastRestart = now;
       this.restartCounts.set(name, restartInfo);

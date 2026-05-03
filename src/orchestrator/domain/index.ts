@@ -22,6 +22,9 @@ export { ShadowService } from "./protection/shadow_service.ts";
 // Analysis Domain
 export { AuditService } from "./analysis/audit.ts";
 export { EventBus } from "./analysis/events.ts";
+export { HealthService } from "./analysis/health_service.ts";
+export { WatchdogService } from "./analysis/watchdog_service.ts";
+export { EventMediator } from "./analysis/event_mediator.ts";
 export { ProcessTracker } from "./analysis/process_tracker.ts";
 export { BaselineService } from "./analysis/baseline.ts";
 export { MetricsService } from "./analysis/metrics_service.ts";

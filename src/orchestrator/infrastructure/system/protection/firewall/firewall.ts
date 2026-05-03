@@ -72,7 +72,7 @@ export class FirewallManager {
   }
 
   async killProcess(pid: number) {
-    broadcast({ type: "CRITICAL", message: `Quarantining process (PID: ${pid}). Performing forensic dump...` });
+    broadcast({ type: "CRITICAL", message: `Terminating process (PID: ${pid}). Performing forensic dump...` });
     
     // Forensic Preservation: Attempt to dump memory maps before killing
     try {
@@ -84,6 +84,11 @@ export class FirewallManager {
     }
 
     return await this.provider.killProcess(pid);
+  }
+
+  async quarantineProcess(pid: number) {
+    broadcast({ type: "WARNING", message: `Quarantining process (PID: ${pid}). Suspending execution...` });
+    return await this.provider.quarantineProcess(pid);
   }
 
   async getStatus() {

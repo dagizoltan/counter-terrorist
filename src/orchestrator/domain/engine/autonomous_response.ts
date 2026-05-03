@@ -1,6 +1,9 @@
+import { PolicyEngine, RemediationAction } from "./policy_engine.ts";
+import { ForensicService } from "../analysis/forensic_service.ts";
 import { MeshManager } from "./mesh.ts";
 import { AuditService } from "../analysis/audit.ts";
-import { PolicyEngine, RemediationAction } from "./policy_engine.ts";
+import { NotificationService } from "../analysis/notifications.ts";
+import { ProtectionPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
 
 export type RemediationTier = RemediationAction;
 
@@ -23,6 +26,7 @@ export class AutonomousResponseEngine {
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
     
     private readonly MAX_HISTORY_PER_SOURCE = 20;
+    private readonly MAX_SOURCES = 500; // Prevent memory exhaustion DoS
 
     constructor(
         private policy: PolicyEngine,
@@ -31,6 +35,7 @@ export class AutonomousResponseEngine {
         private mesh: MeshManager,
         private notifications: NotificationService,
         private audit: AuditService,
+        private forensics: ForensicService,
         private logging: LoggingPort
     ) {
         // Automatically decay scores every 5 minutes to allow recovery
@@ -43,6 +48,15 @@ export class AutonomousResponseEngine {
     async evaluate(event: ThreatEvent) {
         const key = event.source;
         const currentScore = (this.scores.get(key) || 0) + event.severity;
+        
+        // Prevent map explosion (State Exhaustion Protection)
+        if (!this.scores.has(key) && this.scores.size >= this.MAX_SOURCES) {
+            const oldest = Array.from(this.scores.keys())[0];
+            this.scores.delete(oldest);
+            this.history.delete(oldest);
+            this.activeRemediations.delete(oldest);
+        }
+
         this.scores.set(key, currentScore);
         
         let events = this.history.get(key) || [];
@@ -117,7 +131,19 @@ export class AutonomousResponseEngine {
                     await this.protection.firewall.blockIp(source);
                 } else {
                     const pid = parseInt(source);
-                    if (!isNaN(pid)) await this.protection.firewall.killProcess(pid);
+                    if (!isNaN(pid)) {
+                        // Tactical Shift: Quarantine first for forensic dump, then kill
+                        await this.protection.firewall.quarantineProcess(pid);
+                        
+                        // Extract and Gossip binary hash for fleet-wide blocking
+                        this.forensics.calculateProcessHash(pid).then(hash => {
+                            if (hash) {
+                                this.mesh.broadcastThreatHash(hash, Deno.hostname());
+                            }
+                        });
+
+                        setTimeout(() => this.protection.firewall.killProcess(pid).catch(() => {}), 5000);
+                    }
                 }
                 break;
 

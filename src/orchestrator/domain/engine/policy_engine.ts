@@ -13,6 +13,7 @@ export interface SecurityPolicy {
     thresholds: ThresholdRule[];
     defaultAction: RemediationAction;
     strictMode: boolean;
+    publicKey?: string; // Base64 Ed25519 Public Key
 }
 
 /**

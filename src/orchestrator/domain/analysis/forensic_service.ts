@@ -73,4 +73,20 @@ export class ForensicService {
         return null;
     }
   }
+
+  /**
+   * Calculates the SHA-256 hash of a process's executable binary.
+   */
+  async calculateProcessHash(pid: number): Promise<string | null> {
+    try {
+        const exePath = await Deno.readLink(`/proc/${pid}/exe`);
+        const data = await Deno.readFile(exePath);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        return Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, "0"))
+          .join("");
+    } catch {
+        return null;
+    }
+  }
 }

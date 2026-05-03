@@ -11,6 +11,7 @@ import { MeshNode } from "../engine/mesh.ts";
 import { VpnPort } from "@core/ports.ts";
 import { BehavioralService } from "./behavioral_service.ts";
 import { GeoIpService } from "./geoip_service.ts";
+import { TACTICAL_CONSTANTS } from "../../core/constants.ts";
 
 export interface SystemMetrics {
     firewall: {
@@ -71,14 +72,18 @@ export interface SystemMetrics {
         ebpf: boolean;
         integrityScore: number;
     };
+    health: {
+        severity: string;
+        subsystems: { name: string; status: string; error?: string }[];
+    };
     tactical: {
-        recentThreats: any[];
+        recentThreats: { indicator: string; type: string; blocked: boolean }[];
     };
     discovery: {
-        devices: any[];
+        devices: { ip: string; hostname?: string; lastSeen: string }[];
     };
     news: {
-        latest: any[];
+        latest: { title: string; severity: string; link?: string }[];
     };
     policy: {
         version: string;
@@ -95,6 +100,10 @@ export class MetricsService {
     private scannerAvailable: boolean | null = null;
     private vpnAvailable: boolean | null = null;
     private collectionCount: number = 0;
+    
+    private readonly STAGGER_AUDIT = TACTICAL_CONSTANTS.METRICS.STAGGER_AUDIT_CYCLES;
+    private readonly STAGGER_KERNEL = TACTICAL_CONSTANTS.METRICS.STAGGER_KERNEL_CYCLES;
+    private readonly COLLECTION_INTERVAL_MS = TACTICAL_CONSTANTS.METRICS.COLLECTION_INTERVAL_MS;
 
     constructor(
         private firewall: FirewallManager,
@@ -113,8 +122,10 @@ export class MetricsService {
         private tacticalIntel?: any,
         private news?: any,
         private networkDiscovery?: any,
-        private autopilot?: any
+        private autopilot?: any,
+        private healthService?: any
     ) {
+        setMetricsService(this);
         this.start();
     }
 
@@ -130,7 +141,7 @@ export class MetricsService {
             } catch (e) {
                 console.error("[METRICS] Collection cycle failed:", e);
             }
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise(resolve => setTimeout(resolve, this.COLLECTION_INTERVAL_MS));
         }
     }
 
@@ -159,20 +170,24 @@ export class MetricsService {
                 this.vpnAvailable = (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success || true;
             }
 
-            // 2. High-Frequency Phase (Every 3s)
-            const firewallStatus = await this.firewall.getStatus();
-            const meshNodes = this.mesh.getNodes();
+            // 2. High-Frequency Phase (Parallelized for Performance)
+            const [firewallStatus, meshNodes, blockedIps, vpnConnected] = await Promise.all([
+                this.firewall.getStatus(),
+                Promise.resolve(this.mesh.getNodes()),
+                this.firewall.getBlockedIps(),
+                this.vpn.isConnected()
+            ]);
+
             const honeypotModules = this.honeypot.getModules();
             const ebpfActive = this.sidecarManager.isRunning("ebpf");
             const fimActive = this.sidecarManager.isRunning("fim");
 
             const fwLines = firewallStatus.stdout?.split('\n').filter((l: string) => l.trim()) || [];
             const rejectCount = (firewallStatus.stdout?.match(/REJECT|DROP|DENY/g) || []).length;
-            const blockedIps = await this.firewall.getBlockedIps();
 
             // 3. Staggered Phase (Run less frequently)
             let auditStatus = { valid: true, count: 0 };
-            if (this.collectionCount % 10 === 0) { // Every 30s
+            if (this.collectionCount % this.STAGGER_AUDIT === 0) { 
                 const verification = await this.auditService.verifyChain(20);
                 const recent = await this.auditService.getRecentEvents(1);
                 auditStatus = { valid: verification.valid, count: recent.length };
@@ -183,7 +198,7 @@ export class MetricsService {
                 };
             }
 
-            const kernelStatus = (this.collectionCount % 20 === 0) 
+            const kernelStatus = (this.collectionCount % this.STAGGER_KERNEL === 0) 
                 ? await this.kernelService.getStatus() 
                 : (this.cachedMetrics?.kernel || { aslr: "2", syncookies: "1", rp_filter: "1" });
 
@@ -244,11 +259,10 @@ export class MetricsService {
                     available: !!this.scannerAvailable
                 },
                 vpn: {
-                    active: (await this.vpn.isConnected()) || (meshNodes.filter(n => n.verified && (Date.now() - n.lastSeen < 600000)).length > 0),
-                    interface: (await this.vpn.isConnected()) ? "wg0" : "Sovereign Mesh (mTLS)",
+                    active: vpnConnected || (meshNodes.filter(n => n.verified && (Date.now() - n.lastSeen < 600000)).length > 0),
+                    interface: vpnConnected ? "wg0" : "Sovereign Mesh (mTLS)",
                     available: !!this.vpnAvailable,
                     mode: this.anonymization.getMode(),
-                    telemetry: this.anonymization.getTelemetry()
                 },
                 geo: {
                     topCountries: Array.from(new Set(this.geoIp.getCache().map(c => c.country))).slice(0, 5),
@@ -273,6 +287,10 @@ export class MetricsService {
                     version: "1.2.0",
                     mode: Deno.env.get("STRICT_POLICY_ENFORCEMENT") === "true" ? "STRICT" : "ADAPTIVE",
                     remediations: this.autopilot?.getTacticalIntelligence().length ?? 0
+                },
+                health: {
+                    severity: this.healthService?.getGlobalSeverity() || "UNKNOWN",
+                    subsystems: this.healthService?.getAllStatuses() || []
                 }
             };
 

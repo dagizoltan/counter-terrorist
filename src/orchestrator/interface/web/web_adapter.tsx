@@ -108,13 +108,14 @@ export class WebAdapter implements WebPort {
       : "./src/orchestrator/interface/web";
     loggingService.log(`[WEB] Static Asset Root: ${webRoot}`, SyslogSeverity.INFORMATIONAL);
     
-    // Use path-specific serveStatic for better reliability in Deno
+    // Optimized static serving for Deno
     this.app.use("/style.css", serveStatic({ path: "./style.css", root: webRoot }));
     this.app.use("/features/*", serveStatic({ root: webRoot }));
     this.app.use("/components/*", serveStatic({ root: webRoot }));
     this.app.use("/pages/*", serveStatic({ root: webRoot }));
     this.app.use("/vendor/*", serveStatic({ root: webRoot }));
     this.app.use("/assets/*", serveStatic({ root: webRoot }));
+    this.app.use("/theme.ts", serveStatic({ path: "./theme.ts", root: webRoot }));
     
     if (this.services.honeypot) {
       const honeyRoutes = this.services.honeypot.getDecoyRoutes();

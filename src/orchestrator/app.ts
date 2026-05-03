@@ -15,7 +15,8 @@ import {
     GovernanceService, ShadowService, CovertChannelService, 
     ProvisioningService, NetworkDiscoveryService, NetworkLogService, 
     IncidentService, ComplianceService, NewsSignalService, 
-    PlatformInfoService, LedgerService
+    PlatformInfoService, LedgerService, HealthService, EventMediator,
+    WatchdogService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
@@ -67,6 +68,8 @@ export class SovereignApp {
         const meshAuthService = new MeshAuthService(this.kv, tpmManager);
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService);
         
+        const healthService = new HealthService(loggingService);
+        
         setMeshManager(meshManager);
         await meshManager.init();
         meshManager.startDiscovery();
@@ -75,68 +78,22 @@ export class SovereignApp {
         await this.verifyHardware(tpmManager);
 
         // ── Phase 4: Domain Services ──────────────────────────────────────────
-        initBroadcaster({ notificationService, auditService: this.auditService, eventBus, loggingService });
-
-        const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLogService);
-        const protection = new ProtectionAdapter(rawProtection);
-        const processTracker = new ProcessTracker(loggingService);
-        
-        const sessionService = new SessionService(this.kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
-        const apiKeysService = new ApiKeysService(this.kv, loggingService);
-        const anonymization = new AnonymizationService(protection.vpn, loggingService);
-        const shadowProtocol = new ShadowProtocolService(meshManager, anonymization, loggingService);
-        const playbookService = new PlaybookService(this.sidecarManager, protection, notificationService, meshManager, shadowProtocol);
-        
-        const behavioralService = new BehavioralService(protection.firewall as any);
-        const geoIpService = new GeoIpService(loggingService);
-        const honeypotService = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
-        honeypotService.setBehavioralService(behavioralService);
-
-        const canaryService = new CanaryService(this.auditService, this.sidecarManager, loggingService);
-        const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
-        const forensicService = new ForensicService(this.auditService, loggingService, this.kv, processTracker);
-        
-        const autopilotService = new AutopilotService(eventBus, playbookService, this.auditService, protection, meshManager, notificationService, loggingService, processTracker, kernelService);
-        const morphingService = new MorphingService(honeypotService, canaryService, this.auditService, meshManager);
-        const chaosEngine = new ChaosEngine(eventBus, this.auditService, this.sidecarManager);
-        const supplyChain = new SupplyChainService();
-        const provisioningService = new ProvisioningService(this.sidecarManager, meshManager, this.executor, loggingService);
-        const governanceService = new GovernanceService(meshManager, protection, loggingService);
-        const shadowService = new ShadowService(this.executor, loggingService);
-        const covertService = new CovertChannelService(this.executor, loggingService);
-        const deceptionGrid = new DeceptionGridService(honeypotService, canaryService, loggingService);
-        const complianceService = new ComplianceService(this.auditService, this.kv, processTracker);
-        const curatedIntel = new CuratedIntelService(loggingService, protection.firewall, configProvider);
-        const newsSignal = new NewsSignalService(loggingService);
-        const networkDiscovery = new NetworkDiscoveryService(loggingService);
-
-        this.services = {
-            config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
-            notifications: notificationService, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService), 
-            processTracker, sessions: sessionService, apiKeys: apiKeysService, eventBus,
-            honeypot: honeypotService, canaryService, kernelService, forensicService,
-            autopilot: autopilotService,
-            playbook: playbookService,
-            morphing: morphingService,
-            chaos: chaosEngine,
-            supplyChain, mesh: meshManager, meshAuth: meshAuthService, threatIntel: curatedIntel as any,
-            compliance: complianceService, anonymization, shadowProtocol, deceptionGrid,
-            curatedIntel, news: newsSignal, networkDiscovery, networkLogs: networkLogService,
-            incidents: incidentService, platformInfo,
-            shadow: shadowService,
-            covert: covertService,
-            ledger: new LedgerService(meshManager, loggingService),
-            tpm: tpmManager,
-            policy: autopilotService.getPolicy()
-        };
+        this.services = await this.initServices(configProvider, platformInfo, notificationService, eventBus, networkLogService, meshManager, tpmManager, healthService);
 
         // ── Phase 5: Web & Metrics ──────────────────────────────────────────
         this.web = new WebAdapter(this.services);
+        const { 
+            protection, mesh, honeypot, processTracker, kernelService, 
+            audit, canaryService, command, anonymization, 
+            curatedIntel, news, networkDiscovery, autopilot, health,
+            behavioral, geoIp
+        } = this.services;
+
         const metricsService = new MetricsService(
-            protection.firewall as any, meshManager, honeypotService, processTracker,
-            kernelService, this.auditService, canaryService, this.sidecarManager, protection.vpn,
-            behavioralService, anonymization, geoIpService, broadcast, 
-            curatedIntel, newsSignal, networkDiscovery, autopilotService
+            protection.firewall as any, mesh, honeypot, processTracker,
+            kernelService, audit as any, canaryService, command, protection.vpn,
+            behavioral, anonymization, geoIp, broadcast, 
+            curatedIntel, news, networkDiscovery, autopilot, health
         );
         setMetricsService(metricsService);
 
@@ -148,6 +105,14 @@ export class SovereignApp {
         // ── Phase 7: Finalize ───────────────────────────────────────────────
         const port = configProvider.getNumber("PORT", 8001);
         this.registerSignalHandlers();
+        
+        // ── Phase 8: Watchdog (Phoenix Pattern) ──────────────────────────────
+        const watchdog = new WatchdogService(health, loggingService, async (name) => {
+            // Re-initialization logic placeholder
+            return false; 
+        });
+        watchdog.start();
+
         await loggingService.log(`Sovereign Orchestrator fully engaged on port ${port}`, SyslogSeverity.NOTICE, "BOOT");
         await this.web.start(port);
     }
@@ -171,53 +136,62 @@ export class SovereignApp {
     }
 
     private wireEvents() {
-        const { command, processTracker, eventBus, honeypot, canaryService } = this.services;
-
-        honeypot.onEvent((event) => {
-            broadcast({ type: "HONEYPOT", message: `Honeypot Trigger: ${event.type}`, data: event });
-            eventBus.emit("HONEYPOT", event);
-        });
-
-        command.onEvent("ebpf", async (event: any) => {
-            if (event.type === "SYSCALL_EVENT") {
-                let type = "EBPF_SYSCALL";
-                if (event.syscall === "ptrace") type = "EBPF_CRITICAL";
-                const analysis = await processTracker.analyzeEvent(event.pid, event.comm);
-                if (analysis.isStrayShell) type = "EBPF_STRAY_SHELL";
-                
-                broadcast({ type, message: `eBPF Alert: ${event.comm} called ${event.syscall}`, data: event });
-                eventBus.emit(type, event); 
-            }
-        });
-
-        command.onEvent("fim", (event: any) => {
-            const payload = event.data;
-            if (payload?.type === "FileAlert") {
-                canaryService.handleFileAccess(payload.path, "UNKNOWN_COMM");
-                broadcast({ type: "DRIFT_PROCESS", message: `FIM Alert: ${payload.action} on ${payload.path}`, data: payload });
-                eventBus.emit("DRIFT_PROCESS", payload); 
-            }
-        });
+        this.services.mediator.wireSidecars(this.services.command);
     }
 
     private async startSubsystems() {
-        const { playbook, autopilot, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery } = this.services;
+        const { playbook, autopilot, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, health } = this.services;
         
         await loggingService.log("Deploying active defense subsystems", SyslogSeverity.INFORMATIONAL, "BOOT");
         
-        playbook.init().catch(() => {});
-        autopilot.start().catch(() => {});
+        health.reportStatus("Playbook", "BOOTING");
+        playbook.init()
+            .then(() => health.reportStatus("Playbook", "OPERATIONAL"))
+            .catch(e => health.reportStatus("Playbook", "FAILED", e.message));
+
+        health.reportStatus("Autopilot", "BOOTING");
+        autopilot.start()
+            .then(() => health.reportStatus("Autopilot", "OPERATIONAL"))
+            .catch(e => health.reportStatus("Autopilot", "FAILED", e.message));
+
+        health.reportStatus("Morphing", "OPERATIONAL");
         morphing.start();
-        anonymization.start().catch(() => {});
-        deceptionGrid.start().catch(() => {});
+
+        health.reportStatus("Anonymization", "BOOTING");
+        anonymization.start()
+            .then(() => health.reportStatus("Anonymization", "OPERATIONAL"))
+            .catch(e => health.reportStatus("Anonymization", "FAILED", e.message));
+
+        health.reportStatus("DeceptionGrid", "BOOTING");
+        deceptionGrid.start()
+            .then(() => health.reportStatus("DeceptionGrid", "OPERATIONAL"))
+            .catch(e => health.reportStatus("DeceptionGrid", "FAILED", e.message));
+
         processTracker.fullScan();
+        
+        health.reportStatus("Honeypot", "OPERATIONAL");
         honeypot.start();
+        
+        health.reportStatus("Canary", "OPERATIONAL");
         canaryService.deploy();
+        
+        health.reportStatus("KernelHardening", "OPERATIONAL");
         kernelService.harden();
         
-        curatedIntel.start(this.kv).catch(() => {});
-        news.start().catch(() => {});
-        networkDiscovery.start().catch(() => {});
+        health.reportStatus("ThreatIntel", "BOOTING");
+        curatedIntel.start(this.kv)
+            .then(() => health.reportStatus("ThreatIntel", "OPERATIONAL"))
+            .catch(e => health.reportStatus("ThreatIntel", "FAILED", e.message));
+
+        health.reportStatus("NewsSignal", "BOOTING");
+        news.start()
+            .then(() => health.reportStatus("NewsSignal", "OPERATIONAL"))
+            .catch(e => health.reportStatus("NewsSignal", "FAILED", e.message));
+
+        health.reportStatus("NetworkDiscovery", "BOOTING");
+        networkDiscovery.start()
+            .then(() => health.reportStatus("NetworkDiscovery", "OPERATIONAL"))
+            .catch(e => health.reportStatus("NetworkDiscovery", "FAILED", e.message));
 
         this.startDaemons();
     }
@@ -267,6 +241,79 @@ export class SovereignApp {
             Deno.addSignalListener("SIGINT", cleanup);
             Deno.addSignalListener("SIGTERM", cleanup);
         } catch {}
+    }
+
+    private async initServices(
+        configProvider: EnvConfigProvider, platformInfo: any, notifications: NotificationService, 
+        eventBus: EventBus, networkLog: NetworkLogService, mesh: MeshManager, 
+        tpm: TPMManager, health: HealthService
+    ): Promise<ServiceContainer> {
+        initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
+
+        const safeInit = <T>(name: string, factory: () => T): T => {
+            try {
+                const service = factory();
+                health.reportStatus(name, "OPERATIONAL");
+                return service;
+            } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                loggingService.log(`[BOOT] Auxiliary Service '${name}' failed to initialize: ${msg}`, SyslogSeverity.WARNING);
+                health.reportStatus(name, "FAILED", msg);
+                return null as any;
+            }
+        };
+
+        const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
+        const protection = new ProtectionAdapter(rawProtection);
+        const processTracker = new ProcessTracker(loggingService);
+        
+        const sessions = new SessionService(this.kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
+        const apiKeys = new ApiKeysService(this.kv, loggingService);
+        const anonymization = new AnonymizationService(protection.vpn, loggingService);
+        const shadowProtocol = new ShadowProtocolService(mesh, anonymization, loggingService);
+        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol);
+        
+        const behavioral = new BehavioralService(protection.firewall as any);
+        const geoIp = safeInit("GeoIP", () => new GeoIpService(loggingService));
+        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
+        if (honeypot) honeypot.setBehavioralService(behavioral);
+
+        const canaryService = safeInit("Canary", () => new CanaryService(this.auditService, this.sidecarManager, loggingService));
+        const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
+        const forensicService = safeInit("Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker));
+        
+        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService);
+        const morphing = safeInit("Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));
+        const chaos = safeInit("Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
+        const supplyChain = safeInit("SupplyChain", () => new SupplyChainService());
+        const provisioning = safeInit("Provisioning", () => new ProvisioningService(this.sidecarManager, mesh, this.executor, loggingService));
+        const governance = safeInit("Governance", () => new GovernanceService(mesh, protection, loggingService));
+        const shadow = safeInit("Shadow", () => new ShadowService(this.executor, loggingService));
+        const covert = safeInit("Covert", () => new CovertChannelService(this.executor, loggingService));
+        const deceptionGrid = safeInit("DeceptionGrid", () => new DeceptionGridService(honeypot, canaryService, loggingService));
+        const compliance = safeInit("Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
+        const curatedIntel = safeInit("CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider));
+        const news = safeInit("News", () => new NewsSignalService(loggingService));
+        const networkDiscovery = safeInit("NetworkDiscovery", () => new NetworkDiscoveryService(loggingService));
+        const incidents = safeInit("Incidents", () => new IncidentService(this.kv, loggingService));
+
+        return {
+            config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
+            notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService), 
+            processTracker, sessions, apiKeys, eventBus,
+            honeypot, canaryService, kernelService, forensicService,
+            autopilot, playbook, morphing, chaos,
+            supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: curatedIntel as any,
+            compliance, anonymization, shadowProtocol, deceptionGrid,
+            curatedIntel, news, networkDiscovery, networkLogs: networkLog,
+            incidents, platformInfo, shadow, covert,
+            ledger: new LedgerService(mesh, loggingService),
+            tpm, health,
+            mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService),
+            behavioral,
+            geoIp,
+            policy: autopilot.getPolicy()
+        };
     }
 
     private async selfDestruct() {

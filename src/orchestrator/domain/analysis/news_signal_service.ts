@@ -14,7 +14,13 @@ export class NewsSignalService {
     private feeds = [
         { name: "Krebs on Security", url: "https://krebsonsecurity.com/feed/" },
         { name: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews" },
-        { name: "Bleeping Computer", url: "https://www.bleepingcomputer.com/feed/" }
+        { name: "Bleeping Computer", url: "https://www.bleepingcomputer.com/feed/" },
+        { name: "Dark Reading", url: "https://www.darkreading.com/rss.xml" },
+        { name: "Schneier on Security", url: "https://www.schneier.com/blog/index.rdf" },
+        { name: "SANS ISC", url: "https://isc.sans.edu/rssfeed.xml" },
+        { name: "SecurityWeek", url: "https://feeds.feedburner.com/securityweek" },
+        { name: "CyberScoop", url: "https://cyberscoop.com/feed/" },
+        { name: "CERT-UA", url: "https://cert.gov.ua/rss" }
     ];
 
     constructor(private logging: LoggingPort) {}
@@ -42,7 +48,7 @@ export class NewsSignalService {
                 // Simple regex-based RSS parsing to avoid large dependencies
                 const items = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
                 
-                for (const itemXml of items.slice(0, 5)) {
+                for (const itemXml of items.slice(0, 15)) {
                     const title = itemXml.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "Untitled Signal";
                     const link = itemXml.match(/<link>(.*?)<\/link>/)?.[1] || "#";
                     const summary = itemXml.match(/<description>(.*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")?.slice(0, 200) + "..." || "";

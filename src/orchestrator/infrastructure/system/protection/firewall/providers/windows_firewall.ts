@@ -22,6 +22,10 @@ export class WindowsFirewallProvider implements FirewallProvider {
     return await this.executor.execute("taskkill", ["/F", "/PID", pid.toString()]);
   }
 
+  async quarantineProcess(pid: number): Promise<CommandResult> {
+    return await this.executor.execute("powershell", ["-Command", `Suspend-Process -Id ${pid}`]);
+  }
+
   async getStatus(): Promise<CommandResult> {
     return await this.executor.execute("netsh", ["advfirewall", "show", "currentprofile"]);
   }

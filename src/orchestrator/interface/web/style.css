@@ -390,10 +390,10 @@ h1, h2, h3, h4, .tactical-title {
 
 /* Stat Card Unification */
 .stat-card {
-  padding: 3rem; /* Unified p-12 */
+  padding: 2rem; /* Reduced from 3rem for better 4-column fit */
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem; /* Reduced from 2rem */
 }
 
 .stat-card .label {

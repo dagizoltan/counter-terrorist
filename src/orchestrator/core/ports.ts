@@ -43,6 +43,7 @@ export interface FirewallPort {
   shadowBanIp(ip: string): Promise<CommandResult>;
   lockdown(): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
+  quarantineProcess(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
 }
 

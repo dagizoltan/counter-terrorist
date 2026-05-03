@@ -35,7 +35,11 @@ class MeshHeatmap extends HTMLElement {
           z: (Math.random() - 0.5) * 200,
         }))
       ];
-    } catch (e) {}
+      const nodeCountEl = this.querySelector('#mesh-node-count');
+      if (nodeCountEl) nodeCountEl.textContent = `${this.nodes.length} Nodes Active`;
+    } catch (e) {
+      console.error("[HEATMAP] Node fetch failure:", e);
+    }
   }
 
   initWebSocket() {
@@ -57,19 +61,22 @@ class MeshHeatmap extends HTMLElement {
 
   renderBase() {
     this.innerHTML = `
-      <div class="relative w-full h-[400px] bg-black/20 rounded-xl overflow-hidden border border-white/5">
-        <canvas id="heatmap-canvas" class="w-full h-full"></canvas>
-        <div class="absolute top-6 left-6">
-           <div class="flex items-center gap-3 mb-2">
-              <div class="dot active pulse" style="background:var(--danger);"></div>
-              <span class="mono text-[10px] font-black uppercase tracking-[0.4em] text-danger">Live_Gossip_Traffic</span>
+      <div class="relative w-full h-full bg-black/20 rounded-2xl overflow-hidden border border-white/5">
+        <canvas id="heatmap-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
+        <div class="absolute top-8 left-8">
+           <div class="flex items-center gap-3 mb-4">
+              <div class="dot active pulse" style="background:var(--danger); width: 8px; height: 8px;"></div>
+              <span class="mono text-[11px] font-black uppercase tracking-[0.5em] text-danger/80">Live_Gossip_Traffic</span>
            </div>
-           <h2 class="mono text-2xl font-black italic text-white tracking-tighter uppercase">Mesh_Heatmap_3D</h2>
+           <h2 class="mono text-3xl font-black italic text-white/90 tracking-tighter uppercase">Mesh_Heatmap_3D</h2>
+        </div>
+        <div class="absolute bottom-8 right-8 flex flex-col items-end gap-2">
+            <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest" id="mesh-node-count">0 Nodes Active</span>
         </div>
       </div>
     `;
     this.canvas = this.querySelector('#heatmap-canvas');
-    this.ctx = this.canvas.getContext('2d');
+    this.ctx = this.canvas.getContext('2d', { alpha: false });
     this.resize();
   }
 

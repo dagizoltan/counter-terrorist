@@ -1,4 +1,4 @@
-import { EventBus, ProcessTracker } from "@domain/index.ts";
+import { EventBus, ProcessTracker, ForensicService } from "@domain/index.ts";
 import { PlaybookService } from "./playbook_service.ts";
 import { broadcast } from "@api/ws.ts";
 import { AuditService } from "../analysis/audit.ts";
@@ -22,6 +22,7 @@ export class AutopilotService {
     private notifications: NotificationService,
     private logging: LoggingPort,
     private processTracker: ProcessTracker,
+    private forensics: ForensicService,
     private kernel: any // KernelService
   ) {
     this.policy = new PolicyEngine(logging);
@@ -32,6 +33,7 @@ export class AutopilotService {
         mesh,
         notifications,
         auditService,
+        forensics,
         logging
     );
   }
@@ -97,6 +99,19 @@ export class AutopilotService {
             description: `Critical syscall (${data.syscall}) from ${data.comm}`,
             data
         });
+
+        // Demand Scan: Critical syscalls might indicate rootkit injection attempts
+        this.processTracker.scanForGhosts().then(ghosts => {
+            if (ghosts.length > 0) {
+                this.engine.evaluate({
+                    source: "local",
+                    type: "ROOTKIT_DETECTION",
+                    severity: 10,
+                    description: `Ghost processes identified after critical syscall: ${ghosts.join(", ")}`,
+                    data: { ghosts }
+                });
+            }
+        });
     });
 
     // Periodic integrity check using injected authoritative tracker
@@ -111,7 +126,7 @@ export class AutopilotService {
                 data: { ghosts }
             });
         }
-    }, 300000); 
+    }, 60000); 
   }
 
   private async spawnLureProcess() {

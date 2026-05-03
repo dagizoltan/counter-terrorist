@@ -56,6 +56,10 @@ export const Layout = (props: {
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
                   Tactical Map
                 </a>
+                <a href="/intel/news" class="nav-link">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 8-8 9 9 0 0 1 8 8"/><path d="M4 11v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9"/><circle cx="12" cy="12" r="3"/><path d="m16 16-1.5-1.5"/></svg>
+                  Tactical Intelligence
+                </a>
               </div>
 
               <div class="nav-group">
@@ -188,8 +192,13 @@ export const Layout = (props: {
               <div class="mono-xs text-danger font-black animate-pulse text-[9px] tracking-widest">LIVE</div>
             </header>
 
-            <div class="flex-grow overflow-y-auto custom-scrollbar">
-              <mini-log></mini-log>
+            <div class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-10">
+              <div class="mb-10">
+                 <system-health></system-health>
+              </div>
+              <div class="pt-10 border-t border-white/5">
+                 <mini-log></mini-log>
+              </div>
             </div>
 
             <footer class="p-8 bg-black/30 border-t border-white/5">
@@ -207,6 +216,7 @@ export const Layout = (props: {
         {/* Core Scripts */}
         <script type="module" src="/components/islands/MiniLog.js" />
         <script type="module" src="/components/islands/AlertOverlay.js" />
+        <script type="module" src="/components/islands/SystemHealth.js" />
         {props.islandPaths?.map(path => (
           <script type="module" src={path} />
         ))}

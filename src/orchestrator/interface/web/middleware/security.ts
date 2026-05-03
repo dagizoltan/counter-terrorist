@@ -28,8 +28,6 @@ export class SecurityMiddleware {
       c.res.headers.set("X-Frame-Options", "DENY");
       c.res.headers.set("X-Content-Type-Options", "nosniff");
       c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-      c.res.headers.set("Cross-Origin-Embedder-Policy", "require-corp");
-      c.res.headers.set("Cross-Origin-Opener-Policy", "same-origin");
       await next();
     };
   }

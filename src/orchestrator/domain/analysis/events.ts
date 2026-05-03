@@ -13,6 +13,8 @@ export interface SystemEvent {
 export class EventBus implements EventBusPort {
   private handlers: ((event: SystemEvent) => void | Promise<void>)[] = [];
   private keyedListeners: Map<string, ((data: any) => void | Promise<void>)[]> = new Map();
+  private eventPool: SystemEvent[] = [];
+  private readonly MAX_POOL_SIZE = 100;
 
   constructor(private logging: LoggingPort) {}
 
@@ -53,12 +55,23 @@ export class EventBus implements EventBusPort {
 
   publish(type: string, message: string, data?: any) {
     const validatedData = validateEvent(type as EventName, data);
-    const event: SystemEvent = {
-      type: type as EventType,
-      message,
-      timestamp: new Date().toISOString(),
-      data: validatedData
-    };
+    
+    // Pooling logic to reduce GC pressure
+    let event: SystemEvent;
+    if (this.eventPool.length > 0) {
+        event = this.eventPool.pop()!;
+        event.type = type as EventType;
+        event.message = message;
+        event.timestamp = new Date().toISOString();
+        event.data = validatedData;
+    } else {
+        event = {
+            type: type as EventType,
+            message,
+            timestamp: new Date().toISOString(),
+            data: validatedData
+        };
+    }
 
     // Forward to syslog
     const severity = this.mapTypeToSeverity(type);
@@ -76,6 +89,11 @@ export class EventBus implements EventBusPort {
       for (const listener of listeners) {
         this.safelyExecute(() => listener(data));
       }
+    }
+
+    // Return to pool if not full
+    if (this.eventPool.length < this.MAX_POOL_SIZE) {
+        this.eventPool.push(event);
     }
   }
 
