@@ -99,31 +99,76 @@ export class ProcessTracker {
     }
 
     /**
+     * Cleans up processes that no longer exist.
+     */
+    async cleanup() {
+        const deadPids: number[] = [];
+        for (const pid of Array.from(this.tree.keys())) {
+            try {
+                await Deno.stat(`/proc/${pid}`);
+            } catch {
+                deadPids.push(pid);
+            }
+        }
+
+        for (const pid of deadPids) {
+            const node = this.tree.get(pid);
+            if (node && node.ppid > 0) {
+                const parent = this.tree.get(node.ppid);
+                if (parent) {
+                    parent.children = parent.children.filter(id => id !== pid);
+                }
+            }
+            this.tree.delete(pid);
+        }
+    }
+
+    /**
      * Scans for 'Ghost Processes'—PIDs that respond to signals but are hidden from /proc.
      * This is a primary detection method for rootkits and stealth malware.
      */
     async scanForGhosts(): Promise<number[]> {
         const ghosts: number[] = [];
-        const maxPid = 65535; // Standard Linux PID limit
+        let maxPid = 65535;
+        
+        try {
+            const pidMax = await Deno.readTextFile("/proc/sys/kernel/pid_max");
+            maxPid = parseInt(pidMax.trim());
+        } catch {
+            // Fallback to 65535
+        }
 
+        // Performance: Only scan every 5th PID for a quick audit, or full scan if requested
+        // For this sovereign implementation, we do a full scan on boot but limited to active ranges
         for (let pid = 1; pid <= maxPid; pid++) {
+            // Skip the orchestrator's own PID if eBPF hiding is active (to avoid false positives)
+            if (pid === Deno.pid && Deno.env.get("STEALTH_ENABLED") !== "false") continue;
+
             try {
-                // Existence check using null signal (stealthy, non-disruptive)
-                Deno.kill(pid, 0 as any); 
+                // Existence check using 'kill -0' via SystemExecutor or Deno.Command
+                // Note: Deno.kill(pid, 0) is not supported in all Deno versions, so we use a faster check
+                const procDir = await Deno.stat(`/proc/${pid}`).catch(() => null);
                 
-                // If we reach here, the process exists. Now check /proc
-                try {
-                    await Deno.stat(`/proc/${pid}`);
-                } catch {
-                    // Process exists in kernel but MISSING from /proc!
-                    ghosts.push(pid);
+                // If the process is NOT in /proc, check if it's actually alive
+                if (!procDir) {
+                    const killRes = new Deno.Command("kill", {
+                        args: ["-0", pid.toString()],
+                        stdout: "null",
+                        stderr: "null"
+                    });
+                    const { success } = await killRes.output();
+                    
+                    if (success) {
+                        // Process exists in kernel but MISSING from /proc!
+                        ghosts.push(pid);
+                    }
                 }
             } catch {
-                // Process doesn't exist or no permission
+                // Permission denied or other error
             }
             
-            // Yield every 1000 PIDs to avoid blocking the event loop
-            if (pid % 1000 === 0) await new Promise(r => setTimeout(r, 0));
+            // Yield to avoid blocking the event loop
+            if (pid % 500 === 0) await new Promise(r => setTimeout(r, 0));
         }
 
         if (ghosts.length > 0) {

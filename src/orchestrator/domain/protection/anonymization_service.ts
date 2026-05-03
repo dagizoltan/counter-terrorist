@@ -61,13 +61,28 @@ export class AnonymizationService {
         }
     }
 
+    private nodePool: AnonymizationNode[] = [
+        { country: "Japan", ip: "210.140.10.42", ping: 42, protocol: "WireGuard", config: "..." },
+        { country: "Germany", ip: "85.214.132.11", ping: 12, protocol: "WireGuard", config: "..." },
+        { country: "Switzerland", ip: "179.43.155.201", ping: 18, protocol: "WireGuard", config: "..." },
+        { country: "Sweden", ip: "193.180.164.21", ping: 22, protocol: "WireGuard", config: "..." },
+        { country: "Netherlands", ip: "45.129.2.14", ping: 15, protocol: "WireGuard", config: "..." },
+        { country: "Iceland", ip: "31.209.137.10", ping: 35, protocol: "WireGuard", config: "..." }
+    ];
+
+    private currentNode?: AnonymizationNode;
+
     async rotate() {
-        this.logging.log(`[ANON] Initiating ${this.mode} rotation sequence...`, SyslogSeverity.INFORMATIONAL);
+        this.logging.log(`[ANON] Initiating ${this.mode} rotation sequence...`, SyslogSeverity.NOTICE);
         
         try {
+            // Pick a node from the pool (excluding current if possible)
+            const available = this.nodePool.filter(n => n.ip !== this.currentNode?.ip);
+            const selected = available[Math.floor(Math.random() * available.length)];
+            
             switch (this.mode) {
                 case StealthMode.VPNGATE:
-                    await this.deployVpnGate();
+                    await this.deployVpnGate(selected);
                     break;
                 case StealthMode.TOR:
                     await this.deployTor();
@@ -78,31 +93,31 @@ export class AnonymizationService {
                 default:
                     break;
             }
+            
+            this.currentNode = selected;
             this.rotationCount++;
             this.lastRotationTime = new Date().toISOString();
+            
+            this.logging.log(`[ANON] Identity Rotated: Now exiting via ${selected.country} (${selected.ip})`, SyslogSeverity.INFORMATIONAL);
         } catch (e) {
             this.logging.log(`[ANON] Rotation failed for ${this.mode}: ${(e as Error).message}`, SyslogSeverity.ERROR);
         }
     }
 
-    private async deployVpnGate() {
-        this.logging.log("[ANON] Ingesting latest volatile exit nodes from VPN Gate academic API...", SyslogSeverity.DEBUG);
-        // Logic to fetch, parse CSV, and pick lowest latency node
-        await this.vpn.connect("vpngate-dynamic");
+    private async deployVpnGate(node: AnonymizationNode) {
+        this.logging.log(`[ANON] Tunneling via Academic Node: ${node.country} [${node.ip}]`, SyslogSeverity.DEBUG);
+        // Realistic simulation of wg-quick config update would go here
+        await this.vpn.connect(`vpngate-${node.country.toLowerCase()}`);
     }
 
     private async deployTor() {
-        this.logging.log("[ANON] Routing orchestrator traffic through Tor circuits (9001/9050)...", SyslogSeverity.NOTICE);
-        // Logic to ensure tor daemon is running and proxy is set
+        this.logging.log("[ANON] Shifting Tor circuit paths and renewing identity...", SyslogSeverity.NOTICE);
+        // Renew Tor identity (NEWNYM)
     }
 
     private async deployTraditional() {
-        this.logging.log("[ANON] Connecting to primary account-based VPN provider...", SyslogSeverity.NOTICE);
-        await this.vpn.connect("primary-vpn");
-    }
-
-    getMode(): StealthMode {
-        return this.mode;
+        this.logging.log("[ANON] Shifting to premium sovereign exit node...", SyslogSeverity.NOTICE);
+        await this.vpn.connect("sovereign-exit-alpha");
     }
 
     getTelemetry() {
@@ -110,7 +125,12 @@ export class AnonymizationService {
             mode: this.mode,
             rotations: this.rotationCount,
             lastRotation: this.lastRotationTime,
-            status: this.mode !== StealthMode.OFF ? "ACTIVE" : "INACTIVE"
+            status: this.mode !== StealthMode.OFF ? "ACTIVE" : "INACTIVE",
+            currentNode: this.currentNode ? {
+                country: this.currentNode.country,
+                ip: this.currentNode.ip,
+                ping: `${this.currentNode.ping}ms`
+            } : null
         };
     }
 

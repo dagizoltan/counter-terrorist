@@ -35,7 +35,6 @@ class AgentCardIsland extends HTMLElement {
   }
 
   handleEvent(event) {
-    // Only capture events relevant to this agent (if possible)
     const msg = event.message.toLowerCase();
     if (msg.includes(this.agentName) || (this.agentName === 'firewall' && msg.includes('block'))) {
        const feed = this.querySelector('.agent-feed');
@@ -52,40 +51,40 @@ class AgentCardIsland extends HTMLElement {
   updateMetrics(m) {
     let value = '—';
     let label = 'TELEMETRY';
-    let color = '#94a3b8';
+    let colorVar = 'var(--primary)';
     let percentage = 0;
 
     if (this.agentName === 'firewall') {
       value = m.firewall?.blockedCount ?? '0';
       label = 'BLOCKED_IPS';
-      color = value > 0 ? '#ef4444' : '#22c55e';
+      colorVar = value > 0 ? 'var(--danger)' : 'var(--success)';
       percentage = Math.min((value / 100) * 100, 100);
     } else if (this.agentName === 'honeypot') {
       value = m.honeypot?.totalHits ?? '0';
       label = 'ATTACK_HITS';
-      color = value > 0 ? '#f97316' : '#22c55e';
+      colorVar = value > 0 ? 'var(--warning)' : 'var(--success)';
       percentage = Math.min((value / 50) * 100, 100);
     } else if (this.agentName === 'scanner') {
       const isAvailable = m.scanner?.available !== false;
       value = isAvailable ? (m.scanner?.lastScanResult === 'OK' ? 'OK' : 'WAIT') : 'ABSENT';
       label = 'MALWARE_SCAN';
-      color = !isAvailable ? '#64748b' : (value === 'OK' ? '#22c55e' : '#eab308');
+      colorVar = !isAvailable ? 'var(--text-muted)' : (value === 'OK' ? 'var(--success)' : 'var(--warning)');
       percentage = value === 'OK' ? 100 : (isAvailable ? 50 : 0);
     } else if (this.agentName === 'ebpf') {
-      value = m.forensics?.ebpfActive ? 'LIVE' : 'FAIL';
+      value = m.node?.ebpf ? 'LIVE' : 'FAIL';
       label = 'KERNEL_LSM';
-      color = value === 'LIVE' ? '#22c55e' : '#ef4444';
+      colorVar = value === 'LIVE' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'LIVE' ? 100 : 0;
     } else if (this.agentName === 'fim') {
-      value = m.forensics?.fimActive ? 'WATCH' : 'STOP';
+      value = m.node?.fim ? 'WATCH' : 'STOP';
       label = 'FILE_INTEGRITY';
-      color = value === 'WATCH' ? '#22c55e' : '#ef4444';
+      colorVar = value === 'WATCH' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'WATCH' ? 100 : 0;
     } else if (this.agentName === 'vpn') {
-      const isAvailable = m.vpn?.available !== false;
-      value = isAvailable ? (m.vpn?.active ? 'LINK' : 'FAIL') : 'ABSENT';
+      const vpnActive = m.vpn?.telemetry?.status === 'ACTIVE';
+      value = vpnActive ? 'LINK' : 'FAIL';
       label = 'MESH_TUNNEL';
-      color = value === 'LINK' ? '#22c55e' : '#ef4444';
+      colorVar = value === 'LINK' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'LINK' ? 100 : 0;
     }
 
@@ -96,14 +95,14 @@ class AgentCardIsland extends HTMLElement {
     
     if (valEl) {
       valEl.textContent = value;
-      valEl.style.color = color;
+      valEl.style.color = colorVar;
     }
     if (labEl) labEl.textContent = label;
     if (ringEl) {
        const dashArray = 2 * Math.PI * 18; // radius 18
        const offset = dashArray - (percentage / 100) * dashArray;
        ringEl.style.strokeDashoffset = offset;
-       ringEl.style.stroke = color;
+       ringEl.style.stroke = colorVar;
     }
   }
 
@@ -113,12 +112,12 @@ class AgentCardIsland extends HTMLElement {
          <div class="relative w-16 h-16 flex items-center justify-center">
             <svg class="w-full h-full -rotate-90">
                <circle cx="32" cy="32" r="18" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="4" />
-               <circle class="agent-ring" cx="32" cy="32" r="18" fill="none" stroke="#22c55e" stroke-width="4" 
+               <circle class="agent-ring" cx="32" cy="32" r="18" fill="none" stroke="var(--success)" stroke-width="4" 
                   stroke-dasharray="113.1" stroke-dashoffset="113.1" stroke-linecap="round" 
                   style="transition: stroke-dashoffset 1s ease, stroke 1s ease;" />
             </svg>
             <div class="absolute inset-0 flex items-center justify-center">
-               <span class="agent-value text-sm font-black tracking-tighter">0</span>
+               <span class="agent-value text-sm font-black tracking-tighter" style="color:var(--success);">0</span>
             </div>
          </div>
          

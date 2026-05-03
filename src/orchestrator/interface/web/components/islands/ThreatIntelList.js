@@ -1,17 +1,21 @@
+/**
+ * ThreatIntelList Island
+ * Authoritative OSINT ingestion and enforcement manifest.
+ */
 class ThreatIntelList extends HTMLElement {
   constructor() {
     super();
+    this.threats = [];
   }
 
   connectedCallback() {
-    this.render();
+    this.renderBase();
     this.connect();
   }
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
-    const ws = new WebSocket(url.toString());
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
 
     ws.onmessage = (event) => {
       try {
@@ -21,42 +25,59 @@ class ThreatIntelList extends HTMLElement {
         }
       } catch (e) {}
     };
+
+    ws.onclose = () => setTimeout(() => this.connect(), 5000);
   }
 
-  render() {
+  renderBase() {
     this.innerHTML = `
-      <div class="space-y-4">
-        <div id="threat-container" class="space-y-2">
-           <div class="p-6 text-center text-slate-600 text-[10px] font-black uppercase tracking-widest">Awaiting_Intelligence_Stream...</div>
-        </div>
+      <div id="threat-container" class="space-y-4">
+         <div class="p-16 text-center border border-dashed border-white/5 opacity-30 rounded">
+            <span class="mono-xs font-black text-primary animate-pulse uppercase tracking-[0.4em]">Synchronizing_Intelligence_Buffer...</span>
+         </div>
       </div>
     `;
   }
 
   updateThreats(threats) {
     const container = this.querySelector('#threat-container');
-    if (!container || !threats.length) return;
+    if (!container) return;
 
-    container.innerHTML = threats.map(t => `
-      <div class="p-4 bg-white/5 border border-white/5 rounded hover:bg-white/[0.07] transition-all group flex items-center justify-between">
-         <div class="flex items-center gap-4">
-            <div class="w-1.5 h-1.5 ${t.blocked ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-danger shadow-[0_0_8px_rgba(239,68,68,0.5)]'}"></div>
-            <div class="flex flex-col">
-               <span class="text-[11px] font-mono ${t.blocked ? 'text-emerald-400' : 'text-white'}">${t.indicator}</span>
-               <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">${t.threatType}</span>
-            </div>
-         </div>
-         <div class="flex items-center gap-6">
-            <div class="flex flex-col items-end">
-               <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Source</span>
-               <span class="text-[9px] font-bold text-white uppercase">${t.provider}</span>
-            </div>
-            <div class="w-24 px-2 py-1 ${t.blocked ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500' : 'bg-danger/10 border-danger/20 text-danger'} border text-[8px] font-black text-center uppercase rounded">
-               ${t.blocked ? 'ENFORCED' : 'PENDING'}
-            </div>
-         </div>
-      </div>
-    `).join('');
+    if (!threats || threats.length === 0) {
+      container.innerHTML = `
+        <div class="p-16 text-center border border-dashed border-white/10 opacity-50 rounded">
+           <span class="mono-xs font-black text-slate-500 uppercase tracking-widest italic">Intelligence_Stream_Quiet</span>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = threats.map(t => {
+      const theme = t.blocked ? 'success' : 'danger';
+      const color = `var(--${theme})`;
+      
+      return `
+        <div class="flex items-center justify-between p-5 bg-black/40 border border-white/5 rounded-lg group hover:border-white/20 transition-all animate-fade-in">
+           <div class="flex items-center gap-6">
+              <div class="dot ${theme} ${t.blocked ? '' : 'pulse shadow-danger'}"></div>
+              <div class="flex flex-col gap-1">
+                 <span class="mono-sm font-black tracking-tight ${t.blocked ? 'text-success' : 'text-white'} uppercase select-all">${window.escapeHTML(t.indicator)}</span>
+                 <div class="flex items-center gap-3">
+                    <span class="mono-xs font-bold text-slate-500 uppercase tracking-widest">${window.escapeHTML(t.threatType)}</span>
+                    <span class="text-slate-800 text-[10px]">//</span>
+                    <span class="mono-xs font-black text-primary/60 uppercase tracking-tighter">${window.escapeHTML(t.provider)}</span>
+                 </div>
+              </div>
+           </div>
+           <div class="flex items-center gap-8">
+              <div class="mono-xs font-black px-4 py-2 border rounded transition-all" 
+                   style="background: var(--${theme}-glow); border-color: ${color}; color: ${color};">
+                 ${t.blocked ? 'ENFORCEMENT_ACTIVE' : 'AWAITING_NEUTRALIZATION'}
+              </div>
+           </div>
+        </div>
+      `;
+    }).join('');
   }
 }
 

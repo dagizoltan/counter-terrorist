@@ -8,6 +8,8 @@ export interface FirewallProvider {
   dumpProcessForensics?(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
   lockdown(): Promise<CommandResult>;
+  allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult>;
+  denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult>;
   flushRules(): Promise<CommandResult>;
 }
 

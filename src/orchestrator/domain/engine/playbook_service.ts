@@ -23,7 +23,7 @@ export class PlaybookService {
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
     this.sidecarManager.onEvent("honeypot", async (res) => {
-      const data = res.data;
+      const data = res.data || res;
       if (data && data.type === "PortAccess") {
         const { port, source_ip } = data;
         
@@ -54,7 +54,7 @@ export class PlaybookService {
 
     // FIM Playbook: High-priority notification on critical file change
     this.sidecarManager.onEvent("fim", async (res) => {
-      const data = res.data;
+      const data = res.data || res;
       if (data && data.type === "FileAlert") {
         const { path, action } = data;
         loggingService.log(`[PLAYBOOK] FIM trigger: ${action} detected on ${path}`, SyslogSeverity.CRITICAL);
@@ -70,7 +70,8 @@ export class PlaybookService {
 
     // eBPF Playbook: Monitor suspicious syscalls and quarantine
     this.sidecarManager.onEvent("ebpf", async (res) => {
-      const data = res.data;
+      // Handle both wrapped and flat event structures
+      const data = res.data || res;
       if (data && data.type === "SYSCALL_EVENT") {
         const { pid, comm, syscall } = data;
         
@@ -82,7 +83,7 @@ export class PlaybookService {
             await this.shadowProtocol.activate(); // ENGAGE SHADOW MODE
             await this.notifications.notify({
               type: "CRITICAL",
-              message: `Process ${comm} (PID: ${pid}) quarantined. SHADOW PROTOCOL ENGAGED.`
+              message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
             });
           } catch (err: any) {
             loggingService.log(`[PLAYBOOK] Failed to quarantine process ${pid}: ${(err as Error).message}`, SyslogSeverity.ERROR);
@@ -95,7 +96,7 @@ export class PlaybookService {
 
     // Mesh Playbook: Monitor node threat levels
     this.sidecarManager.onEvent("scanner", async (res) => {
-      const data = res.data;
+      const data = res.data || res;
       if (data && data.type === "ThreatDetected") {
         const { nodeId, severity } = data;
         if (severity === "HIGH" || severity === "CRITICAL") {

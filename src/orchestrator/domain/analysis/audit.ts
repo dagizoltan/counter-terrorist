@@ -148,7 +148,7 @@ export class AuditService {
                 if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
                   this.mesh.broadcastAuditEvent({
                     ...auditEvent,
-                    node: Deno.hostname()
+                    node: (() => { try { return Deno.hostname(); } catch { return "unknown-node"; } })()
                   }).catch(() => {});
                 }
             } catch (e) {

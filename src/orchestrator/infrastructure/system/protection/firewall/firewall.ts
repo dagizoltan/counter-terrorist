@@ -100,6 +100,14 @@ export class FirewallManager {
     return await this.provider.lockdown();
   }
 
+  async allowPort(port: number, protocol: "tcp" | "udp" = "tcp") {
+    return await this.provider.allowPort(port, protocol);
+  }
+
+  async denyPort(port: number, protocol: "tcp" | "udp" = "tcp") {
+    return await this.provider.denyPort(port, protocol);
+  }
+
   async flushRules() {
     broadcast({ type: "WARNING", message: "FLUSHING GLOBAL RULES" });
     this.blockedIps.clear();

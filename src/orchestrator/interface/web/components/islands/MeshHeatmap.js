@@ -1,152 +1,150 @@
-import { h, render } from '/vendor/preact.js';
-import { useEffect, useRef, useState } from '/vendor/preact-hooks.js';
-import htm from '/vendor/htm.js';
+/**
+ * MeshHeatmap Island
+ * 3D-perspective tactical traffic visualization.
+ */
+class MeshHeatmap extends HTMLElement {
+  constructor() {
+    super();
+    this.nodes = [];
+    this.pulses = [];
+  }
 
-const html = htm.bind(h);
+  connectedCallback() {
+    this.renderBase();
+    this.fetchNodes();
+    this.initWebSocket();
+    this.animate();
+    window.addEventListener('resize', () => this.resize());
+  }
 
-export default function MeshHeatmap() {
-  const canvasRef = useRef(null);
-  const [nodes, setNodes] = useState([]);
-  const [pulses, setPulses] = useState([]);
+  disconnectedCallback() {
+    if (this.ws) this.ws.close();
+    cancelAnimationFrame(this.animationFrame);
+  }
 
-  useEffect(() => {
-    // Fetch initial nodes
-    fetch("/api/mesh/nodes")
-      .then(r => r.json())
-      .then(data => {
-         // Assign random 3D positions for visualization
-         setNodes(data.map(n => ({
-           ...n,
-           x: (Math.random() - 0.5) * 400,
-           y: (Math.random() - 0.5) * 400,
-           z: (Math.random() - 0.5) * 200,
-           targetPulse: 0
-         })));
-      });
+  async fetchNodes() {
+    try {
+      const res = await fetch("/api/mesh/nodes");
+      const data = await res.json();
+      this.nodes = [
+        { id: 'local', hostname: data.local, x: 0, y: 0, z: 0, verified: true },
+        ...data.peers.map(n => ({
+          ...n,
+          x: (Math.random() - 0.5) * 600,
+          y: (Math.random() - 0.5) * 400,
+          z: (Math.random() - 0.5) * 200,
+        }))
+      ];
+    } catch (e) {}
+  }
 
-    // Listen for events to trigger pulses
+  initWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${location.host}/api/ws/events`);
-    ws.onmessage = (msg) => {
-      const event = JSON.parse(msg.data);
-      if (event.type === "CRITICAL" || event.type === "THREAT") {
-        triggerPulse(event.data?.nodeId || 'local');
-      }
+    this.ws = new WebSocket(`${protocol}//${location.host}/api/ws/events`);
+    this.ws.onmessage = (msg) => {
+      try {
+        const event = JSON.parse(msg.data);
+        if (event.type === "CRITICAL" || event.type === "THREAT") {
+          this.triggerPulse(event.data?.nodeId || 'local');
+        }
+      } catch (e) {}
     };
-    return () => ws.close();
-  }, []);
+  }
 
-  const triggerPulse = (nodeId) => {
-    setPulses(prev => [...prev, { nodeId, radius: 0, alpha: 1, id: Math.random() }]);
-  };
+  triggerPulse(nodeId) {
+    this.pulses.push({ nodeId, radius: 0, alpha: 1 });
+  }
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let animationFrame;
+  renderBase() {
+    this.innerHTML = `
+      <div class="relative w-full h-[400px] bg-black/20 rounded-xl overflow-hidden border border-white/5">
+        <canvas id="heatmap-canvas" class="w-full h-full"></canvas>
+        <div class="absolute top-6 left-6">
+           <div class="flex items-center gap-3 mb-2">
+              <div class="dot active pulse" style="background:var(--danger);"></div>
+              <span class="mono text-[10px] font-black uppercase tracking-[0.4em] text-danger">Live_Gossip_Traffic</span>
+           </div>
+           <h2 class="mono text-2xl font-black italic text-white tracking-tighter uppercase">Mesh_Heatmap_3D</h2>
+        </div>
+      </div>
+    `;
+    this.canvas = this.querySelector('#heatmap-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.resize();
+  }
 
-    const renderLoop = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
+  resize() {
+    this.canvas.width = this.canvas.clientWidth;
+    this.canvas.height = this.canvas.clientHeight;
+  }
 
-      // Draw Grid
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
-      ctx.beginPath();
-      for(let i = -10; i <= 10; i++) {
-        ctx.moveTo(centerX + i * 50, 0);
-        ctx.lineTo(centerX + i * 50, canvas.height);
-        ctx.moveTo(0, centerY + i * 50);
-        ctx.lineTo(canvas.width, centerY + i * 50);
-      }
-      ctx.stroke();
+  animate() {
+    this.draw();
+    this.animationFrame = requestAnimationFrame(() => this.animate());
+  }
 
-      // Draw Nodes
-      nodes.forEach(node => {
+  draw() {
+    const ctx = this.ctx;
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Grid
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+    ctx.beginPath();
+    for (let i = -10; i <= 10; i++) {
+      ctx.moveTo(centerX + i * 80, 0); ctx.lineTo(centerX + i * 80, height);
+      ctx.moveTo(0, centerY + i * 80); ctx.lineTo(width, centerY + i * 80);
+    }
+    ctx.stroke();
+
+    // Nodes
+    this.nodes.forEach(node => {
+      const perspective = 400 / (400 + node.z);
+      const screenX = centerX + node.x * perspective;
+      const screenY = centerY + node.y * perspective;
+      const size = (node.verified ? 6 : 4) * perspective;
+
+      // Glow
+      const grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, size * 5);
+      grad.addColorStop(0, node.verified ? "hsla(var(--success-h), 100%, 50%, 0.2)" : "rgba(255,255,255,0.05)");
+      grad.addColorStop(1, "transparent");
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(screenX, screenY, size * 5, 0, Math.PI * 2); ctx.fill();
+
+      // Core
+      ctx.fillStyle = node.verified ? "var(--success)" : "var(--text-muted)";
+      ctx.beginPath(); ctx.arc(screenX, screenY, size, 0, Math.PI * 2); ctx.fill();
+
+      // Label
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.font = `900 ${9 * perspective}px JetBrains Mono`;
+      ctx.fillText(node.hostname?.toUpperCase() || 'NODE', screenX + size + 5, screenY + 4);
+    });
+
+    // Pulses
+    this.pulses = this.pulses.filter(p => p.alpha > 0.01);
+    this.pulses.forEach(p => {
+      p.radius += 3;
+      p.alpha *= 0.96;
+
+      const node = this.nodes.find(n => n.id === p.nodeId) || this.nodes[0];
+      if (node) {
         const perspective = 400 / (400 + node.z);
         const screenX = centerX + node.x * perspective;
         const screenY = centerY + node.y * perspective;
-        const size = (node.verified ? 6 : 4) * perspective;
 
-        // Node Glow
-        const grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, size * 4);
-        grad.addColorStop(0, node.verified ? "rgba(34, 197, 94, 0.3)" : "rgba(148, 163, 184, 0.2)");
-        grad.addColorStop(1, "transparent");
-        ctx.fillStyle = grad;
+        ctx.strokeStyle = `hsla(var(--danger-h), 100%, 50%, ${p.alpha})`;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(screenX, screenY, size * 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Node Core
-        ctx.fillStyle = node.verified ? "#22c55e" : "#94a3b8";
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, size, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Label
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.font = `${8 * perspective}px Inter`;
-        ctx.fillText(node.hostname || 'node', screenX + size + 4, screenY + 4);
-      });
-
-      // Update & Draw Pulses
-      setPulses(prev => {
-         const next = prev.filter(p => p.alpha > 0.01);
-         next.forEach(p => {
-           p.radius += 2;
-           p.alpha *= 0.98;
-
-           const node = nodes.find(n => n.id === p.nodeId) || nodes[0];
-           if (node) {
-              const perspective = 400 / (400 + node.z);
-              const screenX = centerX + node.x * perspective;
-              const screenY = centerY + node.y * perspective;
-
-              ctx.strokeStyle = `rgba(239, 68, 68, ${p.alpha})`;
-              ctx.lineWidth = 2;
-              ctx.beginPath();
-              ctx.arc(screenX, screenY, p.radius * perspective, 0, Math.PI * 2);
-              ctx.stroke();
-           }
-         });
-         return next;
-      });
-
-      animationFrame = requestAnimationFrame(renderLoop);
-    };
-
-    renderLoop();
-    return () => cancelAnimationFrame(animationFrame);
-  }, [nodes]);
-
-  return html`
-    <div class="relative w-full aspect-video bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-      <div class="absolute top-8 left-8 z-10">
-         <div class="flex items-center gap-3 mb-2">
-            <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-            <span class="text-[10px] font-black uppercase tracking-[0.4em] text-red-500">Live Gossip Traffic</span>
-         </div>
-         <h2 class="text-3xl font-black italic text-white tracking-tighter uppercase">Mesh_Heatmap_3D</h2>
-      </div>
-
-      <div class="absolute bottom-8 right-8 z-10 flex flex-col gap-2 items-end">
-         <div class="flex items-center gap-2">
-            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Verified Peers</span>
-            <div class="w-3 h-3 rounded-full bg-green-500"></div>
-         </div>
-         <div class="flex items-center gap-2">
-            <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Unverified</span>
-            <div class="w-3 h-3 rounded-full bg-slate-500"></div>
-         </div>
-      </div>
-
-      <canvas 
-        ref=${canvasRef} 
-        width=${1200} 
-        height=${675}
-        class="w-full h-full cursor-move"
-      />
-    </div>
-  `;
+        ctx.arc(screenX, screenY, p.radius * perspective, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    });
+  }
 }
+
+customElements.define('mesh-heatmap', MeshHeatmap);

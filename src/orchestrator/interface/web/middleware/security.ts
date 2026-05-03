@@ -88,7 +88,8 @@ export class SecurityMiddleware {
         }
       }
 
-      if (path === "/login" || path === "/logout") return next();
+      const isAuthRoute = path === "/login" || path === "/login/" || path === "/logout" || path === "/logout/";
+      if (isAuthRoute) return next();
       
       if (path.startsWith("/features/") || path.startsWith("/components/")) {
         const isStaticAsset = /\.(css|js|png|jpg|jpeg|svg|json|ico)$/.test(path);

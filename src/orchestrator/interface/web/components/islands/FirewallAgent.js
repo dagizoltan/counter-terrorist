@@ -14,28 +14,25 @@ class FirewallAgent extends HTMLElement {
         if (payload.type === 'METRICS_UPDATE' && payload.data?.firewall) {
           this.updateUI(payload.data.firewall);
         }
-      } catch (e) {
-        console.error('[FIREWALL-AGENT] WS parse error', e);
-      }
+      } catch (e) {}
     };
 
-    ws.onclose = () => {
-      setTimeout(() => this.connectWS(), 5000);
-    };
+    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
   }
 
   async fetchData() {
     try {
-      const res = await fetch('/api/agents/firewall/status');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
+      
+      const res = await fetch('/api/agents/firewall/status', { headers });
       if (!res.ok) return;
       const data = await res.json();
       
-      // Also fetch PID from agent status
-      const agentRes = await fetch('/api/agent/status');
+      const agentRes = await fetch('/api/agent/status', { headers });
       const agentData = await agentRes.json();
       const pid = agentData.firewall?.pid;
 
-      // Parse real iptables output for initial load
       const lines = (data.stdout || '').split('\n').filter(l => l.trim());
       const blockedIps = [];
       for (const line of lines) {
@@ -46,46 +43,55 @@ class FirewallAgent extends HTMLElement {
       }
       this.updateUI({ blockedCount: blockedIps.length, blockedIps, pid });
       this.fetchTraffic();
-    } catch (e) {
-      console.error('Failed to fetch firewall status:', e);
-    }
+    } catch (e) {}
   }
 
   async fetchTraffic() {
     try {
-      const res = await fetch('/api/network/logs');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
+      const res = await fetch('/api/network/logs', { headers });
       if (!res.ok) return;
       const logs = await res.json();
       this.updateTrafficUI(logs);
-    } catch (e) {
-      console.error('Failed to fetch traffic logs:', e);
-    }
+    } catch (e) {}
   }
 
   updateUI(firewall) {
-    // Update PID
     const pidEl = document.getElementById('fw-pid');
-    if (pidEl) pidEl.textContent = firewall.pid ? `PID_${firewall.pid}` : 'N/A';
+    if (pidEl) pidEl.textContent = firewall.pid ? `PID_${firewall.pid}` : 'OFFLINE';
 
-    // Update count
     const countEl = document.getElementById('fw-blocked-count');
     if (countEl) countEl.textContent = firewall.blockedCount?.toString() || '0';
 
-    // Update list
     const listEl = document.getElementById('fw-blocked-list');
     if (listEl && firewall.blockedIps) {
       if (firewall.blockedIps.length === 0) {
-        listEl.innerHTML = '<p class="text-slate-500 text-[9px] uppercase font-bold">No active blocks. System clean.</p>';
+        listEl.innerHTML = `
+          <div class="p-12 text-center t-panel glass-panel border-dashed opacity-50">
+            <span class="mono-xs font-black text-slate-500 uppercase tracking-widest italic">No_Active_Blocks_Detected</span>
+          </div>
+        `;
       } else {
-        listEl.innerHTML = firewall.blockedIps.map(ip => 
-          `<div class="flex justify-between items-center p-2 bg-black/40 border border-white/5 text-red-500 group">
-            <span>${ip}</span>
-            <div class="flex items-center gap-3">
-              <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ip:'${ip}'})}).then(() => location.reload())" class="hidden group-hover:block text-[8px] font-black uppercase underline text-slate-400 hover:text-white">Unblock</button>
-              <span class="text-[9px] font-black uppercase">BLOCKED</span>
+        listEl.innerHTML = firewall.blockedIps.map(ip => {
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+          return `
+            <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 transition-all rounded animate-fade-in">
+              <div class="flex flex-col gap-1">
+                 <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">Target_Address</span>
+                 <span class="mono-sm font-black text-danger uppercase tracking-widest shadow-danger/20">${ip}</span>
+              </div>
+              <div class="flex items-center gap-6">
+                <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || ''}'}, body:JSON.stringify({ip:'${ip}'})}).then(() => location.reload())" 
+                        class="opacity-0 group-hover:opacity-100 transition-opacity mono-xs font-black uppercase text-slate-500 hover:text-white underline decoration-white/20 tracking-widest">Release_IP</button>
+                <div class="flex items-center gap-3">
+                   <div class="dot danger pulse shadow-danger"></div>
+                   <span class="mono-xs font-black uppercase text-danger tracking-widest">Quarantined</span>
+                </div>
+              </div>
             </div>
-          </div>`
-        ).join('');
+          `;
+        }).join('');
       }
     }
   }
@@ -94,16 +100,30 @@ class FirewallAgent extends HTMLElement {
     const trafficEl = document.getElementById('fw-traffic-list');
     if (!trafficEl) return;
     if (!logs || logs.length === 0) {
-      trafficEl.innerHTML = '<p class="text-slate-500 text-[9px] italic">No traffic recorded.</p>';
+      trafficEl.innerHTML = `
+        <div class="mono-xs text-slate-700 animate-pulse p-12 text-center uppercase tracking-widest font-black">
+           Awaiting_Packet_Signals...
+        </div>
+      `;
       return;
     }
-    trafficEl.innerHTML = logs.map(l => `
-      <div class="flex items-center justify-between p-2 border-b border-white/5 text-[10px] font-mono">
-        <span class="text-slate-500">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
-        <span class="w-24 truncate text-slate-300">${l.source} -> ${l.destination}</span>
-        <span class="${l.action === 'BLOCK' ? 'text-red-500' : 'text-green-500'} font-black">${l.action}</span>
-      </div>
-    `).join('');
+    trafficEl.innerHTML = logs.map(l => {
+      const isBlocked = l.action === 'BLOCK';
+      return `
+        <div class="flex items-center justify-between p-4 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group animate-fade-in">
+          <span class="mono-xs text-slate-600 font-bold w-24">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+          <div class="flex-1 flex items-center gap-4 px-4 overflow-hidden">
+             <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${l.source}</span>
+             <span class="text-slate-800 text-[10px] font-black">→</span>
+             <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${l.destination}</span>
+          </div>
+          <div class="flex items-center gap-3 w-24 justify-end">
+             <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success'}">${l.action}</span>
+             <div class="dot ${isBlocked ? 'danger shadow-danger' : 'active shadow-success'}"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
   }
 }
 customElements.define('firewall-agent', FirewallAgent);

@@ -1,143 +1,108 @@
 /**
- * Custom Element: ProcessTree
- * Renders a hierarchical view of system processes.
+ * ProcessTree Island
+ * High-density hierarchical visualization of kernel processes.
  */
 class ProcessTree extends HTMLElement {
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
     this.processes = [];
-    this.loading = false;
+    this.isScanning = false;
   }
 
   connectedCallback() {
     this.refresh();
   }
 
+  async update() {
+     await this.refresh();
+  }
+
   async refresh() {
-    this.loading = true;
+    this.isScanning = true;
     this.render();
 
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
-    const headers = {};
-    if (token && token !== "") {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-
     try {
-      const res = await fetch('/api/processes/tree', { headers });
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/processes/tree', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (res.ok) {
         this.processes = await res.json();
-        console.log(`[PROCESS-TREE] Loaded ${this.processes.length} processes`);
-      } else {
-        console.error(`[PROCESS-TREE] Failed to fetch: ${res.status}`);
       }
     } catch (e) {
-      console.error("[PROCESS-TREE] Fetch error:", e);
+      console.error("[PROCESS-TREE] Sync failed", e);
     } finally {
-      this.loading = false;
+      this.isScanning = false;
       this.render();
     }
   }
 
   render() {
-    if (this.loading) {
-      this.shadowRoot.innerHTML = `
-        <style>
-          :host { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #475569; }
-          .loading { padding: 2rem; text-align: center; letter-spacing: 0.2em; }
-        </style>
-        <div class="loading">SCANNING_KERNEL_NAMESPACE...</div>
-      `;
-      return;
-    }
-
-    if (this.processes.length === 0) {
-      this.shadowRoot.innerHTML = `
-        <style>
-          :host { display: block; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #475569; }
-          .empty { padding: 2rem; text-align: center; border: 1px dashed rgba(255,255,255,0.05); }
-        </style>
-        <div class="empty">NO_PROCESS_DATA_AVAILABLE</div>
-      `;
-      return;
-    }
-
-    // Build tree structure
-    // A root is a process whose ppid is not present in our current process list
-    const pids = new Set(this.processes.map(p => p.pid));
-    const roots = this.processes.filter(p => p.ppid === 0 || !pids.has(p.ppid));
-
-    // Sort roots by PID
-    roots.sort((a, b) => a.pid - b.pid);
-
-    const renderNode = (node, depth = 0) => {
-      const children = this.processes.filter(p => p.ppid === node.pid);
-      children.sort((a, b) => a.pid - b.pid);
-
-      return `
-        <div class="node-container">
-            <div class="node" style="margin-left: ${depth * 1}rem">
-              <span class="pid">[${node.pid}]</span>
-              <span class="comm">${node.comm}</span>
-            </div>
-            ${children.map(c => renderNode(c, depth + 1)).join('')}
+    if (this.isScanning && this.processes.length === 0) {
+      this.innerHTML = `
+        <div class="flex flex-col items-center justify-center p-32 gap-6">
+           <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin shadow-primary"></div>
+           <span class="mono-xs font-black text-primary animate-pulse uppercase tracking-[0.4em]">Infiltrating_Process_Namespace...</span>
         </div>
       `;
-    };
+      return;
+    }
 
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host {
-          display: block;
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 10px;
-          color: #94a3b8;
-        }
-        .tree-container {
-            padding: 0.5rem;
-        }
-        .node-container {
-            display: flex;
-            flex-direction: column;
-        }
-        .node { 
-          display: flex;
-          align-items: center;
-          height: 22px;
-          padding-left: 12px;
-          border-left: 1px solid rgba(60, 80, 120, 0.2);
-          transition: all 0.2s;
-          white-space: nowrap;
-          cursor: default;
-        }
-        .node:hover {
-            background: rgba(0, 210, 255, 0.05);
-            color: #fff;
-        }
-        .pid { 
-            color: #00d2ff; 
-            margin-right: 12px; 
-            font-size: 8px; 
-            font-weight: 800;
-            width: 45px;
-            display: inline-block;
-            opacity: 0.7;
-        }
-        .comm { 
-            color: #e2e8f0; 
-            font-weight: 500; 
-            text-transform: uppercase; 
-            letter-spacing: 0.05em; 
-        }
-      </style>
-      <div class="tree-container">
-        ${roots.map(r => renderNode(r)).join('')}
+    if (!this.processes.length) {
+      this.innerHTML = `
+        <div class="p-32 text-center border border-dashed border-white/5 opacity-30 rounded">
+           <span class="mono-xs font-black uppercase tracking-widest text-slate-500">No_Execution_Lineage_Data_In_Buffer</span>
+        </div>
+      `;
+      return;
+    }
+
+    const pids = new Set(this.processes.map(p => p.pid));
+    const roots = this.processes.filter(p => p.ppid === 0 || !pids.has(p.ppid));
+    roots.sort((a, b) => a.pid - b.pid);
+
+    this.innerHTML = `
+      <div class="space-y-0.5 animate-fade-in">
+        ${roots.map(r => this.renderNode(r, 0)).join('')}
+      </div>
+    `;
+  }
+
+  renderNode(node, depth) {
+    const children = this.processes.filter(p => p.ppid === node.pid);
+    children.sort((a, b) => a.pid - b.pid);
+
+    const isGhost = node.isGhost || false; 
+    const isProtected = node.comm.includes('ghost_') || node.comm.includes('cts_');
+    
+    const theme = isGhost ? 'danger' : (isProtected ? 'primary' : 'slate');
+    
+    const paddingLeft = depth * 32;
+    const lineOpacity = Math.max(0.05, 0.3 - depth * 0.05);
+
+    return `
+      <div class="flex flex-col">
+        <div class="flex items-center group py-2 px-6 hover:bg-white/[0.03] transition-all cursor-default border-l border-white/[0.05]" 
+             style="margin-left: ${paddingLeft}px; border-left-color: rgba(255,255,255,${lineOpacity})">
+           <div class="flex items-center gap-6 w-full">
+              <span class="mono-xs font-black opacity-20 w-16 tabular-nums">[${node.pid}]</span>
+              <div class="flex items-center gap-4 flex-grow">
+                 <span class="mono-sm font-black uppercase tracking-tight transition-colors ${isGhost ? 'text-danger shadow-danger' : (isProtected ? 'text-primary shadow-primary' : 'text-white')} group-hover:text-white">
+                    ${node.comm}
+                 </span>
+                 ${isGhost ? '<span class="status-pill error text-[7px] py-0.5 px-2">UNLINKED_GHOST</span>' : ''}
+                 ${isProtected ? '<span class="status-pill active text-[7px] py-0.5 px-2">SOVEREIGN</span>' : ''}
+              </div>
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-6">
+                 <span class="mono-xs text-slate-700 uppercase font-bold tracking-widest">PPID: ${node.ppid}</span>
+                 <button class="t-btn danger p-1 text-[8px] h-6 px-3" onclick="confirm('Execute SIGKILL on PID ${node.pid}?') && fetch('/api/processes/kill/${node.pid}', {method:'POST'}).then(() => location.reload())">Terminate</button>
+              </div>
+           </div>
+        </div>
+        ${children.map(c => this.renderNode(c, depth + 1)).join('')}
       </div>
     `;
   }
 }
 
-if (!customElements.get('process-tree')) {
-    customElements.define('process-tree', ProcessTree);
-}
+customElements.define('process-tree', ProcessTree);

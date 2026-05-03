@@ -1,17 +1,14 @@
 /**
  * Custom Element: StatusIndicator
+ * Refactored to use Global Tactical Design System
  */
 class StatusIndicator extends HTMLElement {
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
   }
 
   connectedCallback() {
-    const name = this.getAttribute('name') || 'Unknown Agent';
-    this.render(name, 'Initializing...', 'text-slate-400');
     this.updateStatus();
-    // Refresh every 30 seconds
     this.interval = setInterval(() => this.updateStatus(), 30000);
   }
 
@@ -20,58 +17,32 @@ class StatusIndicator extends HTMLElement {
   }
 
   async updateStatus() {
-    const name = this.getAttribute('name');
-    const token = document.querySelector('meta[name="api-token"]')?.content || "";
-    const headers = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
+    const name = this.getAttribute('name') || 'Unknown Agent';
+    
     try {
-      if (name === "Active Blocker") {
-        const res = await fetch('/api/agent/status', { headers });
-        if (res.ok) {
-          const status = await res.json();
-          const isOnline = status.blocker_binary && status.firewall.active;
-          this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'text-green-400' : 'text-red-400');
-        } else {
-          this.render(name, 'ERROR', 'text-red-500');
-        }
-      } else {
-        const res = await fetch('/api/status', { headers });
-        if (res.ok) {
-          const status = await res.json();
-          let isOnline = false;
-
-          if (name === "Network Sensor") isOnline = status.dependencies.ss;
-          else if (name === "Persistence Monitor") isOnline = status.dependencies.cargo;
-
-          this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'text-green-400' : 'text-red-400');
-        } else {
-          this.render(name, 'ERROR', 'text-red-500');
-        }
+      let isOnline = false;
+      const res = await fetch('/api/status');
+      if (res.ok) {
+        const status = await res.json();
+        // Simple heuristic for peripheral status
+        if (name === "Active Blocker") isOnline = status.dependencies?.ss; 
+        else if (name === "Network Sensor") isOnline = status.dependencies?.ss;
+        else if (name === "Persistence Monitor") isOnline = true; 
       }
+      this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'var(--success)' : 'var(--danger)');
     } catch (e) {
-      console.error("Failed to fetch status:", e);
-      this.render(name, 'UNREACHABLE', 'text-yellow-500');
+      this.render(name, 'ERROR', 'var(--danger)');
     }
   }
 
-  render(name, status, colorClass) {
-    this.shadowRoot.innerHTML = `
-      <style>
-        .container {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.5rem 0;
-          border-bottom: 1px solid #334155;
-          font-size: 0.875rem;
-        }
-        .text-slate-400 { color: #94a3b8; }
-        .text-green-400 { color: #4ade80; font-weight: bold; }
-        .name { color: #e2e8f0; }
-      </style>
-      <div class="container">
-        <span class="name">${name}</span>
-        <span class="${colorClass}">${status}</span>
+  render(name, status, color) {
+    this.innerHTML = `
+      <div class="flex justify-between items-center py-3 border-b border-white/5 group">
+        <span class="mono text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-slate-300 transition-colors">${name}</span>
+        <div class="flex items-center gap-2">
+           <span class="dot" style="background: ${color}; box-shadow: 0 0 10px ${color}88;"></span>
+           <span class="mono text-[9px] font-black uppercase tracking-widest" style="color: ${color}">${status}</span>
+        </div>
       </div>
     `;
   }

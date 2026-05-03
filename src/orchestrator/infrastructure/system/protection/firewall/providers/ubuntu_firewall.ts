@@ -58,6 +58,14 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   async lockdown(): Promise<CommandResult> {
     return await this.executor.execute("ufw", ["default", "deny", "incoming"]);
   }
+  
+  async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
+    return await this.executor.execute("ufw", ["allow", `${port}/${protocol}`]);
+  }
+
+  async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
+    return await this.executor.execute("ufw", ["delete", "allow", `${port}/${protocol}`]);
+  }
 
   async flushRules(): Promise<CommandResult> {
     // 1. Reset UFW (Clears all custom rules)

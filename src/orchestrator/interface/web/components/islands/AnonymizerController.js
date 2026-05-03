@@ -62,13 +62,13 @@ class AnonymizerController extends HTMLElement {
       const mode = btn.id.replace('mode-', '');
       const indicator = btn.querySelector('.indicator');
       if (mode === activeMode) {
-        btn.classList.add('border-cyber/40', 'bg-cyber/10');
-        indicator.classList.add('bg-cyber', 'shadow-[0_0_10px_rgba(0,210,255,0.8)]', 'scale-150');
-        btn.querySelector('div').classList.add('text-cyber');
+        btn.classList.add('border-primary/40', 'bg-primary/10');
+        indicator.classList.add('bg-primary', 'shadow-[0_0_10px_var(--primary-glow)]', 'scale-150');
+        btn.querySelector('div').classList.add('text-primary');
       } else {
-        btn.classList.remove('border-cyber/40', 'bg-cyber/10');
-        indicator.classList.remove('bg-cyber', 'shadow-[0_0_10px_rgba(0,210,255,0.8)]', 'scale-150');
-        btn.querySelector('div').classList.remove('text-cyber');
+        btn.classList.remove('border-primary/40', 'bg-primary/10');
+        indicator.classList.remove('bg-primary', 'shadow-[0_0_10px_var(--primary-glow)]', 'scale-150');
+        btn.querySelector('div').classList.remove('text-primary');
       }
     });
   }

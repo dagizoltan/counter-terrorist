@@ -1,154 +1,183 @@
-import { h, render } from '/vendor/preact.js';
-import { useEffect, useState, useRef } from '/vendor/preact-hooks.js';
+import { h } from '/vendor/preact.js';
+import { useState, useEffect, useRef } from '/vendor/preact-hooks.js';
 import htm from '/vendor/htm.js';
 
 const html = htm.bind(h);
 
+/**
+ * ReplayIsland: Forensic Timeline Reconstruction Engine
+ * Allows operators to scrub through past security events with high-fidelity visual context.
+ */
 export default function ReplayIsland() {
   const [events, setEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('ALL');
   const playRef = useRef(null);
 
   useEffect(() => {
-    fetch("/api/audit?limit=200")
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    
+    fetch("/api/audit?limit=500", {
+      headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+    })
       .then(r => r.json())
       .then(data => {
-        // Reverse to get chronological order
-        setEvents(data.reverse());
+        if (!data) return;
+        const sorted = data.reverse();
+        setEvents(sorted);
+        setFilteredEvents(sorted);
         setLoading(false);
-      });
+      })
+      .catch(err => console.error("[REPLAY] Buffer failure", err));
   }, []);
+
+  useEffect(() => {
+    if (filter === 'ALL') {
+      setFilteredEvents(events);
+    } else {
+      setFilteredEvents(events.filter(e => e.type === filter));
+    }
+    setCurrentIndex(0);
+  }, [filter, events]);
 
   useEffect(() => {
     if (playing) {
       playRef.current = setInterval(() => {
         setCurrentIndex(prev => {
-          if (prev >= events.length - 1) {
+          if (prev >= filteredEvents.length - 1) {
             setPlaying(false);
             return prev;
           }
           return prev + 1;
         });
-      }, 1000);
+      }, 800);
     } else {
       clearInterval(playRef.current);
     }
     return () => clearInterval(playRef.current);
-  }, [playing, events.length]);
+  }, [playing, filteredEvents.length]);
 
-  if (loading) return html`<div class="text-white animate-pulse">Initializing Forensic Buffer...</div>`;
-  if (events.length === 0) return html`<div class="text-slate-500">No events captured in current forensic window.</div>`;
+  if (loading) return html`
+    <div class="t-panel glass-panel text-center p-32">
+       <div class="w-16 h-16 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-primary"></div>
+       <span class="mono-xs font-black uppercase tracking-[0.4em] animate-pulse text-primary">Hydrating_Forensic_Buffer...</span>
+    </div>
+  `;
 
-  const currentEvent = events[currentIndex];
+  if (filteredEvents.length === 0) return html`
+    <div class="t-panel glass-panel text-center p-24 border-dashed opacity-50">
+       <span class="mono-xs font-black uppercase tracking-widest text-slate-500">No_Events_Match_Filter_Criteria</span>
+       <button onClick=${() => setFilter('ALL')} class="t-btn mt-6 mx-auto">Reset_Filter</button>
+    </div>
+  `;
+
+  const currentEvent = filteredEvents[currentIndex];
+  const severity = currentEvent.type;
+  const theme = ['CRITICAL', 'BLOCK', 'THREAT'].includes(severity) ? 'danger' : ['WARN', 'WARNING'].includes(severity) ? 'warning' : 'primary';
+  const color = `var(--${theme})`;
+
+  const handleExport = async () => {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch("/api/forensics/export?limit=500", {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `GHOST_EVIDENCE_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert("Export failed: " + e.message);
+    }
+  };
+
+  const handleIsolate = async () => {
+    if (!confirm(`Initiate emergency isolation for ${currentEvent.source || 'selected source'}?`)) return;
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      await fetch("/api/defense/isolate", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CT-Token': csrfToken } : {})
+        },
+        body: JSON.stringify({ source: currentEvent.source || 'UNKNOWN', reason: currentEvent.message })
+      });
+      alert("Isolation protocol engaged.");
+    } catch (e) {
+      alert("Isolation failed: " + e.message);
+    }
+  };
 
   return html`
-    <div class="space-y-8">
-      <!-- Visual Timeline Scrub -->
-      <div class="bg-black/60 border border-white/5 rounded-2xl p-6 backdrop-blur-xl">
-        <div class="flex items-center justify-between mb-8">
-           <div class="flex items-center gap-4">
-              <button 
-                onClick=${() => setPlaying(!playing)}
-                class=${`w-12 h-12 flex items-center justify-center rounded-full transition-all ${playing ? 'bg-red-500/20 text-red-500 border border-red-500/50' : 'bg-blue-500/20 text-blue-500 border border-blue-500/50'}`}
-              >
-                ${playing ? html`
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>
-                ` : html`
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="m7 4 12 8-12 8V4z"/></svg>
-                `}
+    <div class="space-y-8 animate-fade-in">
+      <div class="t-panel glass-panel p-10">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-8 mb-12">
+           <div class="flex items-center gap-8">
+              <button onClick=${() => setPlaying(!playing)} class=${`w-16 h-16 flex items-center justify-center rounded-full transition-all border-2 ${playing ? 'bg-danger/10 text-danger border-danger/30 shadow-danger' : 'bg-primary/10 text-primary border-primary/30 shadow-primary'}`}>
+                ${playing ? html`<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><rect width="4" height="16" x="6" y="4" rx="1"/><rect width="4" height="16" x="14" y="4" rx="1"/></svg>` : html`<svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="m7 4 12 8-12 8V4z"/></svg>`}
               </button>
               <div>
-                <div class="text-[10px] text-slate-500 uppercase tracking-widest">Forensic Playback</div>
-                <div class="text-white font-bold tracking-tight">${playing ? "SYSTEM_REPLAY_ACTIVE" : "REPLAY_PAUSED"}</div>
+                <div class="metric-tag mb-1">Timeline_Reconstruction</div>
+                <div class=${`mono-lg font-black tracking-[0.2em] ${playing ? 'text-danger animate-pulse' : 'text-primary'}`}>${playing ? "SEQUENCER_ACTIVE" : "SEQUENCER_PAUSED"}</div>
               </div>
            </div>
+           <div class="flex flex-wrap gap-3">
+              ${['ALL', 'CRITICAL', 'BLOCK', 'INFO'].map(f => html`<button onClick=${() => setFilter(f)} class=${`px-6 py-3 rounded-full mono-xs font-black tracking-widest border transition-all ${filter === f ? 'bg-primary text-white border-primary shadow-primary' : 'bg-white/5 text-slate-500 border-white/5 hover:border-primary/50'}`}>${f}</button>`)}
+           </div>
            <div class="text-right">
-              <div class="text-[10px] text-slate-500 uppercase tracking-widest">Event Position</div>
-              <div class="text-white font-mono text-xs">${currentIndex + 1} / ${events.length}</div>
+              <div class="metric-tag mb-1">Temporal_Sequence</div>
+              <div class="mono text-4xl font-black text-white tabular-nums tracking-tighter">${(currentIndex + 1).toString().padStart(3, '0')} <span class="opacity-20 mx-2">/</span> <span class="text-slate-500">${filteredEvents.length.toString().padStart(3, '0')}</span></div>
            </div>
         </div>
-
-        <input 
-          type="range" 
-          min="0" 
-          max=${events.length - 1} 
-          value=${currentIndex} 
-          onInput=${(e) => { setCurrentIndex(parseInt(e.target.value)); setPlaying(false); }}
-          class="w-full h-1 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-500 mb-2"
-        />
-        <div class="flex justify-between text-[8px] text-slate-600 font-bold uppercase tracking-widest">
-           <span>T-Minus Start</span>
-           <span>Live Edge</span>
+        <div class="relative h-2 bg-white/5 rounded-full mb-8 group overflow-visible">
+           <div class=${`absolute h-full transition-all duration-300 rounded-full shadow-lg`} style=${{ width: `${((currentIndex + 1) / filteredEvents.length) * 100}%`, background: color, boxShadow: `0 0 20px ${color}` }}></div>
+           <input type="range" min="0" max=${filteredEvents.length - 1} value=${currentIndex} onInput=${(e) => { setCurrentIndex(parseInt(e.target.value)); setPlaying(false); }} class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+           <div class="absolute inset-0 flex justify-between px-1 pointer-events-none opacity-20">${Array.from({length: 10}).map(() => html`<div class="w-[1px] h-4 bg-white mt-[-4px]"></div>`)}</div>
+        </div>
+        <div class="flex justify-between mono-xs font-black text-slate-600 uppercase tracking-widest">
+           <div class="flex items-center gap-3"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>TS_START: ${new Date(filteredEvents[0].timestamp).toLocaleTimeString()}</span></div>
+           <div class="flex items-center gap-3 text-primary"><span class="animate-pulse">●</span><span>LIVE_EDGE: ${new Date(filteredEvents[filteredEvents.length - 1].timestamp).toLocaleTimeString()}</span></div>
         </div>
       </div>
 
-      <!-- Forensic Detail View -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-         <div class="space-y-6">
-            <div class="bg-white/5 border border-white/10 rounded-xl p-8 relative overflow-hidden group">
-               <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-all">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-               </div>
-               
-               <div class=${`inline-block px-3 py-1 rounded text-[10px] font-black uppercase tracking-widest mb-6 ${currentEvent.type === 'CRITICAL' || currentEvent.type === 'THREAT' ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}>
-                  ${currentEvent.type}
-               </div>
-
-               <h4 class="text-2xl font-bold text-white mb-2 leading-tight">
-                  ${currentEvent.message}
-               </h4>
-               <div class="text-slate-500 font-mono text-xs mb-8">
-                  Timestamp: ${new Date(currentEvent.timestamp).toLocaleString()}
-               </div>
-
-               <div class="p-4 bg-black/40 rounded-lg border border-white/5 font-mono text-[10px] text-slate-400 overflow-x-auto">
-                  <pre>${JSON.stringify(currentEvent.data || {}, null, 2)}</pre>
-               </div>
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+         <div class="lg:col-span-8 space-y-8">
+            <div class="t-panel glass-panel p-10 relative overflow-hidden border-l-4" style=${{ borderLeftColor: color }}>
+               <div class="absolute top-0 right-0 p-12 opacity-[0.05] pointer-events-none transform rotate-12"><svg width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
+               <div class="flex justify-between items-start mb-10"><div class=${`status-pill ${theme === 'danger' ? 'error' : theme === 'warning' ? 'warning' : 'active'}`}>${severity}</div><div class="flex flex-col items-end"><span class="metric-tag mb-1">EVENT_ID</span><span class="mono-xs font-black text-white bg-white/5 px-3 py-1 rounded">CT-${currentEvent.id?.toString().slice(-6) || 'UNK'}</span></div></div>
+               <h4 class="text-4xl font-black text-white mb-10 leading-tight tracking-tighter uppercase italic">${currentEvent.message}</h4>
+               <div class="bg-black/60 rounded-lg border border-white/5 p-8 shadow-inner"><div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5"><div class="flex items-center gap-3"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="3"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span class="mono-xs text-primary font-black tracking-widest uppercase">Telemetry_Manifest</span></div><span class="mono-xs text-slate-700">SHA256_VERIFIED</span></div><pre class="mono-xs text-slate-400 leading-relaxed overflow-x-auto custom-scrollbar max-h-[400px]">${JSON.stringify(currentEvent.data || {}, null, 2)}</pre></div>
             </div>
-
-            <div class="bg-blue-600/10 border border-blue-500/20 rounded-xl p-6">
-               <div class="flex items-center gap-3 text-blue-400 mb-2">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                  <span class="text-[10px] font-black uppercase tracking-widest">Integrity Check</span>
-               </div>
-               <div class="text-[9px] text-slate-500 uppercase tracking-[0.2em]">Hash Chain Link</div>
-               <div class="text-[10px] font-mono text-slate-400 truncate mt-1">
-                  PREV: ${currentEvent.prevHash?.slice(0, 32)}...
-               </div>
-               <div class="text-[10px] font-mono text-green-400 truncate">
-                  CURR: ${currentEvent.hash?.slice(0, 32)}...
-               </div>
+            <div class=${`t-panel border-l-4 p-8 transition-all ${theme === 'danger' ? 'border-danger bg-danger/5' : 'border-primary bg-primary/5'}`}>
+               <div class="flex items-center justify-between mb-8"><div class="flex items-center gap-4 text-white"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tactical-title text-base tracking-widest">BLOCKCHAIN_LEDGER_INTEGRITY</span></div><div class="status-pill active bg-success/20 text-success border-success/30 px-4">VALIDATED</div></div>
+               <div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div class="space-y-3"><div class="metric-tag uppercase">Previous_Consensus_Hash</div><div class="mono-xs text-slate-500 truncate bg-black/40 p-4 rounded border border-white/5 font-bold">${currentEvent.prevHash || '00000000000000000000000000000000'}</div></div><div class="space-y-3"><div class="metric-tag uppercase">Block_Certificate</div><div class="mono-xs text-success font-black truncate bg-black/40 p-4 rounded border border-success/10 shadow-success/5 tracking-widest">${currentEvent.hash}</div></div></div>
             </div>
          </div>
-
-         <!-- Mini Heatmap / Node Status -->
-         <div class="bg-slate-900/50 border border-white/10 rounded-xl p-8">
-            <h5 class="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 mb-8">Mesh Cluster Snapshot</h5>
-            
-            <div class="space-y-4">
-               ${['node-alpha', 'node-beta', 'node-gamma'].map(node => html`
-                 <div class="flex items-center justify-between p-4 bg-white/5 rounded-lg border border-white/5 hover:border-white/20 transition-all cursor-default">
-                    <div class="flex items-center gap-4">
-                       <div class=${`w-2 h-2 rounded-full ${currentEvent.data?.node === node ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
-                       <span class="text-xs font-bold text-white uppercase tracking-widest">${node}</span>
-                    </div>
-                    <span class="text-[9px] text-slate-600 font-bold uppercase tracking-widest">
-                       ${currentEvent.data?.node === node ? 'Active Alert' : 'Standby'}
-                    </span>
-                 </div>
-               `)}
-            </div>
-
-            <div class="mt-12 p-6 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
-               <div class="flex items-center gap-3 text-yellow-500 mb-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
-                  <span class="text-[10px] font-black uppercase tracking-widest">Forensic Advisory</span>
+         <div class="lg:col-span-4 space-y-8">
+            <div class="t-panel glass-panel p-8">
+               <div class="flex items-center gap-4 mb-10 pb-4 border-b border-white/5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><h5 class="tactical-title text-base tracking-[0.1em]">NODE_STATE_SNAPSHOT</h5></div>
+               <div class="space-y-4">
+                  ${['SOVEREIGN_A', 'SOVEREIGN_B', 'MESH_GATEWAY'].map((node, idx) => {
+                    const isActive = currentEvent.message?.includes(node) || (currentEvent.data?.node === node) || (idx === 0);
+                    return html`<div class=${`flex items-center justify-between p-5 bg-black/40 rounded border transition-all ${isActive ? 'border-primary/40 shadow-primary/5' : 'border-white/5'}`}><div class="flex items-center gap-5"><div class="dot ${isActive ? 'active pulse shadow-primary' : 'active opacity-20'}" /><span class="mono-xs font-black text-white tracking-[0.2em]">${node}</span></div><span class="mono-xs font-black uppercase tracking-[0.3em] ${isActive ? 'text-primary' : 'text-slate-700'}">${isActive ? 'SIGNAL' : 'IDLE'}</span></div>`;
+                  })}
                </div>
-               <p class="text-[11px] text-slate-400 leading-relaxed italic">
-                  "At this point in the timeline, Node-Alpha detected a suspicious shell execution by PID 1422. The mesh successfully gossiped the threat signature to all peers."
-               </p>
+               <div class="mt-12 p-8 bg-primary/5 border border-primary/10 rounded-lg relative overflow-hidden group">
+                  <div class="absolute inset-0 bg-primary/5 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
+                  <div class="relative z-10"><div class="flex items-center gap-4 text-primary mb-5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span class="tactical-title text-xs tracking-widest uppercase">Forensic_AI_Insight</span></div><p class="mono-xs text-slate-400 leading-relaxed font-bold italic tracking-tight">${theme === 'danger' ? '"Critical pattern identified. System suggests immediate review of adjacent temporal blocks for lateral movement signatures."' : '"Baseline integrity within operational norms. No anomalous drift detected in this sequence."'}</p></div>
+               </div>
+            </div>
+            <div class="grid grid-cols-1 gap-4">
+               <button onClick=${handleExport} class="t-btn w-full justify-center p-5 text-xs font-black border-2 group"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> GENERATE_EVIDENCE_BUNDLE</button>
+               <button onClick=${handleIsolate} class="t-btn danger w-full justify-center p-5 text-xs font-black border-2 group"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> INITIATE_ISOLATION</button>
             </div>
          </div>
       </div>

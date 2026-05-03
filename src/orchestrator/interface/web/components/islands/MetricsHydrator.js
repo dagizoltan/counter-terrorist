@@ -11,7 +11,10 @@ class MetricsHydrator extends HTMLElement {
 
   async fetchInitial() {
     try {
-      const res = await fetch('/api/metrics');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/metrics', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         this.updateMetrics(data);
@@ -46,42 +49,80 @@ class MetricsHydrator extends HTMLElement {
 
   updateMetrics(m) {
     // Layer-01: Network
-    this.setText('stat-vpn-status', m.vpn?.telemetry?.status === 'ACTIVE' ? 'ENCRYPTED' : 'OFFLINE');
-    this.setText('stat-anon-mode', m.vpn?.mode ?? 'OFF');
-    this.setText('stat-vpn-rotations', `${m.vpn?.telemetry?.rotations ?? 0} Rotations`);
-    this.setText('stat-geo-diversity', `${m.geo?.totalOrigins ?? 0} Origins`);
-
+    this.updateStatus('stat-vpn-status', m.vpn?.telemetry?.status === 'ACTIVE' ? 'ENCRYPTED' : 'OFFLINE');
+    this.updateStatus('stat-anon-mode', m.vpn?.mode ?? 'OFFLINE');
+    
     // Layer-02: Mesh
     const meshActive = m.mesh?.verified ?? 0;
     const meshTotal = m.mesh?.nodes ?? 0;
-    this.setText('stat-mesh-nodes', meshTotal > 0 ? `${meshActive} / ${meshTotal} Nodes` : 'SOLO');
-    this.setText('stat-mesh-quorum', m.mesh?.quorum ? 'ESTABLISHED' : 'PENDING');
+    this.setText('stat-mesh-nodes', meshTotal > 0 ? `${meshActive}` : '0');
+    this.updateStatus('stat-mesh-quorum', m.mesh?.quorum ? 'ESTABLISHED' : 'PENDING');
 
     // Layer-03: Node
-    this.setText('stat-forensics-ebpf-status', m.node?.ebpf ? 'RUNNING' : 'STOPPED');
-    this.setText('stat-protection-count', `${m.node?.integrityScore ?? 100}% SCORE`);
+    if (m.node?.memory) {
+       this.setText('stat-mem-val', Math.floor(m.node.memory.used / 1024 / 1024));
+    }
 
     // Legacy/Shared
-    this.setText('stat-fw-blocked', m.firewall?.blockedCount ?? '0');
-    this.setText('stat-audit-chain', m.audit?.chainVerified ? 'VERIFIED' : 'BROKEN');
-    this.setStatusColor('stat-audit-chain', m.audit?.chainVerified ? 'VERIFIED' : 'BROKEN');
+    this.setText('stat-fw-blocked', (m.firewall?.blockedCount ?? 0).toLocaleString());
+    
+    // Optional indicators if they exist in DOM
+    if (document.getElementById('stat-audit-chain')) {
+       this.updateStatus('stat-audit-chain', m.audit?.chainVerified ? 'VERIFIED' : 'BROKEN');
+    }
   }
 
   setText(id, text) {
     const el = document.getElementById(id);
-    if (el) el.innerText = text;
+    if (el && el.innerText != text) {
+       el.innerText = text;
+       // Add a small flash effect on update
+       el.classList.add('text-white');
+       setTimeout(() => el.classList.remove('text-white'), 500);
+    }
   }
 
-  setStatusColor(id, value) {
+  updateStatus(id, value) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.className = el.className.replace(/text-\w+-\d+/g, '');
-    if (['STRICT', 'ENABLED', 'VERIFIED', 'ACTIVE', 'BLOCKED'].includes(value)) {
-      el.classList.add('text-green-500');
-    } else if (['PARTIAL', 'LOOSE'].includes(value)) {
-      el.classList.add('text-yellow-500');
+    
+    if (el.innerText === value) return;
+
+    el.innerText = value;
+    
+    // Reset and apply theme-based classes if it's a status-pill
+    if (el.classList.contains('status-pill')) {
+       el.classList.remove('active', 'success', 'warning', 'danger', 'primary');
+       
+       const successValues = ['STRICT', 'ENABLED', 'VERIFIED', 'ACTIVE', 'BLOCKED', 'RUNNING', 'ENCRYPTED', 'ESTABLISHED', 'OPTIMAL', 'HARDENED'];
+       const warningValues = ['PARTIAL', 'LOOSE', 'PENDING', 'WARNING', 'DISTRIBUTED'];
+       const primaryValues = ['WAIT', 'IDLE', 'STANDBY', 'MONITOR'];
+
+       if (successValues.includes(value)) {
+         el.classList.add('active');
+         el.style.borderColor = 'var(--success-glow)';
+         el.style.color = 'var(--success)';
+       } else if (warningValues.includes(value)) {
+         el.classList.add('warning');
+         el.style.borderColor = 'var(--warning-glow)';
+         el.style.color = 'var(--warning)';
+       } else if (primaryValues.includes(value)) {
+         el.classList.add('active');
+         el.style.borderColor = 'var(--primary-glow)';
+         el.style.color = 'var(--primary)';
+       } else {
+         el.classList.add('danger');
+         el.style.borderColor = 'var(--danger-glow)';
+         el.style.color = 'var(--danger)';
+       }
     } else {
-      el.classList.add('text-red-500');
+       // Just text color
+       const successValues = ['STRICT', 'ENABLED', 'VERIFIED', 'ACTIVE', 'BLOCKED', 'RUNNING', 'ENCRYPTED', 'ESTABLISHED', 'OPTIMAL', 'HARDENED'];
+       if (successValues.includes(value)) {
+         el.style.color = 'var(--success)';
+       } else {
+         el.style.color = 'var(--danger)';
+       }
     }
   }
 }

@@ -67,8 +67,8 @@ export class MeshManager {
 
     this.logging.log("[MESH] Starting zero-config node discovery...", SyslogSeverity.NOTICE);
 
-    // 1. Initial Subnet Scan (Fast discovery)
-    this.discoverSubnet();
+    // 1. Initial Subnet Scan (Fast discovery - background)
+    this.discoverSubnet().catch(() => {});
     
     // 2. Schedule regular scans
     this.discoveryInterval = setInterval(() => {

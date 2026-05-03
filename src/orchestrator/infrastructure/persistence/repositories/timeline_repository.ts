@@ -34,10 +34,25 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
   async deleteBefore(timestamp: number): Promise<number> {
     const iter = this.kv.list<T>({ prefix: [this.prefix], end: [this.prefix, timestamp] });
     let count = 0;
+    let atomic = this.kv.atomic();
+    let batchSize = 0;
+
     for await (const entry of iter) {
-      await this.kv.delete(entry.key);
+      atomic = atomic.delete(entry.key);
       count++;
+      batchSize++;
+
+      if (batchSize >= 10) {
+        await atomic.commit();
+        atomic = this.kv.atomic();
+        batchSize = 0;
+      }
     }
+
+    if (batchSize > 0) {
+      await atomic.commit();
+    }
+
     return count;
   }
   

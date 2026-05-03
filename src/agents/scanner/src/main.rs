@@ -330,6 +330,11 @@ async fn main() {
                     mtime: chrono::DateTime::<chrono::Utc>::from(mtime_val).to_rfc3339(),
                 }
             }).collect();
+            
+            // Security: Enforce global cache limit after directory scans to prevent memory exhaustion
+            if hash_cache.len() > 10000 {
+                hash_cache.clear();
+            }
 
             let result = ScanResult {
                 id: command.id,

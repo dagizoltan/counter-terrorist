@@ -34,6 +34,7 @@ export interface CommandPort {
   isRunning(sidecar: string): boolean;
   restartSidecar(sidecar: string): Promise<void>;
   stopSidecar(sidecar: string): Promise<void>;
+  getPID(sidecar: string): number | null;
 }
 
 export interface FirewallPort {

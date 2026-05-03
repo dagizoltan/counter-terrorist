@@ -1,98 +1,135 @@
+/**
+ * MeshGraph Island
+ * High-density tactical coordinate map for the security mesh.
+ */
 class MeshGraph extends HTMLElement {
   constructor() {
     super();
-    this.attachShadow({ mode: 'open' });
+    this.nodes = [];
+    this.localNodeId = "UNKNOWN";
   }
 
   connectedCallback() {
-    this.render();
+    this.renderBase();
     this.fetchNodes();
+    this.interval = setInterval(() => this.fetchNodes(), 5000);
+    window.addEventListener('resize', () => this.draw());
+  }
+
+  disconnectedCallback() {
+    clearInterval(this.interval);
   }
 
   async fetchNodes() {
     try {
       const res = await fetch('/api/mesh/nodes');
-      const data = await res.json();
-      this.updateGraph(data);
-    } catch (e) {
-      console.error("Failed to fetch mesh nodes", e);
-    }
+      if (res.ok) {
+        const data = await res.json();
+        this.nodes = data.peers;
+        this.localNodeId = data.local;
+        this.draw();
+      }
+    } catch (e) {}
   }
 
-  updateGraph(data) {
-    const container = this.shadowRoot.getElementById('graph-container');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    // Center Node (Self)
-    const center = document.createElement('div');
-    center.className = 'node local';
-    center.innerHTML = `<div class="pulse"></div><span class="label">${data.local}</span>`;
-    container.appendChild(center);
+  renderBase() {
+    this.innerHTML = `
+      <div class="relative w-full h-full min-h-[500px] flex items-center justify-center overflow-hidden bg-black/20">
+        <canvas id="mesh-canvas" class="w-full h-full"></canvas>
+        <div id="mesh-overlay" class="absolute inset-0 pointer-events-none">
+           <div class="absolute top-4 left-4">
+              <span class="mono text-[9px] font-black text-slate-600 uppercase tracking-[0.4em]">Grid_Calibration: AUTO</span>
+           </div>
+        </div>
+      </div>
+    `;
+    this.canvas = this.querySelector('#mesh-canvas');
+    this.ctx = this.canvas.getContext('2d');
+  }
 
-    // Peer Nodes
-    data.peers.forEach((peer, i) => {
-      const angle = (i / data.peers.length) * 2 * Math.PI;
-      const x = Math.cos(angle) * 80 + 100;
-      const y = Math.sin(angle) * 80 + 100;
-      
-      const node = document.createElement('div');
-      node.className = `node peer ${peer.status.toLowerCase()}`;
-      node.style.left = `${x}px`;
-      node.style.top = `${y}px`;
-      node.innerHTML = `<span class="label">${peer.id}</span><span class="latency">${peer.latency}</span>`;
-      container.appendChild(node);
+  draw() {
+    const width = this.canvas.width = this.canvas.clientWidth;
+    const height = this.canvas.height = this.canvas.clientHeight;
+    const ctx = this.ctx;
+    const centerX = width / 2;
+    const centerY = height / 2;
 
-      // Draw connection line
-      const line = document.createElement('div');
-      line.className = 'connection';
-      line.style.width = '80px';
-      line.style.transform = `rotate(${angle}rad)`;
-      line.style.left = '100px';
-      line.style.top = '100px';
-      container.appendChild(line);
+    ctx.clearRect(0, 0, width, height);
+
+    // Draw Tactical Grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    const step = 40;
+    for (let x = step; x < width; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+    }
+    for (let y = step; y < height; y += step) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+    }
+
+    // Draw Crosshair at Center
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.beginPath();
+    ctx.moveTo(centerX - 20, centerY); ctx.lineTo(centerX + 20, centerY);
+    ctx.moveTo(centerX, centerY - 20); ctx.lineTo(centerX, centerY + 20);
+    ctx.stroke();
+
+    // Draw Local Node
+    this.drawNode(ctx, centerX, centerY, this.localNodeId, true, 'ACTIVE');
+
+    // Draw Peers in a Tactical Circle
+    const radius = Math.min(width, height) * 0.35;
+    this.nodes.forEach((peer, i) => {
+       const angle = (i / this.nodes.length) * 2 * Math.PI;
+       const px = centerX + Math.cos(angle) * radius;
+       const py = centerY + Math.sin(angle) * radius;
+
+       // Draw Connection Line
+       ctx.strokeStyle = peer.status === 'ACTIVE' ? 'hsla(var(--success-h), 100%, 50%, 0.1)' : 'rgba(255,255,255,0.05)';
+       ctx.setLineDash([5, 5]);
+       ctx.beginPath();
+       ctx.moveTo(centerX, centerY);
+       ctx.lineTo(px, py);
+       ctx.stroke();
+       ctx.setLineDash([]);
+
+       this.drawNode(ctx, px, py, peer.hostname || peer.id, false, peer.status);
     });
   }
 
-  render() {
-    this.shadowRoot.innerHTML = `
-      <style>
-        :host { display: block; height: 100%; width: 100%; position: relative; }
-        #graph-container { position: relative; width: 200px; height: 200px; margin: 0 auto; }
-        .node { 
-          position: absolute; 
-          width: 10px; height: 10px; 
-          border-radius: 50%; 
-          display: flex; flex-direction: column; align-items: center; 
-          transform: translate(-50%, -50%);
-        }
-        .local { background: #fff; left: 100px; top: 100px; z-index: 10; }
-        .peer { width: 6px; height: 6px; }
-        .peer.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-        .peer.inactive { background: #ef4444; }
-        .label { 
-          font-family: 'Inter', sans-serif; 
-          font-size: 6px; font-weight: 900; color: #fff; 
-          text-transform: uppercase; margin-top: 6px; white-space: nowrap;
-          letter-spacing: 0.1em;
-        }
-        .latency { font-size: 5px; color: #475569; }
-        .connection { 
-          position: absolute; height: 1px; background: rgba(255,255,255,0.05); 
-          transform-origin: left center; z-index: 1;
-        }
-        .pulse {
-          position: absolute; width: 100%; height: 100%; border-radius: 50%;
-          border: 1px solid #fff; animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-          0% { transform: scale(1); opacity: 1; }
-          100% { transform: scale(3); opacity: 0; }
-        }
-      </style>
-      <div id="graph-container"></div>
-    `;
+  drawNode(ctx, x, y, label, isLocal, status) {
+    const isActive = status === 'ACTIVE';
+    const color = isLocal ? 'var(--primary)' : (isActive ? 'var(--success)' : 'var(--danger)');
+    const glow = isLocal ? 'var(--primary-glow)' : (isActive ? 'var(--success-glow)' : 'var(--danger-glow)');
+
+    // Node Core
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, isLocal ? 6 : 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Node Glow
+    if (isActive) {
+       ctx.shadowBlur = 15;
+       ctx.shadowColor = glow;
+       ctx.strokeStyle = color;
+       ctx.lineWidth = 2;
+       ctx.beginPath();
+       ctx.arc(x, y, isLocal ? 10 : 8, 0, Math.PI * 2);
+       ctx.stroke();
+       ctx.shadowBlur = 0;
+    }
+
+    // Node Label
+    ctx.fillStyle = 'white';
+    ctx.font = '900 10px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(label.toUpperCase(), x, y + 25);
+    
+    // Status Tag
+    ctx.fillStyle = isActive ? 'hsla(var(--success-h), 100%, 50%, 0.4)' : 'rgba(255,255,255,0.2)';
+    ctx.font = '700 7px JetBrains Mono';
+    ctx.fillText(status.toUpperCase(), x, y + 35);
   }
 }
 

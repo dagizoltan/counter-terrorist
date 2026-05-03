@@ -11,6 +11,7 @@ import { load } from "@std/dotenv";
 await load({ export: true, allowEmptyValues: true });
 
 import { z } from "npm:zod";
+import { ForensicService } from "./domain/analysis/forensic_service.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { MeshManager, setMeshManager } from "@domain/engine/mesh.ts";
 import { PlaybookService } from "@domain/engine/playbook_service.ts";
@@ -51,6 +52,7 @@ import { ComplianceService } from "@domain/analysis/compliance_service.ts";
 import { loadConfig } from "./core/config_schema.ts";
 
 // ── Phase 1: Core infrastructure ──────────────────────────────────────
+loggingService.enableGlobalIntercept();
 await loggingService.log("Initiating Sovereign Boot Sequence", SyslogSeverity.NOTICE, "BOOT");
 await camouflage();
 const config = loadConfig();
@@ -150,7 +152,8 @@ const honeypotService = new HoneypotService(sidecarManager, protection.firewall,
 honeypotService.setBehavioralService(behavioralService);
 
 const canaryService = new CanaryService(auditService, sidecarManager, loggingService);
-const kernelService = new KernelService(executor, auditService);
+const kernelService = new KernelService(executor, auditService, sidecarManager);
+const forensicService = new ForensicService(auditService, loggingService, kv);
 
 const autopilotService = new AutopilotService(
     eventBus, 
@@ -184,24 +187,24 @@ sidecarManager.onEvent("SIDECAR_ALERT", (event) => {
 
 // Phase 5: Start subsystems ─────────────────────────────────────────
 await loggingService.log("Deploying active defense subsystems", SyslogSeverity.INFORMATIONAL, "BOOT");
-await playbookService.init();
-await autopilotService.start();
-await morphingService.start();
-await anonymization.start();
-await deceptionGrid.start();
+playbookService.init().catch(err => console.error(`[PLAYBOOK] Init failure: ${err.message}`));
+autopilotService.start().catch(err => console.error(`[AUTOPILOT] Start failure: ${err.message}`));
+morphingService.start();
+anonymization.start().catch(err => console.error(`[ANON] Start failure: ${err.message}`));
+deceptionGrid.start().catch(err => console.error(`[DECEPTION] Start failure: ${err.message}`));
 
 if (Deno.env.get("PROVISIONING_ENABLED") === "true") {
   provisioningService.run().catch(err => loggingService.log(`Provisioning Engine failure: ${err.message}`, SyslogSeverity.ERROR, "PROVISIONING"));
 }
-await processTracker.fullScan();
+processTracker.fullScan();
 const ghosts = await processTracker.scanForGhosts();
 if (ghosts.length > 0) {
     await loggingService.log("ROOTKIT IDENTIFIED ON STARTUP", SyslogSeverity.CRITICAL, "SECURITY", { ghosts });
     await auditService.logEvent({ type: "THREAT", message: `ROOTKIT IDENTIFIED ON STARTUP: PIDs ${ghosts.join(", ")} are hidden from /proc.`, data: { ghosts } });
 }
-await honeypotService.start();
-await canaryService.deploy();
-await kernelService.harden();
+honeypotService.start();
+canaryService.deploy();
+kernelService.harden();
 await covertService.startListener();
 await loggingService.log("Defense subsystems operational", SyslogSeverity.NOTICE, "BOOT");
 
@@ -262,7 +265,11 @@ const services: ServiceContainer = {
   config: configProvider, protection, command: sidecarManager, audit: auditService,
   notifications: notificationService, baseline: baselineService, processTracker,
   sessions: sessionService, apiKeys: apiKeysService, eventBus: eventBus,
-  honeypot: honeypotService, autopilot: autopilotService, morphing: morphingService,
+    canaryService,
+    kernelService,
+    forensicService,
+    autopilot: autopilotService,
+ morphing: morphingService,
   chaos: chaosEngine, supplyChain: supplyChain, mesh: meshManager,
   meshAuth: meshAuthService, threatIntel: curatedIntel as any, compliance: complianceService,
   anonymization: anonymization, shadowProtocol: shadowProtocol, deceptionGrid: deceptionGrid,
@@ -280,11 +287,11 @@ const metricsService = new MetricsService(
 setMetricsService(metricsService);
 
 // ── Phase 8: Start tactical services ──
-await loggingService.log("Initiating tactical intelligence ingestion...", SyslogSeverity.NOTICE, "BOOT");
-await curatedIntel.start(kv).catch(err => console.error(`[INTEL] Start failure: ${err.message}`));
+loggingService.log("Initiating tactical intelligence ingestion...", SyslogSeverity.NOTICE, "BOOT");
+curatedIntel.start(kv).catch(err => console.error(`[INTEL] Start failure: ${err.message}`));
 newsSignal.start().catch(err => console.error(`[NEWS] Start failure: ${err.message}`));
 networkDiscovery.start().catch(err => console.error(`[DISCOVERY] Start failure: ${err.message}`));
-anonymization.start().catch(err => console.error(`[ANON] Start failure: ${err.message}`));
+// Removed duplicate anonymization.start() from here
 
 // ── Phase 9: Start persistent sidecars ────────────────────────────────
 const startDaemons = async () => {
@@ -295,7 +302,7 @@ const startDaemons = async () => {
   try {
     const ebpf = await sidecarManager.getPersistentSidecar("ebpf");
     if (ebpf) {
-      await sidecarManager.sendCommand("ebpf", { type: "HIDE_PID", payload: { pid: Deno.pid } }).catch(() => {});
+      await sidecarManager.sendCommand("ebpf", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
     }
     await shadowService.startWatchdog().catch(() => {});
   } catch (_e) {

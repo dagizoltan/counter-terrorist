@@ -46,5 +46,7 @@ export interface ServiceContainer {
   networkDiscovery: any;
   networkLogs: any;
   incidents: any;
-  platformInfo: any;
+  canaryService: any;
+  kernelService: any;
+  forensicService: any;
 }

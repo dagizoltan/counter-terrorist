@@ -1,9 +1,13 @@
-import { h, render } from '/vendor/preact.js';
+import { h } from '/vendor/preact.js';
 import { useState } from '/vendor/preact-hooks.js';
 import htm from '/vendor/htm.js';
 
 const html = htm.bind(h);
 
+/**
+ * ChaosIsland // Red-Team Simulator
+ * Trigger synthetic threat vectors to verify mesh resilience.
+ */
 export default function ChaosIsland() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -11,67 +15,99 @@ export default function ChaosIsland() {
   const simulate = async (vector, target) => {
     setLoading(true);
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
       const res = await fetch("/api/chaos/simulate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+            "Content-Type": "application/json",
+            "X-CT-Token": csrfToken || ""
+        },
         body: JSON.stringify({ vector, target })
       });
       const data = await res.json();
       setResult(data.message);
-      setTimeout(() => setResult(null), 3000);
+      setTimeout(() => setResult(null), 5000);
     } catch (e) {
-      console.error(e);
+      console.error("[CHAOS_ENGINE] Simulation failed:", e);
     }
     setLoading(false);
   };
 
   return html`
-    <div class="bg-red-900/10 border border-red-500/20 rounded-2xl p-8 overflow-hidden relative">
-      <div class="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-         <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+    <div class="t-panel glass-panel border-t-2 border-danger/40 p-10 overflow-hidden relative group">
+      {/* Background Ambience */}
+      <div class="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transition-transform group-hover:scale-110">
+         <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
       </div>
 
-      <div class="flex items-center gap-3 mb-6">
-         <div class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
-         <h3 class="text-[10px] font-black uppercase tracking-[0.4em] text-red-500">Chaos Engine // Red-Team Sim</h3>
-      </div>
+      <header class="flex items-center gap-6 mb-10 pb-6 border-b border-white/5">
+         <div class="p-4 bg-danger/10 border border-danger/20 text-danger rounded-lg shadow-danger animate-pulse">
+            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+         </div>
+         <div class="flex flex-col gap-1">
+            <h3 class="tactical-title text-sm uppercase tracking-[0.3em]">CHAOS_ENGINE_V4</h3>
+            <p class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Synthetic_Threat_Vector_Array</p>
+         </div>
+      </header>
 
-      <p class="text-xs text-slate-500 mb-8 max-w-md">
-        Trigger synthetic threat vectors to verify mesh response times, autopilot playbooks, and forensic capture.
+      <p class="text-sm text-slate-400 mb-12 max-w-2xl leading-relaxed font-bold uppercase tracking-tight opacity-60 italic">
+        Trigger synthetic threat vectors to verify **Mesh Propagation** response times, autopilot security playbooks, and forensic capture fidelity. All simulations are container-isolated.
       </p>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
          <button 
            onClick=${() => simulate("brute-force", "192.168.1.100")}
            disabled=${loading}
-           class="bg-white/5 border border-white/10 hover:border-red-500/50 hover:bg-red-500/10 p-4 text-left transition-all group"
+           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left transition-all group/btn"
          >
-            <div class="text-[9px] font-black text-slate-500 uppercase mb-1 group-hover:text-red-400">Simulation_01</div>
-            <div class="text-xs font-bold text-white">SSH_Brute_Force</div>
+            <div class="flex justify-between items-center mb-4">
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_01</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
+            </div>
+            <div class="text-sm font-black text-white uppercase tracking-tighter">SSH_Brute_Force</div>
+            <div class="mono-xs text-[9px] text-slate-700 mt-2 font-bold uppercase">TARGET: SECURE_NODE_01</div>
          </button>
 
          <button 
            onClick=${() => simulate("canary", "./vault_credentials.xlsx")}
            disabled=${loading}
-           class="bg-white/5 border border-white/10 hover:border-red-500/50 hover:bg-red-500/10 p-4 text-left transition-all group"
+           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left transition-all group/btn"
          >
-            <div class="text-[9px] font-black text-slate-500 uppercase mb-1 group-hover:text-red-400">Simulation_02</div>
-            <div class="text-xs font-bold text-white">Canary_Exfiltration</div>
+            <div class="flex justify-between items-center mb-4">
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_02</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
+            </div>
+            <div class="text-sm font-black text-white uppercase tracking-tighter">Canary_Exfiltration</div>
+            <div class="mono-xs text-[9px] text-slate-700 mt-2 font-bold uppercase">TARGET: FS_VAULT_ROOT</div>
          </button>
 
          <button 
            onClick=${() => simulate("malware", "xmrig")}
            disabled=${loading}
-           class="bg-white/5 border border-white/10 hover:border-red-500/50 hover:bg-red-500/10 p-4 text-left transition-all group"
+           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left transition-all group/btn"
          >
-            <div class="text-[9px] font-black text-slate-500 uppercase mb-1 group-hover:text-red-400">Simulation_03</div>
-            <div class="text-xs font-bold text-white">Kernel_Malware</div>
+            <div class="flex justify-between items-center mb-4">
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_03</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
+            </div>
+            <div class="text-sm font-black text-white uppercase tracking-tighter">Kernel_Malware</div>
+            <div class="mono-xs text-[9px] text-slate-700 mt-2 font-bold uppercase">TARGET: EBPF_RUNTIME</div>
          </button>
       </div>
 
       ${result && html`
-        <div class="mt-6 text-[10px] font-mono text-green-400 animate-pulse uppercase tracking-widest">
-           ${result}
+        <div class="mt-10 p-6 bg-success/5 border border-success/20 rounded-lg flex items-center gap-4 animate-fade-in">
+           <div class="dot active shadow-success"></div>
+           <div class="mono-xs font-black text-success uppercase tracking-widest italic">
+              VECTOR_EXECUTED: ${result}
+           </div>
+        </div>
+      `}
+
+      ${loading && html`
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-6 z-20">
+           <div class="w-16 h-16 border-2 border-danger border-t-transparent rounded-full animate-spin shadow-danger"></div>
+           <span class="mono-xs font-black text-danger uppercase tracking-[0.5em] animate-pulse">Initializing_Synthetic_Payload...</span>
         </div>
       `}
     </div>

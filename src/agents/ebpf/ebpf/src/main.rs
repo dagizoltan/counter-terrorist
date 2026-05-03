@@ -33,6 +33,9 @@ static mut EVENTS: PerfEventArray<SyscallEvent> = PerfEventArray::new(0);
 #[map]
 static mut SHADOW_BANS: HashMap<u32, ShadowBanInfo> = HashMap::with_max_entries(1024, 0);
 
+#[map]
+static mut HIDE_CONFIG: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
+
 #[classifier]
 pub fn tc_ingress(ctx: TcContext) -> i32 {
     match try_tc_ingress(ctx) {
@@ -92,7 +95,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
     let mut event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm: bpf_get_current_comm().unwrap_or([0; 16]),
-        syscall_id: 1,
+        syscall_id: 101, // ptrace on x86_64
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -100,15 +103,13 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
 
 #[kprobe]
 pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
-    // Prot is usually the third argument (arg2)
-    // For x86_64: rdi (arg0), rsi (arg1), rdx (arg2), rcx (arg3), r8 (arg4), r9 (arg5)
     let prot: u64 = ctx.arg(2).unwrap_or(0);
 
     if (prot & PROT_EXEC) != 0 {
         let mut event = SyscallEvent {
             pid: (bpf_get_current_pid_tgid() >> 32) as u32,
             comm: bpf_get_current_comm().unwrap_or([0; 16]),
-            syscall_id: 2,
+            syscall_id: 9, // mmap on x86_64
         };
         unsafe { EVENTS.output(&ctx, &event, 0) };
     }
@@ -120,7 +121,7 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
     let mut event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm: bpf_get_current_comm().unwrap_or([0; 16]),
-        syscall_id: 3,
+        syscall_id: 59, // execve on x86_64
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0

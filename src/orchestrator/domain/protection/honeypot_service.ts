@@ -88,18 +88,30 @@ export class HoneypotService {
     const module = this.modules.get(id);
     if (module) {
       module.active = active;
+      if (active) {
+        await this.firewall.allowPort(module.port, "tcp");
+      } else {
+        await this.firewall.denyPort(module.port, "tcp");
+      }
       await this.sidecarManager.sendCommand("honeypot", {
         type: "ToggleModule",
         module: id, 
         active, 
         port: module.port
-      });
+      }).catch(() => {});
     }
   }
 
   async start() {
     await this.sidecarManager.getPersistentSidecar("honeypot");
     this.sidecarManager.onEvent("honeypot", (event) => this.handleEvent(event));
+
+    // Initialize firewall rules for active modules
+    for (const module of this.modules.values()) {
+        if (module.active) {
+            await this.firewall.allowPort(module.port, "tcp");
+        }
+    }
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
     setInterval(() => this.morph(), 600000); // Every 10 minutes
@@ -133,7 +145,8 @@ export class HoneypotService {
       }
 
       // Automated Forensics: Start capture for the attacker's traffic
-      this.pcap.startCapture("any", 300, `honeypot_hit_${source_ip.replace(/\./g, '_')}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
+      const safeIp = source_ip.replace(/[\.:]/g, '_');
+      this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
       this.logging.log(`[HONEYPOT] Session transcript from ${source_ip}:${port} -> ${data}`, SyslogSeverity.DEBUG);
@@ -160,7 +173,8 @@ export class HoneypotService {
     this.firewall.blockIp(source_ip).catch(console.error);
 
     // Automated Forensics: Start capture for the attacker's traffic
-    this.pcap.startCapture("any", 300, `web_decoy_${source_ip.replace(/\./g, '_')}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
+    const safeIp = source_ip.replace(/[\.:]/g, '_');
+    this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
 
     // Active Sabotage: Initiate Breaker protocol on the attacker's session
     this.sabotageSession(source_ip);
@@ -207,12 +221,15 @@ export class HoneypotService {
 
       module.port = newPort;
 
+      await this.firewall.denyPort(oldPort, "tcp");
+      await this.firewall.allowPort(newPort, "tcp");
+
       await this.sidecarManager.sendCommand("honeypot", {
         type: "UpdateModule",
         module: id, 
         oldPort, 
         newPort
-      });
+      }).catch(() => {});
 
       this.broadcast({
         type: "INFO",
@@ -220,6 +237,10 @@ export class HoneypotService {
         data: { id, oldPort, newPort }
       });
     }
+  }
+
+  getDecoyRoutes() {
+    return ["/admin", "/.git/config", "/wp-config.php", "/.env", "/config.json", "/aws_credentials", "/secrets.env"];
   }
 
   getHitCount() {

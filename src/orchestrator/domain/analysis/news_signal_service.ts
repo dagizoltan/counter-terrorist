@@ -23,8 +23,8 @@ export class NewsSignalService {
         this.kv = await Deno.openKv();
         this.logging.log("[NEWS] Cybersec Signal Feed active.", SyslogSeverity.NOTICE);
         
-        // Initial fetch
-        this.fetchFeeds();
+        // Initial fetch - background
+        this.fetchFeeds().catch(() => {});
 
         // Refresh every 30 minutes
         setInterval(() => this.fetchFeeds(), 30 * 60 * 1000);
@@ -47,8 +47,9 @@ export class NewsSignalService {
                     const link = itemXml.match(/<link>(.*?)<\/link>/)?.[1] || "#";
                     const summary = itemXml.match(/<description>(.*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")?.slice(0, 200) + "..." || "";
                     
+                    const id = btoa(encodeURIComponent(title)).slice(0, 16);
                     const item: NewsItem = {
-                        id: btoa(title).slice(0, 16),
+                        id,
                         title,
                         link,
                         summary,

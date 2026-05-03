@@ -92,6 +92,24 @@ export class SidecarManager implements CommandPort {
 
     try {
         const child = command.spawn();
+        
+        // Immediate check for sudo failure
+        if (isPrivileged && !isAlreadyRoot) {
+          const status = await Promise.race([
+            child.status,
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 1000))
+          ]);
+          if (status && status.code !== 0) {
+            this.emitEvent("SYSTEM_ERROR", { 
+              type: "PRIVILEGE_ERROR", 
+              sidecar: name, 
+              message: "Sudo failed or requires interaction. Ensure CTS binaries have NOPASSWD in sudoers or setcap." 
+            });
+            this.unsupportedSidecars.add(name);
+            child.kill();
+            return null;
+          }
+        }
         console.log(`[SIDE-MAN] Spawned persistent sidecar: ${name}`);
 
         child.status.then((status) => {
@@ -138,12 +156,18 @@ export class SidecarManager implements CommandPort {
   private async findBinary(name: string): Promise<string | null> {
     const isWindows = Deno.build.os === "windows";
     const extension = isWindows ? ".exe" : "";
+    
+    // Support environment variable overrides for custom binary locations
+    const envPath = Deno.env.get(`CTS_BINARY_${name.toUpperCase()}`);
+    
     const paths = [
+      envPath,
       `./agents/${name}${extension}`,
       `./src/agents/target/release/${name}${extension}`,
       `./src/agents/target/debug/${name}${extension}`,
       `/usr/local/bin/cts-${name}${extension}`,
-    ];
+      `/opt/cts/bin/${name}${extension}`,
+    ].filter(Boolean) as string[];
 
     let agentsDir: string;
     try {
@@ -244,10 +268,14 @@ export class SidecarManager implements CommandPort {
       this.responseWaiters.get(name)!.set(id, { resolve, reject });
     });
 
-    const timeoutPromise = new Promise<never>((_, reject) => {
+    const timeoutPromise = new Promise<CommandResult>((resolve) => {
       setTimeout(() => {
         if (this.responseWaiters.has(name)) this.responseWaiters.get(name)!.delete(id);
-        reject(new Error(`Command ${commandObj.type} to ${name} timed out after 60s`));
+        resolve({ 
+          success: false, 
+          stdout: "", 
+          stderr: `Command ${commandObj.type} to ${name} timed out after 60s` 
+        });
       }, 60000);
     });
 
@@ -285,6 +313,11 @@ export class SidecarManager implements CommandPort {
       }
       this.persistentProcesses.delete(name);
     }
+  }
+
+  getPID(name: string): number | null {
+    const process = this.persistentProcesses.get(name);
+    return process ? process.pid : null;
   }
 
   private handleSidecarExit(name: string, exitCode: number) {

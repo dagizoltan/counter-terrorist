@@ -28,16 +28,19 @@ class WebhookManager extends HTMLElement {
         const data = await res.json();
         if (data.error) {
           status.textContent = `ERROR: ${data.error}`;
-          status.className = 'text-[9px] font-bold uppercase text-red-500 text-center';
+          status.style.color = 'var(--danger)';
+          status.className = 'text-[9px] font-black uppercase text-center';
         } else {
           status.textContent = 'WEBHOOK REGISTERED';
-          status.className = 'text-[9px] font-bold uppercase text-green-500 text-center';
+          status.style.color = 'var(--success)';
+          status.className = 'text-[9px] font-black uppercase text-center';
           form.reset();
           this.loadWebhooks();
         }
       } catch (e) {
         status.textContent = `FAILED: ${e.message}`;
-        status.className = 'text-[9px] font-bold uppercase text-red-500 text-center';
+        status.style.color = 'var(--danger)';
+        status.className = 'text-[9px] font-black uppercase text-center';
       }
     });
   }
@@ -68,30 +71,32 @@ class WebhookManager extends HTMLElement {
 
       if (!webhooks || webhooks.length === 0) {
         container.innerHTML = `
-          <div class="text-center py-12">
-            <p class="text-slate-600 text-[10px] font-bold uppercase tracking-widest mb-2">No webhooks configured</p>
-            <p class="text-slate-700 text-[9px]">Add a Slack, Discord, or generic webhook to receive security alerts.</p>
+          <div class="text-center py-12 border-2 border-dashed border-white/5">
+            <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">No_Webhooks_Configured</p>
+            <p class="text-slate-700 text-[9px] mono uppercase">Active alerts require Slack, Discord, or generic endpoints.</p>
           </div>`;
         return;
       }
 
       container.innerHTML = webhooks.map(wh => `
-        <div class="bg-black/40 border border-white/5 p-6 flex justify-between items-center group hover:border-white/10 transition-all">
+        <div class="t-panel flex justify-between items-center group">
           <div class="flex-1">
-            <div class="flex items-center gap-3 mb-2">
-              <span class="text-[10px] font-black uppercase tracking-widest text-white">${this.esc(wh.name)}</span>
-              <span class="px-2 py-0.5 text-[8px] font-black uppercase ${wh.type === 'slack' ? 'bg-purple-600/20 text-purple-400' : wh.type === 'discord' ? 'bg-blue-600/20 text-blue-400' : 'bg-slate-600/20 text-slate-400'}">${wh.type}</span>
-              <span class="px-2 py-0.5 text-[8px] font-black uppercase ${wh.enabled ? 'bg-green-600/20 text-green-400' : 'bg-red-600/20 text-red-400'}">${wh.enabled ? 'ACTIVE' : 'DISABLED'}</span>
+            <div class="flex items-center gap-4 mb-4">
+              <span class="mono text-[10px] font-black uppercase tracking-widest text-white">${this.esc(wh.name)}</span>
+              <span class="px-2 py-1 text-[8px] font-black uppercase mono tracking-widest" style="background:var(--primary-glow); color:var(--primary);">${wh.type}</span>
+              <span class="px-2 py-1 text-[8px] font-black uppercase mono tracking-widest" style="background:${wh.enabled ? 'var(--success-glow)' : 'var(--danger-glow)'}; color:${wh.enabled ? 'var(--success)' : 'var(--danger)'};">
+                ${wh.enabled ? 'ACTIVE' : 'DISABLED'}
+              </span>
             </div>
-            <p class="text-[9px] text-slate-600 font-mono truncate max-w-lg">${this.esc(wh.url)}</p>
+            <p class="text-[9px] text-slate-500 font-mono truncate max-w-lg italic opacity-60">${this.esc(wh.url)}</p>
           </div>
-          <button onclick="const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/notifications/${wh.id}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="text-[9px] font-black uppercase text-red-500/50 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all px-4 py-2 border border-transparent hover:border-red-500/20">
+          <button onclick="const csrf=document.querySelector('meta[name=\'csrf-token\']')?.content;fetch('/api/notifications/${wh.id}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="t-btn danger" style="padding: 0.5rem 1rem; font-size: 8px;">
             Remove
           </button>
         </div>
       `).join('');
     } catch (e) {
-      container.innerHTML = `<p class="text-red-500 text-[9px] font-bold uppercase text-center">Failed to load: ${e.message}</p>`;
+      container.innerHTML = `<p class="mono text-[9px] font-black uppercase text-center" style="color:var(--danger);">Sync_Failed: ${e.message}</p>`;
     }
   }
 

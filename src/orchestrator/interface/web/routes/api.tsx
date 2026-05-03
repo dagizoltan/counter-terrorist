@@ -19,7 +19,17 @@ import { createComplianceApi } from "../api/compliance.ts";
 export function createApiRouter(services: ServiceContainer, security: SecurityMiddleware) {
   const router = new Hono();
 
-  // 1. Mesh Operations (Restricted Auth)
+  // 1. Environmental Infrastructure (Discovery & Logs) - HIGH PRIORITY MATCHING
+  router.get("/infrastructure/network/discovery", (c: Context) => {
+    return c.json(services.networkDiscovery.getDevices());
+  });
+
+  router.get("/network/logs", async (c: Context) => {
+    const logs = await services.networkLogs.getLogs(50);
+    return c.json(logs);
+  });
+
+  // 2. Mesh Operations (Restricted Auth)
   router.use("/mesh/*", security.meshAuth(services.config.getMeshSecret()));
   router.get("/mesh/nodes", (c: Context) => {
     const meshNodes = services.mesh.getNodes();
@@ -109,12 +119,6 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json({ name: info.name, version: info.version, tag: info.tag });
   });
 
-  // Layer-Specific Controls
-  router.get("/network/logs", async (c: Context) => {
-    const logs = await services.networkLogs.getLogs(50);
-    return c.json(logs);
-  });
-
   router.post("/network/rotate", async (c: Context) => {
     await services.anonymization.rotate();
     return c.json({ success: true, message: "Identity rotation initiated" });
@@ -140,6 +144,11 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     const { getMetricsSnapshot } = await import("../../../domain/analysis/metrics_service.ts");
     const snapshot = getMetricsSnapshot();
     return c.json(snapshot || {});
+  });
+
+  router.get("/system/logs", async (c: Context) => {
+    const logs = await services.audit.getRecentEvents(100);
+    return c.json(logs);
   });
 
   router.get("/status", async (c: Context) => {
@@ -193,6 +202,28 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
       await services.processTracker.fullScan();
     }
     return c.json(services.processTracker.getTree());
+  });
+
+  // 4. Forensics & Active Defense
+  router.get("/forensics/export", async (c: Context) => {
+    const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 1000;
+    const bundle = await services.forensicService.generateEvidenceBundle(limit);
+    return c.json(bundle);
+  });
+
+  router.post("/defense/isolate", async (c: Context) => {
+    const { source, reason } = await c.req.json();
+    if (!source) return c.json({ error: "Source required" }, 400);
+    const result = await services.forensicService.isolateSource(source, reason || "MANUAL_OPERATOR_INTERVENTION");
+    return c.json(result);
+  });
+
+  router.post("/defense/purge", async (c: Context) => {
+    const { pid } = await c.req.json();
+    if (!pid) return c.json({ error: "PID required" }, 400);
+    // Use the process tracker or sidecar manager to kill
+    await services.command.stop(pid.toString()); // Simple kill if pid matches a service, or use executor
+    return c.json({ success: true, message: `Purge initiated for PID ${pid}` });
   });
 
   return router;

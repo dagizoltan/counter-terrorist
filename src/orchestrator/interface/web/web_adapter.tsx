@@ -3,7 +3,7 @@ import { Hono, Context } from "hono";
 import { serveStatic, upgradeWebSocket } from "hono/deno";
 import { WebPort, ApplicationStatus } from "@core/ports.ts";
 import { AppError } from "@core/errors.ts";
-import { createLoginRouter, createLogoutRouter } from "./features/login/handler.tsx";
+import { createLoginRouter, createLogoutRouter } from "./features/auth/login/handler.tsx";
 import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
 import { wsHandler } from "@api/ws.ts";
 import { ServiceContainer } from "@core/container.ts";
@@ -106,7 +106,7 @@ export class WebAdapter implements WebPort {
     this.app.use("/vendor/*", serveStatic({ root: webRoot }));
     this.app.use("/assets/*", serveStatic({ root: webRoot }));
     
-    const honeyRoutes = ["/admin", "/.git/config", "/wp-config.php", "/.env", "/config.json"];
+    const honeyRoutes = this.services.honeypot.getDecoyRoutes();
     honeyRoutes.forEach(route => {
       this.app.get(route, async (c) => {
         const ip = c.req.header("X-Forwarded-For") || c.req.header("Remote-Addr") || "unknown";
@@ -124,13 +124,46 @@ export class WebAdapter implements WebPort {
     }));
     this.app.route("/logout", createLogoutRouter({ sessionService: this.services.sessions }));
 
+    // Security: Handle trailing slash for auth routes to prevent 404/401 loops
+    this.app.get("/login/", (c) => c.redirect("/login"));
+
     this.app.use("*", this.security.auth());
 
     const statusAggregator = () => this.getSystemStatus();
-    this.app.route("/", createUiRouter(this.services, this.security, statusAggregator));
     this.app.route("/api", createApiRouter(this.services, this.security));
+    this.app.route("/", createUiRouter(this.services, this.security, statusAggregator));
 
-    this.app.get("/api/ws/events", upgradeWebSocket(() => wsHandler));
+    this.app.get("/api/ws/events", upgradeWebSocket(async (c) => {
+      let role: string | null = null;
+      
+      // 1. Try Bearer Token or Query Parameter
+      const token = c.req.query("token") || c.req.header("Authorization")?.replace("Bearer ", "");
+      if (token) {
+        role = await this.isTokenValid(token);
+      }
+      
+      // 2. Try Session Cookie (Fallback)
+      if (!role) {
+        const sessionId = getCookie(c, "session_token");
+        if (sessionId) {
+          const result = await this.services.sessions.validateSession(sessionId);
+          if (result.success && result.data) {
+            role = result.data.role || "viewer";
+          }
+        }
+      }
+      
+      if (!role) {
+        loggingService.log(`[WS:AUTH] Unauthorized WebSocket connection attempt from ${c.req.header("X-Forwarded-For") || "unknown"}`, SyslogSeverity.WARNING);
+        return {
+          onOpen: (_event, ws) => {
+            ws.close(1008, "Unauthorized");
+          }
+        };
+      }
+      
+      return wsHandler;
+    }));
   }
 
   private async getSystemStatus(): Promise<ApplicationStatus> {

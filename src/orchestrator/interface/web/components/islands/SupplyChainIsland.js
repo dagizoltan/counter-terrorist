@@ -1,6 +1,7 @@
-import { useEffect, useState } from "preact/hooks";
+import { h, render } from '/vendor/preact.js';
+import { useEffect, useState } from '/vendor/preact-hooks.js';
 
-export default function SupplyChainIsland() {
+function SupplyChainIsland() {
   const [sbom, setSbom] = useState([]);
   const [status, setStatus] = useState(null);
 
@@ -9,36 +10,42 @@ export default function SupplyChainIsland() {
     fetch("/api/supply-chain/status").then(r => r.json()).then(setStatus);
   }, []);
 
-  if (!status) return <div class="text-slate-500 animate-pulse">Scanning Supply Chain...</div>;
+  if (!status) return (
+    <div class="flex items-center justify-center p-12 text-slate-500 animate-pulse mono font-black uppercase tracking-widest text-xs">
+       Scanning_Supply_Chain...
+    </div>
+  );
 
   return (
-    <div class="bg-white/5 border border-white/10 rounded-2xl p-8">
-      <div class="flex justify-between items-center mb-8">
+    <div class="p-8">
+      <div class="flex justify-between items-center mb-12">
          <div>
-            <div class="text-[10px] font-black uppercase tracking-[0.4em] text-blue-500 mb-1">Integrity Assurance</div>
-            <h3 class="text-2xl font-black italic text-white tracking-tighter uppercase">Supply_Chain_Health</h3>
+            <div class="metric-tag mb-2">Integrity_Assurance</div>
+            <h3 class="tactical-title" style="font-size:1.5rem;">SUPPLY_CHAIN_HEALTH</h3>
          </div>
          <div class="text-right">
-            <div class="text-4xl font-black text-white">{status.score}%</div>
-            <div class="text-[9px] font-bold text-green-500 uppercase tracking-widest">Health_Score</div>
+            <div class="text-5xl font-black text-white tabular-nums">{status.score}%</div>
+            <div class="metric-tag mt-2" style="color:var(--success);">Health_Score</div>
          </div>
       </div>
 
-      <div class="space-y-4">
-         <div class="grid grid-cols-4 gap-4 pb-2 border-b border-white/5 text-[9px] font-black text-slate-500 uppercase tracking-widest">
-            <span>Component</span>
-            <span>Version</span>
-            <span>License</span>
-            <span class="text-right">Status</span>
+      <div class="space-y-6">
+         <div class="grid grid-cols-4 gap-6 pb-4 border-b border-white/5">
+            <span class="metric-tag">Component</span>
+            <span class="metric-tag">Version</span>
+            <span class="metric-tag">License</span>
+            <span class="metric-tag text-right">Status</span>
          </div>
-         <div class="max-h-[200px] overflow-y-auto space-y-2 pr-2">
+         <div class="max-h-[300px] overflow-y-auto space-y-3 pr-4 custom-scrollbar">
             {sbom.map(item => (
-              <div class="grid grid-cols-4 gap-4 text-[10px] font-mono py-2 border-b border-white/[0.02]">
-                 <span class="text-white font-bold">{item.name}</span>
-                 <span class="text-slate-500">{item.version}</span>
-                 <span class="text-slate-500">{item.license}</span>
-                 <span class={`text-right font-bold ${item.status === 'SECURE' ? 'text-green-500' : 'text-red-500'}`}>
-                    {item.status}
+              <div key={item.name} class="grid grid-cols-4 gap-6 py-4 border-b border-white/[0.03] group hover:bg-white/[0.02] transition-colors">
+                 <span class="mono text-[11px] text-white font-black uppercase">{item.name}</span>
+                 <span class="mono text-[11px] text-slate-500">{item.version}</span>
+                 <span class="mono text-[11px] text-slate-500">{item.license}</span>
+                 <span class="text-right">
+                    <span class={`mono text-[10px] font-black tracking-widest uppercase ${item.status === 'SECURE' ? 'text-success' : 'text-danger'}`}>
+                       {item.status}
+                    </span>
                  </span>
               </div>
             ))}
@@ -46,13 +53,18 @@ export default function SupplyChainIsland() {
       </div>
 
       {status.vulnerableCount > 0 && (
-        <div class="mt-8 p-4 bg-red-500/10 border border-red-500/20 rounded flex items-center gap-4">
-           <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-           <p class="text-[10px] font-bold text-red-400 uppercase tracking-widest">
-              VULNERABILITY DETECTED: {status.vulnerableCount} compromised components found in current manifest.
+        <div class="mt-12 p-6 bg-danger/5 border border-danger/20 flex items-center gap-6">
+           <div class="dot danger pulse"></div>
+           <p class="mono text-[10px] font-black text-danger uppercase tracking-widest leading-relaxed">
+              VULNERABILITY DETECTED: {status.vulnerableCount} compromised components identified in manifest.
            </p>
         </div>
       )}
     </div>
   );
+}
+
+const container = document.getElementById('supply-chain-container');
+if (container) {
+  render(h(SupplyChainIsland), container);
 }
