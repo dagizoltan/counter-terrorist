@@ -49,13 +49,13 @@ class NetworkMap extends HTMLElement {
                  <h3 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">01_AUTHORITATIVE_MESH_CORE</h3>
               </div>
               <div id="scan-indicator" class="flex items-center gap-4 bg-primary/5 px-6 py-2 rounded-full border border-primary/20">
-                 <span class="dot active'}></span>
+                 <span class="dot active"></span>
                  <span class="mono-xs font-black text-primary uppercase tracking-[0.2em] ">Scanning_Segment...</span>
               </div>
            </div>
            <div id="core-nodes" class="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div class="col-span-2 t-panel glass-panel text-center p-32 border-dashed opacity-20">
-                 <span class="mono-xs font-black uppercase tracking-[0.4em]  text-primary'}>Initializing_Discovery_Chain...</span>
+                 <span class="mono-xs font-black uppercase tracking-[0.4em]  text-primary">Initializing_Discovery_Chain...</span>
               </div>
            </div>
         </div>
@@ -106,7 +106,7 @@ class NetworkMap extends HTMLElement {
     if (scanInd) {
        scanInd.style.opacity = this.isScanning ? '1' : '0.6';
        scanInd.querySelector('span').textContent = this.isScanning ? 'Scanning_Segment...' : 'Grid_Telemetry_Synced';
-       scanInd.querySelector('span').classList.toggle('', this.isScanning);
+       scanInd.querySelector('span').classList.toggle(', this.isScanning);
     }
 
     const mesh = this.devices.filter(d => d.type === 'MESH');
@@ -115,18 +115,18 @@ class NetworkMap extends HTMLElement {
     const bts = this.devices.filter(d => d.type === 'BLUETOOTH');
 
     if (mesh.length > 0) {
-      core.innerHTML = mesh.map(d => this.renderNode(d, 'primary')).join('');
+      core.innerHTML = mesh.map(d => this.renderNode(d, 'primary')).join(');
     } else if (!this.isScanning) {
       core.innerHTML = '<div class="col-span-2 p-16 text-center t-panel glass-panel border-dashed opacity-20 mono-xs text-slate-500 uppercase italic tracking-[0.4em]">No_Mesh_Peers_Discovered</div>';
     }
     
-    wifi.innerHTML = wifis.length ? wifis.map(d => this.renderSignal(d, d.state === 'OPEN' ? 'danger' : 'primary')).join('') 
+    wifi.innerHTML = wifis.length ? wifis.map(d => this.renderSignal(d, d.state === 'OPEN' ? 'danger' : 'primary')).join(') 
                      : '<div class="empty-state">No_Active_Signals</div>';
     
-    eth.innerHTML = eths.length ? eths.map(d => this.renderSignal(d, 'primary')).join('')
+    eth.innerHTML = eths.length ? eths.map(d => this.renderSignal(d, 'primary')).join(')
                      : '<div class="empty-state">Bus_Clear</div>';
     
-    bt.innerHTML = bts.length ? bts.map(d => this.renderSignal(d, 'primary')).join('')
+    bt.innerHTML = bts.length ? bts.map(d => this.renderSignal(d, 'primary')).join(')
                      : '<div class="empty-state">No_Devices</div>';
   }
 
@@ -136,20 +136,20 @@ class NetworkMap extends HTMLElement {
       <div class="t-panel glass-panel border-l-4 group hover:bg-white/[0.02] hover:translate-x-1 p-8" style="border-left-color: ${color}">
         <div class="flex justify-between items-start mb-8">
           <div class="flex items-center gap-5">
-            <span class="dot active'} style="background: ${color}"></span>
+            <span class="dot active" style="background: ${color}"></span>
             <div class="flex flex-col gap-1">
                <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Sovereign_Peer</span>
                <span class="mono-md font-black text-white uppercase tracking-tighter italic select-all">${d.hostname || d.ip || 'UNKNOWN'}</span>
             </div>
           </div>
-          <div class="status-pill active' primary'}>${d.mac || '??:??:??:??'}</div>
+          <div class="status-pill active primary">${d.mac || '??:??:??:??'}</div>
         </div>
         <div class="flex justify-between items-center pt-6 border-t border-white/5">
           <div class="flex items-center gap-2">
              <span class="mono-xs text-slate-700 font-black uppercase">Vendor:</span>
              <span class="mono-xs text-slate-400 font-black uppercase tracking-widest">${d.vendor || 'UNIDENTIFIED'}</span>
           </div>
-          <div class="status-pill active' py-1 px-4" style="background: var(--${theme}-glow); color: ${color}; border-color: var(--${theme}-glow); font-size: 9px;">${d.state || 'REACHABLE'}</div>
+          <div class="status-pill active py-1 px-4" style="background: var(--${theme}-glow); color: ${color}; border-color: var(--${theme}-glow); font-size: 9px;">${d.state || 'REACHABLE'}</div>
         </div>
       </div>
     `;
@@ -165,7 +165,7 @@ class NetworkMap extends HTMLElement {
         <div class="flex justify-between items-center">
           <div class="flex flex-col gap-1">
              <span class="mono-xs text-slate-700 font-black uppercase tracking-tight" style="font-size: 8px;">Network_Identifier</span>
-             <span class="mono-xs font-black uppercase truncate max-w-[160px] ${isDanger ? 'text-danger : 'text-slate-400 tracking-widest">
+             <span class="mono-xs font-black uppercase truncate max-w-[160px] ${isDanger ? 'text-danger' : 'text-slate-400' tracking-widest">
                ${d.ssid || d.hostname || d.ip || d.mac || 'HIDDEN_VECTOR'}
              </span>
           </div>
@@ -173,16 +173,16 @@ class NetworkMap extends HTMLElement {
             <div class="flex gap-1 items-end h-4">
               ${[1,2,3,4].map(i => `
                 <div class="w-1 rounded-full" style="height: ${i * 25}%; background: ${signal >= i * 25 ? color : 'var(--border-subtle)'}; opacity: ${signal >= i * 25 ? 1 : 0.1}; box-shadow: ${signal >= i * 25 ? `0 0 8px ${color}66` : 'none'}"></div>
-              `).join('')}
+              `).join(')}
             </div>
-            <div class="dot ${d.state === 'OPEN' ? 'danger' : ''}" style="width:5px; height:5px; background: ${d.state === 'OPEN' ? 'var(--danger)' : 'transparent'}"></div>
+            <div class="dot ${d.state === 'OPEN' ? 'danger' : '}" style="width:5px; height:5px; background: ${d.state === 'OPEN' ? 'var(--danger)' : 'transparent'}"></div>
           </div>
         </div>
         <div class="flex justify-between items-center pt-3 border-t border-white/5">
-           <div class="status-pill ${isDanger ? 'danger' : 'active} opacity-50">
+           <div class="status-pill ${isDanger ? 'danger' : 'active'} opacity-50">
              ${d.encryption || d.state || 'SECURE'}
            </div>
-           <span class="mono-xs text-slate-600 font-bold uppercase select-all">H_IDX: ${(d.mac || '').slice(-8)}</span>
+           <span class="mono-xs text-slate-600 font-bold uppercase select-all">H_IDX: ${(d.mac || ').slice(-8)}</span>
         </div>
       </div>
     `;

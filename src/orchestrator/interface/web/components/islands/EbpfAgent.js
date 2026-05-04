@@ -55,9 +55,9 @@ class EbpfAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
 
     ws.onmessage = (event) => {
       try {
@@ -92,7 +92,7 @@ class EbpfAgent extends HTMLElement {
       if (ebpf?.active) {
         if (statusLabel) statusLabel.textContent = 'Kernel_Guardian_Active';
         if (statusDot) {
-          statusDot.className = 'dot active';
+          statusDot.className = 'dot' active;
           statusDot.style.background = 'var(--success)';
         }
       } else {
@@ -123,8 +123,8 @@ class EbpfAgent extends HTMLElement {
     const driftEl = document.getElementById('ebpf-stat-drifts');
     if (interceptedEl) {
         interceptedEl.textContent = this.stats.intercepted.toString().padStart(4, '0');
-        interceptedEl.classList.add('');
-        setTimeout(() => interceptedEl.classList.remove(''), 500);
+        interceptedEl.classList.add(');
+        setTimeout(() => interceptedEl.classList.remove('), 500);
     }
     if (driftEl) {
         driftEl.textContent = this.stats.drifts.toString().padStart(2, '0');
@@ -178,7 +178,7 @@ class EbpfAgent extends HTMLElement {
     container.innerHTML = this.logs.map(log => {
       const isCritical = log.type === 'DRIFT_PROCESS' || log.message?.toLowerCase().includes('unauthorized');
       const pid = log.data?.pid || log.data?.target_pid;
-      const typeLabel = log.type.replace('EBPF_', '');
+      const typeLabel = log.type.replace('EBPF_', ');
 
       return `
         <div class="p-8 border-b border-white/[0.03] hover:bg-white/[0.02]  group relative" 
@@ -199,13 +199,13 @@ class EbpfAgent extends HTMLElement {
           </div>
           ${isCritical ? `
             <div class="mt-6 flex gap-4 relative z-10">
-               <div class="status-pill danger'}>POLICY_VIOLATION</div>
+               <div class="status-pill danger">POLICY_VIOLATION</div>
                <button data-purge-pid="${pid}" class="t-btn danger px-4 py-2">PURGE_PROCESS</button>
             </div>
-          ` : ''}
+          ` : '}
         </div>
       `;
-    }).join('');
+    }).join(');
   }
 
   render() {

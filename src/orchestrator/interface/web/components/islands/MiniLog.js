@@ -1,97 +1,99 @@
-/**
- * Custom Element: MiniLog
- * Lightweight real-time event stream for the forensic sidebar.
- * Synchronized with the Industrial Tactical Design System.
- */
 class MiniLog extends HTMLElement {
   constructor() {
     super();
     this.logs = [];
   }
 
-  async connectedCallback() {
-    await this.fetchHistory();
-    this.connect();
+  connectedCallback() {
+    console.log("[MINI-LOG] Connected to DOM");
     this.render();
+    this.fetchInitial();
+    this.connect();
   }
 
-  async fetchHistory() {
+  async fetchInitial() {
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
       const res = await fetch('/api/system/logs?limit=50', {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
-        this.logs = data; 
+        this.logs = await res.json();
         this.render();
       }
     } catch (e) {
-      console.error("[MINILOG] Failed to fetch history:", e);
+      console.warn('[MINI-LOG] Initial fetch failed');
     }
   }
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const url = new URL(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+
+    const socket = new WebSocket(url.toString());
     socket.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data);
-        this.logs.unshift(data);
-        if (this.logs.length > 100) this.logs.pop();
-        this.render();
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'BLOCK' || payload.type === 'ALERT' || payload.type === 'AUDIT_EVENT') {
+          this.logs.unshift(payload.data || payload);
+          if (this.logs.length > 100) this.logs.pop();
+          this.render();
+        }
       } catch (e) {}
     };
-    socket.onclose = () => setTimeout(() => this.connect(), 5000);
+  }
+
+  getSeverityClass(severity) {
+    if (!severity) return 'text-slate-500';
+    switch (severity.toUpperCase()) {
+      case 'CRITICAL':
+      case 'HIGH':
+      case 'EMERGENCY':
+      case 'ERROR':
+        return 'text-danger';
+      case 'WARNING':
+      case 'MEDIUM':
+        return 'text-warning';
+      case 'SUCCESS':
+      case 'LOW':
+        return 'text-success';
+      default:
+        return 'text-primary';
+    }
   }
 
   render() {
-    const escape = window.escapeHTML || ((s) => s);
+    if (this.logs.length === 0) {
+      this.innerHTML = `
+        <div class="space-y-3 opacity-40">
+          <div class="skeleton h-8 w-full"></div>
+          <div class="skeleton h-8 w-full opacity-60"></div>
+          <div class="skeleton h-8 w-full opacity-30"></div>
+        </div>
+      `;
+      return;
+    }
+
     this.innerHTML = `
-      <div class="flex flex-col gap-4">
-        ${this.logs.length === 0 ? `
-          <div class="flex flex-col gap-4">
-             <div class="skeleton h-16 w-full"></div>
-             <div class="skeleton h-16 w-full opacity-60"></div>
-             <div class="skeleton h-16 w-full opacity-30"></div>
-          </div>
-        ` : this.logs.map((log, idx) => {
-          const color = this.getColor(log.type);
-          const isCritical = ['BLOCK', 'THREAT', 'CRITICAL', 'EMERGENCY', 'DRIFT_PROCESS'].includes(log.type);
-          return `
-            <div class="p-6 border-l-4 border-slate-800 hover:border-primary bg-black/20 hover:bg-black/40  relative overflow-hidden" 
-                 style="border-left-color: ${isCritical ? 'var(--danger)' : 'var(--border-subtle)'};">
-              ${isCritical ? `<div class="absolute inset-0 bg-danger/5  pointer-events-none"></div>` : ''}
-              <div class="flex justify-between items-center mb-4 relative z-10">
-                <span class="status-pill ${isCritical ? 'danger' : 'primary'} border-none p-0 bg-transparent">
-                  ${log.type}
-                </span>
-                <span class="mono-xs text-slate-600 font-bold tracking-widest">
-                  ${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-                </span>
-              </div>
-              <div class="mono-xs font-bold text-slate-400 leading-relaxed uppercase tracking-tight relative z-10">
-                ${escape(log.message)}
-              </div>
-              ${log.data?.source ? `
-                <div class="mt-4 flex items-center gap-3 opacity-40">
-                  <span class="mono-xs text-slate-500 font-bold">SOURCE:</span>
-                  <span class="mono-xs text-primary font-bold">${log.data.source}</span>
-                </div>
-              ` : ''}
+      <div class="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
+        ${this.logs.map(log => `
+          <div class="flex flex-col gap-1 p-3 bg-white/[0.02] border border-white/5 rounded hover:bg-white/[0.04]">
+            <div class="flex justify-between items-center">
+              <span class="mono-xs font-black uppercase tracking-widest ${this.getSeverityClass(log.severity || log.type)}">
+                ${log.type || 'LOG_EVENT'}
+              </span>
+              <span class="text-[8px] text-slate-600 mono">
+                ${new Date(log.timestamp).toLocaleTimeString()}
+              </span>
             </div>
-          `;
-        }).join('')}
+            <div class="mono-xs text-slate-400 leading-tight">
+              ${log.message || log.description || 'System interaction logged.'}
+            </div>
+          </div>
+        `).join('')}
       </div>
     `;
-  }
-
-  getColor(type) {
-    if (['BLOCK', 'THREAT', 'CRITICAL', 'EMERGENCY', 'DRIFT_PROCESS'].includes(type)) return 'var(--danger)';
-    if (['WARN', 'WARNING'].includes(type)) return 'var(--warning)';
-    if (['SUCCESS', 'VERIFIED'].includes(type)) return 'var(--success)';
-    return 'var(--primary)';
   }
 }
 

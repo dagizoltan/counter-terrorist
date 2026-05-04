@@ -43,7 +43,7 @@ class MeshHeatmap extends HTMLElement {
   }
 
   initWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
     this.ws = new WebSocket(`${protocol}//${location.host}/api/ws/events`);
     this.ws.onmessage = (msg) => {
       try {
@@ -65,7 +65,7 @@ class MeshHeatmap extends HTMLElement {
         <canvas id="heatmap-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
         <div class="absolute top-8 left-8">
            <div class="flex items-center gap-3 mb-4">
-              <div class="dot active'} style="background:var(--danger); width: 8px; height: 8px;"></div>
+              <div class="dot active" style="background:var(--danger); width: 8px; height: 8px;"></div>
               <span class="mono text-[11px] font-black uppercase tracking-[0.5em] text-danger/80">Live_Gossip_Traffic</span>
            </div>
            <h2 class="mono text-3xl font-black italic text-white/90 tracking-tighter uppercase">Mesh_Heatmap_3D</h2>

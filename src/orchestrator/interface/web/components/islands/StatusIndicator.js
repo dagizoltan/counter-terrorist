@@ -17,7 +17,7 @@ class StatusIndicator extends HTMLElement {
   }
 
   async updateStatus() {
-    const name = this.getAttribute('name') || 'Unknown Agent';
+    const name = this.getAttribute('name') || 'Unknown' Agent';
     
     try {
       let isOnline = false;

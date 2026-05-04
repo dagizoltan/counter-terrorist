@@ -5,9 +5,9 @@ class FirewallAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
 
     ws.onmessage = (event) => {
       try {
@@ -34,7 +34,7 @@ class FirewallAgent extends HTMLElement {
       const agentData = await agentRes.json();
       const pid = agentData.firewall?.pid;
 
-      const lines = (data.stdout || '').split('\n').filter(l => l.trim());
+      const lines = (data.stdout || ').split('\n').filter(l => l.trim());
       const blockedIps = [];
       for (const line of lines) {
         const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
@@ -83,16 +83,16 @@ class FirewallAgent extends HTMLElement {
                  <span class="mono-sm font-black text-danger uppercase tracking-widest">${ip}</span>
               </div>
               <div class="flex items-center gap-6">
-                <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || ''}'}, body:JSON.stringify({ip:'${ip}'})}).then(() => location.reload())" 
+                <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || '}'}, body:JSON.stringify({ip:'${ip}'})}).then(() => location.reload())" 
                         class="opacity-0 mono-xs font-black uppercase text-slate-500 hover:text-white underline decoration-white/20 tracking-widest">Release_IP</button>
                 <div class="flex items-center gap-3">
-                   <div class="dot danger'}></div>
+                   <div class="dot danger"></div>
                    <span class="mono-xs font-black uppercase text-danger tracking-widest">Quarantined</span>
                 </div>
               </div>
             </div>
           `;
-        }).join('');
+        }).join(');
       }
     }
   }
@@ -119,12 +119,12 @@ class FirewallAgent extends HTMLElement {
              <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${l.destination}</span>
           </div>
           <div class="flex items-center gap-3 w-24 justify-end">
-             <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success'}">${l.action}</span>
-             <div class="dot ${isBlocked ? 'danger' : 'active}"></div>
+             <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success"">${l.action}</span>
+             <div class="dot ${isBlocked ? 'danger' : 'active'}"></div>
           </div>
         </div>
       `;
-    }).join('');
+    }).join(');
   }
 }
 customElements.define('firewall-agent', FirewallAgent);

@@ -9,7 +9,7 @@ class AnonymizerController extends HTMLElement {
   }
 
   connect() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
     const ws = new WebSocket(url.toString());
 
@@ -35,7 +35,7 @@ class AnonymizerController extends HTMLElement {
                 <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">${mode}</div>
                 <div class="w-1.5 h-1.5 rounded-full bg-slate-700 indicator"></div>
              </button>
-           `).join('')}
+           `).join(')}
         </div>
       </div>
     `;

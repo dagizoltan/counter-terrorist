@@ -96,7 +96,7 @@ class NewsFeed extends HTMLElement {
       return;
     }
 
-    const gridClass = isDetailed ? 'grid grid-cols-1 gap-10' : 'space-y-8';
+    const gridClass = isDetailed ? 'grid' grid-cols-1 gap-10 : 'space-y-8';
 
     this.innerHTML = `
       <div class="${gridClass}">
@@ -132,7 +132,7 @@ class NewsFeed extends HTMLElement {
                 </div>
             </div>
           </a>
-        `).join('')}
+        `).join(')}
       </div>
 
       ${!isDetailed ? `
@@ -142,7 +142,7 @@ class NewsFeed extends HTMLElement {
                 <svg class="transition-transform" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m15 18 6-6-6-6"/></svg>
             </a>
         </div>
-      ` : ''}
+      ` : '}
     `;
   }
 }

@@ -512,6 +512,12 @@ h1, h2, h3, h4, .tactical-title {
 .text-slate-500 { color: hsla(215, 25%, 75%, 0.9); }
 .text-slate-600 { color: var(--text-secondary); }
 .text-slate-700 { color: var(--text-muted); }
+
+.bg-primary { background-color: var(--primary); }
+.bg-success { background-color: var(--success); }
+.bg-danger { background-color: var(--danger); }
+.bg-warning { background-color: var(--warning); }
+
 .flex-col { flex-direction: column; flex-shrink: 0; }
 .flex-grow { flex-grow: 1; }
 .flex-shrink-0 { flex-shrink: 0; }
@@ -1069,4 +1075,11 @@ body.system-alert-active .shell-aside {
   flex-direction: column; flex-shrink: 0;
   height: auto;
   min-height: var(--header-height);
+}
+
+
+.sidebar-tab-content {
+  display: block;
+  width: 100%;
+  min-height: 200px;
 }

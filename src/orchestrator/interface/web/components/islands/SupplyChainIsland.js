@@ -43,7 +43,7 @@ function SupplyChainIsland() {
                  <span class="mono text-[11px] text-slate-500">{item.version}</span>
                  <span class="mono text-[11px] text-slate-500">{item.license}</span>
                  <span class="text-right">
-                    <span class={`mono text-[10px] font-black tracking-widest uppercase ${item.status === 'SECURE' ? 'text-success' : 'text-danger'}`}>
+                    <span class={`mono text-[10px] font-black tracking-widest uppercase ${item.status === 'SECURE' ? 'text-success' : 'text-danger"`}>
                        {item.status}
                     </span>
                  </span>
@@ -54,7 +54,7 @@ function SupplyChainIsland() {
 
       {status.vulnerableCount > 0 && (
         <div class="mt-12 p-6 bg-danger/5 border border-danger/20 flex items-center gap-6">
-           <div class="dot danger'}></div>
+           <div class="dot danger"></div>
            <p class="mono text-[10px] font-black text-danger uppercase tracking-widest leading-relaxed">
               VULNERABILITY DETECTED: {status.vulnerableCount} compromised components identified in manifest.
            </p>

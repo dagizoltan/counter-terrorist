@@ -5,7 +5,7 @@
 class AlertOverlay extends HTMLElement {
     constructor() {
         super();
-        this.active' = false;
+        this.active = false;
         this.type = 'NONE';
     }
 
@@ -15,9 +15,9 @@ class AlertOverlay extends HTMLElement {
     }
 
     connect() {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+        const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
         
         socket.onmessage = (event) => {
             try {
@@ -33,12 +33,12 @@ class AlertOverlay extends HTMLElement {
 
     trigger(type) {
         if (this.active) return;
-        this.active' = true;
+        this.active = true;
         this.type = type;
         this.render();
         
         // Add global class to body for CSS animations
-        document.body.classList.add('system-alert-active);
+        document.body.classList.add('system-alert-active');
         
         // Play alert sound if possible
         try {
@@ -50,7 +50,7 @@ class AlertOverlay extends HTMLElement {
 
     render() {
         if (!this.active) {
-            this.innerHTML = '';
+            this.innerHTML = ';
             return;
         }
 
@@ -88,8 +88,8 @@ class AlertOverlay extends HTMLElement {
     }
 
     dismiss() {
-        this.active' = false;
-        document.body.classList.remove('system-alert-active);
+        this.active = false;
+        document.body.classList.remove('system-alert-active');
         this.render();
     }
 }

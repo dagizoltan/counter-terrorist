@@ -18,7 +18,7 @@ export default function IntegrityIsland() {
   const runVerification = async () => {
     setVerifying(true);
     try {
-      const res = await fetch("/api/audit/verify", { method: "GET" });
+      const res = await fetch("/api/audit/verify", { method: "GET");
       const data = await res.json();
       setResult(data);
     } catch (e) {
@@ -52,7 +52,7 @@ export default function IntegrityIsland() {
           Audit Chain Verification
         </h3>
         <p class="text-sm text-slate-400 mb-6">
-          Perform a deep scan of the local audit ledger to ensure the SHA-256 hash chain is unbroken and hasn't been tampered with.
+          Perform a deep scan of the local audit ledger to ensure the SHA-256 hash chain is unbroken and hasn't' been tampered with.
         </p>
 
         <button 
@@ -64,7 +64,7 @@ export default function IntegrityIsland() {
         </button>
 
         ${result && html`
-          <div class=${`mt-6 p-4 rounded border ${result.valid ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
+          <div class=${`mt-6 p-4 rounded border ${result.valid ? 'bg-green-500/10 border-green-500/20 : 'bg-red-500/10 border-red-500/20}`}>
              <div class="flex items-center gap-3">
                <div class=${`w-2 h-2 rounded-full ${result.valid ? 'bg-green-500' : 'bg-red-500'} `} />
                <span class=${`font-bold text-sm uppercase tracking-widest ${result.valid ? 'text-green-400' : 'text-red-400'}`}>

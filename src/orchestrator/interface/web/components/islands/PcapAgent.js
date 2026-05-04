@@ -55,8 +55,8 @@ class PcapAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : ''}`);
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : '}`);
 
     ws.onmessage = (event) => {
       try {
@@ -81,19 +81,19 @@ class PcapAgent extends HTMLElement {
     this.isCapturing = true;
 
     const iface = document.getElementById('pcap-iface')?.value || 'any';
-    const filter = document.getElementById('pcap-filter')?.value || '';
+    const filter = document.getElementById('pcap-filter')?.value || ';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
     
     const btn = document.getElementById('btn-start-pcap');
     const originalText = btn?.innerHTML;
-    if (btn) btn.innerHTML = '<span class="">INITIATING_SEQUENCE...</span>';
+    if (btn) btn.innerHTML = '<span class=">INITIATING_SEQUENCE...</span>';
 
     try {
       const res = await fetch('/api/agents/pcap/command', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-CT-Token': csrf || ''
+          'X-CT-Token': csrf || '
         },
         body: JSON.stringify({
           type: 'StartCapture',
@@ -110,7 +110,7 @@ class PcapAgent extends HTMLElement {
         destination: 'PCAP_EXECUTOR',
         protocol: 'COMMAND',
         action: 'INIT',
-        message: data.message || 'Capture sequence initiated'
+        message: data.message || 'Capture' sequence initiated
       });
     } catch (e) {
        console.error('[PCAP_AGENT] Capture failed:', e);
@@ -149,7 +149,7 @@ class PcapAgent extends HTMLElement {
              <div class="mono-xs font-bold uppercase tracking-tight text-slate-400 truncate">
                \${window.escapeHTML(p.source || '...')} <span class="text-slate-800 px-2">→</span> \${window.escapeHTML(p.destination || '...')}
              </div>
-             \${p.message ? `<div class="mono-xs text-[9px] text-slate-600 mt-1 uppercase font-black tracking-widest ">\${window.escapeHTML(p.message)}</div>` : ''}
+             \${p.message ? `<div class="mono-xs text-[9px] text-slate-600 mt-1 uppercase font-black tracking-widest ">\${window.escapeHTML(p.message)}</div>` : '}
           </div>
 
           <div class="flex items-center gap-6">
@@ -160,7 +160,7 @@ class PcapAgent extends HTMLElement {
           </div>
         </div>
       `;
-    }).join('');
+    }).join(');
   }
 }
 

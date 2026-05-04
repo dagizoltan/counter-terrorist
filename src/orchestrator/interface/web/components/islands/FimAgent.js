@@ -24,8 +24,8 @@ class FimAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : ''}`);
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : '}`);
 
     ws.onmessage = (event) => {
       try {
@@ -68,7 +68,7 @@ class FimAgent extends HTMLElement {
              style="border-left: 4px solid \${color}">
           <div class="flex justify-between items-center mb-3">
              <div class="flex items-center gap-4">
-                <span class="mono-xs font-black uppercase tracking-widest \${isCritical ? 'text-danger' : 'text-warning'}>
+                <span class="mono-xs font-black uppercase tracking-widest \${isCritical ? 'text-danger' : 'text-warning">
                   \${alert.action || 'MODIFY'}
                 </span>
                 <span class="dot \${isCritical ? 'danger' : 'warning'} style="width: 4px; height: 4px;"></span>
@@ -87,7 +87,7 @@ class FimAgent extends HTMLElement {
           </div>
         </div>
       `;
-    }).join('');
+    }).join(');
   }
 }
 

@@ -1,7 +1,3 @@
-/**
- * Custom Element: SystemHealth
- * Real-time monitoring of background subsystem operational status.
- */
 class SystemHealth extends HTMLElement {
   constructor() {
     super();
@@ -9,6 +5,7 @@ class SystemHealth extends HTMLElement {
   }
 
   connectedCallback() {
+    console.log("[SYSTEM-HEALTH] Connected to DOM");
     this.render();
     this.setupListeners();
   }

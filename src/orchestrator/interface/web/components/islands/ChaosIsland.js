@@ -60,8 +60,8 @@ export default function ChaosIsland() {
            class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left group/btn"
          >
             <div class="flex justify-between items-center mb-4">
-               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger'}>SIM_01</span>
-               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger'}></div>
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_01</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger"></div>
             </div>
             <div class="mono-md font-black text-white uppercase tracking-tighter">SSH_Brute_Force</div>
             <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: SECURE_NODE_01</div>
@@ -73,8 +73,8 @@ export default function ChaosIsland() {
            class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left group/btn"
          >
             <div class="flex justify-between items-center mb-4">
-               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger'}>SIM_02</span>
-               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger'}></div>
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_02</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger"></div>
             </div>
             <div class="mono-md font-black text-white uppercase tracking-tighter">Canary_Exfiltration</div>
             <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: FS_VAULT_ROOT</div>
@@ -86,8 +86,8 @@ export default function ChaosIsland() {
            class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left group/btn"
          >
             <div class="flex justify-between items-center mb-4">
-               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger'}>SIM_03</span>
-               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger'}></div>
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_03</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger"></div>
             </div>
             <div class="mono-md font-black text-white uppercase tracking-tighter">Kernel_Malware</div>
             <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: EBPF_RUNTIME</div>
@@ -96,7 +96,7 @@ export default function ChaosIsland() {
 
       ${result && html`
         <div class="mt-10 p-6 bg-success/5 border border-success/20 rounded-lg flex items-center gap-4 ">
-           <div class="dot active'}></div>
+           <div class="dot active"></div>
            <div class="mono-xs font-black text-success uppercase tracking-widest italic">
               VECTOR_EXECUTED: ${result}
            </div>

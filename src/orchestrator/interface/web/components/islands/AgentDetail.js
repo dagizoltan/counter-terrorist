@@ -31,7 +31,7 @@ class AgentDetail extends HTMLElement {
 
       const healthEl = document.getElementById(`agent-health-${name}`);
       if (healthEl) {
-        const isActive = agentData.active' !== false;
+        const isActive = agentData.active !== false;
         healthEl.innerHTML = `<span class="status-pill ${isActive ? 'success' : 'danger'}">${isActive ? 'OPERATIONAL' : 'INACTIVE'}</span>`;
       }
 
@@ -39,8 +39,8 @@ class AgentDetail extends HTMLElement {
       const pidEl = document.getElementById(`agent-pid-${name}`);
       if (pidEl) {
         pidEl.textContent = agentData.pid ? `PID_${agentData.pid}` : 'N/A';
-        pidEl.classList.add('');
-        setTimeout(() => pidEl.classList.remove(''), 1000);
+        pidEl.classList.add(');
+        setTimeout(() => pidEl.classList.remove('), 1000);
       }
 
       // Update capabilities
@@ -48,8 +48,8 @@ class AgentDetail extends HTMLElement {
       if (capsEl) {
         const caps = agentData.capabilities || ['STANDARD'];
         capsEl.innerHTML = caps.map(c => 
-          `<span class="status-pill active' primary'}>${c}</span>`
-        ).join('');
+          `<span class="status-pill active primary">${c}</span>`
+        ).join(');
       }
 
       // Update privilege
@@ -104,7 +104,7 @@ class AgentDetail extends HTMLElement {
     
     const btn = document.getElementById(`btn-${action}-${this.agentName}`);
     const originalText = btn?.innerHTML;
-    if (btn) btn.innerHTML = '<span class="">PROCESSING...</span>';
+    if (btn) btn.innerHTML = '<span class=">PROCESSING...</span>';
 
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -134,7 +134,7 @@ class AgentDetail extends HTMLElement {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
-            'X-CT-Token': csrfToken || ''
+            'X-CT-Token': csrfToken || '
         },
         body: JSON.stringify(body)
       });
@@ -165,7 +165,7 @@ class AgentDetail extends HTMLElement {
                    </div>
                    <h3 class="tactical-title text-sm uppercase tracking-widest">BLOCKED_PERIMETER_IPS</h3>
                 </div>
-                <div class="status-pill active' primary'}>SHA-256_VERIFIED</div>
+                <div class="status-pill active primary">SHA-256_VERIFIED</div>
             </header>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 ${metrics.blockedIps?.map(ip => `
@@ -174,7 +174,7 @@ class AgentDetail extends HTMLElement {
                      <button onclick="const t=document.querySelector('meta[name=\\'csrf-token\\']')?.content; fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token': t}, body:JSON.stringify({ip: '${ip}'})}).then(() => location.reload())" 
                              class="opacity-0 mono-xs font-black uppercase text-slate-500 hover:text-white">PURGE</button>
                  </div>
-               `).join('') || `
+               `).join(') || `
                    <div class="empty-state">
                      <div class="mono-xs font-bold text-slate-500 uppercase tracking-widest">No_Definitive_Blocks_Active</div>
                   </div>
@@ -202,7 +202,7 @@ class AgentDetail extends HTMLElement {
           <div class="col-span-12 lg:col-span-6 t-panel glass-panel border-t-2 border-primary/40 p-10">
              <header class="flex justify-between items-center mb-10 pb-4 border-b border-white/5">
                  <span class="metric-tag uppercase font-bold tracking-widest">Tunnel_Configuration</span>
-                <span class="status-pill success'}>ENCRYPTED</span>
+                <span class="status-pill success">ENCRYPTED</span>
              </header>
              <div class="space-y-6">
                 <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px]">
@@ -272,7 +272,7 @@ class AgentDetail extends HTMLElement {
         return `
           <div class="flex items-center gap-8 p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group ">
             <span class="mono-xs text-slate-600 font-bold w-20">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
-            <span class="mono-xs font-bold w-16 ${l.direction === 'INBOUND' ? 'text-primary' : 'text-warning'}">${l.direction.slice(0, 3)}</span>
+            <span class="mono-xs font-bold w-16 ${l.direction === 'INBOUND' ? 'text-primary' : 'text-warning"">${l.direction.slice(0, 3)}</span>
             <span class="mono-xs flex-1 truncate text-slate-400 font-bold uppercase tracking-widest">
                ${window.escapeHTML(l.source)} <span class="text-slate-800 mx-2">→</span> ${window.escapeHTML(l.destination)}
             </span>
@@ -281,7 +281,7 @@ class AgentDetail extends HTMLElement {
             </div>
           </div>
         `;
-      }).join('');
+      }).join(');
     } catch {}
   }
 }

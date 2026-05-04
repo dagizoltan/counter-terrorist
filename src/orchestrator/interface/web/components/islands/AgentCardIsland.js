@@ -12,9 +12,9 @@ class AgentCardIsland extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
 
     ws.onmessage = (event) => {
       try {
@@ -41,7 +41,7 @@ class AgentCardIsland extends HTMLElement {
        const feed = this.querySelector('.agent-feed');
        if (feed) {
           const entry = document.createElement('div');
-          entry.className = 'text-[7px] font-mono text-slate-500 mb-1 border-l border-white/10 pl-2 opacity-0 fade-in slide-in-from-left-2'
+          entry.className = 'text-[7px] font-mono text-slate-500 mb-1 border-l border-white/10 pl-2 opacity-0 fade-in slide-in-from-left-2
           entry.textContent = `[${new Date().toLocaleTimeString()}] ${event.message.substring(0, 40)}...`;
           feed.prepend(entry);
           if (feed.children.length > 3) feed.lastChild.remove();

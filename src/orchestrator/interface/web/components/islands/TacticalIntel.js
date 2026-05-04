@@ -40,7 +40,7 @@ function TacticalIntel() {
     return (
       <div class="p-24 text-center t-panel glass-panel border-dashed opacity-30">
         <div class="mono-xs font-black uppercase tracking-[0.3em] mb-4 italic text-slate-500">Intelligence_Buffer_Clear</div>
-        <div class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Autonomous Defense Mesh is currently in monitor mode. <br/> No active' signals detected.</div>
+        <div class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Autonomous Defense Mesh is currently in monitor mode. <br/> No active signals detected.</div>
       </div>
     );
   }
@@ -80,7 +80,7 @@ function TacticalIntel() {
                     </div>
                     <div class="mono-xs text-slate-500 uppercase font-bold tracking-widest leading-none mt-2 italic">${item.remediation.reason}</div>
                  </div>
-                 <div class="status-pill active' primary'}>
+                 <div class="status-pill active primary">
                     T- ${new Date(item.remediation.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit'})}
                  </div>
               </div>
@@ -99,7 +99,7 @@ function TacticalIntel() {
                  {item.events.map((ev, i) => (
                     <div key={i} class="flex justify-between items-center group/ev p-4 bg-black/40 border border-white/5 rounded hover:border-primary/20">
                        <div class="flex items-center gap-4">
-                          <div class={`w-2 h-2 rounded-full ${ev.severity >= 5 ? 'bg-danger : ev.severity >= 3 ? 'bg-warning : 'bg-primary
+                          <div class={`w-2 h-2 rounded-full ${ev.severity >= 5 ? 'bg-danger' : ev.severity >= 3 ? 'bg-warning' : 'bg-primary'
                           <span class="mono-xs font-black text-slate-400 uppercase tracking-tight group-hover/ev:text-white">{ev.type}</span>
                        </div>
                        <span class="mono-xs text-slate-600 group-hover/ev:text-slate-300 font-bold uppercase tracking-tighter truncate max-w-[200px]">{ev.description}</span>

@@ -14,8 +14,8 @@ class ThreatIntelList extends HTMLElement {
   }
 
   connect() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : ''}`);
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : '}`);
 
     ws.onmessage = (event) => {
       try {
@@ -59,7 +59,7 @@ class ThreatIntelList extends HTMLElement {
       return `
         <div class="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-xl group hover:border-white/10 ">
            <div class="flex items-center gap-8">
-              <div class="dot ${theme} ${t.blocked ? '' : 'shadow-danger'}"></div>
+              <div class="dot ${theme} ${t.blocked ? ' : 'shadow-danger""></div>
               <div class="flex flex-col gap-2">
                  <span class="mono-sm font-bold tracking-tight ${t.blocked ? 'text-success' : 'text-white'} uppercase select-all">${window.escapeHTML(t.indicator)}</span>
                  <div class="flex items-center gap-4">
@@ -70,13 +70,13 @@ class ThreatIntelList extends HTMLElement {
               </div>
            </div>
            <div class="flex items-center">
-              <div class="status-pill ${theme} ${t.blocked ? '' : 'pulse'}">
+              <div class="status-pill ${theme} ${t.blocked ? ' : 'pulse'}">
                  ${t.blocked ? 'ENFORCEMENT_ACTIVE' : 'AWAITING_NEUTRALIZATION'}
               </div>
            </div>
         </div>
       `;
-    }).join('');
+    }).join(');
   }
 }
 

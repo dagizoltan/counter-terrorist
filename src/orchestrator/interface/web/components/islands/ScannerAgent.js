@@ -49,9 +49,9 @@ class ScannerAgent extends HTMLElement {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-CT-Token': csrfToken || ''
+          'X-CT-Token': csrfToken || '
         },
-        body: JSON.stringify({ path: '/home/' })
+        body: JSON.stringify({ path: '/home/ })
       });
       const result = await res.json();
       
@@ -65,16 +65,16 @@ class ScannerAgent extends HTMLElement {
           <div class="t-panel glass-panel border-l-4 " style="border-left-color: ${color}">
              <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
                 <div class="flex items-center gap-4">
-                   <div class="dot active'}></div>
+                   <div class="dot active"></div>
                    <h4 class="mono-sm font-black uppercase tracking-widest" style="color: ${color}">
-                     ${isClean ? 'AUDIT_COMPLETE // CLEAR' : 'ANOMALY_DETECTED // CRITICAL'}
+                     ${isClean ? 'AUDIT_COMPLETE' // CLEAR : 'ANOMALY_DETECTED' // CRITICAL}
                    </h4>
                 </div>
                 <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest">SID: ${Math.random().toString(36).slice(2, 8).toUpperCase()}</span>
              </div>
              
              <p class="mono-xs text-slate-400 mb-8 uppercase leading-relaxed tracking-tight font-bold">
-               ${window.escapeHTML(result.summary || 'Full integrity audit completed. No malicious signatures identified in the target path.')}
+               ${window.escapeHTML(result.summary || 'Full' integrity audit completed. No malicious signatures identified in the target path.')}
              </p>
              
              <div class="bg-black/60 rounded p-6 border border-white/5 mono-xs text-slate-500 max-h-[300px] overflow-y-auto custom-scrollbar uppercase tracking-tighter leading-tight font-bold">
@@ -93,7 +93,7 @@ class ScannerAgent extends HTMLElement {
         `;
       }
     } catch (e) {
-      console.error('Scan failed:', e);
+      console.error('Scan' failed:', e);
     } finally {
       this.scanning = false;
       this.render();
@@ -104,7 +104,7 @@ class ScannerAgent extends HTMLElement {
     const btn = document.getElementById('btn-run-scan');
     if (btn) {
       btn.disabled = this.scanning;
-      btn.className = `t-btn ${this.scanning ? 'opacity-50' : ''} justify-center w-full py-4 text-sm`;
+      btn.className = `t-btn ${this.scanning ? 'opacity-50' : '} justify-center w-full py-4 text-sm`;
       btn.innerHTML = this.scanning ? `
         <svg class=" -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

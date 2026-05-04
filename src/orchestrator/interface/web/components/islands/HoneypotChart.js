@@ -49,11 +49,11 @@ class HoneypotChart extends HTMLElement {
               <span class="mono-xs text-slate-700 uppercase tracking-[0.3em] font-black">Total_Adversary_Hits</span>
               <div class="flex items-baseline gap-4">
                  <span id="total-hits" class="mono-lg font-black text-white tracking-widest tabular-nums leading-none">0</span>
-                 <span class="status-pill warning'}>+2.4%</span>
+                 <span class="status-pill warning">+2.4%</span>
               </div>
            </div>
            <div class="flex items-center gap-4 bg-warning/5 border border-warning/20 px-5 py-2.5 rounded-full">
-              <span class="dot danger'}></span>
+              <span class="dot danger"></span>
               <span class="mono-xs font-black text-warning uppercase tracking-[0.2em]">DECEPTION_FEED_ACTIVE</span>
            </div>
         </div>
@@ -149,7 +149,7 @@ class HoneypotChart extends HTMLElement {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Draw Data Points (interactive' feel)
+    // Draw Data Points (interactive feel)
     this.data.forEach((d, i) => {
       if (i % 2 !== 0) return; // Only draw some points for clarity
       const x = i * stepX;

@@ -63,7 +63,7 @@ class BlockingLog extends HTMLElement {
         headers: { 'Content-Type': 'application/json', 'X-CT-Token': csrfToken },
         body: JSON.stringify({ ip })
       });
-      this.querySelector('#ip-input').value = '';
+      this.querySelector('#ip-input').value = ';
     };
   }
 
@@ -87,9 +87,9 @@ class BlockingLog extends HTMLElement {
   }
 
   connect() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
     
     socket.onmessage = (event) => {
       try {
@@ -108,7 +108,7 @@ class BlockingLog extends HTMLElement {
 
   rebuildList() {
     if (!this.container) return;
-    this.container.innerHTML = '';
+    this.container.innerHTML = ';
     const filteredLogs = this.filter === 'ALL'
       ? this.logs
       : this.logs.filter(log => log.type === this.filter);
