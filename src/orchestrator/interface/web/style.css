@@ -1068,18 +1068,48 @@ body.system-alert-active .shell-aside {
   background: var(--primary) !important;
   color: black !important;
   opacity: 1 !important;
+  box-shadow: 0 0 20px var(--primary-glow);
 }
-
-.sidebar-header {
-  display: flex;
-  flex-direction: column; flex-shrink: 0;
-  height: auto;
-  min-height: var(--header-height);
-}
-
 
 .sidebar-tab-content {
-  display: block;
   width: 100%;
   min-height: 200px;
+}
+
+/* Tactical Entry Animations */
+.animate-in {
+  animation-duration: 400ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-fill-mode: forwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(1rem); }
+  to { transform: translateX(0); }
+}
+
+@keyframes slide-in-right-2 {
+  from { transform: translateX(0.5rem); }
+  to { transform: translateX(0); }
+}
+
+.fade-in {
+  animation-name: fade-in;
+}
+
+.slide-in-from-right-4 {
+  animation-name: slide-in-right;
+}
+
+.slide-in-from-right-2 {
+  animation-name: slide-in-right-2;
+}
+
+.duration-500 {
+  animation-duration: 500ms;
 }

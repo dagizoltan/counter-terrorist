@@ -6,7 +6,7 @@ import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.t
 import { Role } from "@domain/identity/api_keys.ts";
 
 export interface LoginRouterDependencies {
-  checkLoginRateLimit: (ip: string) => { allowed: boolean; retryAfterMs?: number };
+  checkLoginRateLimit: (ip: string) => Promise<{ allowed: boolean; retryAfterMs?: number }>;
   isTokenValid: (token: string | undefined) => Promise<Role | null>;
   sessionService: any;
   config: any;
@@ -22,20 +22,28 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
   router.post("/", async (c: Context) => {
     const clientIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim()
       || c.req.header("x-real-ip")
+      || (c.env as any)?.remoteAddr?.hostname
       || "unknown";
     const contentType = c.req.header("Content-Type");
 
     console.log(`[AUTH:HANDLER] Received login request from ${clientIp}, content-type: ${contentType}`);
 
-    const rateCheck = deps.checkLoginRateLimit(clientIp);
+    const rateCheck = await deps.checkLoginRateLimit(clientIp);
     if (!rateCheck.allowed) {
       const retryAfterSec = Math.ceil((rateCheck.retryAfterMs || 60_000) / 1000);
+      const errorMsg = `Too many login attempts. Please try again later (retry in ${retryAfterSec}s).`;
+      
       loggingService.log(
         `[AUTH] Login rate limit exceeded for IP ${clientIp}. Retry after ${retryAfterSec}s.`,
         SyslogSeverity.WARNING
       );
+      
       c.header("Retry-After", String(retryAfterSec));
-      return c.json({ error: "Too many login attempts. Please try again later." }, 429);
+      
+      if (contentType && contentType.includes("application/json")) {
+        return c.json({ error: errorMsg }, 429);
+      }
+      return c.html(<Login error={errorMsg} />, 429);
     }
 
     let token: string | undefined;
@@ -59,8 +67,8 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       const { sessionId, csrfToken } = result.data;
 
       const secureCookie = deps.config.getBoolean("COOKIE_SECURE", true);
-      const isLocal = clientIp === "127.0.0.1" || clientIp === "::1" || clientIp === "localhost" || clientIp === "unknown";
-      const shouldBeSecure = secureCookie && !isLocal;
+      const isHttps = c.req.url.startsWith("https:");
+      const shouldBeSecure = secureCookie && isHttps;
 
       console.log(`[AUTH:HANDLER] Setting session cookie: ${sessionId.slice(0, 8)}… (secure: ${shouldBeSecure}, Strict)`);
       setCookie(c, "session_token", sessionId, {

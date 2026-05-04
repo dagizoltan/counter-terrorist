@@ -63,7 +63,7 @@ class BlockingLog extends HTMLElement {
         headers: { 'Content-Type': 'application/json', 'X-CT-Token': csrfToken },
         body: JSON.stringify({ ip })
       });
-      this.querySelector('#ip-input').value = ';
+      this.querySelector('#ip-input').value = '';
     };
   }
 
@@ -72,7 +72,7 @@ class BlockingLog extends HTMLElement {
     this.loading = true;
     
     try {
-      const url = '/api/audit?limit=50';
+      const url = '/api/audit?limit=1000';
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -87,15 +87,15 @@ class BlockingLog extends HTMLElement {
   }
 
   connect() {
-    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
+    const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
     
     socket.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         this.logs.unshift(data);
-        if (this.logs.length > 500) this.logs.pop();
+        if (this.logs.length > 2000) this.logs.pop();
         
         // Only prepend if it matches the current filter
         if (this.filter === 'ALL' || data.type === this.filter) {
@@ -108,7 +108,7 @@ class BlockingLog extends HTMLElement {
 
   rebuildList() {
     if (!this.container) return;
-    this.container.innerHTML = ';
+    this.container.innerHTML = '';
     const filteredLogs = this.filter === 'ALL'
       ? this.logs
       : this.logs.filter(log => log.type === this.filter);
@@ -118,13 +118,32 @@ class BlockingLog extends HTMLElement {
 
   createLogElement(log) {
     const div = document.createElement('div');
-    div.className = `t-panel p-4 border-l-4 ${this.getColorClass(log.type)} hover:bg-white/5 cursor-pointer `;
+    const color = this.getColorClass(log.type);
+    div.className = `flex gap-6 p-4 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group relative overflow-hidden`;
     div.innerHTML = `
-      <div class="flex justify-between mb-2">
-        <span class="text-[9px] font-mono text-slate-500">${new Date(log.timestamp).toLocaleTimeString()}</span>
-        <span class="mono text-[9px] font-black uppercase tracking-widest ${this.getTextClass(log.type)}">${log.type}</span>
+      <div class="absolute inset-y-0 left-0 w-1 ${color} opacity-0 group-hover:opacity-100 transition-opacity"></div>
+      <div class="flex flex-col gap-1 w-24 flex-shrink-0">
+        <span class="mono text-[10px] font-black text-slate-500 tabular-nums">${new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}</span>
+        <span class="mono text-[8px] text-slate-700">${new Date(log.timestamp).toLocaleDateString()}</span>
       </div>
-      <div class="text-[11px] font-bold text-slate-300">${log.message}</div>
+      <div class="flex flex-col gap-2 flex-grow">
+        <div class="flex items-center gap-3">
+          <span class="mono text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded bg-white/5 border border-white/10 ${this.getTextClass(log.type)}">${log.type}</span>
+          <span class="text-[11px] font-bold text-slate-300 tracking-wide">${log.message}</span>
+        </div>
+        ${log.actor ? `
+          <div class="flex items-center gap-4 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
+            <div class="flex items-center gap-1.5">
+              <span class="mono text-[8px] text-slate-500 uppercase">Actor:</span>
+              <span class="mono text-[8px] text-primary font-black uppercase">${log.actor.id}</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="mono text-[8px] text-slate-500 uppercase">IP:</span>
+              <span class="mono text-[8px] text-slate-400 tabular-nums">${log.actor.ip}</span>
+            </div>
+          </div>
+        ` : ''}
+      </div>
     `;
     return div;
   }
@@ -133,7 +152,7 @@ class BlockingLog extends HTMLElement {
     if (!this.container) return;
     const el = this.createLogElement(log);
     this.container.prepend(el);
-    if (this.container.children.length > 100) {
+    if (this.container.children.length > 2000) {
         this.container.lastElementChild.remove();
     }
   }
@@ -145,14 +164,14 @@ class BlockingLog extends HTMLElement {
   }
 
   getColorClass(type) {
-    if (type === 'BLOCK' || type === 'THREAT') return 'border-danger';
-    if (type === 'WARN') return 'border-warning';
-    return 'border-primary';
+    if (type === 'BLOCK' || type === 'THREAT' || type === 'CRITICAL') return 'bg-danger';
+    if (type === 'WARN' || type === 'WARNING') return 'bg-warning';
+    return 'bg-primary';
   }
 
   getTextClass(type) {
-    if (type === 'BLOCK' || type === 'THREAT') return 'text-danger';
-    if (type === 'WARN') return 'text-warning';
+    if (type === 'BLOCK' || type === 'THREAT' || type === 'CRITICAL') return 'text-danger';
+    if (type === 'WARN' || type === 'WARNING') return 'text-warning';
     return 'text-primary';
   }
 }

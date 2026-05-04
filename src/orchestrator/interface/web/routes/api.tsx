@@ -51,7 +51,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
 
   const syncRateLimits = new Map<string, { count: number; resetAt: number }>();
   router.post("/mesh/sync", async (c: Context) => {
-    const peerIp = c.req.header("x-forwarded-for") || "unknown";
+    const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
     const now = Date.now();
     const limit = syncRateLimits.get(peerIp) || { count: 0, resetAt: now + 1000 };
     if (now > limit.resetAt) {

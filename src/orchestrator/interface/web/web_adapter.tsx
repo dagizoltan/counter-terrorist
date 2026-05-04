@@ -57,7 +57,7 @@ export class WebAdapter implements WebPort {
       await loggingService.log(`[REQ:${traceId}] ${method} ${path}`, SyslogSeverity.INFORMATIONAL, "WEB:API");
 
       if (this.services.networkLogs) {
-        const ip = c.req.header("X-Forwarded-For") || "127.0.0.1";
+        const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "127.0.0.1";
         await this.services.networkLogs.log({
             direction: "INBOUND",
             source: ip,
@@ -121,7 +121,7 @@ export class WebAdapter implements WebPort {
       const honeyRoutes = this.services.honeypot.getDecoyRoutes();
       honeyRoutes.forEach(route => {
         this.app.get(route, async (c) => {
-          const ip = c.req.header("X-Forwarded-For") || c.req.header("Remote-Addr") || "unknown";
+          const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
           loggingService.log(`[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`, SyslogSeverity.CRITICAL);
           await this.services.honeypot.onWebTrigger(route, ip);
           return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
@@ -169,7 +169,8 @@ export class WebAdapter implements WebPort {
       }
       
       if (!role) {
-        loggingService.log(`[WS:AUTH] Unauthorized WebSocket connection attempt from ${c.req.header("X-Forwarded-For") || "unknown"}`, SyslogSeverity.WARNING);
+        const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+        loggingService.log(`[WS:AUTH] Unauthorized WebSocket connection attempt from ${ip}`, SyslogSeverity.WARNING);
         return {
           onOpen: (_event, ws) => {
             ws.close(1008, "Unauthorized");
@@ -197,29 +198,23 @@ export class WebAdapter implements WebPort {
     };
   }
 
-  private async isTokenValid(token: string | undefined) {
+  private async isTokenValid(token: string | undefined): Promise<string | null> {
     const isMaster = await import("@infrastructure/system/validation.ts").then(m => 
       m.secureCompare(token, this.services.config.getToken())
     );
-    if (isMaster) return "admin" as const;
+    if (isMaster) return "admin";
 
     const result = await this.services.apiKeys.validateApiKey(token);
-    return result.success ? result.data : null;
+    if (result.success && result.data) {
+      return result.data;
+    }
+    return null;
   }
 
-  private loginAttempts = new Map<string, { count: number; resetAt: number }>();
-
-  private checkLoginRateLimit(ip: string) {
-      const now = Date.now();
-      const limit = this.loginAttempts.get(ip) || { count: 0, resetAt: now + 60000 };
-      if (now > limit.resetAt) {
-          limit.count = 1;
-          limit.resetAt = now + 60000;
-      } else {
-          limit.count++;
-      }
-      this.loginAttempts.set(ip, limit);
-      if (limit.count > 5) return { allowed: false, retryAfterMs: limit.resetAt - now };
+  private async checkLoginRateLimit(ip: string) {
+      // Hardened Login Rate Limit: 10 attempts per minute (more conservative for login)
+      const result = await this.services.rateLimit.checkLimit(`login:${ip}`, 10, 60000);
+      if (!result.allowed) return { allowed: false, retryAfterMs: result.retryAfterMs };
       return { allowed: true };
   }
 

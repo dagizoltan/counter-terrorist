@@ -51,13 +51,11 @@ class EbpfAgent extends HTMLElement {
     `;
     this.fetchStatus();
     this.connectWS();
-    this.render();
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
 
     ws.onmessage = (event) => {
       try {
@@ -92,7 +90,7 @@ class EbpfAgent extends HTMLElement {
       if (ebpf?.active) {
         if (statusLabel) statusLabel.textContent = 'Kernel_Guardian_Active';
         if (statusDot) {
-          statusDot.className = 'dot' active;
+          statusDot.className = 'dot active';
           statusDot.style.background = 'var(--success)';
         }
       } else {
@@ -123,8 +121,8 @@ class EbpfAgent extends HTMLElement {
     const driftEl = document.getElementById('ebpf-stat-drifts');
     if (interceptedEl) {
         interceptedEl.textContent = this.stats.intercepted.toString().padStart(4, '0');
-        interceptedEl.classList.add(');
-        setTimeout(() => interceptedEl.classList.remove('), 500);
+        interceptedEl.classList.add('pulse');
+        setTimeout(() => interceptedEl.classList.remove('pulse'), 500);
     }
     if (driftEl) {
         driftEl.textContent = this.stats.drifts.toString().padStart(2, '0');
@@ -138,7 +136,7 @@ class EbpfAgent extends HTMLElement {
     
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      await fetch('/api/defense/purge', {
+      const res = await fetch('/api/defense/purge', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -146,7 +144,11 @@ class EbpfAgent extends HTMLElement {
         },
         body: JSON.stringify({ pid })
       });
-      alert("Purge sequence initiated.");
+      if (res.ok) {
+        alert("Purge sequence initiated.");
+      } else {
+        alert("Purge failed: Access Denied");
+      }
     } catch (e) {
       alert("Purge failed: " + e.message);
     }
@@ -158,35 +160,36 @@ class EbpfAgent extends HTMLElement {
 
     if (this.logs.length === 0) {
       container.innerHTML = `
-        <div class="flex flex-col gap-6">
-           <div class="skeleton h-16 w-full"></div>
-           <div class="skeleton h-16 w-full opacity-60"></div>
-           <div class="skeleton h-16 w-full opacity-30"></div>
+        <div class="p-12 space-y-6">
+           <div class="h-16 w-full bg-white/5 animate-pulse rounded-lg"></div>
+           <div class="h-16 w-full bg-white/5 animate-pulse rounded-lg opacity-60"></div>
+           <div class="h-16 w-full bg-white/5 animate-pulse rounded-lg opacity-30"></div>
         </div>
       `;
       return;
     }
 
     // Standardize event handling
-    this.removeEventListener('click', this._clickHandler);
-    this._clickHandler = (e) => {
-       const btn = e.target.closest('[data-purge-pid]');
-       if (btn) this.handlePurge(btn.getAttribute('data-purge-pid'));
-    };
-    this.addEventListener('click', this._clickHandler);
+    if (!this._clickHandler) {
+      this._clickHandler = (e) => {
+         const btn = e.target.closest('[data-purge-pid]');
+         if (btn) this.handlePurge(btn.getAttribute('data-purge-pid'));
+      };
+      this.addEventListener('click', this._clickHandler);
+    }
 
-    container.innerHTML = this.logs.map(log => {
+    container.innerHTML = (this.logs || []).map(log => {
       const isCritical = log.type === 'DRIFT_PROCESS' || log.message?.toLowerCase().includes('unauthorized');
-      const pid = log.data?.pid || log.data?.target_pid;
-      const typeLabel = log.type.replace('EBPF_', ');
+      const pid = log.data?.pid || log.data?.target_pid || '';
+      const typeLabel = (log.type || '').replace('EBPF_', '');
 
       return `
-        <div class="p-8 border-b border-white/[0.03] hover:bg-white/[0.02]  group relative" 
+        <div class="p-8 border-b border-white/[0.03] hover:bg-white/[0.02] group relative transition-colors" 
              style="border-left: 4px solid ${isCritical ? 'var(--danger)' : 'transparent'}">
           <div class="flex justify-between items-center mb-4 relative z-10">
              <div class="flex items-center gap-4">
                 <span class="status-pill ${isCritical ? 'danger' : 'primary'}">
-                  ${typeLabel}
+                  ${window.escapeHTML(typeLabel)}
                 </span>
                 <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Syscall_Intercept</span>
              </div>
@@ -197,15 +200,15 @@ class EbpfAgent extends HTMLElement {
                ${window.escapeHTML(log.message)}
              </div>
           </div>
-          ${isCritical ? `
+          ${isCritical && pid ? `
             <div class="mt-6 flex gap-4 relative z-10">
                <div class="status-pill danger">POLICY_VIOLATION</div>
-               <button data-purge-pid="${pid}" class="t-btn danger px-4 py-2">PURGE_PROCESS</button>
+               <button data-purge-pid="${window.escapeHTML(pid)}" class="t-btn danger px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded hover:bg-danger/20 transition-colors">PURGE_PROCESS</button>
             </div>
-          ` : '}
+          ` : ''}
         </div>
       `;
-    }).join(');
+    }).join('');
   }
 
   render() {

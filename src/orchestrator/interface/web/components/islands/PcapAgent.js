@@ -55,10 +55,13 @@ class PcapAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : '}`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+    const url = `${protocol}//${window.location.host}/api/ws/events${csrf ? `?token=${csrf}` : ''}`;
+    
+    this._ws = new WebSocket(url);
 
-    ws.onmessage = (event) => {
+    this._ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'NETWORK_LOG' || payload.type === 'PACKET') {
@@ -67,7 +70,18 @@ class PcapAgent extends HTMLElement {
       } catch (e) {}
     };
 
-    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
+    this._ws.onclose = () => {
+      if (this.isConnected) {
+        setTimeout(() => this.connectWS(), 5000);
+      }
+    };
+  }
+
+  disconnectedCallback() {
+    if (this._ws) {
+      this._ws.onclose = null;
+      this._ws.close();
+    }
   }
 
   addPacket(packet) {
@@ -81,23 +95,23 @@ class PcapAgent extends HTMLElement {
     this.isCapturing = true;
 
     const iface = document.getElementById('pcap-iface')?.value || 'any';
-    const filter = document.getElementById('pcap-filter')?.value || ';
+    const filter = document.getElementById('pcap-filter')?.value || '';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
     
     const btn = document.getElementById('btn-start-pcap');
     const originalText = btn?.innerHTML;
-    if (btn) btn.innerHTML = '<span class=">INITIATING_SEQUENCE...</span>';
+    if (btn) btn.innerHTML = '<span class="opacity-50">INITIATING_SEQUENCE...</span>';
 
     try {
       const res = await fetch('/api/agents/pcap/command', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-CT-Token': csrf || '
+          'X-CT-Token': csrf || ''
         },
         body: JSON.stringify({
           type: 'StartCapture',
-          payload: { interface: iface, duration: 300, filename: `capture_\${Date.now()}.pcap`, filter }
+          payload: { interface: iface, duration: 300, filename: `capture_${Date.now()}.pcap`, filter }
         })
       });
       const data = await res.json();
@@ -110,7 +124,7 @@ class PcapAgent extends HTMLElement {
         destination: 'PCAP_EXECUTOR',
         protocol: 'COMMAND',
         action: 'INIT',
-        message: data.message || 'Capture' sequence initiated
+        message: data.message || 'Capture sequence initiated'
       });
     } catch (e) {
        console.error('[PCAP_AGENT] Capture failed:', e);
@@ -127,8 +141,8 @@ class PcapAgent extends HTMLElement {
     if (this.packets.length === 0) {
       container.innerHTML = `
         <div class="flex flex-col items-center justify-center p-24 opacity-20">
-           <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full  mb-6"></div>
-           <div class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em] ">Awaiting_Packet_Intercepts...</div>
+           <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mb-6"></div>
+           <div class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Awaiting_Packet_Intercepts...</div>
         </div>
       `;
       return;
@@ -139,28 +153,28 @@ class PcapAgent extends HTMLElement {
       const color = isSystem ? 'var(--primary)' : (p.direction === 'INBOUND' ? 'var(--primary)' : 'var(--warning)');
       
       return `
-        <div class="flex items-center gap-8 p-5 border-b border-white/[0.03] hover:bg-white/[0.02] group ">
+        <div class="flex items-center gap-8 p-5 border-b border-white/[0.03] hover:bg-white/[0.02] group animate-in fade-in slide-in-from-right-2 duration-300">
           <div class="flex items-center gap-4 w-24">
-             <span class="mono-xs font-black uppercase tracking-widest" style="color: \${color}">\${(p.direction || 'IN').slice(0, 3)}</span>
-             <span class="dot \${isSystem ? 'active' : (p.direction === 'INBOUND' ? 'active' : 'warning'} style="width: 4px; height: 4px;"></span>
+             <span class="mono-xs font-black uppercase tracking-widest" style="color: ${color}">${(p.direction || 'IN').slice(0, 3)}</span>
+             <span class="dot ${isSystem ? 'active' : (p.direction === 'INBOUND' ? 'active' : 'warning')}" style="width: 4px; height: 4px;"></span>
           </div>
           
           <div class="flex-1 min-w-0">
              <div class="mono-xs font-bold uppercase tracking-tight text-slate-400 truncate">
-               \${window.escapeHTML(p.source || '...')} <span class="text-slate-800 px-2">→</span> \${window.escapeHTML(p.destination || '...')}
+               ${window.escapeHTML(p.source || '...')} <span class="text-slate-800 px-2">→</span> ${window.escapeHTML(p.destination || '...')}
              </div>
-             \${p.message ? `<div class="mono-xs text-[9px] text-slate-600 mt-1 uppercase font-black tracking-widest ">\${window.escapeHTML(p.message)}</div>` : '}
+             ${p.message ? `<div class="mono-xs text-[9px] text-slate-600 mt-1 uppercase font-black tracking-widest ">${window.escapeHTML(p.message)}</div>` : ''}
           </div>
 
           <div class="flex items-center gap-6">
              <span class="mono-xs font-black uppercase tracking-[0.2em] text-slate-700 bg-black/40 px-3 py-1 rounded border border-white/5">
-                \${window.escapeHTML(p.protocol || 'TCP')}
+                ${window.escapeHTML(p.protocol || 'TCP')}
              </span>
-             <span class="mono-xs text-slate-600 font-bold">\${new Date(p.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
+             <span class="mono-xs text-slate-600 font-bold">${new Date(p.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
           </div>
         </div>
       `;
-    }).join(');
+    }).join('');
   }
 }
 

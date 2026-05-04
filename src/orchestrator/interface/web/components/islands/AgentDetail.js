@@ -39,8 +39,6 @@ class AgentDetail extends HTMLElement {
       const pidEl = document.getElementById(`agent-pid-${name}`);
       if (pidEl) {
         pidEl.textContent = agentData.pid ? `PID_${agentData.pid}` : 'N/A';
-        pidEl.classList.add(');
-        setTimeout(() => pidEl.classList.remove('), 1000);
       }
 
       // Update capabilities
@@ -48,8 +46,8 @@ class AgentDetail extends HTMLElement {
       if (capsEl) {
         const caps = agentData.capabilities || ['STANDARD'];
         capsEl.innerHTML = caps.map(c => 
-          `<span class="status-pill active primary">${c}</span>`
-        ).join(');
+          `<span class="status-pill active primary">${window.escapeHTML(c)}</span>`
+        ).join('');
       }
 
       // Update privilege
@@ -104,7 +102,7 @@ class AgentDetail extends HTMLElement {
     
     const btn = document.getElementById(`btn-${action}-${this.agentName}`);
     const originalText = btn?.innerHTML;
-    if (btn) btn.innerHTML = '<span class=">PROCESSING...</span>';
+    if (btn) btn.innerHTML = '<span class="opacity-50">PROCESSING...</span>';
 
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -134,7 +132,7 @@ class AgentDetail extends HTMLElement {
         method: 'POST',
         headers: { 
             'Content-Type': 'application/json',
-            'X-CT-Token': csrfToken || '
+            'X-CT-Token': csrfToken || ''
         },
         body: JSON.stringify(body)
       });
@@ -168,14 +166,14 @@ class AgentDetail extends HTMLElement {
                 <div class="status-pill active primary">SHA-256_VERIFIED</div>
             </header>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                ${metrics.blockedIps?.map(ip => `
+                ${(metrics.blockedIps || []).map(ip => `
                  <div class="p-4 bg-black/60 border border-white/5 flex items-center justify-between group hover:border-danger/40 rounded-lg">
-                     <span class="mono-xs text-danger font-black uppercase tracking-widest">${ip}</span>
-                     <button onclick="const t=document.querySelector('meta[name=\\'csrf-token\\']')?.content; fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token': t}, body:JSON.stringify({ip: '${ip}'})}).then(() => location.reload())" 
-                             class="opacity-0 mono-xs font-black uppercase text-slate-500 hover:text-white">PURGE</button>
+                     <span class="mono-xs text-danger font-black uppercase tracking-widest">${window.escapeHTML(ip)}</span>
+                     <button onclick="const t=document.querySelector('meta[name=\\'csrf-token\\']')?.content; fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token': t}, body:JSON.stringify({ip: '${window.escapeHTML(ip)}'})}).then(() => location.reload())" 
+                             class="opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white transition-opacity">PURGE</button>
                  </div>
-               `).join(') || `
-                   <div class="empty-state">
+               `).join('') || `
+                   <div class="col-span-full py-12 flex items-center justify-center border border-dashed border-white/5 rounded-lg">
                      <div class="mono-xs font-bold text-slate-500 uppercase tracking-widest">No_Definitive_Blocks_Active</div>
                   </div>
                `}
@@ -205,15 +203,15 @@ class AgentDetail extends HTMLElement {
                 <span class="status-pill success">ENCRYPTED</span>
              </header>
              <div class="space-y-6">
-                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px]">
+                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px] transition-transform">
                    <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Interface</span>
                    <span class="text-lg font-black text-primary tracking-tighter uppercase italic">wg0</span>
                 </div>
-                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px]">
+                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px] transition-transform">
                    <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Cipher_Suite</span>
                    <span class="text-lg font-black text-white tracking-tighter">ChaCha20-Poly1305</span>
                 </div>
-                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px]">
+                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px] transition-transform">
                    <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Handshake</span>
                    <span class="text-lg font-black text-success tracking-tighter uppercase">ESTABLISHED</span>
                 </div>
@@ -225,7 +223,7 @@ class AgentDetail extends HTMLElement {
                 <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest">Live_IO_Feed</span>
              </header>
              <div class="space-y-6">
-                <div class="flex justify-between items-center p-6 bg-black/40 border border-white/5 rounded hover:translate-x-[2px]">
+                <div class="flex justify-between items-center p-6 bg-black/40 border border-white/5 rounded hover:translate-x-[2px] transition-transform">
                    <div class="flex flex-col">
                       <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest mb-1">Egress_Volume</span>
                       <span class="text-4xl font-black text-white tracking-tighter uppercase tabular-nums">${(agentData.telemetry?.tx || 0).toFixed(2)} <span class="text-slate-700 text-xl">MB</span></span>
@@ -234,7 +232,7 @@ class AgentDetail extends HTMLElement {
                       <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M7 17l10-10M7 7h10v10"/></svg>
                    </div>
                 </div>
-                <div class="flex justify-between items-center p-6 bg-black/40 border border-white/5 rounded hover:translate-x-[2px]">
+                <div class="flex justify-between items-center p-6 bg-black/40 border border-white/5 rounded hover:translate-x-[2px] transition-transform">
                    <div class="flex flex-col">
                       <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest mb-1">Ingress_Volume</span>
                       <span class="text-4xl font-black text-white tracking-tighter uppercase tabular-nums">${(agentData.telemetry?.rx || 0).toFixed(2)} <span class="text-slate-700 text-xl">MB</span></span>
@@ -267,22 +265,24 @@ class AgentDetail extends HTMLElement {
         `;
         return;
       }
-      logEl.innerHTML = logs.map(l => {
+      logEl.innerHTML = (logs || []).map(l => {
         const isBlock = l.action === 'BLOCK';
         return `
-          <div class="flex items-center gap-8 p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group ">
+          <div class="flex items-center gap-8 p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors">
             <span class="mono-xs text-slate-600 font-bold w-20">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
-            <span class="mono-xs font-bold w-16 ${l.direction === 'INBOUND' ? 'text-primary' : 'text-warning"">${l.direction.slice(0, 3)}</span>
+            <span class="mono-xs font-bold w-16 ${l.direction === 'INBOUND' ? 'text-primary' : 'text-warning'}">${window.escapeHTML(l.direction.slice(0, 3))}</span>
             <span class="mono-xs flex-1 truncate text-slate-400 font-bold uppercase tracking-widest">
                ${window.escapeHTML(l.source)} <span class="text-slate-800 mx-2">→</span> ${window.escapeHTML(l.destination)}
             </span>
             <div class="flex items-center gap-6">
-               <span class="status-pill ${isBlock ? 'danger' : 'success'}">${l.action}</span>
+               <span class="status-pill ${isBlock ? 'danger' : 'success'}">${window.escapeHTML(l.action)}</span>
             </div>
           </div>
         `;
-      }).join(');
-    } catch {}
+      }).join('');
+    } catch (e) {
+      console.warn('[AGENT_DETAIL] Traffic fetch failed', e);
+    }
   }
 }
 

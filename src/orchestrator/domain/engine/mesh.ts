@@ -468,6 +468,20 @@ export class MeshManager {
   }
 
   /**
+   * Deterministic JSON stringifier to ensure signature consistency.
+   */
+  private canonicalStringify(obj: any): string {
+    if (obj === null || typeof obj !== "object") {
+      return JSON.stringify(obj);
+    }
+    if (Array.isArray(obj)) {
+      return "[" + obj.map(item => this.canonicalStringify(item)).join(",") + "]";
+    }
+    const keys = Object.keys(obj).sort();
+    return "{" + keys.map(key => `${JSON.stringify(key)}:${this.canonicalStringify(obj[key])}`).join(",") + "}";
+  }
+
+  /**
    * Generates a HMAC-SHA256 signature for a payload using the MESH_SECRET.
    */
   async signPayload(payload: any): Promise<string> {
@@ -484,7 +498,7 @@ export class MeshManager {
     const signature = await crypto.subtle.sign(
       "HMAC",
       key,
-      encoder.encode(JSON.stringify(payload))
+      encoder.encode(this.canonicalStringify(payload))
     );
     return btoa(String.fromCharCode(...new Uint8Array(signature)));
   }
@@ -510,7 +524,7 @@ export class MeshManager {
       "HMAC",
       key,
       sigData,
-      encoder.encode(JSON.stringify(payload))
+      encoder.encode(this.canonicalStringify(payload))
     );
   }
 

@@ -5,9 +5,8 @@ class FirewallAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
 
     ws.onmessage = (event) => {
       try {
@@ -34,7 +33,7 @@ class FirewallAgent extends HTMLElement {
       const agentData = await agentRes.json();
       const pid = agentData.firewall?.pid;
 
-      const lines = (data.stdout || ').split('\n').filter(l => l.trim());
+      const lines = (data.stdout || '').split('\n').filter(l => l.trim());
       const blockedIps = [];
       for (const line of lines) {
         const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
@@ -74,17 +73,17 @@ class FirewallAgent extends HTMLElement {
           </div>
         `;
       } else {
-        listEl.innerHTML = firewall.blockedIps.map(ip => {
+        listEl.innerHTML = (firewall.blockedIps || []).map(ip => {
           const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
           return `
-            <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded ">
+            <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded transition-colors">
               <div class="flex flex-col gap-1">
                  <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">Target_Address</span>
-                 <span class="mono-sm font-black text-danger uppercase tracking-widest">${ip}</span>
+                 <span class="mono-sm font-black text-danger uppercase tracking-widest">${window.escapeHTML(ip)}</span>
               </div>
               <div class="flex items-center gap-6">
-                <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || '}'}, body:JSON.stringify({ip:'${ip}'})}).then(() => location.reload())" 
-                        class="opacity-0 mono-xs font-black uppercase text-slate-500 hover:text-white underline decoration-white/20 tracking-widest">Release_IP</button>
+                <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || ''}'}, body:JSON.stringify({ip:'${window.escapeHTML(ip)}'})}).then(() => location.reload())" 
+                        class="opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white underline decoration-white/20 tracking-widest transition-opacity">Release_IP</button>
                 <div class="flex items-center gap-3">
                    <div class="dot danger"></div>
                    <span class="mono-xs font-black uppercase text-danger tracking-widest">Quarantined</span>
@@ -92,7 +91,7 @@ class FirewallAgent extends HTMLElement {
               </div>
             </div>
           `;
-        }).join(');
+        }).join('');
       }
     }
   }
@@ -108,23 +107,23 @@ class FirewallAgent extends HTMLElement {
       `;
       return;
     }
-    trafficEl.innerHTML = logs.map(l => {
+    trafficEl.innerHTML = (logs || []).map(l => {
       const isBlocked = l.action === 'BLOCK';
       return `
-        <div class="flex items-center justify-between p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group ">
+        <div class="flex items-center justify-between p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors">
           <span class="mono-xs text-slate-600 font-bold w-24">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
           <div class="flex-1 flex items-center gap-4 px-4 overflow-hidden">
-             <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${l.source}</span>
+             <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${window.escapeHTML(l.source)}</span>
              <span class="text-slate-800 text-[10px] font-black">→</span>
-             <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${l.destination}</span>
+             <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${window.escapeHTML(l.destination)}</span>
           </div>
           <div class="flex items-center gap-3 w-24 justify-end">
-             <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success"">${l.action}</span>
+             <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success'}">${window.escapeHTML(l.action)}</span>
              <div class="dot ${isBlocked ? 'danger' : 'active'}"></div>
           </div>
         </div>
       `;
-    }).join(');
+    }).join('');
   }
 }
 customElements.define('firewall-agent', FirewallAgent);

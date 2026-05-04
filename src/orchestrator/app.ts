@@ -16,7 +16,7 @@ import {
     ProvisioningService, NetworkDiscoveryService, NetworkLogService, 
     IncidentService, ComplianceService, NewsSignalService, 
     LedgerService, HealthService, EventMediator,
-    WatchdogService
+    WatchdogService, RateLimitService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
@@ -255,6 +255,7 @@ export class SovereignApp {
         const processTracker = new ProcessTracker(loggingService);
         const sessions = new SessionService(this.kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
         const apiKeys = new ApiKeysService(this.kv, loggingService);
+        const rateLimit = new RateLimitService(this.kv);
         
         // ── Security & Deception Subsystem ──────────────────────────────────
         const { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService } = this.initSecuritySubsystem(protection, mesh, tpm, health);
@@ -282,6 +283,7 @@ export class SovereignApp {
             mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService),
             behavioral,
             geoIp,
+            rateLimit,
             policy: autopilot.getPolicy()
         };
     }

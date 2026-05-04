@@ -228,6 +228,9 @@ export class MeshAuthService {
   }
 
   private async issueNodeCert(nodeId: string): Promise<CertPair> {
+    // SECURITY: Sanitize nodeId to prevent configuration injection
+    const safeNodeId = nodeId.replace(/[^a-zA-Z0-9\.\-]/g, "");
+    
     const ca = await this.getRootCA();
     const tempDir = await Deno.makeTempDir();
     const caCertPath = `${tempDir}/ca.crt`;
@@ -241,7 +244,7 @@ export class MeshAuthService {
 distinguished_name = req_distinguished_name
 prompt = no
 [req_distinguished_name]
-CN = ${nodeId}
+CN = ${safeNodeId}
 [v3_req]
 basicConstraints = CA:FALSE
 keyUsage = digitalSignature, keyEncipherment

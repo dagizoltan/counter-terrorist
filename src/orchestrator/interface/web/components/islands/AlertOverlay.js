@@ -15,9 +15,9 @@ class AlertOverlay extends HTMLElement {
     }
 
     connect() {
-        const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        const socket = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : '}`);
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+        const socket = new WebSocket(url.toString());
         
         socket.onmessage = (event) => {
             try {
@@ -50,7 +50,7 @@ class AlertOverlay extends HTMLElement {
 
     render() {
         if (!this.active) {
-            this.innerHTML = ';
+            this.innerHTML = '';
             return;
         }
 
@@ -71,7 +71,7 @@ class AlertOverlay extends HTMLElement {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                             </div>
                             <div>
-                                <h1 class="text-6xl font-black italic tracking-tighter uppercase mb-2">SYSTEM_${this.type}_INITIATED</h1>
+                                <h1 class="text-6xl font-black italic tracking-tighter uppercase mb-2">SYSTEM_${window.escapeHTML(this.type)}_INITIATED</h1>
                                 <p class="mono text-xl font-bold opacity-80 uppercase tracking-[0.5em]">Consensus_Reached // Enforcement_Active // All_Channels_Locked</p>
                             </div>
                         </div>

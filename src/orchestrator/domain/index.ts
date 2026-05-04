@@ -7,6 +7,7 @@ export { LoggingService, SyslogSeverity } from "@infrastructure/system/logging.t
 export { ApiKeysService } from "./identity/api_keys.ts";
 export { SessionService } from "./identity/session.ts";
 export { MeshAuthService } from "./identity/mesh_auth.ts";
+export { RateLimitService } from "./identity/rate_limit.ts";
 
 // Protection Domain
 export { HoneypotService } from "./protection/honeypot_service.ts";

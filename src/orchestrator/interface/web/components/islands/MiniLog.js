@@ -28,8 +28,7 @@ class MiniLog extends HTMLElement {
 
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const url = new URL(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
 
     const socket = new WebSocket(url.toString());
     socket.onmessage = (event) => {
@@ -81,14 +80,14 @@ class MiniLog extends HTMLElement {
           <div class="flex flex-col gap-1 p-3 bg-white/[0.02] border border-white/5 rounded hover:bg-white/[0.04]">
             <div class="flex justify-between items-center">
               <span class="mono-xs font-black uppercase tracking-widest ${this.getSeverityClass(log.severity || log.type)}">
-                ${log.type || 'LOG_EVENT'}
+                ${window.escapeHTML(log.type || 'LOG_EVENT')}
               </span>
               <span class="text-[8px] text-slate-600 mono">
                 ${new Date(log.timestamp).toLocaleTimeString()}
               </span>
             </div>
             <div class="mono-xs text-slate-400 leading-tight">
-              ${log.message || log.description || 'System interaction logged.'}
+              ${window.escapeHTML(log.message || log.description || 'System interaction logged.')}
             </div>
           </div>
         `).join('')}

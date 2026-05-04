@@ -169,36 +169,59 @@ export const Layout = (props: {
           </main>
 
           {/* ── 03_FORENSIC_TELEMETRY (Right) ─────────────────────────── */}
-          <aside class="shell-aside relative z-20 flex flex-col">
-             {/* Dynamic Forensic Tabs */}
-             <header class="flex border-b border-white/5 h-[54px] shrink-0 bg-black/20">
-                <button id="tab-btn-integrity" onclick="window.switchSidebarTab('integrity')" class="flex-1 mono-xs font-black tracking-widest uppercase transition-all active-tab text-[10px] border-r border-white/5">System_Integrity</button>
-                <button id="tab-btn-logs" onclick="window.switchSidebarTab('logs')" class="flex-1 mono-xs font-black tracking-widest uppercase transition-all text-slate-500 hover:text-white text-[10px]">Realtime_Logs</button>
+          <aside class="shell-aside relative z-20 flex flex-col border-l border-white/5 bg-[#080808]">
+             {/* Dynamic Forensic Tabs - Tactical Segmented Control */}
+             <header class="p-4 shrink-0">
+                <div class="flex bg-black/40 p-1 rounded-lg border border-white/5 relative overflow-hidden group">
+                   <div id="tab-indicator" class="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-primary/20 border border-primary/30 rounded-md transition-all duration-300 ease-out z-0 shadow-[0_0_15px_var(--primary-glow)]" style="transform: translateX(100%)"></div>
+                   
+                   <button id="tab-btn-integrity" 
+                           onclick="window.switchSidebarTab('integrity')" 
+                           class="flex-1 relative z-10 py-2 flex justify-center items-center transition-all text-slate-500 hover:text-slate-300 outline-none"
+                           title="System Integrity">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                   </button>
+                   <button id="tab-btn-logs" 
+                           onclick="window.switchSidebarTab('logs')" 
+                           class="flex-1 relative z-10 py-2 flex justify-center items-center transition-all text-primary outline-none"
+                           title="Real-time Logs">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                   </button>
+                </div>
              </header>
 
-             <div class="flex-grow overflow-y-auto custom-scrollbar p-6">
+             <div class="flex-grow overflow-y-auto custom-scrollbar px-4 pb-4">
                 {/* Tab Content: Integrity */}
-                <div id="sidebar-tab-integrity" class="sidebar-tab-content">
+                <div id="sidebar-tab-integrity" class="sidebar-tab-content hidden pt-2 animate-in fade-in slide-in-from-right-4 duration-500">
                    <div class="mb-10">
+                      <div class="flex items-center gap-2 mb-6 px-2">
+                         <div class="w-1 h-3 bg-primary rounded-full"></div>
+                         <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">System_Health</span>
+                      </div>
                       <system-health></system-health>
                    </div>
                 </div>
 
                 {/* Tab Content: Logs */}
-                <div id="sidebar-tab-logs" class="sidebar-tab-content hidden">
+                <div id="sidebar-tab-logs" class="sidebar-tab-content pt-2 animate-in fade-in slide-in-from-right-4 duration-500">
                    <div class="mb-10">
+                      <div class="flex items-center gap-2 mb-6 px-2">
+                         <div class="w-1 h-3 bg-primary rounded-full"></div>
+                         <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">Live_Telemetry</span>
+                      </div>
                       <mini-log></mini-log>
                    </div>
                 </div>
              </div>
 
              <footer class="p-6 border-t border-white/5 bg-black/40">
-                <div class="flex justify-between items-center mb-4">
-                   <span class="mono-xs font-black text-slate-500 uppercase">Operational_Trust</span>
-                   <span class="mono-xs font-black text-primary tracking-widest uppercase">99.9%</span>
+                <div class="flex justify-between items-center mb-3">
+                   <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">Operational_Trust</span>
+                   <span class="mono-xs font-black text-primary tracking-widest uppercase tabular-nums">99.9%</span>
                 </div>
-                <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-                   <div class="h-full bg-primary" style="width: 99.9%"></div>
+                <div class="h-1 bg-white/5 rounded-full overflow-hidden relative">
+                   <div class="absolute inset-0 bg-primary/20 blur-sm"></div>
+                   <div class="h-full bg-primary relative z-10 shadow-[0_0_10px_var(--primary)]" style="width: 99.9%"></div>
                 </div>
              </footer>
           </aside>
@@ -258,10 +281,11 @@ export const Layout = (props: {
             console.log("[SIDEBAR] Switching to:", tab);
             const contents = document.querySelectorAll('.sidebar-tab-content');
             const buttons = document.querySelectorAll('[id^="tab-btn-"]');
+            const indicator = document.getElementById('tab-indicator');
             
             contents.forEach(c => c.classList.add('hidden'));
             buttons.forEach(b => {
-              b.classList.remove('active-tab');
+              b.classList.remove('text-primary');
               b.classList.add('text-slate-500');
             });
             
@@ -270,13 +294,21 @@ export const Layout = (props: {
             
             if (activeContent) activeContent.classList.remove('hidden');
             if (activeBtn) {
-              activeBtn.classList.add('active-tab');
+              activeBtn.classList.add('text-primary');
               activeBtn.classList.remove('text-slate-500');
+            }
+
+            if (indicator) {
+              if (tab === 'integrity') {
+                indicator.style.transform = 'translateX(0)';
+              } else {
+                indicator.style.transform = 'translateX(100%)';
+              }
             }
           };
           
-          // Initialize active tab
-          switchSidebarTab('integrity');
+          // Initialize active tab: DEFAULT TO LOGS
+          switchSidebarTab('logs');
         ` }} />
       </body>
     </html>

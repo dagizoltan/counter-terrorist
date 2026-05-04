@@ -38,6 +38,34 @@ export class SessionService {
     this.createSession = withTelemetry("Session:Create", this._createSession.bind(this), logging);
     this.validateSession = withTelemetry("Session:Validate", this._validateSession.bind(this), logging);
     this.revokeAllSessions = withTelemetry("Session:RevokeAll", this._revokeAllSessions.bind(this), logging);
+
+    // Initial prune and setup interval (every 1 hour)
+    this.pruneExpiredSessions();
+    setInterval(() => this.pruneExpiredSessions(), 60 * 60 * 1000);
+  }
+
+  /**
+   * Background task to remove expired sessions from KV.
+   */
+  public async pruneExpiredSessions(): Promise<void> {
+    try {
+      const now = Date.now();
+      const sessions = await this.repo.list();
+      let pruned = 0;
+      
+      for (const session of sessions) {
+        if (now > session.expiresAt) {
+          await this.repo.delete(session.id);
+          pruned++;
+        }
+      }
+      
+      if (pruned > 0) {
+        this.logging.log(`[SESSION] Pruned ${pruned} expired sessions from KV storage.`, SyslogSeverity.INFORMATIONAL);
+      }
+    } catch (e) {
+      this.logging.log(`[SESSION] Prune failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
+    }
   }
 
   private async _createSession(role: Role = "admin"): Promise<{ sessionId: string; csrfToken: string }> {

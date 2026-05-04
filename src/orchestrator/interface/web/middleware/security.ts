@@ -11,8 +11,6 @@ import { ActorContext } from "@domain/analysis/audit.ts";
  * Encapsulates all authentication and authorization logic.
  */
 export class SecurityMiddleware {
-  private apiRateLimits = new Map<string, { count: number; resetAt: number }>();
-
   constructor(private services: ServiceContainer, private masterToken: string) {}
 
   /**
@@ -22,7 +20,7 @@ export class SecurityMiddleware {
     return async (c: Context, next: Next) => {
       c.res.headers.set(
         "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
       );
       c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
       c.res.headers.set("X-Frame-Options", "DENY");
@@ -61,7 +59,11 @@ export class SecurityMiddleware {
   public auth() {
     return async (c: Context, next: Next) => {
       const path = c.req.path;
-      const ip = c.req.header("X-Forwarded-For") || "unknown";
+      
+      // Robust IP extraction: X-Forwarded-For (proxy) -> Deno RemoteAddr (direct) -> "unknown"
+      const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() 
+        || (c.env as any)?.remoteAddr?.hostname 
+        || "unknown";
 
       if (this.services.threatIntel.getBlacklist().has(ip)) {
         loggingService.log(`[SECURITY] REJECTED: Request from blacklisted IP ${ip} to ${path}`, SyslogSeverity.CRITICAL);
@@ -69,20 +71,14 @@ export class SecurityMiddleware {
       }
       
       if (path.startsWith("/api/")) {
-        const now = Date.now();
-        const limit = this.apiRateLimits.get(ip) || { count: 0, resetAt: now + 60000 };
-        
-        if (now > limit.resetAt) {
-          limit.count = 1;
-          limit.resetAt = now + 60000;
-        } else {
-          limit.count++;
-        }
-        this.apiRateLimits.set(ip, limit);
-
-        if (limit.count > 100) {
-           loggingService.log(`[SECURITY] Rate limit exceeded for IP: ${ip}`, SyslogSeverity.WARNING);
-           return c.json({ error: "Too Many Requests", code: "RATE_LIMIT_EXCEEDED" }, 429);
+        // Relaxed API rate limit (500 req/min) to accommodate dashboard polling and multiple active modules.
+        const result = await this.services.rateLimit.checkLimit(ip, 500, 60000);
+        if (!result.allowed) {
+          return c.json({ 
+            error: "Too Many Requests", 
+            code: "RATE_LIMIT_EXCEEDED",
+            retryAfterMs: result.retryAfterMs 
+          }, 429);
         }
       }
 

@@ -56,6 +56,18 @@ export class EventMediator {
             }
         });
 
+        // 4. PCAP Integration
+        commandPort.onEvent("pcap", (event: any) => {
+            // Bridge sidecar packet events to the UI
+            if (event.type === "PACKET" || event.type === "NETWORK_LOG") {
+                this.broadcast({ 
+                    type: event.type, 
+                    message: event.message || `Packet intercepted on ${event.data?.interface || 'mesh'}`, 
+                    data: event.data || event 
+                });
+            }
+        });
+
         this.logger.log("Event Mediator: Sidecar routing established", 6, "BOOT");
     }
 }

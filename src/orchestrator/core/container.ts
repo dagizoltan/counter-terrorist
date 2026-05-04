@@ -89,5 +89,6 @@ export interface ServiceContainer {
   mediator: EventMediator;
   behavioral: BehavioralService;
   geoIp: GeoIpService;
+  rateLimit: any; // RateLimitService
   platformInfo: PlatformInfo;
 }
