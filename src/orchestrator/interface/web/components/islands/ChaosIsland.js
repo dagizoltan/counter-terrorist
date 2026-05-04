@@ -35,12 +35,12 @@ export default function ChaosIsland() {
 
   return html`
     <div class="t-panel glass-panel border-t-2 border-danger/40 p-10 overflow-hidden relative group">
-      <div class="absolute top-0 right-0 p-8 opacity-5 pointer-events-none transition-transform group-hover:scale-110">
+      <div class="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
          <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
       </div>
 
       <header class="flex items-center gap-6 mb-10 pb-6 border-b border-white/5">
-         <div class="p-4 bg-danger/10 border border-danger/20 text-danger rounded-lg shadow-danger animate-pulse">
+         <div class="p-4 bg-danger/10 border border-danger/20 text-danger rounded-lg ">
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
          </div>
          <div class="flex flex-col gap-1">
@@ -57,11 +57,11 @@ export default function ChaosIsland() {
          <button 
            onClick=${() => simulate("brute-force", "192.168.1.100")}
            disabled=${loading}
-           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left transition-all group/btn"
+           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left group/btn"
          >
             <div class="flex justify-between items-center mb-4">
-               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_01</span>
-               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger'}>SIM_01</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger'}></div>
             </div>
             <div class="mono-md font-black text-white uppercase tracking-tighter">SSH_Brute_Force</div>
             <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: SECURE_NODE_01</div>
@@ -70,11 +70,11 @@ export default function ChaosIsland() {
          <button 
            onClick=${() => simulate("canary", "./vault_credentials.xlsx")}
            disabled=${loading}
-           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left transition-all group/btn"
+           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left group/btn"
          >
             <div class="flex justify-between items-center mb-4">
-               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_02</span>
-               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger'}>SIM_02</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger'}></div>
             </div>
             <div class="mono-md font-black text-white uppercase tracking-tighter">Canary_Exfiltration</div>
             <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: FS_VAULT_ROOT</div>
@@ -83,11 +83,11 @@ export default function ChaosIsland() {
          <button 
            onClick=${() => simulate("malware", "xmrig")}
            disabled=${loading}
-           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left transition-all group/btn"
+           class="t-panel bg-black/40 border border-white/5 hover:border-danger/40 hover:bg-danger/5 p-6 text-left group/btn"
          >
             <div class="flex justify-between items-center mb-4">
-               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger">SIM_03</span>
-               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger transition-all"></div>
+               <span class="mono-xs font-black text-slate-600 uppercase tracking-widest group-hover/btn:text-danger'}>SIM_03</span>
+               <div class="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover/btn:bg-danger group-hover/btn:shadow-danger'}></div>
             </div>
             <div class="mono-md font-black text-white uppercase tracking-tighter">Kernel_Malware</div>
             <div class="mono-xs text-slate-700 mt-2 font-bold uppercase">TARGET: EBPF_RUNTIME</div>
@@ -95,8 +95,8 @@ export default function ChaosIsland() {
       </div>
 
       ${result && html`
-        <div class="mt-10 p-6 bg-success/5 border border-success/20 rounded-lg flex items-center gap-4 animate-fade-in">
-           <div class="dot active shadow-success"></div>
+        <div class="mt-10 p-6 bg-success/5 border border-success/20 rounded-lg flex items-center gap-4 ">
+           <div class="dot active'}></div>
            <div class="mono-xs font-black text-success uppercase tracking-widest italic">
               VECTOR_EXECUTED: ${result}
            </div>
@@ -106,7 +106,7 @@ export default function ChaosIsland() {
       ${loading && html`
         <div class="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center gap-8 z-20">
            <div class="skeleton h-24 w-64"></div>
-           <span class="mono-xs font-black text-danger uppercase tracking-[0.5em] animate-pulse">Initializing_Synthetic_Payload...</span>
+           <span class="mono-xs font-black text-danger uppercase tracking-[0.5em] ">Initializing_Synthetic_Payload...</span>
         </div>
       `}
     </div>

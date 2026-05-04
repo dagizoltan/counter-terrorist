@@ -47,10 +47,6 @@ class ThreatMap extends HTMLElement {
     ping.style.boxShadow = '0 0 20px var(--danger)';
     
     // Pulse animation
-    ping.animate([
-      { transform: 'scale(1)', opacity: 1 },
-      { transform: 'scale(8)', opacity: 0 }
-    ], { duration: 2500, easing: 'ease-out' });
 
     container.appendChild(ping);
     setTimeout(() => ping.remove(), 2500);
@@ -71,17 +67,16 @@ class ThreatMap extends HTMLElement {
               <circle cx="20" cy="20" r="0.8" fill="var(--primary)" />
               <circle cx="50" cy="40" r="0.8" fill="var(--primary)" />
               <circle cx="80" cy="30" r="0.8" fill="var(--primary)" />
-              <circle cx="30" cy="45" r="0.8" fill="var(--danger)" class="animate-pulse" />
+              <circle cx="30" cy="45" r="0.8" fill="var(--danger)" class="" />
            </svg>
         </div>
 
         <div id="attacks-layer" class="absolute inset-0 z-10"></div>
         
-        {/* Scanner Line */}
-        <div class="absolute w-full h-px bg-primary/40 shadow-[0_0_15px_var(--primary)] animate-scan-y pointer-events-none z-20"></div>
+        <div class="absolute w-full h-px bg-primary/40  pointer-events-none z-20"></div>
 
-        <div class="absolute bottom-6 left-6 flex items-center gap-3 bg-black/60 border border-white/5 px-4 py-2 rounded shadow-lg z-20">
-           <div class="dot active shadow-danger" style="background: var(--danger);"></div>
+        <div class="absolute bottom-6 left-6 flex items-center gap-3 bg-black/60 border border-white/5 px-4 py-2 rounded z-20">
+           <div class="dot active'} style="background: var(--danger);"></div>
            <span class="mono-xs font-black text-danger uppercase tracking-[0.25em]">Live_Ingress_Neutralization</span>
         </div>
         

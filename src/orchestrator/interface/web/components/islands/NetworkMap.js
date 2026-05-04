@@ -41,28 +41,28 @@ class NetworkMap extends HTMLElement {
 
   renderBase() {
     this.innerHTML = `
-      <div class="space-y-12 animate-fade-in">
+      <div class="space-y-12 ">
         <div id="mesh-core" class="space-y-8">
            <div class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
               <div class="flex items-center gap-4">
-                 <div class="w-1 h-6 bg-primary rounded shadow-primary"></div>
+                 <div class="w-1 h-6 bg-primary rounded"></div>
                  <h3 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">01_AUTHORITATIVE_MESH_CORE</h3>
               </div>
               <div id="scan-indicator" class="flex items-center gap-4 bg-primary/5 px-6 py-2 rounded-full border border-primary/20">
-                 <span class="dot active shadow-primary pulse"></span>
-                 <span class="mono-xs font-black text-primary uppercase tracking-[0.2em] animate-pulse">Scanning_Segment...</span>
+                 <span class="dot active'}></span>
+                 <span class="mono-xs font-black text-primary uppercase tracking-[0.2em] ">Scanning_Segment...</span>
               </div>
            </div>
            <div id="core-nodes" class="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div class="col-span-2 t-panel glass-panel text-center p-32 border-dashed opacity-20">
-                 <span class="mono-xs font-black uppercase tracking-[0.4em] animate-pulse text-primary">Initializing_Discovery_Chain...</span>
+                 <span class="mono-xs font-black uppercase tracking-[0.4em]  text-primary'}>Initializing_Discovery_Chain...</span>
               </div>
            </div>
         </div>
         
         <div id="environmental-signals" class="space-y-10">
            <div class="flex items-center gap-4 mb-8 pb-4 border-b border-white/5">
-              <div class="w-1 h-6 bg-slate-700 rounded shadow-sm"></div>
+              <div class="w-1 h-6 bg-slate-700 rounded"></div>
               <h3 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">02_AMBIENT_ENVIRONMENT_SIGNALS</h3>
            </div>
            
@@ -106,7 +106,7 @@ class NetworkMap extends HTMLElement {
     if (scanInd) {
        scanInd.style.opacity = this.isScanning ? '1' : '0.6';
        scanInd.querySelector('span').textContent = this.isScanning ? 'Scanning_Segment...' : 'Grid_Telemetry_Synced';
-       scanInd.querySelector('span').classList.toggle('animate-pulse', this.isScanning);
+       scanInd.querySelector('span').classList.toggle('', this.isScanning);
     }
 
     const mesh = this.devices.filter(d => d.type === 'MESH');
@@ -133,23 +133,23 @@ class NetworkMap extends HTMLElement {
   renderNode(d, theme) {
     const color = `var(--${theme})`;
     return `
-      <div class="t-panel glass-panel border-l-4 group transition-all hover:bg-white/[0.02] hover:translate-x-1 p-8" style="border-left-color: ${color}">
+      <div class="t-panel glass-panel border-l-4 group hover:bg-white/[0.02] hover:translate-x-1 p-8" style="border-left-color: ${color}">
         <div class="flex justify-between items-start mb-8">
           <div class="flex items-center gap-5">
-            <span class="dot active shadow-primary" style="background: ${color}"></span>
+            <span class="dot active'} style="background: ${color}"></span>
             <div class="flex flex-col gap-1">
                <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Sovereign_Peer</span>
                <span class="mono-md font-black text-white uppercase tracking-tighter italic select-all">${d.hostname || d.ip || 'UNKNOWN'}</span>
             </div>
           </div>
-          <div class="status-pill active primary">${d.mac || '??:??:??:??'}</div>
+          <div class="status-pill active' primary'}>${d.mac || '??:??:??:??'}</div>
         </div>
         <div class="flex justify-between items-center pt-6 border-t border-white/5">
           <div class="flex items-center gap-2">
              <span class="mono-xs text-slate-700 font-black uppercase">Vendor:</span>
              <span class="mono-xs text-slate-400 font-black uppercase tracking-widest">${d.vendor || 'UNIDENTIFIED'}</span>
           </div>
-          <div class="status-pill active py-1 px-4 shadow-primary" style="background: var(--${theme}-glow); color: ${color}; border-color: var(--${theme}-glow); font-size: 9px;">${d.state || 'REACHABLE'}</div>
+          <div class="status-pill active' py-1 px-4" style="background: var(--${theme}-glow); color: ${color}; border-color: var(--${theme}-glow); font-size: 9px;">${d.state || 'REACHABLE'}</div>
         </div>
       </div>
     `;
@@ -161,25 +161,25 @@ class NetworkMap extends HTMLElement {
     const signal = d.signal || 0;
     
     return `
-      <div class="flex flex-col gap-4 p-5 bg-black/60 border border-white/5 rounded-lg group hover:bg-black/80 hover:border-white/20 transition-all shadow-inner">
+      <div class="flex flex-col gap-4 p-5 bg-black/60 border border-white/5 rounded-lg group hover:bg-black/80 hover:border-white/20">
         <div class="flex justify-between items-center">
           <div class="flex flex-col gap-1">
              <span class="mono-xs text-slate-700 font-black uppercase tracking-tight" style="font-size: 8px;">Network_Identifier</span>
-             <span class="mono-xs font-black uppercase truncate max-w-[160px] ${isDanger ? 'text-danger shadow-danger' : 'text-slate-400 group-hover:text-white'} transition-colors tracking-widest">
+             <span class="mono-xs font-black uppercase truncate max-w-[160px] ${isDanger ? 'text-danger : 'text-slate-400 tracking-widest">
                ${d.ssid || d.hostname || d.ip || d.mac || 'HIDDEN_VECTOR'}
              </span>
           </div>
           <div class="flex items-center gap-3">
             <div class="flex gap-1 items-end h-4">
               ${[1,2,3,4].map(i => `
-                <div class="w-1 rounded-full transition-all duration-500" style="height: ${i * 25}%; background: ${signal >= i * 25 ? color : 'var(--border-subtle)'}; opacity: ${signal >= i * 25 ? 1 : 0.1}; box-shadow: ${signal >= i * 25 ? `0 0 8px ${color}66` : 'none'}"></div>
+                <div class="w-1 rounded-full" style="height: ${i * 25}%; background: ${signal >= i * 25 ? color : 'var(--border-subtle)'}; opacity: ${signal >= i * 25 ? 1 : 0.1}; box-shadow: ${signal >= i * 25 ? `0 0 8px ${color}66` : 'none'}"></div>
               `).join('')}
             </div>
-            <div class="dot ${d.state === 'OPEN' ? 'danger pulse shadow-danger' : ''}" style="width:5px; height:5px; background: ${d.state === 'OPEN' ? 'var(--danger)' : 'transparent'}"></div>
+            <div class="dot ${d.state === 'OPEN' ? 'danger' : ''}" style="width:5px; height:5px; background: ${d.state === 'OPEN' ? 'var(--danger)' : 'transparent'}"></div>
           </div>
         </div>
         <div class="flex justify-between items-center pt-3 border-t border-white/5">
-           <div class="status-pill ${isDanger ? 'danger' : 'active'} opacity-50 group-hover:opacity-100 transition-all">
+           <div class="status-pill ${isDanger ? 'danger' : 'active} opacity-50">
              ${d.encryption || d.state || 'SECURE'}
            </div>
            <span class="mono-xs text-slate-600 font-bold uppercase select-all">H_IDX: ${(d.mac || '').slice(-8)}</span>

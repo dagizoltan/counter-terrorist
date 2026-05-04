@@ -5,6 +5,23 @@ class ScannerAgent extends HTMLElement {
   }
 
   connectedCallback() {
+    this.innerHTML = `
+      <div class="space-y-8">
+         <div class="flex justify-between items-center bg-black/40 p-8 border border-white/5 rounded-2xl">
+            <div class="flex flex-col gap-2">
+               <h3 class="tactical-title text-base tracking-widest">FILESYSTEM_ASSESSMENT</h3>
+               <p class="mono-xs text-slate-500 font-black uppercase tracking-widest">Deep signature scan & vulnerability discovery</p>
+            </div>
+            <button id="btn-run-scan" class="t-btn primary px-12 py-4 font-black uppercase tracking-widest">Execute_Full_Audit</button>
+         </div>
+         
+         <div id="scanner-results">
+            <div class="p-24 text-center border-2 border-dashed border-white/5 rounded-2xl opacity-20">
+               <span class="mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Scan_Trigger...</span>
+            </div>
+         </div>
+      </div>
+    `;
     this.render();
   }
 
@@ -18,10 +35,10 @@ class ScannerAgent extends HTMLElement {
       if (resultsEl) {
         resultsEl.innerHTML = `
           <div class="flex flex-col items-center justify-center p-24 gap-6">
-            <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <div class="mono-xs font-black text-primary uppercase tracking-[0.4em] animate-pulse">Initializing_Scanner_Sidecar...</div>
+            <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full "></div>
+            <div class="mono-xs font-black text-primary uppercase tracking-[0.4em] ">Initializing_Scanner_Sidecar...</div>
             <div class="w-full max-w-xs h-1 bg-white/5 rounded-full overflow-hidden">
-               <div class="h-full bg-primary animate-progress"></div>
+               <div class="h-full bg-primary "></div>
             </div>
           </div>
         `;
@@ -45,10 +62,10 @@ class ScannerAgent extends HTMLElement {
         const shadow = `var(--shadow-${theme})`;
         
         resultsEl.innerHTML = `
-          <div class="t-panel glass-panel border-l-4 animate-fade-in" style="border-left-color: ${color}">
+          <div class="t-panel glass-panel border-l-4 " style="border-left-color: ${color}">
              <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
                 <div class="flex items-center gap-4">
-                   <div class="dot active shadow-${theme}"></div>
+                   <div class="dot active'}></div>
                    <h4 class="mono-sm font-black uppercase tracking-widest" style="color: ${color}">
                      ${isClean ? 'AUDIT_COMPLETE // CLEAR' : 'ANOMALY_DETECTED // CRITICAL'}
                    </h4>
@@ -89,7 +106,7 @@ class ScannerAgent extends HTMLElement {
       btn.disabled = this.scanning;
       btn.className = `t-btn ${this.scanning ? 'opacity-50' : ''} justify-center w-full py-4 text-sm`;
       btn.innerHTML = this.scanning ? `
-        <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <svg class=" -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>

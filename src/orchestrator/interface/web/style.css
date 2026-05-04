@@ -41,9 +41,9 @@
   --border-subtle: hsla(0, 0%, 100%, 0.04);
   --border-active: hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.3);
   
-  --sidebar-width: 260px;
-  --sidebar-right-width: 420px;
-  --header-height: 72px;
+  --sidebar-width: 240px;
+  --sidebar-right-width: 380px;
+  --header-height: 54px;
   
   --transition-fast: 400ms cubic-bezier(0.16, 1, 0.3, 1);
   --transition-slow: 1000ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -112,7 +112,6 @@ a:active, button:active, [role="button"]:active {
 
 svg {
   stroke-width: 2 !important;
-  transition: all var(--transition-fast);
 }
 
 /* Tactical Background Architecture */
@@ -149,23 +148,8 @@ body::after {
   mix-blend-mode: overlay;
 }
 
-/* System Scan Entrance Animation */
-@keyframes scan-sweep {
-  0% { transform: translateY(-100%); opacity: 0; }
-  20% { opacity: 0.4; }
-  80% { opacity: 0.4; }
-  100% { transform: translateY(100vh); opacity: 0; }
-}
-
 .system-scan-overlay {
-  position: fixed;
-  inset: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--primary), transparent);
-  box-shadow: 0 0 20px var(--primary);
-  z-index: 10001;
-  pointer-events: none;
-  animation: scan-sweep 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  display: none;
 }
 
 /* Typography */
@@ -197,7 +181,7 @@ h1, h2, h3, h4, .tactical-title {
   width: var(--sidebar-width);
   border-right: 1px solid var(--border-subtle);
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
   backdrop-filter: blur(20px);
   z-index: 50;
   overflow: hidden; /* Sidebar should not scroll, only its nav child */
@@ -206,7 +190,7 @@ h1, h2, h3, h4, .tactical-title {
 
 .shell-main {
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
   overflow: hidden;
   background: 
     radial-gradient(circle at 50% 0%, hsla(var(--primary-h), var(--primary-s), 15%, 0.05), transparent 80%),
@@ -239,7 +223,7 @@ h1, h2, h3, h4, .tactical-title {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 4rem;
+  padding: 1.5rem;
   padding-top: 0;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
@@ -258,7 +242,7 @@ h1, h2, h3, h4, .tactical-title {
   border-left: 1px solid var(--border-subtle);
   background: hsla(var(--bg-h), var(--bg-s), 2%, 0.95);
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
   backdrop-filter: blur(40px);
   z-index: 40;
   overflow: hidden;
@@ -270,19 +254,12 @@ h1, h2, h3, h4, .tactical-title {
   background: radial-gradient(circle at top left, hsla(0, 0%, 100%, 0.02), transparent), var(--panel-bg);
   border: 1px solid var(--border-subtle);
   border-radius: 12px;
-  padding: 2.5rem; 
+  padding: 2rem; 
   position: relative;
   overflow: hidden;
-  transition: all var(--transition-fast);
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
   backdrop-filter: blur(12px);
-  animation: panel-breath 10s ease-in-out infinite alternate;
-}
-
-@keyframes panel-breath {
-  0% { border-color: var(--border-subtle); }
-  100% { border-color: hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.08); }
 }
 
 .t-panel::before {
@@ -292,13 +269,11 @@ h1, h2, h3, h4, .tactical-title {
   width: 2px; height: 100%;
   background: var(--primary);
   opacity: 0;
-  transition: var(--transition-fast);
 }
 
 .t-panel:hover {
   border-color: var(--border-active);
   background: hsla(var(--bg-h), var(--bg-s), 9%, 0.95);
-  transform: translateY(-4px) scale(1.002);
   box-shadow: var(--shadow-primary);
 }
 
@@ -310,7 +285,6 @@ h1, h2, h3, h4, .tactical-title {
   border-top: 1px solid var(--primary);
   border-right: 1px solid var(--primary);
   opacity: 0.1;
-  transition: all var(--transition-fast);
 }
 
 .t-panel:hover::after {
@@ -327,24 +301,6 @@ h1, h2, h3, h4, .tactical-title {
   overflow: hidden;
 }
 
-.glass-panel::before {
-  content: "";
-  position: absolute;
-  top: -50%; left: -50%;
-  width: 200%; height: 200%;
-  background: linear-gradient(
-    45deg,
-    transparent 0%,
-    hsla(0, 0%, 100%, 0.03) 45%,
-    hsla(0, 0%, 100%, 0.05) 50%,
-    hsla(0, 0%, 100%, 0.03) 55%,
-    transparent 100%
-  );
-  transform: rotate(-45deg);
-  animation: shimmer 8s infinite linear;
-  pointer-events: none;
-}
-
 .glass-panel::after {
   content: "";
   position: absolute;
@@ -355,23 +311,22 @@ h1, h2, h3, h4, .tactical-title {
 
 /* Refined Page Header */
 .page-header {
-  margin-bottom: 5rem;
-  padding-bottom: 2.5rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
   border-bottom: 1px solid var(--border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .page-header .title-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
   gap: 0.5rem;
 }
 
 .page-header h1 {
-  font-size: 2rem;
+  font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--text-primary);
@@ -390,10 +345,10 @@ h1, h2, h3, h4, .tactical-title {
 
 /* Stat Card Unification */
 .stat-card {
-  padding: 2rem; /* Reduced from 3rem for better 4-column fit */
+  padding: 1.5rem; 
   display: flex;
-  flex-direction: column;
-  gap: 1.5rem; /* Reduced from 2rem */
+  flex-direction: column; flex-shrink: 0;
+  gap: 1.25rem; 
 }
 
 .stat-card .label {
@@ -447,7 +402,6 @@ h1, h2, h3, h4, .tactical-title {
   border-radius: 8px; 
   cursor: pointer;
   letter-spacing: 0.25em;
-  transition: all var(--transition-fast);
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
@@ -461,8 +415,6 @@ h1, h2, h3, h4, .tactical-title {
   background: var(--primary);
   color: white;
   box-shadow: var(--shadow-primary);
-  padding-left: 2rem;
-  padding-right: 2.5rem;
 }
 
 .t-btn::after {
@@ -471,7 +423,6 @@ h1, h2, h3, h4, .tactical-title {
   inset: 0;
   background: linear-gradient(120deg, transparent, hsla(0, 0%, 100%, 0.1), transparent);
   transform: translateX(-100%);
-  transition: transform 0.6s ease;
 }
 
 .t-btn:hover::after {
@@ -507,7 +458,7 @@ h1, h2, h3, h4, .tactical-title {
 /* Component: Metric Item */
 .metric-group {
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
   gap: 0.5rem;
 }
 
@@ -530,7 +481,7 @@ h1, h2, h3, h4, .tactical-title {
 /* Utility Classes - Comprehensive Tactical Set */
 .flex { display: flex; }
 .inline-flex { display: inline-flex; }
-.flex-col { flex-direction: column; }
+.flex-col { flex-direction: column; flex-shrink: 0; }
 .flex-grow { flex-grow: 1; }
 .items-center { align-items: center; }
 .justify-center { justify-content: center; }
@@ -561,7 +512,7 @@ h1, h2, h3, h4, .tactical-title {
 .text-slate-500 { color: hsla(215, 25%, 75%, 0.9); }
 .text-slate-600 { color: var(--text-secondary); }
 .text-slate-700 { color: var(--text-muted); }
-.flex-col { flex-direction: column; }
+.flex-col { flex-direction: column; flex-shrink: 0; }
 .flex-grow { flex-grow: 1; }
 .flex-shrink-0 { flex-shrink: 0; }
 .items-center { align-items: center; }
@@ -604,23 +555,13 @@ h1, h2, h3, h4, .tactical-title {
 .opacity-50 { opacity: 0.5; }
 .opacity-60 { opacity: 0.6; }
 .opacity-80 { opacity: 0.8; }
-.group:hover .group-hover\:opacity-100 { opacity: 1; }
-.group:hover .group-hover\:opacity-30 { opacity: 0.3; }
 
 .blur-xl { filter: blur(24px); }
 .blur-2xl { filter: blur(40px); }
 .blur-3xl { filter: blur(64px); }
 
-.transition-all { transition-property: all; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); transition-duration: 300ms; }
-.transition-opacity { transition-property: opacity; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); transition-duration: 300ms; }
-.transition-transform { transition-property: transform; transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); transition-duration: 500ms; }
 
 .translate-y-full { transform: translateY(100%); }
-.group:hover .group-hover\:translate-y-0 { transform: translateY(0); }
-.group:hover .group-hover\:translate-x-1 { transform: translateX(0.25rem); }
-.group:hover .group-hover\:scale-110 { transform: scale(1.1); }
-.group:hover .group-hover\:scale-105 { transform: scale(1.05); }
-.group:hover .group-hover\:rotate-12 { transform: rotate(12deg); }
 
 .shadow-inner { box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3); }
 .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8); }
@@ -690,8 +631,6 @@ h1, h2, h3, h4, .tactical-title {
 .px-4 { padding-left: 1rem; padding-right: 1rem; }
 .px-5 { padding-left: 1.25rem; padding-right: 1.25rem; }
 .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-.px-8 { padding-left: 2rem; padding-right: 2rem; }
-.px-10 { padding-left: 2.5rem; padding-right: 2.5rem; }
 .py-0\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }
 .py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
 .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
@@ -859,7 +798,6 @@ h1, h2, h3, h4, .tactical-title {
   font-size: 11px;
   letter-spacing: 0.1em;
   outline: none;
-  transition: all var(--transition-fast);
   box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);
 }
 
@@ -890,21 +828,14 @@ h1, h2, h3, h4, .tactical-title {
 
 .dot.active {
   background: var(--success);
-  box-shadow: 0 0 12px var(--success-glow);
-}
-
-.dot.pulse {
-  animation: pulse-dot 2.5s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }
 
 .dot.warning {
   background: var(--warning);
-  box-shadow: 0 0 12px var(--warning-glow);
 }
 
 .dot.danger {
   background: var(--danger);
-  box-shadow: 0 0 12px var(--danger-glow);
 }
 
 /* Status Pill Component */
@@ -921,7 +852,6 @@ h1, h2, h3, h4, .tactical-title {
   gap: 0.5rem;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-subtle);
-  transition: all var(--transition-fast);
 }
 
 .status-pill.primary { color: var(--primary); border-color: var(--primary-glow); background: var(--primary-glow); }
@@ -930,31 +860,16 @@ h1, h2, h3, h4, .tactical-title {
 .status-pill.warning { color: var(--warning); border-color: var(--warning-glow); background: var(--warning-glow); }
 
 .status-pill.pulse {
-  animation: pulse-glow 2s infinite alternate;
+  border-color: currentColor;
 }
 
-@keyframes pulse-glow {
-  from { opacity: 0.7; box-shadow: 0 0 5px currentColor; }
-  to { opacity: 1; box-shadow: 0 0 15px currentColor; }
-}
-
-@keyframes pulse-dot {
-  0% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.4); opacity: 0.5; }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-@keyframes pulse-dot-danger {
-  0% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 var(--danger-glow); }
-  70% { transform: scale(1.2); opacity: 0.7; box-shadow: 0 0 0 12px transparent; }
-  100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 transparent; }
-}
+/* Animations disabled for operational stability */
 
 /* Navigation */
 .nav-group {
-  margin-top: 2.5rem;
+  margin-top: 1.5rem;
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
 }
 
 .nav-heading {
@@ -963,8 +878,7 @@ h1, h2, h3, h4, .tactical-title {
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.4em;
-  margin-bottom: 1.5rem;
-  padding-left: 2.5rem;
+  margin-bottom: 1rem;
   opacity: 0.4;
   display: flex;
   align-items: center;
@@ -981,30 +895,25 @@ h1, h2, h3, h4, .tactical-title {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
-  padding: 1rem 2.5rem;
+  gap: 1rem;
+  padding: 0.5rem 1.5rem;
   color: var(--text-secondary);
   text-decoration: none;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.2em;
-  transition: all var(--transition-fast);
-  border-left: 4px solid transparent;
 }
 
 .nav-link:hover {
   background: hsla(var(--primary-h), var(--primary-s), 50%, 0.04);
   color: var(--primary);
-  padding-left: 3rem;
 }
 
 .nav-link.active {
   background: linear-gradient(90deg, hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.08), transparent);
   color: var(--primary);
-  border-left-color: var(--primary);
   text-shadow: 0 0 20px var(--primary-glow);
-  padding-left: 3rem;
 }
 
 /* Status Indicators */
@@ -1025,18 +934,8 @@ h1, h2, h3, h4, .tactical-title {
 .status-pill.error { background: hsla(var(--danger-h), var(--danger-s), var(--danger-l), 0.15); color: var(--danger); border: 1px solid hsla(var(--danger-h), var(--danger-s), var(--danger-l), 0.3); }
 
 /* Tactical Gradients & Utilities */
-@keyframes brand-flicker {
-  0% { opacity: 1; }
-  92% { opacity: 1; }
-  93% { opacity: 0.7; }
-  94% { opacity: 1; }
-  95% { opacity: 0.9; }
-  96% { opacity: 1; }
-  100% { opacity: 1; }
-}
-
 .brand-flicker {
-  animation: brand-flicker 8s infinite;
+  opacity: 1;
 }
 
 .bg-gradient-to-b { background-image: linear-gradient(to bottom, var(--tw-gradient-stops)); }
@@ -1045,50 +944,15 @@ h1, h2, h3, h4, .tactical-title {
 .to-bg { --tw-gradient-to: var(--bg); }
 
 
-/* Animations */
-.animate-pulse { animation: pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
-.animate-fade-in { animation: fadeIn 0.6s cubic-bezier(0.23, 1, 0.32, 1); }
-.animate-spin { animation: spin 1s linear infinite; }
-.animate-bounce { animation: bounce 1s infinite; }
-
-@keyframes shimmer {
-  0% { transform: translateX(-100%) rotate(-45deg); }
-  100% { transform: translateX(100%) rotate(-45deg); }
-}
+/* Animations - Disabled for Quiet Security */
+.animate-pulse { opacity: 1 !important; animation: none !important; }
+.animate-fade-in { opacity: 1 !important; animation: none !important; }
+.animate-spin { animation: none !important; }
+.animate-glitch { animation: none !important; }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
-  50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
-}
-
-.animate-scan-y {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, var(--primary), transparent);
-  animation: scan-y 6s linear infinite;
-  box-shadow: 0 0 15px var(--primary-glow);
-  z-index: 10;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .4; }
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(15px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes scan-y {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
 }
 
 /* Scrollbar Customization - Stealth Mode */
@@ -1100,7 +964,6 @@ h1, h2, h3, h4, .tactical-title {
 ::-webkit-scrollbar-thumb { 
   background: hsla(0, 0%, 100%, 0.05); 
   border-radius: 10px; 
-  transition: background var(--transition-fast);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
 
@@ -1141,7 +1004,6 @@ h1, h2, h3, h4, .tactical-title {
     left: -100%;
     top: 0;
     bottom: 0;
-    transition: left 0.3s ease;
   }
   .shell-sidebar.mobile-open {
     left: 0;
@@ -1150,7 +1012,7 @@ h1, h2, h3, h4, .tactical-title {
     padding: 1.5rem;
   }
   .page-header {
-    flex-direction: column;
+    flex-direction: column; flex-shrink: 0;
     align-items: flex-start;
     gap: 1.5rem;
   }
@@ -1160,18 +1022,18 @@ h1, h2, h3, h4, .tactical-title {
 .skeleton {
   background: linear-gradient(90deg, hsla(0,0%,100%,0.03) 25%, hsla(0,0%,100%,0.08) 50%, hsla(0,0%,100%,0.03) 75%);
   background-size: 200% 100%;
-  animation: skeleton-loading 2s infinite linear;
+  animation: none !important;
   border-radius: 4px;
 }
 
 @keyframes skeleton-loading {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from { background-position: 0% 0; }
+  to { background-position: 0% 0; }
 }
 
 .empty-state {
   display: flex;
-  flex-direction: column;
+  flex-direction: column; flex-shrink: 0;
   align-items: center;
   justify-content: center;
   padding: 6rem;
@@ -1182,27 +1044,29 @@ h1, h2, h3, h4, .tactical-title {
 }
 /* High-Alert Immersive Override */
 body.system-alert-active {
-  animation: bg-alert-pulse 2s infinite alternate;
+  background: var(--bg);
 }
 
 body.system-alert-active .app-shell {
-  filter: grayscale(0.5) contrast(1.2);
-  transition: filter 1s ease;
+  filter: contrast(1.1);
 }
 
 body.system-alert-active .shell-header,
 body.system-alert-active .shell-sidebar,
 body.system-alert-active .shell-aside {
   border-color: var(--danger);
-  box-shadow: 0 0 20px var(--danger-glow);
 }
 
-@keyframes bg-alert-pulse {
-  0% { background: var(--bg); }
-  100% { background: hsla(var(--danger-h), var(--danger-s), 10%, 1); }
+/* Sidebar Tabbed Interface */
+.active-tab {
+  background: var(--primary) !important;
+  color: black !important;
+  opacity: 1 !important;
 }
 
-@keyframes alert-ping {
-  0% { transform: scale(1); opacity: 1; }
-  100% { transform: scale(2); opacity: 0; }
+.sidebar-header {
+  display: flex;
+  flex-direction: column; flex-shrink: 0;
+  height: auto;
+  min-height: var(--header-height);
 }

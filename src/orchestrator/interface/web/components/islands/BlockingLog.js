@@ -118,7 +118,7 @@ class BlockingLog extends HTMLElement {
 
   createLogElement(log) {
     const div = document.createElement('div');
-    div.className = `t-panel p-4 border-l-4 ${this.getColorClass(log.type)} hover:bg-white/5 cursor-pointer animate-fade-in`;
+    div.className = `t-panel p-4 border-l-4 ${this.getColorClass(log.type)} hover:bg-white/5 cursor-pointer `;
     div.innerHTML = `
       <div class="flex justify-between mb-2">
         <span class="text-[9px] font-mono text-slate-500">${new Date(log.timestamp).toLocaleTimeString()}</span>

@@ -2,7 +2,7 @@ import { jsx } from "hono/jsx";
 
 export const Button = ({ children, class: className, ...props }: any) => (
   <button 
-    class={`px-6 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${className}`}
+    class={`px-6 py-2 text-[10px] font-black uppercase tracking-widest ${className}`}
     {...props}
   >
     {children}

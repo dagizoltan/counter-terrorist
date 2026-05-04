@@ -60,9 +60,9 @@ class MiniLog extends HTMLElement {
           const color = this.getColor(log.type);
           const isCritical = ['BLOCK', 'THREAT', 'CRITICAL', 'EMERGENCY', 'DRIFT_PROCESS'].includes(log.type);
           return `
-            <div class="p-6 border-l-4 border-slate-800 hover:border-primary bg-black/20 hover:bg-black/40 transition-all animate-fade-in relative overflow-hidden" 
+            <div class="p-6 border-l-4 border-slate-800 hover:border-primary bg-black/20 hover:bg-black/40  relative overflow-hidden" 
                  style="border-left-color: ${isCritical ? 'var(--danger)' : 'var(--border-subtle)'};">
-              ${isCritical ? `<div class="absolute inset-0 bg-danger/5 animate-pulse pointer-events-none"></div>` : ''}
+              ${isCritical ? `<div class="absolute inset-0 bg-danger/5  pointer-events-none"></div>` : ''}
               <div class="flex justify-between items-center mb-4 relative z-10">
                 <span class="status-pill ${isCritical ? 'danger' : 'primary'} border-none p-0 bg-transparent">
                   ${log.type}
@@ -71,11 +71,11 @@ class MiniLog extends HTMLElement {
                   ${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}
                 </span>
               </div>
-              <div class="mono-xs font-bold text-slate-400 group-hover:text-white transition-colors leading-relaxed uppercase tracking-tight relative z-10">
+              <div class="mono-xs font-bold text-slate-400 leading-relaxed uppercase tracking-tight relative z-10">
                 ${escape(log.message)}
               </div>
               ${log.data?.source ? `
-                <div class="mt-4 flex items-center gap-3 opacity-40 group-hover:opacity-100 transition-opacity">
+                <div class="mt-4 flex items-center gap-3 opacity-40">
                   <span class="mono-xs text-slate-500 font-bold">SOURCE:</span>
                   <span class="mono-xs text-primary font-bold">${log.data.source}</span>
                 </div>

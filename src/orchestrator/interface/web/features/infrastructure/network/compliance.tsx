@@ -35,7 +35,7 @@ export const NetworkPage = () => {
                  </thead>
                  <tbody id="network-logs-body">
                     <tr>
-                       <td colspan="6" style="padding:5rem; text-align:center; font-style:italic;" class="mono-label pulse">
+                       <td colspan="6" style="padding:5rem; text-align:center; font-style:italic;" class="mono-label">
                           Accessing_Network_Forensic_Buffer...
                        </td>
                     </tr>

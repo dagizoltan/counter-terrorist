@@ -27,159 +27,168 @@ export const Layout = (props: {
         <div class="app-shell">
           
           {/* ── 01_NAVIGATION_DECK (Left) ─────────────────────────────── */}
-          <aside class="shell-sidebar relative shadow-[10px_0_40px_rgba(0,0,0,0.4)]">
-            <header class="p-8 border-b border-white/5 relative group cursor-default">
-              <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-all duration-700"></div>
+          <aside class="shell-sidebar relative">
+            <header class="p-4 border-b border-white/5 relative group cursor-default">
+              <div class="absolute inset-0 bg-primary/5 opacity-0"></div>
               <div class="flex items-center gap-4 relative z-10">
-                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] group-hover:scale-110 transition-transform duration-500">
+                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 </div>
                 <div>
-                  <h1 class="text-lg font-black tracking-tighter uppercase italic leading-none">Sovereign</h1>
-                  <span class="mono-xs text-primary font-black uppercase tracking-[0.4em] mt-1 block opacity-80">Orchestrator</span>
+                  <h1 class="text-base font-black tracking-tighter uppercase italic leading-none">Sovereign</h1>
+                  <span class="text-[7px] text-primary font-black uppercase tracking-[0.4em] mt-1 block opacity-80">Orchestrator</span>
                 </div>
               </div>
             </header>
 
-            <nav class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-1">
-              {/* MONITOR */}
+            <nav class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-1">
+              {/* DASHBOARD */}
               <div class="nav-group mb-8">
                 <div class="nav-heading !text-primary flex items-center gap-3">
                    <div class="w-1 h-3 bg-primary rounded-full"></div>
-                   MONITOR
+                   DASHBOARD
                 </div>
                 <a href="/dashboard" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-                   Mission Dashboard
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                   Node
                 </a>
-                <a href="/infrastructure" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
-                   Infrastructure Hub
+                <a href="/infrastructure/mesh" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/><path d="M17 12V17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-5"/><circle cx="12" cy="12" r="3"/></svg>
+                   Mesh
                 </a>
-              </div>
-
-              {/* ANALYZE */}
-              <div class="nav-group mb-8">
-                <div class="nav-heading !text-danger flex items-center gap-3">
-                   <div class="w-1 h-3 bg-danger rounded-full"></div>
-                   ANALYZE
-                </div>
-                <a href="/intelligence" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                   Intelligence Deck
-                </a>
-                <a href="/forensics" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                   Forensics Lab
+                <a href="/news" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
+                   News
                 </a>
               </div>
 
-              {/* ENFORCE */}
+              {/* AGENT FLEET */}
               <div class="nav-group mb-8">
                 <div class="nav-heading !text-success flex items-center gap-3">
                    <div class="w-1 h-3 bg-success rounded-full"></div>
-                   ENFORCE
+                   AGENT_FLEET
                 </div>
-                <a href="/network" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                   Network Shield
+                <a href="/agents/firewall" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                   Firewall
                 </a>
-                <a href="/deception" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
-                   Deception Array
+                <a href="/agents/deception" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                   Deception
                 </a>
-                <a href="/agents" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                   Agent Registry
+                <a href="/agents/scanner" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                   Scanner
+                </a>
+                <a href="/agents/fim" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M10 9H8"/></svg>
+                   FIM
+                </a>
+                <a href="/agents/ebpf" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-7-7 7"/><path d="M12 14V3"/><path d="m5 3 7 7 7-7"/></svg>
+                   eBPF
+                </a>
+                <a href="/agents/pcap" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="M21 6H3"/><path d="M21 18H3"/></svg>
+                   Packet_Capture
                 </a>
               </div>
 
-              {/* ADMINISTRATION */}
+              {/* NETWORK */}
+              <div class="nav-group mb-8">
+                <div class="nav-heading !text-warning flex items-center gap-3">
+                   <div class="w-1 h-3 bg-warning rounded-full"></div>
+                   NETWORK
+                </div>
+                <a href="/agents/network" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
+                   Topology
+                </a>
+              </div>
+
+              {/* SYSTEM */}
               <div class="nav-group pt-4">
                 <div class="nav-heading !text-slate-400 flex items-center gap-3">
                    <div class="w-1 h-3 bg-slate-400 rounded-full"></div>
-                   ADMINISTRATION
+                   SYSTEM
                 </div>
                 <a href="/governance" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                   Governance Ledger
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                   Ledger
                 </a>
                 <a href="/settings" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                   System Settings
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                   Settings
+                </a>
+                <a href="/system/info" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                   Info
                 </a>
               </div>
             </nav>
 
-            <footer class="p-6 border-t border-white/5 bg-black/20">
+            <footer class="p-4 border-t border-white/5 bg-black/20">
                <form method="POST" action="/logout">
                   <input type="hidden" name="csrfToken" value={props.csrfToken} />
                   <button type="submit" class="t-btn danger w-full justify-center group py-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                     Terminate_Session
                   </button>
                </form>
             </footer>
           </aside>
 
+
           {/* ── 02_OPERATIONAL_MAIN (Center) ──────────────────────────── */}
-          <main class="shell-main relative z-10 shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+          <main class="shell-main relative z-10">
              {/* Main Deck Header */}
              <header class="shell-header">
                 <div class="flex items-center gap-6">
                    <div class="flex items-center gap-3">
-                      <span class="dot active pulse shadow-primary"></span>
-                      <span class="mono-xs font-black text-slate-400 uppercase tracking-[0.4em]">{props.title?.split('//')[0] || 'STAGING_AREA'}</span>
+                      <span class="dot active"></span>
+                      <span class="mono-xs font-black text-primary tracking-[0.4em] uppercase">Sovereign_Active</span>
                    </div>
-                   <div class="w-px h-4 bg-white/10"></div>
-                   <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest italic opacity-60">{props.title?.split('//')[1] || 'SVRGN_ROOT'}</span>
                 </div>
                 
-                <div class="flex items-center gap-8">
-                   <div class="flex items-center gap-3">
-                      <span class="mono-xs text-slate-700 font-black tracking-widest uppercase">Encryption:</span>
-                      <span class="mono-xs text-success font-black tracking-widest uppercase bg-success/10 px-3 py-1 rounded border border-success/20">AES-256-GCM</span>
+                <div class="flex items-center gap-6">
+                   {/* Integrated Forensic Selector */}
+                   <div class="flex bg-black/80 border border-white/10 rounded-lg p-1 shadow-2xl h-10 items-center">
+                      <button id="tab-btn-integrity" onclick="window.switchSidebarTab('integrity')" class="px-6 py-2 mono-xs font-black tracking-widest uppercase rounded transition-all active-tab text-[10px]">Integrity</button>
+                      <button id="tab-btn-logs" onclick="window.switchSidebarTab('logs')" class="px-6 py-2 mono-xs font-black tracking-widest uppercase rounded transition-all text-slate-500 hover:text-white text-[10px]">Logs</button>
                    </div>
-                   <div class="w-px h-4 bg-white/10"></div>
-                   <div id="system-clock" class="mono-xs text-slate-500 font-black tracking-[0.2em]">00:00:00</div>
+                   <div class="w-px h-5 bg-white/10 mx-2"></div>
+                   <div id="system-clock" class="mono-xs text-slate-400 font-black tracking-[0.2em] bg-black/40 px-4 py-2 rounded border border-white/5">00:00:00</div>
                 </div>
              </header>
 
              {/* Content Stage */}
              <div class="shell-content">
                 {/* Background Tactical Elements */}
-                <div class="absolute inset-0 pointer-events-none opacity-20 z-0">
-                   <div class="absolute top-0 left-10 w-px h-full bg-gradient-to-b from-primary/10 via-transparent to-transparent"></div>
-                   <div class="absolute top-40 right-10 w-40 h-40 bg-primary/5 blur-[100px] rounded-full"></div>
+                <div class="absolute inset-0 pointer-events-none opacity-10 z-0">
+                   <div class="absolute top-40 right-10 w-40 h-40 bg-primary/5 blur-[120px] rounded-full"></div>
                 </div>
                 
-                <div class="relative z-10 animate-fade-in pt-12">
+                <div class="relative z-10 pt-12">
                    {props.children}
                 </div>
              </div>
           </main>
 
           {/* ── 03_FORENSIC_TELEMETRY (Right) ─────────────────────────── */}
-          <aside class="shell-aside relative z-20 shadow-[-10px_0_40px_rgba(0,0,0,0.4)]">
-             <header class="shell-header">
-                <div class="flex items-center gap-4">
-                   <div class="p-2 bg-danger/10 border border-danger/20 rounded text-danger">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <aside class="shell-aside relative z-20 flex flex-col">
+             <div class="flex-grow overflow-y-auto custom-scrollbar p-6">
+                {/* Tab Content: Integrity */}
+                <div id="sidebar-tab-integrity" class="sidebar-tab-content">
+                   <div class="mb-10">
+                      <system-health></system-health>
                    </div>
-                   <span class="font-black text-[10px] tracking-[0.4em] text-white uppercase">Live_Signals</span>
                 </div>
-                <div class="status-pill error pulse !px-4 !py-1 text-[8px]">CAPTURING</div>
-             </header>
 
-             <div class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-10">
-                <div class="mb-10">
-                   <h4 class="mono-xs font-black text-slate-600 mb-6 tracking-[0.3em] uppercase">Node_Integrity</h4>
-                   <system-health></system-health>
-                </div>
-                
-                <div class="pt-8 border-t border-white/5">
-                   <h4 class="mono-xs font-black text-slate-600 mb-6 tracking-[0.3em] uppercase">Temporal_Buffer</h4>
-                   <mini-log></mini-log>
+                {/* Tab Content: Logs */}
+                <div id="sidebar-tab-logs" class="sidebar-tab-content hidden">
+                   <div class="mb-10">
+                      <mini-log></mini-log>
+                   </div>
                 </div>
              </div>
 
@@ -189,7 +198,7 @@ export const Layout = (props: {
                    <span class="mono-xs font-black text-primary tracking-widest uppercase">99.9%</span>
                 </div>
                 <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-                   <div class="h-full bg-primary shadow-[0_0_10px_var(--primary)]" style="width: 99.9%"></div>
+                   <div class="h-full bg-primary" style="width: 99.9%"></div>
                 </div>
              </footer>
           </aside>
@@ -232,6 +241,42 @@ export const Layout = (props: {
           setInterval(syncInterface, 1000);
           syncInterface();
           window.addEventListener('popstate', syncInterface);
+
+          // Global Utility: escapeHTML (Required by agent islands)
+          window.escapeHTML = function(str) {
+            if (!str) return '';
+            return String(str)
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#039;');
+          };
+
+          // Sidebar Tab Switching
+          window.switchSidebarTab = function(tab) {
+            console.log("[SIDEBAR] Switching to:", tab);
+            const contents = document.querySelectorAll('.sidebar-tab-content');
+            const buttons = document.querySelectorAll('[id^="tab-btn-"]');
+            
+            contents.forEach(c => c.classList.add('hidden'));
+            buttons.forEach(b => {
+              b.classList.remove('active-tab');
+              b.classList.add('text-slate-500');
+            });
+            
+            const activeContent = document.getElementById('sidebar-tab-' + tab);
+            const activeBtn = document.getElementById('tab-btn-' + tab);
+            
+            if (activeContent) activeContent.classList.remove('hidden');
+            if (activeBtn) {
+              activeBtn.classList.add('active-tab');
+              activeBtn.classList.remove('text-slate-500');
+            }
+          };
+          
+          // Initialize active tab
+          switchSidebarTab('integrity');
         ` }} />
       </body>
     </html>

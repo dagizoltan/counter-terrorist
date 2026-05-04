@@ -6,7 +6,8 @@ class FirewallAgent extends HTMLElement {
 
   connectWS() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
@@ -76,16 +77,16 @@ class FirewallAgent extends HTMLElement {
         listEl.innerHTML = firewall.blockedIps.map(ip => {
           const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
           return `
-            <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 transition-all rounded animate-fade-in">
+            <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded ">
               <div class="flex flex-col gap-1">
                  <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">Target_Address</span>
-                 <span class="mono-sm font-black text-danger uppercase tracking-widest shadow-danger/20">${ip}</span>
+                 <span class="mono-sm font-black text-danger uppercase tracking-widest">${ip}</span>
               </div>
               <div class="flex items-center gap-6">
                 <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || ''}'}, body:JSON.stringify({ip:'${ip}'})}).then(() => location.reload())" 
-                        class="opacity-0 group-hover:opacity-100 transition-opacity mono-xs font-black uppercase text-slate-500 hover:text-white underline decoration-white/20 tracking-widest">Release_IP</button>
+                        class="opacity-0 mono-xs font-black uppercase text-slate-500 hover:text-white underline decoration-white/20 tracking-widest">Release_IP</button>
                 <div class="flex items-center gap-3">
-                   <div class="dot danger pulse shadow-danger"></div>
+                   <div class="dot danger'}></div>
                    <span class="mono-xs font-black uppercase text-danger tracking-widest">Quarantined</span>
                 </div>
               </div>
@@ -101,7 +102,7 @@ class FirewallAgent extends HTMLElement {
     if (!trafficEl) return;
     if (!logs || logs.length === 0) {
       trafficEl.innerHTML = `
-        <div class="mono-xs text-slate-700 animate-pulse p-12 text-center uppercase tracking-widest font-black">
+        <div class="mono-xs text-slate-700  p-12 text-center uppercase tracking-widest font-black">
            Awaiting_Packet_Signals...
         </div>
       `;
@@ -110,7 +111,7 @@ class FirewallAgent extends HTMLElement {
     trafficEl.innerHTML = logs.map(l => {
       const isBlocked = l.action === 'BLOCK';
       return `
-        <div class="flex items-center justify-between p-4 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group animate-fade-in">
+        <div class="flex items-center justify-between p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group ">
           <span class="mono-xs text-slate-600 font-bold w-24">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
           <div class="flex-1 flex items-center gap-4 px-4 overflow-hidden">
              <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${l.source}</span>
@@ -119,7 +120,7 @@ class FirewallAgent extends HTMLElement {
           </div>
           <div class="flex items-center gap-3 w-24 justify-end">
              <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success'}">${l.action}</span>
-             <div class="dot ${isBlocked ? 'danger shadow-danger' : 'active shadow-success'}"></div>
+             <div class="dot ${isBlocked ? 'danger' : 'active}"></div>
           </div>
         </div>
       `;

@@ -11,7 +11,7 @@ function SupplyChainIsland() {
   }, []);
 
   if (!status) return (
-    <div class="flex items-center justify-center p-12 text-slate-500 animate-pulse mono font-black uppercase tracking-widest text-xs">
+    <div class="flex items-center justify-center p-12 text-slate-500  mono font-black uppercase tracking-widest text-xs">
        Scanning_Supply_Chain...
     </div>
   );
@@ -38,7 +38,7 @@ function SupplyChainIsland() {
          </div>
          <div class="max-h-[300px] overflow-y-auto space-y-3 pr-4 custom-scrollbar">
             {sbom.map(item => (
-              <div key={item.name} class="grid grid-cols-4 gap-6 py-4 border-b border-white/[0.03] group hover:bg-white/[0.02] transition-colors">
+              <div key={item.name} class="grid grid-cols-4 gap-6 py-4 border-b border-white/[0.03] group hover:bg-white/[0.02]">
                  <span class="mono text-[11px] text-white font-black uppercase">{item.name}</span>
                  <span class="mono text-[11px] text-slate-500">{item.version}</span>
                  <span class="mono text-[11px] text-slate-500">{item.license}</span>
@@ -54,7 +54,7 @@ function SupplyChainIsland() {
 
       {status.vulnerableCount > 0 && (
         <div class="mt-12 p-6 bg-danger/5 border border-danger/20 flex items-center gap-6">
-           <div class="dot danger pulse"></div>
+           <div class="dot danger'}></div>
            <p class="mono text-[10px] font-black text-danger uppercase tracking-widest leading-relaxed">
               VULNERABILITY DETECTED: {status.vulnerableCount} compromised components identified in manifest.
            </p>

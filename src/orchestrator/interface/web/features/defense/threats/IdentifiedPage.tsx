@@ -13,10 +13,10 @@ export const IdentifiedPage = () => {
           <p class="text-slate-500 text-xs font-bold tracking-[0.4em] uppercase ml-6">Local Reputation Cache // Weighted Intelligence Database</p>
         </div>
         <div class="flex gap-4 w-full md:w-auto">
-           <button id="sync-btn" class="flex-grow md:flex-none px-8 py-3 bg-cyber/10 hover:bg-cyber/20 border border-cyber/30 text-cyber rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(14,165,233,0.1)]">
+           <button id="sync-btn" class="flex-grow md:flex-none px-8 py-3 bg-cyber/10 hover:bg-cyber/20 border border-cyber/30 text-cyber rounded-xl text-[10px] font-black uppercase tracking-widest[0_0_20px_rgba(14,165,233,0.1)]">
               Force_Sync
            </button>
-           <button id="wipe-btn" class="flex-grow md:flex-none px-8 py-3 bg-danger/10 hover:bg-danger/20 border border-danger/30 text-danger rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(239,68,68,0.1)]">
+           <button id="wipe-btn" class="flex-grow md:flex-none px-8 py-3 bg-danger/10 hover:bg-danger/20 border border-danger/30 text-danger rounded-xl text-[10px] font-black uppercase tracking-widest[0_0_20px_rgba(239,68,68,0.1)]">
               Wipe_Database
            </button>
         </div>
@@ -28,7 +28,7 @@ export const IdentifiedPage = () => {
           01_REPUTATION_CACHE
         </h2>
         <div class="grid grid-cols-1 gap-4" id="threats-list">
-           <div class="glass-panel p-12 rounded-3xl animate-pulse text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">
+           <div class="glass-panel p-8 rounded-3xl text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">
               Querying_Reputation_Database...
            </div>
         </div>
@@ -41,18 +41,18 @@ export const IdentifiedPage = () => {
           const container = document.getElementById('threats-list');
           
           if (threats.length === 0) {
-            container.innerHTML = '<div class="glass-panel p-12 rounded-3xl text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">Database is currently empty. Synchronize with external providers to hydrate.</div>';
+            container.innerHTML = '<div class="glass-panel p-8 rounded-3xl text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">Database is currently empty. Synchronize with external providers to hydrate.</div>';
             return;
           }
 
           container.innerHTML = threats.map(t => \`
-            <div class="glass-panel p-8 rounded-3xl border border-white/5 flex flex-col md:flex-row items-center justify-between group hover:border-danger/30 transition-all relative overflow-hidden">
+            <div class="glass-panel p-8 rounded-3xl border border-white/5 flex flex-col md:flex-row items-center justify-between group hover:border-danger/30 relative overflow-hidden">
               <div class="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
                 <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-danger"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
               </div>
-              <div class="flex items-center gap-8 w-full">
+              <div class="flex items-center gap-4 w-full">
                 <div class="w-16 h-16 rounded-2xl bg-danger/10 border border-danger/20 flex items-center justify-center shrink-0">
-                  <div class="w-3 h-3 bg-danger rounded-full shadow-[0_0_15px_rgba(239,68,68,0.6)] animate-pulse"></div>
+                  <div class="w-3 h-3 bg-danger rounded-full[0_0_15px_rgba(239,68,68,0.6)]"></div>
                 </div>
                 <div class="flex-grow min-w-0">
                   <div class="flex flex-wrap items-center gap-4 mb-2">
@@ -65,7 +65,7 @@ export const IdentifiedPage = () => {
                   </div>
                 </div>
               </div>
-              <div class="flex items-center gap-12 mt-6 md:mt-0 w-full md:w-auto shrink-0">
+              <div class="flex items-center gap-4 mt-6 md:mt-0 w-full md:w-auto shrink-0">
                  <div class="text-right">
                     <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">Confidence_Score</div>
                     <div class="text-3xl font-black \${t.score > 80 ? 'text-danger' : 'text-warning'} italic tracking-tighter font-mono">\${t.score}%</div>

@@ -83,10 +83,10 @@ class TimelineIsland extends HTMLElement {
     if (modeEl) {
       const hasEvents = this.events.length > 0;
       modeEl.textContent = hasEvents ? 'BUFFER_SYNCHRONIZED' : 'BUFFER_EMPTY';
-      modeEl.className = `mono-xs font-black tracking-[0.2em] uppercase transition-colors ${hasEvents ? 'text-primary' : 'text-danger'}`;
+      modeEl.className = `mono-xs font-black tracking-[0.2em] uppercase ${hasEvents ? 'text-primary' : 'text-danger'}`;
       const dot = modeEl.previousElementSibling;
       if (dot) {
-        dot.className = `dot ${hasEvents ? 'active shadow-primary' : 'danger pulse shadow-danger'}`;
+        dot.className = `dot ${hasEvents ? 'active' : 'danger
       }
     }
     
@@ -104,7 +104,7 @@ class TimelineIsland extends HTMLElement {
         const pct = Math.max(0, Math.min(100, ((ts - (now - windowMs)) / windowMs) * 100));
         const theme = (e.type === 'CRITICAL' || e.severity >= 8) ? 'danger' : 'warning';
         const color = `var(--${theme})`;
-        return `<div class="absolute w-[3px] h-6 rounded-full transition-all hover:h-8 hover:w-[5px]" style="left:${pct}%; background:${color}; box-shadow:0 0 15px ${color}" title="${this.escape(e.message)}"></div>`;
+        return `<div class="absolute w-[3px] h-6 rounded-full hover:h-8 hover:w-[5px]" style="left:${pct}%; background:${color}; box-shadow:0 0 15px ${color}" title="${this.escape(e.message)}"></div>`;
       }).join('');
     }
   }
@@ -139,7 +139,7 @@ class TimelineIsland extends HTMLElement {
     if (this.visibleCount < this.events.length) {
       const loadMore = document.createElement('div');
       loadMore.className = 'py-12 text-center opacity-30';
-      loadMore.innerHTML = `<span class="mono-xs font-bold text-slate-500 uppercase tracking-widest animate-pulse">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
+      loadMore.innerHTML = `<span class="mono-xs font-bold text-slate-500 uppercase tracking-widest ">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
       container.appendChild(loadMore);
     }
   }
@@ -162,7 +162,7 @@ class TimelineIsland extends HTMLElement {
     }
 
     return `
-      <div class="t-panel glass-panel border-l-4 group transition-all hover:bg-white/[0.03] animate-fade-in p-8 mb-6" style="border-left-color: var(--${theme})">
+      <div class="t-panel glass-panel border-l-4 group hover:bg-white/[0.03]  p-8 mb-6" style="border-left-color: var(--${theme})">
         <div class="flex justify-between items-start mb-8">
            <div class="flex items-center gap-8">
               <div class="flex flex-col gap-1">
@@ -178,12 +178,12 @@ class TimelineIsland extends HTMLElement {
                  </div>
               </div>
            </div>
-           <div class="status-pill ${theme} pulse">${this.escape(ev.type || 'EVENT')}</div>
+           <div class="status-pill ${theme}">${this.escape(ev.type || 'EVENT')}</div>
         </div>
-        <h4 class="text-xl font-bold text-white uppercase tracking-tighter mb-8 group-hover:text-primary transition-colors leading-tight">${this.escape(msg)}</h4>
+        <h4 class="text-xl font-bold text-white uppercase tracking-tighter mb-8 leading-tight">${this.escape(msg)}</h4>
         ${ev.data ? `
-          <div class="p-8 bg-black/40 border border-white/5 rounded-xl font-mono text-primary/60 break-all select-all opacity-40 group-hover:opacity-100 transition-opacity relative group/data">
-            <div class="absolute top-6 right-6 mono-xs text-slate-800 font-black opacity-0 group-hover/data:opacity-100 transition-opacity uppercase tracking-widest">Raw_Telemetry</div>
+          <div class="p-8 bg-black/40 border border-white/5 rounded-xl font-mono text-primary/60 break-all select-all opacity-40 relative group/data">
+            <div class="absolute top-6 right-6 mono-xs text-slate-800 font-black opacity-0 group-hover/data:opacity-100 uppercase tracking-widest">Raw_Telemetry</div>
             <pre class="whitespace-pre-wrap leading-relaxed text-[10px]">${this.escape(typeof ev.data === 'string' ? ev.data : JSON.stringify(ev.data, null, 2))}</pre>
           </div>
         ` : ''}

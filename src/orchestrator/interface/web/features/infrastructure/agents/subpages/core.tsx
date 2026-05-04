@@ -5,8 +5,8 @@ export const FirewallPage = (props: { csrfToken?: string }) => (
   <Layout title="Firewall Agent" islandPaths={['/components/islands/FirewallAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-danger/40 transition-all text-slate-500 hover:text-danger group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-danger/40 text-slate-500 hover:text-danger group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div style="width:12px; height:60px; background:var(--danger); border-radius:4px; box-shadow:0 0 20px var(--danger-glow);"></div>
         <div class="flex flex-col gap-2">
@@ -23,7 +23,7 @@ export const FirewallPage = (props: { csrfToken?: string }) => (
       </div>
     </header>
     
-    <div class="grid grid-cols-12 gap-8 mb-12">
+    <div class="grid grid-cols-12 gap-4 mb-12">
       <div class="col-span-12 lg:col-span-4 space-y-8">
         <div class="t-panel">
           <span class="metric-tag mb-6 block">Process_Identity</span>
@@ -38,7 +38,7 @@ export const FirewallPage = (props: { csrfToken?: string }) => (
         <div class="t-panel">
           <span class="metric-tag mb-6 block">Perimeter_Controls</span>
           <div class="space-y-4">
-             <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none transition-all text-white" />
+             <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white" />
              <div class="grid grid-cols-2 gap-4">
                 <button onclick="const ip=document.getElementById('fw-block-input').value; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({ip}) }).then(() => location.reload())" class="t-btn danger" style="padding:1rem;">Block_IP</button>
                 <button onclick="if(confirm('Flush all rules?')) fetch('/api/agents/firewall/flush', { method: 'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content} }).then(() => location.reload())" class="t-btn" style="padding:1rem; background:transparent; border-color:var(--border-subtle);">Flush_All</button>
@@ -51,7 +51,7 @@ export const FirewallPage = (props: { csrfToken?: string }) => (
            <h3 class="tactical-title" style="font-size:1rem;">ACTIVE_QUARANTINE_LEDGER</h3>
         </header>
         <div id="fw-blocked-list" class="p-8 space-y-4 h-[400px] overflow-y-auto bg-black/40">
-           <div class="mono text-[10px] text-slate-600 animate-pulse uppercase p-12 text-center">Synchronizing_Ruleset...</div>
+           <div class="mono text-[10px] text-slate-600 uppercase p-8 text-center">Synchronizing_Ruleset...</div>
         </div>
       </div>
     </div>
@@ -62,7 +62,7 @@ export const FirewallPage = (props: { csrfToken?: string }) => (
            <div class="px-3 py-1 bg-primary/10 border border-primary/30 text-primary text-[9px] font-black tracking-widest uppercase">PCAP_STREAM</div>
         </header>
         <div id="fw-traffic-list" class="p-8 space-y-2 h-[400px] overflow-y-auto bg-black/40">
-            <div class="mono text-[10px] text-slate-600 italic uppercase p-12 text-center">Awaiting packet signals...</div>
+            <div class="mono text-[10px] text-slate-600 italic uppercase p-8 text-center">Awaiting packet signals...</div>
         </div>
     </div>
     <firewall-agent></firewall-agent>
@@ -73,8 +73,8 @@ export const FimPage = (props: { csrfToken?: string }) => (
   <Layout title="Sentinel Monitor" islandPaths={['/components/islands/FimAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
@@ -96,7 +96,7 @@ export const FimPage = (props: { csrfToken?: string }) => (
          <h3 class="tactical-title" style="font-size:1rem;">INTEGRITY_VIOLATION_LEDGER</h3>
       </header>
       <div id="fim-alerts" class="p-8 space-y-4 h-[500px] overflow-y-auto bg-black/40">
-        <div class="mono text-[10px] text-slate-600 animate-pulse p-12 text-center uppercase">Awaiting_Integrity_Signals...</div>
+        <div class="mono text-[10px] text-slate-600 p-8 text-center uppercase">Awaiting_Integrity_Signals...</div>
       </div>
     </div>
     <fim-agent></fim-agent>
@@ -107,8 +107,8 @@ export const PcapPage = (props: { csrfToken?: string }) => (
   <Layout title="Interceptor DPI" islandPaths={['/components/islands/PcapAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
@@ -125,7 +125,7 @@ export const PcapPage = (props: { csrfToken?: string }) => (
       </div>
     </header>
 
-    <div class="grid grid-cols-12 gap-8">
+    <div class="grid grid-cols-12 gap-4">
        <div class="col-span-12 lg:col-span-4 space-y-6">
           <div class="t-panel">
              <span class="metric-tag mb-8 block">Capture_Controls</span>
@@ -141,7 +141,7 @@ export const PcapPage = (props: { csrfToken?: string }) => (
              <h3 class="tactical-title" style="font-size:1rem;">LIVE_INSPECTION_STREAM</h3>
           </header>
           <div id="pcap-stream" class="p-8 h-[600px] overflow-y-auto space-y-2 bg-black/40">
-             <div class="mono text-[10px] text-slate-600 animate-pulse p-12 text-center uppercase">Awaiting_Packet_Intercepts...</div>
+             <div class="mono text-[10px] text-slate-600 p-8 text-center uppercase">Awaiting_Packet_Intercepts...</div>
           </div>
        </div>
     </div>
@@ -153,8 +153,8 @@ export const HoneypotPage = (props: { csrfToken?: string }) => (
   <Layout title="Deception Grid" islandPaths={['/components/islands/HoneypotChart.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-warning/40 transition-all text-slate-500 hover:text-warning group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-warning/40 text-slate-500 hover:text-warning group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div style="width:12px; height:60px; background:var(--warning); border-radius:4px; box-shadow:0 0 20px var(--warning-glow);"></div>
         <div class="flex flex-col gap-2">
@@ -171,7 +171,7 @@ export const HoneypotPage = (props: { csrfToken?: string }) => (
       </div>
     </header>
 
-    <div class="grid grid-cols-12 gap-8 mb-12">
+    <div class="grid grid-cols-12 gap-4 mb-12">
        <div class="col-span-12 lg:col-span-8 t-panel p-0 overflow-hidden">
           <header class="p-8 border-b border-white/5 bg-black/20">
              <h3 class="tactical-title" style="font-size:1rem;">INTERACTION_VOLUME_TELEMETRY</h3>
@@ -214,8 +214,8 @@ export const VpnPage = (props: { csrfToken?: string }) => (
   <Layout title="VPN Tunnels" islandPaths={['/components/islands/VpnAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-success/40 transition-all text-slate-500 hover:text-success group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-success/40 text-slate-500 hover:text-success group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div style="width:12px; height:60px; background:var(--success); border-radius:4px; box-shadow:0 0 20px var(--success-glow);"></div>
         <div class="flex flex-col gap-2">
@@ -233,13 +233,13 @@ export const VpnPage = (props: { csrfToken?: string }) => (
     </header>
 
     <div class="t-panel flex flex-col items-center justify-center p-20 text-center" style="background:radial-gradient(circle at center, hsla(var(--success-h), 100%, 50%, 0.05), transparent 70%);">
-       <div class="w-24 h-24 border-2 border-success flex items-center justify-center mb-10 shadow-[0_0_40px_var(--success-glow)]">
-          <div id="vpn-status-dot" class="w-12 h-12 bg-slate-800 animate-pulse"></div>
+       <div class="w-24 h-24 border-2 border-success flex items-center justify-center mb-10[0_0_40px_var(--success-glow)]">
+          <div id="vpn-status-dot" class="w-12 h-12 bg-slate-800"></div>
        </div>
        <h3 id="vpn-status-label" class="text-4xl font-black uppercase tracking-tighter mb-4 italic text-white">SUBSYSTEM_OFFLINE</h3>
        <p id="vpn-status-details" class="mono text-xs font-bold text-slate-500 uppercase tracking-widest mb-12">Checking cryptographic handshakes...</p>
        
-       <div class="grid grid-cols-2 gap-8 w-full max-w-2xl mb-12">
+       <div class="grid grid-cols-2 gap-4 w-full max-w-2xl mb-12">
           <div class="t-panel" style="background:rgba(0,0,0,0.4);">
              <span class="metric-tag mb-4 block">Mesh_Peers</span>
              <p id="vpn-peer-count" class="text-3xl font-black mono text-white tabular-nums italic tracking-tighter">...</p>
@@ -263,8 +263,8 @@ export const EbpfPage = (props: { csrfToken?: string }) => (
   <Layout title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
@@ -281,9 +281,9 @@ export const EbpfPage = (props: { csrfToken?: string }) => (
       </div>
     </header>
 
-    <div class="grid grid-cols-12 gap-8">
+    <div class="grid grid-cols-12 gap-4">
       <div class="col-span-12 lg:col-span-4 space-y-6">
-        <div class="t-panel flex flex-col items-center p-12">
+        <div class="t-panel flex flex-col items-center p-8">
           <div id="ebpf-status-dot" class="w-16 h-16 bg-slate-800 mb-6 border-2 border-white/5"></div>
           <h3 id="ebpf-status-label" class="tactical-title" style="font-size:1.2rem;">OFFLINE</h3>
         </div>
@@ -298,7 +298,7 @@ export const EbpfPage = (props: { csrfToken?: string }) => (
            <h3 class="tactical-title" style="font-size:1rem;">KERNEL_EVENT_LEDGER</h3>
         </header>
         <div id="ebpf-event-log" class="p-8 space-y-3 h-[500px] overflow-y-auto bg-black/40 custom-scrollbar">
-           <div class="mono text-[10px] text-slate-600 animate-pulse p-12 text-center uppercase">Awaiting_Kernel_Signals...</div>
+           <div class="mono text-[10px] text-slate-600 p-8 text-center uppercase">Awaiting_Kernel_Signals...</div>
         </div>
       </div>
     </div>
@@ -310,8 +310,8 @@ export const ScannerPage = (props: { csrfToken?: string }) => (
   <Layout title="Vulnerability Scanner" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
@@ -333,7 +333,7 @@ export const ScannerPage = (props: { csrfToken?: string }) => (
       <header class="p-8 border-b border-white/5 bg-black/20">
         <h3 class="tactical-title" style="font-size:1rem;">AUDIT_RESULT_MANIFEST</h3>
       </header>
-      <div id="scanner-results" class="p-12 mono text-xs text-slate-400 bg-black/40 min-h-[500px] overflow-y-auto whitespace-pre-wrap leading-relaxed">
+      <div id="scanner-results" class="p-8 mono text-xs text-slate-400 bg-black/40 min-h-[500px] overflow-y-auto whitespace-pre-wrap leading-relaxed">
         <span class="text-slate-600 opacity-50 uppercase italic font-black">Awaiting initialization of Scanner sidecar...</span>
       </div>
     </div>

@@ -15,8 +15,8 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
       {/* HEADER: Identity & Actions */}
       <header class="flex justify-between items-end mb-12 border-b border-white/5 pb-12">
         <div class="flex items-center gap-6">
-          <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 transition-all text-slate-500 hover:text-primary group">
-             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+          <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
+             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
           </a>
           <div class="flex flex-col gap-2">
             <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0; text-transform:uppercase;">{agent.name}</h1>
@@ -54,14 +54,14 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
          ))}
       </div>
 
-      <div class="grid grid-cols-12 gap-8">
+      <div class="grid grid-cols-12 gap-4">
         {/* MAIN TELEMETRY */}
         <div class="col-span-8 space-y-12">
           <section class="t-panel p-0 overflow-hidden">
              <header class="p-8 border-b border-white/5 flex justify-between items-center bg-black/20">
                 <div class="flex items-center gap-4">
                    <h2 class="tactical-title" style="font-size:1.1rem;">01_FORENSIC_STREAM</h2>
-                   <div class="px-3 py-1 bg-primary/10 border border-primary/30 text-primary text-[9px] font-black tracking-widest uppercase animate-pulse">Live_Audit</div>
+                   <div class="px-3 py-1 bg-primary/10 border border-primary/30 text-primary text-[9px] font-black tracking-widest uppercase">Live_Audit</div>
                 </div>
              </header>
              <div class="h-[600px] bg-black/40 p-8 overflow-y-auto">
@@ -113,7 +113,7 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
                           Perimeter_Control
                        </p>
                        <div class="space-y-4">
-                          <input id="block-ip-input-main" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none transition-all text-white" />
+                          <input id="block-ip-input-main" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white" />
                           <div class="grid grid-cols-2 gap-4">
                              <button id="btn-firewall-block-main" class="t-btn danger" style="padding:1rem;">Execute_Block</button>
                              <button id="btn-firewall-unblock-main" class="t-btn" style="padding:1rem; background:transparent; border-color:var(--border-subtle);">Pardon_IP</button>
@@ -134,8 +134,8 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
           <section class="t-panel">
              <h2 class="tactical-title mb-10 pb-6 border-b border-white/5" style="font-size:0.9rem;">AGENT_MANIFEST</h2>
              <div id={`agent-caps-${agent.name}`} class="flex gap-2 flex-wrap mb-10">
-                <div class="h-6 w-20 bg-white/5 animate-pulse"></div>
-                <div class="h-6 w-20 bg-white/5 animate-pulse"></div>
+                <div class="h-6 w-20 bg-white/5"></div>
+                <div class="h-6 w-20 bg-white/5"></div>
              </div>
              
              <div class="space-y-6">

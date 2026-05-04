@@ -96,7 +96,7 @@ class WebhookManager extends HTMLElement {
             </div>
             <p class="text-[9px] text-slate-500 font-mono truncate max-w-lg italic opacity-60">${this.esc(wh.url)}</p>
           </div>
-          <button onclick="const csrf=document.querySelector('meta[name=\\'csrf-token\\']')?.content;fetch('/api/notifications/${wh.id}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="t-btn danger" style="padding: 0.5rem 1rem; font-size: 8px;">
+          <button onclick="const csrf=document.querySelector('meta[name=\\'csrf-token\\']')?.content;fetch('/api/notifications/${wh.id}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" class="t-btn danger'} style="padding: 0.5rem 1rem; font-size: 8px;">
             Remove
           </button>
         </div>

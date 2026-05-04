@@ -49,15 +49,15 @@ class SystemHealth extends HTMLElement {
       <div class="space-y-4">
         <div class="flex justify-between items-center mb-6 p-4 bg-black/40 border border-white/5 rounded-lg">
            <span class="mono-xs text-slate-500 uppercase tracking-widest">Global_Integrity</span>
-           <span class="status-pill ${severity.toLowerCase()} pulse">${severity}</span>
+           <span class="status-pill ${severity.toLowerCase()}">${severity}</span>
         </div>
         
         <div class="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
           ${subsystems.map(s => `
-            <div class="flex justify-between items-center p-4 bg-white/[0.02] border border-white/5 rounded hover:bg-white/[0.04] transition-all group">
+            <div class="flex justify-between items-center p-4 bg-white/[0.02] border border-white/5 rounded hover:bg-white/[0.04] group">
                <div class="flex items-center gap-4">
-                  <div class="w-1.5 h-1.5 rounded-full ${this.getSeverityColor(s.status).replace('text-', 'bg-')} shadow-lg"></div>
-                  <span class="mono-xs font-black text-slate-400 group-hover:text-white transition-colors uppercase tracking-widest">${s.name}</span>
+                  <div class="w-1.5 h-1.5 rounded-full ${this.getSeverityColor(s.status).replace('text-', 'bg-')}"></div>
+                  <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">${s.name}</span>
                </div>
                <div class="flex flex-col items-end">
                   <span class="mono-xs font-bold ${this.getSeverityColor(s.status)}">${s.status}</span>

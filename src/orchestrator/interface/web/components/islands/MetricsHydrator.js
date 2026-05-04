@@ -74,6 +74,7 @@ class MetricsHydrator extends HTMLElement {
       const meshActive = m.mesh.verified ?? 0;
       const meshTotal = m.mesh.nodes ?? 0;
       this.setText('stat-mesh-nodes', meshTotal > 0 ? `${meshActive}` : '0');
+      this.setText('stat-mesh-nodes-large', meshTotal > 0 ? `${meshActive}` : '0');
       this.setText('stat-mesh-total', meshTotal.toString());
       this.updateStatus('stat-mesh-quorum', m.mesh.quorum ? 'ESTABLISHED' : 'PENDING');
       this.setText('stat-mesh-health', `${m.mesh.health ?? 0}%`);
@@ -87,6 +88,7 @@ class MetricsHydrator extends HTMLElement {
        }
        if (m.node.cpu) {
           this.setText('stat-cpu-load', `${m.node.cpu.load ?? 0}%`);
+          this.setText('stat-cpu-load-large', `${m.node.cpu.load ?? 0}%`);
        }
        this.updateStatus('stat-node-uptime', m.node.uptime || '0s');
     }
@@ -101,13 +103,14 @@ class MetricsHydrator extends HTMLElement {
     // Layer-05: Audit & Compliance
     if (m.audit) {
        this.updateStatus('stat-audit-chain', m.audit.chainVerified ? 'VERIFIED' : 'BROKEN');
-       this.setText('stat-audit-score', `${m.audit.integrityScore ?? 0}%`);
+        this.setText('stat-audit-score', `${m.audit.integrityScore ?? 0}%`);
+        this.setText('stat-audit-score-large', `${m.audit.integrityScore ?? 0}%`);
     }
 
     // Layer-06: Honeypots & Deception
     if (m.honeypot) {
        this.setText('stat-honey-hits', (m.honeypot.totalHits ?? 0).toLocaleString());
-       this.updateStatus('stat-honey-status', m.honeypot.active ? 'ARMED' : 'STANDBY');
+       this.updateStatus('stat-honey-status', m.honeypot.active' ? 'ARMED' : 'STANDBY');
     }
 
     // Layer-07: Kernel Hardening
@@ -132,8 +135,6 @@ class MetricsHydrator extends HTMLElement {
     if (el && el.textContent != text) {
        el.textContent = text;
        // Subtle high-fidelity update feedback
-       el.classList.add('text-white');
-       setTimeout(() => el.classList.remove('text-white'), 500);
     }
   }
 
@@ -147,7 +148,7 @@ class MetricsHydrator extends HTMLElement {
     
     // Reset and apply theme-based classes if it's a status-pill or has tactical formatting
     if (el.classList.contains('status-pill') || el.classList.contains('tactical-status')) {
-       el.classList.remove('active', 'success', 'warning', 'danger', 'primary');
+       el.classList.remove('active, 'success', 'warning', 'danger', 'primary');
        
        const successValues = ['STRICT', 'ENABLED', 'VERIFIED', 'ACTIVE', 'BLOCKED', 'RUNNING', 'ENCRYPTED', 'ESTABLISHED', 'OPTIMAL', 'HARDENED', 'ARMED', 'COMPLIANT'];
        const warningValues = ['PARTIAL', 'LOOSE', 'PENDING', 'WARNING', 'DISTRIBUTED', 'STANDBY'];
@@ -155,7 +156,7 @@ class MetricsHydrator extends HTMLElement {
 
        if (successValues.includes(value.toUpperCase())) {
           el.classList.add('success');
-          if (el.classList.contains('status-pill')) el.classList.add('active');
+          if (el.classList.contains('status-pill')) el.classList.add('active);
        } else if (warningValues.includes(value.toUpperCase())) {
           el.classList.add('warning');
        } else if (primaryValues.includes(value.toUpperCase())) {

@@ -20,40 +20,40 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string }) => 
         </div>
         <div class="flex gap-4">
           <button class="t-btn px-8 py-4 text-[10px] font-black group" onclick="fetch('/api/mesh/resync', { method: 'POST' })">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mr-2 group-hover:rotate-180 transition-transform duration-700"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
             Broadcast_Sync
           </button>
         </div>
       </header>
 
       {/* 02_Grid_Architecture */}
-      <div class="grid grid-cols-12 gap-10 mb-16 animate-fade-in" style="animation-delay: 100ms;">
+      <div class="grid grid-cols-12 gap-6 mb-8">
         {/* Node Topology Graph */}
         <div class="col-span-12 lg:col-span-8 t-panel glass-panel p-0 border-t-2 border-primary/30 group">
-          <header class="p-10 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
-            <div class="flex items-center gap-8">
-              <div class="p-4 bg-primary/10 border border-primary/30 text-primary rounded-xl shadow-primary/20 group-hover:scale-110 transition-transform duration-500">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/><path d="M17 12V17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-5"/><circle cx="12" cy="12" r="3"/></svg>
+          <header class="p-6 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
+            <div class="flex items-center gap-4">
+              <div class="p-4 bg-primary/10 border border-primary/30 text-primary rounded-xl">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/><path d="M17 12V17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-5"/><circle cx="12" cy="12" r="3"/></svg>
               </div>
               <div class="flex flex-col gap-2">
                  <h3 class="tactical-title text-xl tracking-widest">NODE_GRAPH_RECONSTRUCTION</h3>
                  <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em] mt-1">Live peer-to-peer adjacency matrix</p>
               </div>
             </div>
-            <div class="flex items-center gap-6 bg-black/40 px-8 py-3 rounded-full border border-white/5 shadow-inner">
-               <span class="dot active shadow-success"></span>
+            <div class="flex items-center gap-6 bg-black/40 px-8 py-3 rounded-full border border-white/5">
+               <span class="dot active"></span>
                <span id="stat-mesh-nodes" class="mono-xs font-bold text-success tracking-widest uppercase italic">0 Active Peers</span>
             </div>
           </header>
           <div class="bg-black/60 h-[700px] relative overflow-hidden">
             <mesh-graph></mesh-graph>
-            <div class="absolute bottom-10 right-10 flex flex-col gap-4 pointer-events-none opacity-40 group-hover:opacity-100 transition-opacity duration-500">
+            <div class="absolute bottom-10 right-10 flex flex-col gap-4 pointer-events-none opacity-40">
                <div class="flex items-center gap-4 justify-end">
                   <span class="mono-xs text-slate-500 font-black uppercase tracking-[0.3em]">Signal_Fidelity</span>
                   <div class="flex gap-2">
-                     <div class="w-1.5 h-4 bg-success rounded-full shadow-success"></div>
-                     <div class="w-1.5 h-4 bg-success rounded-full shadow-success"></div>
-                     <div class="w-1.5 h-4 bg-success rounded-full shadow-success"></div>
+                     <div class="w-1.5 h-4 bg-success rounded-full"></div>
+                     <div class="w-1.5 h-4 bg-success rounded-full"></div>
+                     <div class="w-1.5 h-4 bg-success rounded-full"></div>
                      <div class="w-1.5 h-4 bg-success/20 rounded-full"></div>
                   </div>
                </div>
@@ -62,45 +62,45 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string }) => 
         </div>
 
         {/* Consensus & Operational Health */}
-        <div class="col-span-12 lg:col-span-4 flex flex-col gap-10">
-          <div class="t-panel glass-panel border-t-4 border-success group transition-all hover:bg-white/[0.02]">
+        <div class="col-span-12 lg:col-span-4 flex flex-col gap-6">
+          <div class="t-panel glass-panel border-t-4 border-success group hover:bg-white/[0.02]">
             <div class="flex justify-between items-start mb-12 pb-8 border-b border-white/10">
               <div class="flex flex-col gap-2">
-                 <h3 class="tactical-title text-xl tracking-widest group-hover:text-success transition-colors">CONSENSUS_STATE</h3>
+                 <h3 class="tactical-title text-xl tracking-widest">CONSENSUS_STATE</h3>
                  <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.3em]">Byzantine Fault Tolerance</p>
               </div>
-              <div class="status-pill success pulse">VERIFIED</div>
+              <div class="status-pill success">VERIFIED</div>
             </div>
             
-            <div class="flex flex-col gap-8 mb-12">
-              <div class="flex justify-between items-center p-8 bg-black/60 border border-white/5 rounded-2xl transition-all hover:translate-y-[-4px] hover:border-success/30 group/item shadow-inner">
-                <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-success transition-colors">Quorum_Status</span>
+            <div class="flex flex-col gap-4 mb-12">
+              <div class="flex justify-between items-center p-8 bg-black/60 border border-white/5 rounded-2xl group/item">
+                <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-success">Quorum_Status</span>
                 <span id="stat-mesh-quorum" class="mono-md font-black text-success tracking-widest uppercase italic">ESTABLISHED</span>
               </div>
-              <div class="flex justify-between items-center p-8 bg-black/60 border border-white/5 rounded-2xl transition-all hover:translate-y-[-4px] group/item shadow-inner">
-                <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary transition-colors">Identity_Weights</span>
+              <div class="flex justify-between items-center p-8 bg-black/60 border border-white/5 rounded-2xl group/item">
+                <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary">Identity_Weights</span>
                 <span class="mono-md font-black text-white tracking-widest uppercase">BALANCED</span>
               </div>
-              <div class="flex justify-between items-center p-8 bg-black/60 border border-white/5 rounded-2xl transition-all hover:translate-y-[-4px] group/item shadow-inner">
-                <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-success transition-colors">Net_Partition</span>
+              <div class="flex justify-between items-center p-8 bg-black/60 border border-white/5 rounded-2xl group/item">
+                <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-success">Net_Partition</span>
                 <span class="mono-md font-black text-success tracking-widest uppercase">NONE</span>
               </div>
             </div>
 
-            <div class="p-8 bg-success/5 border border-success/20 rounded-2xl relative overflow-hidden group/alert shadow-inner">
-               <div class="absolute top-0 right-0 p-6 opacity-5 group-hover/alert:opacity-10 transition-opacity">
+            <div class="p-8 bg-success/5 border border-success/20 rounded-2xl relative overflow-hidden group/alert">
+               <div class="absolute top-0 right-0 p-6 opacity-5 group-hover/alert:opacity-10">
                   <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                </div>
                <p class="mono-xs text-slate-500 font-black uppercase leading-loose tracking-widest italic">
-                 Sovereign nodes are currently synchronizing state via mTLS. Consensus threshold is maintained at <span class="text-success shadow-success">2/3 + 1</span>.
+                 Sovereign nodes are currently synchronizing state via mTLS. Consensus threshold is maintained at <span class="text-success">2/3 + 1</span>.
                </p>
             </div>
           </div>
 
-          <div class="t-panel glass-panel border-t-2 border-primary/30 group transition-all hover:bg-white/[0.04]">
-            <h3 class="tactical-title text-sm mb-12 uppercase tracking-[0.4em] text-slate-400 group-hover:text-primary transition-colors">MIMICRY_CAMOUFLAGE</h3>
-            <div class="flex items-center gap-8 p-8 bg-black/60 rounded-2xl border border-white/10 group/item hover:border-primary/40 transition-all shadow-inner">
-               <div class="p-4 bg-primary/10 border border-primary/20 text-primary rounded-xl shadow-primary/20">
+          <div class="t-panel glass-panel border-t-2 border-primary/30 group hover:bg-white/[0.04]">
+            <h3 class="tactical-title text-sm mb-12 uppercase tracking-[0.4em] text-slate-400">MIMICRY_CAMOUFLAGE</h3>
+            <div class="flex items-center gap-4 p-8 bg-black/60 rounded-2xl border border-white/10 group/item hover:border-primary/40">
+               <div class="p-4 bg-primary/10 border border-primary/20 text-primary rounded-xl">
                   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                </div>
                <div>
@@ -113,9 +113,9 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string }) => 
       </div>
 
       {/* 03_Traffic_Heatmap */}
-      <section class="animate-fade-in" style="animation-delay: 200ms;">
+      <section>
         <div class="flex items-center gap-6 mb-10 pb-4 border-b border-white/5">
-           <div class="w-12 h-1.5 bg-primary rounded-full shadow-primary"></div>
+           <div class="w-12 h-1.5 bg-primary rounded-full"></div>
            <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">03_MESH_TRAFFIC_HEATMAP_PROPAGATION</h2>
         </div>
         <div class="t-panel glass-panel p-0 border-t-2 border-slate-800 relative group">
@@ -123,14 +123,14 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string }) => 
               <mesh-heatmap></mesh-heatmap>
               <div class="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/80 to-transparent"></div>
               <div class="absolute bottom-10 left-10 z-10">
-                 <div class="flex items-center gap-10 bg-black/60 border border-white/10 px-8 py-4 rounded-full backdrop-blur-md shadow-2xl">
+                 <div class="flex items-center gap-6 bg-black/60 border border-white/10 px-8 py-4 rounded-full backdrop-blur-md2xl">
                     <div class="flex items-center gap-4">
-                       <div class="w-3 h-3 bg-danger rounded-full shadow-danger animate-pulse"></div>
+                       <div class="w-3 h-3 bg-danger rounded-full"></div>
                        <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Congestion_Zone</span>
                     </div>
                     <div class="w-px h-4 bg-white/10"></div>
                     <div class="flex items-center gap-4">
-                       <div class="w-3 h-3 bg-success rounded-full shadow-success"></div>
+                       <div class="w-3 h-3 bg-success rounded-full"></div>
                        <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Optimal_Flow</span>
                     </div>
                  </div>

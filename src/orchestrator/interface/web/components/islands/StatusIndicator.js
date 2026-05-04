@@ -37,7 +37,7 @@ class StatusIndicator extends HTMLElement {
   render(name, status, color) {
     this.innerHTML = `
       <div class="flex justify-between items-center py-3 border-b border-white/5 group">
-        <span class="mono text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 group-hover:text-slate-300 transition-colors">${name}</span>
+        <span class="mono text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">${name}</span>
         <div class="flex items-center gap-2">
            <span class="dot" style="background: ${color}; box-shadow: 0 0 10px ${color}88;"></span>
            <span class="mono text-[9px] font-black uppercase tracking-widest" style="color: ${color}">${status}</span>

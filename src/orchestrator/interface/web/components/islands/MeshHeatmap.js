@@ -65,7 +65,7 @@ class MeshHeatmap extends HTMLElement {
         <canvas id="heatmap-canvas" style="display: block; width: 100%; height: 100%;"></canvas>
         <div class="absolute top-8 left-8">
            <div class="flex items-center gap-3 mb-4">
-              <div class="dot active pulse" style="background:var(--danger); width: 8px; height: 8px;"></div>
+              <div class="dot active'} style="background:var(--danger); width: 8px; height: 8px;"></div>
               <span class="mono text-[11px] font-black uppercase tracking-[0.5em] text-danger/80">Live_Gossip_Traffic</span>
            </div>
            <h2 class="mono text-3xl font-black italic text-white/90 tracking-tighter uppercase">Mesh_Heatmap_3D</h2>
@@ -115,14 +115,7 @@ class MeshHeatmap extends HTMLElement {
       const screenY = centerY + node.y * perspective;
       const size = (node.verified ? 6 : 4) * perspective;
 
-      // Glow
-      const grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, size * 5);
-      grad.addColorStop(0, node.verified ? "hsla(var(--success-h), 100%, 50%, 0.2)" : "rgba(255,255,255,0.05)");
-      grad.addColorStop(1, "transparent");
-      ctx.fillStyle = grad;
-      ctx.beginPath(); ctx.arc(screenX, screenY, size * 5, 0, Math.PI * 2); ctx.fill();
-
-      // Core
+      // Core Static Node
       ctx.fillStyle = node.verified ? "var(--success)" : "var(--text-muted)";
       ctx.beginPath(); ctx.arc(screenX, screenY, size, 0, Math.PI * 2); ctx.fill();
 
@@ -132,25 +125,8 @@ class MeshHeatmap extends HTMLElement {
       ctx.fillText(node.hostname?.toUpperCase() || 'NODE', screenX + size + 5, screenY + 4);
     });
 
-    // Pulses
-    this.pulses = this.pulses.filter(p => p.alpha > 0.01);
-    this.pulses.forEach(p => {
-      p.radius += 3;
-      p.alpha *= 0.96;
-
-      const node = this.nodes.find(n => n.id === p.nodeId) || this.nodes[0];
-      if (node) {
-        const perspective = 400 / (400 + node.z);
-        const screenX = centerX + node.x * perspective;
-        const screenY = centerY + node.y * perspective;
-
-        ctx.strokeStyle = `hsla(var(--danger-h), 100%, 50%, ${p.alpha})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, p.radius * perspective, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-    });
+    // Pulses Disabled for Quiet Security
+    this.pulses = [];
   }
 }
 

@@ -28,19 +28,19 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
           <span class="subtitle">Hardware Topology & OS Integrity Mapping // v4.2.0-STABLE</span>
         </div>
         <div class="flex items-center gap-6">
-           <div class="flex items-center gap-6 bg-primary/10 border border-primary/20 px-10 py-4 rounded-full shadow-primary/10">
-              <span class="dot active shadow-primary"></span>
+           <div class="flex items-center gap-6 bg-primary/10 border border-primary/20 px-10 py-4 rounded-full">
+              <span class="dot active"></span>
               <span class="status-pill primary border-none bg-transparent p-0">Telemetry_Live</span>
            </div>
         </div>
       </header>
 
       {/* 02_Platform_Architecture */}
-      <div class="grid grid-cols-12 gap-10 mb-16 animate-fade-in" style="animation-delay: 100ms;">
+      <div class="grid grid-cols-12 gap-6 mb-8">
         {/* Hardware Specs */}
         <section class="col-span-12 lg:col-span-6 t-panel glass-panel p-0 overflow-hidden border-t-2 border-slate-800 group">
-           <header class="p-10 border-b border-white/10 flex items-center gap-8 bg-black/40 backdrop-blur-md">
-              <div class="p-4 bg-white/5 border border-white/10 text-slate-400 rounded-xl shadow-inner group-hover:text-primary transition-colors duration-500">
+           <header class="p-6 border-b border-white/10 flex items-center gap-4 bg-black/40 backdrop-blur-md">
+              <div class="p-4 bg-white/5 border border-white/10 text-slate-400 rounded-xl">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>
               </div>
               <div>
@@ -49,20 +49,20 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
               </div>
            </header>
            
-           <div class="p-12 flex flex-col gap-8 bg-black/20">
-              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl transition-all hover:bg-white/[0.03] group/item">
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary transition-colors">System_Hostname</span>
+           <div class="p-8 flex flex-col gap-4 bg-black/20">
+              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl hover:bg-white/[0.03] group/item">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary">System_Hostname</span>
                  <span class="text-2xl font-black text-white tracking-tighter uppercase italic">{metrics?.hostname}</span>
               </div>
-              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl transition-all hover:bg-white/[0.03] group/item">
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary transition-colors">Processor_Cores</span>
+              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl hover:bg-white/[0.03] group/item">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary">Processor_Cores</span>
                  <span class="text-2xl font-black text-white tracking-tighter uppercase">{metrics?.cpu.cores} THREADS</span>
               </div>
-              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl transition-all hover:bg-white/[0.03] group/item">
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary transition-colors">Physical_Memory</span>
+              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl hover:bg-white/[0.03] group/item">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary">Physical_Memory</span>
                  <span class="text-2xl font-black text-white tracking-tighter uppercase">{formatBytes(metrics?.memory.total)}</span>
               </div>
-              <div class="flex justify-between items-center p-8 bg-primary/5 border border-primary/20 rounded-2xl transition-all hover:bg-primary/10 group/item shadow-inner">
+              <div class="flex justify-between items-center p-8 bg-primary/5 border border-primary/20 rounded-2xl hover:bg-primary/10 group/item">
                  <span class="mono-xs text-primary font-black uppercase tracking-widest">Architecture</span>
                  <span class="text-2xl font-black text-primary tracking-tighter uppercase">{Deno.build.arch}</span>
               </div>
@@ -71,8 +71,8 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
 
         {/* OS & Environment */}
         <section class="col-span-12 lg:col-span-6 t-panel glass-panel p-0 overflow-hidden border-t-2 border-slate-800 group">
-           <header class="p-10 border-b border-white/10 flex items-center gap-8 bg-black/40 backdrop-blur-md">
-              <div class="p-4 bg-white/5 border border-white/10 text-slate-400 rounded-xl shadow-inner group-hover:text-primary transition-colors duration-500">
+           <header class="p-6 border-b border-white/10 flex items-center gap-4 bg-black/40 backdrop-blur-md">
+              <div class="p-4 bg-white/5 border border-white/10 text-slate-400 rounded-xl">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               </div>
               <div>
@@ -81,21 +81,21 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
               </div>
            </header>
 
-           <div class="p-10 flex flex-col gap-10 bg-black/20">
-              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl transition-all hover:bg-white/[0.03] group/item">
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary transition-colors">OS_Distribution</span>
+           <div class="p-6 flex flex-col gap-6 bg-black/20">
+              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl hover:bg-white/[0.03] group/item">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary">OS_Distribution</span>
                  <span class="text-2xl font-black text-white tracking-tighter uppercase">{platform?.name} {platform?.version}</span>
               </div>
-              <div class="flex flex-col gap-4 p-8 bg-black/40 border border-white/5 rounded-2xl transition-all hover:bg-white/[0.03] group/item">
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary transition-colors">Kernel_Build_Tag</span>
+              <div class="flex flex-col gap-4 p-8 bg-black/40 border border-white/5 rounded-2xl hover:bg-white/[0.03] group/item">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary">Kernel_Build_Tag</span>
                  <span class="mono-xs text-slate-400 font-bold truncate leading-none tracking-widest">{platform?.tag}</span>
               </div>
-              <div class="flex justify-between items-center p-8 bg-primary/5 border border-primary/20 rounded-2xl transition-all hover:bg-primary/10 group/item shadow-inner">
+              <div class="flex justify-between items-center p-8 bg-primary/5 border border-primary/20 rounded-2xl hover:bg-primary/10 group/item">
                  <span class="mono-xs text-primary font-black uppercase tracking-widest">Deno_Runtime</span>
                  <span class="text-2xl font-black text-primary tracking-tighter uppercase">V{Deno.version.deno}</span>
               </div>
-              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl transition-all hover:bg-white/[0.03] group/item">
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary transition-colors">V8_Engine_Core</span>
+              <div class="flex justify-between items-center p-8 bg-black/40 border border-white/5 rounded-2xl hover:bg-white/[0.03] group/item">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest group-hover/item:text-primary">V8_Engine_Core</span>
                  <span class="text-2xl font-black text-white tracking-tighter uppercase">V{Deno.version.v8}</span>
               </div>
            </div>
@@ -103,17 +103,17 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
       </div>
 
       {/* 03_Resource_Matrix */}
-      <section class="animate-fade-in" style="animation-delay: 200ms;">
+      <section>
         <div class="flex items-center gap-6 mb-10 pb-4 border-b border-white/5">
-           <div class="w-12 h-1.5 bg-primary rounded-full shadow-primary"></div>
+           <div class="w-12 h-1.5 bg-primary rounded-full"></div>
            <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">03_REAL-TIME_RESOURCE_UTILIZATION</h2>
         </div>
         <div class="t-panel glass-panel border-t-4 border-primary group relative">
-           <div class="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
+           <div class="absolute top-0 right-0 p-6 opacity-5">
               <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
            </div>
            <div class="grid grid-cols-1 md:grid-cols-3 gap-24 relative z-10">
-              <div class="flex flex-col gap-10">
+              <div class="flex flex-col gap-6">
                  <div class="flex justify-between items-center">
                     <span class="mono-xs text-slate-400 font-black uppercase tracking-[0.2em]">Memory_Pressure</span>
                     <span class="status-pill success">BUFFERED</span>
@@ -122,12 +122,12 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
                     <span class="mono-lg font-black text-white tabular-nums tracking-widest leading-none">{Math.round(((metrics?.memory.used || 0) / (metrics?.memory.total || 1)) * 100)}</span>
                     <span class="mono-md font-black text-slate-700 mb-2 uppercase">%</span>
                  </div>
-                 <div class="h-3 bg-white/5 w-full rounded-full overflow-hidden shadow-inner">
-                    <div class="h-full bg-primary shadow-primary transition-all duration-[1500ms] ease-out" style={{ width: `${((metrics?.memory.used || 0) / (metrics?.memory.total || 1)) * 100}%` }}></div>
+                 <div class="h-3 bg-white/5 w-full rounded-full overflow-hidden">
+                    <div class="h-full bg-primary ease-out" style={{ width: `${((metrics?.memory.used || 0) / (metrics?.memory.total || 1)) * 100}%` }}></div>
                  </div>
               </div>
 
-              <div class="flex flex-col gap-10">
+              <div class="flex flex-col gap-6">
                  <div class="flex justify-between items-center">
                     <span class="mono-xs text-slate-400 font-black uppercase tracking-[0.2em]">Load_Averages</span>
                     <span class="mono-xs text-slate-700 font-black uppercase tracking-widest">1m / 5m / 15m</span>
@@ -140,12 +140,12 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
                  </div>
               </div>
 
-              <div class="flex flex-col gap-10">
+              <div class="flex flex-col gap-6">
                  <div class="flex justify-between items-center">
                     <span class="mono-xs text-slate-400 font-black uppercase tracking-[0.2em]">Uptime_Manifest</span>
                     <span class="status-pill success">CONTINUOUS</span>
                  </div>
-                 <div class="flex items-end gap-8">
+                 <div class="flex items-end gap-4">
                     <div class="flex flex-col">
                        <span class="mono-lg font-black text-white tabular-nums tracking-widest leading-none">{Math.floor((metrics?.uptime || 0) / 86400)}</span>
                        <span class="mono-xs text-slate-600 font-black uppercase tracking-[0.3em] mt-4">Days_Active</span>

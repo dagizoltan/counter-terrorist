@@ -32,29 +32,29 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
       </header>
 
       {/* 02_Endpoint_Registry */}
-      <section class="mb-20 animate-fade-in" style="animation-delay: 100ms;">
+      <section class="mb-20" >
         <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-10 pb-4 border-b border-white/5">01_ENDPOINT_REGISTRY_METADATA</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {plugins.map((agent) => (
-            <div class="t-panel glass-panel group relative border-t-2 border-slate-800 hover:border-primary/40 transition-all">
+            <div class="t-panel glass-panel group relative border-t-2 border-slate-800 hover:border-primary/40">
                 <div class="flex justify-between items-start mb-10">
                   <div class="flex flex-col gap-1">
                     <div class="flex items-center gap-3">
-                       <span class={`dot ${agent.status === 'ACTIVE' || agent.status === 'RUNNING' ? 'active shadow-success' : 'danger shadow-danger'}`}></span>
+                       <span class={`dot ${agent.status === 'ACTIVE' || agent.status === 'RUNNING' ? 'active' : 'danger'}`}></span>
                        <h3 class="text-2xl font-black text-white uppercase tracking-tighter italic">{agent.name.toUpperCase()}</h3>
                     </div>
                     <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest pl-6">ID: ${agent.name.slice(0, 8)}_SIDE</span>
                   </div>
-                  <div class="status-pill success pulse">
+                  <div class="status-pill success">
                     {agent.status}
                   </div>
                 </div>
 
-                <div class="bg-black/60 border border-white/5 rounded-lg p-6 mb-8 shadow-inner group-hover:bg-black/80 transition-colors">
+                <div class="bg-black/60 border border-white/5 rounded-lg p-6 mb-8">
                    <agent-card-island agent={agent.name}></agent-card-island>
                 </div>
 
-                <p class="mono-xs text-slate-500 mb-10 leading-relaxed font-bold uppercase tracking-tight opacity-50 group-hover:opacity-100 transition-opacity">
+                <p class="mono-xs text-slate-500 mb-10 leading-relaxed font-bold uppercase tracking-tight opacity-50">
                   {agent.description || "Active security sidecar providing autonomous enforcement and real-time mesh telemetry."}
                 </p>
 
@@ -65,7 +65,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
                     `/agents/${agent.name}`
                   } class="t-btn text-[10px] py-2 px-6">Open_Agent_Console</a>
                   <div class="flex gap-4">
-                      <div class="p-3 bg-white/5 border border-white/5 rounded hover:border-primary/40 text-slate-600 hover:text-primary cursor-pointer transition-all">
+                      <div class="p-3 bg-white/5 border border-white/5 rounded hover:border-primary/40 text-slate-600 hover:text-primary cursor-pointer">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
                       </div>
                   </div>
@@ -76,9 +76,9 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
       </section>
 
       {/* 03_Hardening_Matrix */}
-      <section class="mb-20 animate-fade-in" style="animation-delay: 200ms;">
+      <section class="mb-20" >
         <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-10 pb-4 border-b border-white/5">02_SOVEREIGN_HARDENING_MATRIX</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
            {[
              { id: 'stat-kernel-aslr', label: 'ASLR_PROTECTION', desc: 'Layout_Randomization' },
              { id: 'stat-kernel-syncookies', label: 'SYN_COOKIES', desc: 'Flood_Mitigation' },
@@ -86,10 +86,10 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
              { id: 'stat-anon-mode', label: 'ANONYMIZATION', desc: 'Stealth_Provider' },
              { id: 'stat-audit-chain', label: 'AUDIT_INTEGRITY', desc: 'Immutable_Chain' }
            ].map(item => (
-              <div class="t-panel glass-panel border-t-2 border-slate-800 transition-all hover:bg-white/[0.02]">
+              <div class="t-panel glass-panel border-t-2 border-slate-800 hover:bg-white/[0.02]">
                 <div class="flex justify-between items-center mb-8">
                   <span class="mono-xs font-black text-slate-600 tracking-widest uppercase">{item.label}</span>
-                  <span class="dot active shadow-success"></span>
+                  <span class="dot active"></span>
                 </div>
                 <div id={item.id} class="text-2xl font-bold text-white tabular-nums mb-4 uppercase tracking-tight italic">Initializing...</div>
                 <div class="flex items-center gap-3">
@@ -102,12 +102,12 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
       </section>
 
       {/* 04_Kernel_Process_Topology (Consolidated) */}
-      <section class="mb-20 animate-fade-in" style="animation-delay: 300ms;">
+      <section class="mb-20" >
         <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-10 pb-4 border-b border-white/5">03_KERNEL_EXECUTION_TOPOLOGY</h2>
         <div class="t-panel glass-panel p-0 border-t-2 border-primary group overflow-hidden">
-            <header class="p-10 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
-               <div class="flex items-center gap-8">
-                  <div class="p-4 bg-primary/10 border border-primary/30 text-primary rounded-xl shadow-primary/20 group-hover:scale-110 transition-transform duration-500">
+            <header class="p-6 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
+               <div class="flex items-center gap-4">
+                  <div class="p-4 bg-primary/10 border border-primary/30 text-primary rounded-xl">
                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                   </div>
                   <div>
@@ -115,16 +115,16 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
                      <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em] mt-2">Causal mapping of thread lineages and unauthorized drifts</p>
                   </div>
                </div>
-               <div class="status-pill active primary pulse">Analyzing_Namespace</div>
+               <div class="status-pill active primary">Analyzing_Namespace</div>
             </header>
             
-            <div class="p-12 bg-black/20 min-h-[500px] overflow-x-auto custom-scrollbar relative">
+            <div class="p-8 bg-black/20 min-h-[500px] overflow-x-auto custom-scrollbar relative">
                <div class="absolute inset-0 pointer-events-none opacity-[0.03] bg-[radial-gradient(circle_at_center,_var(--primary)_0%,_transparent_70%)]"></div>
                <process-tree></process-tree>
             </div>
             
             <footer class="p-8 border-t border-white/5 bg-black/10 flex justify-between items-center">
-               <div class="flex gap-12">
+               <div class="flex gap-4">
                   <div class="flex items-center gap-4">
                      <div class="w-2 h-2 bg-primary rounded-full"></div>
                      <span class="mono-xs text-slate-700 font-black uppercase tracking-[0.2em]">SOVEREIGN_THREAD</span>
@@ -136,11 +136,11 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
       </section>
 
       {/* 05_Sovereign_Integrity_Link */}
-      <section class="animate-fade-in" style="animation-delay: 400ms;">
+      <section class="animate-fade-in" >
         <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-10 pb-4 border-b border-white/5">04_SOVEREIGN_INTEGRITY_PROVENANCE</h2>
-        <div class="t-panel glass-panel border-t-2 border-success/30 flex justify-between items-center p-12 group hover:bg-white/[0.02] transition-all">
-           <div class="flex items-center gap-10">
-              <div class="p-6 bg-success/10 border border-success/30 text-success rounded-2xl shadow-success/20 group-hover:scale-110 transition-transform">
+        <div class="t-panel glass-panel border-t-2 border-success/30 flex justify-between items-center p-8 group hover:bg-white/[0.02]">
+           <div class="flex items-center gap-6">
+              <div class="p-6 bg-success/10 border border-success/30 text-success rounded-2xl">
                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
               </div>
               <div class="flex flex-col gap-2">

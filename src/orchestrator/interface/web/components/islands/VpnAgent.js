@@ -58,14 +58,14 @@ class VpnAgent extends HTMLElement {
 
       if (data.peers.length > 0) {
         if (statusDot) { 
-          statusDot.className = 'w-12 h-12 bg-success animate-pulse shadow-[0_0_20px_var(--success-glow)]'; 
+          statusDot.className = 'w-12 h-12 bg-success  '
           statusDot.style.background = 'var(--success)';
         }
         if (statusLabel) statusLabel.textContent = 'MESH_TUNNEL_ACTIVE';
         if (statusDetails) statusDetails.textContent = `${activePeers.length} peer(s) verified // WireGuard Sync: HIGH_STABILITY`;
       } else {
         if (statusDot) { 
-          statusDot.className = 'w-12 h-12 bg-warning shadow-[0_0_20px_var(--warning-glow)]'; 
+          statusDot.className = 'w-12 h-12 bg-warning '
           statusDot.style.background = 'var(--warning)';
         }
         if (statusLabel) statusLabel.textContent = 'STANDALONE_MODE';

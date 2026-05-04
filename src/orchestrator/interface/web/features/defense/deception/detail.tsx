@@ -19,7 +19,7 @@ export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
         </div>
       </header>
 
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* STATS GRID */}
         <div class="lg:col-span-1 space-y-8">
           <div class="bg-white/5 border border-white/5 p-8">

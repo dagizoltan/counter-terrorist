@@ -58,7 +58,7 @@ export default function IntegrityIsland() {
         <button 
           onClick=${runVerification}
           disabled=${verifying}
-          class="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded font-bold text-xs uppercase tracking-widest transition-all"
+          class="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded font-bold text-xs uppercase tracking-widest"
         >
           ${verifying ? "Verifying Chain..." : "Run Full Integrity Scan"}
         </button>
@@ -66,7 +66,7 @@ export default function IntegrityIsland() {
         ${result && html`
           <div class=${`mt-6 p-4 rounded border ${result.valid ? 'bg-green-500/10 border-green-500/20' : 'bg-red-500/10 border-red-500/20'}`}>
              <div class="flex items-center gap-3">
-               <div class=${`w-2 h-2 rounded-full ${result.valid ? 'bg-green-500' : 'bg-red-500'} animate-pulse`} />
+               <div class=${`w-2 h-2 rounded-full ${result.valid ? 'bg-green-500' : 'bg-red-500'} `} />
                <span class=${`font-bold text-sm uppercase tracking-widest ${result.valid ? 'text-green-400' : 'text-red-400'}`}>
                  ${result.valid ? "Integrity Verified" : "INTEGRITY BREACH DETECTED"}
                </span>

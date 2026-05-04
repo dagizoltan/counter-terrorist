@@ -18,7 +18,7 @@ export const FeedPage = () => {
           01_LIVE_SIGNALS
         </h2>
         <div id="feed-container" class="grid grid-cols-1 gap-6">
-           <div class="glass-panel p-12 rounded-3xl animate-pulse text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">
+           <div class="glass-panel p-8 rounded-3xl text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">
               Hydrating_Global_Signals...
            </div>
         </div>
@@ -31,12 +31,12 @@ export const FeedPage = () => {
           const container = document.getElementById('feed-container');
           
           if (signals.length === 0) {
-            container.innerHTML = '<div class="glass-panel p-12 rounded-3xl text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">No active signals detected.</div>';
+            container.innerHTML = '<div class="glass-panel p-8 rounded-3xl text-center text-slate-500 font-black uppercase text-[11px] tracking-widest italic opacity-50 border border-white/5">No active signals detected.</div>';
             return;
           }
 
           container.innerHTML = signals.map(s => `
-            <div class="glass-panel p-10 rounded-3xl border border-white/5 hover:border-cyber/30 transition-all group relative overflow-hidden">
+            <div class="glass-panel p-6 rounded-3xl border border-white/5 hover:border-cyber/30 group relative overflow-hidden">
               <div class="absolute top-0 right-0 p-8 opacity-5">
                 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyber"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
               </div>
@@ -46,10 +46,10 @@ export const FeedPage = () => {
                 </div>
                 <span class="text-[10px] font-mono text-slate-500 uppercase tracking-widest">${new Date(s.timestamp).toLocaleTimeString()} // ${new Date(s.timestamp).toLocaleDateString()}</span>
               </div>
-              <h3 class="text-2xl font-black text-white mb-4 tracking-tight group-hover:text-cyber transition-colors relative z-10">${window.escapeHTML(s.title)}</h3>
+              <h3 class="text-2xl font-black text-white mb-4 tracking-tight relative z-10">${window.escapeHTML(s.title)}</h3>
               <p class="text-slate-400 mb-8 leading-relaxed line-clamp-3 relative z-10 font-medium">${window.escapeHTML(s.summary)}</p>
               <div class="flex items-center justify-between relative z-10 pt-6 border-t border-white/5">
-                <a href="${window.escapeHTML(s.link)}" target="_blank" class="flex items-center gap-3 text-[10px] font-black text-cyber uppercase tracking-[0.2em] hover:gap-6 transition-all">
+                <a href="${window.escapeHTML(s.link)}" target="_blank" class="flex items-center gap-3 text-[10px] font-black text-cyber uppercase tracking-[0.2em] hover:gap-6">
                    Full_Intelligence_Report <span class="text-lg">→</span>
                 </a>
               </div>

@@ -111,16 +111,19 @@ class MeshGraph extends HTMLElement {
     ctx.arc(x, y, isLocal ? 6 : 4, 0, Math.PI * 2);
     ctx.fill();
 
-    // Node Glow
+    // Node Core
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, isLocal ? 6 : 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Node Static Border
     if (isActive) {
-       ctx.shadowBlur = 15;
-       ctx.shadowColor = glow;
        ctx.strokeStyle = color;
-       ctx.lineWidth = 2;
+       ctx.lineWidth = 1;
        ctx.beginPath();
        ctx.arc(x, y, isLocal ? 10 : 8, 0, Math.PI * 2);
        ctx.stroke();
-       ctx.shadowBlur = 0;
     }
 
     // Node Label

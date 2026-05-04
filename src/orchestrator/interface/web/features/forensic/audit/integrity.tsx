@@ -20,7 +20,7 @@ export default function AuditIntegrity({ status, csrfToken }: { status?: any, cs
         </header>
 
         <div id="integrity-island-container" class="glass-panel" style="min-height:400px; display:flex; align-items:center; justify-content:center;">
-           <span class="mono-label pulse" style="opacity:0.3;">Initializing_Integrity_Chain_Validator...</span>
+           <span class="mono-label" style="opacity:0.3;">Initializing_Integrity_Chain_Validator...</span>
         </div>
       </div>
 

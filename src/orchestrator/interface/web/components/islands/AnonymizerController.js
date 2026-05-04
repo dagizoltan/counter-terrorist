@@ -30,10 +30,10 @@ class AnonymizerController extends HTMLElement {
            ${['TRADITIONAL', 'VPNGATE', 'TOR', 'OFF'].map(mode => `
              <button 
                data-mode="${mode}"
-               class="mode-btn group relative flex flex-col items-center justify-center p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all"
+               class="mode-btn group relative flex flex-col items-center justify-center p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10"
              >
-                <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1 group-hover:text-white transition-colors">${mode}</div>
-                <div class="w-1.5 h-1.5 rounded-full bg-slate-700 transition-all indicator"></div>
+                <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">${mode}</div>
+                <div class="w-1.5 h-1.5 rounded-full bg-slate-700 indicator"></div>
              </button>
            `).join('')}
         </div>
