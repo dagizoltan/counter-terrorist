@@ -195,6 +195,30 @@ async fn main() {
     let mut reader = BufReader::new(stdin).lines();
     let hash_cache: Arc<DashMap<String, CacheEntry>> = Arc::new(DashMap::new());
 
+    let cache_clone = hash_cache.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+
+            // Extract all keys to avoid holding the lock during I/O
+            let paths: Vec<String> = cache_clone.iter().map(|entry| entry.key().clone()).collect();
+
+            let to_remove = tokio::task::spawn_blocking(move || {
+                let mut missing = Vec::new();
+                for path in paths {
+                    if !std::path::Path::new(&path).exists() {
+                        missing.push(path);
+                    }
+                }
+                missing
+            }).await.unwrap_or_default();
+
+            for p in to_remove {
+                cache_clone.remove(&p);
+            }
+        }
+    });
+
     while let Ok(Some(line)) = reader.next_line().await {
         let command: Command = match serde_json::from_str(&line) {
             Ok(c) => c,

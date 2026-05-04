@@ -21,13 +21,12 @@ class StatusIndicator extends HTMLElement {
     
     try {
       let isOnline = false;
-      const res = await fetch('/api/status');
+      const res = await fetch('/api/agent/status');
       if (res.ok) {
-        const status = await res.json();
-        // Simple heuristic for peripheral status
-        if (name === "Active Blocker") isOnline = status.dependencies?.ss; 
-        else if (name === "Network Sensor") isOnline = status.dependencies?.ss;
-        else if (name === "Persistence Monitor") isOnline = true; 
+        const data = await res.json();
+        if (name === "Active Blocker") isOnline = data.firewall?.active;
+        else if (name === "Network Sensor") isOnline = data.ebpf?.active;
+        else if (name === "Persistence Monitor") isOnline = data.fim?.active;
       }
       this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'var(--success)' : 'var(--danger)');
     } catch (e) {
