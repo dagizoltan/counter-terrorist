@@ -22,4 +22,8 @@ export class WindowsVpnProvider implements VpnProvider {
   async getStatus(): Promise<any> {
     return await this.executor.execute("powershell", ["-Command", "Get-VpnConnection"]);
   }
+
+  async flushRules(): Promise<VpnResult> {
+    return { success: true, message: "No dynamic VPN rules to flush on Windows" };
+  }
 }

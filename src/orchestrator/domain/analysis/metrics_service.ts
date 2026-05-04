@@ -199,8 +199,8 @@ export class MetricsService {
             }
 
             const kernelStatus = (this.collectionCount % this.STAGGER_KERNEL === 0) 
-                ? await this.kernelService.getStatus() 
-                : (this.cachedMetrics?.kernel || { aslr: "2", syncookies: "1", rp_filter: "1" });
+                ? await this.kernelService.getStatus() as any
+                : (this.cachedMetrics?.kernel || { aslr: "2", syncookies: "1", rp_filter: "1" }) as any;
 
             const mem = Deno.memoryUsage();
             const metrics: SystemMetrics = {

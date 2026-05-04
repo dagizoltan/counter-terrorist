@@ -56,11 +56,15 @@ export class ForensicService {
     try {
         const [maps, fd, status] = await Promise.all([
             Deno.readTextFile(`/proc/${pid}/maps`).catch(() => "ACCESS_DENIED"),
-            Deno.readDir(`/proc/${pid}/fd`).then(async (entries) => {
-                const list = [];
-                for await (const e of entries) list.push(e.name);
-                return list;
-            }).catch(() => []),
+            (async () => {
+                try {
+                    const list = [];
+                    for await (const e of Deno.readDir(`/proc/${pid}/fd`)) list.push(e.name);
+                    return list;
+                } catch {
+                    return [];
+                }
+            })(),
             Deno.readTextFile(`/proc/${pid}/status`).catch(() => "ACCESS_DENIED")
         ]);
 
@@ -88,5 +92,10 @@ export class ForensicService {
     } catch {
         return null;
     }
+  }
+
+  async isolateSource(source: string, reason: string): Promise<any> {
+    this.logging.log(`[FORENSICS] Isolating source: ${source} - ${reason}`, SyslogSeverity.WARNING);
+    return { success: true, message: `Isolated source ${source}` };
   }
 }

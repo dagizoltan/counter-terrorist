@@ -22,4 +22,8 @@ export class UbuntuVpnProvider implements VpnProvider {
   async getStatus(): Promise<any> {
     return await this.executor.execute("wg", ["show"]);
   }
+
+  async flushRules(): Promise<VpnResult> {
+    return { success: true, message: "No dynamic VPN rules to flush on Ubuntu" };
+  }
 }

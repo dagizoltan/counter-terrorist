@@ -23,6 +23,8 @@ export class SessionService {
   public createSession: (role?: Role) => Promise<any>;
   public validateSession: (sessionId: string | undefined) => Promise<any>;
   public revokeAllSessions: () => Promise<any>;
+  private ttlMs: number;
+  private repo: KvRepository<Session>;
 
   constructor(
     private kv: Deno.Kv,

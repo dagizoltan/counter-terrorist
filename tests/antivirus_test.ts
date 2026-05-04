@@ -16,13 +16,19 @@ Deno.test("AntivirusManager.scanPath validation", async () => {
   }
 
   // Test bypass attempts
-  const result2 = await antivirus.scanPath("/tmp-malicious/file.txt");
-  assertEquals(result2.success, false);
-  assertEquals(result2.message.includes("is not in the allowed scan list"), true);
-  console.log("Blocked /tmp-malicious/file.txt - OK");
+  try {
+      await antivirus.scanPath("/tmp-malicious/file.txt");
+      throw new Error("Should have thrown error");
+  } catch (e) {
+      assertEquals((e as Error).message.includes("outside allowed boundaries"), true);
+      console.log("Blocked /tmp-malicious/file.txt - OK");
+  }
 
-  const result3 = await antivirus.scanPath("/etc/passwd");
-  assertEquals(result3.success, false);
-  assertEquals(result3.message.includes("is not in the allowed scan list"), true);
-  console.log("Blocked /etc/passwd - OK");
+  try {
+      await antivirus.scanPath("/etc/passwd");
+      throw new Error("Should have thrown error");
+  } catch (e) {
+      assertEquals((e as Error).message.includes("outside allowed boundaries"), true);
+      console.log("Blocked /etc/passwd - OK");
+  }
 });

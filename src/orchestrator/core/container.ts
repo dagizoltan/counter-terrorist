@@ -37,8 +37,10 @@ import {
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
 
+import { PlatformName } from "@infrastructure/system/platform.ts";
+
 export interface PlatformInfo {
-  name: string;
+  name: PlatformName;
   version: string;
   tag: string;
   isRoot: boolean;
@@ -78,7 +80,7 @@ export interface ServiceContainer {
   canaryService: CanaryService;
   kernelService: KernelService;
   forensicService: ForensicService;
-  shadow: ShadowService;
+  shadow: any; // ShadowService
   covert: CovertChannelService;
   ledger: LedgerService;
   tpm: TPMManager;

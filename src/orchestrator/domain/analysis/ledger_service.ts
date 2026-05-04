@@ -59,7 +59,7 @@ export class LedgerService {
 
         // In a true sovereign mesh, we would validate signatures here.
         this.chain.push(entry);
-        this.logging.log(`[LEDGER] Synced Entry ${entry.index} from ${entry.nodeId}`, SyslogSeverity.INFO);
+        this.logging.log(`[LEDGER] Synced Entry ${entry.index} from ${entry.nodeId}`, SyslogSeverity.INFORMATIONAL);
     }
 
     private async computeHash(entry: LedgerEntry): Promise<string> {
