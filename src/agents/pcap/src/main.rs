@@ -41,6 +41,7 @@ struct PcapResponse {
 struct PacketEvent {
     #[serde(rename = "type")]
     event_type: String,
+    success: bool,
     data: PacketData,
 }
 
@@ -121,25 +122,25 @@ async fn main() {
                     .expect("Failed to spawn tcpdump");
 
                 let stdout = child.stdout.take().expect("Failed to take stdout");
+                let stderr = child.stderr.take().expect("Failed to take stderr");
                 
+                // Stream Stdout (Packets)
                 tokio::spawn(async move {
                     let mut reader = BufReader::new(stdout).lines();
                     while let Ok(Some(line)) = reader.next_line().await {
-                        // Very basic parsing for tcpdump output:
-                        // 21:56:00.123456 IP 1.2.3.4.1234 > 5.6.7.8.80: Flags [S], ...
                         if line.contains("IP") && line.contains(">") {
                             let parts: Vec<&str> = line.split_whitespace().collect();
                             if parts.len() > 4 {
-                                let timestamp = parts[0].to_string();
                                 let src = parts[2].to_string();
                                 let dst = parts[4].trim_end_matches(':').to_string();
                                 let proto = if line.contains("UDP") { "UDP" } else if line.contains("ICMP") { "ICMP" } else { "TCP" };
                                 
                                 let event = PacketEvent {
                                     event_type: "PACKET".to_string(),
+                                    success: true,
                                     data: PacketData {
                                         timestamp: Utc::now().to_rfc3339(),
-                                        direction: "INBOUND".to_string(), // Simplified
+                                        direction: "INBOUND".to_string(),
                                         source: src,
                                         destination: dst,
                                         protocol: proto.to_string(),
@@ -153,6 +154,22 @@ async fn main() {
                                 }
                             }
                         }
+                    }
+                });
+
+                // Stream Stderr (Errors/Status)
+                tokio::spawn(async move {
+                    let mut reader = BufReader::new(stderr).lines();
+                    while let Ok(Some(line)) = reader.next_line().await {
+                        let _lock = STDOUT_LOCK.lock().await;
+                        println!("{}", serde_json::json!({
+                            "type": "SIDECAR_ALERT",
+                            "success": true,
+                            "data": {
+                                "level": "INFO",
+                                "message": format!("[tcpdump] {}", line)
+                            }
+                        }));
                     }
                 });
 

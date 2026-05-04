@@ -1,14 +1,41 @@
 use notify::{Watcher, RecursiveMode, Config, EventKind};
 use serde::{Deserialize, Serialize};
-use std::path::{Path};
+use std::path::Path;
 use chrono::Utc;
-use std::sync::mpsc::channel;
-use std::io::{self, BufRead};
+use tokio::sync::mpsc;
+use tokio::io::{self, AsyncBufReadExt, BufReader};
 use std::sync::Arc;
 use parking_lot::Mutex;
 use once_cell::sync::Lazy;
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SidecarResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
+    timestamp: String,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(tag = "type")]
+enum FimCommand {
+    WatchPath { id: String, path: String },
+    UnwatchPath { id: String, path: String },
+    GetStatus { id: String },
+}
+
+#[derive(Serialize, Debug)]
+#[serde(tag = "type")]
+enum SidecarEvent {
+    FileAlert { path: String, action: String },
+    Status { message: String },
+}
 
 fn emit_event(event: SidecarEvent) {
     let resp = SidecarResponse {
@@ -38,38 +65,19 @@ fn emit_response(id: String, success: bool, message: String) {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct SidecarResponse {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    id: Option<String>,
-    success: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    data: Option<serde_json::Value>,
-    timestamp: String,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type")]
-enum FimCommand {
-    WatchPath { id: String, path: String },
-    UnwatchPath { id: String, path: String },
-    GetStatus { id: String },
-}
-
-#[derive(Serialize, Debug)]
-#[serde(tag = "type")]
-enum SidecarEvent {
-    FileAlert { path: String, action: String },
-    Status { message: String },
-}
-
-// Standardized event emission logic relocated to top for global access.
-
-fn main() -> anyhow::Result<()> {
-    let (tx, rx) = channel();
-    let mut watcher = notify::RecommendedWatcher::new(tx, Config::default())?;
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let (tx, mut rx) = mpsc::channel(100);
+    
+    // Create a watcher that sends events to our tokio channel
+    let mut watcher = notify::RecommendedWatcher::new(
+        move |res: Result<notify::Event, notify::Error>| {
+            if let Ok(event) = res {
+                let _ = tx.blocking_send(event);
+            }
+        },
+        Config::default(),
+    )?;
 
     let files_to_watch = vec!["/etc/shadow", "/etc/passwd", "/etc/ssh/sshd_config"];
     for f in files_to_watch {
@@ -79,23 +87,24 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
-    emit_event(SidecarEvent::Status { message: "FIM Sovereign Protocol V3.1 Active".to_string() });
+    emit_event(SidecarEvent::Status { message: "FIM Sovereign Protocol V4.0 Active (Tokio)".to_string() });
 
-    let (cmd_tx, cmd_rx) = channel();
-    std::thread::spawn(move || {
+    let (cmd_tx, mut cmd_rx) = mpsc::channel::<FimCommand>(32);
+    
+    // Spawn a task to handle stdin
+    tokio::spawn(async move {
         let stdin = io::stdin();
-        for line in stdin.lock().lines() {
-            if let Ok(line) = line {
-                if let Ok(cmd) = serde_json::from_str::<FimCommand>(line.trim()) {
-                    let _ = cmd_tx.send(cmd);
-                }
+        let mut reader = BufReader::new(stdin).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            if let Ok(cmd) = serde_json::from_str::<FimCommand>(line.trim()) {
+                let _ = cmd_tx.send(cmd).await;
             }
         }
     });
 
     loop {
-        if let Ok(res) = rx.try_recv() {
-            if let Ok(event) = res {
+        tokio::select! {
+            Some(event) = rx.recv() => {
                 match event.kind {
                     EventKind::Modify(_) | EventKind::Create(_) | EventKind::Remove(_) => {
                         for path in event.paths {
@@ -108,34 +117,32 @@ fn main() -> anyhow::Result<()> {
                     _ => {}
                 }
             }
-        }
-
-        if let Ok(cmd) = cmd_rx.try_recv() {
-            match cmd {
-                FimCommand::WatchPath { id, path } => {
-                    let p = Path::new(&path);
-                    if p.exists() {
-                        match watcher.watch(p, RecursiveMode::NonRecursive) {
-                            Ok(_) => emit_response(id, true, format!("Watching {}", path)),
-                            Err(e) => emit_response(id, false, format!("Watch failed: {}", e)),
+            Some(cmd) = cmd_rx.recv() => {
+                match cmd {
+                    FimCommand::WatchPath { id, path } => {
+                        let p = Path::new(&path);
+                        if p.exists() {
+                            match watcher.watch(p, RecursiveMode::NonRecursive) {
+                                Ok(_) => emit_response(id, true, format!("Watching {}", path)),
+                                Err(e) => emit_response(id, false, format!("Watch failed: {}", e)),
+                            }
+                        } else {
+                            emit_response(id, false, format!("Path not found: {}", path));
                         }
-                    } else {
-                        emit_response(id, false, format!("Path not found: {}", path));
+                    },
+                    FimCommand::UnwatchPath { id, path } => {
+                        let p = Path::new(&path);
+                        match watcher.unwatch(p) {
+                            Ok(_) => emit_response(id, true, format!("Unwatched {}", path)),
+                            Err(e) => emit_response(id, false, format!("Unwatch failed: {}", e)),
+                        }
+                    },
+                    FimCommand::GetStatus { id } => {
+                        emit_response(id, true, "Active".to_string());
                     }
-                },
-                FimCommand::UnwatchPath { id, path } => {
-                    let p = Path::new(&path);
-                    match watcher.unwatch(p) {
-                        Ok(_) => emit_response(id, true, format!("Unwatched {}", path)),
-                        Err(e) => emit_response(id, false, format!("Unwatch failed: {}", e)),
-                    }
-                },
-                FimCommand::GetStatus { id } => {
-                    emit_response(id, true, "Active".to_string());
                 }
             }
         }
-
-        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 }
+

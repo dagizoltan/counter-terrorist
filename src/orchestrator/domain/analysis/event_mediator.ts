@@ -65,6 +65,12 @@ export class EventMediator {
                     message: event.message || `Packet intercepted on ${event.data?.interface || 'mesh'}`, 
                     data: event.data || event 
                 });
+            } else if (event.type === "SIDECAR_ALERT") {
+                this.broadcast({
+                    type: "ALERT",
+                    message: event.data?.message || `PCAP Agent Alert: ${event.type}`,
+                    data: event.data
+                });
             }
         });
 
