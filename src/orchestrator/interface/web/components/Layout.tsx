@@ -151,12 +151,6 @@ export const Layout = (props: {
                 </div>
                 
                 <div class="flex items-center gap-6">
-                   {/* Integrated Forensic Selector */}
-                   <div class="flex bg-black/80 border border-white/10 rounded-lg p-1 shadow-2xl h-10 items-center">
-                      <button id="tab-btn-integrity" onclick="window.switchSidebarTab('integrity')" class="px-6 py-2 mono-xs font-black tracking-widest uppercase rounded transition-all active-tab text-[10px]">Integrity</button>
-                      <button id="tab-btn-logs" onclick="window.switchSidebarTab('logs')" class="px-6 py-2 mono-xs font-black tracking-widest uppercase rounded transition-all text-slate-500 hover:text-white text-[10px]">Logs</button>
-                   </div>
-                   <div class="w-px h-5 bg-white/10 mx-2"></div>
                    <div id="system-clock" class="mono-xs text-slate-400 font-black tracking-[0.2em] bg-black/40 px-4 py-2 rounded border border-white/5">00:00:00</div>
                 </div>
              </header>
@@ -176,6 +170,12 @@ export const Layout = (props: {
 
           {/* ── 03_FORENSIC_TELEMETRY (Right) ─────────────────────────── */}
           <aside class="shell-aside relative z-20 flex flex-col">
+             {/* Dynamic Forensic Tabs */}
+             <header class="flex border-b border-white/5 h-[54px] shrink-0 bg-black/20">
+                <button id="tab-btn-integrity" onclick="window.switchSidebarTab('integrity')" class="flex-1 mono-xs font-black tracking-widest uppercase transition-all active-tab text-[10px] border-r border-white/5">System_Integrity</button>
+                <button id="tab-btn-logs" onclick="window.switchSidebarTab('logs')" class="flex-1 mono-xs font-black tracking-widest uppercase transition-all text-slate-500 hover:text-white text-[10px]">Realtime_Logs</button>
+             </header>
+
              <div class="flex-grow overflow-y-auto custom-scrollbar p-6">
                 {/* Tab Content: Integrity */}
                 <div id="sidebar-tab-integrity" class="sidebar-tab-content">
