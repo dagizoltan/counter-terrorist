@@ -250,52 +250,22 @@ export class SovereignApp {
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
-        const safeInit = <T>(name: string, factory: () => T): T => {
-            try {
-                const service = factory();
-                health.reportStatus(name, "OPERATIONAL");
-                return service;
-            } catch (e) {
-                const msg = e instanceof Error ? e.message : String(e);
-                loggingService.log(`[BOOT] Auxiliary Service '${name}' failed to initialize: ${msg}`, SyslogSeverity.WARNING);
-                health.reportStatus(name, "FAILED", msg);
-                return null as any;
-            }
-        };
-
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         const protection = new ProtectionAdapter(rawProtection);
         const processTracker = new ProcessTracker(loggingService);
-        
         const sessions = new SessionService(this.kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
         const apiKeys = new ApiKeysService(this.kv, loggingService);
-        const anonymization = new AnonymizationService(protection.vpn, loggingService);
-        const shadowProtocol = new ShadowProtocolService(mesh, anonymization, loggingService);
-        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol);
         
-        const behavioral = new BehavioralService(protection.firewall as any);
-        const geoIp = safeInit("GeoIP", () => new GeoIpService(loggingService));
-        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
-        if (honeypot) honeypot.setBehavioralService(behavioral);
+        // ── Security & Deception Subsystem ──────────────────────────────────
+        const { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService } = this.initSecuritySubsystem(protection, mesh, tpm, health);
+        
+        // ── Intelligence & Forensic Subsystem ───────────────────────────────
+        const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider);
 
-        const canaryService = safeInit("Canary", () => new CanaryService(this.auditService, this.sidecarManager, loggingService));
-        const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
-        const forensicService = safeInit("Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker));
-        
-        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService);
-        const morphing = safeInit("Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));
-        const chaos = safeInit("Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
-        const supplyChain = safeInit("SupplyChain", () => new SupplyChainService());
-        const provisioning = safeInit("Provisioning", () => new ProvisioningService(this.sidecarManager, mesh, this.executor, loggingService));
-        const governance = safeInit("Governance", () => new GovernanceService(mesh, protection, loggingService));
-        const shadow = safeInit("Shadow", () => new ShadowService(this.executor, loggingService));
-        const covert = safeInit("Covert", () => new CovertChannelService(this.executor, loggingService));
-        const deceptionGrid = safeInit("DeceptionGrid", () => new DeceptionGridService(honeypot, canaryService, loggingService));
-        const compliance = safeInit("Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
-        const curatedIntel = safeInit("CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider));
-        const news = safeInit("News", () => new NewsSignalService(loggingService));
-        const networkDiscovery = safeInit("NetworkDiscovery", () => new NetworkDiscoveryService(loggingService));
-        const incidents = safeInit("Incidents", () => new IncidentService(this.kv, loggingService));
+        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol);
+
+        // ── Engine & Autopilot Subsystem ────────────────────────────────────
+        const { autopilot, morphing, chaos, supplyChain, provisioning, governance, shadow, covert } = this.initEngineSubsystem(eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
 
         return {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
@@ -304,7 +274,7 @@ export class SovereignApp {
             honeypot, canaryService, kernelService, forensicService,
             autopilot, playbook, morphing, chaos,
             supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: curatedIntel as any,
-            compliance, anonymization, shadowProtocol, deceptionGrid,
+            compliance, anonymization, shadowProtocol, deceptionGrid: new DeceptionGridService(honeypot, canaryService, loggingService),
             curatedIntel, news, networkDiscovery, networkLogs: networkLog,
             incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
@@ -314,6 +284,58 @@ export class SovereignApp {
             geoIp,
             policy: autopilot.getPolicy()
         };
+    }
+
+    private initSecuritySubsystem(protection: any, mesh: any, tpm: any, health: any) {
+        const anonymization = new AnonymizationService(protection.vpn, loggingService);
+        const shadowProtocol = new ShadowProtocolService(mesh, anonymization, loggingService);
+        const behavioral = new BehavioralService(protection.firewall as any);
+        
+        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
+        if (honeypot) honeypot.setBehavioralService(behavioral);
+
+        const canaryService = this.safeInit(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, loggingService));
+        const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
+
+        return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
+    }
+
+    private initIntelligenceSubsystem(protection: any, processTracker: any, health: any, configProvider: any) {
+        const geoIp = this.safeInit(health, "GeoIP", () => new GeoIpService(loggingService));
+        const forensicService = this.safeInit(health, "Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker));
+        const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider));
+        const news = this.safeInit(health, "News", () => new NewsSignalService(loggingService));
+        const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => new NetworkDiscoveryService(loggingService));
+        const incidents = this.safeInit(health, "Incidents", () => new IncidentService(this.kv, loggingService));
+        const compliance = this.safeInit(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
+
+        return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
+    }
+
+    private initEngineSubsystem(eventBus: any, playbook: any, notifications: any, mesh: any, shadowProtocol: any, sidecarManager: any, protection: any, forensicService: any, kernelService: any, processTracker: any, honeypot: any, canaryService: any, health: any) {
+        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService);
+        const morphing = this.safeInit(health, "Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));
+        const chaos = this.safeInit(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
+        const supplyChain = this.safeInit(health, "SupplyChain", () => new SupplyChainService());
+        const provisioning = this.safeInit(health, "Provisioning", () => new ProvisioningService(this.sidecarManager, mesh, this.executor, loggingService));
+        const governance = this.safeInit(health, "Governance", () => new GovernanceService(mesh, protection, loggingService));
+        const shadow = this.safeInit(health, "Shadow", () => new ShadowService(this.executor, loggingService));
+        const covert = this.safeInit(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
+
+        return { autopilot, morphing, chaos, supplyChain, provisioning, governance, shadow, covert };
+    }
+
+    private safeInit<T>(health: HealthService, name: string, factory: () => T): T {
+        try {
+            const service = factory();
+            health.reportStatus(name, "OPERATIONAL");
+            return service;
+        } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e);
+            loggingService.log(`[BOOT] Auxiliary Service '${name}' failed to initialize: ${msg}`, SyslogSeverity.WARNING);
+            health.reportStatus(name, "FAILED", msg);
+            return null as any;
+        }
     }
 
     private async selfDestruct() {

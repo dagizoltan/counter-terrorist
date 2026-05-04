@@ -1,5 +1,7 @@
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
 
+export type TacticalSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
 export interface NewsItem {
     id: string;
     title: string;
@@ -7,6 +9,8 @@ export interface NewsItem {
     summary: string;
     source: string;
     timestamp: string;
+    severity: TacticalSeverity;
+    riskScore: number;
 }
 
 export class NewsSignalService {
@@ -36,6 +40,28 @@ export class NewsSignalService {
         setInterval(() => this.fetchFeeds(), 30 * 60 * 1000);
     }
 
+    private analyzeRisk(content: string): { severity: TacticalSeverity; score: number } {
+        const keywords = {
+            CRITICAL: ['zero-day', '0-day', 'unauthenticated rce', 'active exploitation', 'wild', 'critical vulnerability', 'cvss 10', 'ransomware attack'],
+            HIGH: ['rce', 'exploit available', 'poc leaked', 'privilege escalation', 'data breach', 'millions of records', 'botnet', 'state-sponsored'],
+            MEDIUM: ['vulnerability', 'security update', 'patch available', 'malware', 'phishing', 'advisory', 'incident'],
+            LOW: ['report', 'survey', 'analysis', 'guide', 'best practices', 'interview', 'webinar']
+        };
+
+        let score = 0;
+        const normalized = content.toLowerCase();
+
+        for (const word of keywords.CRITICAL) if (normalized.includes(word)) score += 50;
+        for (const word of keywords.HIGH) if (normalized.includes(word)) score += 20;
+        for (const word of keywords.MEDIUM) if (normalized.includes(word)) score += 5;
+        for (const word of keywords.LOW) if (normalized.includes(word)) score += 1;
+
+        if (score >= 50) return { severity: 'CRITICAL', score };
+        if (score >= 20) return { severity: 'HIGH', score };
+        if (score >= 5) return { severity: 'MEDIUM', score };
+        return { severity: 'LOW', score };
+    }
+
     async fetchFeeds() {
         this.logging.log("[NEWS] Synchronizing tactical news signals...", SyslogSeverity.DEBUG);
         
@@ -45,22 +71,25 @@ export class NewsSignalService {
                 if (!response.ok) continue;
                 const xml = await response.text();
                 
-                // Simple regex-based RSS parsing to avoid large dependencies
                 const items = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
                 
                 for (const itemXml of items.slice(0, 25)) {
                     const title = itemXml.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "Untitled Signal";
                     const link = itemXml.match(/<link>(.*?)<\/link>/)?.[1] || "#";
-                    const summary = itemXml.match(/<description>(.*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")?.slice(0, 200) + "..." || "";
+                    const summary = itemXml.match(/<description>(.*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")?.slice(0, 250) + "..." || "";
                     
+                    const { severity, score } = this.analyzeRisk(title + " " + summary);
                     const id = btoa(encodeURIComponent(title)).slice(0, 16);
+                    
                     const item: NewsItem = {
                         id,
                         title,
                         link,
                         summary,
                         source: feed.name,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date().toISOString(),
+                        severity,
+                        riskScore: score
                     };
 
                     await this.kv?.set(["news_signals", item.id], item, { expireIn: 48 * 60 * 60 * 1000 });
