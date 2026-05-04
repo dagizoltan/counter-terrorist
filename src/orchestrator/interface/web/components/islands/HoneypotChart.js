@@ -46,7 +46,7 @@ class HoneypotChart extends HTMLElement {
       <div class="relative w-full h-full flex flex-col">
         <div class="flex justify-between items-start mb-10">
            <div class="flex flex-col gap-2">
-              <span class="mono-xs text-slate-700 uppercase tracking-[0.3em] font-black">Total_Adversary_Hits</span>
+               <span class="mono-xs text-slate-700 uppercase tracking-[0.3em] font-black">Total Adversary Hits</span>
               <div class="flex items-baseline gap-4">
                  <span id="total-hits" class="mono-lg font-black text-white tracking-widest tabular-nums leading-none">0</span>
                  <span class="status-pill warning">+2.4%</span>
@@ -54,7 +54,7 @@ class HoneypotChart extends HTMLElement {
            </div>
            <div class="flex items-center gap-4 bg-warning/5 border border-warning/20 px-5 py-2.5 rounded-full">
               <span class="dot danger"></span>
-              <span class="mono-xs font-black text-warning uppercase tracking-[0.2em]">DECEPTION_FEED_ACTIVE</span>
+               <span class="mono-xs font-black text-warning uppercase tracking-[0.2em]">DECEPTION FEED ACTIVE</span>
            </div>
         </div>
         <div class="flex-grow relative min-h-[200px] bg-black/20 rounded-lg border border-white/5 p-4 overflow-hidden">
@@ -63,9 +63,9 @@ class HoneypotChart extends HTMLElement {
         </div>
         <div class="mt-8 flex justify-between items-center opacity-40 border-t border-white/5 pt-6">
            <div class="flex items-center gap-3">
-              <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">TEMPORAL_WINDOW: 24H_CYCLE</span>
+               <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">TEMPORAL WINDOW: 24H CYCLE</span>
            </div>
-           <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">SOURCE: DISTRIBUTED_HONEYNET_V4</span>
+            <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">SOURCE: DISTRIBUTED HONEYNET V4</span>
         </div>
       </div>
     `;

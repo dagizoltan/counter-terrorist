@@ -189,12 +189,27 @@ export class WebAdapter implements WebPort {
     return {
       ...baseStatus,
       platform: this.services.platformInfo,
-      plugins: Object.values(await import("@infrastructure/runtime/sidecar_registry.ts").then(m => m.SIDECAR_REGISTRY)).map(s => ({
-        name: s.name,
-        description: s.description,
-        status: this.services.command.isRunning(s.name) ? "ACTIVE" : "INACTIVE",
-        details: this.services.command.isRunning(s.name) ? "Running" : "Offline / Standby"
-      }))
+      plugins: Object.values(await import("@infrastructure/runtime/sidecar_registry.ts").then(m => m.SIDECAR_REGISTRY)).map(s => {
+        let isRunning = this.services.command.isRunning(s.name);
+        let status = isRunning ? "ACTIVE" : "INACTIVE";
+
+        // Hybrid Status Logic: Map services to the 'Agent' view
+        if (s.name === 'vpn' && this.services.anonymization) {
+            status = this.services.anonymization.getTelemetry().status;
+        } else if (s.name === 'mesh' && this.services.mesh) {
+            status = "ACTIVE"; // Core Mesh is always initialized in boot
+        } else if (s.name === 'firewall' && this.services.protection) {
+            isRunning = this.services.command.isRunning('blocker');
+            status = isRunning ? "ACTIVE" : "INACTIVE";
+        }
+
+        return {
+          name: s.name,
+          description: s.description,
+          status,
+          details: status === "ACTIVE" ? "Operational" : "Offline / Standby"
+        };
+      })
     };
   }
 

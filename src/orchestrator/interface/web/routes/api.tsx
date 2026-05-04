@@ -24,8 +24,33 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   const router = new Hono();
 
   // 1. Environmental Infrastructure (Discovery & Logs) - HIGH PRIORITY MATCHING
-  router.get("/infrastructure/network/discovery", (c: Context) => {
-    return c.json(services.networkDiscovery.getDevices());
+  router.get("/infrastructure/network/discovery", async (c: Context) => {
+    const { IntelEnricher } = await import("@domain/analysis/intel_enricher.ts");
+    
+    // Merge discovery devices and mesh nodes for a unified tactical view
+    const devices = services.networkDiscovery.getDevices();
+    const meshNodes = services.mesh.getNodes();
+    
+    const unified = [
+        ...devices,
+        ...meshNodes.map(n => ({
+            id: n.id,
+            ip: n.address,
+            mac: n.id, // Using ID as MAC for mesh peers if real MAC unknown
+            vendor: "Sovereign_Mesh_Peer",
+            isMeshNode: true,
+            isLocal: false,
+            lastSeen: new Date(n.lastSeen).toISOString(),
+            hostname: n.hostname,
+            state: n.verified ? "VERIFIED" : "UNTRUSTED",
+            type: "MESH" as const
+        }))
+    ];
+
+    // Filter duplicates (some mesh nodes might be discovered via ARP too)
+    const unique = Array.from(new Map(unified.map(item => [item.ip || item.id, item])).values());
+
+    return c.json(IntelEnricher.enrichDevices(unique));
   });
 
   router.get("/network/logs", async (c: Context) => {
@@ -224,6 +249,15 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
 
   // 4. Forensics & Active Defense
   router.get("/forensics/export", async (c: Context) => {
+    const type = c.req.query("type");
+    if (type === "network_intel") {
+      try {
+        const content = await Deno.readTextFile("/home/dagizoltan/.gemini/antigravity/brain/520ba1fc-039d-4c90-9609-38608568296c/network_intel_report.md");
+        return c.text(content);
+      } catch {
+        return c.text("# Network Intelligence Report\nNo data available yet.", 404);
+      }
+    }
     const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 1000;
     const bundle = await services.forensicService.generateEvidenceBundle(limit);
     return c.json(bundle);

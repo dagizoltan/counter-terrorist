@@ -66,6 +66,12 @@ export class MeshManager {
   startDiscovery() {
     if (this.discoveryInterval) return;
 
+    // SINGLE_NODE mode bypasses all external discovery to run in isolation
+    if (Deno.env.get("SINGLE_NODE") === "true") {
+      this.logging.log("[MESH] SINGLE_NODE mode active. Mesh discovery and mDNS listeners bypassed.", SyslogSeverity.NOTICE);
+      return;
+    }
+
     this.logging.log("[MESH] Starting zero-config node discovery...", SyslogSeverity.NOTICE);
 
     // 1. Initial Subnet Scan (Fast discovery - background)

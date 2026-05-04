@@ -57,36 +57,41 @@ class AgentCardIsland extends HTMLElement {
 
     if (this.agentName === 'firewall') {
       value = m.firewall?.blockedCount ?? '0';
-      label = 'BLOCKED_IPS';
+      label = 'Blocked IPs';
       colorVar = value > 0 ? 'var(--danger)' : 'var(--success)';
       percentage = Math.min((value / 100) * 100, 100);
     } else if (this.agentName === 'honeypot') {
       value = m.honeypot?.totalHits ?? '0';
-      label = 'ATTACK_HITS';
+      label = 'Attack Hits';
       colorVar = value > 0 ? 'var(--warning)' : 'var(--success)';
       percentage = Math.min((value / 50) * 100, 100);
     } else if (this.agentName === 'scanner') {
       const isAvailable = m.scanner?.available !== false;
       value = isAvailable ? (m.scanner?.lastScanResult === 'OK' ? 'OK' : 'WAIT') : 'ABSENT';
-      label = 'MALWARE_SCAN';
+      label = 'Malware Scan';
       colorVar = !isAvailable ? 'var(--text-muted)' : (value === 'OK' ? 'var(--success)' : 'var(--warning)');
       percentage = value === 'OK' ? 100 : (isAvailable ? 50 : 0);
     } else if (this.agentName === 'ebpf') {
       value = m.node?.ebpf ? 'LIVE' : 'FAIL';
-      label = 'KERNEL_LSM';
+      label = 'Kernel LSM';
       colorVar = value === 'LIVE' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'LIVE' ? 100 : 0;
     } else if (this.agentName === 'fim') {
       value = m.node?.fim ? 'WATCH' : 'STOP';
-      label = 'FILE_INTEGRITY';
+      label = 'File Integrity';
       colorVar = value === 'WATCH' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'WATCH' ? 100 : 0;
     } else if (this.agentName === 'vpn') {
       const vpnActive = m.vpn?.telemetry?.status === 'ACTIVE';
       value = vpnActive ? 'LINK' : 'FAIL';
-      label = 'MESH_TUNNEL';
+      label = 'Stealth Tunnel';
       colorVar = value === 'LINK' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'LINK' ? 100 : 0;
+    } else if (this.agentName === 'mesh') {
+      value = 'LIVE';
+      label = 'Mesh Fabric';
+      colorVar = 'var(--success)';
+      percentage = 100;
     }
 
     // Update UI elements
@@ -123,7 +128,7 @@ class AgentCardIsland extends HTMLElement {
          </div>
          
          <div class="flex-1 min-w-0">
-            <div class="agent-label text-[8px] font-black text-slate-500 uppercase tracking-widest mb-2">Initializing...</div>
+            <div class="agent-label text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Initializing...</div>
             <div class="agent-feed space-y-1">
                <div class="text-[7px] font-mono text-slate-600 italic">Waiting for telemetry...</div>
             </div>
@@ -132,4 +137,6 @@ class AgentCardIsland extends HTMLElement {
     `;
   }
 }
-customElements.define('agent-card-island', AgentCardIsland);
+if (!customElements.get('agent-card-island')) {
+  customElements.define('agent-card-island', AgentCardIsland);
+}

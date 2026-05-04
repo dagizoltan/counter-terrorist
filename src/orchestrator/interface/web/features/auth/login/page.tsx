@@ -23,14 +23,14 @@ export const Login = (props: { error?: string }) => {
           }
           .login-card {
             width: 100%;
-            max-width: 420px;
-            padding: 3.5rem;
+            max-width: 440px;
+            padding: 4.5rem;
             position: relative;
             z-index: 10;
-            animation: card-entry 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: card-entry 1s cubic-bezier(0.16, 1, 0.3, 1);
           }
           @keyframes card-entry {
-            from { opacity: 0; transform: translateY(20px) scale(0.98); }
+            from { opacity: 0; transform: translateY(30px) scale(0.98); }
             to { opacity: 1; transform: translateY(0) scale(1); }
           }
           .bg-grid {
@@ -51,21 +51,21 @@ export const Login = (props: { error?: string }) => {
             background: linear-gradient(to bottom, transparent, hsla(var(--bg-h), var(--bg-s), var(--bg-l), 0.2), var(--bg));
           }
           .error-box {
-            margin-bottom: 2rem;
-            padding: 1rem;
-            background: hsla(var(--danger-h), var(--danger-s), var(--danger-l), 0.1);
+            margin-bottom: 2.5rem;
+            padding: 1.25rem;
+            background: hsla(var(--danger-h), var(--danger-s), var(--danger-l), 0.08);
             border: 1px solid hsla(var(--danger-h), var(--danger-s), var(--danger-l), 0.2);
-            border-radius: 8px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 1rem;
           }
           .danger-dot {
-            width: 6px;
-            height: 6px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: var(--danger);
-            box-shadow: 0 0 10px var(--danger);
+            box-shadow: 0 0 12px var(--danger);
           }
         `}} />
       </head>
@@ -74,39 +74,39 @@ export const Login = (props: { error?: string }) => {
         <div class="bg-grid"></div>
         <div class="bg-gradient"></div>
 
-        <main class="login-card glass-panel" style="border-top: 2px solid hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.2);">
-          <header style="text-align: center; margin-bottom: 4rem;">
-            <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; border-radius: 24px; background: hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.1); border: 1px solid hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.2); margin-bottom: 2.5rem; transition: transform 0.7s;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <main class="login-card glass-panel shadow-2xl" style="border-top: 2px solid hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.3);">
+          <header style="text-align: center; margin-bottom: 5rem;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 90px; height: 90px; border-radius: 28px; background: hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.08); border: 1px solid hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.2); margin-bottom: 3rem; transition: transform 0.7s;" class="hover:scale-105 transition-transform duration-700">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
             </div>
-            <h1 style="font-size: 1.875rem; font-weight: 700; letter-spacing: 0.2em; color: white; margin: 0 0 1rem 0;">SOVEREIGN</h1>
-            <p class="mono-xs" style="color: var(--text-secondary); opacity: 0.6; margin: 0;">Tactical Orchestration Node</p>
+            <h1 style="font-size: 2rem; font-weight: 700; letter-spacing: 0.25em; color: white; margin: 0 0 1.25rem 0; font-family: 'Outfit', sans-serif;">SOVEREIGN</h1>
+            <p class="mono-xs" style="color: var(--text-secondary); opacity: 0.9; margin: 0; font-weight: 800; letter-spacing: 0.4em;">Tactical Orchestration Node</p>
           </header>
 
           {props.error && (
-            <div class="error-box">
+            <div class="error-box animate-in fade-in slide-in-from-top-2 duration-500">
               <div class="danger-dot"></div>
-              <span class="mono-xs" style="color: var(--danger); font-weight: 700; text-transform: uppercase;">{props.error}</span>
+              <span class="mono-xs" style="color: var(--danger); font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;">{props.error}</span>
             </div>
           )}
 
-          <form method="POST" action="/login" style="display: flex; flex-direction: column; gap: 2rem;">
-            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-              <label class="mono-xs" style="color: var(--text-muted); text-transform: uppercase; margin-left: 0.25rem;">Access Token</label>
+          <form method="POST" action="/login" style="display: flex; flex-direction: column; gap: 2.5rem;">
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+              <label class="mono-xs" style="color: var(--text-muted); text-transform: uppercase; margin-left: 0.5rem; font-weight: 800; tracking: 0.3em;">Access Token</label>
               <div style="position: relative;">
                 <input
                   class="t-input"
-                  style="width: 100%; padding: 1rem 1.25rem; font-size: 1rem; letter-spacing: 0.3em;"
+                  style="width: 100%; padding: 1.25rem 1.5rem; font-size: 1.125rem; letter-spacing: 0.4em; border-radius: 12px;"
                   name="password"
                   type="password"
                   placeholder="••••••••"
                   required
                   autoFocus
                 />
-                <div style="position: absolute; right: 1.25rem; top: 50%; transform: translateY(-50%); opacity: 0.2;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <div style="position: absolute; right: 1.5rem; top: 50%; transform: translateY(-50%); opacity: 0.4; color: var(--primary);">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
@@ -114,24 +114,24 @@ export const Login = (props: { error?: string }) => {
               </div>
             </div>
 
-            <button class="t-btn" style="width: 100%; justify-content: center; padding: 1rem; font-size: 0.75rem; letter-spacing: 0.2em;" type="submit">
+            <button class="t-btn" style="width: 100%; justify-content: center; padding: 1.25rem; font-size: 0.875rem; letter-spacing: 0.3em; font-weight: 900; border-radius: 12px;" type="submit">
               Engage Interface
             </button>
           </form>
 
-          <footer style="margin-top: 3rem; text-align: center;">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-bottom: 1.5rem;">
-              <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success);"></span>
-              <span class="mono-xs" style="color: var(--text-secondary); text-transform: uppercase;">mTLS Secure Gateway</span>
+          <footer style="margin-top: 4rem; text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 0.75rem; margin-bottom: 2rem;">
+              <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 10px var(--success);"></span>
+              <span class="mono-xs" style="color: var(--text-secondary); text-transform: uppercase; font-weight: 800; letter-spacing: 0.2em;">mTLS Secure Gateway</span>
             </div>
-            <p style="font-size: 9px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3em; line-height: 1.6; margin: 0;">
+            <p style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.35em; line-height: 1.8; margin: 0;">
               Proprietary System<br/>Access Logged & Cryptographically Audited
             </p>
           </footer>
         </main>
 
-        <div style="position: fixed; bottom: 2.5rem; right: 2.5rem; opacity: 0.3;">
-          <p class="mono-xs" style="font-weight: 900; color: var(--text-muted); text-transform: uppercase;">Ghost_Command v4.2</p>
+        <div style="position: fixed; bottom: 3rem; right: 3rem; opacity: 0.5;">
+          <p class="mono-xs" style="font-weight: 900; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5em;">Ghost Command v4.2</p>
         </div>
       </body>
     </html>

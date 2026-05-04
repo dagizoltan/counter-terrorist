@@ -5,7 +5,6 @@ class SystemHealth extends HTMLElement {
   }
 
   connectedCallback() {
-    console.log("[SYSTEM-HEALTH] Connected to DOM");
     this.render();
     this.setupListeners();
   }
@@ -34,38 +33,44 @@ class SystemHealth extends HTMLElement {
     
     if (subsystems.length === 0) {
       this.innerHTML = `
-        <div class="flex flex-col gap-4">
-           <div class="skeleton h-12 w-full"></div>
-           <div class="skeleton h-12 w-full opacity-60"></div>
+        <div class="flex flex-col gap-6">
+           <div class="p-8 text-center border border-dashed border-white/10 mono-xs uppercase tracking-widest italic opacity-40">
+              Auditing subsystem health...
+           </div>
         </div>
       `;
       return;
     }
 
     this.innerHTML = `
-      <div class="space-y-4">
-        <div class="flex justify-between items-center mb-6 p-4 bg-black/40 border border-white/5 rounded-lg">
-           <span class="mono-xs text-slate-500 uppercase tracking-widest">Global_Integrity</span>
-           <span class="status-pill ${window.escapeHTML(severity.toLowerCase())}">${window.escapeHTML(severity)}</span>
+      <div class="space-y-6">
+        <div class="flex justify-between items-center mb-8 p-6 bg-black/60 border border-white/5 rounded-2xl backdrop-blur-xl">
+           <span class="mono-xs text-slate-400 font-black uppercase tracking-widest">Global Integrity</span>
+           <span class="status-pill ${window.escapeHTML(severity.toLowerCase())} !px-6 !py-2 text-[10px] tracking-[0.2em]">${window.escapeHTML(severity)}</span>
         </div>
         
-        <div class="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-          ${subsystems.map(s => `
-            <div class="flex justify-between items-center p-4 bg-white/[0.02] border border-white/5 rounded hover:bg-white/[0.04] group">
-               <div class="flex items-center gap-4">
-                  <div class="w-1.5 h-1.5 rounded-full ${this.getSeverityColor(s.status).replace('text-', 'bg-')}"></div>
-                  <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">${window.escapeHTML(s.name)}</span>
-               </div>
-               <div class="flex flex-col items-end">
-                  <span class="mono-xs font-bold ${this.getSeverityColor(s.status)}">${window.escapeHTML(s.status)}</span>
-                  ${s.error ? `<span class="text-[8px] text-danger/60 mono truncate max-w-[120px]" title="${window.escapeHTML(s.error)}">${window.escapeHTML(s.error)}</span>` : ''}
-               </div>
-            </div>
-          `).join('')}
+        <div class="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-3">
+          ${subsystems.map(s => {
+            const name = window.escapeHTML(s.name).replace(/_/g, ' ');
+            return `
+              <div class="flex justify-between items-center p-5 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-white/[0.05] group transition-all">
+                 <div class="flex items-center gap-5">
+                    <div class="w-2 h-2 rounded-full ${this.getSeverityColor(s.status).replace('text-', 'bg-')} shadow-[0_0_8px_currentColor]"></div>
+                    <span class="mono-xs font-black text-slate-300 uppercase tracking-widest">${name}</span>
+                 </div>
+                 <div class="flex flex-col items-end gap-1">
+                    <span class="mono-xs font-black ${this.getSeverityColor(s.status)} tracking-widest">${window.escapeHTML(s.status)}</span>
+                    ${s.error ? `<span class="text-[8px] text-danger/80 font-mono truncate max-w-[150px] italic" title="${window.escapeHTML(s.error)}">${window.escapeHTML(s.error)}</span>` : ''}
+                 </div>
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
     `;
   }
 }
 
-customElements.define('system-health', SystemHealth);
+if (!customElements.get('system-health')) {
+  customElements.define('system-health', SystemHealth);
+}

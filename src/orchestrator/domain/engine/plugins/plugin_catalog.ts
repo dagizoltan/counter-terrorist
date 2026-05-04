@@ -7,13 +7,16 @@ import { SshHoneypotPlugin } from "./ssh_honeypot.ts";
 import { RedisHoneypotPlugin } from "./redis_honeypot.ts";
 import { FirewallPlugin } from "./firewall_plugin.ts";
 import { VpnPlugin } from "./vpn_plugin.ts";
+import { MeshPlugin } from "./mesh_plugin.ts";
 import { BroadcastFunction } from "./types.ts";
 import { VpnManager } from "@infrastructure/system/protection/vpn/vpn.ts";
+import { MeshManager } from "../mesh.ts";
 
 export interface PluginFactoryDependencies {
   sidecarManager: SidecarManager;
   firewall: FirewallManager;
   vpn: VpnManager;
+  mesh: MeshManager;
   pcap: PcapManager;
   broadcast: BroadcastFunction;
 }
@@ -34,14 +37,19 @@ const ALL_TAGS = [
 
 export const pluginCatalog: PlatformPluginDefinition[] = [
   {
+    id: "vpn",
+    supportedTags: ALL_TAGS,
+    create: ({ vpn }) => new VpnPlugin(vpn),
+  },
+  {
     id: "firewall",
     supportedTags: ALL_TAGS,
     create: ({ firewall }) => new FirewallPlugin(firewall),
   },
   {
-    id: "vpn",
+    id: "mesh",
     supportedTags: ALL_TAGS,
-    create: ({ vpn }) => new VpnPlugin(vpn),
+    create: ({ mesh }) => new MeshPlugin(mesh),
   },
   {
     id: "honeypot",

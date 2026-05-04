@@ -71,12 +71,22 @@ export class AutopilotService {
         });
     });
 
+    this.eventBus.on("THREAT", async (data) => {
+        await this.engine.evaluate({
+            source: data.source_ip || data.ip || "local",
+            type: "CANARY_TRIGGER",
+            severity: 15,
+            description: `Canary breadcrumb triggered: ${data.path}`,
+            data
+        });
+    });
+
     this.eventBus.on("DRIFT_PROCESS", async (data) => {
         await this.engine.evaluate({
             source: "local",
             type: "FILE_TAMPERING",
-            severity: 5,
-            description: `Unauthorized change detected in ${data.resource}`,
+            severity: 2,
+            description: `Unauthorized change detected in ${data.path || data.resource}`,
             data
         });
     });

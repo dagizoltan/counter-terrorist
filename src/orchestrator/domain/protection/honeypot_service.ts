@@ -128,23 +128,27 @@ export class HoneypotService {
     if (!payload) return;
 
     if (payload.type === "PortAccess") {
-      const { port, source_ip } = payload;
+      const source_ip = payload.source_ip || payload.ip || "unknown";
+      const port = payload.port || "unknown";
+      
       this.hitCount++;
       this.emitEvent({ type: "PortAccess", source_ip, port });
 
+      this.logging.log(`[HONEYPOT] Tactical Trigger: Port ${port} access from ${source_ip}`, SyslogSeverity.WARNING, "DECEPTION");
+
       this.broadcast({
-        type: "CRITICAL",
-        message: `Honeypot Triggered: Access to ${port} from ${source_ip}`,
+        type: "WARNING",
+        severity: "WARNING",
+        message: `Honeypot Triggered: Access to Port ${port} from ${source_ip}`,
         data: { source_ip, port }
       });
 
       if (this.behavioralService) {
         await this.behavioralService.analyze(source_ip);
       } else {
-        // Phase 3: Shadow Blocking instead of immediate drop
-        // This allows the Sabotage protocol (jitter/latency) to affect the attacker
-        // while we collect forensic telemetry.
-        this.firewall.shadowBanIp(source_ip).catch(console.error);
+        this.firewall.shadowBanIp(source_ip).catch(err => 
+            this.logging.log(`[DECEPTION] ShadowBan failed for ${source_ip}: ${err.message}`, SyslogSeverity.ERROR)
+        );
         this.sabotageSession(source_ip);
       }
 
@@ -167,8 +171,11 @@ export class HoneypotService {
     this.hitCount++;
     this.emitEvent({ type: "WebAccess", source_ip, route });
 
+    this.logging.log(`[HONEYPOT] Web Decoy Triggered: Path '${route}' from ${source_ip}`, SyslogSeverity.WARNING, "DECEPTION");
+
     this.broadcast({
-      type: "CRITICAL",
+      type: "WARNING",
+      severity: "WARNING",
       message: `Web Decoy Triggered: Access to ${route} from ${source_ip}`,
       data: { source_ip, route }
     });

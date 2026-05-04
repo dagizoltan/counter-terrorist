@@ -263,7 +263,7 @@ export class SovereignApp {
         // ── Intelligence & Forensic Subsystem ───────────────────────────────
         const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider);
 
-        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol);
+        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
 
         // ── Engine & Autopilot Subsystem ────────────────────────────────────
         const { autopilot, morphing, chaos, supplyChain, provisioning, governance, shadow, covert } = this.initEngineSubsystem(eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);

@@ -12,7 +12,8 @@ export class PlaybookService {
     private protection: ProtectionPort,
     private notifications: NotificationService,
     private meshManager: MeshManager,
-    private shadowProtocol: ShadowProtocolService
+    private shadowProtocol: ShadowProtocolService,
+    private eventBus: any // EventBus
   ) {}
 
   private threatScores: Map<string, number> = new Map();
@@ -22,8 +23,7 @@ export class PlaybookService {
     loggingService.log("[PLAYBOOK] Initializing Automated Response Engine", SyslogSeverity.INFORMATIONAL);
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
-    this.sidecarManager.onEvent("honeypot", async (res) => {
-      const data = res.data || res;
+    this.eventBus.on("HONEYPOT", async (data: any) => {
       if (data && data.type === "PortAccess") {
         const { port, source_ip } = data;
         
@@ -53,55 +53,45 @@ export class PlaybookService {
     });
 
     // FIM Playbook: High-priority notification on critical file change
-    this.sidecarManager.onEvent("fim", async (res) => {
-      const data = res.data || res;
-      if (data && data.type === "FileAlert") {
-        const { path, action } = data;
-        loggingService.log(`[PLAYBOOK] FIM trigger: ${action} detected on ${path}`, SyslogSeverity.CRITICAL);
-        
-        await this.notifications.notify({
-          type: "CRITICAL",
-          message: `Unauthorized ${action} detected on ${path}. Investigation required immediately.`
-        });
+    this.eventBus.on("DRIFT_PROCESS", async (data: any) => {
+      const { path, action } = data;
+      loggingService.log(`[PLAYBOOK] FIM trigger: ${action} detected on ${path}`, SyslogSeverity.CRITICAL);
+      
+      await this.notifications.notify({
+        type: "CRITICAL",
+        message: `Unauthorized ${action} detected on ${path}. Investigation required immediately.`
+      });
 
-        this.updateThreatScore("local", 2);
-      }
+      this.updateThreatScore("local", 2);
     });
 
     // eBPF Playbook: Monitor suspicious syscalls and quarantine
-    this.sidecarManager.onEvent("ebpf", async (res) => {
-      // Handle both wrapped and flat event structures
-      const data = res.data || res;
-      if (data && data.type === "SYSCALL_EVENT") {
-        const { pid, comm, syscall } = data;
+    this.eventBus.on("EBPF_CRITICAL", async (data: any) => {
+      const { pid, comm, syscall } = data;
+      
+      if (syscall === "ptrace") {
+        loggingService.log(`[PLAYBOOK] SUSPICIOUS PTRACE detected from ${comm} (PID: ${pid}). Executing Quarantine.`, SyslogSeverity.CRITICAL);
         
-        if (syscall === "ptrace") {
-          loggingService.log(`[PLAYBOOK] SUSPICIOUS PTRACE detected from ${comm} (PID: ${pid}). Executing Quarantine.`, SyslogSeverity.CRITICAL);
-          
-          try {
-            await this.protection.firewall.killProcess(pid);
-            await this.shadowProtocol.activate(); // ENGAGE SHADOW MODE
-            await this.notifications.notify({
-              type: "CRITICAL",
-              message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
-            });
-          } catch (err: any) {
-            loggingService.log(`[PLAYBOOK] Failed to quarantine process ${pid}: ${(err as Error).message}`, SyslogSeverity.ERROR);
-          }
-          
-          this.updateThreatScore("local", 3);
+        try {
+          await this.protection.firewall.killProcess(pid);
+          await this.shadowProtocol.activate(); // ENGAGE SHADOW MODE
+          await this.notifications.notify({
+            type: "CRITICAL",
+            message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
+          });
+        } catch (err: any) {
+          loggingService.log(`[PLAYBOOK] Failed to quarantine process ${pid}: ${(err as Error).message}`, SyslogSeverity.ERROR);
         }
+        
+        this.updateThreatScore("local", 3);
       }
     });
 
     // Mesh Playbook: Monitor node threat levels
-    this.sidecarManager.onEvent("scanner", async (res) => {
-      const data = res.data || res;
-      if (data && data.type === "ThreatDetected") {
-        const { nodeId, severity } = data;
-        if (severity === "HIGH" || severity === "CRITICAL") {
-           this.updateThreatScore(nodeId, 1);
-        }
+    this.eventBus.on("THREAT", async (data: any) => {
+      const { nodeId, severity, path } = data;
+      if (severity === "HIGH" || severity === "CRITICAL" || path) {
+         this.updateThreatScore(nodeId || "local", 1);
       }
     });
   }

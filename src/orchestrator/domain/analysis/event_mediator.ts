@@ -47,12 +47,20 @@ export class EventMediator {
         });
 
         // 3. FIM (File Integrity) Integration
-        commandPort.onEvent("fim", (event: any) => {
+        commandPort.onEvent("fim", async (event: any) => {
             const payload = event.data;
             if (payload?.type === "FileAlert") {
-                this.canaryService.handleFileAccess(payload.path, "UNKNOWN_COMM");
-                this.broadcast({ type: "DRIFT_PROCESS", message: `FIM Alert: ${payload.action} on ${payload.path}`, data: payload });
-                this.eventBus.emit("DRIFT_PROCESS", payload); 
+                const { path, action } = payload;
+                const isCanary = await this.canaryService.handleFileAccess(path, "UNKNOWN_COMM");
+                
+                // If it's a metadata modification (aging or IDE indexing), skip to avoid feedback loops
+                if (isCanary && action.includes("Metadata")) {
+                    return;
+                }
+
+                const type = isCanary ? "THREAT" : "DRIFT_PROCESS";
+                this.broadcast({ type, message: `FIM Alert: ${action} on ${path}`, data: payload });
+                this.eventBus.emit(type, payload); 
             }
         });
 
@@ -71,6 +79,15 @@ export class EventMediator {
                     message: event.data?.message || `PCAP Agent Alert: ${event.type}`,
                     data: event.data
                 });
+            }
+        });
+
+        // 5. Scanner Integration
+        commandPort.onEvent("scanner", (event: any) => {
+            const data = event.data || event;
+            if (data.type === "ThreatDetected" || data.type === "RKH_SCAN_RESULT") {
+                this.broadcast({ type: "THREAT", message: `Scanner Alert: ${data.type}`, data });
+                this.eventBus.emit("THREAT", data);
             }
         });
 

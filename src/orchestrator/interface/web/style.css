@@ -31,9 +31,9 @@
   --warning: hsl(var(--warning-h), var(--warning-s), var(--warning-l));
   --warning-glow: hsla(var(--warning-h), var(--warning-s), var(--warning-l), 0.15);
 
-  --text-primary: hsla(0, 0%, 100%, 0.95);
-  --text-secondary: hsla(215, 25%, 75%, 0.85);
-  --text-muted: hsla(215, 20%, 45%, 0.7);
+  --text-primary: hsla(0, 0%, 100%, 1);
+  --text-secondary: hsla(215, 30%, 85%, 0.95);
+  --text-muted: hsla(215, 25%, 70%, 0.85);
   
   --panel-bg: hsla(var(--bg-h), var(--bg-s), 8%, 0.8);
   --glass-bg: hsla(var(--bg-h), var(--bg-s), 10%, 0.45);
@@ -93,6 +93,11 @@ html, body {
 * { 
   box-sizing: border-box; 
   outline: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
 :focus-visible {
@@ -340,7 +345,7 @@ h1, h2, h3, h4, .tactical-title {
   text-transform: uppercase;
   letter-spacing: 0.5em;
   color: var(--text-muted);
-  opacity: 0.6;
+  opacity: 0.9;
 }
 
 /* Stat Card Unification */
@@ -540,7 +545,10 @@ h1, h2, h3, h4, .tactical-title {
 .col-span-9 { grid-column: span 9 / span 9; }
 .col-span-10 { grid-column: span 10 / span 10; }
 .col-span-12 { grid-column: span 12 / span 12; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
 .fixed { position: fixed; }
 .absolute { position: absolute; }
@@ -788,11 +796,11 @@ h1, h2, h3, h4, .tactical-title {
 .text-danger { color: var(--danger); }
 .text-warning { color: var(--warning); }
 .text-white { color: #ffffff; }
-.text-slate-400 { color: #94a3b8; }
-.text-slate-500 { color: #64748b; }
-.text-slate-600 { color: #475569; }
-.text-slate-700 { color: #334155; }
-.text-slate-800 { color: #1e293b; }
+.text-slate-400 { color: #cbd5e1; }
+.text-slate-500 { color: #94a3b8; }
+.text-slate-600 { color: #64748b; }
+.text-slate-700 { color: #475569; }
+.text-slate-800 { color: #334155; }
 
 .t-input {
   background: hsla(var(--bg-h), var(--bg-s), 2%, 0.6);
@@ -861,6 +869,7 @@ h1, h2, h3, h4, .tactical-title {
 }
 
 .status-pill.primary { color: var(--primary); border-color: var(--primary-glow); background: var(--primary-glow); }
+.status-pill.neutral { color: var(--text-secondary); border-color: hsla(0, 0%, 100%, 0.1); background: hsla(0, 0%, 100%, 0.05); }
 .status-pill.success { color: var(--success); border-color: var(--success-glow); background: var(--success-glow); }
 .status-pill.danger { color: var(--danger); border-color: var(--danger-glow); background: var(--danger-glow); }
 .status-pill.warning { color: var(--warning); border-color: var(--warning-glow); background: var(--warning-glow); }
@@ -1110,6 +1119,29 @@ body.system-alert-active .shell-aside {
   animation-name: slide-in-right-2;
 }
 
-.duration-500 {
-  animation-duration: 500ms;
+
+
+@media (min-width: 1024px) {
+  .lg\:grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1024px) {
+  .lg\:col-span-1 { grid-column: span 1 / span 1; }
+  .lg\:col-span-2 { grid-column: span 2 / span 2; }
+  .lg\:col-span-3 { grid-column: span 3 / span 3; }
+  .lg\:col-span-4 { grid-column: span 4 / span 4; }
+  .lg\:col-span-6 { grid-column: span 6 / span 6; }
+  .lg\:col-span-8 { grid-column: span 8 / span 8; }
+  .lg\:col-span-9 { grid-column: span 9 / span 9; }
+  .lg\:col-span-12 { grid-column: span 12 / span 12; }
 }

@@ -69,7 +69,7 @@ class FirewallAgent extends HTMLElement {
       if (firewall.blockedIps.length === 0) {
         listEl.innerHTML = `
           <div class="p-12 text-center t-panel glass-panel border-dashed opacity-50">
-            <span class="mono-xs font-black text-slate-500 uppercase tracking-widest italic">No_Active_Blocks_Detected</span>
+            <span class="mono-xs font-black text-slate-500 uppercase tracking-widest italic">No Active Blocks Detected</span>
           </div>
         `;
       } else {
@@ -78,12 +78,12 @@ class FirewallAgent extends HTMLElement {
           return `
             <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded transition-colors">
               <div class="flex flex-col gap-1">
-                 <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">Target_Address</span>
+                 <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">Target Address</span>
                  <span class="mono-sm font-black text-danger uppercase tracking-widest">${window.escapeHTML(ip)}</span>
               </div>
               <div class="flex items-center gap-6">
                 <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || ''}'}, body:JSON.stringify({ip:'${window.escapeHTML(ip)}'})}).then(() => location.reload())" 
-                        class="opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white underline decoration-white/20 tracking-widest transition-opacity">Release_IP</button>
+                        class="opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white decoration-white/20 tracking-widest transition-opacity">Release IP</button>
                 <div class="flex items-center gap-3">
                    <div class="dot danger"></div>
                    <span class="mono-xs font-black uppercase text-danger tracking-widest">Quarantined</span>

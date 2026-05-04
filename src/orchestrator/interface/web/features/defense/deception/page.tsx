@@ -30,9 +30,9 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[] }) => {
                  <div class="p-4 bg-warning/10 border border-warning/30 text-warning rounded-xl">
                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                  </div>
-                 <h3 class="tactical-title text-2xl tracking-widest">ACTIVE_DECOY_GRID</h3>
+                 <h3 class="tactical-title text-2xl tracking-widest">ACTIVE DECOY GRID</h3>
               </div>
-              <div class="status-pill warning px-6 py-2">REAL-TIME_MANIFEST</div>
+              <div class="status-pill warning px-6 py-2">REAL TIME MANIFEST</div>
            </header>
            <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-6 bg-black/20">
               {props.modules.map(module => (
@@ -43,7 +43,7 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[] }) => {
                          <span class="dot active" style={module.active ? 'background:var(--warning);' : 'background:var(--slate-800);'}></span>
                          <span class="mono-xs font-black text-white uppercase tracking-widest italic">{module.name}</span>
                       </div>
-                      <span class="mono-xs text-slate-700 font-black uppercase tracking-[0.2em] opacity-40">PORT_{module.port}</span>
+                      <span class="mono-xs text-slate-700 font-black uppercase tracking-[0.2em] opacity-40">PORT {module.port}</span>
                     </div>
                     <p class="mono-xs text-slate-500 mb-10 leading-relaxed font-bold uppercase tracking-tight opacity-50">
                       {module.description}
@@ -51,12 +51,12 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[] }) => {
                   </div>
                   
                   <div class="flex gap-6 pt-6 border-t border-white/5">
-                    <a href={`/agents/deception/${module.id}`} class="t-btn flex-1 text-center justify-center text-[9px] py-3">Inspect_Logs</a>
+                    <a href={`/agents/deception/${module.id}`} class="t-btn flex-1 text-center justify-center text-[9px] py-3">Inspect Logs</a>
                     <button 
                       onclick={`const t=document.querySelector('meta[name="csrf-token"]')?.content; fetch('/agents/deception/api/${module.id}/toggle', { method: 'POST', body: JSON.stringify({ active: ${!module.active} }), headers: { 'Content-Type': 'application/json', 'X-CT-Token': t || '' } }).then(() => location.reload())`}
                       class={`t-btn flex-1 justify-center text-[9px] py-3 ${module.active ? "danger" : "warning"}`}
                     >
-                      {module.active ? "Kill_Decoy" : "Deploy_Trap"}
+                      {module.active ? "Kill Decoy" : "Deploy Trap"}
                     </button>
                   </div>
                 </div>
@@ -67,29 +67,29 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[] }) => {
            <div class="t-panel glass-panel border-t-2 border-primary group">
               <header class="flex items-center gap-6 mb-10 pb-6 border-b border-white/10">
                  <div class="w-10 h-1.5 bg-primary rounded-full"></div>
-                 <h3 class="tactical-title text-lg tracking-widest">TRAP_CONFIGURATION</h3>
+                 <h3 class="tactical-title text-lg tracking-widest">TRAP CONFIGURATION</h3>
               </header>
               <div class="space-y-6">
-                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Morph_Decoy_Signatures</button>
-                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Rotate_Trap_Keys</button>
+                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Morph Decoy Signatures</button>
+                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Rotate Trap Keys</button>
               </div>
            </div>
            
            <div class="t-panel glass-panel border-t-4 border-warning group">
               <div class="flex justify-between items-start mb-10 pb-6 border-b border-white/10">
                  <div class="flex flex-col gap-2">
-                    <h3 class="tactical-title text-lg tracking-widest">MESH_STATUS</h3>
+                    <h3 class="tactical-title text-lg tracking-widest">MESH STATUS</h3>
                     <p class="mono-xs text-slate-700 font-black uppercase tracking-widest">Global Trap Network</p>
                  </div>
                  <span class="dot active" style="background:var(--warning)"></span>
               </div>
               <div class="space-y-6">
                  <div class="flex justify-between items-center p-6 bg-black/40 rounded-xl border border-white/5">
-                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Active_Decoys</span>
+                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Active Decoys</span>
                     <span class="text-4xl font-black text-white tabular-nums tracking-tighter italic">{props.modules.filter(m => m.active).length}</span>
                  </div>
                  <div class="flex justify-between items-center p-6 bg-black/40 rounded-xl border border-white/5">
-                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Trap_Health</span>
+                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Trap Health</span>
                     <span class="text-4xl font-black text-warning tabular-nums tracking-tighter italic">98.4%</span>
                  </div>
               </div>

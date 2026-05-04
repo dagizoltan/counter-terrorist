@@ -7,6 +7,24 @@ export interface SidecarConfig {
 }
 
 export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
+    vpn: {
+        name: "vpn",
+        description: "Multi-tier identity rotation and stealth exit-node management.",
+        persistent: true,
+        privileged: true
+    },
+    firewall: {
+        name: "firewall",
+        description: "Active enforcement agent for IP blocking and process termination.",
+        persistent: true,
+        privileged: true
+    },
+    mesh: {
+        name: "mesh",
+        description: "Autonomous peer discovery and mTLS-secured gossip protocol for collective intelligence.",
+        persistent: true,
+        privileged: true
+    },
     scanner: {
         name: "scanner",
         description: "Vulnerability and port scanner for local network assessment.",
@@ -16,12 +34,6 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
     honeypot: {
         name: "honeypot",
         description: "Multi-vector deception service with SSH, Telnet, and HTTP decoys.",
-        persistent: true,
-        privileged: true
-    },
-    blocker: {
-        name: "blocker",
-        description: "Active enforcement agent for IP blocking and process termination.",
         persistent: true,
         privileged: true
     },

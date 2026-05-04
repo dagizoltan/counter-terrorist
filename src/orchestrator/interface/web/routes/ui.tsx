@@ -67,11 +67,38 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<OperationalNewsPage status={status} csrfToken={csrfToken} />);
   });
 
+  // ── NETWORK (Refactored Group) ───────────────────────────────────
+
+  router.get("/network/active", async (c: Context) => {
+    const { ActiveNetworkPage } = await import("../features/infrastructure/network/active_page.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<ActiveNetworkPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/network/neighbors", async (c: Context) => {
+    const { NeighborNetworksPage } = await import("../features/infrastructure/network/neighbors_page.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<NeighborNetworksPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/network", (c) => c.redirect("/network/active"));
+
   // ── AGENT FLEET (Modular Control) ──────────────────────────────────
 
-  router.get("/network", (c) => c.redirect("/agents/network"));
   router.get("/deception", (c) => c.redirect("/agents/deception"));
-  router.get("/agents", (c) => c.redirect("/agents/firewall"));
+  router.get("/agents", (c) => c.redirect("/agents/registry"));
+
+  router.get("/agents/registry", async (c: Context) => {
+    const { AgentsPage } = await import("../features/infrastructure/agents/page.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<AgentsPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/agents/vpn", (c) => c.redirect("/network/active"));
+  router.get("/agents/mesh", (c) => c.redirect("/infrastructure/mesh"));
 
   router.get("/agents/firewall", async (c: Context) => {
     const { FirewallPage } = await import("../features/infrastructure/agents/firewall_page.tsx");
@@ -80,12 +107,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<FirewallPage status={status} csrfToken={csrfToken} />);
   });
 
-  router.get("/agents/network", async (c: Context) => {
-    const { NetworkPage } = await import("../features/infrastructure/agents/network_page.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<NetworkPage status={status} csrfToken={csrfToken} />);
-  });
+  router.get("/agents/network", (c) => c.redirect("/network/active"));
 
   router.get("/agents/pcap", async (c: Context) => {
     const { PcapPage } = await import("../features/infrastructure/agents/pcap_page.tsx");

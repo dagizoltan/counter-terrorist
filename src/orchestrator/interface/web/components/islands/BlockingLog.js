@@ -38,7 +38,7 @@ class BlockingLog extends HTMLElement {
           </form>
         </div>
 
-        <div id="log-container" class="flex-grow overflow-y-auto p-4 space-y-2">
+        <div id="log-container" class="flex-grow overflow-y-auto p-4 space-y-1">
             <!-- Real-time entries will be prepended here -->
         </div>
       </div>
@@ -119,20 +119,20 @@ class BlockingLog extends HTMLElement {
   createLogElement(log) {
     const div = document.createElement('div');
     const color = this.getColorClass(log.type);
-    div.className = `flex gap-6 p-4 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group relative overflow-hidden`;
+    div.className = `flex gap-4 py-1.5 px-4 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group relative overflow-hidden`;
     div.innerHTML = `
       <div class="absolute inset-y-0 left-0 w-1 ${color} opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      <div class="flex flex-col gap-1 w-24 flex-shrink-0">
+      <div class="flex flex-col w-24 flex-shrink-0">
         <span class="mono text-[10px] font-black text-slate-500 tabular-nums">${new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}</span>
         <span class="mono text-[8px] text-slate-700">${new Date(log.timestamp).toLocaleDateString()}</span>
       </div>
-      <div class="flex flex-col gap-2 flex-grow">
+      <div class="flex flex-col gap-1 flex-grow">
         <div class="flex items-center gap-3">
           <span class="mono text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded bg-white/5 border border-white/10 ${this.getTextClass(log.type)}">${log.type}</span>
           <span class="text-[11px] font-bold text-slate-300 tracking-wide">${log.message}</span>
         </div>
         ${log.actor ? `
-          <div class="flex items-center gap-4 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
+          <div class="flex items-center gap-4 opacity-40 group-hover:opacity-100 transition-opacity">
             <div class="flex items-center gap-1.5">
               <span class="mono text-[8px] text-slate-500 uppercase">Actor:</span>
               <span class="mono text-[8px] text-primary font-black uppercase">${log.actor.id}</span>

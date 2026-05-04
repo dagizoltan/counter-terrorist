@@ -20,8 +20,8 @@ export const AuditPage = (props: { csrfToken?: string }) => {
       </header>
 
       {/* 02_Audit_Integrity_Summary */}
-      <div class="flex flex-col lg:flex-row gap-4 mb-10">
-        <div class="flex-1 t-panel glass-panel border-l-2 border-primary group py-6 px-8">
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        <div class="t-panel glass-panel border-l-2 border-primary group py-6 px-8">
           <div class="flex justify-between items-center mb-4">
             <span class="mono-xs text-slate-500 uppercase tracking-[0.2em]">Ledger_Integrity</span>
             <div class="flex items-center gap-2">
@@ -35,7 +35,7 @@ export const AuditPage = (props: { csrfToken?: string }) => {
           </div>
         </div>
 
-        <div class="flex-1 t-panel glass-panel border-l-2 border-primary group py-6 px-8">
+        <div class="t-panel glass-panel border-l-2 border-primary group py-6 px-8">
           <div class="flex justify-between items-center mb-4">
              <span class="mono-xs text-slate-500 uppercase tracking-[0.2em]">Historical_Records</span>
              <div class="dot active"></div>
@@ -46,7 +46,7 @@ export const AuditPage = (props: { csrfToken?: string }) => {
           </div>
         </div>
 
-        <div class="flex-1 t-panel glass-panel border-l-2 border-primary group py-6 px-8">
+        <div class="t-panel glass-panel border-l-2 border-primary group py-6 px-8">
           <div class="flex justify-between items-center mb-4">
              <span class="mono-xs text-slate-500 uppercase tracking-[0.2em]">Compliance_Status</span>
              <span class="status-pill active primary px-3 py-1 text-[8px]">STRICT</span>
@@ -57,7 +57,7 @@ export const AuditPage = (props: { csrfToken?: string }) => {
           </div>
         </div>
 
-        <div class="flex-1 t-panel glass-panel border-l-2 border-primary group py-6 px-8">
+        <div class="t-panel glass-panel border-l-2 border-primary group py-6 px-8">
           <div class="flex justify-between items-center mb-4">
              <span class="mono-xs text-slate-500 uppercase tracking-[0.2em]">Active_Policies</span>
              <div class="dot active"></div>
