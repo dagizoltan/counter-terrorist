@@ -18,9 +18,11 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   // Root RBAC Enforcement
   router.use("*", security.requireRole("admin", "operator", "viewer"));
 
-  // ── PHASE_01: OVERWATCH (Strategic Core) ──────────────────────────
+  // ── MONITOR (Mission Control & Global Status) ─────────────────────
   
-  router.get("/", async (c: Context) => {
+  router.get("/", (c) => c.redirect("/dashboard"));
+
+  router.get("/dashboard", async (c: Context) => {
     const { Dashboard } = await import("../features/situational/dashboard/page.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
@@ -34,18 +36,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<SysInfoPage status={status} csrfToken={csrfToken} />);
   });
 
-  router.get("/governance", async (c: Context) => {
-    const { AuditPage } = await import("../features/forensic/audit/page.tsx") as any;
-    const csrfToken = c.get("csrfToken");
-    return c.html(<AuditPage csrfToken={csrfToken} />);
-  });
-
-  // Overwatch Aliases
-  router.get("/sysinfo", (c) => c.redirect("/infrastructure"));
-  router.get("/supply-chain", (c) => c.redirect("/infrastructure"));
-  router.get("/compliance/audit", (c) => c.redirect("/governance"));
-
-  // ── PHASE_02: SIGNAL (Tactical Intelligence) ─────────────────────
+  // ── ANALYZE (Tactical Intelligence) ───────────────────────────────
 
   router.get("/intelligence", async (c: Context) => {
     const { IntelligenceCenterPage } = await import("../features/situational/intel/IntelligenceCenter.tsx");
@@ -54,19 +45,15 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<IntelligenceCenterPage status={status} csrfToken={csrfToken} />);
   });
 
-  router.get("/investigation", async (c: Context) => {
+  router.get("/forensics", async (c: Context) => {
     const { ForensicCenterPage } = await import("../features/forensic/ForensicCenter.tsx");
     const csrfToken = c.get("csrfToken");
     return c.html(<ForensicCenterPage csrfToken={csrfToken} />);
   });
 
-  // Signal Aliases
-  router.get("/threats", (c) => c.redirect("/intelligence"));
-  router.get("/forensics/investigation", (c) => c.redirect("/investigation"));
+  // ── ENFORCE (Active Enforcement) ──────────────────────────────────
 
-  // ── PHASE_03: STRIKE (Active Enforcement) ────────────────────────
-
-  router.get("/perimeter", async (c: Context) => {
+  router.get("/network", async (c: Context) => {
     const { NetworkShieldPage } = await import("../features/infrastructure/network/page.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
@@ -77,12 +64,13 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   router.route("/agents", createAgentsRouter(getStatus));
 
-  // Strike Aliases
-  router.get("/network", (c) => c.redirect("/perimeter"));
-  router.get("/honeypots", (c) => c.redirect("/deception"));
-  router.get("/mesh", (c) => c.redirect("/perimeter"));
+  // ── ADMINISTRATION (Governance & Settings) ────────────────────────
 
-  // ── SUPPORT ──────────────────────────────────────────────────────
+  router.get("/governance", async (c: Context) => {
+    const { AuditPage } = await import("../features/forensic/audit/page.tsx") as any;
+    const csrfToken = c.get("csrfToken");
+    return c.html(<AuditPage csrfToken={csrfToken} />);
+  });
 
   router.get("/settings", async (c: Context) => {
     const { NotificationsPage } = await import("../features/governance/settings/notifications.tsx") as any;
