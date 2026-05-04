@@ -1,3 +1,4 @@
+import { normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { AntivirusProvider, ScanResult } from "../interfaces.ts";
 export type { AntivirusProvider, ScanResult };
 
@@ -12,11 +13,17 @@ export class AntivirusManager {
 
   private validatePath(p: string): boolean {
     if (!p) return false;
-    // Normalize and ensure trailing slash for directory comparison
-    const normalized = p.startsWith("/") ? p : `/${p}`;
+    let normalized = p.startsWith("/") ? p : `/${p}`;
+    try {
+      normalized = normalize(normalized);
+      if (!normalized.endsWith("/")) {
+        normalized += "/";
+      }
+    } catch {
+      return false;
+    }
     
     // Check if the path is inside one of the allowed directories
-    // This handles prefix bypasses like /tmp-malicious because we check against /tmp/
     return AntivirusManager.ALLOWED_DIRS.some(dir => normalized.startsWith(dir));
   }
 

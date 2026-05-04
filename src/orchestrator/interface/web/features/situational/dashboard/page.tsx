@@ -26,8 +26,8 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
         <div class="flex gap-4">
           <div class="flex bg-black/40 border border-white/10 rounded-lg p-1 mr-4">
              <a href="/intelligence" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/5 rounded transition-all">Intelligence_Deck</a>
-             <a href="/perimeter" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/5 rounded transition-all">Perimeter_Defense</a>
-             <a href="/investigation" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/5 rounded transition-all">Investigation_Lab</a>
+             <a href="/network" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/5 rounded transition-all">Network_Shield</a>
+             <a href="/forensics" class="px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white hover:bg-white/5 rounded transition-all">Forensics_Lab</a>
           </div>
           <button class="t-btn px-6 py-3 group">
             <svg class="transition-transform group-hover:rotate-180" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
