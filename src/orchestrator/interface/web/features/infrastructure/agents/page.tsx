@@ -11,9 +11,8 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
 
   return (
     <Layout title="Agent Registry // Fleet Command" islandPaths={[
-      '/components/islands/AgentCardIsland.js', 
-      '/components/islands/MetricsHydrator.js',
-      '/components/islands/SupplyChainIsland.js'
+      '/components/islands/AgentCardIsland.js',
+      '/components/islands/ProcessTree.js'
     ]} csrfToken={props.csrfToken}>
       
       {/* 01_Unified_Page_Header */}
@@ -60,7 +59,11 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
                 </p>
 
                 <div class="flex justify-between items-center pt-8 border-t border-white/5">
-                  <a href={`/agents/${agent.name}`} class="t-btn text-[10px] py-2 px-6">Open_Agent_Console</a>
+                  <a href={
+                    agent.name === 'firewall' || agent.name === 'vpn' ? '/network' :
+                    agent.name === 'honeypot' ? '/honeypots' :
+                    `/agents/${agent.name}`
+                  } class="t-btn text-[10px] py-2 px-6">Open_Agent_Console</a>
                   <div class="flex gap-4">
                       <div class="p-3 bg-white/5 border border-white/5 rounded hover:border-primary/40 text-slate-600 hover:text-primary cursor-pointer transition-all">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -98,17 +101,58 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
         </div>
       </section>
 
-      {/* 04_Supply_Chain */}
-      <section class="animate-fade-in" style="animation-delay: 300ms;">
-        <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-10 pb-4 border-b border-white/5">03_SUPPLY_CHAIN_PROVENANCE_LOG</h2>
-        <div id="supply-chain-container" class="flex flex-col gap-5">
-            <div class="skeleton h-32 w-full"></div>
-            <div class="skeleton h-32 w-full opacity-60"></div>
-            <div class="skeleton h-32 w-full opacity-30"></div>
+      {/* 04_Kernel_Process_Topology (Consolidated) */}
+      <section class="mb-20 animate-fade-in" style="animation-delay: 300ms;">
+        <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-10 pb-4 border-b border-white/5">03_KERNEL_EXECUTION_TOPOLOGY</h2>
+        <div class="t-panel glass-panel p-0 border-t-2 border-primary group overflow-hidden">
+            <header class="p-10 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
+               <div class="flex items-center gap-8">
+                  <div class="p-4 bg-primary/10 border border-primary/30 text-primary rounded-xl shadow-primary/20 group-hover:scale-110 transition-transform duration-500">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                  </div>
+                  <div>
+                     <h3 class="tactical-title text-xl tracking-widest">REALTIME_LINUX_LSM_STREAM</h3>
+                     <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em] mt-2">Causal mapping of thread lineages and unauthorized drifts</p>
+                  </div>
+               </div>
+               <div class="status-pill active primary pulse">Analyzing_Namespace</div>
+            </header>
+            
+            <div class="p-12 bg-black/20 min-h-[500px] overflow-x-auto custom-scrollbar relative">
+               <div class="absolute inset-0 pointer-events-none opacity-[0.03] bg-[radial-gradient(circle_at_center,_var(--primary)_0%,_transparent_70%)]"></div>
+               <process-tree></process-tree>
+            </div>
+            
+            <footer class="p-8 border-t border-white/5 bg-black/10 flex justify-between items-center">
+               <div class="flex gap-12">
+                  <div class="flex items-center gap-4">
+                     <div class="w-2 h-2 bg-primary rounded-full"></div>
+                     <span class="mono-xs text-slate-700 font-black uppercase tracking-[0.2em]">SOVEREIGN_THREAD</span>
+                  </div>
+               </div>
+               <span class="mono-xs text-slate-700 font-black uppercase tracking-[0.3em]">Isolation_Level: <span class="text-slate-400">KERNEL_STRICT</span></span>
+            </footer>
         </div>
       </section>
 
-      <metrics-hydrator></metrics-hydrator>
+      {/* 05_Sovereign_Integrity_Link */}
+      <section class="animate-fade-in" style="animation-delay: 400ms;">
+        <h2 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-10 pb-4 border-b border-white/5">04_SOVEREIGN_INTEGRITY_PROVENANCE</h2>
+        <div class="t-panel glass-panel border-t-2 border-success/30 flex justify-between items-center p-12 group hover:bg-white/[0.02] transition-all">
+           <div class="flex items-center gap-10">
+              <div class="p-6 bg-success/10 border border-success/30 text-success rounded-2xl shadow-success/20 group-hover:scale-110 transition-transform">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
+              </div>
+              <div class="flex flex-col gap-2">
+                 <h3 class="tactical-title text-2xl tracking-widest">SUPPLY_CHAIN_VERIFIED</h3>
+                 <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">All active dependencies cryptographically signed and audited</p>
+              </div>
+           </div>
+           <a href="/supply-chain" class="t-btn success px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em]">Inspect_Full_Provenance</a>
+        </div>
+      </section>
+
+
     </Layout>
   );
 };

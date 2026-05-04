@@ -281,7 +281,7 @@ export class MetricsService {
                     devices: this.networkDiscovery?.getDevices() ?? []
                 },
                 news: {
-                    latest: await this.news?.getLatestSignals(3) ?? []
+                    latest: await this.news?.getLatestSignals(50) ?? []
                 },
                 policy: {
                     version: "1.2.0",

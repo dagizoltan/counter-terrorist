@@ -7,8 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const NetworkShieldPage = (props: { status: any, csrfToken?: string }) => {
   return (
-    <Layout title="Network Shield // Perimeter Defense" islandPaths={[
-      '/components/islands/MetricsHydrator.js',
+    <Layout title="Perimeter Shield // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
       '/components/islands/VpnAgent.js',
       '/components/islands/AnonymizerController.js',
@@ -18,7 +17,7 @@ export const NetworkShieldPage = (props: { status: any, csrfToken?: string }) =>
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
         <div class="title-group">
-          <h1>Network Shield</h1>
+          <h1>Perimeter Shield</h1>
           <span class="subtitle">Perimeter Defense & Stealth Portal // Identity: Encrypted</span>
         </div>
         <div class="flex gap-4">
@@ -163,7 +162,7 @@ export const NetworkShieldPage = (props: { status: any, csrfToken?: string }) =>
       </section>
 
       <firewall-agent></firewall-agent>
-      <metrics-hydrator></metrics-hydrator>
+
     </Layout>
   );
 };

@@ -1,9 +1,9 @@
 import { jsx } from "hono/jsx";
 
 /**
- * Sovereign App Shell
- * Rebuilt as a robust, grid-based tactical container.
- * Architecture: Left Navigation | Main Content | Right Forensic Stream
+ * Sovereign App Shell // v5.1-STABLE
+ * Hardened tactical interface with 3-column operational grid.
+ * Optimized for consistent high-fidelity rendering.
  */
 export const Layout = (props: {
   title: string;
@@ -17,209 +17,218 @@ export const Layout = (props: {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="csrf-token" content={props.csrfToken} />
-        <title>{props.title} | GHOST_COMMAND</title>
+        <title>{props.title} | SOVEREIGN_ORCHESTRATOR</title>
         <link rel="stylesheet" href="/style.css" />
       </head>
-      <body>
-        <div class="noise-overlay"></div>
-        <div class="system-scan-overlay"></div>
-        <alert-overlay></alert-overlay>
+      <body class="bg-[#050505] text-slate-100 font-sans selection:bg-primary/30 overflow-hidden">
+        <div class="noise-overlay pointer-events-none opacity-[0.03]"></div>
+        <div class="system-scan-overlay pointer-events-none opacity-[0.02]"></div>
+        
         <div class="app-shell">
-          {/* LEFT SIDEBAR: NAVIGATION */}
-          <aside class="shell-sidebar">
-            <header class="shell-header">
-              <div class="flex items-center gap-4">
-                <div class="w-1.5 h-6 bg-primary rounded-full shadow-primary"></div>
-                <div class="flex flex-col">
-                  <span class="font-black text-[12px] tracking-[0.3em] text-white uppercase">Ghost_Command</span>
-                  <span class="mono-xs text-primary opacity-40 font-bold tracking-[0.15em] text-[8px]">v4.2-STABLE</span>
+          
+          {/* ── 01_NAVIGATION_DECK (Left) ─────────────────────────────── */}
+          <aside class="shell-sidebar relative shadow-[10px_0_40px_rgba(0,0,0,0.4)]">
+            <header class="p-8 border-b border-white/5 relative group cursor-default">
+              <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-all duration-700"></div>
+              <div class="flex items-center gap-4 relative z-10">
+                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] group-hover:scale-110 transition-transform duration-500">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                </div>
+                <div>
+                  <h1 class="text-lg font-black tracking-tighter uppercase italic leading-none">Sovereign</h1>
+                  <span class="mono-xs text-primary font-black uppercase tracking-[0.4em] mt-1 block opacity-80">Orchestrator</span>
                 </div>
               </div>
             </header>
 
-            <nav class="flex-grow overflow-y-auto custom-scrollbar">
-              <div class="nav-group">
-                <div class="nav-heading">01_Situational</div>
+            <nav class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-1">
+              {/* PHASE_01: OVERWATCH */}
+              <div class="nav-group mb-8">
+                <div class="nav-heading !text-primary flex items-center gap-3">
+                   <div class="w-1 h-3 bg-primary rounded-full"></div>
+                   01_OVERWATCH
+                </div>
                 <a href="/" class="nav-link">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
-                  Dashboard
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                   Mission Dashboard
                 </a>
-                <a href="/threats" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                   Alert Center
+                <a href="/infrastructure" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
+                   Infrastructure Hub
                 </a>
-                <a href="/events" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                   Live Stream
-                </a>
-                <a href="/intel/map" class="nav-link">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                  Tactical Map
-                </a>
-                <a href="/intel/news" class="nav-link">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 8-8 9 9 0 0 1 8 8"/><path d="M4 11v9a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-9"/><circle cx="12" cy="12" r="3"/><path d="m16 16-1.5-1.5"/></svg>
-                  Tactical Intelligence
+                <a href="/governance" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                   Governance Ledger
                 </a>
               </div>
 
-              <div class="nav-group">
-                <div class="nav-heading">02_Infrastructure</div>
-                <a href="/network" class="nav-link">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                  Perimeter
+              {/* PHASE_02: SIGNAL */}
+              <div class="nav-group mb-8">
+                <div class="nav-heading !text-danger flex items-center gap-3">
+                   <div class="w-1 h-3 bg-danger rounded-full"></div>
+                   02_SIGNAL
+                </div>
+                <a href="/intelligence" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                   Intelligence Deck
                 </a>
-                <a href="/mesh" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="m3.34 7 1.66 3"/><path d="m9.94 21 1.06-3"/><path d="M2 2h20"/><path d="M21 22h-1"/><path d="M15 8l-2 5"/><path d="M9 8 7 13"/></svg>
-                   Mesh Topology
+                <a href="/investigation" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                   Investigation Lab
+                </a>
+              </div>
+
+              {/* PHASE_03: STRIKE */}
+              <div class="nav-group mb-8">
+                <div class="nav-heading !text-success flex items-center gap-3">
+                   <div class="w-1 h-3 bg-success rounded-full"></div>
+                   03_STRIKE
+                </div>
+                <a href="/perimeter" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                   Perimeter Defense
                 </a>
                 <a href="/agents" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                   Agent Fleet
+                   Agent Registry
+                </a>
+                <a href="/deception" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                   Deception Array
                 </a>
               </div>
 
-              <div class="nav-group">
-                <div class="nav-heading">03_Active_Defense</div>
-                <a href="/honeypots" class="nav-link">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                  Deception
-                </a>
-              </div>
-
-              <div class="nav-group">
-                <div class="nav-heading">04_Forensics</div>
-                <a href="/compliance/audit" class="nav-link">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                  Audit Ledger
-                </a>
-                <a href="/processes" class="nav-link">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>
-                  Processes
-                </a>
-                <a href="/analysis/timeline" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                   Timeline
-                </a>
-                <a href="/analysis/replay" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15 6 12 10 9"/><path d="M6 12h12a2 2 0 0 1 2 2v1"/><path d="M20 18v1a2 2 0 0 1-2 2H6"/></svg>
-                   Forensic Replay
-                </a>
-              </div>
-
-              <div class="nav-group">
-                <div class="nav-heading">05_Governance</div>
-                <a href="/sysinfo" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                   Node Info
-                </a>
-                <a href="/supply-chain" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-                   Supply Chain
-                </a>
+              {/* SUPPORT */}
+              <div class="nav-group pt-4">
                 <a href="/settings" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-                   Settings
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                   System Settings
                 </a>
               </div>
             </nav>
 
-            <script dangerouslySetInnerHTML={{ __html: `
-              window.escapeHTML = function(str) {
-                if (typeof str !== 'string') return str;
-                const p = document.createElement('p');
-                p.textContent = str;
-                return p.innerHTML;
-              };
-              function updateNav() {
-                const path = window.location.pathname;
-                document.querySelectorAll('.nav-link').forEach(link => {
-                  if (link.getAttribute('href') === path) {
-                    link.classList.add('active');
-                  } else {
-                    link.classList.remove('active');
-                  }
-                });
-              }
-              updateNav();
-              window.addEventListener('popstate', updateNav);
-            ` }} />
-
-            <footer class="p-8 border-t border-white/5 bg-black/20">
-              <form method="POST" action="/logout">
-                <input type="hidden" name="csrfToken" value={props.csrfToken} />
-                <button type="submit" class="t-btn danger w-full justify-center group">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                  Terminate_Session
-                </button>
-              </form>
+            <footer class="p-6 border-t border-white/5 bg-black/20">
+               <form method="POST" action="/logout">
+                  <input type="hidden" name="csrfToken" value={props.csrfToken} />
+                  <button type="submit" class="t-btn danger w-full justify-center group py-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Terminate_Session
+                  </button>
+               </form>
             </footer>
           </aside>
 
-          {/* MAIN STAGE */}
-          <main class="shell-main">
-            <header class="shell-header justify-start gap-12">
-              <div class="flex items-center gap-6">
-                <span class="mono-xs font-black text-slate-500 tracking-[0.5em] uppercase opacity-60">Sovereign_Node</span>
-                <div class="h-4 w-px bg-white/10"></div>
-                <div class="flex items-center gap-3">
-                   <span class="dot active pulse shadow-success"></span>
-                   <span class="mono-xs font-black text-success/60 tracking-[0.2em] uppercase">Online</span>
+          {/* ── 02_OPERATIONAL_MAIN (Center) ──────────────────────────── */}
+          <main class="shell-main relative z-10 shadow-[0_0_50px_rgba(0,0,0,0.8)]">
+             {/* Main Deck Header */}
+             <header class="shell-header">
+                <div class="flex items-center gap-6">
+                   <div class="flex items-center gap-3">
+                      <span class="dot active pulse shadow-primary"></span>
+                      <span class="mono-xs font-black text-slate-400 uppercase tracking-[0.4em]">{props.title?.split('//')[0] || 'STAGING_AREA'}</span>
+                   </div>
+                   <div class="w-px h-4 bg-white/10"></div>
+                   <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest italic opacity-60">{props.title?.split('//')[1] || 'SVRGN_ROOT'}</span>
                 </div>
-              </div>
-              <div class="flex-grow"></div>
-              <div class="flex items-center gap-6">
-                <div class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase">Grid_Coord: <span class="text-white">SH-0921</span></div>
-                <div class="w-8 h-8 rounded border border-white/5 bg-white/[0.02] flex items-center justify-center group hover:border-primary/30 transition-colors cursor-pointer">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-600 group-hover:text-primary transition-colors"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                
+                <div class="flex items-center gap-8">
+                   <div class="flex items-center gap-3">
+                      <span class="mono-xs text-slate-700 font-black tracking-widest uppercase">Encryption:</span>
+                      <span class="mono-xs text-success font-black tracking-widest uppercase bg-success/10 px-3 py-1 rounded border border-success/20">AES-256-GCM</span>
+                   </div>
+                   <div class="w-px h-4 bg-white/10"></div>
+                   <div id="system-clock" class="mono-xs text-slate-500 font-black tracking-[0.2em]">00:00:00</div>
                 </div>
-              </div>
-            </header>
+             </header>
 
-            <div class="shell-content">
-              {props.children}
-            </div>
+             {/* Content Stage */}
+             <div class="shell-content">
+                {/* Background Tactical Elements */}
+                <div class="absolute inset-0 pointer-events-none opacity-20 z-0">
+                   <div class="absolute top-0 left-10 w-px h-full bg-gradient-to-b from-primary/10 via-transparent to-transparent"></div>
+                   <div class="absolute top-40 right-10 w-40 h-40 bg-primary/5 blur-[100px] rounded-full"></div>
+                </div>
+                
+                <div class="relative z-10 animate-fade-in pt-12">
+                   {props.children}
+                </div>
+             </div>
           </main>
 
-          {/* RIGHT ASIDE: TELEMETRY */}
-          <aside class="shell-aside">
-            <header class="shell-header border-b">
-              <div class="flex items-center gap-3">
-                <div class="p-1.5 bg-danger/5 border border-danger/20 rounded">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          {/* ── 03_FORENSIC_TELEMETRY (Right) ─────────────────────────── */}
+          <aside class="shell-aside relative z-20 shadow-[-10px_0_40px_rgba(0,0,0,0.4)]">
+             <header class="shell-header">
+                <div class="flex items-center gap-4">
+                   <div class="p-2 bg-danger/10 border border-danger/20 rounded text-danger">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                   </div>
+                   <span class="font-black text-[10px] tracking-[0.4em] text-white uppercase">Live_Signals</span>
                 </div>
-                <span class="font-black text-[9px] tracking-[0.4em] text-white uppercase">Forensic_Feed</span>
-              </div>
-              <div class="mono-xs text-danger font-black animate-pulse text-[9px] tracking-widest">LIVE</div>
-            </header>
+                <div class="status-pill error pulse !px-4 !py-1 text-[8px]">CAPTURING</div>
+             </header>
 
-            <div class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-10">
-              <div class="mb-10">
-                 <system-health></system-health>
-              </div>
-              <div class="pt-10 border-t border-white/5">
-                 <mini-log></mini-log>
-              </div>
-            </div>
+             <div class="flex-grow overflow-y-auto custom-scrollbar p-6 space-y-10">
+                <div class="mb-10">
+                   <h4 class="mono-xs font-black text-slate-600 mb-6 tracking-[0.3em] uppercase">Node_Integrity</h4>
+                   <system-health></system-health>
+                </div>
+                
+                <div class="pt-8 border-t border-white/5">
+                   <h4 class="mono-xs font-black text-slate-600 mb-6 tracking-[0.3em] uppercase">Temporal_Buffer</h4>
+                   <mini-log></mini-log>
+                </div>
+             </div>
 
-            <footer class="p-8 bg-black/30 border-t border-white/5">
-              <div class="flex justify-between items-center mb-5">
-                <span class="mono-xs font-black text-slate-500 tracking-widest">GRID_HEALTH</span>
-                <span class="mono-xs font-black text-success tracking-widest">OPTIMAL // 100%</span>
-              </div>
-              <div class="h-1.5 bg-white/5 rounded-full overflow-hidden shadow-inner">
-                <div class="w-full h-full bg-success shadow-success"></div>
-              </div>
-            </footer>
+             <footer class="p-6 border-t border-white/5 bg-black/40">
+                <div class="flex justify-between items-center mb-4">
+                   <span class="mono-xs font-black text-slate-500 uppercase">Operational_Trust</span>
+                   <span class="mono-xs font-black text-primary tracking-widest uppercase">99.9%</span>
+                </div>
+                <div class="h-1 bg-white/5 rounded-full overflow-hidden">
+                   <div class="h-full bg-primary shadow-[0_0_10px_var(--primary)]" style="width: 99.9%"></div>
+                </div>
+             </footer>
           </aside>
+
         </div>
 
-        {/* Core Scripts */}
-        <script type="module" src="/components/islands/MiniLog.js" />
-        <script type="module" src="/components/islands/AlertOverlay.js" />
-        <script type="module" src="/components/islands/SystemHealth.js" />
+        {/* Global Orchestration Components */}
+        <metrics-hydrator></metrics-hydrator>
+        <alert-overlay></alert-overlay>
+        
+        {/* Authoritative Script Injection */}
+        <script type="module" src="/components/islands/MetricsHydrator.js"></script>
+        <script type="module" src="/components/islands/AlertOverlay.js"></script>
+        <script type="module" src="/components/islands/SystemHealth.js"></script>
+        <script type="module" src="/components/islands/MiniLog.js"></script>
+        
         {props.islandPaths?.map(path => (
-          <script type="module" src={path} />
+          !['MetricsHydrator.js', 'AlertOverlay.js', 'SystemHealth.js', 'MiniLog.js'].some(f => path.includes(f)) && 
+          <script type="module" src={path}></script>
         ))}
+
+        <script dangerouslySetInnerHTML={{ __html: `
+          // Unified UI State Manager
+          window.csrfToken = "${props.csrfToken || ''}";
+          
+          function syncInterface() {
+            const path = window.location.pathname;
+            document.querySelectorAll('.nav-link').forEach(link => {
+              link.classList.toggle('active', link.getAttribute('href') === path);
+            });
+            
+            // Dynamic Clock
+            const clock = document.getElementById('system-clock');
+            if (clock) {
+              const now = new Date();
+              clock.innerText = now.toLocaleTimeString('en-GB', { hour12: false });
+            }
+          }
+
+          setInterval(syncInterface, 1000);
+          syncInterface();
+          window.addEventListener('popstate', syncInterface);
+        ` }} />
       </body>
     </html>
   );

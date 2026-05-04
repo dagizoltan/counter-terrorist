@@ -1,4 +1,4 @@
-import { h } from '/vendor/preact.js';
+import { h, render } from '/vendor/preact.js';
 import { useState, useEffect, useRef } from '/vendor/preact-hooks.js';
 import htm from '/vendor/htm.js';
 
@@ -8,7 +8,7 @@ const html = htm.bind(h);
  * ReplayIsland: Forensic Timeline Reconstruction Engine
  * Allows operators to scrub through past security events with high-fidelity visual context.
  */
-export default function ReplayIsland() {
+function ReplayIsland() {
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -187,3 +187,9 @@ export default function ReplayIsland() {
     </div>
   `;
 }
+
+const root = document.getElementById('forensic-replay-root');
+if (root) {
+  render(h(ReplayIsland), root);
+}
+

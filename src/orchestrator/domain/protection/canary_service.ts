@@ -43,6 +43,10 @@ export class CanaryService {
         }));
     }
 
+    private isProduction() {
+        return Deno.env.get("ENVIRONMENT") === "production";
+    }
+
     async registerToken(token: { id: string, path: string, desc: string }) {
         const newToken: CanaryToken = {
             id: token.id,
@@ -63,8 +67,11 @@ export class CanaryService {
             const content = `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
             await Deno.writeTextFile(token.masterPath, content);
 
-            const isDev = Deno.env.get("ENVIRONMENT") === "development";
-            if (isDev) return;
+            const isProd = this.isProduction();
+            if (!isProd) {
+                console.log(`[CANARY] [DEV MODE] Skipping projection: ${token.projectionPath}`);
+                return;
+            }
 
             const absProjection = resolve(token.projectionPath);
             await Deno.mkdir(dirname(absProjection), { recursive: true }).catch(() => {});
@@ -95,9 +102,8 @@ export class CanaryService {
                 const content = `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
                 await Deno.writeTextFile(token.masterPath, content);
 
-                // 2. Project via Hardlink (Only in production or if explicitly requested)
-                const isDev = Deno.env.get("ENVIRONMENT") === "development";
-                if (isDev) {
+                // 2. Project via Hardlink (Only in production)
+                if (!this.isProduction()) {
                     console.log(`[CANARY] [DEV MODE] Master generated at ${token.masterPath}. Skipping root projection.`);
                     continue; 
                 }

@@ -19,13 +19,13 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
   };
 
   return (
-    <Layout title="Host Intelligence // System Info" csrfToken={props.csrfToken} islandPaths={['/components/islands/MetricsHydrator.js']}>
+    <Layout title="Infrastructure Hub // Sovereign Overwatch" islandPaths={['/components/islands/SystemHealth.js']} csrfToken={props.csrfToken}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
         <div class="title-group">
-          <h1>Host Intelligence</h1>
-          <span class="subtitle">System Telemetry Established // Runtime: Stable</span>
+          <h1>Infrastructure Hub</h1>
+          <span class="subtitle">Hardware Topology & OS Integrity Mapping // v4.2.0-STABLE</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-6 bg-primary/10 border border-primary/20 px-10 py-4 rounded-full shadow-primary/10">
@@ -161,7 +161,7 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
         </div>
       </section>
 
-      <metrics-hydrator></metrics-hydrator>
+
     </Layout>
   );
 };

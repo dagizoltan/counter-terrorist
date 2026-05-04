@@ -48,7 +48,7 @@ export class NewsSignalService {
                 // Simple regex-based RSS parsing to avoid large dependencies
                 const items = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
                 
-                for (const itemXml of items.slice(0, 15)) {
+                for (const itemXml of items.slice(0, 25)) {
                     const title = itemXml.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "Untitled Signal";
                     const link = itemXml.match(/<link>(.*?)<\/link>/)?.[1] || "#";
                     const summary = itemXml.match(/<description>(.*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")?.slice(0, 200) + "..." || "";
