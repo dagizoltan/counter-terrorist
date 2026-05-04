@@ -1,6 +1,6 @@
 import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, SidecarName } from "../system/validation.ts";
 import { SystemExecutor } from "../system/system_executor.ts";
-import { CommandResult } from "@core/ports.ts";
+import { CommandResult, LoggingPort } from "@core/ports.ts";
 import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS, PRIVILEGED_SIDECARS } from "./sidecar_registry.ts";
 
 import { CommandPort } from "@core/ports.ts";

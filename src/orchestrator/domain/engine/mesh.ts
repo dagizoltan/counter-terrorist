@@ -395,7 +395,7 @@ export class MeshManager {
             const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
             
             // Phase 3: Differential state synchronization
-            if (res && (res as any).kv_snapshot && Array.isArray((res as any).kv_snapshot)) {
+            if (res !== undefined && res !== null && (res as any).kv_snapshot && Array.isArray((res as any).kv_snapshot)) {
                 this.logging.log(`[MESH] Received state snapshot from ${node.hostname}. Synchronizing...`, SyslogSeverity.NOTICE);
                 await this.audit.syncEvents((res as any).kv_snapshot);
             }
@@ -452,7 +452,7 @@ export class MeshManager {
                   data, 
                   requester: this.nodeId 
               });
-              if (res && (res as any).approved) {
+              if (res !== undefined && res !== null && (res as any).approved) {
                   approvals++;
               }
           } catch (e) {

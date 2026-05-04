@@ -33,6 +33,7 @@ export interface ScanResult {
   threatsFound: boolean;
   message: string;
   details?: string;
+  timestamp?: string;
 }
 
 export interface AntivirusProvider {

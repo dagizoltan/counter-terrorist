@@ -34,6 +34,14 @@ export class WindowsFirewallProvider implements FirewallProvider {
     return await this.executor.execute("netsh", ["advfirewall", "set", "allprofiles", "state", "on"]);
   }
 
+  async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
+    return await this.executor.execute("netsh", ["advfirewall", "firewall", "add", "rule", `name=Allow ${port}`, "dir=in", "action=allow", `protocol=${protocol}`, `localport=${port}`]);
+  }
+
+  async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
+    return await this.executor.execute("netsh", ["advfirewall", "firewall", "delete", "rule", `name=Allow ${port}`]);
+  }
+
   async flushRules(): Promise<CommandResult> {
     return await this.executor.execute("netsh", ["advfirewall", "firewall", "delete", "rule", "all"]);
   }

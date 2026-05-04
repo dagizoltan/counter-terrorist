@@ -78,6 +78,12 @@ export class AuditService {
         return await this.repo.getLatest(limit);
     }
 
+    public async getEvents(limit: number = 50, cursor?: string): Promise<{ items: AuditEvent[], cursor?: string }> {
+        // Implement paginated getEvents based on the repository methods
+        const events = await this.repo.getLatest(limit);
+        return { items: events };
+    }
+
     private async restoreChainHead() {
         try {
             const latest = await this.repo.getLatest(1);

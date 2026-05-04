@@ -15,7 +15,7 @@ import {
     GovernanceService, ShadowService, CovertChannelService, 
     ProvisioningService, NetworkDiscoveryService, NetworkLogService, 
     IncidentService, ComplianceService, NewsSignalService, 
-    PlatformInfoService, LedgerService, HealthService, EventMediator,
+    LedgerService, HealthService, EventMediator,
     WatchdogService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
@@ -56,7 +56,7 @@ export class SovereignApp {
         
         const platformInfo = await getPlatformInfo();
         const systemStatus = await bootstrap();
-        await loggingService.log("Core infrastructure initialized", SyslogSeverity.INFORMATIONAL, "BOOT", { platform: platformInfo.os, isRoot: systemStatus.isRoot });
+        await loggingService.log("Core infrastructure initialized", SyslogSeverity.INFORMATIONAL, "BOOT", { platform: platformInfo.name, isRoot: systemStatus.isRoot });
 
         // ── Phase 2: Service layer ────────────────────────────────────────────
         const tpmManager = new TPMManager(this.executor, loggingService);
@@ -91,7 +91,7 @@ export class SovereignApp {
 
         const metricsService = new MetricsService(
             protection.firewall as any, mesh, honeypot, processTracker,
-            kernelService, audit as any, canaryService, command, protection.vpn,
+            kernelService, audit as any, canaryService, command as any, protection.vpn,
             behavioral, anonymization, geoIp, broadcast, 
             curatedIntel, news, networkDiscovery, autopilot, health
         );

@@ -111,8 +111,8 @@ export class SecurityMiddleware {
             
             // Try to extract from body if header is missing (for standard form posts)
             if (!csrfHeader && c.req.header("Content-Type")?.includes("application/x-www-form-urlencoded")) {
-              const body = await c.req.parseBody().catch(() => ({}));
-              csrfBody = body.csrfToken as string;
+              const body = await c.req.parseBody().catch(() => ({} as Record<string, string>));
+              csrfBody = (body as Record<string, string>).csrfToken as string;
             }
 
             const providedToken = csrfHeader || csrfBody;
