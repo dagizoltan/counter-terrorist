@@ -257,7 +257,8 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     const type = c.req.query("type");
     if (type === "network_intel") {
       try {
-        const content = await Deno.readTextFile("/home/dagizoltan/.gemini/antigravity/brain/520ba1fc-039d-4c90-9609-38608568296c/network_intel_report.md");
+        const reportPath = Deno.env.get("INTEL_REPORT_PATH") || "./volume/reports/network_intel_report.md";
+        const content = await Deno.readTextFile(reportPath);
         return c.text(content);
       } catch {
         return c.text("# Network Intelligence Report\nNo data available yet.", 404);

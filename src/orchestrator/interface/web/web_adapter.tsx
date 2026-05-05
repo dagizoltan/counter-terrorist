@@ -252,10 +252,14 @@ export class WebAdapter implements WebPort {
 
   private async getSystemStatus(): Promise<ApplicationStatus> {
     const { bootstrap } = await import("../../bootstrapper.ts");
+    const { getMetricsSnapshot } = await import("@domain/analysis/metrics_service.ts");
+
     const baseStatus = await bootstrap();
+    const metrics = getMetricsSnapshot();
     
     return {
       ...baseStatus,
+      ...metrics,
       platform: this.services.platformInfo,
       plugins: Object.values(await import("@infrastructure/runtime/sidecar_registry.ts").then(m => m.SIDECAR_REGISTRY)).map(s => {
         let isRunning = this.services.command.isRunning(s.name);

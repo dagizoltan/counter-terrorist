@@ -54,15 +54,14 @@ export function createAgentsApi(services: ServiceContainer) {
 
   // Firewall specific controls
   router.post("/firewall/block", async (c: Context) => {
-    const { ip } = await c.req.json();
-    const result = await services.protection.firewall.blockIp(ip);
+    const payload = await c.req.json();
+    const result = await services.protection.firewall.blockIp(payload.ip);
     return c.json(result);
   });
 
   router.post("/firewall/unblock", async (c: Context) => {
-    const { ip } = await c.req.json();
-    // Assuming unblockIp exists or using the provider directly
-    const result = await services.protection.firewall.unblockIp(ip);
+    const payload = await c.req.json();
+    const result = await services.protection.firewall.unblockIp(payload.ip);
     return c.json(result);
   });
 

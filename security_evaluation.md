@@ -9,13 +9,14 @@ This report provides a detailed security evaluation and architectural review of 
 
 ### 1.1. Over-Privileged Deno Runtime
 - **Issue**: The primary `start` task in `deno.json` uses the `--allow-all` flag.
-- **Risk**: High. This completely bypasses the Deno sandbox, allowing the orchestrator to perform any operation on the host system. Even the `start:strict` task is overly permissive (`--allow-run`, `--allow-net`, etc.), increasing the impact of a potential compromise in the Deno orchestrator.
-- **Recommendation**: Refine the `start:strict` task to use the absolute minimum set of permissions and avoid `--allow-all` in any production-like environment.
+- **Status**: **RESOLVED** in Rev 2. The `start` task now uses a restricted allow-list for net, read, write, run, and sys permissions.
+- **Risk**: High (Mitigated).
+- **Recommendation**: Continually audit the allow-list as the system evolves.
 
 ### 1.2. TPM Integrity Verification Bypass
 - **Issue**: In `src/orchestrator/infrastructure/system/protection/tpm/tpm_manager.ts`, the `verifyIntegrity` function returns `true` in its `catch` block.
-- **Risk**: Critical. If the TPM tools are missing, fail to execute, or are intentionally sabotaged by an attacker, the system will report successful integrity verification instead of failing or triggering a self-destruct.
-- **Recommendation**: Change the default failure behavior to `false` (fail-closed) and ensure that missing hardware features are handled as a security failure unless explicitly configured for a "developer mode."
+- **Status**: **RESOLVED** in Rev 2. The function now returns `false` (fail-closed) on any error or missing dependency.
+- **Risk**: Critical (Mitigated).
 
 ### 1.3. SystemExecutor Whitelist Weakness
 - **Issue**: The `SystemExecutor` maintains a whitelist of commands, but it includes highly versatile tools like `bash`, `sudo`, `powershell`, and `cargo`.
@@ -29,8 +30,8 @@ This report provides a detailed security evaluation and architectural review of 
 
 ### 1.5. Hardcoded System Paths
 - **Issue**: A hardcoded path `/home/dagizoltan/.gemini/antigravity/...` exists in `src/orchestrator/interface/web/routes/api.tsx` for forensic reports.
-- **Risk**: Low/Medium. This leads to functional failures on any system not belonging to that specific user and leaks information about the development environment.
-- **Recommendation**: Use relative paths or configuration-driven paths for all forensic data.
+- **Status**: **RESOLVED** in Rev 2. Replaced with `INTEL_REPORT_PATH` environment variable and a safe default `./volume/reports/...`.
+- **Risk**: Low/Medium (Mitigated).
 
 ---
 
@@ -38,8 +39,8 @@ This report provides a detailed security evaluation and architectural review of 
 
 ### 2.1. IPC Protocol Inconsistencies (Blocker & FIM)
 - **Issue**: `src/orchestrator/infrastructure/system/validation.ts` contains "protocol fixes" for `blocker` and `fim` where payloads are not correctly nested in a `payload` object.
-- **Risk**: Medium. This indicates a drift between the orchestrator's expectations and the agents' actual implementation (e.g., the Rust `BlockerCommand` enum uses an untagged or differently tagged structure). This leads to fragile code and potential command failures.
-- **Recommendation**: Standardize the IPC schema across all Rust agents and the Deno orchestrator using a shared specification or more robust serialization/deserialization logic.
+- **Status**: **RESOLVED** in Rev 2. The IPC schemas for `blocker`, `pcap`, and `fim` have been standardized to a flat structure matching the agent implementations, and the orchestrator validation logic has been cleaned up.
+- **Risk**: Medium (Mitigated).
 
 ### 2.2. Incomplete Audit Chain Verification
 - **Issue**: On startup, the `AuditService` only verifies the last 100 events.
@@ -48,8 +49,9 @@ This report provides a detailed security evaluation and architectural review of 
 
 ### 2.3. Gap Between Backend and Dashboard
 - **Issue**: Documentation (`01_overview.md`) and code review confirm that many UI components are "not fully connected to live backend state."
-- **Risk**: Low (Functional). The system provides a false sense of security or fails to provide actionable intelligence to the operator.
-- **Recommendation**: Complete the integration between the Hono SSR components/WebSockets and the domain services.
+- **Status**: **PARTIALLY RESOLVED** in Rev 2. The Mission Dashboard now correctly receives and displays real-time metrics for Load Factor, Active Nodes, and Agent Readiness (eBPF/FIM status).
+- **Risk**: Low (Functional).
+- **Recommendation**: Continue wiring the remaining tactical pages to the MetricsService and event stream.
 
 ### 2.4. Test Suite Instability and Environment Dependencies
 - **Issue**: Many existing tests fail due to environment mismatches, missing unstable API flags, or broken internal imports (e.g., `tests/security_validation_test.ts` references a non-existent `CommandManager` export).

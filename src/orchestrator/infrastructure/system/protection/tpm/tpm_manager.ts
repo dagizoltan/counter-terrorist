@@ -192,11 +192,10 @@ export class TPMManager {
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
                 caller: "TPM",
-                message: `Hardware verification skipped: ${(e as Error).message}`
+                message: `Hardware verification failed: ${(e as Error).message}`
             });
-            // We return true here to avoid self-destructing on systems without TPM tools during development.
-            // In a production lockdown environment, the executor would be hardened.
-            return true;
+            // Fail-closed for security integrity
+            return false;
         }
     }
 
