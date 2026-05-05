@@ -20,6 +20,49 @@ export class SidecarManager implements CommandPort {
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
+    this.startRotationLoop();
+  }
+
+  /**
+   * Periodically rotates all active sidecars to neutralize memory-resident exploits.
+   */
+  private startRotationLoop() {
+    const ROTATION_INTERVAL = 6 * 60 * 60 * 1000; // 6 Hours
+    setInterval(async () => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.INFO,
+            caller: "SIDECAR_MANAGER",
+            message: "CYCLIC ROTATION TRIGGERED: Re-verifying and refreshing all agent binaries..."
+        });
+
+        for (const name of Array.from(this.persistentProcesses.keys())) {
+            await this.rotateSidecar(name);
+        }
+    }, ROTATION_INTERVAL);
+  }
+
+  private async rotateSidecar(name: string) {
+    const config = SIDECAR_REGISTRY[name];
+    const binPath = `./bin/agents/${config.binaryName || name}`;
+    
+    // 1. Forced re-healing from Golden Repository
+    const healed = await this.verifyAndHeal(name, binPath, true); 
+    
+    if (healed) {
+        // 2. Graceful restart
+        await this.stopSidecar(name);
+        await this.getPersistentSidecar(name);
+        
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.SUCCESS,
+            caller: "SIDECAR_MANAGER",
+            message: `Agent ${name} rotated and re-spawned from Golden Baseline.`
+        });
+    }
   }
 
   getExecutor(): SystemExecutor {
@@ -463,15 +506,15 @@ export class SidecarManager implements CommandPort {
     }
   }
 
-  private async verifyAndHeal(name: string, binPath: string): Promise<boolean> {
+  private async verifyAndHeal(name: string, binPath: string, force: boolean = false): Promise<boolean> {
     const currentHash = await this.calculateHash(binPath);
-    if (!currentHash) return false;
+    if (!currentHash && !force) return false;
 
     // In a real sovereign system, these would be retrieved from a hardware-locked TPM index
     // For now, we use a local trusted baseline from environment or config
     const goldenHash = Deno.env.get(`CTS_HASH_${name.toUpperCase()}`);
     
-    if (!goldenHash || currentHash === goldenHash) {
+    if (!force && (!goldenHash || currentHash === goldenHash)) {
         return true; // No hash provided or match
     }
 

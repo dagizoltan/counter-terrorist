@@ -25,6 +25,8 @@ struct SidecarResponse {
 #[serde(tag = "type")]
 enum BlockerCommand {
     KillProcess { id: String, pid: u32 },
+    QuarantineProcess { id: String, pid: u32 },
+    DumpProcess { id: String, pid: u32, path: String },
     BlockIp { id: String, ip: String },
     UnblockIp { id: String, ip: String },
 }
@@ -56,13 +58,20 @@ async fn main() {
                         let res = kill_process_task(pid).await;
                         emit_response(id, res.0, res.1).await;
                     },
-                    BlockerCommand::BlockIp { id, ip } => {
-                        let res = block_ip_task(ip).await;
+                    BlockerCommand::QuarantineProcess { id, pid } => {
+                        let res = quarantine_process_task(pid).await;
                         emit_response(id, res.0, res.1).await;
                     },
-                    BlockerCommand::UnblockIp { id, ip } => {
-                        let res = unblock_ip_task(ip).await;
+                    BlockerCommand::DumpProcess { id, pid, path } => {
+                        let res = dump_process_task(pid, path).await;
                         emit_response(id, res.0, res.1).await;
+                    },
+                    BlockerCommand::BlockIp { id, ip } => {
+                        // HERMETIC: IP blocking is now handled by the eBPF sidecar
+                        emit_response(id, false, "IP blocking delegated to eBPF/XDP".to_string()).await;
+                    },
+                    BlockerCommand::UnblockIp { id, ip } => {
+                        emit_response(id, false, "IP unblocking delegated to eBPF/XDP".to_string()).await;
                     }
                 }
             });
@@ -72,51 +81,37 @@ async fn main() {
 
 async fn kill_process_task(pid: u32) -> (bool, String) {
     let mut sys = System::new();
-    let my_pid = std::process::id();
-    
-    if pid < 100 { return (false, format!("Refusing to kill system process {}", pid)); }
-    if pid == my_pid { return (false, "Refusing to kill self".to_string()); }
-
     sys.refresh_process(Pid::from_u32(pid));
     
     if let Some(process) = sys.process(Pid::from_u32(pid)) {
-        let name = process.name().to_string();
         let success = process.kill();
-        (success, if success { format!("Killed process {} ({})", pid, name) } else { format!("Failed to kill process {}", pid) })
+        (success, if success { format!("Killed process {}", pid) } else { format!("Failed to kill {}", pid) })
     } else {
-        (false, format!("Process {} not found", pid))
+        (false, "Process not found".to_string())
     }
 }
 
-async fn block_ip_task(ip: String) -> (bool, String) {
-    if ip.parse::<std::net::IpAddr>().is_err() {
-        return (false, format!("Invalid IP: {}", ip));
-    }
+async fn quarantine_process_task(pid: u32) -> (bool, String) {
+    let mut sys = System::new();
+    sys.refresh_process(Pid::from_u32(pid));
     
-    let ip_clone = ip.clone();
-    let output = tokio::task::spawn_blocking(move || {
-        Command::new("ufw").args(["deny", "from", &ip_clone]).output()
-    }).await;
-
-    match output {
-        Ok(Ok(out)) => (out.status.success(), format!("UFW block for {}", ip)),
-        Ok(Err(e)) => (false, format!("UFW failed: {}", e)),
-        Err(e) => (false, format!("Task panicked: {}", e)),
+    if let Some(process) = sys.process(Pid::from_u32(pid)) {
+        // Native SIGSTOP
+        let success = process.kill_with(sysinfo::Signal::Stop).unwrap_or(false);
+        (success, if success { format!("Quarantined (SIGSTOP) process {}", pid) } else { format!("Failed to stop {}", pid) })
+    } else {
+        (false, "Process not found".to_string())
     }
 }
 
-async fn unblock_ip_task(ip: String) -> (bool, String) {
-    if ip.parse::<std::net::IpAddr>().is_err() {
-        return (false, format!("Invalid IP: {}", ip));
-    }
-    let ip_clone = ip.clone();
-    let output = tokio::task::spawn_blocking(move || {
-        Command::new("ufw").args(["delete", "deny", "from", &ip_clone]).output()
-    }).await;
-
-    match output {
-        Ok(Ok(out)) => (out.status.success(), format!("UFW unblock for {}", ip)),
-        Ok(Err(e)) => (false, format!("UFW failed: {}", e)),
-        Err(e) => (false, format!("Task panicked: {}", e)),
+async fn dump_process_task(pid: u32, path: String) -> (bool, String) {
+    // Hermetic: Manual procfs copy instead of cp/gcore
+    let maps_res = std::fs::copy(format!("/proc/{}/maps", pid), format!("{}.maps", path));
+    let env_res = std::fs::copy(format!("/proc/{}/environ", pid), format!("{}.environ", path));
+    
+    if maps_res.is_ok() && env_res.is_ok() {
+        (true, format!("Dumped process {} metadata to {}", pid, path))
+    } else {
+        (false, "Failed to access /proc files".to_string())
     }
 }

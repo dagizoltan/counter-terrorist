@@ -54,6 +54,18 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Packet capture and deep packet inspection for mesh traffic.",
         persistent: true,
         privileged: true
+    },
+    tpm: {
+        name: "tpm",
+        description: "Hardware Root of Trust manager for mesh identity and secrets.",
+        persistent: true,
+        privileged: true
+    },
+    vpn: {
+        name: "vpn",
+        description: "Native WireGuard orchestrator for stealth exit-nodes.",
+        persistent: true,
+        privileged: true
     }
 };
 

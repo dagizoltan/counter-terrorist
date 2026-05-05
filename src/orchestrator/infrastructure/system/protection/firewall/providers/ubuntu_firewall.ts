@@ -13,29 +13,16 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async shadowBanIp(ip: string): Promise<CommandResult> {
-    // Real traffic shaping (Shadow Banning) using tc (Traffic Control)
-    // We throttle the IP to 1KB/s and add 500ms latency to simulate a "dying" connection
+    // Transitioning from 'tc' binary to native eBPF Traffic Control
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
         caller: "FIREWALL",
-        message: `Shadow Banning IP: ${ip} via Traffic Control (tc)`
+        message: `Shadow Banning IP: ${ip} via Native eBPF TC hooks.`
     });
     
-    try {
-        // Dynamic Interface Detection: Get the default route interface
-        const ifaceRes = await this.executor.execute("bash", ["-c", "ip route get 8.8.8.8 | grep -oP 'dev \\K\\S+'"]);
-        const iface = ifaceRes.stdout.trim() || "eth0";
-
-        // 1. Add qdisc if not exists, 2. Add filter for the specific IP
-        await this.executor.execute("tc", ["qdisc", "add", "dev", iface, "root", "handle", "1:", "htb", "default", "10"]).catch(() => {});
-        await this.executor.execute("tc", ["class", "add", "dev", iface, "parent", "1:", "classid", "1:1", "htb", "rate", "1kbps", "ceil", "1kbps"]).catch(() => {});
-        
-        return await this.executor.execute("tc", ["filter", "add", "dev", iface, "protocol", "ip", "parent", "1:0", "prio", "1", "u32", "match", "ip", "dst", ip, "flowid", "1:1"]);
-    } catch (e) {
-        return { success: false, stdout: "", stderr: `TC failed: ${(e as Error).message}` };
-    }
+    return await this.sidecar.sendCommand("ebpf", { type: "SHADOW_BAN", ip });
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
@@ -43,11 +30,11 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    return await this.executor.execute("kill", ["-9", pid.toString()]);
+    return await this.sidecar.sendCommand("blocker", { type: "KillProcess", pid });
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    return await this.executor.execute("kill", ["-STOP", pid.toString()]);
+    return await this.sidecar.sendCommand("blocker", { type: "QuarantineProcess", pid });
   }
 
   async dumpProcessForensics(pid: number): Promise<CommandResult> {
@@ -60,41 +47,29 @@ export class UbuntuFirewallProvider implements FirewallProvider {
         message: `Dumping process ${pid} memory to ${dumpPath}`
     });
     
-    try {
-        await this.executor.execute("cp", [`/proc/${pid}/maps`, `${dumpPath}.maps`]);
-        await this.executor.execute("cp", [`/proc/${pid}/environ`, `${dumpPath}.environ`]);
-        return await this.executor.execute("gcore", ["-o", dumpPath, pid.toString()]);
-    } catch {
-        return { success: false, stdout: "", stderr: "Forensic dump failed or partial." };
-    }
+    return await this.sidecar.sendCommand("blocker", { type: "DumpProcess", pid, path: dumpPath });
   }
 
   async getStatus(): Promise<CommandResult> {
-    return await this.executor.execute("ufw", ["status"]);
+    // Hermetic: Query the agent status instead of UFW
+    return await this.sidecar.sendCommand("ebpf", { type: "GET_STATUS" });
   }
 
   async lockdown(): Promise<CommandResult> {
-    return await this.executor.execute("ufw", ["default", "deny", "incoming"]);
+    // Global lockdown via eBPF XDP default-deny
+    return await this.sidecar.sendCommand("ebpf", { type: "LOCKDOWN" });
   }
   
   async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.executor.execute("ufw", ["allow", `${port}/${protocol}`]);
+    return await this.sidecar.sendCommand("ebpf", { type: "ALLOW_PORT", port, protocol });
   }
 
   async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.executor.execute("ufw", ["delete", "allow", `${port}/${protocol}`]);
+    return await this.sidecar.sendCommand("ebpf", { type: "DENY_PORT", port, protocol });
   }
 
   async flushRules(): Promise<CommandResult> {
-    // 1. Reset UFW (Clears all custom rules)
-    await this.executor.execute("ufw", ["--force", "reset"]);
-    await this.executor.execute("ufw", ["enable"]);
-    
-    // 2. Clear all TC shaping rules
-    const ifaceRes = await this.executor.execute("bash", ["-c", "ip route get 8.8.8.8 | grep -oP 'dev \\K\\S+'"]);
-    const iface = ifaceRes.stdout.trim() || "eth0";
-    await this.executor.execute("tc", ["qdisc", "del", "dev", iface, "root"]).catch(() => {});
-    
-    return { success: true, stdout: "Ruleset flushed and baseline restored.", stderr: "" };
+    // Hermetic: Flush agent maps instead of resetting UFW
+    return await this.sidecar.sendCommand("ebpf", { type: "FLUSH_RULES" });
   }
 }

@@ -1,78 +1,34 @@
 import { AntivirusProvider, ScanResult } from "../antivirus.ts";
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { SidecarManager } from "../../../../runtime/sidecar_manager.ts";
 
+/**
+ * UbuntuAntivirusProvider
+ * Achieves Full Dependency Hermeticity for malware analysis via native sidecar.
+ */
 export class UbuntuAntivirusProvider implements AntivirusProvider {
-  constructor(private executor: SystemExecutor) {}
+  constructor(private sidecar: SidecarManager) {}
 
   async getStatus(): Promise<any> {
-    return await this.executor.execute("clamscan", ["--version"]);
+    return await this.sidecar.sendCommand("scanner", { type: "GetStatus" });
   }
 
   async scanPath(path: string): Promise<ScanResult> {
-    const { validatePath } = await import("../../../validation.ts");
-    const { normalize } = await import("https://deno.land/std@0.224.0/path/mod.ts");
-
-    const normalizedPath = normalize(path);
-    if (!validatePath(normalizedPath)) {
-        return {
-            success: false,
-            threatsFound: false,
-            message: "SECURITY VIOLATION: Invalid scan path.",
-            timestamp: new Date().toISOString()
-        };
-    }
-
-    // Enhanced scanning parameters for "Proper Scanner" capability
-    const scanArgs = [
-      "-r", 
-      "--heuristic-scan-precedence", // Give precedence to heuristics
-      "--detect-pua",               // Detect Potentially Unwanted Applications
-      "--alert-broken-executable",  // Alert on broken executables
-      "--max-filesize=100M",        // Handle larger binaries
-      "--max-scansize=500M",
-      "--no-summary",               // Keep output clean for parsing
-      normalizedPath
-    ];
-
-    const result = await this.executor.execute("clamscan", scanArgs);
+    const res = await this.sidecar.sendCommand("scanner", { type: "ScanPath", path });
     return {
-      success: result.success,
-      threatsFound: !result.success && result.stdout.toLowerCase().includes("found"),
-      message: result.stdout || result.stderr,
+      success: res.success,
+      threatsFound: res.data?.threats_found || false,
+      message: res.message,
       timestamp: new Date().toISOString()
     };
   }
 
   async syncSignatures(): Promise<{ success: boolean; message: string }> {
-    // Attempt to update ClamAV database (freshclam)
-    const result = await this.executor.execute("freshclam", []);
-    return {
-      success: result.success,
-      message: result.stdout || result.stderr
-    };
+    const res = await this.sidecar.sendCommand("scanner", { type: "SyncSignatures" });
+    return { success: res.success, message: res.message };
   }
 
   async quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }> {
-    const { validatePath } = await import("../../../validation.ts");
-    const { normalize } = await import("https://deno.land/std@0.224.0/path/mod.ts");
-
-    const normalizedPath = normalize(path);
-    if (!validatePath(normalizedPath)) {
-        return { success: false, message: "SECURITY VIOLATION: Invalid quarantine path." };
-    }
-
-    const quarantineDir = "./volume/quarantine";
-    await this.executor.execute("mkdir", ["-p", quarantineDir]);
-    
-    const fileName = normalizedPath.split("/").pop();
-    const target = `${quarantineDir}/${fileName}_${Date.now()}.quarantine`;
-    
-    const moveRes = await this.executor.execute("mv", [normalizedPath, target]);
-    if (moveRes.success) {
-        await this.executor.execute("chmod", ["000", target]);
-        return { success: true, message: `Malware isolated and stripped of permissions at ${target}`, target };
-    }
-    
-    return { success: false, message: `Failed to quarantine ${normalizedPath}: ${moveRes.stderr}` };
+    const res = await this.sidecar.sendCommand("scanner", { type: "Quarantine", path });
+    return { success: res.success, message: res.message, target: res.data?.target };
   }
 }
