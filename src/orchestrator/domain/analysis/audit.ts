@@ -46,7 +46,8 @@ export class AuditService {
         private kv: Deno.Kv, 
         private logging: LoggingPort,
         private tpm: any | null = null,
-        private mesh: MeshManager | null = null
+        private mesh: MeshManager | null = null,
+        private correlation: any | null = null
     ) {
         this.repo = new TimelineRepository<AuditEvent>(kv, "audit");
         this.retentionConfig = {
@@ -140,7 +141,7 @@ export class AuditService {
             const timestamp = event.timestamp || new Date().toISOString();
             const prevHash = this.lastHash;
 
-            const hashInput = JSON.stringify({
+            const hashInput = {
                 id,
                 timestamp,
                 type: event.type,
@@ -150,7 +151,7 @@ export class AuditService {
                 actor: event.actor,
                 data: event.data,
                 prevHash,
-            });
+            };
             const hash = await this.computeHash(hashInput);
             
             let hwSignature: string | undefined;
@@ -189,6 +190,10 @@ export class AuditService {
                     ...auditEvent,
                     node: (() => { try { return Deno.hostname(); } catch { return "unknown-node"; } })()
                   }).catch(() => {});
+                }
+
+                if (this.correlation) {
+                    this.correlation.processEvent(auditEvent).catch(() => {});
                 }
             } catch (e) {
                 this.logging.log({
@@ -236,7 +241,7 @@ export class AuditService {
         for (let i = 0; i < events.length; i++) {
             const event = events[i];
 
-            const hashInput = JSON.stringify({
+            const hashInput = {
                 id: event.id,
                 timestamp: event.timestamp,
                 type: event.type,
@@ -246,7 +251,7 @@ export class AuditService {
                 actor: event.actor,
                 data: event.data,
                 prevHash: event.prevHash,
-            });
+            };
             const expectedHash = await this.computeHash(hashInput);
 
             if (event.hash !== expectedHash) {
@@ -337,8 +342,23 @@ export class AuditService {
         }
     }
 
-    private async computeHash(input: string): Promise<string> {
-        const data = new TextEncoder().encode(input);
+    /**
+     * Deterministic JSON stringifier to ensure hash consistency across environments.
+     */
+    private canonicalStringify(obj: any): string {
+      if (obj === null || typeof obj !== "object") {
+        return JSON.stringify(obj);
+      }
+      if (Array.isArray(obj)) {
+        return "[" + obj.map(item => this.canonicalStringify(item)).join(",") + "]";
+      }
+      const keys = Object.keys(obj).sort();
+      return "{" + keys.map(key => `${JSON.stringify(key)}:${this.canonicalStringify(obj[key])}`).join(",") + "}";
+    }
+
+    private async computeHash(input: string | any): Promise<string> {
+        const str = typeof input === "string" ? input : this.canonicalStringify(input);
+        const data = new TextEncoder().encode(str);
         const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
         const hashArray = new Uint8Array(hashBuffer);
         return Array.from(hashArray).map(b => b.toString(16).padStart(2, "0")).join("");

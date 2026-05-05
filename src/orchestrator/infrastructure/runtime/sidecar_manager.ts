@@ -101,7 +101,26 @@ export class SidecarManager implements CommandPort {
                 return null;
             }
 
+            // ENHANCEMENT: Self-Healing Sidecars
+            // Verify integrity before spawn
+            const isHealthy = await this.verifyAndHeal(name, binPath);
+            if (!isHealthy) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "SIDECAR_MANAGER",
+                    message: `CRITICAL: Sidecar ${name} integrity check failed and self-healing was unsuccessful.`
+                });
+                return null;
+            }
+
             const env = await this.getSidecarEnv(name);
+
+            // ENHANCEMENT: Transition to Linux Capabilities (setcap)
+            // Removes dependency on sudo -n for sidecar execution
+            await this.setupCapabilities(name, binPath);
+
             const command = new Deno.Command(binPath, {
                 args: [],
                 stdin: "piped",
@@ -407,6 +426,105 @@ export class SidecarManager implements CommandPort {
   getPID(name: string): number | null {
     const process = this.persistentProcesses.get(name);
     return process ? process.pid : null;
+  }
+
+  private async setupCapabilities(name: string, binPath: string) {
+    const caps: Record<string, string> = {
+        "firewall": "cap_net_admin,cap_kill+ep",
+        "blocker": "cap_net_admin,cap_kill+ep",
+        "ebpf": "cap_sys_admin,cap_net_admin,cap_sys_resource+ep",
+        "pcap": "cap_net_raw,cap_net_admin+ep",
+        "vpn": "cap_net_admin+ep",
+        "mesh": "cap_net_bind_service+ep"
+    };
+
+    const targetCaps = caps[name];
+    if (targetCaps && Deno.build.os === "linux") {
+        try {
+            // Apply capabilities using sudo once (during setup)
+            // This is safer than running the sidecar as root continuously
+            await this.executor.execute("sudo", ["setcap", targetCaps, binPath]);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.ACTIVITY,
+                severity: LogSeverity.INFO,
+                caller: "SIDECAR_MANAGER",
+                message: `Applied capabilities [${targetCaps}] to sidecar: ${name}`
+            });
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "SIDECAR_MANAGER",
+                message: `Failed to apply capabilities to ${name}: ${(e as Error).message}`
+            });
+        }
+    }
+  }
+
+  private async verifyAndHeal(name: string, binPath: string): Promise<boolean> {
+    const currentHash = await this.calculateHash(binPath);
+    if (!currentHash) return false;
+
+    // In a real sovereign system, these would be retrieved from a hardware-locked TPM index
+    // For now, we use a local trusted baseline from environment or config
+    const goldenHash = Deno.env.get(`CTS_HASH_${name.toUpperCase()}`);
+    
+    if (!goldenHash || currentHash === goldenHash) {
+        return true; // No hash provided or match
+    }
+
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "SIDECAR_MANAGER",
+        message: `Integrity Mismatch for ${name}! Expected: ${goldenHash.slice(0, 8)}, Actual: ${currentHash.slice(0, 8)}. Attempting resurrection...`
+    });
+
+    // SELF-HEALING: Attempt to rotate from golden repository
+    try {
+        const goldenRepo = `./volume/storage/agents/golden/${name}`;
+        const goldenStat = await Deno.stat(goldenRepo).catch(() => null);
+        
+        if (goldenStat?.isFile) {
+            await Deno.copyFile(goldenRepo, binPath);
+            const healedHash = await this.calculateHash(binPath);
+            
+            if (healedHash === goldenHash) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "SIDECAR_MANAGER",
+                    message: `Successfully healed sidecar ${name}. Integrity restored.`
+                });
+                return true;
+            }
+        }
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "SIDECAR_MANAGER",
+            message: `Healing failed for ${name}: ${(e as Error).message}`
+        });
+    }
+
+    return false;
+  }
+
+  private async calculateHash(path: string): Promise<string | null> {
+    try {
+        const file = await Deno.readFile(path);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", file);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    } catch {
+        return null;
+    }
   }
 
   private handleSidecarExit(name: string, exitCode: number) {

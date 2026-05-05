@@ -155,6 +155,22 @@ async fn main() -> Result<(), anyhow::Error> {
         if let Ok(cmd) = serde_json::from_str::<SidecarCommand>(&line) {
             let bpf_ref = unsafe { &mut *bpf_ptr };
             match cmd.cmd_type.as_str() {
+                "BLOCK_IP" => {
+                    if let Some(ip_str) = cmd.ip {
+                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
+                            let _ = m.insert(u32::from(ip).to_be(), 1u32, 0);
+                            emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
+                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                    }
+                },
+                "UNBLOCK_IP" => {
+                    if let Some(ip_str) = cmd.ip {
+                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
+                            let _ = m.remove(&u32::from(ip).to_be());
+                            emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
+                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                    }
+                },
                 "SHADOW_BAN" => {
                     if let Some(ip_str) = cmd.ip {
                         if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap())) {

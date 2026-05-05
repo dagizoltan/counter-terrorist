@@ -104,17 +104,20 @@ export class MeshManager {
         message: "Starting zero-config node discovery..."
     });
 
-    // 1. Initial Subnet Scan (Fast discovery - background)
-    this.discoverSubnet().catch(() => {});
+    // 1. Passive Discovery: Start listening first to capture incoming announcements
+    this.listenForDiscovery();
+
+    // 2. Initial Subnet Scan: BUG FIX - Staggered start to avoid mDNS race conditions
+    // Delaying the aggressive active scan to allow the network stack to stabilize passive listeners
+    setTimeout(() => {
+        this.discoverSubnet().catch(() => {});
+    }, 2000 + Math.random() * 3000);
     
-    // 2. Schedule regular scans
+    // 3. Schedule regular scans with jitter
     this.discoveryInterval = setInterval(() => {
         this.discoverSubnet();
         this.scanNetwork();
-    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS);
-
-    // 3. Start listening for mDNS (Passive discovery)
-    this.listenForDiscovery();
+    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + (Math.random() * 5000));
   }
 
   private async discoverSubnet() {

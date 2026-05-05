@@ -100,6 +100,17 @@ async fn main() {
 
                 let capture_dir = std::env::var("CTS_CAPTURE_DIR").unwrap_or_else(|_| "./volume/storage/captures".to_string());
                 let _ = std::fs::create_dir_all(&capture_dir);
+
+                // ISSUE FIX: Disk Exhaustion Risk. Check directory size before starting.
+                if let Ok(entries) = std::fs::read_dir(&capture_dir) {
+                    let total_size: u64 = entries.filter_map(|e| e.ok()).map(|e| e.metadata().map(|m| m.len()).unwrap_or(0)).sum();
+                    const MAX_QUOTA: u64 = 1024 * 1024 * 1024; // 1GB Quota
+                    if total_size > MAX_QUOTA {
+                        emit_response(id, false, format!("CRITICAL: Disk quota exceeded in capture directory ({} bytes). Purge old captures first.", total_size)).await;
+                        continue;
+                    }
+                }
+
                 let safe_path = format!("{}/{}", capture_dir, sanitized_name);
 
                 // Use -l for line buffering and -n to avoid DNS lookups for speed

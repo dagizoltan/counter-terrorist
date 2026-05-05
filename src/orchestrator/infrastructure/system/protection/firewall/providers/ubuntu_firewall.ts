@@ -8,7 +8,8 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}
 
   async blockIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "BlockIp", ip });
+    // Transitioning from UFW to high-performance eBPF/XDP blocking
+    return await this.sidecar.sendCommand("ebpf", { type: "BLOCK_IP", ip });
   }
 
   async shadowBanIp(ip: string): Promise<CommandResult> {
@@ -38,7 +39,7 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "UnblockIp", ip });
+    return await this.sidecar.sendCommand("ebpf", { type: "UNBLOCK_IP", ip });
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
