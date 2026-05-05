@@ -7,6 +7,57 @@ class ScannerAgent extends HTMLElement {
  
   connectedCallback() {
     this.render();
+    this.fetchLedger();
+    this.interval = setInterval(() => this.fetchLedger(), 30000);
+  }
+
+  disconnectedCallback() {
+    if (this.interval) clearInterval(this.interval);
+  }
+
+  async fetchLedger() {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
+      const res = await fetch('/api/agents/scanner/ledger', { headers });
+      if (!res.ok) return;
+      const ledger = await res.json();
+      this.renderLedger(ledger);
+    } catch (e) {
+      console.error('Ledger fetch failed:', e);
+    }
+  }
+
+  renderLedger(ledger) {
+    const listEl = document.getElementById('scanner-ledger');
+    if (!listEl) return;
+
+    if (!ledger || ledger.length === 0) {
+      listEl.innerHTML = `
+        <div class="p-12 text-center t-panel glass-panel border-dashed opacity-50">
+          <span class="mono-xs font-black text-slate-500 uppercase tracking-widest italic">No Critical Artifacts Identified</span>
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = ledger.map(item => `
+      <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded transition-colors">
+        <div class="flex flex-col gap-1 overflow-hidden">
+           <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">${window.escapeHTML(item.threatType || 'MALICIOUS_ARTIFACT')}</span>
+           <span class="mono-sm font-black text-danger uppercase tracking-widest truncate">${window.escapeHTML(item.indicator.slice(0, 32))}...</span>
+        </div>
+        <div class="flex items-center gap-4">
+           <div class="flex flex-col items-end">
+              <span class="mono-xs text-slate-700 font-bold">${item.score}%</span>
+              <div class="w-12 h-1 bg-white/5 rounded-full mt-1">
+                 <div class="h-full bg-danger" style="width: ${item.score}%"></div>
+              </div>
+           </div>
+           <div class="dot danger"></div>
+        </div>
+      </div>
+    `).join('');
   }
  
   async syncSignatures() {

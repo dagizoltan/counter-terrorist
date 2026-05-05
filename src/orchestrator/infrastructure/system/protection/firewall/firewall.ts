@@ -113,6 +113,14 @@ export class FirewallManager {
     return await this.provider.unblockIp(ip);
   }
 
+  async isolate(ip: string, _reason: string) {
+    return await this.blockIp(ip);
+  }
+
+  async unblock(ip: string) {
+    return await this.unblockIp(ip);
+  }
+
   async isBlocked(ip: string): Promise<boolean> {
     return this.blockedIps.has(ip);
   }

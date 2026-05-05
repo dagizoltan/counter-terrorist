@@ -366,8 +366,18 @@ export const ScannerPage = (props: { csrfToken?: string }) => (
     </header>
 
     <div class="grid grid-cols-12 gap-6 mb-8">
-      <div class="col-span-12 t-panel glass-panel p-8 border-t-2 border-primary/30 bg-black/40">
+      <div class="col-span-12 lg:col-span-7 t-panel glass-panel p-8 border-t-2 border-primary/30 bg-black/40">
         <scanner-agent></scanner-agent>
+      </div>
+      
+      <div class="col-span-12 lg:col-span-5 t-panel p-0 overflow-hidden border-t-2 border-danger/30 bg-black/40">
+         <header class="p-8 border-b border-white/5 bg-black/20 flex justify-between items-center">
+            <h3 class="tactical-title" style="font-size:1rem;">ACTIVE_ARTIFACT_LEDGER</h3>
+            <div class="px-3 py-1 bg-danger/10 border border-danger/30 text-danger text-[9px] font-black tracking-widest uppercase">Quarantine_Ready</div>
+         </header>
+         <div id="scanner-ledger" class="p-8 space-y-4 h-[400px] overflow-y-auto bg-black/40 custom-scrollbar">
+            <div class="mono text-[10px] text-slate-600 uppercase p-8 text-center animate-pulse italic">Synchronizing_Forensic_Baseline...</div>
+         </div>
       </div>
     </div>
   </Layout>

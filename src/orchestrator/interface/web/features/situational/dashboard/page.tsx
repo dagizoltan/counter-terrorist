@@ -85,7 +85,7 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
           <div class="col-span-12 t-panel glass-panel p-8 bg-black/40 border-t-2 border-danger/30">
              <header class="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
                 <span class="mono-xs font-black text-danger uppercase tracking-[0.4em]">Global Threat Intelligence</span>
-                <a href="/news" class="mono-xs text-slate-500 hover:text-white transition-colors uppercase tracking-widest font-black">View Full Deck →</a>
+                <a href="/intel/feed" class="mono-xs text-slate-500 hover:text-white transition-colors uppercase tracking-widest font-black">View Operational Feed →</a>
              </header>
              <news-feed limit="4" compact="true"></news-feed>
           </div>

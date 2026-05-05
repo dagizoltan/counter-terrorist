@@ -149,184 +149,160 @@ class ThreatExplorer extends HTMLElement {
     const selectedCount = this.selectedIps.size;
 
     this.innerHTML = `
-      <div class="grid grid-cols-12 gap-10">
-        <!-- 01 Left Deck: Provider Controls -->
-        <div class="col-span-12 lg:col-span-4 space-y-8">
-          <div class="t-panel glass-panel p-8 bg-black/40 border-t-2 border-primary/20 shadow-2xl">
-             <div class="flex justify-between items-center mb-10">
-                <div class="flex flex-col gap-1">
-                   <h3 class="mono-xs font-black text-slate-500 uppercase tracking-widest">Intelligence_Sources</h3>
-                   <span class="mono text-[8px] text-slate-600 uppercase">Enforcement_Priority: HIGH</span>
-                </div>
-                <div class="flex flex-col items-end">
-                   <span class="mono text-[10px] text-primary font-black tabular-nums">${totalCount.toLocaleString()}</span>
-                   <span class="mono text-[7px] text-slate-500 uppercase">TOTAL_INDICATORS</span>
-                </div>
-             </div>
-             
-             <div class="space-y-3">
-                ${Object.keys(this.stats).length === 0 ? `
-                   <div class="p-8 border border-white/5 bg-black/20 rounded-xl text-center opacity-40">
-                      <span class="mono-xs uppercase">Initializing_Provider_Stats...</span>
-                   </div>
-                ` : Object.entries(this.stats).map(([name, count]) => `
-                  <div class="flex items-center gap-2 group/row">
-                    <button onclick="this.closest('threat-explorer').setProvider('${name}')" 
-                      class="flex-grow flex justify-between items-center p-5 rounded-xl border transition-all ${this.filter.provider === name ? 'bg-primary/20 border-primary shadow-lg shadow-primary/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
-                      <div class="flex items-center gap-4">
-                         <div class="w-1.5 h-1.5 rounded-full ${count > 0 ? 'bg-success animate-pulse' : 'bg-slate-700'}"></div>
-                         <span class="mono-xs font-black text-white uppercase tracking-widest">${name}</span>
-                      </div>
-                      <span class="mono-xs text-slate-400 font-bold tabular-nums">${count.toLocaleString()}</span>
-                    </button>
-                    <button onclick="this.closest('threat-explorer').syncFeeds('${name}')" 
-                      class="p-4 rounded-xl bg-white/5 border border-white/5 hover:bg-primary/20 hover:border-primary/40 text-slate-500 hover:text-primary transition-all opacity-0 group-hover/row:opacity-100" title="Sync This Provider">
-                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                    </button>
+      <div class="flex flex-col gap-10">
+        <!-- 01 Provider Row: Grid Layout -->
+        <div class="t-panel glass-panel p-8 bg-black/40 border-t-2 border-primary/20 shadow-2xl">
+           <div class="flex justify-between items-center mb-8 pb-6 border-b border-white/5">
+              <div class="flex flex-col gap-1">
+                 <h3 class="mono-xs font-black text-slate-500 uppercase tracking-widest">Intelligence_Sources</h3>
+                 <span class="mono text-[8px] text-slate-600 uppercase">Enforcement_Priority: HIGH // Total: ${totalCount.toLocaleString()}</span>
+              </div>
+              <div class="flex gap-4">
+                 <button onclick="this.closest('threat-explorer').syncFeeds()" class="t-btn primary !py-2 !px-6 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
+                    <svg class="transition-transform group-hover:rotate-180 duration-700 ${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                    <span class="mono text-[9px] font-black uppercase tracking-widest">Global_Sync</span>
+                 </button>
+                 <button onclick="this.closest('threat-explorer').wipeDatabase()" class="t-btn danger !py-2 !px-6">
+                    <span class="mono text-[9px] font-black uppercase tracking-widest">Purge_DB</span>
+                 </button>
+              </div>
+           </div>
+           
+           <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              ${Object.entries(this.stats).map(([name, count]) => `
+                <button onclick="this.closest('threat-explorer').setProvider('${name}')" 
+                  class="flex flex-col gap-2 p-5 rounded-xl border transition-all text-left ${this.filter.provider === name ? 'bg-primary/20 border-primary shadow-lg shadow-primary/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
+                  <div class="flex justify-between items-center">
+                     <span class="mono-xs font-black text-white uppercase tracking-widest truncate">${name}</span>
+                     <div class="w-1.5 h-1.5 rounded-full ${count > 0 ? 'bg-success animate-pulse' : 'bg-slate-700'}"></div>
                   </div>
-                `).join('')}
-             </div>
-
-             <div class="mt-10 pt-8 border-t border-white/5">
-                <button onclick="this.closest('threat-explorer').syncFeeds()" class="t-btn primary w-full justify-center py-5 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
-                   <svg class="transition-transform group-hover:rotate-180 duration-700 ${this.loading ? 'animate-spin' : ''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                   <span class="mono-xs font-black uppercase tracking-widest">${this.loading ? 'Synchronizing_Feeds...' : 'Global_Perimeter_Sync'}</span>
+                  <span class="text-xl font-black text-white italic tabular-nums">${count.toLocaleString()}</span>
                 </button>
-             </div>
-          </div>
-
-          <div class="t-panel glass-panel p-8 bg-black/40 border-t-2 border-danger/20">
-             <h3 class="mono-xs font-black text-slate-500 uppercase tracking-widest mb-6">Database_Integrity</h3>
-             <button onclick="this.closest('threat-explorer').wipeDatabase()" class="t-btn danger w-full justify-center py-4 text-[10px] font-black uppercase tracking-widest">
-                Purge_Historical_Ledger
-             </button>
-          </div>
+              `).join('')}
+           </div>
         </div>
 
-        <!-- 02 Right Deck: Threat Ledger -->
-        <div class="col-span-12 lg:col-span-8">
-           <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden shadow-2xl flex flex-col min-h-[800px] border-t-2 border-primary/10">
-              <header class="p-8 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
-                 <div class="flex items-center gap-6">
-                    <div class="flex flex-col gap-1">
-                       <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Forensic_Malware_Ledger</span>
-                       <span class="mono text-[7px] text-slate-600 uppercase">Live_Enforcement_Active</span>
-                    </div>
-                    ${this.filter.provider ? `<span class="status-pill warning active !px-4 !py-1 text-[8px]">${this.filter.provider}</span>` : ''}
-                    ${this.loading ? `<span class="mono text-[8px] text-primary animate-pulse uppercase">Traversing_Database...</span>` : ''}
+        <!-- 02 Threat Ledger: Full Width Table -->
+        <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden shadow-2xl flex flex-col min-h-[800px] border-t-2 border-primary/10">
+           <header class="p-8 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
+              <div class="flex items-center gap-6">
+                 <div class="flex flex-col gap-1">
+                    <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Forensic_Malware_Ledger</span>
+                    <span class="mono text-[7px] text-slate-600 uppercase">Live_Enforcement_Active</span>
                  </div>
-                 <div class="flex items-center gap-4">
-                    <div class="relative group">
-                       <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                       </div>
-                       <input type="text" value="${this.filter.search}" oninput="this.closest('threat-explorer').setSearch(this.value)" 
-                         class="bg-black/80 border border-white/10 rounded-xl pl-12 pr-6 py-3 mono-xs text-white focus:border-primary outline-none transition-all w-64 shadow-2xl" 
-                         placeholder="SCAN_INDICATORS..." />
-                    </div>
-                 </div>
-              </header>
-
-              ${selectedCount > 0 ? `
-                 <div class="bg-primary/20 border-b border-primary/40 px-8 py-4 flex justify-between items-center animate-in slide-in-from-top-2 duration-300">
-                    <div class="flex items-center gap-4">
-                       <span class="mono-xs font-black text-primary uppercase tracking-widest">${selectedCount} INDICATORS_SELECTED</span>
-                    </div>
-                    <div class="flex gap-4">
-                       <button onclick="this.closest('threat-explorer').bulkBlock()" class="t-btn primary !py-2 !px-8 text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
-                          Commit_Bulk_Isolation
-                       </button>
-                       <button onclick="this.closest('threat-explorer').selectedIps.clear(); this.closest('threat-explorer').render()" class="mono-xs text-slate-400 font-bold uppercase tracking-widest hover:text-white transition-colors">
-                          Cancel
-                       </button>
-                    </div>
-                 </div>
-              ` : ''}
-
-              <div class="flex-grow overflow-y-auto custom-scrollbar">
-                 <table class="w-full text-left border-collapse">
-                    <thead class="sticky top-0 bg-black/40 backdrop-blur-md z-10 border-b border-white/5 shadow-xl">
-                       <tr>
-                          <th class="p-6 w-12">
-                             <input type="checkbox" onchange="this.closest('threat-explorer').toggleSelectAll()" 
-                               class="accent-primary w-4 h-4 rounded border-white/10 bg-black" />
-                          </th>
-                          <th class="p-6 mono-xs text-slate-600 font-black uppercase tracking-widest">Indicator_Entity</th>
-                          <th class="p-6 mono-xs text-slate-600 font-black uppercase tracking-widest">Reputation_Score</th>
-                          <th class="p-6 mono-xs text-slate-600 font-black uppercase tracking-widest">Temporal_Data</th>
-                          <th class="p-6 mono-xs text-slate-600 font-black uppercase tracking-widest text-right">Defense_Status</th>
-                       </tr>
-                    </thead>
-                    <tbody class="divide-y divide-white/5">
-                       ${this.threats.length === 0 && !this.loading ? `
-                          <tr>
-                             <td colspan="5" class="p-32 text-center">
-                                <div class="flex flex-col items-center gap-6 opacity-30">
-                                   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 18v4"/><path d="m16.24 16.24 2.83 2.83"/><path d="M18 12h4"/><path d="m16.24 7.76 2.83-2.83"/></svg>
-                                   <span class="mono-xs font-black uppercase tracking-[0.4em] text-center">
-                                      ${totalCount > 0 ? 'No_Matches_Found_In_Historical_Ledger' : 'Intelligence_Cache_Empty_//_Please_Sync'}
-                                   </span>
-                                </div>
-                             </td>
-                          </tr>
-                       ` : this.threats.length === 0 && this.loading ? `
-                          <tr>
-                             <td colspan="5" class="p-32 text-center">
-                                <div class="flex flex-col items-center gap-6">
-                                   <div class="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-                                   <span class="mono-xs font-black text-primary uppercase tracking-[0.4em]">Traversing_Forensic_Records...</span>
-                                </div>
-                             </td>
-                          </tr>
-                       ` : this.threats.map(t => `
-                          <tr class="hover:bg-white/[0.03] transition-all group border-l-2 border-transparent ${this.selectedIps.has(t.indicator) ? 'bg-primary/5 border-primary/40' : 'hover:border-' + (t.blocked ? 'success' : 'primary') + '/40'}">
-                             <td class="p-6">
-                                ${t.blocked ? '' : `
-                                   <input type="checkbox" ${this.selectedIps.has(t.indicator) ? 'checked' : ''} 
-                                     onchange="this.closest('threat-explorer').toggleSelect('${t.indicator}')"
-                                     class="accent-primary w-4 h-4 rounded border-white/10 bg-black cursor-pointer" />
-                                `}
-                             </td>
-                             <td class="p-6">
-                                <div class="flex flex-col gap-1">
-                                   <span class="text-lg font-black text-white italic tracking-tighter uppercase group-hover:text-primary transition-colors">${t.indicator}</span>
-                                   <span class="mono text-[7px] text-slate-500 font-black uppercase tracking-widest">${t.threatType} // ORIGIN: ${t.provider}</span>
-                                </div>
-                             </td>
-                             <td class="p-6">
-                                <div class="flex flex-col gap-2 w-32">
-                                   <div class="flex justify-between items-end">
-                                      <span class="status-pill ${t.score >= 85 ? 'danger' : 'warning'} !px-3 !py-0.5 text-[8px] font-black">${t.score >= 85 ? 'CRITICAL' : 'HIGH'}</span>
-                                      <span class="mono text-[10px] font-black text-white tabular-nums">${t.score}%</span>
-                                   </div>
-                                   <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-                                      <div class="h-full ${t.score >= 85 ? 'bg-danger' : 'bg-warning'}" style="width: ${t.score}%"></div>
-                                   </div>
-                                </div>
-                             </td>
-                             <td class="p-6">
-                                <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest group-hover:text-slate-300 transition-colors">
-                                   ${new Date(t.lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                                </span>
-                             </td>
-                             <td class="p-6 text-right">
-                                ${t.blocked ? `
-                                   <div class="flex items-center justify-end gap-2 text-success">
-                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                                      <span class="mono text-[9px] font-black uppercase tracking-widest">Neutralized</span>
-                                   </div>
-                                ` : `
-                                   <button onclick="this.closest('threat-explorer').blockIp('${t.indicator}', '${t.provider}')" 
-                                     class="t-btn primary !px-6 !py-2 text-[9px] font-black uppercase tracking-[0.2em] hover:scale-105 transition-transform">
-                                      Isolate_Origin
-                                   </button>
-                                `}
-                             </td>
-                          </tr>
-                       `).join('')}
-                    </tbody>
-                 </table>
+                 ${this.filter.provider ? `<span class="status-pill warning active !px-4 !py-1 text-[8px]">${this.filter.provider}</span>` : ''}
+                 ${this.loading ? `<span class="mono text-[8px] text-primary animate-pulse uppercase">Traversing_Database...</span>` : ''}
               </div>
+              <div class="flex items-center gap-4">
+                 <div class="relative group">
+                    <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-primary transition-colors">
+                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    </div>
+                    <input type="text" value="${this.filter.search}" oninput="this.closest('threat-explorer').setSearch(this.value)" 
+                      class="bg-black/80 border border-white/10 rounded-xl pl-12 pr-6 py-3 mono-xs text-white focus:border-primary outline-none transition-all w-64 shadow-2xl" 
+                      placeholder="SCAN_INDICATORS..." />
+                 </div>
+              </div>
+           </header>
+
+           ${selectedCount > 0 ? `
+              <div class="bg-primary/20 border-b border-primary/40 px-8 py-4 flex justify-between items-center animate-in slide-in-from-top-2 duration-300">
+                 <div class="flex items-center gap-4">
+                    <span class="mono-xs font-black text-primary uppercase tracking-widest">${selectedCount} INDICATORS_SELECTED</span>
+                 </div>
+                 <div class="flex gap-4">
+                    <button onclick="this.closest('threat-explorer').bulkBlock()" class="t-btn primary !py-2 !px-8 text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                       Commit_Bulk_Isolation
+                    </button>
+                    <button onclick="this.closest('threat-explorer').selectedIps.clear(); this.closest('threat-explorer').render()" class="mono-xs text-slate-400 font-bold uppercase tracking-widest hover:text-white transition-colors">
+                       Cancel
+                    </button>
+                 </div>
+              </div>
+           ` : ''}
+
+           <div class="flex-grow overflow-y-auto custom-scrollbar">
+              <table class="w-full text-left border-collapse table-fixed">
+                 <thead class="sticky top-0 bg-black/40 backdrop-blur-md z-10 border-b border-white/5 shadow-xl text-[7px]">
+                    <tr>
+                       <th class="p-1 w-8 text-center">
+                          <input type="checkbox" onchange="this.closest('threat-explorer').toggleSelectAll()" 
+                            class="accent-primary w-2 h-2 rounded border-white/10 bg-black" />
+                       </th>
+                       <th class="p-1 w-[22%] mono text-slate-600 uppercase">Indicator_IP</th>
+                       <th class="p-1 w-[30%] mono text-slate-600 uppercase">Reason_Threat</th>
+                       <th class="p-1 w-[12%] mono text-slate-600 uppercase">Source</th>
+                       <th class="p-1 w-[10%] mono text-slate-600 uppercase">Risk</th>
+                       <th class="p-1 w-[12%] mono text-slate-600 uppercase">Last_Seen</th>
+                       <th class="p-1 w-[14%] mono text-slate-600 uppercase text-right">Op</th>
+                    </tr>
+                 </thead>
+                 <tbody class="divide-y divide-white/5">
+                    ${(() => {
+                      const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
+                      
+                      const validThreats = this.threats
+                        .filter(t => t.type === 'IP' && ipRegex.test(t.indicator))
+                        .sort((a, b) => {
+                          // Primary: Date (Descending)
+                          const dateA = new Date(a.lastSeen).getTime();
+                          const dateB = new Date(b.lastSeen).getTime();
+                          if (dateA !== dateB) return dateB - dateA;
+                          // Secondary: Score (Descending)
+                          return b.score - a.score;
+                        });
+                      
+                      if (validThreats.length === 0 && !this.loading) {
+                        return `<tr><td colspan="7" class="p-8 text-center mono text-[8px] opacity-20 uppercase">Empty_Dataset</td></tr>`;
+                      }
+                      
+                      return validThreats.map(t => `
+                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedIps.has(t.indicator) ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/10'}">
+                            <td class="p-1 text-center">
+                               ${t.blocked ? '' : `
+                                  <input type="checkbox" ${this.selectedIps.has(t.indicator) ? 'checked' : ''} 
+                                    onchange="this.closest('threat-explorer').toggleSelect('${t.indicator}')"
+                                    class="accent-primary w-2 h-2 rounded border-white/10 bg-black cursor-pointer" />
+                               `}
+                            </td>
+                            <td class="p-1 truncate">
+                               <span class="mono text-[9px] text-white tabular-nums">${t.indicator}</span>
+                            </td>
+                            <td class="p-1 truncate">
+                               <span class="mono text-[6.5px] text-slate-500 uppercase">${t.threatType}</span>
+                            </td>
+                            <td class="p-1">
+                               <span class="mono text-[6.5px] text-slate-600 font-bold uppercase">${t.provider}</span>
+                            </td>
+                            <td class="p-1">
+                               <div class="flex items-center gap-1">
+                                  <span class="mono text-[6.5px] text-slate-400 tabular-nums">${t.score}</span>
+                                  <div class="flex-grow h-[1px] bg-white/5 overflow-hidden">
+                                     <div class="h-full ${t.score >= 85 ? 'bg-danger' : 'bg-warning'}" style="width: ${t.score}%"></div>
+                                  </div>
+                               </div>
+                            </td>
+                            <td class="p-1">
+                               <span class="mono text-[6.5px] text-slate-700 font-bold uppercase">
+                                  ${new Date(t.lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
+                               </span>
+                            </td>
+                            <td class="p-1 text-right">
+                               ${t.blocked ? `
+                                  <span class="mono text-[5px] text-success/40 uppercase font-black">LKD</span>
+                               ` : `
+                                  <button onclick="this.closest('threat-explorer').blockIp('${t.indicator}', '${t.provider}')" 
+                                    class="border border-primary/20 hover:bg-primary/20 hover:border-primary px-1.5 py-0 mono text-[5px] text-primary/60 hover:text-primary transition-all">
+                                     ISO
+                                  </button>
+                               `}
+                            </td>
+                         </tr>
+                      `).join('');
+                    })()}
+                 </tbody>
+              </table>
+           </div>
               
               ${this.filter.offset ? `
                 <footer class="p-6 border-t border-white/5 bg-black/60 text-center">

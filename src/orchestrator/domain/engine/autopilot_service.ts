@@ -108,6 +108,15 @@ export class AutopilotService {
     });
 
     this.eventBus.on("EBPF_CRITICAL", async (data) => {
+        const { pid, comm, syscall, args } = data;
+        
+        // 1. Behavioral Assessment
+        const anomalyResult = await this.playbookService.executeBehavioralAudit(pid, comm, syscall, args);
+        
+        if (anomalyResult === "BLOCK_SYSCALL") {
+            await this.kernel.blockSyscall(pid, syscall);
+        }
+
         await this.engine.evaluate({
             source: data.pid?.toString() || "kernel",
             type: `PRIVILEGE_ESCALATION_ATTEMPT`,
@@ -128,6 +137,11 @@ export class AutopilotService {
                 });
             }
         });
+    });
+
+    // Proactive Artifact Containment Hook
+    this.eventBus.on("ARTIFACT_FOUND", async (data) => {
+        await this.playbookService.executeArtifactContainment(data.indicator, data);
     });
 
     // Periodic integrity check using injected authoritative tracker

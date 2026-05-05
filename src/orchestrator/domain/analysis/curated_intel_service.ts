@@ -2,7 +2,7 @@ import { ConfigurationPort, LoggingPort, LogSeverity, LogType } from "@core/port
 
 export interface IntelIndicator {
     indicator: string;
-    type: "IP" | "URL" | "DOMAIN";
+    type: "IP" | "URL" | "DOMAIN" | "HASH";
     provider: string;
     confidence: number; // 0-100
     threatType: string;
@@ -14,6 +14,7 @@ export interface IntelIndicator {
 
 const SOURCE_WEIGHTS: Record<string, number> = {
     "Abuse.ch": 95,
+    "MalwareBazaar": 98,
     "Spamhaus": 98,
     "FireHOL_L1": 85,
     "FireHOL_L2": 60,
@@ -32,6 +33,7 @@ export class CuratedIntelService {
     private kv?: Deno.Kv;
     private sources = [
         { name: "Abuse.ch", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
+        { name: "MalwareBazaar", url: "https://bazaar.abuse.ch/export/csv/recent/", type: "HASH" },
         { name: "BinaryDefense", url: "https://www.binarydefense.com/banlist.txt", type: "IP" },
         { name: "OpenPhish", url: "https://openphish.com/feed.txt", type: "URL" },
         { name: "EmergingThreats", url: "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt", type: "IP" },
@@ -70,10 +72,10 @@ export class CuratedIntelService {
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
             caller: "INTEL",
-            message: "Curated Intelligence Pipeline engaged. Background sync initiated."
+            message: "Curated Intelligence Pipeline engaged. Lifecycle Manager online."
         });
         
-        // Background initial sync (prevents boot-blocking)
+        // Background initial sync
         this.sync().catch(e => {
             this.logging.log({
                 timestamp: new Date().toISOString(),
@@ -87,6 +89,108 @@ export class CuratedIntelService {
         // Periodic sync
         const intervalHours = this.config.getNumber("INTEL_SYNC_INTERVAL_HOURS", 1);
         setInterval(() => this.sync(), intervalHours * 60 * 60 * 1000); 
+
+        // Lifecycle Management Loop (Every 15 minutes)
+        setInterval(() => this.processLifecycle(), 15 * 60 * 1000);
+    }
+
+    /**
+     * Adaptive Lifecycle Manager
+     * Processes enforced indicators, checks TTL, and performs forensic re-verification.
+     */
+    async processLifecycle() {
+        if (!this.kv) return;
+        
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.INFO,
+            caller: "lifecycle-mgr",
+            message: "Starting adaptive perimeter lifecycle audit..."
+        });
+
+        const iter = this.kv.list<any>({ prefix: ["enforcement"] });
+        let expiredCount = 0;
+        let revalidatedCount = 0;
+
+        for await (const res of iter) {
+            const [_, ip] = res.key;
+            const data = res.value;
+            const now = Date.now();
+            
+            if (now > data.expiresAt) {
+                // EXPIRED: Perform forensic re-verification
+                const isStillMalicious = await this.reverify(ip as string);
+                
+                if (isStillMalicious) {
+                    // Renew TTL (Adaptive extension)
+                    const newExpiry = now + (24 * 60 * 60 * 1000); // Extension: 24h
+                    await this.kv.set(["enforcement", ip], { ...data, expiresAt: newExpiry });
+                    revalidatedCount++;
+                } else {
+                    // PURGE: Remove from active firewall
+                    await this.firewall.unblock(ip);
+                    await this.kv.delete(["enforcement", ip]);
+                    expiredCount++;
+                    
+                    const auditLog = {
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.SUCCESS,
+                        caller: "lifecycle-mgr",
+                        message: `Tactical isolation revoked for ${ip}: TTL expired and indicator re-verified as CLEAN.`
+                    };
+                    this.logging.log(auditLog);
+                    this.broadcast(auditLog);
+                }
+            }
+        }
+
+        if (expiredCount > 0 || revalidatedCount > 0) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "lifecycle-mgr",
+                message: `Lifecycle audit complete: ${expiredCount} purged, ${revalidatedCount} adaptive extensions.`
+            });
+        }
+    }
+
+    /**
+     * Forensic Re-verification
+     * Checks if an IP still appears in the threat ledger with a significant score.
+     */
+    private async reverify(ip: string): Promise<boolean> {
+        if (!this.kv) return false;
+        const threat = await this.kv.get<IntelIndicator>(["curated_threats", ip]);
+        if (!threat.value) return false;
+        
+        // Re-verification threshold: If score is still >= 70, maintain isolation.
+        return threat.value.score >= 70;
+    }
+
+    /**
+     * Tactical Isolation Commitment
+     * Commits an indicator to the active firewall with a forensic TTL.
+     */
+    async commitIsolation(ip: string, reason: string, ttlHours = 24) {
+        if (!this.kv) return;
+        
+        const expiresAt = Date.now() + (ttlHours * 60 * 60 * 1000);
+        await this.firewall.isolate(ip, reason);
+        await this.kv.set(["enforcement", ip], { reason, expiresAt, committedAt: Date.now() });
+
+        const log = {
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "threat-intel",
+            message: `INDICATOR_COMMITTED: ${ip} isolated with forensic TTL: ${ttlHours}h`,
+            payload: { ip, reason, ttlHours }
+        };
+        this.logging.log(log);
+        this.broadcast(log);
     }
 
     async sync(providerName?: string) {
@@ -161,19 +265,57 @@ export class CuratedIntelService {
         let blockCount = 0;
         let newIPsBlocked = 0;
 
+        let consecutiveExisting = 0;
+        const CONSECUTIVE_THRESHOLD = 50; // Delta-Update heuristic
+
         for (const line of lines) {
             if (!line || line.startsWith("#") || line.length < 5) continue;
 
             let indicator = line.trim();
+            let threatType = "Malicious Infrastructure";
+
             if (source.name === "Abuse.ch") {
                 const parts = line.split(",");
                 if (parts.length > 1) indicator = parts[1].replace(/"/g, "");
+            }
+
+            if (source.name === "MalwareBazaar") {
+                // MalwareBazaar uses ", " as separator with quoted fields
+                const parts = line.split(", ");
+                if (parts.length > 8) {
+                    indicator = parts[1].replace(/"/g, "").trim(); // SHA256
+                    threatType = parts[8].replace(/"/g, "").trim(); // Signature/Family
+                    if (threatType === "n/a") threatType = "Unknown Malware";
+                    
+                    // Validation: Ensure it's a valid hex hash
+                    if (!/^[a-fA-F0-9]{64}$/.test(indicator)) {
+                        continue;
+                    }
+                } else {
+                    continue; 
+                }
             }
 
             if (this.allowlist.some(a => indicator.startsWith(a))) continue;
 
             const existing = await this.kv?.get<IntelIndicator>(["curated_threats", indicator]);
             const isNewToDatabase = !existing?.value;
+            
+            if (!isNewToDatabase) {
+                consecutiveExisting++;
+                if (consecutiveExisting > CONSECUTIVE_THRESHOLD) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.INFO,
+                        caller: "threat-intel",
+                        message: `Delta-Update threshold reached for ${source.name}. Skipping remaining records.`
+                    });
+                    break;
+                }
+            } else {
+                consecutiveExisting = 0;
+            }
             
             const weight = SOURCE_WEIGHTS[source.name] || 50;
             
@@ -190,7 +332,7 @@ export class CuratedIntelService {
                     type: source.type,
                     provider: source.name,
                     confidence: weight,
-                    threatType: "Malicious Infrastructure",
+                    threatType,
                     firstSeen: new Date().toISOString(),
                     lastSeen: new Date().toISOString(),
                     score: weight,
@@ -205,18 +347,41 @@ export class CuratedIntelService {
                         type: LogType.AUDIT,
                         severity: LogSeverity.WARNING,
                         caller: "threat-intel",
-                        message: `New malicious IP identified: ${curated.indicator} (Confidence: ${curated.confidence}%)`,
+                        message: `New malicious IP identified: ${curated.indicator} (Score: ${curated.score})`,
                         payload: { indicator: curated.indicator, source: source.name }
                     };
                     this.logging.log(foundLog);
                     this.broadcast(foundLog);
                 }
 
-            // SEPARATION OF CONCERNS: Ingest signals into the local ledger for browsing/analysis.
-            // Enforcement (Firewall Commitment) is handled explicitly by operator actions or 
-            // by a separate Active Defense cycle to avoid saturating the perimeter with cold intelligence.
-            
-            this.blacklist.delete(curated.indicator);
+                // AUTO-ISOLATION POLICY: 
+                // High-fidelity indicators (Score >= 95) are automatically committed to active defense.
+                if (curated.score >= 95) {
+                    const isAlreadyEnforced = (await this.kv?.get(["enforcement", curated.indicator]))?.value;
+                    if (!isAlreadyEnforced) {
+                        // Tactical TTL for autonomous blocks: 12h (more aggressive than manual 24h)
+                        await this.commitIsolation(curated.indicator, `AUTO_ISOLATE: High-fidelity signal from ${source.name}`, 12);
+                        
+                        const autoLog = {
+                            timestamp: new Date().toISOString(),
+                            type: LogType.AUDIT,
+                            severity: LogSeverity.ERROR,
+                            caller: "autopilot:enforcement",
+                            message: `Autonomous Isolation engaged for ${curated.indicator} (Critical Threat Score: ${curated.score})`
+                        };
+                        this.logging.log(autoLog);
+                        this.broadcast(autoLog);
+                    }
+                }
+            }
+
+            // PROACTIVE ARTIFACT QUARANTINE
+            if (curated.score >= 95 && curated.type === "HASH" && isNewToDatabase) {
+                this.broadcast({
+                    type: "ARTIFACT_FOUND",
+                    data: curated
+                });
+            }
 
             await this.kv?.set(["curated_threats", indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
             ingestCount++;

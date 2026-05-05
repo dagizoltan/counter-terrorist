@@ -91,6 +91,21 @@ export function createAgentsApi(services: ServiceContainer) {
     const result = await services.protection.antivirus.syncSignatures();
     return c.json(result);
   });
+  
+  router.get("/scanner/ledger", async (c: Context) => {
+    const curatedIntel = services.curatedIntel;
+    const kv = (curatedIntel as any).kv;
+    if (!kv) return c.json([]);
+    
+    const iter = kv.list({ prefix: ["curated_threats"] });
+    const ledger = [];
+    for await (const entry of iter) {
+      if (entry.value.type === "HASH" && entry.value.score >= 90) {
+        ledger.push(entry.value);
+      }
+    }
+    return c.json(ledger.sort((a: any, b: any) => b.score - a.score).slice(0, 50));
+  });
 
   return router;
 }

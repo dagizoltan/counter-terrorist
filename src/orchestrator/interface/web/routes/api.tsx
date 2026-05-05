@@ -282,8 +282,16 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.post("/defense/isolate", async (c: Context) => {
-    const { source, reason } = await c.req.json();
+    const { source, reason, ttl } = await c.req.json();
     if (!source) return c.json({ error: "Source required" }, 400);
+    
+    // If it's an IP, use the Intelligence Lifecycle Manager
+    const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
+    if (ipRegex.test(source)) {
+      await services.curatedIntel.commitIsolation(source, reason || "MANUAL_OPERATOR_INTERVENTION", ttl || 24);
+      return c.json({ success: true, message: `Indicator ${source} committed to active defense lifecycle.` });
+    }
+
     const result = await services.forensicService.isolateSource(source, reason || "MANUAL_OPERATOR_INTERVENTION");
     return c.json(result);
   });

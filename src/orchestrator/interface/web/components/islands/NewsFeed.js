@@ -102,7 +102,7 @@ class NewsFeed extends HTMLElement {
                   </div>
                   <div class="flex flex-col gap-0.5">
                      <span class="mono-xs font-bold text-slate-400 tracking-widest uppercase" style="${isCompact ? 'font-size: 7px;' : ''}">${this.formatLabel(item.source)}</span>
-                     <span class="mono-xs text-slate-600 font-bold uppercase" style="font-size: 8px;">${new Date(item.timestamp).toLocaleTimeString()}</span>
+                     <span class="mono-xs text-slate-600 font-bold uppercase" style="font-size: 8px;">${new Date(item.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
                   </div>
                </div>
                <span class="status-pill ${item.severity === 'CRITICAL' ? 'danger' : item.severity === 'HIGH' ? 'warning' : 'neutral'} !px-4 !py-1 text-[9px] font-black uppercase tracking-[0.2em]">

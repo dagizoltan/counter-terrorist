@@ -5,21 +5,19 @@ export default function IpIntelPage(props: { status: any, csrfToken?: string }) 
        <Layout title="IP Intelligence DB // Tactical Intelligence" islandPaths={[
           '/components/islands/ThreatExplorer.js'
        ]} csrfToken={props.csrfToken}>
-          <section class="p-10 space-y-10">
-             <header class="flex justify-between items-end">
-                <div class="space-y-4">
-                   <div class="flex items-center gap-4">
-                      <div class="w-12 h-0.5 bg-danger"></div>
-                      <span class="mono-xs font-black text-danger uppercase tracking-[0.4em]">External_Threat_Intelligence</span>
-                   </div>
-                   <h1 class="text-6xl font-black text-white italic tracking-tighter uppercase leading-none">
-                      Malicious <span class="text-danger">IP_DB</span>
-                   </h1>
-                </div>
-             </header>
- 
-             <threat-explorer></threat-explorer>
-          </section>
+      <section class="p-12 space-y-12 w-full">
+        <header class="page-header mb-12">
+          <div class="title-group">
+            <h1 class="tactical-title text-5xl">Public IP Collections</h1>
+            <span class="subtitle">External Threat Intelligence // Multi-Source Reputational Feed</span>
+          </div>
+          <div class="flex items-center gap-6">
+             <div class="status-pill danger active px-8 py-3 text-[10px]">Perimeter Enforcement Active</div>
+          </div>
+        </header>
+
+        <threat-explorer></threat-explorer>
+      </section>
        </Layout>
     );
 }

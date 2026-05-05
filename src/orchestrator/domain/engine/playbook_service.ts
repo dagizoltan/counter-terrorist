@@ -13,7 +13,8 @@ export class PlaybookService {
     private notifications: NotificationService,
     private meshManager: MeshManager,
     private shadowProtocol: ShadowProtocolService,
-    private eventBus: any // EventBus
+    private eventBus: any, // EventBus
+    private behavioral?: any // BehavioralService
   ) {}
 
   private threatScores: Map<string, number> = new Map();
@@ -142,6 +143,50 @@ export class PlaybookService {
          this.updateThreatScore(nodeId || "local", 1);
       }
     });
+
+    // Artifact Playbook: Proactive Quarantine & Containment
+    this.eventBus.on("ARTIFACT_FOUND", async (data: any) => {
+       await this.executeArtifactContainment(data.indicator, data);
+    });
+  }
+
+  /**
+   * Executes the 'Artifact Containment' playbook.
+   * Multi-stage response to binary threats.
+   */
+  public async executeArtifactContainment(artifact: string, metadata: any) {
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.CRITICAL,
+          caller: "PLAYBOOK:ARTIFACT",
+          message: `[PLAYBOOK] Engaging 'Artifact Containment' for ${artifact.slice(0, 8)}...`
+      });
+
+      // 1. Proactive Quarantine (If path is known or globally applicable)
+      // In a real environment, the agent would search and move.
+      if (metadata.path) {
+          await this.protection.antivirus.quarantine(metadata.path);
+      }
+
+      // 2. Mesh Isolation (OpSec baseline)
+      await this.meshManager.isolateNode("local");
+
+      // 3. Trigger Forensic Acquisition
+      this.protection.pcap.startCapture("any", 120, `artifact_containment_${artifact.slice(0, 8)}.pcap`).catch(() => {});
+
+      await this.notifications.notify({
+          type: "audit",
+          message: `AUTOPILOT: Artifact Containment engaged for ${artifact.slice(0, 8)}. Host isolated. Forensic capture active.`
+      });
+  }
+
+  /**
+   * Executes a behavioral audit on a specific syscall event.
+   */
+  public async executeBehavioralAudit(pid: number, comm: string, syscall: string, args: string[]) {
+      if (!this.behavioral) return "PASS";
+      return await this.behavioral.checkSyscallAnomalies(pid, comm, syscall, args);
   }
 
   /**

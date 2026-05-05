@@ -11,47 +11,40 @@ export const NeighborNetworksPage = (props: { status: any, csrfToken?: string })
       '/components/islands/EnvironmentalSignals.js'
     ]} csrfToken={props.csrfToken}>
       
-      <header class="page-header mb-10">
+      <header class="page-header mb-12">
         <div class="title-group">
-          <div class="flex items-center gap-4 mb-2">
-            <div class="w-10 h-0.5 bg-warning rounded-full"></div>
-            <span class="mono-xs font-black text-warning uppercase tracking-[0.4em]">Ambient_Signal_Intercept</span>
-          </div>
-          <h1 class="text-6xl font-black italic tracking-tighter uppercase leading-none text-white">
-            Neighbor <span class="text-warning">Signals</span>
-          </h1>
+          <h1 class="tactical-title text-4xl">Neighbor Signals</h1>
+          <span class="subtitle">Ambient Signal Intercept & Environmental Intelligence</span>
         </div>
-        <div class="flex items-center gap-6">
-           <div class="flex flex-col items-end">
-              <span class="mono-xs text-slate-600 font-black uppercase tracking-widest">Op_State</span>
-              <span class="text-2xl font-black text-warning italic uppercase">Scanning</span>
-           </div>
+        <div class="flex items-center gap-4">
+           <div class="status-pill warning active px-6 py-2 text-[10px]">Scanning...</div>
         </div>
       </header>
 
-      {/* Metric Cards Row */}
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+      {/* Simplified Metric Row */}
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
         {[
-          { label: 'Active_Sensors', value: '4', theme: 'warning', icon: 'M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41' },
-          { label: 'Noise_Floor', value: '-92 dBm', theme: 'slate-500', icon: 'M2 10h3l2-7 4 14 2-7h3' },
-          { label: 'Intercept_Count', value: '24', theme: 'primary', icon: 'M12 2l-2 2-2-2-2 2-2-2v18h16V2l-2 2-2-2-2 2-2-2z' },
-          { label: 'Signal_Stability', value: '94.2%', theme: 'success', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' }
+          { label: 'SENSORS', value: '04' },
+          { label: 'NOISE', value: '-92dBm' },
+          { label: 'INTERCEPTS', value: '24' },
+          { label: 'STABILITY', value: '94%' }
         ].map(card => (
-          <div class="t-panel glass-panel p-6 border-t-2 transition-all hover:bg-white/[0.03] group" style={`border-top-color: ${card.theme.startsWith('var') ? card.theme : `var(--${card.theme})`}`}>
-            <div class="flex justify-between items-start mb-4">
-              <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">{card.label}</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-20 group-hover:opacity-100 transition-opacity"><path d={card.icon}/></svg>
-            </div>
-            <span class="text-3xl font-black text-white italic tracking-tighter uppercase">{card.value}</span>
+          <div class="t-panel glass-panel py-4 px-6 border-t border-white/5 bg-black/20 group hover:border-warning/30 transition-all">
+            <span class="mono-xs text-slate-600 font-black uppercase tracking-[0.2em] mb-2 block group-hover:text-warning transition-colors">{card.label}</span>
+            <span class="text-xl font-black text-white italic tabular-nums tracking-widest">{card.value}</span>
           </div>
         ))}
       </div>
 
-      <div class="grid grid-cols-12 gap-6 mb-8">
-        <div class="col-span-12">
-          <div class="t-panel glass-panel p-8 bg-black/40 border-t-2 border-warning/30">
-            <environmental-signals></environmental-signals>
-          </div>
+      <div class="t-panel glass-panel p-0 border-t-2 border-warning/20 overflow-hidden">
+        <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center">
+           <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Environmental_Signal_Matrix</span>
+           <div class="flex gap-2">
+              <div class="w-1.5 h-1.5 bg-warning rounded-full animate-pulse"></div>
+           </div>
+        </header>
+        <div class="p-8">
+          <environmental-signals></environmental-signals>
         </div>
       </div>
     </Layout>

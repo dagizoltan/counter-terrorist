@@ -74,6 +74,49 @@ export class BehavioralService {
     return "PENDING";
   }
 
+  /**
+   * Syscall Anomaly Detection
+   * Monitors for suspicious process behaviors reported via eBPF.
+   */
+  async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]) {
+    const suspiciousCommands = ["curl", "wget", "chmod", "chown", "nc", "netcat"];
+    const sensitiveDirs = ["/etc", "/var/run", "/boot", "/root"];
+
+    if (suspiciousCommands.includes(comm) && syscall === "execve") {
+       // Potential ingress/lateral movement tool execution
+       broadcast({
+          type: "AUDIT_EVENT",
+          data: {
+            type: "security",
+            severity: "warning",
+            caller: "analysis:behavioral",
+            message: `SUSPICIOUS_EXECUTION: Process '${comm}' (PID: ${pid}) attempted ${syscall} with sensitive pattern.`,
+            data: { pid, comm, syscall, args }
+          }
+       });
+       return "ALERT";
+    }
+
+    if (syscall === "openat" || syscall === "open") {
+       const path = args[0] || "";
+       if (sensitiveDirs.some(dir => path.startsWith(dir)) && !comm.includes("systemd")) {
+          broadcast({
+            type: "AUDIT_EVENT",
+            data: {
+              type: "forensic",
+              severity: "critical",
+              caller: "analysis:behavioral",
+              message: `UNAUTHORIZED_ACCESS: Process '${comm}' attempted to access sensitive path: ${path}`,
+              data: { pid, comm, path }
+            }
+          });
+          return "BLOCK_SYSCALL";
+       }
+    }
+
+    return "PASS";
+  }
+
   private calculateEntropy(intervals: number[]): number {
     if (intervals.length === 0) return 0;
 

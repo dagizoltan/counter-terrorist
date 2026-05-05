@@ -51,14 +51,21 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<MeshTopologyPage status={status} csrfToken={csrfToken} />);
   });
 
-  router.get("/defense/ip-db", async (c: Context) => {
+  router.get("/intel/public-ip-collections", async (c: Context) => {
     const { default: IpIntelPage } = await import("../features/defense/ip_intel_page.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<IpIntelPage status={status} csrfToken={csrfToken} />);
   });
 
-  router.get("/news", async (c: Context) => {
+  router.get("/intel/artifact-collections", async (c: Context) => {
+    const { default: ArtifactIntelPage } = await import("../features/defense/artifact_intel_page.tsx") as any;
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<ArtifactIntelPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/intel/feed", async (c: Context) => {
     const { NewsPage: OperationalNewsPage } = await import("../features/situational/intel/OperationalNewsPage.tsx");
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
@@ -86,7 +93,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   // ── AGENT FLEET (Modular Control) ──────────────────────────────────
 
   router.get("/deception", (c) => c.redirect("/agents/deception"));
-  router.get("/agents", (c) => c.redirect("/agents/registry"));
+  router.get("/agents", (c) => c.redirect("/dashboard"));
 
   // Unified Agent Routing Architecture
   router.route("/agents/deception", createHoneypotsRouter(services.honeypot));
@@ -108,16 +115,13 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<SupplyChainPage status={status} csrfToken={csrfToken} />);
   });
 
-
-  // ── ADMINISTRATION (Governance & Settings) ────────────────────────
-
-  router.get("/governance", async (c: Context) => {
+  router.get("/system/ledger", async (c: Context) => {
     const { AuditPage } = await import("../features/forensic/audit/page.tsx") as any;
     const csrfToken = c.get("csrfToken");
     return c.html(<AuditPage csrfToken={csrfToken} />);
   });
 
-  router.get("/settings", async (c: Context) => {
+  router.get("/system/settings", async (c: Context) => {
     const { NotificationsPage } = await import("../features/governance/settings/notifications.tsx") as any;
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
