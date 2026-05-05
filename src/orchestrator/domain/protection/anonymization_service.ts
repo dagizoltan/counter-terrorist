@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { VpnPort } from "@core/ports.ts";
 
 export interface AnonymizationNode {
@@ -35,7 +35,13 @@ export class AnonymizationService {
         this.mode = initialMode;
         if (this.mode === StealthMode.OFF) return;
 
-        this.logging.log(`[ANON] Anonymization active. Mode: ${this.mode}. Initializing stealth tunnel...`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "ANON",
+            message: `Anonymization active. Mode: ${this.mode}. Initializing stealth tunnel...`
+        });
         
         await this.rotate();
 
@@ -47,7 +53,13 @@ export class AnonymizationService {
     async setMode(newMode: StealthMode) {
         if (this.mode === newMode) return;
         
-        this.logging.log(`[ANON] Switching stealth mode: ${this.mode} -> ${newMode}`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "ANON",
+            message: `Switching stealth mode: ${this.mode} -> ${newMode}`
+        });
         this.mode = newMode;
         
         if (this.rotationInterval) clearInterval(this.rotationInterval);
@@ -73,7 +85,13 @@ export class AnonymizationService {
     private currentNode?: AnonymizationNode;
 
     async rotate() {
-        this.logging.log(`[ANON] Initiating ${this.mode} rotation sequence...`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "ANON",
+            message: `Initiating ${this.mode} rotation sequence...`
+        });
         
         try {
             // Pick a node from the pool (excluding current if possible)
@@ -98,25 +116,55 @@ export class AnonymizationService {
             this.rotationCount++;
             this.lastRotationTime = new Date().toISOString();
             
-            this.logging.log(`[ANON] Identity Rotated: Now exiting via ${selected.country} (${selected.ip})`, SyslogSeverity.INFORMATIONAL);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.SUCCESS,
+                caller: "ANON",
+                message: `Identity Rotated: Now exiting via ${selected.country} (${selected.ip})`
+            });
         } catch (e) {
-            this.logging.log(`[ANON] Rotation failed for ${this.mode}: ${(e as Error).message}`, SyslogSeverity.ERROR);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "ANON",
+                message: `Rotation failed for ${this.mode}: ${(e as Error).message}`
+            });
         }
     }
 
     private async deployVpnGate(node: AnonymizationNode) {
-        this.logging.log(`[ANON] Tunneling via Academic Node: ${node.country} [${node.ip}]`, SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "ANON",
+            message: `Tunneling via Academic Node: ${node.country} [${node.ip}]`
+        });
         // Realistic simulation of wg-quick config update would go here
         await this.vpn.connect(`vpngate-${node.country.toLowerCase()}`);
     }
 
     private async deployTor() {
-        this.logging.log("[ANON] Shifting Tor circuit paths and renewing identity...", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "ANON",
+            message: "Shifting Tor circuit paths and renewing identity..."
+        });
         // Renew Tor identity (NEWNYM)
     }
 
     private async deployTraditional() {
-        this.logging.log("[ANON] Shifting to premium sovereign exit node...", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "ANON",
+            message: "Shifting to premium sovereign exit node..."
+        });
         await this.vpn.connect("sovereign-exit-alpha");
     }
 

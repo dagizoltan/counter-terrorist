@@ -1,5 +1,7 @@
 import { broadcast } from "@api/ws.ts";
 import { SidecarManager } from "../../../runtime/sidecar_manager.ts";
+import { loggingService } from "../../logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
 
 export interface RkhunterResult {
     success: boolean;
@@ -35,7 +37,13 @@ export class RkhunterManager {
 
             return result;
         } catch (e) {
-            console.error("rkhunter scan failed", (e as Error).message);
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "RKHUNTER",
+                message: `rkhunter scan failed: ${(e as Error).message}`
+            });
             const errResult = { success: false, error: (e as Error).message };
             this.lastResult = errResult;
             return errResult;
@@ -46,4 +54,3 @@ export class RkhunterManager {
         return this.lastResult;
     }
 }
-

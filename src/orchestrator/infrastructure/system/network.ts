@@ -1,3 +1,6 @@
+import { loggingService } from "./logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+
 /**
  * Network utilities for interface discovery and validation.
  */
@@ -28,7 +31,13 @@ export async function getDefaultInterface(): Promise<string> {
     if (firstReal) return firstReal.name;
 
   } catch (e) {
-    console.error(`[NETWORK] Failed to detect default interface: ${e}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.ERROR,
+        caller: "NETWORK",
+        message: `Failed to detect default interface: ${e instanceof Error ? e.message : String(e)}`
+    });
   }
 
   return "eth0"; // Ultimate fallback

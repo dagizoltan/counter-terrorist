@@ -1,6 +1,7 @@
 import { HoneypotService } from "./honeypot_service.ts";
 import { CanaryService } from "./canary_service.ts";
 import { AuditService } from "../analysis/audit.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 /**
  * MorphingService
@@ -8,26 +9,41 @@ import { AuditService } from "../analysis/audit.ts";
  */
 export class MorphingService {
     private intervalId?: number;
+    private logging: LoggingPort;
 
     constructor(
         private honeypot: HoneypotService,
         private canary: CanaryService,
         private audit: AuditService,
         private mesh: any // MeshManager
-    ) {}
+    ) {
+        this.logging = audit.getLogging();
+    }
 
     /**
      * Starts the morphing engine.
      * @param intervalMs How often to rotate deception lures.
      */
     start(intervalMs: number = 600000) { 
-        console.log(`[MORPHING] Deception Morphing Engine active. Interval: ${intervalMs}ms`);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "MORPHING",
+            message: `Deception Morphing Engine active. Interval: ${intervalMs}ms`
+        });
         // Wrap execution in an error-handling block to prevent sidecar timeouts from crashing the orchestrator
         this.intervalId = setInterval(async () => {
             try {
                 await this.executeMorph();
             } catch (e) {
-                console.error("[MORPHING] Critical lifecycle error:", e instanceof Error ? e.message : String(e));
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "MORPHING",
+                    message: `Critical lifecycle error: ${e instanceof Error ? e.message : String(e)}`
+                });
             }
         }, intervalMs);
     }
@@ -38,12 +54,30 @@ export class MorphingService {
     async executeMorph() {
         try {
             // Attempt to rotate honeypot ports and canary projection paths
-            await this.honeypot.morph().catch(err => console.error(`[MORPHING] Honeypot morph failed: ${err.message}`));
-            await this.canary.morph().catch(err => console.error(`[MORPHING] Canary morph failed: ${err.message}`));
+            await this.honeypot.morph().catch(err => this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "MORPHING",
+                message: `Honeypot morph failed: ${err.message}`
+            }));
+            await this.canary.morph().catch(err => this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "MORPHING",
+                message: `Canary morph failed: ${err.message}`
+            }));
             
             // Randomly rotate mesh identity to prevent long-term fingerprinting (10% chance per morph)
             if (Math.random() > 0.9) {
-                await this.mesh.rotateIdentity().catch((err: Error) => console.error(`[MORPHING] Mesh rotation failed: ${err.message}`));
+                await this.mesh.rotateIdentity().catch((err: Error) => this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "MORPHING",
+                    message: `Mesh rotation failed: ${err.message}`
+                }));
             }
 
             await this.audit.logEvent({
@@ -51,7 +85,13 @@ export class MorphingService {
                 message: "DECEPTION MORPH COMPLETE: Mesh infrastructure has successfully changed its footprint."
             });
         } catch (e) {
-            console.error("[MORPHING] Rotation failed:", e instanceof Error ? e.message : String(e));
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "MORPHING",
+                message: `Rotation failed: ${e instanceof Error ? e.message : String(e)}`
+            });
         }
     }
 

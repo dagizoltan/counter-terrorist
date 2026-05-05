@@ -2,7 +2,7 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { BroadcastFunction } from "../engine/plugins/types.ts";
-import { SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface HoneypotModule {
   id: string;
@@ -22,7 +22,7 @@ export class HoneypotService {
     private firewall: FirewallManager,
     private pcap: PcapManager,
     private broadcast: BroadcastFunction,
-    private logging: any // loggingService
+    private logging: LoggingPort
   ) {
     // Register default modules
     this.registerModule({
@@ -134,7 +134,13 @@ export class HoneypotService {
       this.hitCount++;
       this.emitEvent({ type: "PortAccess", source_ip, port });
 
-      this.logging.log(`[HONEYPOT] Tactical Trigger: Port ${port} access from ${source_ip}`, SyslogSeverity.WARNING, "DECEPTION");
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.WARNING,
+          caller: "HONEYPOT",
+          message: `Tactical Trigger: Port ${port} access from ${source_ip}`
+      });
 
       this.broadcast({
         type: "WARNING",
@@ -147,7 +153,13 @@ export class HoneypotService {
         await this.behavioralService.analyze(source_ip);
       } else {
         this.firewall.shadowBanIp(source_ip).catch(err => 
-            this.logging.log(`[DECEPTION] ShadowBan failed for ${source_ip}: ${err.message}`, SyslogSeverity.ERROR)
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "DECEPTION",
+                message: `ShadowBan failed for ${source_ip}: ${err.message}`
+            })
         );
         this.sabotageSession(source_ip);
       }
@@ -157,7 +169,13 @@ export class HoneypotService {
       this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
-      this.logging.log(`[HONEYPOT] Session transcript from ${source_ip}:${port} -> ${data}`, SyslogSeverity.DEBUG);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.DEBUG,
+          severity: LogSeverity.DEBUG,
+          caller: "HONEYPOT",
+          message: `Session transcript from ${source_ip}:${port} -> ${data}`
+      });
       
       // Store session data in the audit chain for behavioral modeling
       this.emitEvent({ type: "SessionData", source_ip, port, data });
@@ -171,7 +189,13 @@ export class HoneypotService {
     this.hitCount++;
     this.emitEvent({ type: "WebAccess", source_ip, route });
 
-    this.logging.log(`[HONEYPOT] Web Decoy Triggered: Path '${route}' from ${source_ip}`, SyslogSeverity.WARNING, "DECEPTION");
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "HONEYPOT",
+        message: `Web Decoy Triggered: Path '${route}' from ${source_ip}`
+    });
 
     this.broadcast({
       type: "WARNING",
@@ -196,7 +220,13 @@ export class HoneypotService {
    * Injects latency, jitter, and fake errors to frustrate the adversary.
    */
   async sabotageSession(source_ip: string) {
-    this.logging.log(`[SABOTAGE] Initiating Breaker Protocol against ${source_ip}`, SyslogSeverity.WARNING);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "SABOTAGE",
+        message: `Initiating Breaker Protocol against ${source_ip}`
+    });
     
     // We send a Sabotage command to the honeypot sidecar
     // The sidecar will then inject jitter and errors for this specific IP
@@ -211,7 +241,13 @@ export class HoneypotService {
    * Randomly rotates the ports of all active modules to confuse attackers.
    */
   async morph() {
-    console.log("[HONEYPOT] Engaging Deception Morphing (Port Rotation)...");
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "HONEYPOT",
+        message: "Engaging Deception Morphing (Port Rotation)..."
+    });
     for (const [id, module] of this.modules) {
       if (!module.active) continue;
 

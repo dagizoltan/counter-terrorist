@@ -1,3 +1,6 @@
+import { loggingService } from "./logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+
 export type PlatformName = "windows" | "ubuntu" | "macos" | "unknown";
 
 export interface PlatformInfo {
@@ -27,7 +30,13 @@ async function detectLinuxVersion(): Promise<string> {
       return normalizeVersion(versionMatch[1]);
     }
   } catch (e) {
-    console.error(`[PLATFORM] Failed to detect Linux version: ${e}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.ERROR,
+        caller: "PLATFORM",
+        message: `Failed to detect Linux version: ${e instanceof Error ? e.message : String(e)}`
+    });
   }
   return "unknown";
 }
@@ -43,7 +52,13 @@ async function detectMacosVersion(): Promise<string> {
     const version = new TextDecoder().decode(stdout).trim();
     return normalizeVersion(version);
   } catch (e) {
-    console.error(`[PLATFORM] Failed to detect MacOS version: ${e}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.ERROR,
+        caller: "PLATFORM",
+        message: `Failed to detect MacOS version: ${e instanceof Error ? e.message : String(e)}`
+    });
     return "unknown";
   }
 }
@@ -73,7 +88,13 @@ async function getMetrics(): Promise<PlatformInfo["metrics"]> {
       hostname,
     };
   } catch (e) {
-    console.error(`[PLATFORM] Failed to get metrics: ${e}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.ERROR,
+        caller: "PLATFORM",
+        message: `Failed to get metrics: ${e instanceof Error ? e.message : String(e)}`
+    });
     return undefined;
   }
 }

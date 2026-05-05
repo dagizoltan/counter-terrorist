@@ -1,7 +1,8 @@
 import { FirewallProvider } from "../firewall.ts";
 import { SidecarManager } from "../../../../runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
-import { CommandResult } from "@core/ports.ts";
+import { CommandResult, LogSeverity, LogType } from "@core/ports.ts";
+import { loggingService } from "../../../logging.ts";
 
 export class UbuntuFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}
@@ -13,7 +14,13 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   async shadowBanIp(ip: string): Promise<CommandResult> {
     // Real traffic shaping (Shadow Banning) using tc (Traffic Control)
     // We throttle the IP to 1KB/s and add 500ms latency to simulate a "dying" connection
-    console.log(`[FIREWALL] Shadow Banning IP: ${ip} via Traffic Control (tc)`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "FIREWALL",
+        message: `Shadow Banning IP: ${ip} via Traffic Control (tc)`
+    });
     
     try {
         // Dynamic Interface Detection: Get the default route interface
@@ -44,7 +51,13 @@ export class UbuntuFirewallProvider implements FirewallProvider {
 
   async dumpProcessForensics(pid: number): Promise<CommandResult> {
     const dumpPath = `./volume/logs/forensics_process_${pid}_${Date.now()}.dump`;
-    console.log(`[FORENSICS] Dumping process ${pid} memory to ${dumpPath}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "FORENSICS",
+        message: `Dumping process ${pid} memory to ${dumpPath}`
+    });
     
     try {
         await this.executor.execute("cp", [`/proc/${pid}/maps`, `${dumpPath}.maps`]);

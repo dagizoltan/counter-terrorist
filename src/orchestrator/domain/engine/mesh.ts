@@ -1,6 +1,6 @@
 import { broadcast } from "@api/ws.ts";
 import { MeshAuthService } from "../index.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 
 export interface MeshNode {
@@ -27,7 +27,13 @@ export class MeshManager {
     private logging: LoggingPort,
     private audit: any // AuditService
   ) {
-    this.logging.log("[MESH] Initializing Mesh Infrastructure...", SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "MESH",
+        message: "Initializing Mesh Infrastructure..."
+    });
     this.meshSecret = Deno.env.get("MESH_SECRET");
   }
 
@@ -45,9 +51,21 @@ export class MeshManager {
         caCerts: [(await this.meshAuth.getRootCA()).cert], // For mutual verification
       });
 
-      this.logging.log(`[MESH] mTLS Identity established for ${this.nodeId}`, SyslogSeverity.NOTICE);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.INFO,
+          caller: "MESH",
+          message: `mTLS Identity established for ${this.nodeId}`
+      });
     } catch (e) {
-      this.logging.log(`[MESH] Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`, SyslogSeverity.WARNING);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "MESH",
+          message: `Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`
+      });
     }
   }
 
@@ -68,11 +86,23 @@ export class MeshManager {
 
     // SINGLE_NODE mode bypasses all external discovery to run in isolation
     if (Deno.env.get("SINGLE_NODE") === "true") {
-      this.logging.log("[MESH] SINGLE_NODE mode active. Mesh discovery and mDNS listeners bypassed.", SyslogSeverity.NOTICE);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "MESH",
+          message: "SINGLE_NODE mode active. Mesh discovery and mDNS listeners bypassed."
+      });
       return;
     }
 
-    this.logging.log("[MESH] Starting zero-config node discovery...", SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "MESH",
+        message: "Starting zero-config node discovery..."
+    });
 
     // 1. Initial Subnet Scan (Fast discovery - background)
     this.discoverSubnet().catch(() => {});
@@ -95,7 +125,13 @@ export class MeshManager {
 
     for (const ip of localIps) {
       const subnet = ip.split(".").slice(0, 3).join(".");
-      this.logging.log(`[MESH] Probing subnet ${subnet}.0/24...`, SyslogSeverity.DEBUG);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.DEBUG,
+          severity: LogSeverity.DEBUG,
+          caller: "MESH",
+          message: `Probing subnet ${subnet}.0/24...`
+      });
       
       // Parallel probe with concurrency limit to avoid flooding
       const probes = [];
@@ -128,7 +164,13 @@ export class MeshManager {
       if (res.ok) {
         const body = await res.json();
         if (body.success && body.nodeId) {
-          this.logging.log(`[MESH] Discovered verified peer at ${address}`, SyslogSeverity.NOTICE);
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.INFO,
+              caller: "MESH",
+              message: `Discovered verified peer at ${address}`
+          });
           this.validateAndRegisterNode({
             id: body.nodeId,
             hostname: body.nodeId,
@@ -143,7 +185,13 @@ export class MeshManager {
       // Log only if it's not a common timeout/connection refused to avoid log spam
       const msg = (e as Error).message;
       if (!msg.includes("timeout") && !msg.includes("refused") && !msg.includes("reset")) {
-        this.logging.log(`[MESH] Probe failed for ${address}: ${msg}`, SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "MESH",
+            message: `Probe failed for ${address}: ${msg}`
+        });
       }
     }
   }
@@ -159,7 +207,13 @@ export class MeshManager {
         transport: "udp",
       });
 
-      this.logging.log("[MESH] Passive mDNS listener active", SyslogSeverity.NOTICE);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "MESH",
+          message: "Passive mDNS listener active"
+      });
 
       for await (const [data, addr] of listener) {
         const msg = new TextDecoder().decode(data);
@@ -186,7 +240,13 @@ export class MeshManager {
         }
       }
     } catch (e) {
-      this.logging.log(`[MESH] Passive mDNS listener failed: ${(e as Error).message}. Zero-config discovery might be limited.`, SyslogSeverity.WARNING);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "MESH",
+          message: `Passive mDNS listener failed: ${(e as Error).message}. Zero-config discovery might be limited.`
+      });
     }
   }
 
@@ -220,10 +280,13 @@ export class MeshManager {
     }
 
     if (!this.httpClient) {
-      this.logging.log(
-        `[MESH] Cannot validate node ${node.id} — mTLS client not initialized. Skipping.`,
-        SyslogSeverity.WARNING
-      );
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "MESH",
+          message: `Cannot validate node ${node.id} — mTLS client not initialized. Skipping.`
+      });
       return;
     }
 
@@ -251,18 +314,24 @@ export class MeshManager {
         // Verified — the node presented a valid mTLS certificate signed by our CA
         node.verified = true;
         this.registerNode(node);
-        this.logging.log(
-          `[MESH] Node ${node.id} at ${node.address}:${node.port} passed mTLS validation.`,
-          SyslogSeverity.NOTICE
-        );
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "MESH",
+            message: `Node ${node.id} at ${node.address}:${node.port} passed mTLS validation.`
+        });
       } else {
         throw new Error("Invalid ping response");
       }
     } catch (e) {
-      this.logging.log(
-        `[MESH] REJECTED node ${node.id} at ${node.address}:${node.port} — mTLS validation failed: ${e instanceof Error ? e.message : String(e)}`,
-        SyslogSeverity.WARNING
-      );
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.WARNING,
+          caller: "MESH",
+          message: `REJECTED node ${node.id} at ${node.address}:${node.port} — mTLS validation failed: ${e instanceof Error ? e.message : String(e)}`
+      });
     }
   }
 
@@ -271,7 +340,13 @@ export class MeshManager {
     this.nodes.set(node.id, { ...node, lastSeen: Date.now() });
 
     if (isNew) {
-      this.logging.log(`[MESH] New node registered: ${node.hostname} (${node.address}:${node.port}) [verified=${node.verified}]`, SyslogSeverity.NOTICE);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.INFO,
+          caller: "MESH",
+          message: `New node registered: ${node.hostname} (${node.address}:${node.port}) [verified=${node.verified}]`
+      });
       broadcast({
         type: "INFO",
         message: `New security node joined the mesh: ${node.hostname}`,
@@ -287,7 +362,13 @@ export class MeshManager {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
     for (const node of verifiedNodes) {
         this.sendSync(node, payload).catch(err => {
-            console.warn(`[MESH] Gossip failure to ${node.hostname}: ${(err as Error).message}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Gossip failure to ${node.hostname}: ${(err as Error).message}`
+            });
         });
     }
   }
@@ -303,7 +384,13 @@ export class MeshManager {
     const node = this.nodes.get(nodeId);
     if (node) {
       this.nodes.delete(nodeId);
-      this.logging.log(`[MESH] ISOLATED NODE: ${node.hostname} (${nodeId}) revoked from mesh due to security policy.`, SyslogSeverity.CRITICAL);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.CRITICAL,
+          caller: "MESH",
+          message: `ISOLATED NODE: ${node.hostname} (${nodeId}) revoked from mesh due to security policy.`
+      });
       broadcast({
         type: "CRITICAL",
         message: `Node ${node.hostname} isolated from mesh network!`,
@@ -319,11 +406,23 @@ export class MeshManager {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
     if (verifiedNodes.length === 0) return;
 
-    this.logging.log(`[MESH] Gossip: Broadcasting block for ${ip} to ${verifiedNodes.length} verified nodes...`, SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "MESH",
+        message: `Gossip: Broadcasting block for ${ip} to ${verifiedNodes.length} verified nodes...`
+    });
 
     for (const node of verifiedNodes) {
         this.sendSync(node, { type: "GOSSIP_BLOCK", ip }).catch(err => {
-            console.warn(`[MESH] Failed to gossip with ${node.hostname}: ${(err as Error).message}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Failed to gossip with ${node.hostname}: ${(err as Error).message}`
+            });
         });
     }
   }
@@ -335,11 +434,23 @@ export class MeshManager {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
     if (verifiedNodes.length === 0) return;
 
-    this.logging.log(`[MESH] Gossip: Broadcasting threat hash ${hash.slice(0, 8)} to ${verifiedNodes.length} nodes...`, SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "MESH",
+        message: `Gossip: Broadcasting threat hash ${hash.slice(0, 8)} to ${verifiedNodes.length} nodes...`
+    });
 
     for (const node of verifiedNodes) {
         this.sendSync(node, { type: "GOSSIP_THREAT_HASH", hash, sourceNode }).catch(err => {
-            console.warn(`[MESH] Failed to gossip threat to ${node.hostname}: ${(err as Error).message}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Failed to gossip threat to ${node.hostname}: ${(err as Error).message}`
+            });
         });
     }
   }
@@ -351,11 +462,23 @@ export class MeshManager {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
     if (verifiedNodes.length === 0) return;
 
-    this.logging.log(`[MESH] Gossip: Broadcasting EMERGENCY LOCKDOWN to ${verifiedNodes.length} nodes...`, SyslogSeverity.EMERGENCY);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.CRITICAL,
+        caller: "MESH",
+        message: `Gossip: Broadcasting EMERGENCY LOCKDOWN to ${verifiedNodes.length} nodes...`
+    });
 
     for (const node of verifiedNodes) {
         this.sendSync(node, { type: "GOSSIP_LOCKDOWN" }).catch(err => {
-            console.warn(`[MESH] Failed to gossip lockdown with ${node.hostname}: ${(err as Error).message}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Failed to gossip lockdown with ${node.hostname}: ${(err as Error).message}`
+            });
         });
     }
   }
@@ -369,7 +492,13 @@ export class MeshManager {
 
     for (const node of verifiedNodes) {
         this.sendSync(node, { type: "GOSSIP_AUDIT", event }).catch(err => {
-            console.warn(`[MESH] Failed to gossip audit with ${node.hostname}: ${(err as Error).message}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Failed to gossip audit with ${node.hostname}: ${(err as Error).message}`
+            });
         });
     }
   }
@@ -388,7 +517,13 @@ export class MeshManager {
             eventCount,
             node: this.nodeId 
         }).catch(err => {
-            console.warn(`[MESH] Failed to send audit verification to ${node.hostname}: ${(err as Error).message}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Failed to send audit verification to ${node.hostname}: ${(err as Error).message}`
+            });
         });
     }
   }
@@ -397,19 +532,43 @@ export class MeshManager {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
     for (const node of verifiedNodes) {
         try {
-            this.logging.log(`[MESH] Requesting state reconciliation from ${node.hostname}...`, SyslogSeverity.DEBUG);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.DEBUG,
+                caller: "MESH",
+                message: `Requesting state reconciliation from ${node.hostname}...`
+            });
             const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
             
             // Phase 3: Differential state synchronization
             if (res !== undefined && res !== null && (res as any).kv_snapshot && Array.isArray((res as any).kv_snapshot)) {
-                this.logging.log(`[MESH] Received state snapshot from ${node.hostname}. Synchronizing...`, SyslogSeverity.NOTICE);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
+                    caller: "MESH",
+                    message: `Received state snapshot from ${node.hostname}. Synchronizing...`
+                });
                 await this.audit.syncEvents((res as any).kv_snapshot);
             }
             
-            console.log(`[MESH] Reconciled state with ${node.hostname}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "MESH",
+                message: `Reconciled state with ${node.hostname}`
+            });
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            console.warn(`[MESH] Failed to reconcile with ${node.hostname}: ${msg}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Failed to reconcile with ${node.hostname}: ${msg}`
+            });
         }
     }
   }
@@ -438,13 +597,25 @@ export class MeshManager {
    * Universal Quorum Handshake: Requires P2P consensus for any critical command.
    */
   async requestQuorumCommand(action: string, data: any): Promise<boolean> {
-      this.logging.log(`[QUORUM] Requesting mesh consensus for action: ${action}`, SyslogSeverity.NOTICE);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.INFO,
+          caller: "QUORUM",
+          message: `Requesting mesh consensus for action: ${action}`
+      });
       
       const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
       const threshold = Math.floor((verifiedNodes.length + 1) / 2) + 1;
       
       if (verifiedNodes.length + 1 < threshold) {
-          this.logging.log(`[QUORUM] Consensus impossible. Active nodes (${verifiedNodes.length + 1}) < Threshold (${threshold}).`, SyslogSeverity.CRITICAL);
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.CRITICAL,
+              caller: "QUORUM",
+              message: `Consensus impossible. Active nodes (${verifiedNodes.length + 1}) < Threshold (${threshold}).`
+          });
           return false;
       }
 
@@ -462,14 +633,26 @@ export class MeshManager {
                   approvals++;
               }
           } catch (e) {
-              console.warn(`[QUORUM] Node ${node.hostname} denied or timed out.`);
+              this.logging.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.GENERIC,
+                  severity: LogSeverity.WARNING,
+                  caller: "QUORUM",
+                  message: `Node ${node.hostname} denied or timed out.`
+              });
           }
           
           if (approvals >= threshold) break;
       }
       
       const success = approvals >= threshold;
-      this.logging.log(`[QUORUM] Result for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold})`, success ? SyslogSeverity.NOTICE : SyslogSeverity.WARNING);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: success ? LogSeverity.INFO : LogSeverity.WARNING,
+          caller: "QUORUM",
+          message: `Result for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold})`
+      });
       return success;
   }
 
@@ -544,7 +727,13 @@ export class MeshManager {
     const targetThreshold = threshold ?? (Math.floor(totalNodes / 2) + 1);
 
     if (totalNodes < targetThreshold) {
-        this.logging.log(`[MESH] Consensus threshold impossible to meet (${totalNodes}/${targetThreshold}). REJECTED.`, SyslogSeverity.CRITICAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "MESH",
+            message: `Consensus threshold impossible to meet (${totalNodes}/${targetThreshold}). REJECTED.`
+        });
         return false; 
     }
 
@@ -569,12 +758,24 @@ export class MeshManager {
                 }
             }
         } catch (e) {
-            this.logging.log(`[MESH] Node ${node.hostname} denied/failed approval: ${(e as Error).message}`, SyslogSeverity.WARNING);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "MESH",
+                message: `Node ${node.hostname} denied/failed approval: ${(e as Error).message}`
+            });
         }
     }
 
     const success = approvals >= targetThreshold;
-    this.logging.log(`[MESH] Consensus for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${targetThreshold} votes)`, success ? SyslogSeverity.NOTICE : SyslogSeverity.CRITICAL);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: success ? LogSeverity.INFO : LogSeverity.CRITICAL,
+        caller: "MESH",
+        message: `Consensus for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${targetThreshold} votes)`
+    });
     return success;
   }
 
@@ -628,7 +829,13 @@ export class MeshManager {
       throw new Error(`Sync failed with status ${res.status}`);
     }
 
-    this.logging.log(`[MESH] Tactical mTLS Sync completed with ${node.address}:${node.port}`, SyslogSeverity.DEBUG);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.DEBUG,
+        severity: LogSeverity.DEBUG,
+        caller: "MESH",
+        message: `Tactical mTLS Sync completed with ${node.address}:${node.port}`
+    });
   }
 
   /**
@@ -636,7 +843,13 @@ export class MeshManager {
    * This is an ultra-hardening measure to prevent long-term mesh persistence by an adversary.
    */
   async rotateIdentity() {
-    this.logging.log(`[MESH] Initiating Identity Rotation for ${this.nodeId}...`, SyslogSeverity.WARNING);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "MESH",
+        message: `Initiating Identity Rotation for ${this.nodeId}...`
+    });
     
     // 1. Wipe existing mTLS client
     this.httpClient = null;
@@ -648,7 +861,13 @@ export class MeshManager {
     // 3. Re-initialize mTLS identity
     await this.init();
     
-    this.logging.log(`[MESH] Identity Rotation Complete: ${oldId} -> ${this.nodeId}`, SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "MESH",
+        message: `Identity Rotation Complete: ${oldId} -> ${this.nodeId}`
+    });
     
     broadcast({
         type: "INFO",

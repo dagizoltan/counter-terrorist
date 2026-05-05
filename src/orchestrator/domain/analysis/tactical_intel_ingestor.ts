@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface ThreatInfo {
     indicator: string;
@@ -28,7 +28,13 @@ export class TacticalIntelIngestor {
 
     async start() {
         this.kv = await Deno.openKv();
-        this.logging.log("[INTEL] Tactical Ingestor active. Hardening perimeter...", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "INTEL",
+            message: "Tactical Ingestor active. Hardening perimeter..."
+        });
         
         // Blocking initial sync to ensure protection before full start
         await this.sync();
@@ -38,22 +44,46 @@ export class TacticalIntelIngestor {
     }
 
     async sync() {
-        this.logging.log("[INTEL] Syncing global threat feeds and enforcing blacklists...", SyslogSeverity.INFORMATIONAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "INTEL",
+            message: "Syncing global threat feeds and enforcing blacklists..."
+        });
         
         for (const source of this.sources) {
             try {
-                this.logging.log(`[INTEL] Ingesting from ${source.name}...`, SyslogSeverity.DEBUG);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.DEBUG,
+                    caller: "INTEL",
+                    message: `Ingesting from ${source.name}...`
+                });
                 const response = await fetch(source.url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 const data = await response.text();
                 await this.processSource(source, data);
             } catch (e) {
-                this.logging.log(`[INTEL] Sync failed for ${source.name}: ${(e as Error).message}`, SyslogSeverity.WARNING);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "INTEL",
+                    message: `Sync failed for ${source.name}: ${(e as Error).message}`
+                });
             }
         }
         
-        this.logging.log("[INTEL] Global intelligence enforced in kernel firewall.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.SUCCESS,
+            caller: "INTEL",
+            message: "Global intelligence enforced in kernel firewall."
+        });
     }
 
     private async processSource(source: any, data: string) {
@@ -93,7 +123,13 @@ export class TacticalIntelIngestor {
             if (count > 250) break; // Aggressive limit to keep firewall performant
         }
         
-        this.logging.log(`[INTEL] Blocked ${count} active threats from ${source.name}`, SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "INTEL",
+            message: `Blocked ${count} active threats from ${source.name}`
+        });
     }
 
     private mapThreatType(source: string, line: string): string {

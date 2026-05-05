@@ -11,6 +11,8 @@ import { MeshPlugin } from "./mesh_plugin.ts";
 import { BroadcastFunction } from "./types.ts";
 import { VpnManager } from "@infrastructure/system/protection/vpn/vpn.ts";
 import { MeshManager } from "../mesh.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
 
 export interface PluginFactoryDependencies {
   sidecarManager: SidecarManager;
@@ -79,7 +81,13 @@ export function createPluginsForPlatform(tag: string, deps: PluginFactoryDepende
   }
 
   if (matches.length === 0) {
-    console.warn(`[PLUGIN_CATALOG] No plugin definitions found for platform tag '${tag}'. Falling back to all available plugins.`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.WARNING,
+        caller: "PLUGIN_CATALOG",
+        message: `No plugin definitions found for platform tag '${tag}'. Falling back to all available plugins.`
+    });
     matches = pluginCatalog;
   }
 

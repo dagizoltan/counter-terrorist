@@ -3,7 +3,7 @@ import { PlaybookService } from "./playbook_service.ts";
 import { broadcast } from "@api/ws.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { AutonomousResponseEngine } from "./autonomous_response.ts";
-import { ProtectionPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { ProtectionPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { NotificationService } from "../analysis/notifications.ts";
 import { MeshManager } from "./mesh.ts";
 
@@ -56,7 +56,13 @@ export class AutopilotService {
     if (this.isStarted) return;
     this.isStarted = true;
 
-    this.logging.log("[AUTOPILOT] Autonomous Defense Mesh engaged.", SyslogSeverity.NOTICE); 
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "AUTOPILOT",
+        message: "Autonomous Defense Mesh engaged."
+    }); 
     
     await this.spawnLureProcess();
 
@@ -148,9 +154,21 @@ export class AutopilotService {
             stderr: "null",
         });
         this.lureProcess = command.spawn();
-        this.logging.log("[AUTOPILOT] Deception lure deployed: hashicorp-vault-proxy", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "AUTOPILOT:DECEPTION",
+            message: "Deception lure deployed: hashicorp-vault-proxy"
+        });
     } catch (e) {
-        this.logging.log(`[AUTOPILOT] Lure deployment failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "AUTOPILOT:DECEPTION",
+            message: `Lure deployment failed: ${(e as Error).message}`
+        });
     }
   }
 }

@@ -1,5 +1,5 @@
 import { SidecarManager } from "../../infrastructure/runtime/sidecar_manager.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "./mesh.ts";
 import { SystemExecutor } from "../../infrastructure/system/system_executor.ts";
 
@@ -27,7 +27,13 @@ export class ProvisioningService {
      * Scans the network for provisionable targets.
      */
     async discoverTargets() {
-        this.logging.log("[PROVISIONING] Scanning network for mesh expansion targets...", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "PROVISIONING",
+            message: "Scanning network for mesh expansion targets..."
+        });
         
         // Use the scanner sidecar to find hosts with SSH (22) or WinRM (5985)
         const scanResult = await this.sidecar.runSidecar("scanner", [
@@ -56,7 +62,13 @@ export class ProvisioningService {
         if (!target || target.status === "ACTIVE") return;
 
         target.status = "PROVISIONING";
-        this.logging.log(`[PROVISIONING] Attempting lateral propagation to ${ip} (${target.os})...`, SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "PROVISIONING",
+            message: `Attempting lateral propagation to ${ip} (${target.os})...`
+        });
 
         try {
             if (target.os === "linux") {
@@ -65,10 +77,22 @@ export class ProvisioningService {
                 await this.provisionWindows(ip);
             }
             target.status = "ACTIVE";
-            this.logging.log(`[PROVISIONING] Successfully established node on ${ip}. Waiting for mesh join.`, SyslogSeverity.NOTICE);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "PROVISIONING",
+                message: `Successfully established node on ${ip}. Waiting for mesh join.`
+            });
         } catch (e) {
             target.status = "FAILED";
-            this.logging.log(`[PROVISIONING] Lateral movement to ${ip} failed: ${(e as Error).message}`, SyslogSeverity.ERROR);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "PROVISIONING",
+                message: `Lateral movement to ${ip} failed: ${(e as Error).message}`
+            });
         }
     }
 
@@ -88,7 +112,13 @@ export class ProvisioningService {
             const startCmd = `chmod 600 /etc/cts.env && env $(cat /etc/cts.env | xargs) /usr/local/bin/counter-terrorist > /var/log/cts.log 2>&1 &`;
             await this.executor.execute("ssh", ["-o", "StrictHostKeyChecking=no", `root@${ip}`, startCmd]);
             
-            this.logging.log(`[PROVISIONING] Securely established node on ${ip}.`, SyslogSeverity.NOTICE);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "PROVISIONING",
+                message: `Securely established node on ${ip}.`
+            });
         } finally {
             await Deno.remove(envPath);
         }
@@ -102,7 +132,13 @@ export class ProvisioningService {
     async run() {
         const enabled = Deno.env.get("PROVISIONING_ENABLED") === "true";
         if (!enabled) {
-            this.logging.log("[PROVISIONING] Mesh expansion disabled via PROVISIONING_ENABLED=false.", SyslogSeverity.NOTICE);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "PROVISIONING",
+                message: "Mesh expansion disabled via PROVISIONING_ENABLED=false."
+            });
             return;
         }
 

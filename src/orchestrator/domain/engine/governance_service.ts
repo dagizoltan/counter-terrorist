@@ -1,5 +1,5 @@
 import { MeshManager } from "./mesh.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { broadcast } from "@api/ws.ts";
 
 export interface Proposal {
@@ -46,7 +46,13 @@ export class GovernanceService {
         proposal.votes.set(this.mesh.getNodeId(), true);
         this.proposals.set(id, proposal);
 
-        this.logging.log(`[GOVERNANCE] New Proposal ${id.slice(0,8)}: ${type} targeting ${target}`, SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "GOVERNANCE",
+            message: `New Proposal ${id.slice(0,8)}: ${type} targeting ${target}`
+        });
 
         this.mesh.broadcast({
             type: "GOV_PROPOSAL",
@@ -84,7 +90,13 @@ export class GovernanceService {
         // SECURE EVALUATION: Verify against mesh policy
         const approved = await this.verifyPolicy(proposal); 
 
-        this.logging.log(`[GOVERNANCE] Received Proposal ${payload.id.slice(0,8)} from ${payload.proposer}. Policy Decision: ${approved ? 'APPROVED' : 'REJECTED'}`, approved ? SyslogSeverity.NOTICE : SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: approved ? LogSeverity.INFO : LogSeverity.WARNING,
+            caller: "GOVERNANCE",
+            message: `Received Proposal ${payload.id.slice(0,8)} from ${payload.proposer}. Policy Decision: ${approved ? 'APPROVED' : 'REJECTED'}`
+        });
 
         this.mesh.broadcast({
             type: "GOV_VOTE",
@@ -102,7 +114,13 @@ export class GovernanceService {
         const proposerNode = nodes.find(n => n.id === proposal.proposer);
         
         if (!proposerNode) {
-            this.logging.log(`[GOVERNANCE] Policy Rejection: Proposer ${proposal.proposer} not found in mesh registry.`, SyslogSeverity.CRITICAL);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.CRITICAL,
+                caller: "GOVERNANCE",
+                message: `Policy Rejection: Proposer ${proposal.proposer} not found in mesh registry.`
+            });
             return false;
         }
 
@@ -111,7 +129,13 @@ export class GovernanceService {
             // Only allow lockdown from nodes with > 30 mins uptime (stability check)
             const uptime = Date.now() - proposerNode.lastSeen;
             if (uptime < 60000) { // Using small value for testing, should be 30min in prod
-                 this.logging.log(`[GOVERNANCE] Policy Rejection: Proposer node is too new for LOCKDOWN authority.`, SyslogSeverity.WARNING);
+                 this.logging.log({
+                     timestamp: new Date().toISOString(),
+                     type: LogType.AUDIT,
+                     severity: LogSeverity.WARNING,
+                     caller: "GOVERNANCE",
+                     message: "Policy Rejection: Proposer node is too new for LOCKDOWN authority."
+                 });
                  return false;
             }
         }
@@ -133,7 +157,13 @@ export class GovernanceService {
         
         // SINGLE-NODE OVERRIDE: If we are alone, we are sovereign.
         if (activeNodes === 1) {
-            this.logging.log("[GOVERNANCE] Single-Node Network detected. Local Sovereign Override active.", SyslogSeverity.NOTICE);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "GOVERNANCE",
+                message: "Single-Node Network detected. Local Sovereign Override active."
+            });
             await this.executeProposal(proposal);
             return;
         }
@@ -150,23 +180,47 @@ export class GovernanceService {
     private async executeProposal(proposal: Proposal) {
         if (proposal.executed) return;
         proposal.executed = true;
-        this.logging.log(`[GOVERNANCE] QUORUM REACHED for Proposal ${proposal.id.slice(0,8)}. Executing ${proposal.type}...`, SyslogSeverity.CRITICAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "GOVERNANCE",
+            message: `QUORUM REACHED for Proposal ${proposal.id.slice(0,8)}. Executing ${proposal.type}...`
+        });
 
         try {
             if (proposal.type === "LOCKDOWN") {
-                this.logging.log("[GOVERNANCE] Executing MESH-WIDE LOCKDOWN (Fail-Closed).", SyslogSeverity.EMERGENCY);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.CRITICAL,
+                    caller: "GOVERNANCE",
+                    message: "Executing MESH-WIDE LOCKDOWN (Fail-Closed)."
+                });
                 // Apply strict firewall rules immediately
                 await this.protection.firewall.lockdown().catch(() => {});
                 broadcast({ type: "CRITICAL", message: "MESH-WIDE LOCKDOWN INITIATED BY CONSENSUS" });
             } else if (proposal.type === "IDENTITY_ROTATE") {
                 await this.mesh.rotateIdentity();
             } else if (proposal.type === "ACTIVE_SABOTAGE") {
-                this.logging.log(`[GOVERNANCE] Executing ACTIVE_SABOTAGE against target: ${proposal.target}`, SyslogSeverity.CRITICAL);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.CRITICAL,
+                    caller: "GOVERNANCE",
+                    message: `Executing ACTIVE_SABOTAGE against target: ${proposal.target}`
+                });
                 await this.protection.firewall.blockIp(proposal.target);
                 broadcast({ type: "BLOCK", message: `Mesh-wide block enforced on ${proposal.target}` });
             }
         } catch (e) {
-            this.logging.log(`[GOVERNANCE] Execution failure for ${proposal.id}: ${(e as Error).message}`, SyslogSeverity.ERROR);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "GOVERNANCE",
+                message: `Execution failure for ${proposal.id}: ${(e as Error).message}`
+            });
         }
     }
 }

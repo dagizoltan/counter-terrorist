@@ -1,7 +1,7 @@
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { ProtectionPort } from "@core/ports.ts";
+import { ProtectionPort, LogSeverity, LogType } from "@core/ports.ts";
 import { NotificationService } from "../analysis/notifications.ts";
-import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 import { MeshManager } from "./mesh.ts";
 
 import { ShadowProtocolService } from "../protection/shadow_protocol_service.ts";
@@ -20,7 +20,13 @@ export class PlaybookService {
   private readonly ISOLATION_THRESHOLD = 5;
 
   public async init() {
-    loggingService.log("[PLAYBOOK] Initializing Automated Response Engine", SyslogSeverity.INFORMATIONAL);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "PLAYBOOK",
+        message: "Initializing Automated Response Engine"
+    });
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
     this.eventBus.on("HONEYPOT", async (data: any) => {
@@ -29,15 +35,33 @@ export class PlaybookService {
         
         const { isValidIP, isCriticalInfrastructure } = await import("@infrastructure/system/validation.ts");
         if (!isValidIP(source_ip) || isCriticalInfrastructure(source_ip)) {
-          loggingService.log(`[PLAYBOOK] Honeypot trigger from ${source_ip} (WHITELISTED/INVALID). Skipping block.`, SyslogSeverity.NOTICE);
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.INFO,
+              caller: "PLAYBOOK",
+              message: `Honeypot trigger from ${source_ip} (WHITELISTED/INVALID). Skipping block.`
+          });
           return;
         }
 
-        loggingService.log(`[PLAYBOOK] Honeypot trigger on port ${port} from ${source_ip}. Executing auto-block.`, SyslogSeverity.WARNING);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "PLAYBOOK",
+            message: `Honeypot trigger on port ${port} from ${source_ip}. Executing auto-block.`
+        });
         
         this.updateThreatScore("local", 1);
         
-        loggingService.log(`[PLAYBOOK] Starting forensic capture for IP: ${source_ip}`, SyslogSeverity.INFORMATIONAL);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "PLAYBOOK",
+            message: `Starting forensic capture for IP: ${source_ip}`
+        });
         this.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(() => {});
 
         try {
@@ -47,7 +71,13 @@ export class PlaybookService {
             message: `IP ${source_ip} automatically blocked after honeypot access on port ${port}`
           });
         } catch (err: any) {
-          loggingService.log(`[PLAYBOOK] Failed to block IP ${source_ip}: ${(err as Error).message}`, SyslogSeverity.ERROR);
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: "PLAYBOOK",
+              message: `Failed to block IP ${source_ip}: ${(err as Error).message}`
+          });
         }
       }
     });
@@ -55,7 +85,13 @@ export class PlaybookService {
     // FIM Playbook: High-priority notification on critical file change
     this.eventBus.on("DRIFT_PROCESS", async (data: any) => {
       const { path, action } = data;
-      loggingService.log(`[PLAYBOOK] FIM trigger: ${action} detected on ${path}`, SyslogSeverity.CRITICAL);
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.CRITICAL,
+          caller: "PLAYBOOK",
+          message: `FIM trigger: ${action} detected on ${path}`
+      });
       
       await this.notifications.notify({
         type: "CRITICAL",
@@ -70,7 +106,13 @@ export class PlaybookService {
       const { pid, comm, syscall } = data;
       
       if (syscall === "ptrace") {
-        loggingService.log(`[PLAYBOOK] SUSPICIOUS PTRACE detected from ${comm} (PID: ${pid}). Executing Quarantine.`, SyslogSeverity.CRITICAL);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "PLAYBOOK",
+            message: `SUSPICIOUS PTRACE detected from ${comm} (PID: ${pid}). Executing Quarantine.`
+        });
         
         try {
           await this.protection.firewall.killProcess(pid);
@@ -80,7 +122,13 @@ export class PlaybookService {
             message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
           });
         } catch (err: any) {
-          loggingService.log(`[PLAYBOOK] Failed to quarantine process ${pid}: ${(err as Error).message}`, SyslogSeverity.ERROR);
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: "PLAYBOOK",
+              message: `Failed to quarantine process ${pid}: ${(err as Error).message}`
+          });
         }
         
         this.updateThreatScore("local", 3);
@@ -100,11 +148,23 @@ export class PlaybookService {
    * Executes a predefined security playbook by name.
    */
   public async runPlaybook(name: string) {
-    loggingService.log(`[PLAYBOOK] Manually triggering playbook: ${name}`, SyslogSeverity.WARNING);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "PLAYBOOK",
+        message: `Manually triggering playbook: ${name}`
+    });
     
     switch (name) {
       case "Emergency Isolation":
-        loggingService.log("[PLAYBOOK] Protocol: Emergency Isolation. Isolating local node from mesh.", SyslogSeverity.CRITICAL);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "PLAYBOOK",
+            message: "Protocol: Emergency Isolation. Isolating local node from mesh."
+        });
         await this.meshManager.isolateNode("local");
         await this.notifications.notify({
           type: "CRITICAL",
@@ -117,7 +177,13 @@ export class PlaybookService {
         break;
 
       default:
-        loggingService.log(`[PLAYBOOK] Unknown playbook requested: ${name}`, SyslogSeverity.ERROR);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "PLAYBOOK",
+            message: `Unknown playbook requested: ${name}`
+        });
     }
   }
 
@@ -126,7 +192,13 @@ export class PlaybookService {
     this.threatScores.set(nodeId, score);
     
     if (score >= this.ISOLATION_THRESHOLD) {
-      loggingService.log(`[PLAYBOOK] Node ${nodeId} reached isolation threshold (${score}). Executing isolation.`, SyslogSeverity.CRITICAL);
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.CRITICAL,
+          caller: "PLAYBOOK",
+          message: `Node ${nodeId} reached isolation threshold (${score}). Executing isolation.`
+      });
       this.meshManager.isolateNode(nodeId);
       // Reset after isolation
       this.threatScores.set(nodeId, 0);

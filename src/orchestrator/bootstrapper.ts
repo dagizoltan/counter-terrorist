@@ -4,6 +4,7 @@
  */
 
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 export interface SystemStatus {
   os: string;
@@ -63,25 +64,46 @@ export async function camouflage() {
   if (Deno.build.os === "linux") {
     // Attempt to set process title to blend in
     // Note: In a compiled Deno binary, this makes the process look like a kernel worker in 'ps'
-    console.log("[STEALTH] Process identity masked as (kworker/u2:1)");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "STEALTH",
+        message: "Process identity masked as (kworker/u2:1)"
+    });
   }
 }
 
 if (import.meta.main) {
-  console.log("--- Initializing Security Orchestrator Bootstrapper ---");
   const status = await bootstrap();
-  console.log(`OS: ${status.os}`);
-  console.log(`Elevated Privileges: ${status.isRoot ? "YES" : "NO"}`);
-  console.log("Dependencies:");
-  for (const [dep, found] of Object.entries(status.dependencies)) {
-    console.log(`  - ${dep}: ${found ? "FOUND" : "NOT FOUND"}`);
-  }
+  
+  loggingService.log({
+      timestamp: new Date().toISOString(),
+      type: LogType.GENERIC,
+      severity: LogSeverity.INFO,
+      caller: "BOOTSTRAP",
+      message: `Security Orchestrator Initialized. OS: ${status.os}, Root: ${status.isRoot}`
+  });
 
-  if (!status.dependencies.cargo) {
-    console.warn("\n[WARNING] 'cargo' not found. Rust sidecars cannot be compiled from source.");
+  for (const [dep, found] of Object.entries(status.dependencies)) {
+    if (!found) {
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "BOOTSTRAP",
+            message: `Missing dependency: ${dep}`
+        });
+    }
   }
 
   if (!status.isRoot) {
-    console.warn("\n[WARNING] Running without root/admin privileges. Active blocking and deep auditing will be limited.");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.WARNING,
+        caller: "BOOTSTRAP",
+        message: "Running without root privileges. Defensive capabilities will be limited."
+    });
   }
 }

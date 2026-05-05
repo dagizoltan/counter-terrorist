@@ -1,4 +1,4 @@
-import { ConfigurationPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { ConfigurationPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface IntelIndicator {
     indicator: string;
@@ -56,11 +56,23 @@ export class CuratedIntelService {
      */
     async start(kv?: Deno.Kv) {
         this.kv = kv || await Deno.openKv();
-        this.logging.log("[INTEL] Curated Intelligence Pipeline engaged. Background sync initiated.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "INTEL",
+            message: "Curated Intelligence Pipeline engaged. Background sync initiated."
+        });
         
         // Background initial sync (prevents boot-blocking)
         this.sync().catch(e => {
-            this.logging.log(`[INTEL] Initial synchronization warning: ${e.message}`, SyslogSeverity.WARNING);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "INTEL",
+                message: `Initial synchronization warning: ${e.message}`
+            });
         });
 
         // Periodic sync
@@ -69,7 +81,13 @@ export class CuratedIntelService {
     }
 
     async sync() {
-        this.logging.log("[INTEL] Commencing weighted intelligence ingestion...", SyslogSeverity.INFORMATIONAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "INTEL",
+            message: "Commencing weighted intelligence ingestion..."
+        });
         
         const fetchTasks = this.sources.map(async (source) => {
             try {
@@ -84,12 +102,24 @@ export class CuratedIntelService {
                 const data = await response.text();
                 await this.processSource(source, data);
             } catch (e) {
-                this.logging.log(`[INTEL] Source failure (${source.name}): ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.WARNING);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "INTEL",
+                    message: `Source failure (${source.name}): ${e instanceof Error ? e.message : String(e)}`
+                });
             }
         });
 
         await Promise.all(fetchTasks);
-        this.logging.log("[INTEL] Reputation weighting and perimeter enforcement complete.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.SUCCESS,
+            caller: "INTEL",
+            message: "Reputation weighting and perimeter enforcement complete."
+        });
     }
 
     private async processSource(source: any, data: string) {
@@ -148,18 +178,36 @@ export class CuratedIntelService {
             if (ingestCount > 200) break; // Reduced count to further speed up ingestion
         }
 
-        this.logging.log(`[INTEL] Ingested ${ingestCount} from ${source.name} (Active Blocks: ${blockCount})`, SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "INTEL",
+            message: `Ingested ${ingestCount} from ${source.name} (Active Blocks: ${blockCount})`
+        });
     }
 
     async wipeDatabase() {
-        this.logging.log("[INTEL] Initiating complete intelligence purge...", SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "INTEL",
+            message: "Initiating complete intelligence purge..."
+        });
         if (!this.kv) return;
         const iter = this.kv.list({ prefix: ["curated_threats"] });
         for await (const res of iter) {
             await this.kv.delete(res.key);
         }
         this.blacklist.clear();
-        this.logging.log("[INTEL] Intelligence database wiped. Defensive rules reset.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.SUCCESS,
+            caller: "INTEL",
+            message: "Intelligence database wiped. Defensive rules reset."
+        });
     }
 
     async getThreats(type?: string, limit = 50): Promise<IntelIndicator[]> {

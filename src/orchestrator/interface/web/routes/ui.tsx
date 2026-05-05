@@ -90,54 +90,9 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   router.get("/deception", (c) => c.redirect("/agents/deception"));
   router.get("/agents", (c) => c.redirect("/agents/registry"));
 
-  router.get("/agents/registry", async (c: Context) => {
-    const { AgentsPage } = await import("../features/infrastructure/agents/page.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<AgentsPage status={status} csrfToken={csrfToken} />);
-  });
-
-  router.get("/agents/vpn", (c) => c.redirect("/network/active"));
-  router.get("/agents/mesh", (c) => c.redirect("/infrastructure/mesh"));
-
-  router.get("/agents/firewall", async (c: Context) => {
-    const { FirewallPage } = await import("../features/infrastructure/agents/firewall_page.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<FirewallPage status={status} csrfToken={csrfToken} />);
-  });
-
-  router.get("/agents/network", (c) => c.redirect("/network/active"));
-
-  router.get("/agents/pcap", async (c: Context) => {
-    const { PcapPage } = await import("../features/infrastructure/agents/pcap_page.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<PcapPage status={status} csrfToken={csrfToken} />);
-  });
-
-  router.get("/agents/scanner", async (c: Context) => {
-    const { ScannerPage } = await import("../features/infrastructure/agents/scanner_page.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<ScannerPage status={status} csrfToken={csrfToken} />);
-  });
-
-  router.get("/agents/fim", async (c: Context) => {
-    const { FimPage } = await import("../features/infrastructure/agents/fim_page.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<FimPage status={status} csrfToken={csrfToken} />);
-  });
-
-  router.get("/agents/ebpf", async (c: Context) => {
-    const { EbpfPage } = await import("../features/infrastructure/agents/ebpf_page.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<EbpfPage status={status} csrfToken={csrfToken} />);
-  });
-
+  // Unified Agent Routing Architecture
   router.route("/agents/deception", createHoneypotsRouter(services.honeypot));
+  router.route("/agents", createAgentsRouter(getStatus));
 
   // ── SYSTEM (Administration & Metadata) ─────────────────────────────
 
@@ -146,6 +101,13 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<SystemInfoPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/system/supply-chain", async (c: Context) => {
+    const { SupplyChainPage } = await import("../features/system/supply_chain_page.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<SupplyChainPage status={status} csrfToken={csrfToken} />);
   });
 
 

@@ -3,6 +3,8 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { BroadcastFunction } from "./types.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
 
 export class HoneypotPlugin implements Plugin {
   constructor(
@@ -22,12 +24,24 @@ export class HoneypotPlugin implements Plugin {
   async start() {
     if (this.active) return;
 
-    console.log("[HONEYPOT] Starting Honeypot Sidecar...");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "HONEYPOT",
+        message: "Starting Honeypot Sidecar..."
+    });
 
     try {
       const child = await this.sidecarManager.getPersistentSidecar("honeypot");
       if (!child) {
-        console.error("[HONEYPOT] Failed to start sidecar: binary not found");
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "HONEYPOT",
+            message: "Failed to start sidecar: binary not found"
+        });
         return;
       }
 
@@ -37,7 +51,13 @@ export class HoneypotPlugin implements Plugin {
 
       this.active = true;
     } catch (error) {
-      console.error("[HONEYPOT] Error starting sidecar:", error);
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "HONEYPOT",
+          message: `Error starting sidecar: ${(error as Error).message}`
+      });
       throw error;
     }
   }
@@ -56,7 +76,13 @@ export class HoneypotPlugin implements Plugin {
 
     switch (type) {
       case "PortAccess":
-        console.warn(`[HONEYPOT] ALERT: Unauthorized port access on port ${payload.port} from ${payload.source_ip}`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "HONEYPOT",
+            message: `ALERT: Unauthorized port access on port ${payload.port} from ${payload.source_ip}`
+        });
         this.broadcast({
           type: "CRITICAL",
           message: `Honeypot Triggered: Unauthorized access to port ${payload.port}`,
@@ -65,17 +91,35 @@ export class HoneypotPlugin implements Plugin {
 
         // Auto-block logic
         this.firewall.blockIp(payload.source_ip).catch(err => {
-          console.error(`[HONEYPOT] Failed to auto-block ${payload.source_ip}:`, err);
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: "HONEYPOT",
+              message: `Failed to auto-block ${payload.source_ip}: ${err.message}`
+          });
         });
 
         // Trigger PCAP capture (Phase 2 Requirement)
         this.pcap.startCapture("any", 30).catch(err => {
-          console.error("[HONEYPOT] Failed to trigger PCAP:", err);
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: "HONEYPOT",
+              message: `Failed to trigger PCAP: ${err.message}`
+          });
         });
         break;
 
       case "FileAccess":
-        console.warn(`[HONEYPOT] ALERT: Unauthorized file access to ${payload.path} (${payload.event_type})`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "HONEYPOT",
+            message: `ALERT: Unauthorized file access to ${payload.path} (${payload.event_type})`
+        });
         this.broadcast({
           type: "CRITICAL",
           message: `Honeypot Triggered: Unauthorized file access to ${payload.path}`,
@@ -84,7 +128,13 @@ export class HoneypotPlugin implements Plugin {
         break;
 
       case "Status":
-        console.log(`[HONEYPOT] Status: ${payload.message}`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "HONEYPOT",
+            message: `Status: ${payload.message}`
+        });
         this.broadcast({
           type: "INFO",
           message: `Honeypot Status: ${payload.message}`

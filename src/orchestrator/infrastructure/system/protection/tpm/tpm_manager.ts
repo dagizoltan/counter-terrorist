@@ -1,5 +1,5 @@
 import { SystemExecutor } from "../../system_executor.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 /**
  * TPMManager
@@ -15,7 +15,13 @@ export class TPMManager {
      * Seals a secret into the TPM.
      */
     async sealSecret(secretName: string, data: string) {
-        this.logging.log(`[TPM] Sealing mesh secret '${secretName}' into hardware...`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "TPM",
+            message: `Sealing mesh secret '${secretName}' into hardware...`
+        });
         
         // TPM NV Index for mesh secrets (0x1500001)
         const index = "0x1500001";
@@ -43,16 +49,34 @@ export class TPMManager {
             const writeRes = await child.output();
             
             if (writeRes.success) {
-                this.logging.log(`[TPM] Secret '${secretName}' successfully sealed into hardware index ${index}.`, SyslogSeverity.NOTICE);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "TPM",
+                    message: `Secret '${secretName}' successfully sealed into hardware index ${index}.`
+                });
             } else {
                 throw new Error(new TextDecoder().decode(writeRes.stderr));
             }
         } catch (e) {
             if (e instanceof Deno.errors.NotFound) {
                 TPMManager.missingBinaries.add("tpm2_nvdefine");
-                this.logging.log("[TPM] TPM tools not found. Continuing with memory-only persistence.", SyslogSeverity.WARNING);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "TPM",
+                    message: "TPM tools not found. Continuing with memory-only persistence."
+                });
             } else {
-                this.logging.log(`[TPM] Seal failed: ${(e as Error).message}. Continuing with memory-only persistence.`, SyslogSeverity.WARNING);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "TPM",
+                    message: `Seal failed: ${(e as Error).message}. Continuing with memory-only persistence.`
+                });
             }
         }
     }
@@ -65,7 +89,13 @@ export class TPMManager {
         const res = await this.executor.execute("tpm2_nvread", [index, "-C", "o"]);
         
         if (res.success) {
-            this.logging.log(`[TPM] Secret '${secretName}' successfully unsealed from hardware.`, SyslogSeverity.DEBUG);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.DEBUG,
+                caller: "TPM",
+                message: `Secret '${secretName}' successfully unsealed from hardware.`
+            });
             return res.stdout.trim();
         }
         
@@ -98,11 +128,23 @@ export class TPMManager {
      * Verifies system integrity via PCR (Platform Configuration Registers) comparison.
      */
     async verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean> {
-        this.logging.log("[TPM] Verifying system integrity via hardware PCR attestation...", SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "TPM",
+            message: "Verifying system integrity via hardware PCR attestation..."
+        });
         
         try {
             if (!goldenPcrs || Object.keys(goldenPcrs).length === 0) {
-                this.logging.log("[TPM] WARNING: No Golden PCR baseline provided. Integrity check is performative only.", SyslogSeverity.WARNING);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "TPM",
+                    message: "WARNING: No Golden PCR baseline provided. Integrity check is performative only."
+                });
                 return true; 
             }
 
@@ -113,22 +155,45 @@ export class TPMManager {
                 const actual = currentPcrs[idx];
                 
                 if (!actual) {
-                    this.logging.log(`[TPM] PCR ${idx} not found in hardware output.`, SyslogSeverity.ERROR);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "TPM",
+                        message: `PCR ${idx} not found in hardware output.`
+                    });
                     return false;
                 }
 
                 if (actual !== expected.toLowerCase()) {
-                    this.logging.log(`[TPM] INTEGRITY FAILURE: PCR ${idx} mismatch!`, SyslogSeverity.CRITICAL);
-                    this.logging.log(`[TPM] Expected: ${expected}`, SyslogSeverity.CRITICAL);
-                    this.logging.log(`[TPM] Actual:   ${actual}`, SyslogSeverity.CRITICAL);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.CRITICAL,
+                        caller: "TPM",
+                        message: `INTEGRITY FAILURE: PCR ${idx} mismatch!`,
+                        payload: { expected, actual }
+                    });
                     return false;
                 }
             }
 
-            this.logging.log("[TPM] Hardware integrity verified against Golden PCR baseline.", SyslogSeverity.INFORMATIONAL);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "TPM",
+                message: "Hardware integrity verified against Golden PCR baseline."
+            });
             return true;
         } catch (e) {
-            this.logging.log(`[TPM] Integrity check skipped or failed to execute: ${(e as Error).message}. Continuing in software-trust mode.`, SyslogSeverity.WARNING);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "TPM",
+                message: `Integrity check skipped or failed to execute: ${(e as Error).message}. Continuing in software-trust mode.`
+            });
             // We return true here to avoid self-destructing on systems without TPM tools during development.
             // In a production lockdown environment, the executor would be hardened.
             return true;
@@ -164,10 +229,22 @@ export class TPMManager {
             }
         } catch (e) {
             if (e instanceof Deno.errors.NotFound) {
-                this.logging.log("[TPM] tpm2_sign not found. Switching to software fallback.", SyslogSeverity.DEBUG);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.DEBUG,
+                    caller: "TPM",
+                    message: "tpm2_sign not found. Switching to software fallback."
+                });
                 TPMManager.missingBinaries.add("tpm2_sign");
             } else {
-                this.logging.log(`[TPM] Sign failed: ${(e as Error).message}`, SyslogSeverity.DEBUG);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.DEBUG,
+                    caller: "TPM",
+                    message: `Sign failed: ${(e as Error).message}`
+                });
             }
         }
 
@@ -200,7 +277,13 @@ export class TPMManager {
             await Deno.remove(tempSigFile);
             return verifyRes.success;
         } catch (e) {
-            this.logging.log(`[TPM] Verification failed: ${(e as Error).message}`, SyslogSeverity.DEBUG);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.DEBUG,
+                caller: "TPM",
+                message: `Verification failed: ${(e as Error).message}`
+            });
             return false;
         }
     }

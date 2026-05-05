@@ -10,14 +10,14 @@ export const FirewallPage = (props: { csrfToken?: string }) => (
         </a>
         <div style="width:12px; height:60px; background:var(--danger); border-radius:4px; box-shadow:0 0 20px var(--danger-glow);"></div>
         <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">FIREWALL_ENFORCER</h1>
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">FIREWALL ENFORCER</h1>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="dot active" style="background:var(--danger);"></span>
-              <span class="mono text-[10px] font-black text-danger tracking-[0.2em]">KERNEL_BLOCKER_ACTIVE</span>
+              <span class="mono text-[10px] font-black text-danger tracking-[0.2em]">KERNEL BLOCKER ACTIVE</span>
             </div>
             <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">QUARANTINE_READY</div>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">QUARANTINE READY</div>
           </div>
         </div>
       </div>
@@ -78,14 +78,14 @@ export const FimPage = (props: { csrfToken?: string }) => (
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SENTINEL_MONITOR</h1>
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SENTINEL MONITOR</h1>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="dot active"></span>
-              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">FILE_INTEGRITY_WATCH</span>
+              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">FILE INTEGRITY WATCH</span>
             </div>
             <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">INODE_LOCK_SYNCED</div>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">INODE LOCK SYNCED</div>
           </div>
         </div>
       </div>
@@ -112,14 +112,14 @@ export const PcapPage = (props: { csrfToken?: string }) => (
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">INTERCEPTOR_DPI</h1>
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">INTERCEPTOR DPI</h1>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="dot active"></span>
-              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">DEEP_PACKET_INSPECTION</span>
+              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">DEEP PACKET INSPECTION</span>
             </div>
             <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">MESH_TRAFFIC_MONITOR</div>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">MESH TRAFFIC MONITOR</div>
           </div>
         </div>
       </div>
@@ -158,14 +158,14 @@ export const HoneypotPage = (props: { csrfToken?: string }) => (
         </a>
         <div style="width:12px; height:60px; background:var(--warning); border-radius:4px; box-shadow:0 0 20px var(--warning-glow);"></div>
         <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">DECEPTION_GRID</h1>
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">DECEPTION GRID</h1>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="dot active" style="background:var(--warning);"></span>
-              <span class="mono text-[10px] font-black text-warning tracking-[0.2em]">ACTIVE_DECOY_ARRAY</span>
+              <span class="mono text-[10px] font-black text-warning tracking-[0.2em]">ACTIVE DECOY ARRAY</span>
             </div>
             <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">ADVERSARY_PROFILING</div>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">ADVERSARY PROFILING</div>
           </div>
         </div>
       </div>
@@ -211,51 +211,50 @@ export const HoneypotPage = (props: { csrfToken?: string }) => (
 );
 
 export const VpnPage = (props: { csrfToken?: string }) => (
-  <Layout title="VPN Tunnels" islandPaths={['/components/islands/VpnAgent.js']} csrfToken={props.csrfToken}>
+  <Layout title="Device Anonymization" islandPaths={['/components/islands/AnonymizerController.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-success/40 text-slate-500 hover:text-success group">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
         </a>
-        <div style="width:12px; height:60px; background:var(--success); border-radius:4px; box-shadow:0 0 20px var(--success-glow);"></div>
+        <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SECURE_TUNNELS</h1>
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">DEVICE ANONYMIZER</h1>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
-              <span class="dot active" style="background:var(--success);"></span>
-              <span class="mono text-[10px] font-black text-success tracking-[0.2em]">WIREGUARD_MESH_ACTIVE</span>
+              <span class="dot active" style="background:var(--primary);"></span>
+              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">PRIVACY TUNNEL ACTIVE</span>
             </div>
             <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">BACKHAUL: SYNCED</div>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">ROUTING: OBFUSCATED</div>
           </div>
         </div>
       </div>
     </header>
 
-    <div class="t-panel flex flex-col items-center justify-center p-20 text-center" style="background:radial-gradient(circle at center, hsla(var(--success-h), 100%, 50%, 0.05), transparent 70%);">
-       <div class="w-24 h-24 border-2 border-success flex items-center justify-center mb-10[0_0_40px_var(--success-glow)]">
-          <div id="vpn-status-dot" class="w-12 h-12 bg-slate-800"></div>
-       </div>
-       <h3 id="vpn-status-label" class="text-4xl font-black uppercase tracking-tighter mb-4 italic text-white">SUBSYSTEM_OFFLINE</h3>
-       <p id="vpn-status-details" class="mono text-xs font-bold text-slate-500 uppercase tracking-widest mb-12">Checking cryptographic handshakes...</p>
-       
-       <div class="grid grid-cols-2 gap-4 w-full max-w-2xl mb-12">
-          <div class="t-panel" style="background:rgba(0,0,0,0.4);">
-             <span class="metric-tag mb-4 block">Mesh_Peers</span>
-             <p id="vpn-peer-count" class="text-3xl font-black mono text-white tabular-nums italic tracking-tighter">...</p>
+    <div class="grid grid-cols-12 gap-8">
+       <div class="col-span-12 lg:col-span-4 space-y-8">
+          <div class="t-panel">
+             <span class="metric-tag mb-8 block">Control_Interface</span>
+             <anonymizer-controller></anonymizer-controller>
           </div>
-          <div class="t-panel" style="background:rgba(0,0,0,0.4);">
-             <span class="metric-tag mb-4 block">Self_Node</span>
-             <p id="vpn-self-node" class="text-lg font-black mono text-slate-400 uppercase truncate">ID_FETCHING...</p>
+          <div class="t-panel">
+             <span class="metric-tag mb-4 block">Anonymization_Status</span>
+             <p class="mono text-xs text-slate-400 leading-relaxed italic">
+               Operational device-level VPN for egress obfuscation. Select mode to rotate exit nodes via Traditional VPN, VPN Gate, or TOR bridge.
+             </p>
           </div>
        </div>
-
-       <div class="flex gap-6">
-          <button id="vpn-connect-btn" class="t-btn" style="background:var(--success); color:black; padding: 1rem 3rem;">Link_Tunnel</button>
-          <button id="vpn-disconnect-btn" class="t-btn danger" style="padding: 1rem 3rem; background:transparent; border-color:var(--danger);">Sever_Link</button>
+       <div class="col-span-12 lg:col-span-8 t-panel p-0 overflow-hidden">
+          <header class="p-8 border-b border-white/5 bg-black/20">
+             <h3 class="tactical-title" style="font-size:1rem;">IDENTITY_OBFUSCATION_TELEMETRY</h3>
+          </header>
+          <div class="p-12 flex flex-col items-center justify-center gap-6 opacity-20">
+             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+             <span class="mono-xs font-black uppercase tracking-[0.5em]">Monitoring_Stealth_Vector...</span>
+          </div>
        </div>
     </div>
-    <vpn-agent></vpn-agent>
   </Layout>
 );
 
@@ -268,14 +267,14 @@ export const EbpfPage = (props: { csrfToken?: string }) => (
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">KERNEL_GUARDIAN</h1>
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">KERNEL GUARDIAN</h1>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="dot active"></span>
-              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">EBPF_LSM_ENFORCER</span>
+              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">EBPF LSM ENFORCER</span>
             </div>
             <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">ZERO_TRUST_VERIFIED</div>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">ZERO TRUST VERIFIED</div>
           </div>
         </div>
       </div>
@@ -315,14 +314,14 @@ export const ScannerPage = (props: { csrfToken?: string }) => (
         </a>
         <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
         <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SEC_VULN_SCANNER</h1>
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SEC VULN SCANNER</h1>
           <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
               <span class="dot active"></span>
-              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">AUTONOMOUS_AUDIT</span>
+              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">AUTONOMOUS AUDIT</span>
             </div>
             <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">INTEGRITY_VERIFIED</div>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">INTEGRITY VERIFIED</div>
           </div>
         </div>
       </div>
@@ -338,5 +337,79 @@ export const ScannerPage = (props: { csrfToken?: string }) => (
       </div>
     </div>
     <scanner-agent></scanner-agent>
+  </Layout>
+);
+
+/**
+ * Mesh Agent Page
+ * Peer discovery, mTLS gossip protocol, and distributed consensus.
+ */
+export const MeshPage = (props: { status: any, csrfToken?: string }) => (
+  <Layout title="Mesh Fabric" islandPaths={['/components/islands/VpnAgent.js', '/components/islands/MeshHeatmap.js']} csrfToken={props.csrfToken}>
+    <header class="flex justify-between items-end mb-12">
+      <div class="flex items-center gap-6">
+        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-success/40 text-slate-500 hover:text-success group">
+           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
+        </a>
+        <div style="width:12px; height:60px; background:var(--success); border-radius:4px; box-shadow:0 0 20px var(--success-glow);"></div>
+        <div class="flex flex-col gap-2">
+          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">MESH FABRIC</h1>
+          <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+              <span class="dot active" style="background:var(--success);"></span>
+              <span class="mono text-[10px] font-black text-success tracking-[0.2em]">P2P GOSSIP NETWORK</span>
+            </div>
+            <span class="text-slate-700">/</span>
+            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">QUORUM SYNCED</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-12 gap-8 mb-8">
+       <div class="col-span-12 lg:col-span-8 t-panel p-0 overflow-hidden" style="height:500px;">
+          <mesh-heatmap></mesh-heatmap>
+       </div>
+       <div class="col-span-12 lg:col-span-4 space-y-6">
+          <div class="t-panel">
+             <span class="metric-tag mb-8 block">Mesh_Health</span>
+             <div class="text-4xl font-black text-white italic tracking-tighter mb-2">{props.status?.mesh?.nodes || 0} PEERS</div>
+             <p class="mono text-[10px] text-slate-500 uppercase font-bold">Active in software quorum</p>
+          </div>
+          <div class="t-panel">
+             <span class="metric-tag mb-8 block">Control_Directives</span>
+             <div class="space-y-4">
+                <button onclick="fetch('/api/mesh/resync', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}})" class="t-btn w-full">Broadcast Resync</button>
+                <button class="t-btn w-full danger" style="background:transparent; border-color:var(--danger); color:var(--danger);">Isolate Local Node</button>
+             </div>
+          </div>
+       </div>
+    </div>
+
+    <div class="t-panel flex flex-col items-center justify-center p-20 text-center" style="background:radial-gradient(circle at center, hsla(var(--success-h), 100%, 50%, 0.05), transparent 70%);">
+       <div class="w-24 h-24 border-2 border-success flex items-center justify-center mb-10 shadow-[0_0_40px_var(--success-glow)]">
+          <div id="vpn-status-dot" class="w-12 h-12 bg-slate-800"></div>
+       </div>
+       <h3 id="vpn-status-label" class="text-4xl font-black uppercase tracking-tighter mb-4 italic text-white">SUBSYSTEM_OFFLINE</h3>
+       <p id="vpn-status-details" class="mono text-xs font-bold text-slate-500 uppercase tracking-widest mb-12">Checking cryptographic handshakes...</p>
+       
+       <div class="grid grid-cols-2 gap-4 w-full max-w-2xl mb-12">
+          <div class="t-panel" style="background:rgba(0,0,0,0.4);">
+             <span class="metric-tag mb-4 block">Mesh_Peers</span>
+             <p id="vpn-peer-count" class="text-3xl font-black mono text-white tabular-nums italic tracking-tighter">...</p>
+          </div>
+          <div class="t-panel" style="background:rgba(0,0,0,0.4);">
+             <span class="metric-tag mb-4 block">Self_Node</span>
+             <p id="vpn-self-node" class="text-lg font-black mono text-slate-400 uppercase truncate">ID_FETCHING...</p>
+          </div>
+       </div>
+
+       <div class="flex gap-6">
+          <button id="vpn-connect-btn" class="t-btn" style="background:var(--success); color:black; padding: 1rem 3rem;">Link_Tunnel</button>
+          <button id="vpn-disconnect-btn" class="t-btn danger" style="padding: 1rem 3rem; background:transparent; border-color:var(--danger);">Sever_Link</button>
+       </div>
+    </div>
+
+    <vpn-agent></vpn-agent>
   </Layout>
 );

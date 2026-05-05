@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "../engine/mesh.ts";
 import { TimelineRepository } from "@infrastructure/persistence/repositories/timeline_repository.ts";
 import { withTelemetry } from "@core/service_utils.ts";
@@ -89,24 +89,42 @@ export class AuditService {
             const latest = await this.repo.getLatest(1);
             if (latest.length > 0 && latest[0].hash) {
                 this.lastHash = latest[0].hash;
-                this.logging.log(
-                    `[AUDIT] Chain head restored: ${this.lastHash.slice(0, 12)}…`,
-                    SyslogSeverity.INFORMATIONAL
-                );
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
+                    caller: "AUDIT",
+                    message: `Chain head restored: ${this.lastHash.slice(0, 12)}…`
+                });
 
                 const verification = await this.verifyChain(100);
                 if (!verification.valid) {
-                    this.logging.log(
-                        `[AUDIT] [CRITICAL] CHAIN INTEGRITY FAILURE. TAMPERING DETECTED AT EVENT ${verification.brokenAt?.eventId || "UNKNOWN"}`,
-                        SyslogSeverity.EMERGENCY
-                    );
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.CRITICAL,
+                        caller: "AUDIT",
+                        message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED AT EVENT ${verification.brokenAt?.eventId || "UNKNOWN"}`
+                    });
                 } else {
                     this.lastVerifiedHash = this.lastHash;
-                    this.logging.log(`[AUDIT] Verified integrity of recent history (${verification.eventsChecked} events).`, SyslogSeverity.DEBUG);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.DEBUG,
+                        caller: "AUDIT",
+                        message: `Verified integrity of recent history (${verification.eventsChecked} events).`
+                    });
                 }
             }
         } catch (e) {
-            this.logging.log(`[AUDIT] Failed to restore chain head: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.WARNING);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "AUDIT",
+                message: `Failed to restore chain head: ${e instanceof Error ? e.message : String(e)}`
+            });
         }
     }
 
@@ -148,8 +166,15 @@ export class AuditService {
                 await this.repo.set(id, auditEvent);
                 this.lastHash = hash;
                 
-                const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? SyslogSeverity.NOTICE : SyslogSeverity.DEBUG;
-                this.logging.log(`[AUDIT] ${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`, severity);
+                const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.DEBUG;
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity,
+                    caller: "AUDIT",
+                    message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
+                    payload: auditEvent.data
+                });
 
                 if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
                   this.mesh.broadcastAuditEvent({
@@ -158,7 +183,13 @@ export class AuditService {
                   }).catch(() => {});
                 }
             } catch (e) {
-                console.error("[AUDIT] Failed to save event:", e);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "AUDIT",
+                    message: `Failed to save event: ${(e as Error).message}`
+                });
             }
         });
         
@@ -248,14 +279,26 @@ export class AuditService {
         try {
             const purgedByAge = await this.repo.deleteBefore(cutoffTimestamp);
             if (purgedByAge > 0) {
-                this.logging.log(`[AUDIT] Retention purge: removed ${purgedByAge} expired events (Age).`, SyslogSeverity.INFORMATIONAL);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
+                    caller: "AUDIT",
+                    message: `Retention purge: removed ${purgedByAge} expired events (Age).`
+                });
             }
 
             // 2. Volume Purge (Double-pass if still over limit)
             const currentCount = await this.repo.count();
             if (currentCount > this.retentionConfig.maxEvents) {
                 const overLimit = currentCount - this.retentionConfig.maxEvents;
-                this.logging.log(`[AUDIT] Ledger volume exceeds threshold (${currentCount}/${this.retentionConfig.maxEvents}). Truncating ${overLimit} oldest events...`, SyslogSeverity.NOTICE);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "AUDIT",
+                    message: `Ledger volume exceeds threshold (${currentCount}/${this.retentionConfig.maxEvents}). Truncating ${overLimit} oldest events...`
+                });
                 
                 // Get the timestamp of the N-th oldest event to use deleteBefore
                 const oldestEvents = await this.kv.list<AuditEvent>({ prefix: ["audit"] }, { limit: overLimit });
@@ -265,10 +308,22 @@ export class AuditService {
                 }
                 
                 const purgedByVolume = await this.repo.deleteBefore(lastTs + 1);
-                this.logging.log(`[AUDIT] Volume purge complete: removed ${purgedByVolume} events.`, SyslogSeverity.INFORMATIONAL);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
+                    caller: "AUDIT",
+                    message: `Volume purge complete: removed ${purgedByVolume} events.`
+                });
             }
         } catch (e) {
-            this.logging.log(`[AUDIT] Retention purge failed: ${e instanceof Error ? e.message : String(e)}`, SyslogSeverity.ERROR);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "AUDIT",
+                message: `Retention purge failed: ${e instanceof Error ? e.message : String(e)}`
+            });
         }
     }
 

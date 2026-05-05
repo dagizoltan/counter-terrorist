@@ -1,3 +1,5 @@
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+
 /**
  * Mesh Authentication Service: Manages the internal PKI for mTLS communication.
  * Stores certificates and keys in Deno KV for persistence and cross-node sync.
@@ -30,6 +32,7 @@ export class MeshAuthService {
 
   constructor(
     private kv: Deno.Kv,
+    private logging: LoggingPort,
     private tpm?: any // TPMManager
   ) {}
 
@@ -43,10 +46,22 @@ export class MeshAuthService {
     if (entry.value && entry.value.timestamp > thirtyDaysAgo) {
       const decrypted = await this.decryptCertPair(entry.value);
       if (decrypted) return decrypted;
-      console.warn("[PKI] Existing Root CA decryption failed. Secret may have rotated. Regenerating...");
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "PKI",
+          message: "Existing Root CA decryption failed. Secret may have rotated. Regenerating..."
+      });
     }
 
-    console.log("[PKI] CA is missing or older than 30 days. Generating/Regenerating Root CA...");
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "PKI",
+        message: "CA is missing or older than 30 days. Generating/Regenerating Root CA..."
+    });
     const ca = await this.generateSelfSignedCA();
     await this.kv!.set(this.CA_KEY, await this.encryptCertPair(ca));
 
@@ -104,7 +119,13 @@ export class MeshAuthService {
       if (!fallback) {
         throw new Error("[PKI] CRITICAL: Neither PKI_SECRET nor API_TOKEN are set. PKI operations aborted for security.");
       }
-      console.warn("[PKI] WARNING: PKI_SECRET is not set. Falling back to API_TOKEN for key encryption.");
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "PKI",
+          message: "PKI_SECRET is not set. Falling back to API_TOKEN for key encryption."
+      });
       secret = fallback;
     }
 
@@ -194,7 +215,13 @@ export class MeshAuthService {
         timestamp: encrypted.timestamp,
       };
     } catch (e) {
-      console.error(`[PKI] Decryption failed: ${(e as Error).message}. Possible secret mismatch.`);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "PKI",
+          message: `Decryption failed: ${(e as Error).message}. Possible secret mismatch.`
+      });
       return null;
     }
   }
@@ -219,7 +246,13 @@ export class MeshAuthService {
   // --- Certificate generation ---
 
   private async rotateAllNodeCerts() {
-    console.log("[PKI] Rotating all node certificates due to CA regeneration...");
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "PKI",
+        message: "Rotating all node certificates due to CA regeneration..."
+    });
     const iter = this.kv.list<EncryptedCertPair>({ prefix: this.NODES_PREFIX });
     for await (const entry of iter) {
       const nodeId = entry.key[entry.key.length - 1] as string;

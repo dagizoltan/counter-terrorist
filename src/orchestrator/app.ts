@@ -21,7 +21,7 @@ import {
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
 import { ServiceContainer } from "@core/container.ts";
-import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { broadcast, initBroadcaster } from "@api/ws.ts";
 import { PlaybookEngine } from "@domain/engine/playbook_engine.ts";
 import { createProtection } from "@infrastructure/system/protection/index.ts";
@@ -43,7 +43,13 @@ export class SovereignApp {
     async boot() {
         // ── Phase 1: Core infrastructure ──────────────────────────────────────
         loggingService.enableGlobalIntercept();
-        await loggingService.log("Initiating Sovereign Boot Sequence", SyslogSeverity.NOTICE, "BOOT");
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "BOOT",
+            message: "Initiating Sovereign Boot Sequence"
+        });
         await camouflage();
         
         await load({ export: true, allowEmptyValues: true });
@@ -56,7 +62,14 @@ export class SovereignApp {
         
         const platformInfo = await getPlatformInfo();
         const systemStatus = await bootstrap();
-        await loggingService.log("Core infrastructure initialized", SyslogSeverity.INFORMATIONAL, "BOOT", { platform: platformInfo.name, isRoot: systemStatus.isRoot });
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "BOOT",
+            message: "Core infrastructure initialized",
+            payload: { platform: platformInfo.name, isRoot: systemStatus.isRoot }
+        });
 
         // ── Phase 2: Service layer ────────────────────────────────────────────
         const tpmManager = new TPMManager(this.executor, loggingService);
@@ -113,7 +126,13 @@ export class SovereignApp {
         });
         watchdog.start();
 
-        await loggingService.log(`Sovereign Orchestrator fully engaged on port ${port}`, SyslogSeverity.NOTICE, "BOOT");
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.SUCCESS,
+            caller: "BOOT",
+            message: `Sovereign Orchestrator fully engaged on port ${port}`
+        });
         await this.web.start(port);
     }
 
@@ -130,7 +149,13 @@ export class SovereignApp {
         const bypassHardware = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true";
 
         if (!isHardwareSecure && !bypassHardware) {
-            await loggingService.log("HARDWARE INTEGRITY FAILURE.", SyslogSeverity.EMERGENCY, "SECURITY");
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.CRITICAL,
+                caller: "SECURITY",
+                message: "HARDWARE INTEGRITY FAILURE."
+            });
             await this.selfDestruct();
         }
     }
@@ -142,7 +167,13 @@ export class SovereignApp {
     private async startSubsystems() {
         const { playbook, autopilot, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, health } = this.services;
         
-        await loggingService.log("Deploying active defense subsystems", SyslogSeverity.INFORMATIONAL, "BOOT");
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "BOOT",
+            message: "Deploying active defense subsystems"
+        });
         
         health.reportStatus("Playbook", "BOOTING");
         playbook.init()
@@ -220,7 +251,13 @@ export class SovereignApp {
 
     private registerSignalHandlers() {
         const cleanup = async () => {
-            await loggingService.log("Initiating graceful shutdown...", SyslogSeverity.NOTICE, "BOOT");
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "BOOT",
+                message: "Initiating graceful shutdown..."
+            });
             
             // 1. Notify Mesh of departure
             if (this.services?.mesh) {

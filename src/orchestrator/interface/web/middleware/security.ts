@@ -2,7 +2,7 @@ import { Context, Next } from "hono";
 import { getCookie } from "hono/helper/cookie/index.ts";
 import { Role } from "@domain/identity/api_keys.ts";
 import { ServiceContainer } from "@core/container.ts";
-import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
 import { ActorContext } from "@domain/analysis/audit.ts";
 
@@ -66,7 +66,13 @@ export class SecurityMiddleware {
         || "unknown";
 
       if (this.services.threatIntel.getBlacklist().has(ip)) {
-        loggingService.log(`[SECURITY] REJECTED: Request from blacklisted IP ${ip} to ${path}`, SyslogSeverity.CRITICAL);
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.CRITICAL,
+          caller: "SECURITY",
+          message: `[SECURITY] REJECTED: Request from blacklisted IP ${ip} to ${path}`
+        });
         return c.json({ error: "Access Denied: Malicious IP Detected", code: "BLACK_LIST_REJECT" }, 403);
       }
       
@@ -113,7 +119,13 @@ export class SecurityMiddleware {
 
             const providedToken = csrfHeader || csrfBody;
             if (!providedToken || !session.csrfToken || !(await secureCompare(providedToken, session.csrfToken))) {
-              loggingService.log(`[SECURITY] CSRF blocked for ${c.req.path}. Method: ${c.req.method}`, SyslogSeverity.WARNING);
+              loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "SECURITY",
+                message: `[SECURITY] CSRF blocked for ${c.req.path}. Method: ${c.req.method}`
+              });
               return c.json({ error: "CSRF Validation Failed", code: "CSRF_FAULT" }, 403);
             }
           }
@@ -150,7 +162,13 @@ export class SecurityMiddleware {
     return async (c: Context, next: Next) => {
       const role = c.get("role") as Role;
       if (!role || !allowedRoles.includes(role)) {
-        loggingService.log(`[SECURITY] Access denied for role '${role}' to ${c.req.path}`, SyslogSeverity.WARNING);
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.WARNING,
+          caller: "SECURITY",
+          message: `[SECURITY] Access denied for role '${role}' to ${c.req.path}`
+        });
         return c.json({ error: "Forbidden: Insufficient Permissions" }, 403);
       }
       return next();

@@ -1,3 +1,6 @@
+import { loggingService } from "../../logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+
 /**
  * SignatureService
  * Handles Ed25519 cryptographic verification for sensitive manifests.
@@ -28,7 +31,13 @@ export class SignatureService {
                 data
             );
         } catch (e) {
-            console.error("[SIGNATURE] Verification failed:", e);
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "SIGNATURE",
+                message: `Verification failed: ${(e as Error).message}`
+            });
             return false;
         }
     }

@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "../engine/mesh.ts";
 import { AnonymizationService } from "./anonymization_service.ts";
 
@@ -22,24 +22,48 @@ export class ShadowProtocolService {
     async activate() {
         if (this.shadowModeActive) return;
         
-        this.logging.log("[SHADOW] !!! TARGETED ATTACK DETECTED. ACTIVATING SHADOW PROTOCOL !!!", SyslogSeverity.EMERGENCY);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "SHADOW",
+            message: "!!! TARGETED ATTACK DETECTED. ACTIVATING SHADOW PROTOCOL !!!"
+        });
         this.shadowModeActive = true;
 
         // 1. Identity Shift: Immediate Exit Rotation
         await this.anonymization.rotate();
 
         // 2. Telemetry Silencing: Shift logs to mesh-only (volatile)
-        this.logging.log("[SHADOW] Local telemetry silenced. Shifting to volatile mesh-gossip logging.", SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "SHADOW",
+            message: "Local telemetry silenced. Shifting to volatile mesh-gossip logging."
+        });
         
         // 3. Mesh Camouflage: Increase Jitter and Padding
         await this.mesh.broadcast({ type: "SHADOW_MODE_ENGAGED", nodeId: this.mesh.getNodeId() });
 
-        this.logging.log("[SHADOW] Node successfully phased into shadow state.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "SHADOW",
+            message: "Node successfully phased into shadow state."
+        });
     }
 
     async deactivate() {
         this.shadowModeActive = false;
-        this.logging.log("[SHADOW] Shadow Protocol deactivated. Returning to nominal stealth.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "SHADOW",
+            message: "Shadow Protocol deactivated. Returning to nominal stealth."
+        });
     }
 
     isShadowModeActive(): boolean {

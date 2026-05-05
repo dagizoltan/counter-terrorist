@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export type TacticalSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -31,7 +31,13 @@ export class NewsSignalService {
 
     async start() {
         this.kv = await Deno.openKv();
-        this.logging.log("[NEWS] Cybersec Signal Feed active.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "NEWS",
+            message: "Cybersec Signal Feed active."
+        });
         
         // Initial fetch - background
         this.fetchFeeds().catch(() => {});
@@ -63,7 +69,13 @@ export class NewsSignalService {
     }
 
     async fetchFeeds() {
-        this.logging.log("[NEWS] Synchronizing tactical news signals...", SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "NEWS",
+            message: "Synchronizing tactical news signals..."
+        });
         
         for (const feed of this.feeds) {
             try {
@@ -95,7 +107,13 @@ export class NewsSignalService {
                     await this.kv?.set(["news_signals", item.id], item, { expireIn: 48 * 60 * 60 * 1000 });
                 }
             } catch (e) {
-                this.logging.log(`[NEWS] Feed sync failed (${feed.name}): ${(e as Error).message}`, SyslogSeverity.WARNING);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "NEWS",
+                    message: `Feed sync failed (${feed.name}): ${(e as Error).message}`
+                });
             }
         }
     }

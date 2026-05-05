@@ -1,4 +1,4 @@
-import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, WebPort, AuditPort, NotificationPort, EventBusPort } from "./ports.ts";
+import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, WebPort, AuditPort, NotificationPort, EventBusPort, LogSeverity, LogType } from "./ports.ts";
 
 export interface ApplicationDependencies {
   startup: StartupPort;
@@ -41,9 +41,25 @@ export async function initializeApplication(deps: ApplicationDependencies) {
     if (event.type === "CRITICAL") {
       deps.protection.pcap.startCapture("any", 60, `intrusion_${Date.now()}.pcap`)
         .then(res => {
-          if (!res.success) console.warn("[FORENSICS] PCAP capture failed:", res.stderr);
+          if (!res.success) {
+            deps.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "FORENSICS",
+                message: `PCAP capture failed: ${res.stderr}`
+            });
+          }
         })
-        .catch(err => console.error("[FORENSICS] Unexpected PCAP error:", err));
+        .catch(err => {
+            deps.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "FORENSICS",
+                message: `Unexpected PCAP error: ${err.message}`
+            });
+        });
     }
   });
 

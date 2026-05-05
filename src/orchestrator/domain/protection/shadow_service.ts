@@ -1,5 +1,5 @@
 import { SystemExecutor } from "../../infrastructure/system/system_executor.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface ShadowEnvironment {
     id: string;
@@ -26,7 +26,13 @@ export class ShadowService {
      */
     async createShadow(sourceIp: string): Promise<string> {
         const id = `shadow-${crypto.randomUUID().slice(0, 8)}`;
-        this.logging.log(`[SHADOW] Redirecting attacker ${sourceIp} to Mirror World ${id}...`, SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "SHADOW",
+            message: `Redirecting attacker ${sourceIp} to Mirror World ${id}...`
+        });
 
         // This is a simplified prototype of the redirection.
         // In a real implementation, we would use 'unshare' to create a new mount/net namespace
@@ -43,13 +49,25 @@ export class ShadowService {
             const redirectArgs = ["-t", "nat", "-I", "PREROUTING", "-s", sourceIp, "-p", "tcp", "--dport", "22", "-j", "REDIRECT", "--to-port", "2222"];
             
             await this.executor.execute(redirectCmd, redirectArgs);
-            this.logging.log(`[SHADOW] IPTables redirection active for ${sourceIp} -> port 2222`, SyslogSeverity.NOTICE);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "SHADOW",
+                message: `IPTables redirection active for ${sourceIp} -> port 2222`
+            });
 
             await this.startHoneyListener(2222);
 
             // 3. Spawn Mirror World Asynchronously (Do NOT block the orchestrator)
             this.executor.executeAsync(cmd, args).catch((err: Error) => {
-                this.logging.log(`[SHADOW] Mirror World failure: ${err.message}`, SyslogSeverity.ERROR);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "SHADOW",
+                    message: `Mirror World failure: ${err.message}`
+                });
             });
 
             this.environments.set(id, {
@@ -60,7 +78,13 @@ export class ShadowService {
             });
             return id;
         } catch (e) {
-            this.logging.log(`[SHADOW] Failed to spawn Mirror World: ${(e as Error).message}`, SyslogSeverity.ERROR);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "SHADOW",
+                message: `Failed to spawn Mirror World: ${(e as Error).message}`
+            });
             throw e;
         }
     }
@@ -69,7 +93,13 @@ export class ShadowService {
      * Placeholder for the honey-listener service.
      */
     private async startHoneyListener(port: number) {
-        this.logging.log(`[SHADOW] Starting Honey-Listener on port ${port}...`, SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "SHADOW:HONEY",
+            message: `Starting Honey-Listener on port ${port}...`
+        });
     }
 
     /**
@@ -87,7 +117,13 @@ export class ShadowService {
         const myPid = Deno.pid;
         const scriptPath = new URL("../../../tools/watchdog.ts", import.meta.url).pathname;
         
-        this.logging.log(`[SHADOW] Deploying Watchdog for PID ${myPid}...`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "SHADOW:WATCHDOG",
+            message: `Deploying Watchdog for PID ${myPid}...`
+        });
 
         const command = new Deno.Command(Deno.execPath(), {
             args: ["run", "-A", scriptPath, myPid.toString()],

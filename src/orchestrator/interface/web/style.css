@@ -41,7 +41,7 @@
   --border-subtle: hsla(0, 0%, 100%, 0.04);
   --border-active: hsla(var(--primary-h), var(--primary-s), var(--primary-l), 0.3);
   
-  --sidebar-width: 240px;
+  --sidebar-width: 280px;
   --sidebar-right-width: 380px;
   --header-height: 54px;
   

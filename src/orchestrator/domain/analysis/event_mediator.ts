@@ -23,13 +23,15 @@ export class EventMediator {
      */
     wireSidecars(commandPort: any) {
         // 1. Honeypot Integration
-        commandPort.onEvent("honeypot", (event: any) => {
+        commandPort.onEvent("honeypot", (response: any) => {
+            const event = response.data || response;
             this.broadcast({ type: "HONEYPOT", message: `Honeypot Trigger: ${event.type}`, data: event });
             this.eventBus.emit("HONEYPOT", event);
         });
 
         // 2. eBPF Integration
-        commandPort.onEvent("ebpf", async (event: any) => {
+        commandPort.onEvent("ebpf", async (response: any) => {
+            const event = response.data || response;
             if (event.type === "SYSCALL_EVENT") {
                 let type = "EBPF_SYSCALL";
                 if (event.syscall === "ptrace") type = "EBPF_CRITICAL";
@@ -47,8 +49,9 @@ export class EventMediator {
         });
 
         // 3. FIM (File Integrity) Integration
-        commandPort.onEvent("fim", async (event: any) => {
-            const payload = event.data;
+        commandPort.onEvent("fim", async (response: any) => {
+            const event = response.data || response;
+            const payload = event.data || event;
             if (payload?.type === "FileAlert") {
                 const { path, action } = payload;
                 const isCanary = await this.canaryService.handleFileAccess(path, "UNKNOWN_COMM");
@@ -65,7 +68,8 @@ export class EventMediator {
         });
 
         // 4. PCAP Integration
-        commandPort.onEvent("pcap", (event: any) => {
+        commandPort.onEvent("pcap", (response: any) => {
+            const event = response.data || response;
             // Bridge sidecar packet events to the UI
             if (event.type === "PACKET" || event.type === "NETWORK_LOG") {
                 this.broadcast({ 
@@ -83,7 +87,8 @@ export class EventMediator {
         });
 
         // 5. Scanner Integration
-        commandPort.onEvent("scanner", (event: any) => {
+        commandPort.onEvent("scanner", (response: any) => {
+            const event = response.data || response;
             const data = event.data || event;
             if (data.type === "ThreatDetected" || data.type === "RKH_SCAN_RESULT") {
                 this.broadcast({ type: "THREAT", message: `Scanner Alert: ${data.type}`, data });

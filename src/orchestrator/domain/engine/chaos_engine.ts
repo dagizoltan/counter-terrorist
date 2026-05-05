@@ -1,16 +1,27 @@
 import { EventBus } from "@domain/index.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export class ChaosEngine {
+  private logging: LoggingPort;
+
   constructor(
     private eventBus: EventBus,
     private auditService: AuditService,
     private sidecar: SidecarManager
-  ) {}
+  ) {
+    this.logging = auditService.getLogging();
+  }
 
   async simulateBruteForce(ip: string = "192.168.99.100") {
-    console.log(`[CHAOS] Simulating SSH Brute Force from ${ip}`);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.DEBUG,
+        severity: LogSeverity.INFO,
+        caller: "CHAOS",
+        message: `Simulating SSH Brute Force from ${ip}`
+    });
     
     // Send fake events to the honeypot pipeline (Unified Schema)
     for (let i = 0; i < 6; i++) {
@@ -34,7 +45,13 @@ export class ChaosEngine {
   }
 
   async simulateCanaryTrigger(path: string = "./vault_credentials.xlsx") {
-    console.log(`[CHAOS] Simulating Canary Trigger: ${path}`);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.DEBUG,
+        severity: LogSeverity.INFO,
+        caller: "CHAOS",
+        message: `Simulating Canary Trigger: ${path}`
+    });
     
     this.sidecar.emitEvent("fim", {
         success: true,
@@ -54,7 +71,13 @@ export class ChaosEngine {
   }
 
   async simulateMalwareExecution(proc: string = "xmrig") {
-    console.log(`[CHAOS] Simulating Malware Execution: ${proc}`);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.DEBUG,
+        severity: LogSeverity.INFO,
+        caller: "CHAOS",
+        message: `Simulating Malware Execution: ${proc}`
+    });
     
     this.sidecar.emitEvent("ebpf", {
         success: true,

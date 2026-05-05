@@ -1,6 +1,6 @@
 import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, SidecarName } from "../system/validation.ts";
 import { SystemExecutor } from "../system/system_executor.ts";
-import { CommandResult, LoggingPort } from "@core/ports.ts";
+import { CommandResult, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS, PRIVILEGED_SIDECARS } from "./sidecar_registry.ts";
 
 import { CommandPort } from "@core/ports.ts";
@@ -31,7 +31,13 @@ export class SidecarManager implements CommandPort {
     
     const cleanup = async () => {
       this.isShuttingDown = true;
-      this.logging.log("[SIDE-MAN] Orchestrator exiting, cleaning up sidecars...", 6);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "SIDECAR_MANAGER",
+          message: "Orchestrator exiting, cleaning up sidecars..."
+      });
       for (const name of Array.from(this.persistentProcesses.keys())) {
         await this.stopSidecar(name);
       }
@@ -105,10 +111,22 @@ export class SidecarManager implements CommandPort {
             });
 
             const child = command.spawn();
-            console.log(`[SIDE-MAN] Spawned persistent sidecar: ${name}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.DEBUG,
+                caller: "SIDECAR_MANAGER",
+                message: `Spawned persistent sidecar: ${name}`
+            });
 
             child.status.then((status) => {
-                console.warn(`[SIDE-MAN] Sidecar ${name} exited with code ${status.code}.`);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: status.code === 0 ? LogSeverity.INFO : LogSeverity.WARNING,
+                    caller: "SIDECAR_MANAGER",
+                    message: `Sidecar ${name} exited with code ${status.code}.`
+                });
                 this.persistentProcesses.delete(name);
                 this.handleSidecarExit(name, status.code);
             });
@@ -122,7 +140,13 @@ export class SidecarManager implements CommandPort {
                         if (done) break;
                         if (value) {
                             const msg = new TextDecoder().decode(value);
-                            console.error(`[SIDECAR:${name}] ${msg.trim()}`);
+                            this.logging.log({
+                                timestamp: new Date().toISOString(),
+                                type: LogType.GENERIC,
+                                severity: LogSeverity.ERROR,
+                                caller: `SIDECAR:${name}`,
+                                message: msg.trim()
+                            });
                             if (msg.includes("UNSUPPORTED_OS")) {
                                 this.unsupportedSidecars.add(name);
                                 this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_UNSUPPORTED", sidecar: name });
@@ -133,7 +157,13 @@ export class SidecarManager implements CommandPort {
                         }
                     }
                 } catch (e) {
-                    console.error(`[SIDE-MAN:${name}] Stderr reader error:`, e);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.WARNING,
+                        caller: "SIDECAR_MANAGER",
+                        message: `[${name}] Stderr reader error: ${(e as Error).message}`
+                    });
                 } finally {
                     reader.releaseLock();
                 }
@@ -221,7 +251,13 @@ export class SidecarManager implements CommandPort {
             const data = JSON.parse(line) as SidecarResponse;
 
             if (!validateResponse(name as SidecarName, data)) {
-              console.error(`[SIDE-MAN:${name}] Security violation: Invalid response schema.`);
+              this.logging.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.AUDIT,
+                  severity: LogSeverity.ERROR,
+                  caller: "SIDECAR_MANAGER",
+                  message: `[${name}] Security violation: Invalid response schema.`
+              });
               continue;
             }
 
@@ -245,7 +281,13 @@ export class SidecarManager implements CommandPort {
         }
       }
     } catch (e) {
-      console.error(`[SIDE-MAN:${name}] Reader error:`, e);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "SIDECAR_MANAGER",
+          message: `[${name}] Response reader error: ${(e as Error).message}`
+      });
     } finally {
       reader.releaseLock();
       this.persistentProcesses.delete(name);
@@ -349,7 +391,13 @@ export class SidecarManager implements CommandPort {
   }
 
   async shutdown(): Promise<void> {
-    this.logging.log("[SIDE-MAN] Shutting down agent fleet...", 6);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "SIDECAR_MANAGER",
+        message: "Shutting down agent fleet..."
+    });
     const names = Array.from(this.persistentProcesses.keys());
     for (const name of names) {
       await this.stopSidecar(name);
@@ -374,13 +422,25 @@ export class SidecarManager implements CommandPort {
       restartInfo.count++;
       restartInfo.lastRestart = now;
       this.restartCounts.set(name, restartInfo);
-      console.log(`[SIDE-MAN] Restarting sidecar ${name} (attempt ${restartInfo.count}/3)...`);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "SIDECAR_MANAGER",
+          message: `Restarting sidecar ${name} (attempt ${restartInfo.count}/3)...`
+      });
       setTimeout(() => {
         this.getPersistentSidecar(name).catch(() => {});
       }, Math.pow(2, restartInfo.count - 1) * 1000);
     } else {
       const msg = `Sidecar ${name} failed too many times. Giving up.`;
-      console.error(`[SIDE-MAN] ${msg}`);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "SIDECAR_MANAGER",
+          message: msg
+      });
       this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
     }
   }

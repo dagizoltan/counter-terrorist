@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity, EventBusPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, EventBusPort } from "@core/ports.ts";
 import { validateEvent, EventName } from "@core/event_schema.ts";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY";
@@ -73,10 +73,16 @@ export class EventBus implements EventBusPort {
         };
     }
 
-    // Forward to syslog
+    // Forward to centralized logging
     const severity = this.mapTypeToSeverity(type);
-    this.logging.log(`[EVENT:${type}] ${message}`, severity)
-      .catch(err => console.error(`[EVENTBUS] Failed to log event: ${err}`));
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity,
+        caller: "EVENTBUS",
+        message: `[${type}] ${message}`,
+        payload: validatedData
+    }).catch(() => {});
 
     // Notify internal subscribers
     for (const handler of this.handlers) {
@@ -105,28 +111,32 @@ export class EventBus implements EventBusPort {
       }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
-      console.error(`[EVENTBUS] Handler error: ${errorMsg}`);
-      this.logging.log(`[EVENTBUS] Handler error: ${errorMsg}`, SyslogSeverity.ERROR)
-        .catch(err => console.error(`[EVENTBUS] Failed to log handler error: ${err}`));
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "EVENTBUS",
+          message: `Handler error: ${errorMsg}`
+      }).catch(() => {});
     }
   }
 
-  private mapTypeToSeverity(type: string): SyslogSeverity {
+  private mapTypeToSeverity(type: string): LogSeverity {
     switch (type) {
-      case "EMERGENCY": return SyslogSeverity.EMERGENCY;
+      case "EMERGENCY": return LogSeverity.CRITICAL;
       case "CRITICAL": 
       case "EBPF_CRITICAL":
-          return SyslogSeverity.CRITICAL;
+          return LogSeverity.CRITICAL;
       case "BLOCK": 
       case "THREAT":
-          return SyslogSeverity.ALERT;
+          return LogSeverity.WARNING;
       case "WARN":
       case "DRIFT_PORT":
       case "DRIFT_PROCESS":
       case "EBPF_STRAY_SHELL":
-          return SyslogSeverity.WARNING;
+          return LogSeverity.WARNING;
       default:
-          return SyslogSeverity.INFORMATIONAL;
+          return LogSeverity.INFO;
     }
   }
 }

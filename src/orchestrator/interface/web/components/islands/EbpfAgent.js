@@ -60,7 +60,8 @@ class EbpfAgent extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type?.startsWith('EBPF_') || payload.type === 'DRIFT_PROCESS') {
+        const type = payload.type || '';
+        if (type.startsWith('EBPF_') || type === 'DRIFT_PROCESS' || type === 'THREAT') {
           this.addEvent(payload);
         }
       } catch (e) {}

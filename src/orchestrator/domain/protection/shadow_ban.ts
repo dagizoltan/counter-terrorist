@@ -1,12 +1,14 @@
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "../analysis/audit.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export class ShadowBanService {
     private throttledIps: Set<string> = new Set();
-
+    private logging: LoggingPort;
     private interface: string = "eth0";
 
     constructor(private executor: SystemExecutor, private auditService: AuditService) {
+        this.logging = auditService.getLogging();
         this.detectInterface();
     }
 
@@ -16,10 +18,22 @@ export class ShadowBanService {
             const match = result.stdout.match(/default via .* dev (\S+)/);
             if (match && match[1]) {
                 this.interface = match[1];
-                console.log(`[SHADOW-BAN] Detected interface: ${this.interface}`);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.DEBUG,
+                    caller: "SHADOW-BAN",
+                    message: `Detected interface: ${this.interface}`
+                });
             }
         } catch (e) {
-            console.warn(`[SHADOW-BAN] Interface detection failed, defaulting to eth0`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "SHADOW-BAN",
+                message: "Interface detection failed, defaulting to eth0"
+            });
         }
     }
 
@@ -44,7 +58,13 @@ export class ShadowBanService {
                 data: { ip, method: "tc_htb" }
             });
         } catch (e) {
-            console.warn(`[SHADOW-BAN] Failed to apply to ${ip}: ${(e as Error).message}`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "SHADOW-BAN",
+                message: `Failed to apply to ${ip}: ${(e as Error).message}`
+            });
             // Fallback to hard block if TC fails
         }
     }

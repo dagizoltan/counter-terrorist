@@ -8,7 +8,7 @@ import { Layout } from "@interface/components/Layout.tsx";
 export const NeighborNetworksPage = (props: { status: any, csrfToken?: string }) => {
   return (
     <Layout title="Neighbor Signals // Environmental Intelligence" islandPaths={[
-      '/components/islands/NetworkMap.js'
+      '/components/islands/EnvironmentalSignals.js'
     ]} csrfToken={props.csrfToken}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
@@ -25,19 +25,8 @@ export const NeighborNetworksPage = (props: { status: any, csrfToken?: string })
       </header>
 
       <div class="grid grid-cols-12 gap-6 mb-8">
-        <div class="col-span-12 t-panel glass-panel p-0 border-t-2 border-warning/30 group">
-          <header class="p-8 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
-            <div class="flex flex-col gap-2">
-               <h3 class="tactical-title text-2xl tracking-widest">Environmental Spectrum</h3>
-               <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Live capture of non-sovereign ambient signals</p>
-            </div>
-            <div class="flex gap-4">
-               <button class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Re-scan Spectrum</button>
-            </div>
-          </header>
-          <div class="bg-black/60 p-12 min-h-[600px] relative">
-            <network-map mode="NEIGHBORS"></network-map>
-          </div>
+        <div class="col-span-12">
+          <environmental-signals></environmental-signals>
         </div>
       </div>
     </Layout>

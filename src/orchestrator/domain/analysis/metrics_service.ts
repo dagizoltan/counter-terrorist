@@ -8,10 +8,11 @@ import { CanaryService, CanaryToken } from "../protection/canary_service.ts";
 import { BroadcastFunction } from "../engine/plugins/types.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { MeshNode } from "../engine/mesh.ts";
-import { VpnPort } from "@core/ports.ts";
+import { VpnPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BehavioralService } from "./behavioral_service.ts";
 import { GeoIpService } from "./geoip_service.ts";
 import { TACTICAL_CONSTANTS } from "../../core/constants.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 
 export interface SystemMetrics {
     firewall: {
@@ -139,7 +140,13 @@ export class MetricsService {
             try {
                 await this.collectAndBroadcast();
             } catch (e) {
-                console.error("[METRICS] Collection cycle failed:", e);
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "METRICS",
+                    message: `Collection cycle failed: ${e instanceof Error ? e.message : String(e)}`
+                });
             }
             await new Promise(resolve => setTimeout(resolve, this.COLLECTION_INTERVAL_MS));
         }
@@ -301,7 +308,13 @@ export class MetricsService {
                 data: metrics
             });
         } catch (e) {
-            console.error("[METRICS] Collection error:", (e as Error).message);
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "METRICS",
+                message: `Collection error: ${e instanceof Error ? e.message : String(e)}`
+            });
         } finally {
             this.isCollecting = false;
         }

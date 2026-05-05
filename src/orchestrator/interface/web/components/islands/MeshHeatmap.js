@@ -43,7 +43,7 @@ class MeshHeatmap extends HTMLElement {
   }
 
   initWebSocket() {
-    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     this.ws = new WebSocket(`${protocol}//${location.host}/api/ws/events`);
     this.ws.onmessage = (msg) => {
       try {

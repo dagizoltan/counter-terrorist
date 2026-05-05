@@ -1,3 +1,6 @@
+import { loggingService } from "@infrastructure/system/logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+
 /**
  * RealDiscovery
  * Senior-Grade Security Implementation: Multi-Vector Layer 2/3 Asset Discovery.
@@ -14,7 +17,13 @@ export class RealDiscovery {
     private interfaceName: string = "";
 
     async scan() {
-        console.log("[SECURITY-DISCOVERY] Initiating authoritative audit...");
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "SECURITY-DISCOVERY",
+            message: "Initiating authoritative audit..."
+        });
         await this.identifyNetworkContext();
 
         if (this.interfaceName) {
@@ -34,7 +43,13 @@ export class RealDiscovery {
             bluetooth: []
         };
         
-        console.log(`[SECURITY-DISCOVERY] Audit complete. Assets identified: ${results.ethernet.length}`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "SECURITY-DISCOVERY",
+            message: `Audit complete. Assets identified: ${results.ethernet.length}`
+        });
         return results;
     }
 
@@ -58,7 +73,13 @@ export class RealDiscovery {
     }
 
     private async performIPv6Multicast(iface: string) {
-        console.log(`[SECURITY-DISCOVERY] Dispatching IPv6 Link-Local Multicast on ${iface}...`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "SECURITY-DISCOVERY",
+            message: `Dispatching IPv6 Link-Local Multicast on ${iface}...`
+        });
         try {
             // Pinging the all-nodes multicast address
             const cmd = new Deno.Command("ping", {
@@ -74,7 +95,13 @@ export class RealDiscovery {
         const prefix = subnet.split(".0/")[0];
         if (!prefix) return;
 
-        console.log(`[SECURITY-DISCOVERY] Performing segmented IPv4 sweep on ${prefix}.0/24...`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "SECURITY-DISCOVERY",
+            message: `Performing segmented IPv4 sweep on ${prefix}.0/24...`
+        });
         
         // Parallelizing in batches of 32 to avoid system resource starvation
         const batchSize = 32;

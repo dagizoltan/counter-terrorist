@@ -1,6 +1,6 @@
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "../analysis/audit.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 export interface KernelHardeningStatus {
@@ -40,7 +40,13 @@ export class KernelService {
             try {
                 await this.executor.execute("sysctl", ["-w", param]);
             } catch (e) {
-                console.warn(`[KERNEL] Failed to apply ${param}: ${(e as Error).message}`);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "KERNEL",
+                    message: `Failed to apply ${param}: ${(e as Error).message}`
+                });
             }
         }
 
@@ -60,10 +66,22 @@ export class KernelService {
     async camouflage() {
         const enabled = Deno.env.get("STEALTH_ENABLED") !== "false"; // Default to true if not specified
         if (!enabled) {
-            this.logging.log("[KERNEL] Stealth Mode disabled. Skipping process camouflage.", SyslogSeverity.NOTICE);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "KERNEL",
+                message: "Stealth Mode disabled. Skipping process camouflage."
+            });
             return;
         }
-        this.logging.log("[KERNEL] Activating Subterranean Process Camouflage...", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "KERNEL",
+            message: "Activating Subterranean Process Camouflage..."
+        });
         
         // On Linux, we can use prctl to change the process name
         // Since we are in Deno, we use a small binary helper or the 'comm' file
@@ -77,12 +95,30 @@ export class KernelService {
                 await this.sidecarManager.sendCommand("ebpf", {
                     type: "HIDE_PID",
                     pid: selfPid
-                }).catch(err => console.warn("[KERNEL] eBPF PID hiding failed:", err));
+                }).catch(err => this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "KERNEL",
+                    message: `eBPF PID hiding failed: ${err.message}`
+                }));
             }
 
-            this.logging.log(`[KERNEL] Process ${selfPid} successfully camouflaged as '${targetName}'`, SyslogSeverity.DEBUG);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.DEBUG,
+                caller: "KERNEL",
+                message: `Process ${selfPid} successfully camouflaged as '${targetName}'`
+            });
         } catch (e) {
-            this.logging.log(`[KERNEL] Camouflage failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "KERNEL",
+                message: `Camouflage failed: ${(e as Error).message}`
+            });
         }
     }
 
@@ -101,12 +137,24 @@ export class KernelService {
     async blockSyscall(pid: number, syscall: string) {
         if (!this.sidecarManager) return;
         
-        this.logging.log(`[KERNEL] LSM Enforcement: Blocking syscall '${syscall}' for PID ${pid}`, SyslogSeverity.CRITICAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "KERNEL:LSM",
+            message: `LSM Enforcement: Blocking syscall '${syscall}' for PID ${pid}`
+        });
         await this.sidecarManager.sendCommand("ebpf", {
             type: "BLOCK_SYSCALL",
             pid,
             syscall
-        }).catch(err => console.warn("[KERNEL] eBPF syscall block failed:", err));
+        }).catch(err => this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "KERNEL",
+            message: `eBPF syscall block failed: ${err.message}`
+        }));
         
         this.auditService.logEvent({
             type: "LSM_ENFORCEMENT",
@@ -121,11 +169,23 @@ export class KernelService {
     async enforceLsmPolicy(policy: { blockedSyscalls: string[], restrictedPids: number[] }) {
         if (!this.sidecarManager) return;
         
-        this.logging.log(`[KERNEL] Deploying Deep LSM Policy...`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "KERNEL:LSM",
+            message: "Deploying Deep LSM Policy..."
+        });
         await this.sidecarManager.sendCommand("ebpf", {
             type: "LSM_POLICY",
             policy
-        }).catch(err => console.warn("[KERNEL] eBPF LSM policy deployment failed:", err));
+        }).catch(err => this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "KERNEL",
+            message: `eBPF LSM policy deployment failed: ${err.message}`
+        }));
     }
 
     async getStatus(): Promise<KernelHardeningStatus> {

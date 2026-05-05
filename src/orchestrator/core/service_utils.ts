@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "./ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "./ports.ts";
 import { Result, err, ok } from "./result.ts";
 
 /**
@@ -14,11 +14,23 @@ export function withTelemetry<T extends any[], R>(
     try {
       const data = await fn(...args);
       const duration = (performance.now() - start).toFixed(2);
-      logging.log(`[SERVICE:${name}] Success in ${duration}ms`, SyslogSeverity.DEBUG);
+      logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.DEBUG,
+          severity: LogSeverity.DEBUG,
+          caller: `SERVICE:${name}`,
+          message: `Success in ${duration}ms`
+      });
       return ok(data);
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e));
-      logging.log(`[SERVICE:${name}] FAILED: ${error.message}`, SyslogSeverity.ERROR);
+      logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: `SERVICE:${name}`,
+          message: `FAILED: ${error.message}`
+      });
       return err(error);
     }
   };

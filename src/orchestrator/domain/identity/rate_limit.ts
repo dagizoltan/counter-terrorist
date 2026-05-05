@@ -1,4 +1,4 @@
-import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 export interface RateLimitStatus {
   allowed: boolean;
@@ -46,7 +46,13 @@ export class RateLimitService {
         const retryAfterMs = Math.max(0, state.resetAt - now);
 
         if (!allowed) {
-          loggingService.log(`[SECURITY] RATE_LIMIT_EXCEEDED: Key=${key}, Count=${state.count}`, SyslogSeverity.WARNING);
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.WARNING,
+              caller: "SECURITY:RATELIMIT",
+              message: `RATE_LIMIT_EXCEEDED: Key=${key}, Count=${state.count}`
+          });
         }
 
         return {

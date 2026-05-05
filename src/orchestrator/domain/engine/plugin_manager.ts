@@ -1,3 +1,6 @@
+import { loggingService } from "@infrastructure/system/logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+
 export interface Plugin {
   name: string;
   description: string;
@@ -11,16 +14,34 @@ export class PluginManager {
 
   register(plugin: Plugin) {
     this.plugins.set(plugin.name, plugin);
-    console.log(`[PLUGINS] Registered plugin: ${plugin.name}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "PLUGINS",
+        message: `Registered plugin: ${plugin.name}`
+    });
   }
 
   async startAll() {
     for (const plugin of this.plugins.values()) {
       try {
         await plugin.start();
-        console.log(`[PLUGINS] Started plugin: ${plugin.name}`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "PLUGINS",
+            message: `Started plugin: ${plugin.name}`
+        });
       } catch (e) {
-        console.error(`[PLUGINS] Failed to start plugin ${plugin.name}:`, e);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "PLUGINS",
+            message: `Failed to start plugin ${plugin.name}: ${(e as Error).message}`
+        });
       }
     }
   }
@@ -30,7 +51,13 @@ export class PluginManager {
       try {
         await plugin.stop();
       } catch (e) {
-        console.error(`[PLUGINS] Error stopping plugin ${plugin.name}:`, e);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "PLUGINS",
+            message: `Error stopping plugin ${plugin.name}: ${(e as Error).message}`
+        });
       }
     }
   }

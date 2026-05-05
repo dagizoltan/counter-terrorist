@@ -2,7 +2,7 @@ import { jsx } from "hono/jsx";
 import { Hono, Context } from "hono";
 import { Login } from "./page.tsx";
 import { setCookie, getCookie, deleteCookie } from "hono/helper/cookie/index.ts";
-import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { Role } from "@domain/identity/api_keys.ts";
 
 export interface LoginRouterDependencies {
@@ -26,17 +26,26 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       || "unknown";
     const contentType = c.req.header("Content-Type");
 
-    console.log(`[AUTH:HANDLER] Received login request from ${clientIp}, content-type: ${contentType}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "AUTH:HANDLER",
+        message: `Received login request from ${clientIp}, content-type: ${contentType}`
+    });
 
     const rateCheck = await deps.checkLoginRateLimit(clientIp);
     if (!rateCheck.allowed) {
       const retryAfterSec = Math.ceil((rateCheck.retryAfterMs || 60_000) / 1000);
       const errorMsg = `Too many login attempts. Please try again later (retry in ${retryAfterSec}s).`;
       
-      loggingService.log(
-        `[AUTH] Login rate limit exceeded for IP ${clientIp}. Retry after ${retryAfterSec}s.`,
-        SyslogSeverity.WARNING
-      );
+      loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "AUTH",
+        message: `Login rate limit exceeded for IP ${clientIp}. Retry after ${retryAfterSec}s.`
+      });
       
       c.header("Retry-After", String(retryAfterSec));
       
@@ -55,7 +64,6 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       token = body.password as string;
     }
 
-    console.log(`[AUTH:HANDLER] Extracted token length: ${token?.length || 0}`);
     const role = await deps.isTokenValid(token);
     if (token && role) {
       const result = await deps.sessionService.createSession(role);
@@ -70,7 +78,13 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       const isHttps = c.req.url.startsWith("https:");
       const shouldBeSecure = secureCookie && isHttps;
 
-      console.log(`[AUTH:HANDLER] Setting session cookie: ${sessionId.slice(0, 8)}… (secure: ${shouldBeSecure}, Strict)`);
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "AUTH:HANDLER",
+          message: `Setting session cookie: ${sessionId.slice(0, 8)}… (secure: ${shouldBeSecure}, Strict)`
+      });
       setCookie(c, "session_token", sessionId, {
         httpOnly: true,
         secure: shouldBeSecure,
@@ -92,10 +106,13 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       return c.redirect("/");
     }
 
-    loggingService.log(
-      `[AUTH] Failed login attempt from IP ${clientIp}`,
-      SyslogSeverity.NOTICE
-    );
+    loggingService.log({
+      timestamp: new Date().toISOString(),
+      type: LogType.AUDIT,
+      severity: LogSeverity.WARNING,
+      caller: "AUTH",
+      message: `Failed login attempt from IP ${clientIp}`
+    });
 
     if (contentType && contentType.includes("application/json")) {
         return c.json({ error: "Invalid token" }, 401);

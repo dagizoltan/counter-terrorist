@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { CanaryService } from "./canary_service.ts";
 import { HoneypotService } from "./honeypot_service.ts";
 
@@ -14,7 +14,13 @@ export class DeceptionGridService {
     ) {}
 
     async start() {
-        this.logging.log("[DECEPTION] Enhancing deception grid integrity...", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "DECEPTION",
+            message: "Enhancing deception grid integrity..."
+        });
         
         // 1. Inject Breadcrumbs into command history
         await this.injectHistoryBreadcrumbs();
@@ -48,11 +54,23 @@ export class DeceptionGridService {
             active: true
         });
 
-        this.logging.log("[DECEPTION] Tactical deception grid fully engaged.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "DECEPTION",
+            message: "Tactical deception grid fully engaged."
+        });
     }
 
     private async injectHistoryBreadcrumbs() {
-        this.logging.log("[DECEPTION] Injecting fake administrative traces into process memory and history...", SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "DECEPTION",
+            message: "Injecting fake administrative traces into process memory and history..."
+        });
         // In a real scenario, we might append to .bash_history or similar
         // For this demo, we ensure the canary service has 'leak' tokens
         await this.canary.registerToken({
@@ -63,7 +81,13 @@ export class DeceptionGridService {
     }
 
     private async deployShadowKeys() {
-        this.logging.log("[DECEPTION] Deploying 'Shadow Admin' identity breadcrumbs...", SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "DECEPTION",
+            message: "Deploying 'Shadow Admin' identity breadcrumbs..."
+        });
         await this.canary.registerToken({
             id: "fake-ssh-key",
             path: "/tmp/.id_rsa.backup", // Using /tmp for better visibility in non-root
@@ -75,7 +99,13 @@ export class DeceptionGridService {
      * Periodically 'refreshes' the deception grid to prevent static fingerprinting.
      */
     async refresh() {
-        this.logging.log("[DECEPTION] Refreshing deception signatures...", SyslogSeverity.INFORMATIONAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "DECEPTION",
+            message: "Refreshing deception signatures..."
+        });
         await this.honeypot.morph();
     }
 }

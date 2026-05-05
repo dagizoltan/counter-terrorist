@@ -1,4 +1,4 @@
-import { ProtectionPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { ProtectionPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export class ThreatIntelService {
   private intelSources = [
@@ -14,7 +14,13 @@ export class ThreatIntelService {
   ) {}
 
   async start() {
-    this.logging.log("[INTEL] Threat Intelligence Service initialized with multi-source ingestion.", SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "INTEL",
+        message: "Threat Intelligence Service initialized with multi-source ingestion."
+    });
     
     // Initial fetch
     await this.updateThreatList();
@@ -28,7 +34,13 @@ export class ThreatIntelService {
   }
 
   async updateThreatList() {
-    this.logging.log("[INTEL] Synchronizing threat intelligence from multiple distributed databases...", SyslogSeverity.INFORMATIONAL);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "INTEL",
+        message: "Synchronizing threat intelligence from multiple distributed databases..."
+    });
     
     let totalLoaded = 0;
     for (const url of this.intelSources) {
@@ -51,11 +63,23 @@ export class ThreatIntelService {
           }
         }
       } catch (e) {
-        this.logging.log(`[INTEL] Source ${url} failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "INTEL",
+            message: `Source ${url} failed: ${(e as Error).message}`
+        });
       }
     }
     
-    this.logging.log(`[INTEL] Threat database synchronized. ${this.blacklist.size} unique malicious IPs tracked.`, SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.SUCCESS,
+        caller: "INTEL",
+        message: `Threat database synchronized. ${this.blacklist.size} unique malicious IPs tracked.`
+    });
   }
 
   stop() {

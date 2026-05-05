@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { KvRepository } from "@infrastructure/persistence/repositories/kv_repository.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 
@@ -68,7 +68,13 @@ export class ApiKeysService {
     await this.idRepo.set(id, keyHash);
     await this.hashRepo.set(keyHash, metadata as any);
 
-    this.logging.log(`[AUTH] API Key created: ${name} (${role})`, SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "AUTH",
+        message: `API Key created: ${name} (${role})`
+    });
     
     return { rawKey, id };
   }

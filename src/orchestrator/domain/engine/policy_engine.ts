@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export type RemediationAction = "LOG" | "WATCH" | "SHADOW" | "BLOCK" | "ISOLATE" | "LOCKDOWN";
 
@@ -43,7 +43,13 @@ export class PolicyEngine {
             ...initialPolicy
         };
 
-        this.logging.log(`[POLICY] Sovereign Engine Active. Mode: ${this.policy.strictMode ? 'STRICT' : 'ADAPTIVE'}`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "POLICY",
+            message: `Sovereign Engine Active. Mode: ${this.policy.strictMode ? 'STRICT' : 'ADAPTIVE'}`
+        });
     }
 
     /**
@@ -70,7 +76,13 @@ export class PolicyEngine {
      */
     updatePolicy(newPolicy: Partial<SecurityPolicy>) {
         this.policy = { ...this.policy, ...newPolicy };
-        this.logging.log(`[POLICY] Security Policy synchronized to v${this.policy.version}`, SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "POLICY",
+            message: `Security Policy synchronized to v${this.policy.version}`
+        });
     }
 
     getPolicy() {

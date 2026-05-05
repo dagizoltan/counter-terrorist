@@ -13,7 +13,7 @@ import { createThreatsApi } from "../api/threats.ts";
 import { createComplianceApi } from "../api/compliance.ts";
 import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 import { bootstrap as getBootstrapInfo } from "../../../bootstrapper.ts";
-import { loggingService } from "@infrastructure/system/logging.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { SignatureService } from "@infrastructure/system/protection/signature_service.ts";
 
 /**
@@ -89,14 +89,26 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     syncRateLimits.set(peerIp, limit);
 
     const payload = await c.req.json();
-    loggingService.log(`Received mesh sync from ${peerIp}: ${payload.type}`, 6, "MESH:API");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "MESH:API",
+        message: `Received mesh sync from ${peerIp}: ${payload.type}`
+    });
     
     if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
         await services.protection.firewall.blockIp(payload.ip);
     }
 
     if (payload.type === "GOSSIP_THREAT_HASH" && payload.hash) {
-        loggingService.log(`Mesh Threat Intelligence: Blacklisting binary hash ${payload.hash.slice(0, 8)} reported by node ${payload.sourceNode}`, 4, "MESH:THREAT");
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "MESH:THREAT",
+            message: `Mesh Threat Intelligence: Blacklisting binary hash ${payload.hash.slice(0, 8)} reported by node ${payload.sourceNode}`
+        });
         // In a full implementation, this would update a local 'BinaryBlacklist' or trigger a scan
         await services.audit.logEvent({
             type: "MESH_THREAT",
@@ -304,7 +316,13 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         const sigService = new SignatureService();
         const isValid = await sigService.verify(newPolicy, signature, currentPolicy.publicKey);
         if (!isValid) {
-            loggingService.log(`SECURITY ALERT: Rejected unsigned/invalid policy manifest v${newPolicy.version}`, 2, "GOVERNANCE");
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.CRITICAL,
+                caller: "GOVERNANCE",
+                message: `SECURITY ALERT: Rejected unsigned/invalid policy manifest v${newPolicy.version}`
+            });
             return c.json({ error: "Invalid cryptographic signature." }, 401);
         }
     }
@@ -314,7 +332,13 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     }
     
     services.policy.updatePolicy(newPolicy);
-    loggingService.log(`Security Policy updated: v${newPolicy.version} (${newPolicy.mode})`, 5, "GOVERNANCE");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "GOVERNANCE",
+        message: `Security Policy updated: v${newPolicy.version} (${newPolicy.mode})`
+    });
     return c.json({ success: true, message: "Security Policy synchronized and active." });
   });
 

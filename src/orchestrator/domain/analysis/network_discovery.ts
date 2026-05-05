@@ -1,4 +1,4 @@
-import { loggingService, LoggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { LoggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 export interface NetworkDevice {
     id: string;
@@ -31,7 +31,13 @@ export class NetworkDiscoveryService {
     }
 
     async start() {
-        this.logging.log("[DISCOVERY] environmental sensors active. Initiating real-time sweep...", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "DISCOVERY",
+            message: "Environmental sensors active. Initiating real-time sweep..."
+        });
         await this.scan();
         // Frequent sweeps for security visibility (every 20s)
         setInterval(() => this.scan(), 20000); 
@@ -66,7 +72,13 @@ export class NetworkDiscoveryService {
                const { RealDiscovery } = await import("./real_discovery.ts");
                this.discovery = new RealDiscovery();
             } catch (e) {
-               this.logging.log(`[DISCOVERY] Failed to load RealDiscovery: ${(e as Error).message}. Falling back to simulation.`, SyslogSeverity.WARNING);
+               this.logging.log({
+                   timestamp: new Date().toISOString(),
+                   type: LogType.GENERIC,
+                   severity: LogSeverity.WARNING,
+                   caller: "DISCOVERY",
+                   message: `Failed to load RealDiscovery: ${(e as Error).message}. Falling back to simulation.`
+               });
                const { MockDiscovery } = await import("./mock_discovery.ts");
                this.discovery = new MockDiscovery();
             }
@@ -139,7 +151,13 @@ export class NetworkDiscoveryService {
                 }
 
             } catch (e) {
-                this.logging.log(`[DISCOVERY] Real-time sweep failed: ${(e as Error).message}`, SyslogSeverity.ERROR);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "DISCOVERY",
+                    message: `Real-time sweep failed: ${(e as Error).message}`
+                });
             }
         }
 

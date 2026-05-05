@@ -1,5 +1,6 @@
 import { Plugin } from "../plugin_manager.ts";
-import { FirewallPort } from "@core/ports.ts";
+import { FirewallPort, LogSeverity, LogType } from "@core/ports.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 
 export class FirewallPlugin implements Plugin {
   name = "firewall";
@@ -16,16 +17,34 @@ export class FirewallPlugin implements Plugin {
     const status = await this.firewall.getStatus();
     if (status.success) {
       this.active = true;
-      console.log("[FIREWALL-PLUGIN] Firewall service plugin started (Native).");
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "FIREWALL-PLUGIN",
+          message: "Firewall service plugin started (Native)."
+      });
     } else {
-      console.warn("[FIREWALL-PLUGIN] Native firewall (ufw) restricted. Starting in SOFTWARE-ONLY mode.");
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "FIREWALL-PLUGIN",
+          message: "Native firewall (ufw) restricted. Starting in SOFTWARE-ONLY mode."
+      });
       this.active = true; // Still allow it to be active for process-level protection
     }
   }
 
   async stop() {
     this.active = false;
-    console.log("[FIREWALL-PLUGIN] Firewall service plugin stopped.");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "FIREWALL-PLUGIN",
+        message: "Firewall service plugin stopped."
+    });
   }
 
   async blockIp(ip: string) {

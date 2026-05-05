@@ -1,6 +1,6 @@
 import { MeshManager } from "../engine/mesh.ts";
 import { AuditService } from "./audit.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";
 
 /**
@@ -29,13 +29,25 @@ export class IntegrityService {
         const recentThreats = (await this.audit.getRecentEvents(10)).filter(e => e.type === "THREAT" || e.type === "CRITICAL");
 
         if (isIsolated && recentThreats.length > 5) {
-            this.logging.log("[INTEGRITY] IRRECOVERABLE COMPROMISE DETECTED. Node is isolated and under heavy attack.", SyslogSeverity.EMERGENCY);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.CRITICAL,
+                caller: "INTEGRITY",
+                message: "IRRECOVERABLE COMPROMISE DETECTED. Node is isolated and under heavy attack."
+            });
             await this.initiateSelfDestruct();
         }
     }
 
     private async initiateSelfDestruct() {
-        this.logging.log("[INTEGRITY] DEAD MAN'S SWITCH TRIGGERED. Shredding mesh secrets...", SyslogSeverity.EMERGENCY);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "INTEGRITY",
+            message: "DEAD MAN'S SWITCH TRIGGERED. Shredding mesh secrets..."
+        });
         
         // 1. Shred local secrets
         // In a real system, this would overwrite the disk blocks where secrets live.
@@ -46,7 +58,13 @@ export class IntegrityService {
         // await this.tpm.clearSecrets();
 
         // 3. One final dying breath via covert channel (if possible)
-        this.logging.log("[INTEGRITY] Sovereign Self-Destruct Sequence Complete. System Terminating.", SyslogSeverity.CRITICAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "INTEGRITY",
+            message: "Sovereign Self-Destruct Sequence Complete. System Terminating."
+        });
         
         Deno.exit(1);
     }

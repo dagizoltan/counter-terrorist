@@ -1,5 +1,6 @@
 import { Plugin } from "../plugin_manager.ts";
-import { VpnPort } from "@core/ports.ts";
+import { VpnPort, LogSeverity, LogType } from "@core/ports.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 
 export class VpnPlugin implements Plugin {
   name = "vpn";
@@ -14,7 +15,13 @@ export class VpnPlugin implements Plugin {
 
   async start() {
     this.active = true;
-    console.log("[VPN-PLUGIN] VPN service plugin started.");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "VPN-PLUGIN",
+        message: "VPN service plugin started."
+    });
   }
 
   async stop() {
@@ -22,7 +29,13 @@ export class VpnPlugin implements Plugin {
       await this.vpn.disconnect();
     }
     this.active = false;
-    console.log("[VPN-PLUGIN] VPN service plugin stopped.");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "VPN-PLUGIN",
+        message: "VPN service plugin stopped."
+    });
   }
 
   async connect(interfaceName?: string) {

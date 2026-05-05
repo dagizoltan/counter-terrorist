@@ -5,7 +5,7 @@
  * Session IDs are random UUIDs — the raw API_TOKEN is never stored client-side.
  */
 
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { Role } from "./api_keys.ts";
 import { KvRepository } from "@infrastructure/persistence/repositories/kv_repository.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
@@ -61,10 +61,22 @@ export class SessionService {
       }
       
       if (pruned > 0) {
-        this.logging.log(`[SESSION] Pruned ${pruned} expired sessions from KV storage.`, SyslogSeverity.INFORMATIONAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "SESSION",
+            message: `Pruned ${pruned} expired sessions from KV storage.`
+        });
       }
     } catch (e) {
-      this.logging.log(`[SESSION] Prune failed: ${(e as Error).message}`, SyslogSeverity.WARNING);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "SESSION",
+          message: `Prune failed: ${(e as Error).message}`
+      });
     }
   }
 

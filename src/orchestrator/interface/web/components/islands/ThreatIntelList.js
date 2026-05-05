@@ -14,8 +14,8 @@ class ThreatIntelList extends HTMLElement {
   }
 
   connect() {
-    const protocol = window.location.protocol === 'https': ? 'wss': : 'ws':';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : '}`);
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${document.querySelector('meta[name="csrf-token"]')?.content ? `?token=${document.querySelector('meta[name="csrf-token"]')?.content}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
@@ -76,7 +76,7 @@ class ThreatIntelList extends HTMLElement {
            </div>
         </div>
       `;
-    }).join(');
+    }).join('');
   }
 }
 

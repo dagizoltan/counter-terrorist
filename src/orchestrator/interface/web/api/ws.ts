@@ -4,7 +4,7 @@
  */
 import { WSContext } from "hono/helper/websocket/index.ts";
 import { NotificationService, AuditService, EventBus } from "@domain/index.ts";
-import { LoggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { LoggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 const MAX_CONNECTIONS = 100;
 const clients = new Set<WSContext>();
@@ -36,7 +36,7 @@ export function initBroadcaster(deps: BroadcasterDeps) {
 
 export function broadcast(data: BroadcastData) {
   if (!broadcasterDeps) {
-    console.warn("[WS] Broadcaster not initialized. Data lost:", data.type);
+    // If not initialized, we can't log to the forensic ledger yet
     return;
   }
   const { notificationService, auditService, eventBus } = broadcasterDeps;
@@ -77,23 +77,29 @@ export function broadcast(data: BroadcastData) {
       message: data.message || "",
       data: data.data,
       timestamp: eventToBroadcast.timestamp
-    }).catch(console.error);
+    }).catch(() => {});
 
     // Trigger external notifications
     notificationService.notify({
       type: data.type,
       message: data.message || "",
       data: data.data
-    }).catch(console.error);
+    }).catch(() => {});
 
     // Trigger Syslog
-    let severity = SyslogSeverity.INFORMATIONAL;
-    if (data.type === "CRITICAL") severity = SyslogSeverity.CRITICAL;
-    else if (data.type?.startsWith("DRIFT")) severity = SyslogSeverity.WARNING;
-    else if (data.type === "BLOCK") severity = SyslogSeverity.NOTICE;
+    let severity = LogSeverity.INFO;
+    if (data.type === "CRITICAL") severity = LogSeverity.CRITICAL;
+    else if (data.type?.startsWith("DRIFT")) severity = LogSeverity.WARNING;
+    else if (data.type === "BLOCK") severity = LogSeverity.SUCCESS;
 
     if (sharedLogging) {
-      sharedLogging.log(`${data.type}: ${data.message || ""}`, severity).catch(console.error);
+      sharedLogging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity,
+        caller: "WS:EVENT",
+        message: `${data.type}: ${data.message || ""}`
+      }).catch(() => {});
     }
   }
 }
@@ -102,7 +108,15 @@ export function createWsHandler(role: string = "viewer") {
   return {
     onOpen(_event: Event, ws: WSContext) {
       if (clients.size >= MAX_CONNECTIONS) {
-        console.warn("[WS] Max connections reached. Rejecting client.");
+        if (sharedLogging) {
+          sharedLogging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "WS",
+            message: "Max connections reached. Rejecting client."
+          });
+        }
         ws.close(1013, "Try Again Later - Server Too Busy");
         return;
       }
@@ -111,7 +125,13 @@ export function createWsHandler(role: string = "viewer") {
       clientMetadata.set(ws, { count: 0, resetAt: Date.now() + 1000, role });
       
       if (sharedLogging) {
-        sharedLogging.log(`[WS] Client connected (Role: ${role}). Total connections: ${clients.size}`, SyslogSeverity.INFORMATIONAL);
+        sharedLogging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "WS",
+            message: `Client connected (Role: ${role}). Total connections: ${clients.size}`
+        });
       }
 
       ws.send(JSON.stringify({
@@ -131,7 +151,13 @@ export function createWsHandler(role: string = "viewer") {
         } else {
           meta.count++;
           if (meta.count > 10) {
-            if (sharedLogging) sharedLogging.log("[WS] Client rate limit exceeded. Disconnecting abuser.", SyslogSeverity.WARNING);
+            if (sharedLogging) sharedLogging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "WS",
+                message: "Client rate limit exceeded. Disconnecting abuser."
+            });
             ws.close(1008, "Policy Violation - Rate Limit Exceeded");
             return;
           }
@@ -155,7 +181,15 @@ export function createWsHandler(role: string = "viewer") {
     },
     
     onError(event: Event) {
-      console.error("[WS] WebSocket error:", event);
+      if (sharedLogging) {
+        sharedLogging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "WS",
+          message: `WebSocket error: ${String(event)}`
+        });
+      }
     },
   };
 }

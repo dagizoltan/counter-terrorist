@@ -29,15 +29,18 @@ export const Layout = (props: {
           
           {/* ── 01 Navigation Deck (Left) ─────────────────────────────── */}
           <aside class="shell-sidebar relative">
-            <header class="p-4 border-b border-white/5 relative group cursor-default">
-              <div class="absolute inset-0 bg-primary/5 opacity-0"></div>
+            <header class="px-6 py-8 border-b border-white/5 relative group cursor-default mb-4">
+              <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
               <div class="flex items-center gap-4 relative z-10">
-                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-[0_0_20px_var(--primary-glow)]">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 </div>
-                <div>
-                  <h1 class="text-base font-black tracking-tighter uppercase italic leading-none">Sovereign</h1>
-                  <span class="text-[7px] text-primary font-black uppercase tracking-[0.4em] mt-1 block opacity-80">Orchestrator</span>
+                <div class="flex flex-col">
+                  <h1 class="text-xl font-black tracking-[-0.05em] uppercase italic leading-none text-white">CT ORCH</h1>
+                  <div class="flex items-center gap-2 mt-1">
+                    <div class="w-1 h-1 rounded-full bg-primary animate-pulse"></div>
+                    <span class="text-[8px] text-primary/60 font-black uppercase tracking-[0.3em]">SOVEREIGN_NODE</span>
+                  </div>
                 </div>
               </div>
             </header>
@@ -52,10 +55,6 @@ export const Layout = (props: {
                 <a href="/dashboard" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
                    Node
-                </a>
-                <a href="/infrastructure/mesh" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v5"/><path d="M17 12V17a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-5"/><circle cx="12" cy="12" r="3"/></svg>
-                   Mesh
                 </a>
                 <a href="/news" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
@@ -75,7 +74,7 @@ export const Layout = (props: {
                 </a>
                 <a href="/agents/vpn" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                   VPN
+                   Anonymizer
                 </a>
                 <a href="/agents/firewall" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
@@ -123,15 +122,19 @@ export const Layout = (props: {
                 </a>
               </div>
 
-              {/* SYSTEM */}
-              <div class="nav-group pt-4">
-                <div class="nav-heading !text-slate-400 flex items-center gap-3">
-                   <div class="w-1 h-3 bg-slate-400 rounded-full"></div>
-                   SYSTEM
+              {/* SYSTEM & AUDIT */}
+              <div class="nav-group pt-6 border-t border-white/5 mt-6 mb-12">
+                <div class="nav-heading !text-slate-500 flex items-center gap-3 mb-2">
+                   <div class="w-1 h-3 bg-slate-700 rounded-full"></div>
+                   SYSTEM / AUDIT
                 </div>
                 <a href="/governance" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                   Ledger
+                   Forensic Ledger
+                </a>
+                <a href="/system/supply-chain" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                   Supply Chain
                 </a>
                 <a href="/settings" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2-2v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -139,7 +142,7 @@ export const Layout = (props: {
                 </a>
                 <a href="/system/info" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                   Info
+                   System Status
                 </a>
               </div>
             </nav>

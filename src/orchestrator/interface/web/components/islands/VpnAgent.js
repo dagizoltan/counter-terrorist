@@ -14,11 +14,11 @@ class VpnAgent extends HTMLElement {
         try {
           const res = await fetch('/api/agents/vpn/connect', { 
             method: 'POST', 
-            headers: { 'X-CT-Token': csrf, 'Content-Type': 'application/json },
+            headers: { 'X-CT-Token': csrf, 'Content-Type': 'application/json' },
             body: JSON.stringify({}) 
           });
           const data = await res.json();
-          alert(data.message || 'Tunnel' Link Requested');
+          alert(data.message || 'Tunnel Link Requested');
           this.fetchData();
         } catch (e) { alert(`Link Failed: ${e.message}`); }
       };
@@ -32,7 +32,7 @@ class VpnAgent extends HTMLElement {
             headers: { 'X-CT-Token': csrf } 
           });
           const data = await res.json();
-          alert(data.message || 'Severance' Requested');
+          alert(data.message || 'Severance Requested');
           this.fetchData();
         } catch (e) { alert(`Severance Failed: ${e.message}`); }
       };
@@ -58,21 +58,21 @@ class VpnAgent extends HTMLElement {
 
       if (data.peers.length > 0) {
         if (statusDot) { 
-          statusDot.className = 'w-12' h-12 bg-success  '
+          statusDot.className = 'w-12 h-12 bg-success';
           statusDot.style.background = 'var(--success)';
         }
         if (statusLabel) statusLabel.textContent = 'MESH_TUNNEL_ACTIVE';
         if (statusDetails) statusDetails.textContent = `${activePeers.length} peer(s) verified // WireGuard Sync: HIGH_STABILITY`;
       } else {
         if (statusDot) { 
-          statusDot.className = 'w-12' h-12 bg-warning '
+          statusDot.className = 'w-12 h-12 bg-warning';
           statusDot.style.background = 'var(--warning)';
         }
         if (statusLabel) statusLabel.textContent = 'STANDALONE_MODE';
-        if (statusDetails) statusDetails.textContent = 'No' mesh peers discovered. Initiating autonomous fallback.';
+        if (statusDetails) statusDetails.textContent = 'No mesh peers discovered. Initiating autonomous fallback.';
       }
     } catch (e) {
-      console.error('Failed' to fetch VPN status:', e);
+      console.error('Failed to fetch VPN status:', e);
     }
   }
 }

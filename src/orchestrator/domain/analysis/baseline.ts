@@ -1,7 +1,7 @@
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { broadcast } from "@api/ws.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface ProcessSnapshot {
   pid: number;
@@ -53,10 +53,22 @@ export class BaselineService {
       if (res.value) {
         this.currentBaseline = res.value;
         this.updateCaches(res.value);
-        this.logging.log("[BASELINE] Restored from Deno KV.", SyslogSeverity.INFORMATIONAL);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "BASELINE",
+            message: "Restored from Deno KV."
+        });
       }
     } catch (e) {
-      this.logging.log(`[BASELINE] Failed to restore baseline from KV: ${e}`, SyslogSeverity.ERROR);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "BASELINE",
+          message: `Failed to restore baseline from KV: ${e}`
+      });
     }
   }
 
@@ -136,7 +148,13 @@ export class BaselineService {
             }
         }
     } catch (e) {
-        console.error("[BASELINE] Failed to capture processes from scanner:", (e as Error).message);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "BASELINE",
+            message: `Failed to capture processes from scanner: ${(e as Error).message}`
+        });
     }
 
     // Capture Sensitive Files
@@ -148,7 +166,13 @@ export class BaselineService {
         files = files.concat(data.files);
       }
     } catch (e) {
-      this.logging.log(`[BASELINE] Failed to scan sensitive files: ${(e as Error).message}`, SyslogSeverity.ERROR);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "BASELINE",
+          message: `Failed to scan sensitive files: ${(e as Error).message}`
+      });
     }
 
     return {
@@ -165,7 +189,13 @@ export class BaselineService {
     if (this.kv) {
       await this.kv.set(["baseline"], this.currentBaseline);
     }
-    this.logging.log("[BASELINE] New system baseline established.", SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.SUCCESS,
+        caller: "BASELINE",
+        message: "New system baseline established."
+    });
     broadcast({ type: "INFO", message: "New system baseline established." });
     return this.currentBaseline;
   }
@@ -218,7 +248,13 @@ export class BaselineService {
     });
 
     if (newPorts.length > 0) {
-      console.warn(`[BASELINE] Port drift detected: ${newPorts.join(", ")}`);
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.WARNING,
+          caller: "BASELINE",
+          message: `Port drift detected: ${newPorts.join(", ")}`
+      });
       broadcast({
         type: "DRIFT_PORT",
         message: `Drift Detected: ${newPorts.length} new listening ports!`,
@@ -227,7 +263,13 @@ export class BaselineService {
     }
     if (newProcs.length > 0) {
       newProcs.forEach(p => {
-        console.warn(`[BASELINE] Process drift: ${p.name} (PID: ${p.pid}, Path: ${p.exe_path}, Hash: ${p.hash})`);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "BASELINE",
+            message: `Process drift: ${p.name} (PID: ${p.pid}, Path: ${p.exe_path}, Hash: ${p.hash})`
+        });
       });
       broadcast({
         type: "DRIFT_PROCESS",
@@ -239,14 +281,26 @@ export class BaselineService {
         const criticalChanges = changedFiles.filter(f => CRITICAL_FILES_REGEX.test(f.path));
 
         if (criticalChanges.length > 0) {
-            this.logging.log(`[BASELINE] CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`, SyslogSeverity.CRITICAL);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.CRITICAL,
+                caller: "BASELINE",
+                message: `CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`
+            });
             broadcast({
                 type: "CRITICAL",
                 message: `CRITICAL FILE MODIFIED: ${criticalChanges[0].path} (and ${criticalChanges.length - 1} others)`,
                 data: criticalChanges
             });
         } else {
-            console.warn(`[BASELINE] Filesystem drift: ${changedFiles.length} files modified.`);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "BASELINE",
+                message: `Filesystem drift: ${changedFiles.length} files modified.`
+            });
             broadcast({
                 type: "DRIFT_FILE",
                 message: `Drift Detected: ${changedFiles.length} files modified in sensitive directories.`,
@@ -262,14 +316,25 @@ export class BaselineService {
    * Starts the background drift monitoring loop.
    */
   startMonitor(intervalMs: number = 60000) {
-    this.logging.log(`[BASELINE] Starting background monitoring loop (Interval: ${intervalMs}ms)`, SyslogSeverity.INFORMATIONAL);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "BASELINE",
+        message: `Starting background monitoring loop (Interval: ${intervalMs}ms)`
+    });
     setInterval(async () => {
       try {
         await this.checkDrift();
       } catch (e) {
-        this.logging.log(`[BASELINE] Drift check loop failed: ${e}`, SyslogSeverity.ERROR);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "BASELINE",
+            message: `Drift check loop failed: ${e}`
+        });
       }
     }, intervalMs);
   }
 }
-

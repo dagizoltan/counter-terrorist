@@ -30,7 +30,8 @@ class FimAgent extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'FIM_ALERT' || (payload.data?.type === 'FileAlert')) {
+        const type = payload.type || '';
+        if (type === 'DRIFT_PROCESS' || type === 'THREAT' || type === 'FIM_ALERT') {
           this.addAlert(payload.data || payload);
         }
       } catch (e) {}

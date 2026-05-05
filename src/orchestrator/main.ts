@@ -3,12 +3,21 @@
  * Entry point for the autonomous defense mesh.
  */
 import { SovereignApp } from "./app.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 const app = new SovereignApp();
 
 try {
     await app.boot();
 } catch (error) {
-    console.error("[CRITICAL] Sovereign Boot Failure:", error instanceof Error ? error.stack : error);
-    Deno.exit(1);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.CRITICAL,
+        caller: "SYSTEM",
+        message: `Sovereign Boot Failure: ${error instanceof Error ? error.message : String(error)}`,
+        payload: { stack: error instanceof Error ? error.stack : undefined }
+    }).finally(() => {
+        Deno.exit(1);
+    });
 }

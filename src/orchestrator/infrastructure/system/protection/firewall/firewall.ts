@@ -2,6 +2,9 @@ import { broadcast } from "@api/ws.ts";
 import { meshManager } from "@domain/engine/mesh.ts";
 import { isValidIP } from "../../validation.ts";
 import { FirewallProvider } from "../interfaces.ts";
+import { loggingService } from "../../logging.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+
 export type { FirewallProvider };
 
 export class FirewallManager {
@@ -28,7 +31,15 @@ export class FirewallManager {
     }
 
     if (meshManager) {
-      meshManager.broadcastBlock(ip).catch(console.error);
+      meshManager.broadcastBlock(ip).catch(err => {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.WARNING,
+              caller: "FIREWALL",
+              message: `Failed to broadcast block for ${ip}: ${err.message}`
+          });
+      });
     }
 
     return await this.provider.blockIp(ip);
@@ -52,7 +63,15 @@ export class FirewallManager {
     }
 
     if (meshManager) {
-      meshManager.broadcastBlock(ip).catch(console.error);
+      meshManager.broadcastBlock(ip).catch(err => {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.WARNING,
+              caller: "FIREWALL",
+              message: `Failed to broadcast shadow ban for ${ip}: ${err.message}`
+          });
+      });
     }
 
     return await this.provider.shadowBanIp(ip);
@@ -80,7 +99,13 @@ export class FirewallManager {
             await this.provider.dumpProcessForensics(pid);
         }
     } catch (e) {
-        console.warn(`[FORENSICS] Failed to dump process ${pid}: ${(e as Error).message}`);
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "FORENSICS",
+            message: `Failed to dump process ${pid}: ${(e as Error).message}`
+        });
     }
 
     return await this.provider.killProcess(pid);
@@ -99,7 +124,15 @@ export class FirewallManager {
     broadcast({ type: "CRITICAL", message: "LOCKDOWN PROTOCOL INITIATED" });
     
     if (meshManager) {
-      meshManager.broadcastLockdown().catch(console.error);
+      meshManager.broadcastLockdown().catch(err => {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.WARNING,
+              caller: "FIREWALL",
+              message: `Failed to broadcast lockdown: ${err.message}`
+          });
+      });
     }
 
     return await this.provider.lockdown();

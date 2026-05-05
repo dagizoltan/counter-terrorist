@@ -1,4 +1,5 @@
 import { z } from "npm:zod";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 /**
  * Validated schema for the entire application configuration.
@@ -43,8 +44,14 @@ export function loadConfig(): AppConfig {
   const result = ConfigSchema.safeParse(rawConfig);
 
   if (!result.success) {
-    console.error("❌ INVALID CONFIGURATION DETECTED");
-    console.error(JSON.stringify(result.error.format(), null, 2));
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.CRITICAL,
+        caller: "CONFIG",
+        message: "INVALID CONFIGURATION DETECTED",
+        payload: result.error.format()
+    }).catch(() => {});
     throw new Error("Application failed to boot due to configuration errors.");
   }
 

@@ -85,6 +85,15 @@ export interface ProtectionPort {
   lockdown(): Promise<CommandResult>;
 }
 
+export enum LogSeverity {
+  DEBUG = "debug",
+  INFO = "info",
+  SUCCESS = "success",
+  WARNING = "warning",
+  ERROR = "error",
+  CRITICAL = "critical"
+}
+
 export enum SyslogSeverity {
   EMERGENCY = 0,
   ALERT = 1,
@@ -96,9 +105,27 @@ export enum SyslogSeverity {
   DEBUG = 7,
 }
 
+export enum LogType {
+  DEBUG = "debug",
+  AUDIT = "audit",
+  USER_ACTIVITY = "user-activity",
+  GENERIC = "generic"
+}
+
+export interface LogEntry {
+  timestamp: string;
+  type: LogType;
+  severity: LogSeverity;
+  caller: string;
+  message: string;
+  payload?: any;
+}
+
 export interface LoggingPort {
   enableGlobalIntercept(): void;
-  log(message: string, severity?: SyslogSeverity, source?: string, payload?: any): Promise<void>;
+  log(entry: LogEntry): Promise<void>;
+  // Legacy support
+  logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: any): Promise<void>;
 }
 
 export interface BaselinePort {

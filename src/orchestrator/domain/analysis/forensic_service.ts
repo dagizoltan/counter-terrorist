@@ -1,5 +1,5 @@
 import { AuditService } from "./audit.ts";
-import { LoggingPort, SyslogSeverity } from "../../core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "../../core/ports.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 
 /**
@@ -18,7 +18,13 @@ export class ForensicService {
    * Generates a cryptographically signed bundle of all security events and system snapshots.
    */
   async generateEvidenceBundle(limit = 1000) {
-    this.logging.log("[FORENSICS] Initiating evidence bundle generation...", SyslogSeverity.NOTICE);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "FORENSICS",
+        message: "Initiating evidence bundle generation..."
+    });
     
     // 1. Gather Audit Logs
     const logs = await this.audit.getRecentEvents(limit);
@@ -45,7 +51,13 @@ export class ForensicService {
         data: { bundleId: bundle.id, size: JSON.stringify(bundle).length }
     });
 
-    this.logging.log(`[FORENSICS] Bundle generated: ${logs.length} events, ${processTree.length} processes captured.`, SyslogSeverity.INFORMATIONAL);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.DEBUG,
+        severity: LogSeverity.DEBUG,
+        caller: "FORENSICS",
+        message: `Bundle generated: ${logs.length} events, ${processTree.length} processes captured.`
+    });
     return bundle;
   }
 
@@ -73,7 +85,13 @@ export class ForensicService {
         
         return forensicData;
     } catch (e) {
-        this.logging.log(`[FORENSICS] Failed to capture PID ${pid}: ${(e as Error).message}`, SyslogSeverity.ERROR);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "FORENSICS",
+            message: `Failed to capture PID ${pid}: ${(e as Error).message}`
+        });
         return null;
     }
   }
@@ -95,7 +113,13 @@ export class ForensicService {
   }
 
   async isolateSource(source: string, reason: string): Promise<any> {
-    this.logging.log(`[FORENSICS] Isolating source: ${source} - ${reason}`, SyslogSeverity.WARNING);
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "FORENSICS",
+        message: `Isolating source: ${source} - ${reason}`
+    });
     return { success: true, message: `Isolated source ${source}` };
   }
 }

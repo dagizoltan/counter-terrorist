@@ -1,5 +1,5 @@
 import { HealthService } from "../analysis/health_service.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 
 /**
@@ -22,7 +22,13 @@ export class WatchdogService {
         if (this.isRunning) return;
         this.isRunning = true;
         
-        this.logging.log("[WATCHDOG] Phoenix Watchdog engaged. Monitoring auxiliary health.", SyslogSeverity.NOTICE);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "WATCHDOG",
+            message: "Phoenix Watchdog engaged. Monitoring auxiliary health."
+        });
         
         setInterval(() => this.checkHealth(), 30000); // Check every 30s
     }
@@ -35,18 +41,36 @@ export class WatchdogService {
                 const attempts = this.restartAttempts.get(name) || 0;
                 
                 if (attempts < this.MAX_RESTART_ATTEMPTS) {
-                    this.logging.log(`[WATCHDOG] Detected failure in '${name}'. Attempting Phoenix Resurrection (${attempts + 1}/${this.MAX_RESTART_ATTEMPTS})...`, SyslogSeverity.WARNING);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.WARNING,
+                        caller: "WATCHDOG",
+                        message: `Detected failure in '${name}'. Attempting Phoenix Resurrection (${attempts + 1}/${this.MAX_RESTART_ATTEMPTS})...`
+                    });
                     
                     const success = await this.reinitService(name);
                     
                     if (success) {
-                        this.logging.log(`[WATCHDOG] Service '${name}' successfully resurrected.`, SyslogSeverity.NOTICE);
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.GENERIC,
+                            severity: LogSeverity.SUCCESS,
+                            caller: "WATCHDOG",
+                            message: `Service '${name}' successfully resurrected.`
+                        });
                         this.restartAttempts.delete(name);
                     } else {
                         this.restartAttempts.set(name, attempts + 1);
                     }
                 } else {
-                    this.logging.log(`[WATCHDOG] Service '${name}' has reached max restart attempts. Manual intervention required.`, SyslogSeverity.CRITICAL);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.CRITICAL,
+                        caller: "WATCHDOG",
+                        message: `Service '${name}' has reached max restart attempts. Manual intervention required.`
+                    });
                 }
             }
         }

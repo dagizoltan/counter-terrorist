@@ -1,7 +1,7 @@
 import { AuditService } from "../analysis/audit.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface CanaryToken {
     id: string;
@@ -61,27 +61,33 @@ export class CanaryService {
         await this.deploySingle(newToken);
     }
 
-    private async deploySingle(token: CanaryToken) {
+    private async deploySingle(newToken: CanaryToken) {
         try {
             await Deno.mkdir(this.MASTER_DIR, { recursive: true }).catch(() => {});
-            const content = `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
-            await Deno.writeTextFile(token.masterPath, content);
+            const content = `DECEPTION_TOKEN: ${newToken.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
+            await Deno.writeTextFile(newToken.masterPath, content);
 
             const isProd = this.isProduction();
             if (!isProd) {
-                console.log(`[CANARY] [DEV MODE] Skipping projection: ${token.projectionPath}`);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.DEBUG,
+                    caller: "CANARY",
+                    message: `[DEV MODE] Skipping projection: ${newToken.projectionPath}`
+                });
                 return;
             }
 
-            const absProjection = resolve(token.projectionPath);
+            const absProjection = resolve(newToken.projectionPath);
             await Deno.mkdir(dirname(absProjection), { recursive: true }).catch(() => {});
             
             try {
-                await Deno.stat(token.projectionPath);
+                await Deno.stat(newToken.projectionPath);
                 return;
             } catch {}
 
-            await Deno.link(token.masterPath, token.projectionPath);
+            await Deno.link(newToken.masterPath, newToken.projectionPath);
             this.sidecar.sendCommand("fim", { type: "WatchPath", path: absProjection }).catch(() => {});
         } catch {}
     }
@@ -104,7 +110,13 @@ export class CanaryService {
 
                 // 2. Project via Hardlink (Only in production)
                 if (!this.isProduction()) {
-                    console.log(`[CANARY] [DEV MODE] Master generated at ${token.masterPath}. Skipping root projection.`);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.DEBUG,
+                        caller: "CANARY",
+                        message: `[DEV MODE] Master generated at ${token.masterPath}. Skipping root projection.`
+                    });
                     continue; 
                 }
 
@@ -114,7 +126,13 @@ export class CanaryService {
                 // Safety: Avoid overwriting legitimate files
                 try {
                     await Deno.stat(token.projectionPath);
-                    console.warn(`[CANARY] Legitimate file at ${token.projectionPath}. Skipping projection.`);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.WARNING,
+                        caller: "CANARY",
+                        message: `Legitimate file at ${token.projectionPath}. Skipping projection.`
+                    });
                     continue;
                 } catch {
                     // Safe to link
@@ -122,12 +140,24 @@ export class CanaryService {
 
                 // Create the hardlink (Atomic projection)
                 await Deno.link(token.masterPath, token.projectionPath);
-                this.logging.log(`[CANARY] Projected breadcrumb: ${token.projectionPath}`, SyslogSeverity.DEBUG);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.DEBUG,
+                    caller: "CANARY",
+                    message: `Projected breadcrumb: ${token.projectionPath}`
+                });
 
                 // 3. Register with FIM
                 this.sidecar.sendCommand("fim", { type: "WatchPath", path: absProjection }).catch(() => {});
             } catch (e) {
-                this.logging.log(`[CANARY] Projection failed for ${token.projectionPath}: ${(e as Error).message}`, SyslogSeverity.WARNING);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "CANARY",
+                    message: `Projection failed for ${token.projectionPath}: ${(e as Error).message}`
+                });
             }
         }
         
@@ -145,7 +175,13 @@ export class CanaryService {
                 try {
                     // Update 'atime' and 'mtime' to current time to simulate activity
                     await Deno.utime(token.projectionPath, new Date(), new Date());
-                    this.logging.log(`[CANARY] Lure aged (timestamp rotation): ${token.id}`, SyslogSeverity.DEBUG);
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.DEBUG,
+                        caller: "CANARY",
+                        message: `Lure aged (timestamp rotation): ${token.id}`
+                    });
                 } catch {
                     // Skip if file is locked or missing
                 }
@@ -177,7 +213,13 @@ export class CanaryService {
      * Wipes all projections and master files, then re-deploys.
      */
     async morph() {
-        console.log("[CANARY] Rotating projections...");
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "CANARY",
+            message: "Rotating projections..."
+        });
         for (const token of this.tokens) {
             try {
                 // Remove projection and master
@@ -188,7 +230,13 @@ export class CanaryService {
                 token.masterPath = `${this.MASTER_DIR}/${token.id}_${Math.random().toString(36).substring(7)}`;
                 token.triggered = false;
             } catch (e) {
-                console.warn(`[CANARY] Cleanup failed: ${(e as Error).message}`);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "CANARY",
+                    message: `Cleanup failed: ${(e as Error).message}`
+                });
             }
         }
         await this.deploy();

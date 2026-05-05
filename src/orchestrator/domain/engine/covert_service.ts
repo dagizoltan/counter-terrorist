@@ -1,5 +1,5 @@
 import { SystemExecutor } from "../../infrastructure/system/system_executor.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 /**
  * CovertChannelService
@@ -19,7 +19,13 @@ export class CovertChannelService {
         // This is a simplified covert channel.
         const hexData = this.stringToHex(data);
         
-        this.logging.log(`[COVERT] Sending subliminal ICMP heartbeat to ${targetIp}...`, SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "COVERT",
+            message: `Sending subliminal ICMP heartbeat to ${targetIp}...`
+        });
         
         await this.executor.execute("ping", ["-c", "1", "-p", hexData, targetIp]);
     }
@@ -32,7 +38,13 @@ export class CovertChannelService {
         const meshDomain = Deno.env.get("MESH_DOMAIN") || `cts-mesh.internal`;
         const target = `${subdomain}.${meshDomain}`;
         
-        this.logging.log(`[COVERT] Signaling mesh state via DNS query: ${target}`, SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "COVERT",
+            message: `Signaling mesh state via DNS query: ${target}`
+        });
         
         // A simple 'host' or 'dig' query that would be picked up by a mesh-aware DNS resolver
         await this.executor.execute("host", ["-t", "TXT", target]);
@@ -42,8 +54,20 @@ export class CovertChannelService {
      * Listens for subliminal heartbeats in ICMP payloads.
      */
     async startListener() {
-        this.logging.log("[COVERT] Starting OOB ICMP Signal Listener...", SyslogSeverity.NOTICE);
-        this.logging.log("[COVERT] ICMP Sniper active. Listening for subliminal mesh signals.", SyslogSeverity.DEBUG);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "COVERT",
+            message: "Starting OOB ICMP Signal Listener..."
+        });
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.DEBUG,
+            caller: "COVERT",
+            message: "ICMP Sniper active. Listening for subliminal mesh signals."
+        });
     }
 
     private stringToHex(str: string): string {

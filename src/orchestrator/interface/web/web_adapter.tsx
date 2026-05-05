@@ -5,7 +5,7 @@ import { getCookie } from "hono/helper/cookie/index.ts";
 import { WebPort, ApplicationStatus } from "@core/ports.ts";
 import { AppError } from "@core/errors.ts";
 import { createLoginRouter, createLogoutRouter } from "./features/auth/login/handler.tsx";
-import { loggingService, SyslogSeverity } from "@infrastructure/system/logging.ts";
+import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { createWsHandler } from "@api/ws.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "./middleware/security.ts";
@@ -26,9 +26,21 @@ export class WebAdapter implements WebPort {
     const masterToken = services.config.getToken();
     if (!masterToken) throw new Error("CRITICAL: API_TOKEN not configured");
 
-    console.log(`[WEB] Initializing with services: ${Object.keys(services).join(", ")}`);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "WEB",
+        message: `Initializing with services: ${Object.keys(services).join(", ")}`
+    });
     if (!services.honeypot) {
-        console.error("[WEB] CRITICAL: honeypot service is MISSING in container!");
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "WEB",
+            message: "CRITICAL: honeypot service is MISSING in container!"
+        });
     }
 
     this.meshAuth = services.meshAuth;
@@ -38,7 +50,13 @@ export class WebAdapter implements WebPort {
 
   private async initialize() {
     if (this.app.routes.length > 0) return;
-    console.log("[WEB] Initializing routes and middleware...");
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "WEB",
+        message: "Initializing routes and middleware..."
+    });
     
     this.app.use("*", this.security.hardenedHeaders());
 
@@ -54,7 +72,13 @@ export class WebAdapter implements WebPort {
       }
 
       // 2. Logging (No body parsing here to avoid stream consumption issues)
-      await loggingService.log(`[REQ:${traceId}] ${method} ${path}`, SyslogSeverity.INFORMATIONAL, "WEB:API");
+      await loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "WEB:API",
+        message: `[REQ:${traceId}] ${method} ${path}`
+      });
 
       if (this.services.networkLogs) {
         const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "127.0.0.1";
@@ -72,7 +96,13 @@ export class WebAdapter implements WebPort {
       
       const duration = Date.now() - start;
       const status = c.res.status;
-      await loggingService.log(`[RES:${traceId}] ${method} ${path} -> ${status} (${duration}ms)`, SyslogSeverity.INFORMATIONAL, "WEB:API");
+      await loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "WEB:API",
+        message: `[RES:${traceId}] ${method} ${path} -> ${status} (${duration}ms)`
+      });
 
       // 3. COMPLIANCE: Audit state-changing requests
       const isMutation = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
@@ -95,10 +125,24 @@ export class WebAdapter implements WebPort {
     this.app.onError((err, c) => {
       const errorMsg = (err as Error).message;
       if (err instanceof AppError) {
-        loggingService.log(`[WEB:FAIL] ${errorMsg}`, SyslogSeverity.WARNING, "WEB:API", { code: err.statusCode });
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "WEB:API",
+          message: `[WEB:FAIL] ${errorMsg}`,
+          payload: { code: err.statusCode }
+        });
         return c.json(err.toJSON(), err.statusCode as any);
       }
-      loggingService.log(`[WEB:CRITICAL] ${errorMsg}`, SyslogSeverity.ERROR, "WEB:API", { stack: (err as Error).stack });
+      loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.ERROR,
+        caller: "WEB:API",
+        message: `[WEB:CRITICAL] ${errorMsg}`,
+        payload: { stack: (err as Error).stack }
+      });
       return c.json({ error: "Internal Server Error", code: "SERVER_FAULT" }, 500);
     });
 
@@ -106,7 +150,13 @@ export class WebAdapter implements WebPort {
     const webRoot = await Deno.stat("./web").then(s => s.isDirectory).catch(() => false) 
       ? "./web" 
       : "./src/orchestrator/interface/web";
-    loggingService.log(`[WEB] Static Asset Root: ${webRoot}`, SyslogSeverity.INFORMATIONAL);
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.INFO,
+        caller: "WEB",
+        message: `Static Asset Root: ${webRoot}`
+    });
     
     // Optimized static serving for Deno
     this.app.use("/style.css", serveStatic({ path: "./style.css", root: webRoot }));
@@ -122,13 +172,25 @@ export class WebAdapter implements WebPort {
       honeyRoutes.forEach(route => {
         this.app.get(route, async (c) => {
           const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
-          loggingService.log(`[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`, SyslogSeverity.CRITICAL);
+          loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "HONEYPOT",
+            message: `[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`
+          });
           await this.services.honeypot.onWebTrigger(route, ip);
           return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
         });
       });
     } else {
-      loggingService.log("[WEB] Honeypot service unavailable. Skipping decoy routes.", SyslogSeverity.WARNING);
+      loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.DEBUG,
+        severity: LogSeverity.WARNING,
+        caller: "WEB",
+        message: "[WEB] Honeypot service unavailable. Skipping decoy routes."
+      });
     }
 
     this.app.route("/login", createLoginRouter({
@@ -170,7 +232,13 @@ export class WebAdapter implements WebPort {
       
       if (!role) {
         const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
-        loggingService.log(`[WS:AUTH] Unauthorized WebSocket connection attempt from ${ip}`, SyslogSeverity.WARNING);
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.WARNING,
+          caller: "WS:AUTH",
+          message: `Unauthorized WebSocket connection attempt from ${ip}`
+        });
         return {
           onOpen: (_event, ws) => {
             ws.close(1008, "Unauthorized");
@@ -240,7 +308,13 @@ export class WebAdapter implements WebPort {
 
     if (useHttps && this.meshAuth) {
       const nodeCert = await this.meshAuth.generateNodeCert(Deno.hostname());
-      console.log(`[WEB] SOVEREIGN mTLS Active. Tactical Console: https://localhost:${port}`);
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "WEB",
+          message: `SOVEREIGN mTLS Active. Tactical Console: https://localhost:${port}`
+      });
       
       await Deno.serve({ 
         port,
@@ -248,7 +322,13 @@ export class WebAdapter implements WebPort {
         key: nodeCert.key
       }, this.app.fetch);
     } else {
-      console.log(`[WEB] Orchestrator Engine active (INSECURE HTTP). Tactical Console: http://localhost:${port}`);
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "WEB",
+          message: `Orchestrator Engine active (INSECURE HTTP). Tactical Console: http://localhost:${port}`
+      });
       await Deno.serve({ port }, this.app.fetch);
     }
   }
