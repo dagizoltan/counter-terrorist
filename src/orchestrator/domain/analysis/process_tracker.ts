@@ -1,4 +1,5 @@
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 export interface ProcessNode {
     pid: number;
@@ -14,7 +15,7 @@ export class ProcessTracker {
     private shells = ["bash", "sh", "dash", "zsh", "python", "perl", "php", "ruby"];
     private suspiciousParents = ["nginx", "apache2", "node", "python", "php-fpm", "clamscan"];
 
-    constructor(private logging: LoggingPort) {}
+    constructor(private logging: LoggingPort, private sidecar?: SidecarManager) {}
 
     updateProcess(pid: number, ppid: number, comm: string, isGhost: boolean = false) {
         let node = this.tree.get(pid);

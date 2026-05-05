@@ -18,9 +18,35 @@ export class SidecarManager implements CommandPort {
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
 
+  private manifest: any = null;
+
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
     this.startRotationLoop();
+    this.loadManifest();
+  }
+
+  private async loadManifest() {
+    try {
+        const manifestUrl = new URL("./sidecars.manifest.json", import.meta.url);
+        const content = await Deno.readTextFile(manifestUrl);
+        this.manifest = JSON.parse(content);
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "SIDECAR_MANAGER",
+            message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
+        });
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "SIDECAR_MANAGER",
+            message: `Manifest unavailable. Falling back to environment-based integrity: ${(e as Error).message}`
+        });
+    }
   }
 
   /**
@@ -253,13 +279,16 @@ export class SidecarManager implements CommandPort {
     // Support environment variable overrides for custom binary locations
     const envPath = Deno.env.get(`CTS_BINARY_${name.toUpperCase()}`);
     
+    const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
     const paths = [
       envPath,
-      `./agents/${name}${extension}`,
-      `./src/agents/target/release/${name}${extension}`,
-      `./src/agents/target/debug/${name}${extension}`,
-      `/usr/local/bin/cts-${name}${extension}`,
       `/opt/cts/bin/${name}${extension}`,
+      `/usr/local/bin/cts-${name}${extension}`,
+      `./agents/${name}${extension}`,
+      ...(isDev ? [
+        `./src/agents/target/release/${name}${extension}`,
+        `./src/agents/target/debug/${name}${extension}`,
+      ] : [])
     ].filter(Boolean) as string[];
 
     let agentsDir: string;
@@ -510,12 +539,11 @@ export class SidecarManager implements CommandPort {
     const currentHash = await this.calculateHash(binPath);
     if (!currentHash && !force) return false;
 
-    // In a real sovereign system, these would be retrieved from a hardware-locked TPM index
-    // For now, we use a local trusted baseline from environment or config
-    const goldenHash = Deno.env.get(`CTS_HASH_${name.toUpperCase()}`);
+    // Authoritative check against Signed Manifest
+    const goldenHash = this.manifest?.sidecars?.[name]?.hash || Deno.env.get(`CTS_HASH_${name.toUpperCase()}`);
     
     if (!force && (!goldenHash || currentHash === goldenHash)) {
-        return true; // No hash provided or match
+        return true; 
     }
 
     this.logging.log({

@@ -26,7 +26,7 @@ export class NetworkDiscoveryService {
     private discovery: any;
     private selfId: string = "LOCAL_NODE";
 
-    constructor(private logging: LoggingService) {
+    constructor(private logging: LoggingService, private executor: any) {
         this.selfId = "LOCAL_NODE";
     }
 
@@ -70,7 +70,7 @@ export class NetworkDiscoveryService {
         if (!this.discovery) {
             try {
                const { RealDiscovery } = await import("./real_discovery.ts");
-               this.discovery = new RealDiscovery();
+               this.discovery = new RealDiscovery(this.executor);
             } catch (e) {
                this.logging.log({
                    timestamp: new Date().toISOString(),

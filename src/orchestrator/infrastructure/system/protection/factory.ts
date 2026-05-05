@@ -27,22 +27,22 @@ export function createVpnManager(sidecar: SidecarManager, executor: SystemExecut
   if (platform.name === "windows") {
     provider = new WindowsVpnProvider(executor);
   } else {
-    provider = new UbuntuVpnProvider(executor);
+    provider = new UbuntuVpnProvider(sidecar);
   }
   return new VpnManager(provider);
 }
 
 export function createAntivirusManager(sidecar: SidecarManager, executor: SystemExecutor): AntivirusManager {
-  return new AntivirusManager(new UbuntuAntivirusProvider(executor));
+  return new AntivirusManager(new UbuntuAntivirusProvider(sidecar));
 }
 
 export function createPersistenceManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): PersistenceManager {
   if (platform.name === "windows") {
     return new PersistenceManager(new WindowsPersistenceProvider(executor));
   }
-  return new PersistenceManager(new UbuntuPersistenceProvider(executor));
+  return new PersistenceManager(new UbuntuPersistenceProvider(sidecar));
 }
 
 export function createPcapManager(sidecar: SidecarManager, executor: SystemExecutor): PcapManager {
-  return new PcapManager(new UbuntuPcapProvider(executor));
+  return new PcapManager(new UbuntuPcapProvider(sidecar));
 }

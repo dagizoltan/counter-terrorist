@@ -13,9 +13,9 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         persistent: true,
         privileged: true
     },
-    firewall: {
-        name: "firewall",
-        description: "Active enforcement agent for IP blocking and process termination.",
+    blocker: {
+        name: "blocker",
+        description: "Active enforcement agent for process termination and forensic dumping.",
         persistent: true,
         privileged: true
     },
@@ -58,12 +58,6 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
     tpm: {
         name: "tpm",
         description: "Hardware Root of Trust manager for mesh identity and secrets.",
-        persistent: true,
-        privileged: true
-    },
-    vpn: {
-        name: "vpn",
-        description: "Native WireGuard orchestrator for stealth exit-nodes.",
         persistent: true,
         privileged: true
     }

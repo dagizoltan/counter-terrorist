@@ -60,7 +60,7 @@ export class SovereignApp {
         this.executor = new SystemExecutor();
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
         
-        const platformInfo = await getPlatformInfo();
+        const platformInfo = await getPlatformInfo(this.executor);
         const systemStatus = await bootstrap();
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -147,17 +147,26 @@ export class SovereignApp {
         }
 
         const isHardwareSecure = await tpm.verifyIntegrity(goldenPcrs);
-        const bypassHardware = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true";
+        const bypassToken = Deno.env.get("SECURE_ENVIRONMENT_TOKEN");
+        const expectedToken = "PROVISIONAL_DEVELOPMENT_BYPASS_UNSAFE";
 
-        if (!isHardwareSecure && !bypassHardware) {
+        if (!isHardwareSecure && bypassToken !== expectedToken) {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
                 caller: "SECURITY",
-                message: "HARDWARE INTEGRITY FAILURE."
+                message: "CRITICAL: HARDWARE INTEGRITY FAILURE. Access denied. No valid bypass token provided."
             });
             await this.selfDestruct();
+        } else if (!isHardwareSecure && bypassToken === expectedToken) {
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "SECURITY",
+                message: "WARNING: RUNNING IN UNSAFE BYPASS MODE. System integrity is NOT hardware-verified."
+            });
         }
     }
 
@@ -290,7 +299,7 @@ export class SovereignApp {
 
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         const protection = new ProtectionAdapter(rawProtection);
-        const processTracker = new ProcessTracker(loggingService);
+        const processTracker = new ProcessTracker(loggingService, this.sidecarManager);
         const sessions = new SessionService(this.kv, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
         const apiKeys = new ApiKeysService(this.kv, loggingService);
         const rateLimit = new RateLimitService(this.kv);
@@ -345,7 +354,7 @@ export class SovereignApp {
         const forensicService = this.safeInit(health, "Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker));
         const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider, broadcast, geoIp));
         const news = this.safeInit(health, "News", () => new NewsSignalService(loggingService));
-        const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => new NetworkDiscoveryService(loggingService));
+        const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => new NetworkDiscoveryService(loggingService, this.executor));
         const incidents = this.safeInit(health, "Incidents", () => new IncidentService(this.kv, loggingService));
         const compliance = this.safeInit(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
 
@@ -357,6 +366,7 @@ export class SovereignApp {
         const morphing = this.safeInit(health, "Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));
         const chaos = this.safeInit(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
         const supplyChain = this.safeInit(health, "SupplyChain", () => new SupplyChainService());
+        await supplyChain.init();
         const provisioning = this.safeInit(health, "Provisioning", () => new ProvisioningService(this.sidecarManager, mesh, this.executor, loggingService));
         const governance = this.safeInit(health, "Governance", () => new GovernanceService(mesh, protection, loggingService));
         const shadow = this.safeInit(health, "Shadow", () => new ShadowService(this.executor, loggingService));
@@ -365,7 +375,7 @@ export class SovereignApp {
         return { autopilot, morphing, chaos, supplyChain, provisioning, governance, shadow, covert };
     }
 
-    private safeInit<T>(health: HealthService, name: string, factory: () => T): T {
+    private safeInit<T extends object>(health: HealthService, name: string, factory: () => T): T {
         try {
             const service = factory();
             health.reportStatus(name, "OPERATIONAL");
@@ -375,12 +385,21 @@ export class SovereignApp {
             loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
+                severity: LogSeverity.ERROR,
                 caller: "BOOT",
-                message: `Auxiliary Service '${name}' failed to initialize: ${msg}`
+                message: `CRITICAL: Service '${name}' failed to initialize: ${msg}. Deploying Emergency Placeholder.`
             }).catch(() => {});
             health.reportStatus(name, "FAILED", msg);
-            return null as any;
+            
+            // Return a Proxy that logs errors on every method call instead of crashing
+            return new Proxy({} as T, {
+                get: (_, prop) => {
+                    return (...args: any[]) => {
+                        console.error(`[EMERGENCY] Call to '${String(prop)}' on failed service '${name}' blocked.`);
+                        return Promise.resolve({ success: false, error: `Service ${name} is unavailable` });
+                    };
+                }
+            });
         }
     }
 

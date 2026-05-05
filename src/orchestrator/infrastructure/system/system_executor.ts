@@ -19,7 +19,7 @@ export class SystemExecutor {
     "crontab", "which", "where", "powershell", "netsh", "taskkill", "tc", "kill",
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss", "cargo",
-    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sudo", "tcpdump", "rkhunter"
+    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sudo", "tcpdump", "rkhunter", "sw_vers"
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [
@@ -36,7 +36,7 @@ export class SystemExecutor {
       maxArgs: 2
     },
     "ufw": {
-      allowedArgs: [/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/, /.*/],
+      allowedArgs: [/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/, /^[0-9a-zA-Z./]+$/],
       maxArgs: 5
     },
     "kill": {
@@ -52,18 +52,46 @@ export class SystemExecutor {
       maxArgs: 2
     },
     "bash": {
-      allowedArgs: [/^\.\/scripts\/.*\.sh$/],
+      allowedArgs: [/^\.\/scripts\/[a-z0-9_-]+\.sh$/], // More restrictive script naming
       maxArgs: 1
     },
     "tcpdump": {
-      allowedArgs: [/^-i$/, /^[a-z0-9]+$/, /^-w$/, /^\.\/volume\/.*$/, /^-G$/, /^[0-9]+$/, /^-W$/, /^1$/, /.*/],
-      maxArgs: 10
+      allowedArgs: [/^-i$/, /^[a-z0-9]+$/, /^-w$/, /^\.\/volume\/storage\/captures\/[a-zA-Z0-9._-]+\.pcap$/, /^-G$/, /^[0-9]+$/, /^-W$/, /^1$/],
+      maxArgs: 8
+    },
+    "powershell": {
+      allowedArgs: [/^-Command$/, /^([A-Za-z0-9_-]+ VPNConnection -Name '[a-zA-Z0-9_-]+'|Get-VpnConnection)$/],
+      maxArgs: 2
+    },
+    "ls": {
+      allowedArgs: [/^-la?$/, /^\.\/volume\/.*$/],
+      maxArgs: 2
+    },
+    "cp": {
+      allowedArgs: [/^\.\/volume\/.*$/, /^\.\/volume\/.*$/],
+      maxArgs: 2
+    },
+    "mv": {
+      allowedArgs: [/^\.\/volume\/.*$/, /^\.\/volume\/.*$/],
+      maxArgs: 2
+    },
+    "sw_vers": {
+      allowedArgs: [/^-productVersion$/],
+      maxArgs: 1
+    },
+    "which": {
+      allowedArgs: [/^[a-z0-9-]+$/],
+      maxArgs: 1
     }
   };
 
   private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
     const policy = SystemExecutor.COMMAND_POLICIES[cmd];
-    if (!policy) return { valid: true }; // No specific policy, allow for now (dangerous, but following whitelist)
+    
+    // SECURITY: Deny by default if no policy exists for a whitelisted command
+    if (!policy) {
+      return { valid: false, reason: `No security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
+    }
 
     if (policy.maxArgs !== undefined && args.length > policy.maxArgs) {
       return { valid: false, reason: `Too many arguments for '${cmd}' (max: ${policy.maxArgs})` };

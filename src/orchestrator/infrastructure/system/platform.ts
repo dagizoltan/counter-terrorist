@@ -1,3 +1,4 @@
+import { SystemExecutor } from "./system_executor.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
 
@@ -41,16 +42,11 @@ async function detectLinuxVersion(): Promise<string> {
   return "unknown";
 }
 
-async function detectMacosVersion(): Promise<string> {
+async function detectMacosVersion(executor: SystemExecutor): Promise<string> {
   try {
-    const command = new Deno.Command("sw_vers", {
-      args: ["-productVersion"],
-      stdout: "piped",
-      stderr: "null",
-    });
-    const { stdout } = await command.output();
-    const version = new TextDecoder().decode(stdout).trim();
-    return normalizeVersion(version);
+    const { success, stdout } = await executor.execute("sw_vers", ["-productVersion"]);
+    if (!success) return "unknown";
+    return normalizeVersion(stdout);
   } catch (e) {
     loggingService.log({
         timestamp: new Date().toISOString(),
@@ -99,7 +95,7 @@ async function getMetrics(): Promise<PlatformInfo["metrics"]> {
   }
 }
 
-export async function getPlatformInfo(): Promise<PlatformInfo> {
+export async function getPlatformInfo(executor: SystemExecutor): Promise<PlatformInfo> {
   const metrics = await getMetrics();
   const envOverride = Deno.env.get("CT_PLATFORM_TAG");
   
@@ -115,7 +111,7 @@ export async function getPlatformInfo(): Promise<PlatformInfo> {
     if (os === "windows") {
       info = { name: "windows", version: "11", tag: WINDOWS_TAG };
     } else if (os === "darwin") {
-      const version = await detectMacosVersion();
+      const version = await detectMacosVersion(executor);
       const major = version.split(".")[0] || "unknown";
       info = { name: "macos", version, tag: `macos_${major}` };
     } else if (os === "linux") {

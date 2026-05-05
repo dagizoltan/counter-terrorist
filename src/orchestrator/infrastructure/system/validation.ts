@@ -77,13 +77,15 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
     if (a === 10) return { valid: false, reason: "RFC1918 private addresses (10.x.x.x) are not allowed" };
     if (a === 172 && b >= 16 && b <= 31) return { valid: false, reason: "RFC1918 private addresses (172.16-31.x.x) are not allowed" };
     if (a === 192 && b === 168) return { valid: false, reason: "RFC1918 private addresses (192.168.x.x) are not allowed" };
+    if (a === 100 && b >= 64 && b <= 127) return { valid: false, reason: "Carrier-grade NAT (100.64.0.0/10) addresses are not allowed" };
+    if (a === 198 && (b === 18 || b === 19)) return { valid: false, reason: "Benchmark testing (198.18.0.0/15) addresses are not allowed" };
     if (a === 0) return { valid: false, reason: "Zero-prefix addresses are not allowed" };
   }
 
   return { valid: true };
 }
 
-export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim"] as const;
+export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "tpm", "vpn", "mesh", "firewall"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
 export function isAllowedSidecar(name: string): name is SidecarName {
@@ -123,9 +125,10 @@ export interface ScannerRequest extends BaseRequest {
 }
 
 export interface BlockerRequest extends BaseRequest {
-  type: "KillProcess" | "BlockIp" | "UnblockIp";
+  type: "KillProcess" | "BlockIp" | "UnblockIp" | "QuarantineProcess" | "DumpProcess";
   pid?: number;
   ip?: string;
+  path?: string;
 }
 
 export interface PcapRequest extends BaseRequest {
