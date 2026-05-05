@@ -51,7 +51,7 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
           <div class="col-span-12 lg:col-span-4 t-panel glass-panel group hover:bg-white/[0.02] transition-all">
             <div class="flex justify-between items-center mb-10">
                <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Infrastructure Hub</span>
-               <span class="mono-xs text-success font-black uppercase tracking-widest" id="stat-node-status">{props.status.platform?.status || 'Active'}</span>
+               <span class="mono-xs text-success font-black uppercase tracking-widest" id="stat-node-status">{props.status.node?.uptime || 'Active'}</span>
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-cpu-load-large">{props.status.node?.cpu?.load || 0}<span class="text-warning">%</span></span>
@@ -63,13 +63,13 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
             <div class="flex justify-between items-center mb-10">
                <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Agent Readiness</span>
                <div class="flex gap-2">
-                  <div class="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--success)]"></div>
-                  <div class="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--success)]"></div>
-                  <div class="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_var(--success)]"></div>
+                  <div class={`w-2 h-2 rounded-full ${props.status.forensics?.ebpfActive ? 'bg-success shadow-[0_0_8px_var(--success)]' : 'bg-slate-700'}`}></div>
+                  <div class={`w-2 h-2 rounded-full ${props.status.forensics?.fimActive ? 'bg-success shadow-[0_0_8px_var(--success)]' : 'bg-slate-700'}`}></div>
+                  <div class={`w-2 h-2 rounded-full ${props.status.vpn?.active ? 'bg-success shadow-[0_0_8px_var(--success)]' : 'bg-slate-700'}`}></div>
                </div>
             </div>
             <div class="flex items-baseline gap-5">
-              <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-mesh-nodes-large">{props.status.mesh?.nodes || 0}</span>
+              <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-mesh-nodes-large">{props.status.mesh?.activeNodes || 0}</span>
               <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Active Nodes</span>
             </div>
           </div>

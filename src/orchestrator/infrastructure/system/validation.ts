@@ -124,19 +124,15 @@ export interface ScannerRequest extends BaseRequest {
 
 export interface BlockerRequest extends BaseRequest {
   type: "KillProcess" | "BlockIp" | "UnblockIp";
-  payload: {
-    pid?: number;
-    ip?: string;
-  };
+  pid?: number;
+  ip?: string;
 }
 
 export interface PcapRequest extends BaseRequest {
   type: "StartCapture" | "StopCapture";
-  payload?: {
-    interface?: string;
-    duration?: number;
-    filename?: string;
-  };
+  interface?: string;
+  duration?: number;
+  filename?: string;
 }
 
 export interface SidecarResponse {
@@ -260,25 +256,24 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       return true;
     case "blocker":
       if (!["KillProcess", "BlockIp", "UnblockIp"].includes(req.type)) return false;
-      if (req.type === "KillProcess" && typeof req.payload?.pid !== "number") return false;
-      // Protocol fix: blocker sends { type: "BlockIp", ip: "...", ... } not always wrapped in payload
-      const targetIp = req.ip || req.payload?.ip;
+      if (req.type === "KillProcess" && typeof req.pid !== "number") return false;
+      const targetIp = req.ip;
       if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
       if (req.type === "BlockIp" && isCriticalInfrastructure(targetIp || "")) return false;
       return true;
     case "pcap":
       if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
       if (req.type === "StartCapture") {
-        if (req.payload?.interface && typeof req.payload.interface !== "string") return false;
+        if (req.interface && typeof req.interface !== "string") return false;
         // Security: Validate interface name characters
-        if (req.payload?.interface && !INTERFACE_NAME_REGEX.test(req.payload.interface)) return false;
-        if (req.payload?.duration && typeof req.payload.duration !== "number") return false;
+        if (req.interface && !INTERFACE_NAME_REGEX.test(req.interface)) return false;
+        if (req.duration && typeof req.duration !== "number") return false;
         // Security: Cap duration at 1 hour
-        if (req.payload?.duration && req.payload.duration > 3600) return false;
-        if (req.payload?.filename && typeof req.payload.filename !== "string") return false;
+        if (req.duration && req.duration > 3600) return false;
+        if (req.filename && typeof req.filename !== "string") return false;
         // Security: Reject filenames with path separators (path traversal defense-in-depth)
-        if (req.payload?.filename) {
-          const basename = req.payload.filename.split("/").pop()?.split("\\").pop() || "";
+        if (req.filename) {
+          const basename = req.filename.split("/").pop()?.split("\\").pop() || "";
           if (!SAFE_FILENAME_REGEX.test(basename)) return false;
         }
       }
@@ -293,8 +288,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       return true;
     case "fim":
       if (!["WatchPath", "UnwatchPath", "GetStatus"].includes(req.type)) return false;
-      // Protocol fix: fim sends { type: "WatchPath", path: "...", ... } not always wrapped in payload
-      const targetPath = req.path || req.payload?.path;
+      const targetPath = req.path;
       if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof targetPath !== "string") return false;
       return true;
     case "ebpf":
