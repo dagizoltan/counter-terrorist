@@ -1,7 +1,7 @@
 import { EventBus } from "./events.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { CanaryService } from "../protection/canary_service.ts";
-import { LoggingPort } from "../../core/ports.ts";
+import { LoggingPort, LogType, LogSeverity } from "../../core/ports.ts";
 import { BroadcastFunction } from "../engine/plugins/types.ts";
 
 /**
@@ -43,7 +43,13 @@ export class EventMediator {
                 this.eventBus.emit(type, event); 
                 
                 if (type === "EBPF_STRAY_SHELL") {
-                    this.logger.log(`Stray shell detected: ${event.comm} (PID: ${event.pid})`, 2, "SECURITY");
+                    this.logger.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.WARNING,
+                        caller: "SECURITY",
+                        message: `Stray shell detected: ${event.comm} (PID: ${event.pid})`
+                    });
                 }
             }
         });
@@ -96,6 +102,12 @@ export class EventMediator {
             }
         });
 
-        this.logger.log("Event Mediator: Sidecar routing established", 6, "BOOT");
+        this.logger.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.INFO,
+            caller: "BOOT",
+            message: "Event Mediator: Sidecar routing established"
+        });
     }
 }

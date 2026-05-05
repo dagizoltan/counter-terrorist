@@ -45,10 +45,10 @@ export class SovereignApp {
         loggingService.enableGlobalIntercept();
         await loggingService.log({
             timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
+            type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "BOOT",
-            message: "Initiating Sovereign Boot Sequence"
+            caller: "BOOT:INIT",
+            message: "Initiating Sovereign Boot Sequence (Self-Test Phase)"
         });
         await camouflage();
         
@@ -64,11 +64,11 @@ export class SovereignApp {
         const systemStatus = await bootstrap();
         await loggingService.log({
             timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
+            type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "BOOT",
-            message: "Core infrastructure initialized",
-            payload: { platform: platformInfo.name, isRoot: systemStatus.isRoot }
+            caller: "BOOT:ENV",
+            message: "Core infrastructure validated",
+            payload: { platform: platformInfo.name, isRoot: systemStatus.isRoot, arch: Deno.build.arch }
         });
 
         // ── Phase 2: Service layer ────────────────────────────────────────────
@@ -78,7 +78,7 @@ export class SovereignApp {
         const eventBus = new EventBus(loggingService);
         const networkLogService = new NetworkLogService(this.kv, loggingService);
         const incidentService = new IncidentService(this.kv, loggingService);
-        const meshAuthService = new MeshAuthService(this.kv, tpmManager);
+        const meshAuthService = new MeshAuthService(this.kv, loggingService, tpmManager);
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService);
         
         const healthService = new HealthService(loggingService);
@@ -128,9 +128,9 @@ export class SovereignApp {
 
         await loggingService.log({
             timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
+            type: LogType.AUDIT,
             severity: LogSeverity.SUCCESS,
-            caller: "BOOT",
+            caller: "ORCHESTRATOR",
             message: `Sovereign Orchestrator fully engaged on port ${port}`
         });
         await this.web.start(port);
@@ -152,7 +152,7 @@ export class SovereignApp {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.CRITICAL,
+                severity: LogSeverity.ERROR,
                 caller: "SECURITY",
                 message: "HARDWARE INTEGRITY FAILURE."
             });
@@ -169,10 +169,10 @@ export class SovereignApp {
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
+            type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "BOOT",
-            message: "Deploying active defense subsystems"
+            caller: "BOOT:SUBSYSTEMS",
+            message: "Deploying active defense subsystems (Operational Self-Test)"
         });
         
         health.reportStatus("Playbook", "BOOTING");
@@ -253,10 +253,10 @@ export class SovereignApp {
         const cleanup = async () => {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
+                type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
                 caller: "BOOT",
-                message: "Initiating graceful shutdown..."
+                message: "Initiating graceful shutdown sequence"
             });
             
             // 1. Notify Mesh of departure
@@ -371,14 +371,26 @@ export class SovereignApp {
             return service;
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            loggingService.log(`[BOOT] Auxiliary Service '${name}' failed to initialize: ${msg}`, SyslogSeverity.WARNING);
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "BOOT",
+                message: `Auxiliary Service '${name}' failed to initialize: ${msg}`
+            }).catch(() => {});
             health.reportStatus(name, "FAILED", msg);
             return null as any;
         }
     }
 
     private async selfDestruct() {
-        await loggingService.log("SELF-DESTRUCT TRIGGERED.", SyslogSeverity.EMERGENCY, "SOVEREIGN");
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "SOVEREIGN",
+            message: "CRITICAL: SELF-DESTRUCT TRIGGERED."
+        });
         const iter = this.kv.list({ prefix: [] });
         for await (const entry of iter) await this.kv.delete(entry.key);
         Deno.exit(1);

@@ -40,6 +40,7 @@ export interface CommandPort {
 export interface FirewallPort {
   blockIp(ip: string): Promise<CommandResult>;
   unblockIp(ip: string): Promise<CommandResult>;
+  isBlocked(ip: string): Promise<boolean>;
   shadowBanIp(ip: string): Promise<CommandResult>;
   lockdown(): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
@@ -86,12 +87,10 @@ export interface ProtectionPort {
 }
 
 export enum LogSeverity {
-  DEBUG = "debug",
   INFO = "info",
   SUCCESS = "success",
   WARNING = "warning",
-  ERROR = "error",
-  CRITICAL = "critical"
+  ERROR = "error"
 }
 
 export enum SyslogSeverity {
@@ -108,7 +107,7 @@ export enum SyslogSeverity {
 export enum LogType {
   DEBUG = "debug",
   AUDIT = "audit",
-  USER_ACTIVITY = "user-activity",
+  ACTIVITY = "activity",
   GENERIC = "generic"
 }
 
@@ -119,6 +118,7 @@ export interface LogEntry {
   caller: string;
   message: string;
   payload?: any;
+  formatted?: string; // High-fidelity forensic string [TYPE] [SEVERITY] [CALLER] MESSAGE
 }
 
 export interface LoggingPort {

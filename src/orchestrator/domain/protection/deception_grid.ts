@@ -67,7 +67,7 @@ export class DeceptionGridService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "DECEPTION",
             message: "Injecting fake administrative traces into process memory and history..."
         });
@@ -84,7 +84,7 @@ export class DeceptionGridService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "DECEPTION",
             message: "Deploying 'Shadow Admin' identity breadcrumbs..."
         });

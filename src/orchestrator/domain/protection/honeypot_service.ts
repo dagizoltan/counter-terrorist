@@ -138,8 +138,9 @@ export class HoneypotService {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "HONEYPOT",
-          message: `Tactical Trigger: Port ${port} access from ${source_ip}`
+          caller: "HONEYPOT:TRIGGER",
+          message: `Tactical Trigger: Port ${port} access from ${source_ip}`,
+          payload: { source_ip, port, hitCount: this.hitCount }
       });
 
       this.broadcast({
@@ -172,9 +173,10 @@ export class HoneypotService {
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.DEBUG,
-          severity: LogSeverity.DEBUG,
-          caller: "HONEYPOT",
-          message: `Session transcript from ${source_ip}:${port} -> ${data}`
+          severity: LogSeverity.INFO,
+          caller: "HONEYPOT:SESSION",
+          message: `Session transcript from ${source_ip}:${port}`,
+          payload: { source_ip, port, data }
       });
       
       // Store session data in the audit chain for behavioral modeling
@@ -193,8 +195,9 @@ export class HoneypotService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "HONEYPOT",
-        message: `Web Decoy Triggered: Path '${route}' from ${source_ip}`
+        caller: "HONEYPOT:WEB",
+        message: `Web Decoy Triggered: Path '${route}' from ${source_ip}`,
+        payload: { source_ip, route, hitCount: this.hitCount }
     });
 
     this.broadcast({

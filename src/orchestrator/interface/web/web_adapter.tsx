@@ -175,7 +175,7 @@ export class WebAdapter implements WebPort {
           loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "HONEYPOT",
             message: `[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`
           });

@@ -33,7 +33,7 @@ export class SidecarManager implements CommandPort {
       this.isShuttingDown = true;
       this.logging.log({
           timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
+          type: LogType.ACTIVITY,
           severity: LogSeverity.INFO,
           caller: "SIDECAR_MANAGER",
           message: "Orchestrator exiting, cleaning up sidecars..."
@@ -113,8 +113,8 @@ export class SidecarManager implements CommandPort {
             const child = command.spawn();
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: LogType.DEBUG,
-                severity: LogSeverity.DEBUG,
+                type: LogType.ACTIVITY,
+                severity: LogSeverity.INFO,
                 caller: "SIDECAR_MANAGER",
                 message: `Spawned persistent sidecar: ${name}`
             });
@@ -122,10 +122,10 @@ export class SidecarManager implements CommandPort {
             child.status.then((status) => {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
+                    type: LogType.ACTIVITY,
                     severity: status.code === 0 ? LogSeverity.INFO : LogSeverity.WARNING,
                     caller: "SIDECAR_MANAGER",
-                    message: `Sidecar ${name} exited with code ${status.code}.`
+                    message: `Sidecar ${name} exited with code ${status.code}`
                 });
                 this.persistentProcesses.delete(name);
                 this.handleSidecarExit(name, status.code);
@@ -393,7 +393,7 @@ export class SidecarManager implements CommandPort {
   async shutdown(): Promise<void> {
     this.logging.log({
         timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
+        type: LogType.ACTIVITY,
         severity: LogSeverity.INFO,
         caller: "SIDECAR_MANAGER",
         message: "Shutting down agent fleet..."
@@ -424,10 +424,10 @@ export class SidecarManager implements CommandPort {
       this.restartCounts.set(name, restartInfo);
       this.logging.log({
           timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
+          type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
           caller: "SIDECAR_MANAGER",
-          message: `Restarting sidecar ${name} (attempt ${restartInfo.count}/3)...`
+          message: `Restarting sidecar ${name} (attempt ${restartInfo.count}/3)`
       });
       setTimeout(() => {
         this.getPersistentSidecar(name).catch(() => {});
@@ -436,7 +436,7 @@ export class SidecarManager implements CommandPort {
       const msg = `Sidecar ${name} failed too many times. Giving up.`;
       this.logging.log({
           timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
+          type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
           caller: "SIDECAR_MANAGER",
           message: msg

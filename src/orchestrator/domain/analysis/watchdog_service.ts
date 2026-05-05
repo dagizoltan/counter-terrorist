@@ -67,7 +67,7 @@ export class WatchdogService {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.AUDIT,
-                        severity: LogSeverity.CRITICAL,
+                        severity: LogSeverity.ERROR,
                         caller: "WATCHDOG",
                         message: `Service '${name}' has reached max restart attempts. Manual intervention required.`
                     });

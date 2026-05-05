@@ -88,7 +88,7 @@ export class PlaybookService {
       loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
-          severity: LogSeverity.CRITICAL,
+          severity: LogSeverity.ERROR,
           caller: "PLAYBOOK",
           message: `FIM trigger: ${action} detected on ${path}`
       });
@@ -109,7 +109,7 @@ export class PlaybookService {
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "PLAYBOOK",
             message: `SUSPICIOUS PTRACE detected from ${comm} (PID: ${pid}). Executing Quarantine.`
         });
@@ -161,7 +161,7 @@ export class PlaybookService {
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "PLAYBOOK",
             message: "Protocol: Emergency Isolation. Isolating local node from mesh."
         });
@@ -195,7 +195,7 @@ export class PlaybookService {
       loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
-          severity: LogSeverity.CRITICAL,
+          severity: LogSeverity.ERROR,
           caller: "PLAYBOOK",
           message: `Node ${nodeId} reached isolation threshold (${score}). Executing isolation.`
       });

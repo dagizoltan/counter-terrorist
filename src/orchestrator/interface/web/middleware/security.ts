@@ -69,7 +69,7 @@ export class SecurityMiddleware {
         loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
-          severity: LogSeverity.CRITICAL,
+          severity: LogSeverity.ERROR,
           caller: "SECURITY",
           message: `[SECURITY] REJECTED: Request from blacklisted IP ${ip} to ${path}`
         });

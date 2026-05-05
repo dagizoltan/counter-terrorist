@@ -14,12 +14,15 @@ export interface AuditEvent {
     id: string;
     timestamp: string;
     type: string;
+    severity?: string;
+    caller?: string;
     message: string;
     actor?: ActorContext; // Traceability: Who performed the action
     data?: any;
     hash: string;
     prevHash: string;
     hwSignature?: string; 
+    formatted?: string; // High-fidelity forensic string [TYPE] [SEVERITY] [CALLER] MESSAGE
 }
 
 interface RetentionConfig {
@@ -102,7 +105,7 @@ export class AuditService {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.AUDIT,
-                        severity: LogSeverity.CRITICAL,
+                        severity: LogSeverity.ERROR,
                         caller: "AUDIT",
                         message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED AT EVENT ${verification.brokenAt?.eventId || "UNKNOWN"}`
                     });
@@ -110,8 +113,8 @@ export class AuditService {
                     this.lastVerifiedHash = this.lastHash;
                     this.logging.log({
                         timestamp: new Date().toISOString(),
-                        type: LogType.DEBUG,
-                        severity: LogSeverity.DEBUG,
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.INFO,
                         caller: "AUDIT",
                         message: `Verified integrity of recent history (${verification.eventsChecked} events).`
                     });
@@ -141,6 +144,8 @@ export class AuditService {
                 id,
                 timestamp,
                 type: event.type,
+                severity: event.severity,
+                caller: event.caller,
                 message: event.message,
                 actor: event.actor,
                 data: event.data,
@@ -153,6 +158,8 @@ export class AuditService {
                 hwSignature = await this.tpm.sign(hash);
             }
 
+            const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
+
             const auditEvent: AuditEvent = {
                 ...event,
                 id,
@@ -160,13 +167,14 @@ export class AuditService {
                 hash,
                 prevHash,
                 hwSignature,
+                formatted
             };
 
             try {
                 await this.repo.set(id, auditEvent);
                 this.lastHash = hash;
                 
-                const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.DEBUG;
+                const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
@@ -232,6 +240,8 @@ export class AuditService {
                 id: event.id,
                 timestamp: event.timestamp,
                 type: event.type,
+                severity: event.severity,
+                caller: event.caller,
                 message: event.message,
                 actor: event.actor,
                 data: event.data,

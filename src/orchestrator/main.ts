@@ -13,7 +13,7 @@ try {
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
-        severity: LogSeverity.CRITICAL,
+        severity: LogSeverity.ERROR,
         caller: "SYSTEM",
         message: `Sovereign Boot Failure: ${error instanceof Error ? error.message : String(error)}`,
         payload: { stack: error instanceof Error ? error.stack : undefined }

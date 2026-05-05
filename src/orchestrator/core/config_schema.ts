@@ -47,7 +47,7 @@ export function loadConfig(): AppConfig {
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
-        severity: LogSeverity.CRITICAL,
+        severity: LogSeverity.ERROR,
         caller: "CONFIG",
         message: "INVALID CONFIGURATION DETECTED",
         payload: result.error.format()

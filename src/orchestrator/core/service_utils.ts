@@ -17,7 +17,7 @@ export function withTelemetry<T extends any[], R>(
       logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.DEBUG,
-          severity: LogSeverity.DEBUG,
+          severity: LogSeverity.INFO,
           caller: `SERVICE:${name}`,
           message: `Success in ${duration}ms`
       });

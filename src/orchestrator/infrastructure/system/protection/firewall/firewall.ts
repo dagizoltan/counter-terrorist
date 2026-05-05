@@ -2,7 +2,7 @@ import { broadcast } from "@api/ws.ts";
 import { meshManager } from "@domain/engine/mesh.ts";
 import { isValidIP } from "../../validation.ts";
 import { FirewallProvider } from "../interfaces.ts";
-import { loggingService } from "../../logging.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
 
 export type { FirewallProvider };
@@ -36,7 +36,7 @@ export class FirewallManager {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.WARNING,
-              caller: "FIREWALL",
+              caller: "FIREWALL:MGMT",
               message: `Failed to broadcast block for ${ip}: ${err.message}`
           });
       });
@@ -68,7 +68,7 @@ export class FirewallManager {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.WARNING,
-              caller: "FIREWALL",
+              caller: "FIREWALL:MGMT",
               message: `Failed to broadcast shadow ban for ${ip}: ${err.message}`
           });
       });
@@ -84,6 +84,10 @@ export class FirewallManager {
     this.blockedIps.delete(ip);
     broadcast({ type: "INFO", message: `Unblocking IP: ${ip}` });
     return await this.provider.unblockIp(ip);
+  }
+
+  async isBlocked(ip: string): Promise<boolean> {
+    return this.blockedIps.has(ip);
   }
 
   async getBlockedIps(): Promise<string[]> {
@@ -129,7 +133,7 @@ export class FirewallManager {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.WARNING,
-              caller: "FIREWALL",
+              caller: "FIREWALL:MGMT",
               message: `Failed to broadcast lockdown: ${err.message}`
           });
       });

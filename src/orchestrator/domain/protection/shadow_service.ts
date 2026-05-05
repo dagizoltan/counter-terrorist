@@ -96,7 +96,7 @@ export class ShadowService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "SHADOW:HONEY",
             message: `Starting Honey-Listener on port ${port}...`
         });

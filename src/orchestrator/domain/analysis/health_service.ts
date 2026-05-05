@@ -1,4 +1,4 @@
-import { LoggingPort } from "../../core/ports.ts";
+import { LoggingPort, LogType, LogSeverity } from "../../core/ports.ts";
 
 export type SubsystemStatus = "BOOTING" | "OPERATIONAL" | "DEGRADED" | "FAILED";
 
@@ -27,9 +27,21 @@ export class HealthService {
         });
 
         if (status === "FAILED") {
-            this.logger.log(`Subsystem Failure: ${name} - ${error}`, 1, "HEALTH");
+            this.logger.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "HEALTH",
+                message: `Subsystem Failure: ${name} - ${error}`
+            });
         } else if (status === "OPERATIONAL") {
-            this.logger.log(`Subsystem Operational: ${name}`, 6, "HEALTH");
+            this.logger.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "HEALTH",
+                message: `Subsystem Operational: ${name}`
+            });
         }
     }
 

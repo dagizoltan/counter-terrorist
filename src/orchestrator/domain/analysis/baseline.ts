@@ -284,7 +284,7 @@ export class BaselineService {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.CRITICAL,
+                severity: LogSeverity.ERROR,
                 caller: "BASELINE",
                 message: `CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`
             });

@@ -76,7 +76,7 @@ export class RealDiscovery {
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "SECURITY-DISCOVERY",
             message: `Dispatching IPv6 Link-Local Multicast on ${iface}...`
         });
@@ -98,7 +98,7 @@ export class RealDiscovery {
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "SECURITY-DISCOVERY",
             message: `Performing segmented IPv4 sweep on ${prefix}.0/24...`
         });

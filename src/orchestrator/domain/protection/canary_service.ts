@@ -72,7 +72,7 @@ export class CanaryService {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
-                    severity: LogSeverity.DEBUG,
+                    severity: LogSeverity.INFO,
                     caller: "CANARY",
                     message: `[DEV MODE] Skipping projection: ${newToken.projectionPath}`
                 });
@@ -113,7 +113,7 @@ export class CanaryService {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.DEBUG,
-                        severity: LogSeverity.DEBUG,
+                        severity: LogSeverity.INFO,
                         caller: "CANARY",
                         message: `[DEV MODE] Master generated at ${token.masterPath}. Skipping root projection.`
                     });
@@ -143,7 +143,7 @@ export class CanaryService {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
-                    severity: LogSeverity.DEBUG,
+                    severity: LogSeverity.INFO,
                     caller: "CANARY",
                     message: `Projected breadcrumb: ${token.projectionPath}`
                 });
@@ -178,7 +178,7 @@ export class CanaryService {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.DEBUG,
-                        severity: LogSeverity.DEBUG,
+                        severity: LogSeverity.INFO,
                         caller: "CANARY",
                         message: `Lure aged (timestamp rotation): ${token.id}`
                     });
@@ -200,6 +200,8 @@ export class CanaryService {
                 token.triggered = true;
                 this.auditService.logEvent({
                     type: "THREAT",
+                    severity: "critical",
+                    caller: "CANARY:LURE",
                     message: `CANARY TRIGGERED: ${process} accessed ${token.description}`,
                     data: { path: token.projectionPath, process, description: token.description }
                 });

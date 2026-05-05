@@ -64,18 +64,18 @@ export class TPMManager {
                 TPMManager.missingBinaries.add("tpm2_nvdefine");
                 this.logging.log({
                     timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
+                    type: LogType.AUDIT,
                     severity: LogSeverity.WARNING,
                     caller: "TPM",
-                    message: "TPM tools not found. Continuing with memory-only persistence."
+                    message: "TPM tools not detected. Operating in software-trust mode."
                 });
             } else {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
+                    type: LogType.AUDIT,
                     severity: LogSeverity.WARNING,
                     caller: "TPM",
-                    message: `Seal failed: ${(e as Error).message}. Continuing with memory-only persistence.`
+                    message: `Seal cycle failed: ${(e as Error).message}`
                 });
             }
         }
@@ -91,8 +91,8 @@ export class TPMManager {
         if (res.success) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: LogType.DEBUG,
-                severity: LogSeverity.DEBUG,
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
                 caller: "TPM",
                 message: `Secret '${secretName}' successfully unsealed from hardware.`
             });
@@ -130,8 +130,8 @@ export class TPMManager {
     async verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean> {
         this.logging.log({
             timestamp: new Date().toISOString(),
-            type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
             caller: "TPM",
             message: "Verifying system integrity via hardware PCR attestation..."
         });
@@ -140,10 +140,10 @@ export class TPMManager {
             if (!goldenPcrs || Object.keys(goldenPcrs).length === 0) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
+                    type: LogType.AUDIT,
                     severity: LogSeverity.WARNING,
                     caller: "TPM",
-                    message: "WARNING: No Golden PCR baseline provided. Integrity check is performative only."
+                    message: "Integrity check deferred: No Golden PCR baseline provided."
                 });
                 return true; 
             }
@@ -160,7 +160,7 @@ export class TPMManager {
                         type: LogType.AUDIT,
                         severity: LogSeverity.ERROR,
                         caller: "TPM",
-                        message: `PCR ${idx} not found in hardware output.`
+                        message: `PCR ${idx} missing from hardware output.`
                     });
                     return false;
                 }
@@ -169,9 +169,9 @@ export class TPMManager {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.AUDIT,
-                        severity: LogSeverity.CRITICAL,
+                        severity: LogSeverity.ERROR,
                         caller: "TPM",
-                        message: `INTEGRITY FAILURE: PCR ${idx} mismatch!`,
+                        message: `PCR ATTESATION FAILURE: PCR ${idx} mismatch detected!`,
                         payload: { expected, actual }
                     });
                     return false;
@@ -181,7 +181,7 @@ export class TPMManager {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.INFO,
+                severity: LogSeverity.SUCCESS,
                 caller: "TPM",
                 message: "Hardware integrity verified against Golden PCR baseline."
             });
@@ -189,10 +189,10 @@ export class TPMManager {
         } catch (e) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
+                type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
                 caller: "TPM",
-                message: `Integrity check skipped or failed to execute: ${(e as Error).message}. Continuing in software-trust mode.`
+                message: `Hardware verification skipped: ${(e as Error).message}`
             });
             // We return true here to avoid self-destructing on systems without TPM tools during development.
             // In a production lockdown environment, the executor would be hardened.
@@ -231,19 +231,19 @@ export class TPMManager {
             if (e instanceof Deno.errors.NotFound) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
-                    type: LogType.DEBUG,
-                    severity: LogSeverity.DEBUG,
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
                     caller: "TPM",
-                    message: "tpm2_sign not found. Switching to software fallback."
+                    message: "Hardware sign tools not found. Using software fallback."
                 });
                 TPMManager.missingBinaries.add("tpm2_sign");
             } else {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
-                    type: LogType.DEBUG,
-                    severity: LogSeverity.DEBUG,
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
                     caller: "TPM",
-                    message: `Sign failed: ${(e as Error).message}`
+                    message: `Hardware sign attempt failed: ${(e as Error).message}`
                 });
             }
         }
@@ -279,10 +279,10 @@ export class TPMManager {
         } catch (e) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: LogType.DEBUG,
-                severity: LogSeverity.DEBUG,
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
                 caller: "TPM",
-                message: `Verification failed: ${(e as Error).message}`
+                message: `Hardware verification failed: ${(e as Error).message}`
             });
             return false;
         }

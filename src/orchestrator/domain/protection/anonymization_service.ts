@@ -37,9 +37,9 @@ export class AnonymizationService {
 
         this.logging.log({
             timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
+            type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "ANON",
+            caller: "ANONYMIZER",
             message: `Anonymization active. Mode: ${this.mode}. Initializing stealth tunnel...`
         });
         
@@ -57,7 +57,7 @@ export class AnonymizationService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "ANON",
+            caller: "ANONYMIZER",
             message: `Switching stealth mode: ${this.mode} -> ${newMode}`
         });
         this.mode = newMode;
@@ -87,10 +87,10 @@ export class AnonymizationService {
     async rotate() {
         this.logging.log({
             timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
+            type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "ANON",
-            message: `Initiating ${this.mode} rotation sequence...`
+            caller: "anonymizer",
+            message: "initiating identity rotation"
         });
         
         try {
@@ -118,17 +118,17 @@ export class AnonymizationService {
             
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
+                type: LogType.AUDIT,
                 severity: LogSeverity.SUCCESS,
-                caller: "ANON",
-                message: `Identity Rotated: Now exiting via ${selected.country} (${selected.ip})`
+                caller: "anonymizer",
+                message: "identity rotation complete"
             });
         } catch (e) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "ANON",
+                caller: "ANONYMIZER",
                 message: `Rotation failed for ${this.mode}: ${(e as Error).message}`
             });
         }
@@ -137,10 +137,18 @@ export class AnonymizationService {
     private async deployVpnGate(node: AnonymizationNode) {
         this.logging.log({
             timestamp: new Date().toISOString(),
-            type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
-            caller: "ANON",
-            message: `Tunneling via Academic Node: ${node.country} [${node.ip}]`
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "anonymizer",
+            message: "establishing new secure tunnel"
+        });
+
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "anonymizer",
+            message: "applying routing table updates"
         });
         // Realistic simulation of wg-quick config update would go here
         await this.vpn.connect(`vpngate-${node.country.toLowerCase()}`);
@@ -151,7 +159,7 @@ export class AnonymizationService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "ANON",
+            caller: "ANONYMIZER",
             message: "Shifting Tor circuit paths and renewing identity..."
         });
         // Renew Tor identity (NEWNYM)
@@ -162,7 +170,7 @@ export class AnonymizationService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "ANON",
+            caller: "ANONYMIZER",
             message: "Shifting to premium sovereign exit node..."
         });
         await this.vpn.connect("sovereign-exit-alpha");

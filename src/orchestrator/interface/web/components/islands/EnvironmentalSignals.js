@@ -92,42 +92,88 @@ class EnvironmentalSignals extends HTMLElement {
     const isFriend = s.vector === 'FRIEND';
 
     const color = isWifi ? 'var(--primary)' : isBT ? 'var(--warning)' : 'var(--success)';
-    const icon = isWifi ? 'signal' : isBT ? 'bluetooth' : 'users';
+    const glow = isWifi ? 'shadow-primary/10' : isBT ? 'shadow-warning/10' : 'shadow-success/10';
+    
+    const meta = [];
+    if (isWifi) {
+      meta.push(`CH: ${s.channel || '?'}`);
+      meta.push(`${s.band || ''}`);
+      meta.push(`${s.encryption || 'OPEN'}`);
+    } else if (isBT) {
+      meta.push(`${s.type || 'DEVICE'}`);
+      if (s.battery) meta.push(`BAT: ${s.battery}`);
+    } else if (isFriend) {
+      meta.push(`IP: ${s.ip || '0.0.0.0'}`);
+      if (s.isMeshNode) meta.push('MESH_PEER');
+    }
 
     return `
-      <div class="glass-panel p-6 border-l-4 hover:bg-white/[0.04] transition-all group" style="border-left-color: ${color}">
-        <div class="flex justify-between items-start mb-4">
-          <div class="flex flex-col">
-            <span class="mono-xs font-black uppercase tracking-[0.3em] opacity-40 mb-1">${s.vector} // ${s.mac?.toUpperCase() || 'UNKNOWN_MAC'}</span>
-            <h4 class="tactical-title text-xl text-white group-hover:text-primary transition-colors">${s.ssid || s.hostname || s.name || 'ANONYMOUS_ENTITY'}</h4>
+      <div class="glass-panel p-5 border border-white/5 hover:border-${isWifi ? 'primary' : isBT ? 'warning' : 'success'}/30 hover:bg-white/[0.03] transition-all group relative overflow-hidden shadow-xl ${glow}">
+        <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
+          ${this.getVectorIcon(s.vector)}
+        </div>
+
+        <!-- Header -->
+        <div class="flex flex-col mb-4">
+          <div class="flex items-center gap-2 mb-1">
+             <span class="mono text-[8px] font-black uppercase tracking-widest text-slate-500">${s.vector}</span>
+             <span class="w-1 h-1 rounded-full bg-white/20"></span>
+             <span class="mono text-[8px] font-black uppercase tracking-widest text-slate-500">${s.mac?.toUpperCase() || 'UNKNOWN'}</span>
           </div>
-          <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-400">
-             ${this.getVectorIcon(s.vector)}
+          <h4 class="tactical-title text-lg text-white group-hover:text-${isWifi ? 'primary' : isBT ? 'warning' : 'success'} transition-colors truncate">
+            ${s.ssid || s.hostname || s.name || 'ANONYMOUS_ENTITY'}
+          </h4>
+          <div class="flex flex-col gap-0.5 mt-1">
+            <span class="mono text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${s.vendor || 'Unknown Vendor'}</span>
+            <span class="mono text-[7px] font-black text-primary/60 uppercase tracking-widest">${s.publicIntel || ''}</span>
           </div>
         </div>
 
-        <div class="flex items-center gap-4 mt-6 pt-4 border-t border-white/5">
-          <div class="flex-grow">
-            <div class="flex justify-between mb-1">
-              <span class="text-[8px] font-black text-slate-500 uppercase tracking-widest">Signal Integrity</span>
-              <span class="text-[8px] font-black uppercase tracking-widest" style="color: ${color}">${s.signal || 0}%</span>
+        <!-- Tactical Metadata -->
+        <div class="grid grid-cols-2 gap-2 mb-6">
+          ${meta.map(m => `
+            <div class="bg-black/20 border border-white/5 px-2 py-1.5 rounded flex items-center justify-center">
+              <span class="mono text-[8px] font-black text-slate-300 uppercase">${m}</span>
             </div>
-            <div class="h-1 bg-white/5 rounded-full overflow-hidden">
-               <div class="h-full bg-current transition-all duration-1000" style="width: ${s.signal || 0}%; color: ${color}; box-shadow: 0 0 10px ${color}"></div>
-            </div>
-          </div>
-          <button class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 transition-colors">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4h-4Z"/></svg>
-          </button>
+          `).join('')}
         </div>
+
+        <!-- Signal Strength -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-end">
+            <span class="mono text-[8px] font-black text-slate-500 uppercase tracking-widest">Signal / RSSI</span>
+            <span class="mono text-[10px] font-black" style="color: ${color}">${isBT ? (s.signal + ' dBm') : (s.signal + '%')}</span>
+          </div>
+          <div class="h-1 bg-white/5 rounded-full overflow-hidden flex gap-0.5">
+             ${this.renderSignalBars(s.signal, color)}
+          </div>
+        </div>
+
+        <!-- Details Footer -->
+        ${s.details ? `
+          <div class="mt-4 pt-4 border-t border-white/5">
+            <p class="mono text-[8px] text-slate-500 leading-relaxed italic uppercase">${s.details}</p>
+          </div>
+        ` : ''}
       </div>
     `;
   }
 
+  renderSignalBars(signal, color) {
+    const bars = 5;
+    const activeBars = Math.ceil((signal < 0 ? (100 + signal) : signal) / (100 / bars));
+    let html = '';
+    for (let i = 0; i < bars; i++) {
+        const opacity = i < activeBars ? '1' : '0.1';
+        html += `<div class="flex-grow h-full transition-all duration-500" style="background: ${color}; opacity: ${opacity}; box-shadow: ${i < activeBars ? `0 0 5px ${color}` : 'none'}"></div>`;
+    }
+    return html;
+  }
+
   getVectorIcon(vector) {
-    if (vector === 'WIFI') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>';
-    if (vector === 'BT') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>';
-    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+    if (vector === 'WIFI') return '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-primary"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>';
+    if (vector === 'BT') return '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>';
+    return '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-success"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
   }
 }
 

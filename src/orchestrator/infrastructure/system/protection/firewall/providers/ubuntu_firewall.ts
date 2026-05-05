@@ -2,7 +2,7 @@ import { FirewallProvider } from "../firewall.ts";
 import { SidecarManager } from "../../../../runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { CommandResult, LogSeverity, LogType } from "@core/ports.ts";
-import { loggingService } from "../../../logging.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 
 export class UbuntuFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}

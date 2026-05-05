@@ -83,10 +83,10 @@ export class CuratedIntelService {
     async sync() {
         this.logging.log({
             timestamp: new Date().toISOString(),
-            type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
-            caller: "INTEL",
-            message: "Commencing weighted intelligence ingestion..."
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "firewall",
+            message: "fetching external sources for malicious ip addresses"
         });
         
         const fetchTasks = this.sources.map(async (source) => {
@@ -163,7 +163,36 @@ export class CuratedIntelService {
             }
 
             if (curated.score >= 85 && curated.type === "IP") {
-                await this.firewall.blockIp(curated.indicator).catch(() => {});
+                const isAlreadyBlocked = await this.firewall.isBlocked(curated.indicator);
+                
+                if (!isAlreadyBlocked) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.WARNING,
+                        caller: "firewall",
+                        message: "new malicious ip identified"
+                    });
+
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.WARNING,
+                        caller: "firewall",
+                        message: "adding new malicious ip to firewall"
+                    });
+
+                    await this.firewall.blockIp(curated.indicator).catch(() => {});
+                    
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.SUCCESS,
+                        caller: "firewall",
+                        message: "new malicious ip added"
+                    });
+                }
+                
                 this.blacklist.add(curated.indicator);
                 blockCount++;
             } else if (curated.score >= 60 && curated.type === "IP") {
@@ -181,7 +210,7 @@ export class CuratedIntelService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "INTEL",
             message: `Ingested ${ingestCount} from ${source.name} (Active Blocks: ${blockCount})`
         });

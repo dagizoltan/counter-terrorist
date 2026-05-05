@@ -1,4 +1,4 @@
-import { loggingService } from "./logging.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
 
 export type PlatformName = "windows" | "ubuntu" | "macos" | "unknown";

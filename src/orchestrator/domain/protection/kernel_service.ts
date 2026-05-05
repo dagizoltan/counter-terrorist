@@ -107,7 +107,7 @@ export class KernelService {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.DEBUG,
-                severity: LogSeverity.DEBUG,
+                severity: LogSeverity.INFO,
                 caller: "KERNEL",
                 message: `Process ${selfPid} successfully camouflaged as '${targetName}'`
             });
@@ -140,7 +140,7 @@ export class KernelService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "KERNEL:LSM",
             message: `LSM Enforcement: Blocking syscall '${syscall}' for PID ${pid}`
         });

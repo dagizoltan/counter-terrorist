@@ -81,10 +81,13 @@ export class LoggingService implements LoggingPort {
         };
     }
 
-    private ignoredSources = new Set(["WEB:UI", "METRICS", "HEARTBEAT"]);
+    private ignoredSources = new Set(["WEB:UI", "HEARTBEAT"]);
     private ignoredKeywords = ["GET /api/ws/events", "GET /api/metrics"];
 
     async log(entry: LogEntry) {
+        if (!entry || typeof entry !== "object") return;
+        if (!entry.message) return;
+        
         if (this.ignoredSources.has(entry.caller)) return;
         for (const kw of this.ignoredKeywords) {
             if (entry.message.includes(kw)) return;
@@ -96,7 +99,9 @@ export class LoggingService implements LoggingPort {
 
         const { timestamp, type, severity, caller, message, payload } = entry;
 
-        let formattedMsg = `[${type.toUpperCase()}] [${caller}] ${message}`;
+        let formattedMsg = `[${type.toUpperCase()}] [${severity.toLowerCase()}] [${caller}] ${message}`;
+        entry.formatted = formattedMsg; // Attach to entry for downstream consumption (Audit, WS)
+
         if (payload) {
             try {
                 formattedMsg += ` | PAYLOAD: ${JSON.stringify(payload)}`;
@@ -106,12 +111,10 @@ export class LoggingService implements LoggingPort {
         }
 
         const severityMap: Record<LogSeverity, number> = {
-            [LogSeverity.DEBUG]: 7,
             [LogSeverity.INFO]: 6,
             [LogSeverity.SUCCESS]: 5,
             [LogSeverity.WARNING]: 4,
-            [LogSeverity.ERROR]: 3,
-            [LogSeverity.CRITICAL]: 2
+            [LogSeverity.ERROR]: 3
         };
 
         const pri = (1 * 8) + (severityMap[severity] || 6);
@@ -123,16 +126,16 @@ export class LoggingService implements LoggingPort {
             this.bufferLog(syslogMsg);
         } else {
             const colors: Record<LogSeverity, string> = {
-                [LogSeverity.DEBUG]: "\x1b[90m",   
                 [LogSeverity.INFO]: "\x1b[36m",    
                 [LogSeverity.SUCCESS]: "\x1b[32m", 
                 [LogSeverity.WARNING]: "\x1b[33m", 
-                [LogSeverity.ERROR]: "\x1b[31m",   
-                [LogSeverity.CRITICAL]: "\x1b[41m\x1b[37m" 
+                [LogSeverity.ERROR]: "\x1b[31m"
             };
             const c = colors[severity] || "\x1b[0m";
             const reset = "\x1b[0m";
-            this.originalLog(`${timestamp} ${c}${severity.toUpperCase().padStart(8)}${reset} [${caller}] ${message}`);
+            
+            // Console format: TIMESTAMP [TYPE] [SEVERITY] [CALLER] MESSAGE
+            this.originalLog(`${timestamp} ${c}[${type.toUpperCase()}] [${severity.toLowerCase()}] [${caller}]${reset} ${message}`);
         }
     }
 
@@ -141,14 +144,14 @@ export class LoggingService implements LoggingPort {
         
         if (typeof severity === "number") {
             const map: Record<number, LogSeverity> = {
-                [SyslogSeverity.EMERGENCY]: LogSeverity.CRITICAL,
-                [SyslogSeverity.ALERT]: LogSeverity.CRITICAL,
-                [SyslogSeverity.CRITICAL]: LogSeverity.CRITICAL,
+                [SyslogSeverity.EMERGENCY]: LogSeverity.ERROR,
+                [SyslogSeverity.ALERT]: LogSeverity.ERROR,
+                [SyslogSeverity.CRITICAL]: LogSeverity.ERROR,
                 [SyslogSeverity.ERROR]: LogSeverity.ERROR,
                 [SyslogSeverity.WARNING]: LogSeverity.WARNING,
                 [SyslogSeverity.NOTICE]: LogSeverity.SUCCESS,
                 [SyslogSeverity.INFORMATIONAL]: LogSeverity.INFO,
-                [SyslogSeverity.DEBUG]: LogSeverity.DEBUG
+                [SyslogSeverity.DEBUG]: LogSeverity.INFO
             };
             mappedSeverity = map[severity] || LogSeverity.INFO;
         } else {

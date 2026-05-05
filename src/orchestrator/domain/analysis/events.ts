@@ -75,12 +75,14 @@ export class EventBus implements EventBusPort {
 
     // Forward to centralized logging
     const severity = this.mapTypeToSeverity(type);
+    const logType = type === "METRICS_UPDATE" ? LogType.DEBUG : LogType.AUDIT;
+
     this.logging.log({
         timestamp: new Date().toISOString(),
-        type: LogType.AUDIT,
+        type: logType,
         severity,
         caller: "EVENTBUS",
-        message: `[${type}] ${message}`,
+        message: message,
         payload: validatedData
     }).catch(() => {});
 
@@ -123,10 +125,10 @@ export class EventBus implements EventBusPort {
 
   private mapTypeToSeverity(type: string): LogSeverity {
     switch (type) {
-      case "EMERGENCY": return LogSeverity.CRITICAL;
+      case "EMERGENCY": return LogSeverity.ERROR;
       case "CRITICAL": 
       case "EBPF_CRITICAL":
-          return LogSeverity.CRITICAL;
+          return LogSeverity.ERROR;
       case "BLOCK": 
       case "THREAT":
           return LogSeverity.WARNING;

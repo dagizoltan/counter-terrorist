@@ -25,7 +25,7 @@ export class ShadowProtocolService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "SHADOW",
             message: "!!! TARGETED ATTACK DETECTED. ACTIVATING SHADOW PROTOCOL !!!"
         });

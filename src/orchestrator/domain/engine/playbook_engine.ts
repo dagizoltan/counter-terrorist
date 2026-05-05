@@ -24,7 +24,7 @@ export class PlaybookEngine {
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
-              severity: LogSeverity.CRITICAL,
+              severity: LogSeverity.ERROR,
               caller: "PLAYBOOK",
               message: `SSH Brute Force detected from ${ip}. Executing Block protocol.`
           });
@@ -37,7 +37,7 @@ export class PlaybookEngine {
          this.logging.log({
              timestamp: new Date().toISOString(),
              type: LogType.AUDIT,
-             severity: LogSeverity.CRITICAL,
+             severity: LogSeverity.ERROR,
              caller: "PLAYBOOK",
              message: "CRITICAL INTRUSION DETECTED. Executing EMERGENCY LOCKDOWN."
          });
@@ -51,7 +51,7 @@ export class PlaybookEngine {
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
-              severity: LogSeverity.CRITICAL,
+              severity: LogSeverity.ERROR,
               caller: "PLAYBOOK",
               message: `Critical Honeypot hit from ${ip}. Pre-emptively blocking.`
           });

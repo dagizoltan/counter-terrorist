@@ -1,6 +1,6 @@
 import { broadcast } from "@api/ws.ts";
 import { SidecarManager } from "../../../runtime/sidecar_manager.ts";
-import { loggingService } from "../../logging.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
 
 export interface RkhunterResult {

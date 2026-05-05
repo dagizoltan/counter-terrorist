@@ -72,7 +72,7 @@ export class NewsSignalService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "NEWS",
             message: "Synchronizing tactical news signals..."
         });

@@ -47,7 +47,7 @@ export class TacticalIntelIngestor {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "INTEL",
             message: "Syncing global threat feeds and enforcing blacklists..."
         });
@@ -57,7 +57,7 @@ export class TacticalIntelIngestor {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
-                    severity: LogSeverity.DEBUG,
+                    severity: LogSeverity.INFO,
                     caller: "INTEL",
                     message: `Ingesting from ${source.name}...`
                 });
@@ -126,7 +126,7 @@ export class TacticalIntelIngestor {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "INTEL",
             message: `Blocked ${count} active threats from ${source.name}`
         });

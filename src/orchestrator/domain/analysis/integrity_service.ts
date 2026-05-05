@@ -32,7 +32,7 @@ export class IntegrityService {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.CRITICAL,
+                severity: LogSeverity.ERROR,
                 caller: "INTEGRITY",
                 message: "IRRECOVERABLE COMPROMISE DETECTED. Node is isolated and under heavy attack."
             });
@@ -44,7 +44,7 @@ export class IntegrityService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "INTEGRITY",
             message: "DEAD MAN'S SWITCH TRIGGERED. Shredding mesh secrets..."
         });
@@ -61,7 +61,7 @@ export class IntegrityService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "INTEGRITY",
             message: "Sovereign Self-Destruct Sequence Complete. System Terminating."
         });

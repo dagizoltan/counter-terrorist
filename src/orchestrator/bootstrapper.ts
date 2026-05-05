@@ -66,10 +66,10 @@ export async function camouflage() {
     // Note: In a compiled Deno binary, this makes the process look like a kernel worker in 'ps'
     loggingService.log({
         timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
+        type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "STEALTH",
-        message: "Process identity masked as (kworker/u2:1)"
+        caller: "CAMOUFLAGE",
+        message: "Kernel worker identity masked successfully"
     });
   }
 }
@@ -79,20 +79,20 @@ if (import.meta.main) {
   
   loggingService.log({
       timestamp: new Date().toISOString(),
-      type: LogType.GENERIC,
+      type: LogType.AUDIT,
       severity: LogSeverity.INFO,
-      caller: "BOOTSTRAP",
-      message: `Security Orchestrator Initialized. OS: ${status.os}, Root: ${status.isRoot}`
+      caller: "BOOTSTRAP:SELF_TEST",
+      message: `Forensic environment check passed (OS: ${status.os}, Root: ${status.isRoot})`
   });
 
   for (const [dep, found] of Object.entries(status.dependencies)) {
     if (!found) {
         loggingService.log({
             timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
+            type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "BOOTSTRAP",
-            message: `Missing dependency: ${dep}`
+            caller: "BOOTSTRAP:SELF_TEST",
+            message: `Missing critical dependency: ${dep}`
         });
     }
   }
@@ -100,10 +100,10 @@ if (import.meta.main) {
   if (!status.isRoot) {
     loggingService.log({
         timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
+        type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "BOOTSTRAP",
-        message: "Running without root privileges. Defensive capabilities will be limited."
+        caller: "BOOTSTRAP:SELF_TEST",
+        message: "Sub-optimal privilege level detected. Capability degradation expected."
     });
   }
 }

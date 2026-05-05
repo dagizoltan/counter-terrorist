@@ -70,11 +70,17 @@ export function broadcast(data: BroadcastData) {
     }
   }
 
-  // Trigger Deno KV Audit Event
+  // Trigger Deno KV Audit Event (Escalated to AUDIT type for the ledger)
   if (data.type !== "METRICS_UPDATE") {
+    // Map internal types to mandated forensic types for the ledger
+    let forensicType = LogType.AUDIT;
+    if (data.type === "INFO" || data.type === "ACTIVITY") forensicType = LogType.ACTIVITY;
+
     auditService.logEvent({
-      type: data.type,
-      message: data.message || "",
+      type: forensicType, // Use mandated type instead of raw data.type
+      severity: data.severity || (data.type === "CRITICAL" ? LogSeverity.ERROR : LogSeverity.INFO),
+      caller: data.caller || "WS:BROADCAST",
+      message: data.message || data.type || "",
       data: data.data,
       timestamp: eventToBroadcast.timestamp
     }).catch(() => {});
@@ -85,22 +91,21 @@ export function broadcast(data: BroadcastData) {
       message: data.message || "",
       data: data.data
     }).catch(() => {});
+  }
 
-    // Trigger Syslog
-    let severity = LogSeverity.INFO;
-    if (data.type === "CRITICAL") severity = LogSeverity.CRITICAL;
-    else if (data.type?.startsWith("DRIFT")) severity = LogSeverity.WARNING;
-    else if (data.type === "BLOCK") severity = LogSeverity.SUCCESS;
+  // Trigger Logging (Categorized as DEBUG for UI synchronization noise reduction)
+  let severity = LogSeverity.INFO;
+  if (data.type === "CRITICAL") severity = LogSeverity.ERROR;
+  else if (data.type?.startsWith("DRIFT") || data.type === "BLOCK") severity = LogSeverity.WARNING;
 
-    if (sharedLogging) {
-      sharedLogging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity,
-        caller: "WS:EVENT",
-        message: `${data.type}: ${data.message || ""}`
-      }).catch(() => {});
-    }
+  if (sharedLogging) {
+    sharedLogging.log({
+      timestamp: new Date().toISOString(),
+      type: LogType.DEBUG, // Standardize WS noise as DEBUG
+      severity,
+      caller: data.type === "METRICS_UPDATE" ? "METRICS" : "WS:EVENT",
+      message: data.message || (data.type === "METRICS_UPDATE" ? "Periodic system metrics synchronized" : data.type)
+    }).catch(() => {});
   }
 }
 

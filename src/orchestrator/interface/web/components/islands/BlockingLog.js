@@ -118,34 +118,75 @@ class BlockingLog extends HTMLElement {
 
   createLogElement(log) {
     const div = document.createElement('div');
-    const color = this.getColorClass(log.type);
-    div.className = `flex gap-4 py-1.5 px-4 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group relative overflow-hidden`;
+    const severity = (log.severity || 'info').toLowerCase();
+    const type = (log.type || 'generic').toUpperCase();
+    const caller = (log.caller || log.actor?.id || 'SYSTEM').toUpperCase();
+    
+    const severityColor = this.getSeverityColorClass(severity);
+    const typeColor = this.getTypeColorClass(type);
+    
+    // Use the pre-formatted string from backend if available, otherwise reconstruct it
+    const formatted = log.formatted || `[${type}] [${severity}] [${caller}] ${log.message}`;
+    const [brackets, ...messageParts] = formatted.split(']');
+    const bracketSection = brackets + ']';
+    const messageSection = messageParts.join(']').trim();
+
+    div.className = `flex items-center gap-6 py-2.5 px-6 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group relative overflow-hidden`;
     div.innerHTML = `
-      <div class="absolute inset-y-0 left-0 w-1 ${color} opacity-0 group-hover:opacity-100 transition-opacity"></div>
-      <div class="flex flex-col w-24 flex-shrink-0">
-        <span class="mono text-[10px] font-black text-slate-500 tabular-nums">${new Date(log.timestamp).toLocaleTimeString([], { hour12: false })}</span>
-        <span class="mono text-[8px] text-slate-700">${new Date(log.timestamp).toLocaleDateString()}</span>
+      <div class="absolute inset-y-0 left-0 w-1 ${severityColor} opacity-30 group-hover:opacity-100 transition-opacity"></div>
+      
+      <!-- 01 Timestamp -->
+      <div class="flex flex-col w-28 flex-shrink-0">
+        <span class="mono text-[10px] font-black text-slate-400 tabular-nums">${new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}<span class="text-slate-600">.${String(new Date(log.timestamp).getMilliseconds()).padStart(3, '0')}</span></span>
+        <span class="mono text-[8px] text-slate-700 font-bold uppercase tracking-tighter">${new Date(log.timestamp).toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })}</span>
       </div>
-      <div class="flex flex-col gap-1 flex-grow">
-        <div class="flex items-center gap-3">
-          <span class="mono text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded bg-white/5 border border-white/10 ${this.getTextClass(log.type)}">${log.type}</span>
-          <span class="text-[11px] font-bold text-slate-300 tracking-wide">${log.message}</span>
+
+      <!-- 02 Compliant Taxonomy Block -->
+      <div class="flex-grow min-w-0 flex items-baseline gap-3">
+        <span class="mono text-[10px] font-black uppercase tracking-[0.1em] ${this.getSeverityTextClass(severity)} whitespace-nowrap">
+          ${window.escapeHTML(bracketSection)}
+        </span>
+        <p class="text-[11px] font-medium text-slate-300 tracking-wide truncate group-hover:whitespace-normal transition-all duration-300">
+          ${window.escapeHTML(messageSection)}
+        </p>
+      </div>
+
+      <!-- 03 Actor Payload (Hidden by default, shown on hover/detail) -->
+      ${log.actor?.ip ? `
+        <div class="flex items-center gap-2 px-3 py-1 bg-primary/5 border border-primary/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0">
+          <span class="mono text-[8px] text-primary font-black uppercase">IP: ${log.actor.ip}</span>
         </div>
-        ${log.actor ? `
-          <div class="flex items-center gap-4 opacity-40 group-hover:opacity-100 transition-opacity">
-            <div class="flex items-center gap-1.5">
-              <span class="mono text-[8px] text-slate-500 uppercase">Actor:</span>
-              <span class="mono text-[8px] text-primary font-black uppercase">${log.actor.id}</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <span class="mono text-[8px] text-slate-500 uppercase">IP:</span>
-              <span class="mono text-[8px] text-slate-400 tabular-nums">${log.actor.ip}</span>
-            </div>
-          </div>
-        ` : ''}
-      </div>
+      ` : ''}
     `;
     return div;
+  }
+
+  getSeverityColorClass(severity) {
+    if (severity === 'critical' || severity === 'emergency' || severity === 'error') return 'bg-danger';
+    if (severity === 'warning') return 'bg-warning';
+    if (severity === 'success') return 'bg-success';
+    return 'bg-primary';
+  }
+
+  getSeverityTextClass(severity) {
+    if (severity === 'critical' || severity === 'emergency' || severity === 'error') return 'text-danger';
+    if (severity === 'warning') return 'text-warning';
+    if (severity === 'success') return 'text-success';
+    return 'text-primary';
+  }
+
+  getSeverityBorderClass(severity) {
+    if (severity === 'critical' || severity === 'emergency' || severity === 'error') return 'border-danger/30';
+    if (severity === 'warning') return 'border-warning/30';
+    if (severity === 'success') return 'border-success/30';
+    return 'border-primary/30';
+  }
+
+  getTypeColorClass(type) {
+    if (type === 'AUDIT' || type === 'ENFORCEMENT') return 'text-primary';
+    if (type === 'THREAT' || type === 'BLOCK') return 'text-danger';
+    if (type === 'INTRUSION') return 'text-warning';
+    return 'text-slate-400';
   }
 
   prependLog(log) {
@@ -163,17 +204,7 @@ class BlockingLog extends HTMLElement {
     this.container.appendChild(el);
   }
 
-  getColorClass(type) {
-    if (type === 'BLOCK' || type === 'THREAT' || type === 'CRITICAL') return 'bg-danger';
-    if (type === 'WARN' || type === 'WARNING') return 'bg-warning';
-    return 'bg-primary';
-  }
 
-  getTextClass(type) {
-    if (type === 'BLOCK' || type === 'THREAT' || type === 'CRITICAL') return 'text-danger';
-    if (type === 'WARN' || type === 'WARNING') return 'text-warning';
-    return 'text-primary';
-  }
 }
 
 if (!customElements.get('blocking-log')) {

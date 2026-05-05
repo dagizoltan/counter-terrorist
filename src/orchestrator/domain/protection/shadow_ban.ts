@@ -21,7 +21,7 @@ export class ShadowBanService {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
-                    severity: LogSeverity.DEBUG,
+                    severity: LogSeverity.INFO,
                     caller: "SHADOW-BAN",
                     message: `Detected interface: ${this.interface}`
                 });

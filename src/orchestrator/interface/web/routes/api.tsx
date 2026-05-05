@@ -24,33 +24,26 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   const router = new Hono();
 
   // 1. Environmental Infrastructure (Discovery & Logs) - HIGH PRIORITY MATCHING
-  router.get("/infrastructure/network/discovery", async (c: Context) => {
+  // 1. Environmental Infrastructure (Ambient Signal Discovery)
+  router.get("/network/discovery", async (c: Context) => {
     const { IntelEnricher } = await import("@domain/analysis/intel_enricher.ts");
     
-    // Merge discovery devices and mesh nodes for a unified tactical view
+    // Ambient signals ONLY (WiFi, Bluetooth, Nearby Assets)
+    // Active mesh topology is excluded per user requirements
     const devices = services.networkDiscovery.getDevices();
-    const meshNodes = services.mesh.getNodes();
     
-    const unified = [
-        ...devices,
-        ...meshNodes.map(n => ({
-            id: n.id,
-            ip: n.address,
-            mac: n.id, // Using ID as MAC for mesh peers if real MAC unknown
-            vendor: "Sovereign_Mesh_Peer",
-            isMeshNode: true,
-            isLocal: false,
-            lastSeen: new Date(n.lastSeen).toISOString(),
-            hostname: n.hostname,
-            state: n.verified ? "VERIFIED" : "UNTRUSTED",
-            type: "MESH" as const
-        }))
-    ];
+    // Categorize for the UI
+    const wifi = devices.filter(d => d.type === "WIFI");
+    const bluetooth = devices.filter(d => d.type === "BLUETOOTH");
+    const ethernet = devices.filter(d => d.type === "ETHERNET");
 
-    // Filter duplicates (some mesh nodes might be discovered via ARP too)
-    const unique = Array.from(new Map(unified.map(item => [item.ip || item.id, item])).values());
+    const enriched = {
+        wifi: IntelEnricher.enrichDevices(wifi),
+        bluetooth: IntelEnricher.enrichDevices(bluetooth),
+        ethernet: IntelEnricher.enrichDevices(ethernet)
+    };
 
-    return c.json(IntelEnricher.enrichDevices(unique));
+    return c.json(enriched);
   });
 
   router.get("/network/logs", async (c: Context) => {
@@ -319,7 +312,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
             loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.CRITICAL,
+                severity: LogSeverity.ERROR,
                 caller: "GOVERNANCE",
                 message: `SECURITY ALERT: Rejected unsigned/invalid policy manifest v${newPolicy.version}`
             });

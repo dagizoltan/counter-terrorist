@@ -54,7 +54,7 @@ export class ForensicService {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.DEBUG,
-        severity: LogSeverity.DEBUG,
+        severity: LogSeverity.INFO,
         caller: "FORENSICS",
         message: `Bundle generated: ${logs.length} events, ${processTree.length} processes captured.`
     });

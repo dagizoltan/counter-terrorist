@@ -22,7 +22,7 @@ export class CovertChannelService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "COVERT",
             message: `Sending subliminal ICMP heartbeat to ${targetIp}...`
         });
@@ -41,7 +41,7 @@ export class CovertChannelService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "COVERT",
             message: `Signaling mesh state via DNS query: ${target}`
         });
@@ -64,7 +64,7 @@ export class CovertChannelService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
-            severity: LogSeverity.DEBUG,
+            severity: LogSeverity.INFO,
             caller: "COVERT",
             message: "ICMP Sniper active. Listening for subliminal mesh signals."
         });

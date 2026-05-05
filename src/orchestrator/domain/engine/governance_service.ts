@@ -117,7 +117,7 @@ export class GovernanceService {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.CRITICAL,
+                severity: LogSeverity.ERROR,
                 caller: "GOVERNANCE",
                 message: `Policy Rejection: Proposer ${proposal.proposer} not found in mesh registry.`
             });
@@ -183,7 +183,7 @@ export class GovernanceService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "GOVERNANCE",
             message: `QUORUM REACHED for Proposal ${proposal.id.slice(0,8)}. Executing ${proposal.type}...`
         });
@@ -193,7 +193,7 @@ export class GovernanceService {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
-                    severity: LogSeverity.CRITICAL,
+                    severity: LogSeverity.ERROR,
                     caller: "GOVERNANCE",
                     message: "Executing MESH-WIDE LOCKDOWN (Fail-Closed)."
                 });
@@ -206,7 +206,7 @@ export class GovernanceService {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
-                    severity: LogSeverity.CRITICAL,
+                    severity: LogSeverity.ERROR,
                     caller: "GOVERNANCE",
                     message: `Executing ACTIVE_SABOTAGE against target: ${proposal.target}`
                 });
