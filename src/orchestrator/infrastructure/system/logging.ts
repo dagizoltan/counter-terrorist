@@ -97,9 +97,9 @@ export class LoggingService implements LoggingPort {
         const appName = "ct-orch";
         const procId = Deno.pid;
 
-        const { timestamp, type, severity, caller, message, payload } = entry;
+        const { timestamp, type, severity = LogSeverity.INFO, caller, message, payload } = entry;
 
-        let formattedMsg = `[${type.toUpperCase()}] [${severity.toLowerCase()}] [${caller}] ${message}`;
+        let formattedMsg = `[${(type || LogType.GENERIC).toUpperCase()}] [${(severity || LogSeverity.INFO).toLowerCase()}] [${caller || "UNKNOWN"}] ${message}`;
         entry.formatted = formattedMsg; // Attach to entry for downstream consumption (Audit, WS)
 
         if (payload) {

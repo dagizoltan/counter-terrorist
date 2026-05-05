@@ -5,6 +5,8 @@ export interface GeoInfo {
     country: string;
     city: string;
     isp: string;
+    asn: string;
+    isBulletproof: boolean;
     lat: number;
     lon: number;
     timestamp: string;
@@ -20,23 +22,19 @@ export class GeoIpService {
 
     constructor(private logging: LoggingPort) {}
 
-    /**
-     * Resolves an IP to geolocation data.
-     * In a production environment, this would use a local MaxMind database.
-     * Here, we simulate the resolution while maintaining a secure lookup pattern.
-     */
     async resolve(ip: string): Promise<GeoInfo | null> {
         if (this.cache.has(ip)) return this.cache.get(ip)!;
 
-        // TACTICAL SAFETY: In a sovereign environment, we avoid direct API calls
-        // that could reveal our own IP to a 3rd party lookup service.
-        // We simulate a local DB lookup here.
+        const asn = Math.floor(Math.random() * 65000);
+        const isBulletproof = [20473, 53831, 62416, 48333].includes(asn % 70000); // Simulated Bulletproof ASNs
         
         const info: GeoInfo = {
             ip,
             country: this.getSimulatedCountry(ip),
             city: "Simulated_Sector",
-            isp: "Autonomous_System_" + Math.floor(Math.random() * 10000),
+            isp: isBulletproof ? "Bulletproof_Hosting_Group" : "Standard_Service_Provider",
+            asn: `AS${asn}`,
+            isBulletproof,
             lat: (Math.random() * 180) - 90,
             lon: (Math.random() * 360) - 180,
             timestamp: new Date().toISOString()
@@ -47,10 +45,9 @@ export class GeoIpService {
     }
 
     private getSimulatedCountry(ip: string): string {
-        const countries = ["US", "RU", "CN", "DE", "FR", "NL", "BR", "IN", "JP"];
-        // Deterministic simulation based on IP octets
-        const octets = ip.split('.').map(o => parseInt(o));
-        const index = (octets[0] + octets[1] + octets[2] + octets[3]) % countries.length;
+        const countries = ["US", "RU", "CN", "DE", "FR", "NL", "BR", "IN", "JP", "UA", "IR"];
+        const octets = ip.split('.').map(o => parseInt(o) || 0);
+        const index = (octets[0] + (octets[1] || 0)) % countries.length;
         return countries[index];
     }
 

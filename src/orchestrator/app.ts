@@ -343,7 +343,7 @@ export class SovereignApp {
     private initIntelligenceSubsystem(protection: any, processTracker: any, health: any, configProvider: any) {
         const geoIp = this.safeInit(health, "GeoIP", () => new GeoIpService(loggingService));
         const forensicService = this.safeInit(health, "Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker));
-        const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider, broadcast));
+        const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider, broadcast, geoIp));
         const news = this.safeInit(health, "News", () => new NewsSignalService(loggingService));
         const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => new NetworkDiscoveryService(loggingService));
         const incidents = this.safeInit(health, "Incidents", () => new IncidentService(this.kv, loggingService));

@@ -223,18 +223,20 @@ class ThreatExplorer extends HTMLElement {
 
            <div class="flex-grow overflow-y-auto custom-scrollbar">
               <table class="w-full text-left border-collapse table-fixed">
-                 <thead class="sticky top-0 bg-black/40 backdrop-blur-md z-10 border-b border-white/5 shadow-xl text-[7px]">
+                  <thead class="sticky top-0 bg-black/40 backdrop-blur-md z-10 border-b border-white/5 shadow-xl text-[7px]">
                     <tr>
                        <th class="p-1 w-8 text-center">
                           <input type="checkbox" onchange="this.closest('threat-explorer').toggleSelectAll()" 
                             class="accent-primary w-2 h-2 rounded border-white/10 bg-black" />
                        </th>
-                       <th class="p-1 w-[22%] mono text-slate-600 uppercase">Indicator_IP</th>
-                       <th class="p-1 w-[30%] mono text-slate-600 uppercase">Reason_Threat</th>
-                       <th class="p-1 w-[12%] mono text-slate-600 uppercase">Source</th>
+                       <th class="p-1 w-[16%] mono text-slate-600 uppercase">Indicator_IP</th>
+                       <th class="p-1 w-[8%] mono text-slate-600 uppercase">Origin</th>
+                       <th class="p-1 w-[18%] mono text-slate-600 uppercase">Carrier_ASN</th>
+                       <th class="p-1 w-[20%] mono text-slate-600 uppercase">Reason_Threat</th>
+                       <th class="p-1 w-[8%] mono text-slate-600 uppercase">Source</th>
                        <th class="p-1 w-[10%] mono text-slate-600 uppercase">Risk</th>
-                       <th class="p-1 w-[12%] mono text-slate-600 uppercase">Last_Seen</th>
-                       <th class="p-1 w-[14%] mono text-slate-600 uppercase text-right">Op</th>
+                       <th class="p-1 w-[10%] mono text-slate-600 uppercase">Last_Seen</th>
+                       <th class="p-1 w-[10%] mono text-slate-600 uppercase text-right">Op</th>
                     </tr>
                  </thead>
                  <tbody class="divide-y divide-white/5">
@@ -244,19 +246,19 @@ class ThreatExplorer extends HTMLElement {
                       const validThreats = this.threats
                         .filter(t => t.type === 'IP' && ipRegex.test(t.indicator))
                         .sort((a, b) => {
-                          // Primary: Date (Descending)
                           const dateA = new Date(a.lastSeen).getTime();
                           const dateB = new Date(b.lastSeen).getTime();
                           if (dateA !== dateB) return dateB - dateA;
-                          // Secondary: Score (Descending)
                           return b.score - a.score;
                         });
                       
                       if (validThreats.length === 0 && !this.loading) {
-                        return `<tr><td colspan="7" class="p-8 text-center mono text-[8px] opacity-20 uppercase">Empty_Dataset</td></tr>`;
+                        return `<tr><td colspan="9" class="p-8 text-center mono text-[8px] opacity-20 uppercase">Empty_Dataset</td></tr>`;
                       }
                       
-                      return validThreats.map(t => `
+                      return validThreats.map(t => {
+                         const isBP = t.geo?.isBulletproof;
+                         return `
                          <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedIps.has(t.indicator) ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/10'}">
                             <td class="p-1 text-center">
                                ${t.blocked ? '' : `
@@ -267,6 +269,17 @@ class ThreatExplorer extends HTMLElement {
                             </td>
                             <td class="p-1 truncate">
                                <span class="mono text-[9px] text-white tabular-nums">${t.indicator}</span>
+                            </td>
+                            <td class="p-1">
+                               <span class="px-1.5 py-0.5 rounded-sm bg-white/5 border border-white/10 mono text-[7px] text-slate-400 font-black uppercase">
+                                  ${t.geo?.country || '??'}
+                               </span>
+                            </td>
+                            <td class="p-1 truncate">
+                               <div class="flex flex-col">
+                                  <span class="mono text-[6px] ${isBP ? 'text-danger font-black' : 'text-slate-500'} uppercase truncate">${t.geo?.isp || 'Unknown_Carrier'}</span>
+                                  <span class="mono text-[5px] text-slate-700">${t.geo?.asn || 'AS_UNKNOWN'}</span>
+                               </div>
                             </td>
                             <td class="p-1 truncate">
                                <span class="mono text-[6.5px] text-slate-500 uppercase">${t.threatType}</span>
@@ -285,20 +298,20 @@ class ThreatExplorer extends HTMLElement {
                             <td class="p-1">
                                <span class="mono text-[6.5px] text-slate-700 font-bold uppercase">
                                   ${new Date(t.lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
-                               </span>
+                                </span>
                             </td>
                             <td class="p-1 text-right">
                                ${t.blocked ? `
                                   <span class="mono text-[5px] text-success/40 uppercase font-black">LKD</span>
-                               ` : `
+                                ` : `
                                   <button onclick="this.closest('threat-explorer').blockIp('${t.indicator}', '${t.provider}')" 
                                     class="border border-primary/20 hover:bg-primary/20 hover:border-primary px-1.5 py-0 mono text-[5px] text-primary/60 hover:text-primary transition-all">
                                      ISO
                                   </button>
-                               `}
+                                `}
                             </td>
                          </tr>
-                      `).join('');
+                      `}).join('');
                     })()}
                  </tbody>
               </table>

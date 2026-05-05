@@ -10,6 +10,14 @@ export interface IntelIndicator {
     lastSeen: string;
     score: number; // Calculated reputation score
     ttl: number; // Hours until decay
+    geo?: {
+        country: string;
+        isp: string;
+        asn: string;
+        isBulletproof: boolean;
+        lat?: number;
+        lon?: number;
+    };
 }
 
 const SOURCE_WEIGHTS: Record<string, number> = {
@@ -51,7 +59,8 @@ export class CuratedIntelService {
         private logging: LoggingPort, 
         private firewall: any, 
         private config: ConfigurationPort,
-        private broadcast: (data: any) => void
+        private broadcast: (data: any) => void,
+        private geoip?: any
     ) {
         const list = config.getEnv("INTEL_ALLOWLIST") || "";
         this.allowlist = list.split(",").map(i => i.trim()).filter(Boolean);
@@ -338,6 +347,21 @@ export class CuratedIntelService {
                     score: weight,
                     ttl: 72 
                 };
+            }
+
+            // Enrichment: GeoIP Attribution
+            if (curated.type === "IP" && this.geoip) {
+                const geo = await this.geoip.resolve(curated.indicator);
+                if (geo) {
+                    curated.geo = {
+                        country: geo.country,
+                        isp: geo.isp,
+                        asn: geo.asn,
+                        isBulletproof: geo.isBulletproof,
+                        lat: geo.lat,
+                        lon: geo.lon
+                    };
+                }
             }
 
             if (curated.score >= 85 && curated.type === "IP") {

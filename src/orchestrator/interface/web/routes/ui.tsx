@@ -65,6 +65,13 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<ArtifactIntelPage status={status} csrfToken={csrfToken} />);
   });
 
+  router.get("/intel/center", async (c: Context) => {
+    const { IntelligenceCenterPage } = await import("../features/situational/intel/IntelligenceCenter.tsx");
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<IntelligenceCenterPage status={status} csrfToken={csrfToken} />);
+  });
+
   router.get("/intel/feed", async (c: Context) => {
     const { NewsPage: OperationalNewsPage } = await import("../features/situational/intel/OperationalNewsPage.tsx");
     const status = await getStatus();

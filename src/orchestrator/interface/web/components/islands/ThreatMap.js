@@ -21,8 +21,8 @@ class ThreatMap extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'BLOCK' && payload.data?.ip) {
-          this.plotIp(payload.data.ip);
+        if (payload.type === 'BLOCK' && payload.data?.indicator) {
+          this.plotIp(payload.data.indicator, payload.data.geo);
         }
       } catch (e) {}
     };
@@ -30,26 +30,35 @@ class ThreatMap extends HTMLElement {
     ws.onclose = () => setTimeout(() => this.connect(), 5000);
   }
 
-  plotIp(ip) {
-    // Generate semi-random deterministic coordinates to avoid external leaks
-    const seed = ip.split('.').reduce((acc, octet) => acc + parseInt(octet), 0);
-    const x = (seed * 137) % 100;
-    const y = (seed * 263) % 100;
+  plotIp(ip, geo = null) {
+    let x, y;
+
+    if (geo && geo.lat !== undefined && geo.lon !== undefined) {
+      // Tactical Mercator Projection
+      x = (geo.lon + 180) * (100 / 360);
+      y = (90 - geo.lat) * (100 / 180);
+    } else {
+      // Fallback: Deterministic seed-based plotting
+      const seed = ip.split('.').reduce((acc, octet) => acc + (parseInt(octet) || 0), 0);
+      x = (seed * 137) % 100;
+      y = (seed * 263) % 100;
+    }
 
     const container = this.querySelector('#attacks-layer');
     if (!container) return;
 
     const ping = document.createElement('div');
-    ping.className = 'absolute w-3 h-3 rounded-full pointer-events-none z-20';
+    ping.className = 'absolute w-2 h-2 rounded-full pointer-events-none z-20 flex items-center justify-center';
     ping.style.left = `${x}%`;
     ping.style.top = `${y}%`;
-    ping.style.background = 'var(--danger)';
-    ping.style.boxShadow = '0 0 20px var(--danger)';
     
-    // Pulse animation
+    ping.innerHTML = `
+      <div class="absolute inset-0 bg-danger rounded-full animate-ping opacity-75"></div>
+      <div class="w-1.5 h-1.5 bg-danger rounded-full shadow-[0_0_10px_var(--danger)]"></div>
+    `;
 
     container.appendChild(ping);
-    setTimeout(() => ping.remove(), 2500);
+    setTimeout(() => ping.remove(), 4000);
   }
 
   renderBase() {
