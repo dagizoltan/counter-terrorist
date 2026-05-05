@@ -70,6 +70,7 @@ class EnvironmentalSignals extends HTMLElement {
     }
     if (this.filter === 'ALL' || this.filter === 'FRIENDS') {
       list = list.concat((this.signals.ethernet || []).map(s => ({ ...s, vector: 'FRIEND' })));
+      list = list.concat((this.signals.mesh || []).map(s => ({ ...s, vector: 'MESH' })));
     }
 
     if (list.length === 0) {
@@ -90,90 +91,123 @@ class EnvironmentalSignals extends HTMLElement {
     const isWifi = s.vector === 'WIFI';
     const isBT = s.vector === 'BT';
     const isFriend = s.vector === 'FRIEND';
+    const isMesh = s.vector === 'MESH';
 
-    const color = isWifi ? 'var(--primary)' : isBT ? 'var(--warning)' : 'var(--success)';
-    const glow = isWifi ? 'shadow-primary/10' : isBT ? 'shadow-warning/10' : 'shadow-success/10';
+    // Simulated Integrity Score
+    let trustScore = 85;
+    if (s.publicIntel?.includes('Randomized')) trustScore -= 30;
+    if (s.publicIntel?.includes('Unknown')) trustScore -= 15;
+    if (s.signal < -80) trustScore -= 10;
+    if (isMesh) trustScore = 99; // Mesh nodes are verified
+    trustScore = Math.max(10, Math.min(99, trustScore));
+
+    const themeColor = isWifi ? 'var(--primary)' : isBT ? 'var(--warning)' : 'var(--success)';
+    const trustColor = trustScore > 70 ? 'var(--success)' : trustScore > 40 ? 'var(--warning)' : 'var(--danger)';
+    const trustStatus = trustScore > 70 ? 'Optimal' : trustScore > 40 ? 'Caution' : 'Untrusted';
     
     const meta = [];
     if (isWifi) {
-      meta.push(`CH: ${s.channel || '?'}`);
-      meta.push(`${s.band || ''}`);
-      meta.push(`${s.encryption || 'OPEN'}`);
+      meta.push({ label: 'CH', value: s.channel || '?' });
+      meta.push({ label: 'BND', value: s.band || '2.4G' });
+      meta.push({ label: 'ENC', value: s.encryption || 'OPEN' });
     } else if (isBT) {
-      meta.push(`${s.type || 'DEVICE'}`);
-      if (s.battery) meta.push(`BAT: ${s.battery}`);
-    } else if (isFriend) {
-      meta.push(`IP: ${s.ip || '0.0.0.0'}`);
-      if (s.isMeshNode) meta.push('MESH_PEER');
+      meta.push({ label: 'TYP', value: s.type || 'DEVICE' });
+      if (s.battery) meta.push({ label: 'BAT', value: s.battery });
+      meta.push({ label: 'ADR', value: 'LE_PUB' });
+    } else if (isFriend || isMesh) {
+      meta.push({ label: 'IP', value: s.ip || '?.?.?.?' });
+      meta.push({ label: 'NET', value: isMesh ? 'MESH' : 'LOCAL' });
+      meta.push({ label: 'AUTH', value: isMesh ? 'VFRD' : 'NONE' });
     }
 
     return `
-      <div class="glass-panel p-5 border border-white/5 hover:border-${isWifi ? 'primary' : isBT ? 'warning' : 'success'}/30 hover:bg-white/[0.03] transition-all group relative overflow-hidden shadow-xl ${glow}">
-        <div class="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-30 transition-opacity">
-          ${this.getVectorIcon(s.vector)}
+      <div class="glass-panel group relative flex flex-col p-8 bg-black/40 border border-white/5 hover:border-white/20 transition-all duration-300 hover:bg-white/[0.03] shadow-2xl">
+        {/* Top Operational Header */}
+        <div class="flex justify-between items-start mb-10">
+          <div class="flex items-center gap-4">
+            <div class="p-3 bg-black/60 rounded-xl border border-white/10 group-hover:border-${isWifi ? 'primary' : isBT ? 'warning' : 'success'}/40 transition-colors">
+              ${this.getVectorIconSmall(s.vector)}
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="mono text-[7px] font-black text-slate-500 uppercase tracking-[0.3em]">${s.vector} // ${s.mac?.toUpperCase() || 'UNKNOWN_ADDR'}</span>
+              <span class="mono text-[9px] font-black text-slate-400 uppercase tracking-tighter">${s.vendor || 'Unknown_Manufacturer'}</span>
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <span class="status-pill active !px-4 !py-1 text-[9px] font-black uppercase tracking-[0.2em]" style="background: ${trustColor}20; color: ${trustColor}; border-color: ${trustColor}40">
+               ${trustStatus}
+            </span>
+            <div class="flex items-center gap-2">
+               <span class="mono text-[7px] font-black text-slate-600 uppercase">Trust_${trustScore}%</span>
+               <div class="w-1.5 h-1.5 rounded-full" style="background: ${trustColor}; box-shadow: 0 0 8px ${trustColor}"></div>
+            </div>
+          </div>
         </div>
 
-        <!-- Header -->
-        <div class="flex flex-col mb-4">
-          <div class="flex items-center gap-2 mb-1">
-             <span class="mono text-[8px] font-black uppercase tracking-widest text-slate-500">${s.vector}</span>
-             <span class="w-1 h-1 rounded-full bg-white/20"></span>
-             <span class="mono text-[8px] font-black uppercase tracking-widest text-slate-500">${s.mac?.toUpperCase() || 'UNKNOWN'}</span>
-          </div>
-          <h4 class="tactical-title text-lg text-white group-hover:text-${isWifi ? 'primary' : isBT ? 'warning' : 'success'} transition-colors truncate">
+        {/* Primary Identification */}
+        <div class="mb-10 flex-grow">
+          <h4 class="text-3xl font-black text-white italic tracking-tighter uppercase leading-none mb-3 group-hover:translate-x-1 transition-transform">
             ${s.ssid || s.hostname || s.name || 'ANONYMOUS_ENTITY'}
           </h4>
-          <div class="flex flex-col gap-0.5 mt-1">
-            <span class="mono text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${s.vendor || 'Unknown Vendor'}</span>
-            <span class="mono text-[7px] font-black text-primary/60 uppercase tracking-widest">${s.publicIntel || ''}</span>
-          </div>
+          <span class="mono text-[9px] font-black text-primary/40 uppercase tracking-[0.2em] italic">${s.publicIntel?.replace(/_/g, ' ') || 'STANDARD_NODE_IDENTIFIED'}</span>
         </div>
 
-        <!-- Tactical Metadata -->
-        <div class="grid grid-cols-2 gap-2 mb-6">
+        {/* Technical Attributes Grid */}
+        <div class="grid grid-cols-3 gap-3 mb-10">
           ${meta.map(m => `
-            <div class="bg-black/20 border border-white/5 px-2 py-1.5 rounded flex items-center justify-center">
-              <span class="mono text-[8px] font-black text-slate-300 uppercase">${m}</span>
+            <div class="bg-black/60 border border-white/5 p-3 rounded-xl flex flex-col gap-1">
+               <span class="mono text-[6px] font-black text-slate-600 uppercase tracking-widest">${m.label}</span>
+               <span class="mono text-[9px] font-black text-slate-300 uppercase truncate">${m.value}</span>
             </div>
           `).join('')}
         </div>
 
-        <!-- Signal Strength -->
-        <div class="space-y-2">
-          <div class="flex justify-between items-end">
-            <span class="mono text-[8px] font-black text-slate-500 uppercase tracking-widest">Signal / RSSI</span>
-            <span class="mono text-[10px] font-black" style="color: ${color}">${isBT ? (s.signal + ' dBm') : (s.signal + '%')}</span>
+        {/* Telemetry Block */}
+        <div class="bg-black/80 p-5 rounded-2xl border border-white/5 mb-8">
+          <div class="flex justify-between items-end mb-3">
+             <span class="mono text-[7px] font-black text-slate-500 uppercase tracking-[0.5em]">Signal_Magnitude</span>
+             <span class="mono text-[12px] font-black tabular-nums italic" style="color: ${themeColor}">${isBT ? (s.signal + ' dBm') : isMesh ? 'VFRD' : (s.signal + '%')}</span>
           </div>
-          <div class="h-1 bg-white/5 rounded-full overflow-hidden flex gap-0.5">
-             ${this.renderSignalBars(s.signal, color)}
+          <div class="h-1.5 bg-white/5 rounded-full overflow-hidden flex gap-1">
+             ${this.renderSignalBars(isMesh ? 100 : s.signal, themeColor)}
           </div>
         </div>
 
-        <!-- Details Footer -->
-        ${s.details ? `
-          <div class="mt-4 pt-4 border-t border-white/5">
-            <p class="mono text-[8px] text-slate-500 leading-relaxed italic uppercase">${s.details}</p>
-          </div>
-        ` : ''}
+        {/* Action / Forensic Footer */}
+        <div class="pt-6 border-t border-white/5 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-all">
+           <div class="flex items-center gap-3">
+              <div class="p-1.5 bg-white/5 rounded border border-white/10">
+                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-slate-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <span class="mono text-[7px] font-black text-slate-500 uppercase tracking-[0.3em]">Forensic_Capture_Ready</span>
+           </div>
+           <svg class="transition-transform group-hover:translate-x-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </div>
       </div>
     `;
   }
 
+  getVectorIconSmall(vector) {
+    if (vector === 'WIFI') return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>';
+    if (vector === 'BT') return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2.5"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>';
+    if (vector === 'MESH') return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>';
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>';
+  }
+
   renderSignalBars(signal, color) {
-    const bars = 5;
+    const bars = 12;
     const activeBars = Math.ceil((signal < 0 ? (100 + signal) : signal) / (100 / bars));
     let html = '';
     for (let i = 0; i < bars; i++) {
-        const opacity = i < activeBars ? '1' : '0.1';
-        html += `<div class="flex-grow h-full transition-all duration-500" style="background: ${color}; opacity: ${opacity}; box-shadow: ${i < activeBars ? `0 0 5px ${color}` : 'none'}"></div>`;
+        const opacity = i < activeBars ? (0.2 + (i / bars) * 0.8) : 0.03;
+        html += `<div class="flex-grow h-full transition-all duration-700" style="background: ${color}; opacity: ${opacity}"></div>`;
     }
     return html;
   }
 
   getVectorIcon(vector) {
-    if (vector === 'WIFI') return '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-primary"><path d="M5 13a10 10 0 0 1 14 0"/><path d="M8.5 16.5a5 5 0 0 1 7 0"/><path d="M2 8.82a15 15 0 0 1 20 0"/><line x1="12" x2="12.01" y1="20" y2="20"/></svg>';
-    if (vector === 'BT') return '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-warning"><path d="m7 7 10 10-5 5V2l5 5L7 17"/></svg>';
-    return '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-success"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
+    // Keep the large icons for background use if needed, but the new small one is used in header
+    return this.getVectorIconSmall(vector);
   }
 }
 

@@ -70,35 +70,46 @@ export const SupplyChainPage = (props: { status: any, csrfToken?: string }) => {
                   </div>
                </header>
                <div class="overflow-x-auto">
-                  <table class="w-full text-left">
-                     <thead>
-                        <tr class="border-b border-white/5 bg-black/20">
-                           <th class="p-6 mono-xs text-slate-500 font-black uppercase tracking-widest">NAME</th>
-                           <th class="p-6 mono-xs text-slate-500 font-black uppercase tracking-widest">VERSION</th>
-                           <th class="p-6 mono-xs text-slate-500 font-black uppercase tracking-widest">LICENSE</th>
-                           <th class="p-6 mono-xs text-slate-500 font-black uppercase tracking-widest">STATUS</th>
-                        </tr>
-                     </thead>
-                     <tbody class="divide-y divide-white/5">
-                        {sbom.map((dep: any) => (
-                           <tr class="hover:bg-white/[0.02] transition-colors group">
-                              <td class="p-6">
-                                 <div class="flex flex-col">
-                                    <span class="text-sm font-black text-white italic tracking-tight">{dep.name}</span>
-                                    {dep.cve && <span class="mono-xs text-danger font-black mt-1">{dep.cve}</span>}
-                                 </div>
-                              </td>
-                              <td class="p-6 mono-xs text-slate-400 font-bold">{dep.version}</td>
-                              <td class="p-6 mono-xs text-slate-500">{dep.license}</td>
-                              <td class="p-6">
-                                 <span class={`status-pill ${dep.status === 'SECURE' ? 'active' : 'error'} px-4 py-1 text-[9px] font-black tracking-widest`}>
-                                    {dep.status}
-                                 </span>
-                              </td>
-                           </tr>
-                        ))}
-                     </tbody>
-                  </table>
+                  <div class="divide-y divide-white/10">
+                     {['ORCHESTRATOR', 'EBPF', 'FIM', 'FIREWALL', 'DECEPTION', 'NETWORK'].map(feature => {
+                        const deps = sbom.filter((d: any) => d.feature === feature);
+                        if (deps.length === 0) return null;
+                        return (
+                           <div class="bg-black/20">
+                              <div class="px-6 py-3 bg-white/5 border-y border-white/5 flex items-center gap-3">
+                                 <div class={`w-1 h-3 rounded-full ${
+                                    feature === 'ORCHESTRATOR' ? 'bg-primary' : 
+                                    feature === 'EBPF' ? 'bg-danger' : 
+                                    feature === 'FIM' ? 'bg-warning' : 
+                                    feature === 'FIREWALL' ? 'bg-success' : 'bg-slate-500'
+                                 }`}></div>
+                                 <span class="mono-xs font-black text-slate-400 tracking-[0.3em] uppercase">{feature} MODULES</span>
+                              </div>
+                              <table class="w-full text-left">
+                                 <tbody class="divide-y divide-white/5">
+                                    {deps.map((dep: any) => (
+                                       <tr class="hover:bg-white/[0.02] transition-colors group">
+                                          <td class="p-6 w-1/3">
+                                             <div class="flex flex-col">
+                                                <span class="text-sm font-black text-white italic tracking-tight">{dep.name}</span>
+                                                {dep.cve && <span class="mono-xs text-danger font-black mt-1">{dep.cve}</span>}
+                                             </div>
+                                          </td>
+                                          <td class="p-6 mono-xs text-slate-400 font-bold w-1/6">{dep.version}</td>
+                                          <td class="p-6 mono-xs text-slate-500 w-1/6">{dep.license}</td>
+                                          <td class="p-6 text-right">
+                                             <span class={`status-pill ${dep.status === 'SECURE' ? 'active' : 'error'} px-4 py-1 text-[9px] font-black tracking-widest`}>
+                                                {dep.status}
+                                             </span>
+                                          </td>
+                                       </tr>
+                                    ))}
+                                 </tbody>
+                              </table>
+                           </div>
+                        );
+                     })}
+                  </div>
                </div>
             </div>
          </div>

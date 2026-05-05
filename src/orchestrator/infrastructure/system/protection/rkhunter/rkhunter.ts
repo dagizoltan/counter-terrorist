@@ -24,14 +24,24 @@ export class RkhunterManager {
 
             if (result && !result.success) {
                 broadcast({
-                    type: "CRITICAL",
-                    message: "Rootkit scan completed with warnings or failures.",
-                    data: result
+                    type: "AUDIT_EVENT",
+                    data: {
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.CRITICAL,
+                        caller: "scanner:rkhunter",
+                        message: "Rootkit scan completed with warnings or failures.",
+                        data: result
+                    }
                 });
             } else {
                 broadcast({
-                    type: "INFO",
-                    message: "Rootkit scan completed successfully.",
+                    type: "AUDIT_EVENT",
+                    data: {
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.SUCCESS,
+                        caller: "scanner:rkhunter",
+                        message: "Rootkit scan completed successfully."
+                    }
                 });
             }
 

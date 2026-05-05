@@ -38,26 +38,24 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
 
   // ── ANALYZE (Tactical Intelligence) ───────────────────────────────
 
-  router.get("/intelligence", async (c: Context) => {
-    const { IntelligenceCenterPage } = await import("../features/situational/intel/IntelligenceCenter.tsx");
-    const status = await getStatus();
-    const csrfToken = c.get("csrfToken");
-    return c.html(<IntelligenceCenterPage status={status} csrfToken={csrfToken} />);
-  });
-
   router.get("/forensics", async (c: Context) => {
     const { ForensicCenterPage } = await import("../features/forensic/ForensicCenter.tsx");
     const csrfToken = c.get("csrfToken");
     return c.html(<ForensicCenterPage csrfToken={csrfToken} />);
   });
 
-  // ── DASHBOARD (Strategic Core) ───────────────────────────────────
-
   router.get("/infrastructure/mesh", async (c: Context) => {
     const { MeshTopologyPage } = await import("../features/infrastructure/mesh/page.tsx");
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     return c.html(<MeshTopologyPage status={status} csrfToken={csrfToken} />);
+  });
+
+  router.get("/defense/ip-db", async (c: Context) => {
+    const { default: IpIntelPage } = await import("../features/defense/ip_intel_page.tsx") as any;
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    return c.html(<IpIntelPage status={status} csrfToken={csrfToken} />);
   });
 
   router.get("/news", async (c: Context) => {

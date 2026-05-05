@@ -22,12 +22,33 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
         };
     }
 
-    const result = await this.executor.execute("clamscan", ["-r", normalizedPath]);
+    // Enhanced scanning parameters for "Proper Scanner" capability
+    const scanArgs = [
+      "-r", 
+      "--heuristic-scan-precedence", // Give precedence to heuristics
+      "--detect-pua",               // Detect Potentially Unwanted Applications
+      "--alert-broken-executable",  // Alert on broken executables
+      "--max-filesize=100M",        // Handle larger binaries
+      "--max-scansize=500M",
+      "--no-summary",               // Keep output clean for parsing
+      normalizedPath
+    ];
+
+    const result = await this.executor.execute("clamscan", scanArgs);
     return {
       success: result.success,
-      threatsFound: !result.success,
-      message: result.stdout,
+      threatsFound: !result.success && result.stdout.toLowerCase().includes("found"),
+      message: result.stdout || result.stderr,
       timestamp: new Date().toISOString()
+    };
+  }
+
+  async syncSignatures(): Promise<{ success: boolean; message: string }> {
+    // Attempt to update ClamAV database (freshclam)
+    const result = await this.executor.execute("freshclam", []);
+    return {
+      success: result.success,
+      message: result.stdout || result.stderr
     };
   }
 

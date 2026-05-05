@@ -20,7 +20,7 @@ class ThreatIntelList extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'METRICS_UPDATE' && payload.data?.tactical) {
+        if ((payload.type === 'METRICS_UPDATE' || (payload.type === 'DEBUG' && payload.subType === 'METRICS_UPDATE')) && payload.data?.tactical) {
           this.updateThreats(payload.data.tactical.recentThreats);
         }
       } catch (e) {}

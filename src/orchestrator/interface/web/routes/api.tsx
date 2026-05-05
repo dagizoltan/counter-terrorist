@@ -37,10 +37,22 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     const bluetooth = devices.filter(d => d.type === "BLUETOOTH");
     const ethernet = devices.filter(d => d.type === "ETHERNET");
 
+    const mesh = services.mesh.getNodes().filter(n => n.verified).map(n => ({
+        id: n.id || n.hostname,
+        hostname: n.hostname,
+        mac: n.id, // ID is used as unique identifier
+        ip: n.address,
+        isMeshNode: true,
+        type: "MESH",
+        state: "REACHABLE",
+        lastSeen: new Date(n.lastSeen).toISOString()
+    }));
+ 
     const enriched = {
         wifi: IntelEnricher.enrichDevices(wifi),
         bluetooth: IntelEnricher.enrichDevices(bluetooth),
-        ethernet: IntelEnricher.enrichDevices(ethernet)
+        ethernet: IntelEnricher.enrichDevices(ethernet),
+        mesh: IntelEnricher.enrichDevices(mesh)
     };
 
     return c.json(enriched);

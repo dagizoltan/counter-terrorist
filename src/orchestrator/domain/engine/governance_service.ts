@@ -199,7 +199,15 @@ export class GovernanceService {
                 });
                 // Apply strict firewall rules immediately
                 await this.protection.firewall.lockdown().catch(() => {});
-                broadcast({ type: "CRITICAL", message: "MESH-WIDE LOCKDOWN INITIATED BY CONSENSUS" });
+                broadcast({ 
+                    type: "AUDIT_EVENT", 
+                    data: { 
+                        type: LogType.AUDIT, 
+                        severity: LogSeverity.ERROR, 
+                        caller: "governance", 
+                        message: "MESH-WIDE LOCKDOWN INITIATED BY CONSENSUS" 
+                    } 
+                });
             } else if (proposal.type === "IDENTITY_ROTATE") {
                 await this.mesh.rotateIdentity();
             } else if (proposal.type === "ACTIVE_SABOTAGE") {
@@ -211,7 +219,16 @@ export class GovernanceService {
                     message: `Executing ACTIVE_SABOTAGE against target: ${proposal.target}`
                 });
                 await this.protection.firewall.blockIp(proposal.target);
-                broadcast({ type: "BLOCK", message: `Mesh-wide block enforced on ${proposal.target}` });
+                broadcast({ 
+                    type: "AUDIT_EVENT", 
+                    data: { 
+                        type: LogType.AUDIT, 
+                        severity: LogSeverity.ERROR, 
+                        caller: "governance", 
+                        message: `Mesh-wide block enforced on ${proposal.target}`,
+                        payload: { target: proposal.target }
+                    } 
+                });
             }
         } catch (e) {
             this.logging.log({

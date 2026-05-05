@@ -196,7 +196,15 @@ export class BaselineService {
         caller: "BASELINE",
         message: "New system baseline established."
     });
-    broadcast({ type: "INFO", message: "New system baseline established." });
+    broadcast({ 
+      type: "AUDIT_EVENT",
+      data: {
+          type: LogType.ACTIVITY,
+          severity: LogSeverity.SUCCESS,
+          caller: "system:baseline",
+          message: "New system baseline established."
+      }
+    });
     return this.currentBaseline;
   }
 
@@ -289,9 +297,14 @@ export class BaselineService {
                 message: `CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`
             });
             broadcast({
-                type: "CRITICAL",
-                message: `CRITICAL FILE MODIFIED: ${criticalChanges[0].path} (and ${criticalChanges.length - 1} others)`,
-                data: criticalChanges
+                type: "AUDIT_EVENT",
+                data: {
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.CRITICAL,
+                    caller: "system:baseline",
+                    message: `CRITICAL FILE MODIFIED: ${criticalChanges[0].path} (and ${criticalChanges.length - 1} others)`,
+                    data: criticalChanges
+                }
             });
         } else {
             this.logging.log({

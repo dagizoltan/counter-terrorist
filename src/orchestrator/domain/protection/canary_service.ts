@@ -73,7 +73,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
                     severity: LogSeverity.INFO,
-                    caller: "CANARY",
+                    caller: "decoy:canary",
                     message: `[DEV MODE] Skipping projection: ${newToken.projectionPath}`
                 });
                 return;
@@ -114,7 +114,7 @@ export class CanaryService {
                         timestamp: new Date().toISOString(),
                         type: LogType.DEBUG,
                         severity: LogSeverity.INFO,
-                        caller: "CANARY",
+                        caller: "decoy:canary",
                         message: `[DEV MODE] Master generated at ${token.masterPath}. Skipping root projection.`
                     });
                     continue; 
@@ -130,7 +130,7 @@ export class CanaryService {
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
                         severity: LogSeverity.WARNING,
-                        caller: "CANARY",
+                        caller: "decoy:canary",
                         message: `Legitimate file at ${token.projectionPath}. Skipping projection.`
                     });
                     continue;
@@ -144,7 +144,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
                     severity: LogSeverity.INFO,
-                    caller: "CANARY",
+                    caller: "decoy:canary",
                     message: `Projected breadcrumb: ${token.projectionPath}`
                 });
 
@@ -155,7 +155,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
-                    caller: "CANARY",
+                    caller: "decoy:canary",
                     message: `Projection failed for ${token.projectionPath}: ${(e as Error).message}`
                 });
             }
@@ -163,6 +163,8 @@ export class CanaryService {
         
         this.startAging();
     }
+
+    private lastInternalOp: Map<string, number> = new Map();
 
     /**
      * Periodically updates the 'Last Accessed' and 'Modified' timestamps of decoys.
@@ -173,13 +175,16 @@ export class CanaryService {
         this.agingIntervalId = setInterval(async () => {
             for (const token of this.tokens) {
                 try {
+                    // Record maintenance window to avoid self-triggering
+                    this.lastInternalOp.set(resolve(token.projectionPath), Date.now());
+                    
                     // Update 'atime' and 'mtime' to current time to simulate activity
                     await Deno.utime(token.projectionPath, new Date(), new Date());
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.DEBUG,
                         severity: LogSeverity.INFO,
-                        caller: "CANARY",
+                        caller: "decoy:canary",
                         message: `Lure aged (timestamp rotation): ${token.id}`
                     });
                 } catch {
@@ -194,14 +199,23 @@ export class CanaryService {
      */
     async handleFileAccess(accessedPath: string, process: string) {
         const normalizedAccessed = resolve(accessedPath);
+        const now = Date.now();
+        const lastOp = this.lastInternalOp.get(normalizedAccessed) || 0;
+
+        // HIGH FIDELITY FILTERING:
+        // Suppress only if the event occurs within 5s of an internal operation AND the actor is unknown (system:internal).
+        // This prevents self-inflicted triggers while still capturing identified external processes.
+        if (process === "system:internal" && (now - lastOp) < 5000) {
+            return false; 
+        }
 
         for (const token of this.tokens) {
             if (normalizedAccessed === resolve(token.projectionPath)) {
                 token.triggered = true;
                 this.auditService.logEvent({
-                    type: "THREAT",
-                    severity: "critical",
-                    caller: "CANARY:LURE",
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.CRITICAL,
+                    caller: "decoy:canary",
                     message: `CANARY TRIGGERED: ${process} accessed ${token.description}`,
                     data: { path: token.projectionPath, process, description: token.description }
                 });
@@ -219,11 +233,14 @@ export class CanaryService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "CANARY",
+            caller: "decoy:canary",
             message: "Rotating projections..."
         });
         for (const token of this.tokens) {
             try {
+                const path = resolve(token.projectionPath);
+                this.lastInternalOp.set(path, Date.now());
+
                 // Remove projection and master
                 await Deno.remove(token.projectionPath).catch(() => {});
                 await Deno.remove(token.masterPath).catch(() => {});
@@ -236,7 +253,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
-                    caller: "CANARY",
+                    caller: "decoy:canary",
                     message: `Cleanup failed: ${(e as Error).message}`
                 });
             }

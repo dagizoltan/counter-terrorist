@@ -153,24 +153,26 @@ class PcapAgent extends HTMLElement {
       const color = isSystem ? 'var(--primary)' : (p.direction === 'INBOUND' ? 'var(--primary)' : 'var(--warning)');
       
       return `
-        <div class="flex items-center gap-8 p-5 border-b border-white/[0.03] hover:bg-white/[0.02] group animate-in fade-in slide-in-from-right-2 duration-300">
-          <div class="flex items-center gap-4 w-24">
-             <span class="mono-xs font-black uppercase tracking-widest" style="color: ${color}">${(p.direction || 'IN').slice(0, 3)}</span>
-             <span class="dot ${isSystem ? 'active' : (p.direction === 'INBOUND' ? 'active' : 'warning')}" style="width: 4px; height: 4px;"></span>
+        <div class="flex items-center gap-6 p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group animate-in fade-in slide-in-from-right-2 duration-300">
+          <div class="flex items-center gap-3 w-20">
+             <span class="mono-xs font-black uppercase tracking-widest text-[8px]" style="color: ${color}">${(p.direction || 'IN').slice(0, 3)}</span>
+             <div class="w-1 h-1 rounded-full ${isSystem ? 'bg-primary' : (p.direction === 'INBOUND' ? 'bg-primary' : 'bg-warning')} shadow-[0_0_5px_currentColor]"></div>
           </div>
           
           <div class="flex-1 min-w-0">
-             <div class="mono-xs font-bold uppercase tracking-tight text-slate-400 truncate">
-               ${window.escapeHTML(p.source || '...')} <span class="text-slate-800 px-2">→</span> ${window.escapeHTML(p.destination || '...')}
+             <div class="flex items-center gap-2 mb-1">
+                <span class="mono-xs font-black text-white italic tracking-tight truncate max-w-[200px]">${window.escapeHTML(p.source || '...')}</span>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-slate-700"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                <span class="mono-xs font-black text-slate-400 italic tracking-tight truncate max-w-[200px]">${window.escapeHTML(p.destination || '...')}</span>
              </div>
-             ${p.message ? `<div class="mono-xs text-[9px] text-slate-600 mt-1 uppercase font-black tracking-widest ">${window.escapeHTML(p.message)}</div>` : ''}
+             ${p.message ? `<div class="mono-xs text-[7px] text-slate-600 uppercase font-black tracking-widest truncate">${window.escapeHTML(p.message)}</div>` : ''}
           </div>
-
-          <div class="flex items-center gap-6">
-             <span class="mono-xs font-black uppercase tracking-[0.2em] text-slate-700 bg-black/40 px-3 py-1 rounded border border-white/5">
+ 
+          <div class="flex items-center gap-4">
+             <span class="mono-xs font-black uppercase tracking-[0.2em] text-slate-500 bg-white/5 px-2 py-0.5 rounded text-[7px]">
                 ${window.escapeHTML(p.protocol || 'TCP')}
              </span>
-             <span class="mono-xs text-slate-600 font-bold">${new Date(p.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
+             <span class="mono-xs text-slate-600 font-bold text-[8px] tabular-nums">${new Date(p.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
           </div>
         </div>
       `;

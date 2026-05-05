@@ -38,7 +38,9 @@ export class ChaosEngine {
     }
 
     await this.auditService.logEvent({
-        type: "THREAT",
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "chaos:simulator",
         message: `CHAOS_SIM: Multi-vector brute force attempt detected from ${ip}`,
         data: { simulation: true, vector: "SSH_BRUTE_FORCE" }
     });
@@ -64,7 +66,9 @@ export class ChaosEngine {
     });
 
     await this.auditService.logEvent({
-        type: "CRITICAL",
+        type: LogType.AUDIT,
+        severity: LogSeverity.CRITICAL,
+        caller: "chaos:simulator",
         message: `CHAOS_SIM: Unauthorized access to canary breadcrumb: ${path}`,
         data: { simulation: true, vector: "DATA_EXFIL" }
     });
@@ -91,7 +95,9 @@ export class ChaosEngine {
     });
 
     await this.auditService.logEvent({
-        type: "THREAT",
+        type: LogType.AUDIT,
+        severity: LogSeverity.CRITICAL,
+        caller: "chaos:simulator",
         message: `CHAOS_SIM: Cryptominer signature detected in kernel: ${proc}`,
         data: { simulation: true, vector: "UNAUTHORIZED_COMPUTE" }
     });

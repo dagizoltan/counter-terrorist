@@ -67,7 +67,7 @@ export class PlaybookService {
         try {
           await this.protection.firewall.blockIp(source_ip);
           await this.notifications.notify({
-            type: "HIGH",
+            type: "audit",
             message: `IP ${source_ip} automatically blocked after honeypot access on port ${port}`
           });
         } catch (err: any) {
@@ -94,7 +94,7 @@ export class PlaybookService {
       });
       
       await this.notifications.notify({
-        type: "CRITICAL",
+        type: "audit",
         message: `Unauthorized ${action} detected on ${path}. Investigation required immediately.`
       });
 
@@ -118,7 +118,7 @@ export class PlaybookService {
           await this.protection.firewall.killProcess(pid);
           await this.shadowProtocol.activate(); // ENGAGE SHADOW MODE
           await this.notifications.notify({
-            type: "CRITICAL",
+            type: "audit",
             message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
           });
         } catch (err: any) {
@@ -167,7 +167,7 @@ export class PlaybookService {
         });
         await this.meshManager.isolateNode("local");
         await this.notifications.notify({
-          type: "CRITICAL",
+          type: "audit",
           message: "AUTO-DEFENSE: Local node isolated from mesh due to critical threat detection."
         });
         break;

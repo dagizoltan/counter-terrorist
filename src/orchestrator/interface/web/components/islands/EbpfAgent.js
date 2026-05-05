@@ -29,21 +29,46 @@ class EbpfAgent extends HTMLElement {
               <div class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-6">Intercepts</div>
               <div id="ebpf-stat-intercepted" class="text-5xl font-black text-white tabular-nums italic">0000</div>
            </div>
-
+ 
            <div class="p-8 bg-black/40 border border-white/5 rounded-2xl">
               <div class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-6">Anomalies</div>
               <div id="ebpf-stat-drifts" class="text-5xl font-black text-white tabular-nums italic">00</div>
            </div>
         </div>
         
-        <div class="col-span-12 lg:col-span-9">
+        <div class="col-span-12 lg:col-span-9 space-y-6">
            <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden">
               <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center">
                  <h3 class="tactical-title text-base tracking-widest">KERNEL_EVENT_STREAM</h3>
                  <div class="status-pill primary">LIVE_AUDIT</div>
               </header>
-              <div id="ebpf-event-log" class="h-[600px] overflow-y-auto custom-scrollbar">
+              <div id="ebpf-event-log" class="h-[400px] overflow-y-auto custom-scrollbar">
                  <div class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Listening_For_Syscalls...</div>
+              </div>
+           </div>
+ 
+           <div class="t-panel glass-panel p-0 border-t-2 border-danger/30 overflow-hidden">
+              <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center">
+                 <h3 class="tactical-title text-base tracking-widest">KERNEL_EVENT_LEDGER</h3>
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Persistent Forensic Trail</span>
+              </header>
+              <div class="overflow-x-auto">
+                 <table class="w-full text-left">
+                    <thead class="bg-black/20 border-b border-white/5">
+                       <tr>
+                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Timestamp</th>
+                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Type</th>
+                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Source</th>
+                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Message</th>
+                          <th class="p-4 mono-xs text-slate-500 font-black uppercase text-right">Action</th>
+                       </tr>
+                    </thead>
+                    <tbody id="ebpf-ledger-body" class="divide-y divide-white/5">
+                       <tr>
+                          <td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Forensic_Data...</td>
+                       </tr>
+                    </tbody>
+                 </table>
               </div>
            </div>
         </div>
@@ -157,8 +182,9 @@ class EbpfAgent extends HTMLElement {
 
   renderLogs() {
     const container = document.getElementById('ebpf-event-log');
-    if (!container) return;
-
+    const ledger = document.getElementById('ebpf-ledger-body');
+    if (!container || !ledger) return;
+ 
     if (this.logs.length === 0) {
       container.innerHTML = `
         <div class="p-12 space-y-6">
@@ -169,21 +195,13 @@ class EbpfAgent extends HTMLElement {
       `;
       return;
     }
-
-    // Standardize event handling
-    if (!this._clickHandler) {
-      this._clickHandler = (e) => {
-         const btn = e.target.closest('[data-purge-pid]');
-         if (btn) this.handlePurge(btn.getAttribute('data-purge-pid'));
-      };
-      this.addEventListener('click', this._clickHandler);
-    }
-
-    container.innerHTML = (this.logs || []).map(log => {
+ 
+    // Populating Live Stream
+    container.innerHTML = this.logs.map(log => {
       const isCritical = log.type === 'DRIFT_PROCESS' || log.message?.toLowerCase().includes('unauthorized');
       const pid = log.data?.pid || log.data?.target_pid || '';
       const typeLabel = (log.type || '').replace('EBPF_', '');
-
+ 
       return `
         <div class="p-8 border-b border-white/[0.03] hover:bg-white/[0.02] group relative transition-colors" 
              style="border-left: 4px solid ${isCritical ? 'var(--danger)' : 'transparent'}">
@@ -203,13 +221,45 @@ class EbpfAgent extends HTMLElement {
           </div>
           ${isCritical && pid ? `
             <div class="mt-6 flex gap-4 relative z-10">
-               <div class="status-pill danger">POLICY_VIOLATION</div>
                <button data-purge-pid="${window.escapeHTML(pid)}" class="t-btn danger px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded hover:bg-danger/20 transition-colors">PURGE_PROCESS</button>
             </div>
           ` : ''}
         </div>
       `;
     }).join('');
+ 
+    // Populating Ledger Table
+    ledger.innerHTML = this.logs.map(log => {
+       const pid = log.data?.pid || log.data?.target_pid || 'N/A';
+       const typeLabel = (log.type || '').replace('EBPF_', '');
+       const isCritical = log.type === 'DRIFT_PROCESS' || log.message?.toLowerCase().includes('unauthorized');
+ 
+       return `
+         <tr class="hover:bg-white/[0.02] transition-colors">
+            <td class="p-4 mono-xs text-slate-500 font-bold">${new Date(log.timestamp).toLocaleTimeString()}</td>
+            <td class="p-4">
+               <span class="status-pill ${isCritical ? 'danger' : 'neutral'} !px-3 !py-0.5 text-[8px]">
+                  ${window.escapeHTML(typeLabel)}
+               </span>
+            </td>
+            <td class="p-4 mono-xs text-slate-400 font-black">PID: ${pid}</td>
+            <td class="p-4 mono-xs text-slate-300 font-bold uppercase tracking-tight">${window.escapeHTML(log.message)}</td>
+            <td class="p-4 text-right">
+               ${pid !== 'N/A' ? `
+                 <button data-purge-pid="${window.escapeHTML(pid)}" class="mono-xs text-danger hover:text-white transition-colors uppercase font-black">PURGE</button>
+               ` : '---'}
+            </td>
+         </tr>
+       `;
+    }).join('');
+ 
+    if (!this._clickHandler) {
+      this._clickHandler = (e) => {
+         const btn = e.target.closest('[data-purge-pid]');
+         if (btn) this.handlePurge(btn.getAttribute('data-purge-pid'));
+      };
+      this.addEventListener('click', this._clickHandler);
+    }
   }
 
   render() {

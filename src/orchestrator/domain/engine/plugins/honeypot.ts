@@ -84,9 +84,14 @@ export class HoneypotPlugin implements Plugin {
             message: `ALERT: Unauthorized port access on port ${payload.port} from ${payload.source_ip}`
         });
         this.broadcast({
-          type: "CRITICAL",
-          message: `Honeypot Triggered: Unauthorized access to port ${payload.port}`,
-          data: { source_ip: payload.source_ip, port: payload.port }
+          type: "AUDIT_EVENT",
+          data: {
+              type: LogType.AUDIT,
+              severity: LogSeverity.CRITICAL,
+              caller: "decoy:system",
+              message: `Honeypot Triggered: Unauthorized access to port ${payload.port}`,
+              data: { source_ip: payload.source_ip, port: payload.port }
+          }
         });
 
         // Auto-block logic
@@ -121,9 +126,14 @@ export class HoneypotPlugin implements Plugin {
             message: `ALERT: Unauthorized file access to ${payload.path} (${payload.event_type})`
         });
         this.broadcast({
-          type: "CRITICAL",
-          message: `Honeypot Triggered: Unauthorized file access to ${payload.path}`,
-          data: { path: payload.path, event_type: payload.event_type }
+          type: "AUDIT_EVENT",
+          data: {
+              type: LogType.AUDIT,
+              severity: LogSeverity.CRITICAL,
+              caller: "decoy:system",
+              message: `Honeypot Triggered: Unauthorized file access to ${payload.path}`,
+              data: { path: payload.path, event_type: payload.event_type }
+          }
         });
         break;
 
@@ -136,8 +146,13 @@ export class HoneypotPlugin implements Plugin {
             message: `Status: ${payload.message}`
         });
         this.broadcast({
-          type: "INFO",
-          message: `Honeypot Status: ${payload.message}`
+          type: "AUDIT_EVENT",
+          data: {
+              type: LogType.ACTIVITY,
+              severity: LogSeverity.INFO,
+              caller: "decoy:system",
+              message: `Honeypot Status: ${payload.message}`
+          }
         });
         break;
     }

@@ -71,7 +71,7 @@ export function broadcast(data: BroadcastData) {
   }
 
   // Trigger Deno KV Audit Event (Escalated to AUDIT type for the ledger)
-  if (data.type !== "METRICS_UPDATE") {
+  if (data.type !== "METRICS_UPDATE" && data.type !== "DEBUG" && data.subType !== "METRICS_UPDATE") {
     // Map internal types to mandated forensic types for the ledger
     let forensicType = LogType.AUDIT;
     if (data.type === "INFO" || data.type === "ACTIVITY") forensicType = LogType.ACTIVITY;
@@ -99,12 +99,13 @@ export function broadcast(data: BroadcastData) {
   else if (data.type?.startsWith("DRIFT") || data.type === "BLOCK") severity = LogSeverity.WARNING;
 
   if (sharedLogging) {
+    const isMetrics = data.type === "METRICS_UPDATE" || data.subType === "METRICS_UPDATE";
     sharedLogging.log({
       timestamp: new Date().toISOString(),
       type: LogType.DEBUG, // Standardize WS noise as DEBUG
       severity,
-      caller: data.type === "METRICS_UPDATE" ? "METRICS" : "WS:EVENT",
-      message: data.message || (data.type === "METRICS_UPDATE" ? "Periodic system metrics synchronized" : data.type)
+      caller: isMetrics ? "METRICS" : "WS:EVENT",
+      message: data.message || (isMetrics ? "Periodic system metrics synchronized" : data.type)
     }).catch(() => {});
   }
 }
@@ -140,9 +141,13 @@ export function createWsHandler(role: string = "viewer") {
       }
 
       ws.send(JSON.stringify({
-        type: "INFO",
-        message: `Security Orchestrator Connected // Role: ${role.toUpperCase()}`,
-        timestamp: new Date().toISOString()
+        type: "AUDIT_EVENT",
+        data: {
+          type: LogType.ACTIVITY,
+          severity: LogSeverity.SUCCESS,
+          caller: "ws:handshake",
+          message: `Security Orchestrator Connected // Role: ${role.toUpperCase()}`
+        }
       }));
     },
     

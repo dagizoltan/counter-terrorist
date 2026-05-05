@@ -47,7 +47,7 @@ export class HoneypotService {
       active: true,
     });
     this.registerModule({
-      id: "postgres",
+      id: "postgresql",
       name: "PostgreSQL Decoy",
       port: 5432,
       description: "Emulates an exposed PostgreSQL instance to capture credential brute-force.",
@@ -131,6 +131,9 @@ export class HoneypotService {
       const source_ip = payload.source_ip || payload.ip || "unknown";
       const port = payload.port || "unknown";
       
+      const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
+      const callerId = module ? `decoy:${module.id}` : "decoy:unknown";
+
       this.hitCount++;
       this.emitEvent({ type: "PortAccess", source_ip, port });
 
@@ -138,16 +141,20 @@ export class HoneypotService {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "HONEYPOT:TRIGGER",
+          caller: callerId,
           message: `Tactical Trigger: Port ${port} access from ${source_ip}`,
-          payload: { source_ip, port, hitCount: this.hitCount }
+          payload: { source_ip, port, hitCount: this.hitCount, module: module?.name }
       });
 
       this.broadcast({
-        type: "WARNING",
-        severity: "WARNING",
-        message: `Honeypot Triggered: Access to Port ${port} from ${source_ip}`,
-        data: { source_ip, port }
+        type: "AUDIT_EVENT",
+        data: {
+          type: LogType.AUDIT,
+          severity: LogSeverity.WARNING,
+          caller: callerId,
+          message: `Honeypot Triggered: Access to Port ${port} from ${source_ip}`,
+          payload: { source_ip, port }
+        }
       });
 
       if (this.behavioralService) {
@@ -170,11 +177,14 @@ export class HoneypotService {
       this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
+      const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
+      const callerId = module ? `decoy:${module.id}` : "decoy:session";
+
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.DEBUG,
           severity: LogSeverity.INFO,
-          caller: "HONEYPOT:SESSION",
+          caller: callerId,
           message: `Session transcript from ${source_ip}:${port}`,
           payload: { source_ip, port, data }
       });
@@ -195,16 +205,20 @@ export class HoneypotService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "HONEYPOT:WEB",
+        caller: "decoy:http",
         message: `Web Decoy Triggered: Path '${route}' from ${source_ip}`,
         payload: { source_ip, route, hitCount: this.hitCount }
     });
 
     this.broadcast({
-      type: "WARNING",
-      severity: "WARNING",
-      message: `Web Decoy Triggered: Access to ${route} from ${source_ip}`,
-      data: { source_ip, route }
+      type: "AUDIT_EVENT",
+      data: {
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "decoy:http",
+        message: `Web Decoy Triggered: Access to ${route} from ${source_ip}`,
+        payload: { source_ip, route }
+      }
     });
 
     // Immediate blocking for web decoys as they are 100% malicious
@@ -227,7 +241,7 @@ export class HoneypotService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "SABOTAGE",
+        caller: "decoy:breaker",
         message: `Initiating Breaker Protocol against ${source_ip}`
     });
     
@@ -246,11 +260,12 @@ export class HoneypotService {
   async morph() {
     this.logging.log({
         timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
+        type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "HONEYPOT",
+        caller: "decoy:system",
         message: "Engaging Deception Morphing (Port Rotation)..."
     });
+
     for (const [id, module] of this.modules) {
       if (!module.active) continue;
 
@@ -281,12 +296,33 @@ export class HoneypotService {
         newPort
       }).catch(() => {});
 
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.INFO,
+          caller: `decoy:${id}`,
+          message: `DECEPTION MORPH: ${module.name} port rotation from ${oldPort} to ${newPort}`
+      });
+
       this.broadcast({
-        type: "INFO",
-        message: `DECEPTION MORPH: ${module.name} moved from ${oldPort} to ${newPort}`,
-        data: { id, oldPort, newPort }
+        type: "AUDIT_EVENT",
+        data: {
+          type: LogType.AUDIT,
+          severity: LogSeverity.INFO,
+          caller: `decoy:${id}`,
+          message: `DECEPTION MORPH: ${module.name} port rotation from ${oldPort} to ${newPort}`,
+          data: { id, oldPort, newPort }
+        }
       });
     }
+
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "decoy:system",
+        message: "Deception Morphing cycle completed successfully."
+    });
   }
 
   getDecoyRoutes() {

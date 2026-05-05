@@ -58,9 +58,14 @@ export class SshHoneypotPlugin implements Plugin {
       });
 
       this.broadcast({
-        type: "CRITICAL",
-        message: `SSH Honeypot Triggered: Connection from ${remoteAddr}`,
-        data: { source_ip: remoteAddr, port: this.port }
+        type: "AUDIT_EVENT",
+        data: {
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "decoy:ssh",
+            message: `SSH Honeypot Triggered: Connection from ${remoteAddr}`,
+            data: { source_ip: remoteAddr, port: this.port }
+        }
       });
 
       this.firewall.blockIp(remoteAddr).catch(() => {});

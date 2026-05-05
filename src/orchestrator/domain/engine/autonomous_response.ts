@@ -3,7 +3,7 @@ import { ForensicService } from "../analysis/forensic_service.ts";
 import { MeshManager } from "./mesh.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { NotificationService } from "../analysis/notifications.ts";
-import { ProtectionPort, LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { ProtectionPort, LoggingPort, SyslogSeverity, LogType, LogSeverity } from "@core/ports.ts";
 
 export type RemediationTier = RemediationAction;
 
@@ -99,7 +99,7 @@ export class AutonomousResponseEngine {
 
         const auditMsg = `Remediation Tier [${tier}] engaged for ${source}. Reason: ${trigger.type}`;
         await this.audit.logEvent({
-            type: "REMEDIATION",
+            type: LogType.AUDIT,
             message: auditMsg,
             data: { source, tier, trigger, totalScore: this.scores.get(source) }
         });

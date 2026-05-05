@@ -348,9 +348,14 @@ export class MeshManager {
           message: `New node registered: ${node.hostname} (${node.address}:${node.port}) [verified=${node.verified}]`
       });
       broadcast({
-        type: "INFO",
-        message: `New security node joined the mesh: ${node.hostname}`,
-        data: node
+        type: "AUDIT_EVENT",
+        data: {
+            type: LogType.AUDIT,
+            severity: LogSeverity.SUCCESS,
+            caller: "mesh:p2p",
+            message: `New security node joined the mesh: ${node.hostname}`,
+            data: node
+        }
       });
     }
   }
@@ -392,9 +397,14 @@ export class MeshManager {
           message: `ISOLATED NODE: ${node.hostname} (${nodeId}) revoked from mesh due to security policy.`
       });
       broadcast({
-        type: "CRITICAL",
-        message: `Node ${node.hostname} isolated from mesh network!`,
-        data: { nodeId }
+        type: "AUDIT_EVENT",
+        data: {
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "mesh:p2p",
+            message: `Node ${node.hostname} isolated from mesh network!`,
+            data: { nodeId }
+        }
       });
     }
   }

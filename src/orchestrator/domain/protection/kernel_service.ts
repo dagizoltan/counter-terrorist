@@ -52,7 +52,9 @@ export class KernelService {
 
         this.lastHardened = new Date().toISOString();
         this.auditService.logEvent({
-            type: "INFO",
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.SUCCESS,
+            caller: "kernel:hardening",
             message: "Applied adaptive kernel hardening parameters and activated process camouflage.",
             data: { params }
         });
@@ -157,8 +159,10 @@ export class KernelService {
         }));
         
         this.auditService.logEvent({
-            type: "LSM_ENFORCEMENT",
-            message: `Blocked ${syscall} for process ${pid}`,
+            type: LogType.AUDIT,
+            severity: LogSeverity.CRITICAL,
+            caller: "kernel:lsm",
+            message: `LSM Enforcement: Blocked syscall '${syscall}' for process ${pid}`,
             data: { pid, syscall }
         });
     }

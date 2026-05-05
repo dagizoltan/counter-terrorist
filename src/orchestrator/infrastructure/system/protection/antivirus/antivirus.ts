@@ -40,4 +40,8 @@ export class AntivirusManager {
     }
     return await this.provider.scanPath(path);
   }
+
+  async syncSignatures() {
+    return await this.provider.syncSignatures();
+  }
 }

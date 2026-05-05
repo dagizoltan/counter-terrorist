@@ -211,50 +211,90 @@ export const HoneypotPage = (props: { csrfToken?: string }) => (
 );
 
 export const VpnPage = (props: { csrfToken?: string }) => (
-  <Layout title="Device Anonymization" islandPaths={['/components/islands/AnonymizerController.js']} csrfToken={props.csrfToken}>
-    <header class="flex justify-between items-end mb-12">
-      <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
-        </a>
-        <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
-        <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">DEVICE ANONYMIZER</h1>
-          <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="dot active" style="background:var(--primary);"></span>
-              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">PRIVACY TUNNEL ACTIVE</span>
-            </div>
-            <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">ROUTING: OBFUSCATED</div>
-          </div>
+  <Layout title="Identity Anonymizer // Stealth Control" islandPaths={['/components/islands/AnonymizerController.js']} csrfToken={props.csrfToken}>
+    <header class="page-header mb-10">
+      <div class="title-group">
+        <div class="flex items-center gap-4 mb-2">
+          <div class="w-10 h-0.5 bg-primary rounded-full"></div>
+          <span class="mono-xs font-black text-primary uppercase tracking-[0.4em]">Active_Identity_Camouflage</span>
         </div>
+        <h1 class="text-6xl font-black italic tracking-tighter uppercase leading-none text-white">
+          Identity <span class="text-primary">Anonymizer</span>
+        </h1>
+      </div>
+      <div class="flex items-center gap-6">
+         <div class="flex flex-col items-end">
+            <span class="mono-xs text-slate-600 font-black uppercase tracking-widest">Egress_Stability</span>
+            <span class="text-2xl font-black text-success italic">99.9%</span>
+         </div>
       </div>
     </header>
 
-    <div class="grid grid-cols-12 gap-8">
-       <div class="col-span-12 lg:col-span-4 space-y-8">
-          <div class="t-panel">
-             <span class="metric-tag mb-8 block">Control_Interface</span>
-             <anonymizer-controller></anonymizer-controller>
+    {/* Metric Cards Row */}
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+      {[
+        { label: 'Tunnel_Protocol', value: 'WIREGUARD', theme: 'primary', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
+        { label: 'Egress_Region', value: 'EU-CENTRAL', theme: 'primary', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3.6 9h16.8 M3.6 15h16.8 M11.5 3a17 17 0 0 0 0 18 M12.5 3a17 17 0 0 1 0 18' },
+        { label: 'Stealth_Level', value: 'MAXIMUM', theme: 'warning', icon: 'M12 2v20M2 12h20' },
+        { label: 'Next_Rotation', value: '24m 12s', theme: 'success', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
+      ].map(card => (
+        <div class="t-panel glass-panel p-6 border-t-2 transition-all hover:bg-white/[0.03] group" style={`border-top-color: var(--${card.theme})`}>
+          <div class="flex justify-between items-start mb-4">
+            <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">{card.label}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-20 group-hover:opacity-100 transition-opacity"><path d={card.icon}/></svg>
           </div>
-          <div class="t-panel">
-             <span class="metric-tag mb-4 block">Anonymization_Status</span>
-             <p class="mono text-xs text-slate-400 leading-relaxed italic">
-               Operational device-level VPN for egress obfuscation. Select mode to rotate exit nodes via Traditional VPN, VPN Gate, or TOR bridge.
-             </p>
-          </div>
-       </div>
-       <div class="col-span-12 lg:col-span-8 t-panel p-0 overflow-hidden">
-          <header class="p-8 border-b border-white/5 bg-black/20">
-             <h3 class="tactical-title" style="font-size:1rem;">IDENTITY_OBFUSCATION_TELEMETRY</h3>
-          </header>
-          <div class="p-12 flex flex-col items-center justify-center gap-6 opacity-20">
-             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-             <span class="mono-xs font-black uppercase tracking-[0.5em]">Monitoring_Stealth_Vector...</span>
-          </div>
-       </div>
+          <span class="text-3xl font-black text-white italic tracking-tighter uppercase">{card.value}</span>
+        </div>
+      ))}
     </div>
+
+    <div class="grid grid-cols-12 gap-10">
+      <div class="col-span-12 lg:col-span-4">
+        <div class="t-panel glass-panel p-8 bg-black/40 h-full border-l border-white/5">
+          <header class="mb-10 flex items-center gap-4">
+            <div class="w-2 h-8 bg-primary rounded-full"></div>
+            <h3 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">Protocol_Steering</h3>
+          </header>
+          <anonymizer-controller></anonymizer-controller>
+        </div>
+      </div>
+
+      <div class="col-span-12 lg:col-span-8">
+        <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden h-full flex flex-col border-r border-white/5">
+          <header class="p-8 border-b border-white/5 bg-black/40 flex justify-between items-center">
+            <div class="flex items-center gap-4">
+              <span class="dot active"></span>
+              <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">Active_Camouflage_Telemetry</span>
+            </div>
+            <div class="flex items-center gap-3">
+               <span class="mono-xs text-slate-700 font-bold">LATENCY: 42ms</span>
+               <div class="status-pill active px-6 py-2">LIVE_FEED</div>
+            </div>
+          </header>
+          <div class="flex-grow p-10 relative overflow-hidden flex items-center justify-center min-h-[450px]">
+             {/* Dynamic background effect */}
+             <div class="absolute inset-0 opacity-20 pointer-events-none">
+                <div class="w-full h-full bg-[radial-gradient(circle_at_center,var(--primary-glow)_0%,transparent_70%)]"></div>
+                <div class="absolute top-0 left-0 w-full h-full bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+             </div>
+             
+             <div class="text-center space-y-10 z-10">
+                <div class="relative inline-block">
+                  <div class="text-9xl font-black text-primary italic tracking-[0.1em] opacity-10 blur-sm absolute inset-0">STEALTH</div>
+                  <div class="text-9xl font-black text-white italic tracking-[0.1em] relative">STEALTH</div>
+                </div>
+                <div class="flex flex-col gap-4">
+                  <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.8em] animate-pulse">Identity obfuscation engaged</p>
+                  <div class="flex justify-center gap-2">
+                    {[1,2,3,4,5].map(i => <div class="w-12 h-1 bg-primary/20 rounded-full overflow-hidden"><div class="h-full bg-primary animate-progress" style={`animation-delay: ${i*0.2}s`}></div></div>)}
+                  </div>
+                </div>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <vpn-agent></vpn-agent>
   </Layout>
 );
 
@@ -306,37 +346,30 @@ export const EbpfPage = (props: { csrfToken?: string }) => (
 );
 
 export const ScannerPage = (props: { csrfToken?: string }) => (
-  <Layout title="Vulnerability Scanner" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken}>
-    <header class="flex justify-between items-end mb-12">
-      <div class="flex items-center gap-6">
-        <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
-           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
-        </a>
-        <div style="width:12px; height:60px; background:var(--primary); border-radius:4px; box-shadow:0 0 20px var(--primary-glow);"></div>
-        <div class="flex flex-col gap-2">
-          <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0;">SEC VULN SCANNER</h1>
-          <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2">
-              <span class="dot active"></span>
-              <span class="mono text-[10px] font-black text-primary tracking-[0.2em]">AUTONOMOUS AUDIT</span>
-            </div>
-            <span class="text-slate-700">/</span>
-            <div class="mono text-[10px] font-bold text-slate-500 tracking-[0.15em] uppercase">INTEGRITY VERIFIED</div>
-          </div>
+  <Layout title="Scanner Agent // Tactical Assessment" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken}>
+    <header class="page-header mb-12">
+      <div class="title-group">
+        <div class="flex items-center gap-4 mb-2">
+          <div class="w-10 h-0.5 bg-primary rounded-full"></div>
+          <span class="mono-xs font-black text-primary uppercase tracking-[0.4em]">Autonomous_Forensic_Audit</span>
         </div>
+        <h1 class="text-6xl font-black italic tracking-tighter uppercase leading-none text-white">
+          Scanner <span class="text-primary">Agent</span>
+        </h1>
       </div>
-      <button id="btn-run-scan" class="t-btn" style="background:var(--primary); color:black; font-size:11px; padding: 1.2rem 3rem;">Execute_Full_Audit</button>
+      <div class="flex items-center gap-6">
+         <div class="flex flex-col items-end">
+            <span class="mono-xs text-slate-600 font-black uppercase tracking-widest">Database_Status</span>
+            <span class="text-2xl font-black text-success italic uppercase">Synced</span>
+         </div>
+      </div>
     </header>
 
-    <div class="t-panel p-0 overflow-hidden">
-      <header class="p-8 border-b border-white/5 bg-black/20">
-        <h3 class="tactical-title" style="font-size:1rem;">AUDIT_RESULT_MANIFEST</h3>
-      </header>
-      <div id="scanner-results" class="p-8 mono text-xs text-slate-400 bg-black/40 min-h-[500px] overflow-y-auto whitespace-pre-wrap leading-relaxed">
-        <span class="text-slate-600 opacity-50 uppercase italic font-black">Awaiting initialization of Scanner sidecar...</span>
+    <div class="grid grid-cols-12 gap-6 mb-8">
+      <div class="col-span-12 t-panel glass-panel p-8 border-t-2 border-primary/30 bg-black/40">
+        <scanner-agent></scanner-agent>
       </div>
     </div>
-    <scanner-agent></scanner-agent>
   </Layout>
 );
 

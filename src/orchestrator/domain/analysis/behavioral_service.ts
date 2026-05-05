@@ -49,9 +49,14 @@ export class BehavioralService {
       const entropy = this.calculateEntropy(stats.intervals);
       
       broadcast({
-        type: "INFO",
-        message: `Behavioral Analysis: IP ${ip} // Entropy: ${entropy.toFixed(2)}`,
-        data: { ip, entropy }
+        type: "AUDIT_EVENT",
+        data: {
+          type: "activity",
+          severity: "info",
+          caller: "analysis:behavioral",
+          message: `Behavioral Analysis: IP ${ip} // Entropy: ${entropy.toFixed(2)}`,
+          data: { ip, entropy }
+        }
       });
 
       if (entropy < 1.0) {

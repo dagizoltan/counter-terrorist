@@ -83,7 +83,11 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
         </h2>
         <div class="grid grid-cols-1 gap-6">
           <div class="col-span-12 t-panel glass-panel p-8 bg-black/40 border-t-2 border-danger/30">
-             <news-feed limit="4"></news-feed>
+             <header class="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
+                <span class="mono-xs font-black text-danger uppercase tracking-[0.4em]">Global Threat Intelligence</span>
+                <a href="/news" class="mono-xs text-slate-500 hover:text-white transition-colors uppercase tracking-widest font-black">View Full Deck →</a>
+             </header>
+             <news-feed limit="4" compact="true"></news-feed>
           </div>
         </div>
       </section>
@@ -125,24 +129,42 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
                 </div>
              </div>
           </div>
-          <div class="col-span-12 lg:col-span-4 t-panel glass-panel border-t-2 border-success/30 flex flex-col shadow-2xl">
-             <header class="flex justify-between items-center mb-10 pb-6 border-b border-white/5">
-                <h3 class="tactical-title text-xl tracking-widest uppercase">Deception Grid</h3>
-                <span class="mono-xs text-slate-600 font-black tracking-[0.3em] uppercase italic">Active Lure</span>
-             </header>
-             <div class="flex-grow flex items-center justify-center min-h-[400px]">
-                <honeypot-chart></honeypot-chart>
-             </div>
-             <footer class="mt-10 pt-8 border-t border-white/5">
-                <div class="flex justify-between items-baseline mb-4">
-                   <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Strike Back Probability</span>
-                   <span class="mono-xs text-white font-black italic tracking-[0.2em] tabular-nums text-lg">84.2%</span>
-                </div>
-                <div class="h-2 bg-white/5 rounded-full overflow-hidden shadow-inner">
-                   <div class="h-full bg-danger shadow-[0_0_15px_rgba(var(--danger-rgb),0.5)]" style="width: 84.2%"></div>
-                </div>
-             </footer>
-          </div>
+           <div class="col-span-12 lg:col-span-4 flex flex-col gap-6">
+              <div class="t-panel glass-panel border-t-2 border-success/30 flex flex-col shadow-2xl p-0 overflow-hidden">
+                 <header class="flex justify-between items-center p-8 border-b border-white/5 bg-black/40">
+                    <h3 class="tactical-title text-xl tracking-widest uppercase">Deception Grid</h3>
+                    <span class="mono-xs text-slate-600 font-black tracking-[0.3em] uppercase italic">Active Lure</span>
+                 </header>
+                 <div class="p-8 flex items-center justify-center min-h-[300px]">
+                    <honeypot-chart></honeypot-chart>
+                 </div>
+              </div>
+ 
+              <div class="grid grid-cols-2 gap-6">
+                 <div class="t-panel glass-panel border-t-2 border-warning/30 p-6 flex flex-col items-center justify-center text-center">
+                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-4">Total_Lures</span>
+                    <span class="text-4xl font-black text-white italic tracking-tighter">12</span>
+                 </div>
+                 <div class="t-panel glass-panel border-t-2 border-danger/30 p-6 flex flex-col items-center justify-center text-center">
+                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-4">Live_Hits</span>
+                    <span class="text-4xl font-black text-danger italic tracking-tighter">124</span>
+                 </div>
+              </div>
+ 
+              <div class="t-panel glass-panel border-t-2 border-slate-700 p-8 flex flex-col shadow-2xl">
+                 <div class="flex justify-between items-baseline mb-4">
+                    <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Strike Back Probability</span>
+                    <span class="mono-xs text-white font-black italic tracking-[0.2em] tabular-nums text-lg">84.2%</span>
+                 </div>
+                 <div class="h-2 bg-white/5 rounded-full overflow-hidden shadow-inner">
+                    <div class="h-full bg-danger shadow-[0_0_15px_rgba(var(--danger-rgb),0.5)]" style="width: 84.2%"></div>
+                 </div>
+                 <div class="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
+                    <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Countermeasure_State</span>
+                    <span class="status-pill warning !px-3 !py-0.5">ARMED</span>
+                 </div>
+              </div>
+           </div>
         </div>
       </section>
     </Layout>

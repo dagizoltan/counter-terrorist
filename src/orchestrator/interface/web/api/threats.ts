@@ -11,13 +11,24 @@ export function createThreatsApi(services: ServiceContainer) {
 
     router.get("/identified", async (c) => {
         const type = c.req.query("type");
-        const threats = await services.curatedIntel.getThreats(type);
-        return c.json(threats);
+        const provider = c.req.query("provider");
+        const search = c.req.query("search");
+        const limit = parseInt(c.req.query("limit") || "50");
+        const offset = c.req.query("offset");
+        
+        const result = await services.curatedIntel.getThreats({ type, provider, limit, offset, search });
+        return c.json(result);
+    });
+
+    router.get("/identified/stats", async (c) => {
+        const stats = await services.curatedIntel.getStats();
+        return c.json(stats);
     });
 
     router.post("/identified/sync", async (c) => {
-        await services.curatedIntel.sync();
-        return c.json({ success: true });
+        const { provider } = await c.req.json().catch(() => ({}));
+        await services.curatedIntel.sync(provider);
+        return c.json({ success: true, provider });
     });
 
     router.post("/identified/wipe", async (c) => {

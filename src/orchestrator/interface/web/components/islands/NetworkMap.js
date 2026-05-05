@@ -39,11 +39,18 @@ class NetworkMap extends HTMLElement {
   async fetchTopology() {
     try {
       this.isScanning = true;
-      const res = await fetch('/api/infrastructure/network/discovery');
+      const res = await fetch('/api/network/discovery');
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {
            this.devices = data;
+        } else if (typeof data === 'object') {
+           // Flatten categorized object into a single array for the map view
+           this.devices = [
+             ...(data.wifi || []),
+             ...(data.bluetooth || []),
+             ...(data.ethernet || [])
+           ];
         }
       }
     } catch (e) {

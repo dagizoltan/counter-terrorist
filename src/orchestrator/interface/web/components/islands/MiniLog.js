@@ -33,7 +33,8 @@ class MiniLog extends HTMLElement {
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'BLOCK' || payload.type === 'ALERT' || payload.type === 'AUDIT_EVENT') {
+        const tacticalTypes = ['BLOCK', 'ALERT', 'AUDIT_EVENT', 'audit', 'activity', 'generic', 'debug', 'CRITICAL', 'WARNING', 'INFO'];
+        if (tacticalTypes.includes(payload.type)) {
           this.logs.unshift(payload.data || payload);
           if (this.logs.length > 100) this.logs.pop();
           this.render();
@@ -74,40 +75,77 @@ class MiniLog extends HTMLElement {
     }
 
     this.innerHTML = `
-      <div class="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar pr-2">
+      <div class="space-y-1 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar pr-2">
         ${this.logs.map(log => {
-          const type = (log.type || 'LOG').toUpperCase();
-          const severity = (log.severity || (log.type === 'CRITICAL' ? 'critical' : 'info')).toLowerCase();
-          const caller = (log.caller || 'SYSTEM').toUpperCase();
-          const timestamp = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          let rawType = (log.type || 'generic').toLowerCase();
           
-          // Use pre-formatted string if available
-          const formatted = log.formatted || `[${type}] [${severity}] [${caller}] ${log.message}`;
-          const [brackets, ...messageParts] = formatted.split(']');
-          const bracketSection = brackets + ']';
-          const messageSection = messageParts.join(']').trim();
+          // Map legacy types to mandated taxonomy
+          if (rawType === 'block' || rawType === 'alert' || rawType === 'critical') rawType = 'audit';
+          if (rawType === 'warning' || rawType === 'info' || rawType === 'success') rawType = 'activity';
+          if (!['audit', 'activity', 'generic', 'debug'].includes(rawType)) rawType = 'generic';
 
+          const type = rawType.toUpperCase().slice(0, 8);
+          const severity = (log.severity || 'info').toLowerCase();
+          const caller = (log.caller || 'SYSTEM').toUpperCase().slice(0, 18);
+          const date = new Date(log.timestamp || Date.now());
+          const timeStr = date.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          
+          const severityTextClass = this.getSeverityClass(severity);
+          const typeColorClass = this.getTypeColorClass(type);
+          
           return `
-            <div class="flex flex-col gap-1 p-3 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-white/[0.04] transition-all group relative overflow-hidden">
-              <div class="absolute inset-y-0 left-0 w-0.5 ${this.getSeverityBgClass(severity)} opacity-20 group-hover:opacity-100 transition-opacity"></div>
-              
-              <div class="flex justify-between items-center mb-1">
-                <span class="mono text-[9px] font-black uppercase tracking-[0.1em] ${this.getSeverityClass(severity)}">
-                  ${window.escapeHTML(bracketSection)}
+            <div class="flex flex-col border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group cursor-pointer overflow-hidden">
+              <!-- Main Compact Row -->
+              <div class="flex items-center gap-3 py-1.5 px-3 relative">
+                <div class="absolute inset-y-0 left-0 w-0.5 ${this.getSeverityBgClass(severity)} opacity-20 group-hover:opacity-100 transition-opacity"></div>
+                
+                <!-- Metadata Left -->
+                <span class="w-12 flex-shrink-0 mono text-[8px] font-black uppercase tracking-tighter ${typeColorClass} opacity-80">
+                  ${window.escapeHTML(type)}
                 </span>
-                <span class="text-[8px] text-slate-500 font-bold mono tabular-nums opacity-60">
-                  ${timestamp}
+ 
+                <span class="w-10 flex-shrink-0 mono text-[8px] font-black uppercase tracking-tighter ${severityTextClass}">
+                  ${window.escapeHTML(severity.slice(0, 4))}
                 </span>
+ 
+                <span class="flex-grow min-w-0 mono text-[8px] text-slate-400 font-black uppercase truncate tracking-tighter">
+                  ${window.escapeHTML(caller)}
+                </span>
+ 
+                <!-- Time Right -->
+                <span class="flex-shrink-0 mono text-[8px] font-black text-slate-500 tabular-nums">
+                  ${timeStr}
+                </span>
+ 
+                <div class="flex-shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" class="transform transition-transform duration-300 arrow-icon">
+                    <path d="m6 9 6 6 6-6"/>
+                  </svg>
+                </div>
               </div>
-
-              <div class="mono text-[10px] text-slate-300 leading-tight font-medium tracking-tight">
-                ${window.escapeHTML(messageSection || 'System interaction recorded.')}
+ 
+              <!-- Message Detail (Hidden by default) -->
+              <div class="message-detail hidden px-6 py-4 bg-black/40">
+                <div class="mono text-[8px] text-slate-500 leading-relaxed tracking-tight border-l border-white/10 pl-3 py-1">
+                  ${window.escapeHTML(log.message || '---')}
+                </div>
               </div>
             </div>
           `;
         }).join('')}
       </div>
     `;
+
+    // Attach click listeners for accordion
+    this.querySelectorAll('.group').forEach(el => {
+      el.onclick = () => {
+        const detail = el.querySelector('.message-detail');
+        const arrow = el.querySelector('.arrow-icon');
+        const isHidden = detail.classList.contains('hidden');
+        detail.classList.toggle('hidden');
+        arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+      };
+    });
   }
 
   getSeverityBgClass(severity) {

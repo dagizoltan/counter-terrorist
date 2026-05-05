@@ -87,5 +87,10 @@ export function createAgentsApi(services: ServiceContainer) {
     return c.json(result);
   });
 
+  router.post("/scanner/sync-signatures", async (c: Context) => {
+    const result = await services.protection.antivirus.syncSignatures();
+    return c.json(result);
+  });
+
   return router;
 }

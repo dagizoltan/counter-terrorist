@@ -74,33 +74,34 @@ class NewsFeed extends HTMLElement {
 
   render() {
     const isDetailed = this.getAttribute('detailed') === 'true';
+    const isCompact = this.getAttribute('compact') === 'true';
     const limit = parseInt(this.getAttribute('limit') || (isDetailed ? '50' : '12'));
     const displayNews = this.news.slice(0, limit);
-
+ 
     if (this.news.length === 0) {
       this.innerHTML = `
         <div class="flex flex-col gap-6">
-           <div class="p-12 text-center border border-dashed border-white/5 opacity-30 mono-xs uppercase tracking-widest italic">
+           <div class="${isCompact ? 'p-6' : 'p-12'} text-center border border-dashed border-white/5 opacity-30 mono-xs uppercase tracking-widest italic">
               Synchronizing with global intelligence feeds...
            </div>
         </div>
       `;
       return;
     }
-
-    const gridClass = isDetailed ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8' : 'space-y-6';
-
+ 
+    const gridClass = isDetailed ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8' : (isCompact ? 'space-y-3' : 'space-y-6');
+ 
     this.innerHTML = `
       <div class="${gridClass}">
         ${displayNews.map(item => `
-          <a href="${item.link}" target="_blank" class="block p-8 bg-black/40 border border-white/5 rounded-2xl hover:border-white/10 hover:bg-white/[0.03] group transition-all duration-300 relative overflow-hidden backdrop-blur-xl">
-            <div class="flex justify-between items-start mb-6">
+          <a href="${item.link}" target="_blank" class="block ${isCompact ? 'p-4 rounded-xl' : 'p-8 rounded-2xl'} bg-black/40 border border-white/5 hover:border-white/10 hover:bg-white/[0.03] group transition-all duration-300 relative overflow-hidden backdrop-blur-xl">
+            <div class="flex justify-between items-start ${isCompact ? 'mb-2' : 'mb-6'}">
                <div class="flex items-center gap-4">
-                  <div class="p-2.5 rounded-xl border ${this.getSeverityStyles(item.severity, item.category)}">
+                  <div class="${isCompact ? 'p-1.5' : 'p-2.5'} rounded-xl border ${this.getSeverityStyles(item.severity, item.category)}">
                      ${this.getCategoryIcon(item.category)}
                   </div>
                   <div class="flex flex-col gap-0.5">
-                     <span class="mono-xs font-bold text-slate-400 tracking-widest uppercase">${this.formatLabel(item.source)}</span>
+                     <span class="mono-xs font-bold text-slate-400 tracking-widest uppercase" style="${isCompact ? 'font-size: 7px;' : ''}">${this.formatLabel(item.source)}</span>
                      <span class="mono-xs text-slate-600 font-bold uppercase" style="font-size: 8px;">${new Date(item.timestamp).toLocaleTimeString()}</span>
                   </div>
                </div>
@@ -108,26 +109,30 @@ class NewsFeed extends HTMLElement {
                   ${item.severity}
                </span>
             </div>
-
-            <h4 class="text-xl font-black text-white mb-6 uppercase tracking-tight leading-tight line-clamp-2 italic group-hover:translate-x-1 transition-all">
+ 
+            <h4 class="${isCompact ? 'text-sm mb-2' : 'text-xl mb-6'} font-black text-white uppercase tracking-tight leading-tight line-clamp-1 italic group-hover:translate-x-1 transition-all">
                ${item.title.replace(/_/g, ' ')}
             </h4>
             
-            <p class="mono-xs text-slate-400 line-clamp-3 leading-relaxed mb-8 font-medium italic">
-               ${item.summary.replace(/_/g, ' ')}
-            </p>
-
-            <div class="flex items-center justify-between pt-6 border-t border-white/5">
-                <div class="flex items-center gap-3 text-slate-500 group-hover:text-slate-300 transition-colors">
-                    <span class="mono-xs font-black uppercase tracking-[0.3em] text-[9px]">Intercept Signal</span>
-                    <svg class="transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                </div>
-            </div>
+            ${!isCompact ? `
+              <p class="mono-xs text-slate-400 line-clamp-3 leading-relaxed mb-8 font-medium italic">
+                 ${item.summary.replace(/_/g, ' ')}
+              </p>
+            ` : ''}
+ 
+            ${!isCompact ? `
+              <div class="flex items-center justify-between pt-6 border-t border-white/5">
+                  <div class="flex items-center gap-3 text-slate-500 group-hover:text-slate-300 transition-colors">
+                      <span class="mono-xs font-black uppercase tracking-[0.3em] text-[9px]">Intercept Signal</span>
+                      <svg class="transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                  </div>
+              </div>
+            ` : ''}
           </a>
         `).join('')}
       </div>
-
-      ${!isDetailed ? `
+ 
+      ${!isDetailed && !isCompact ? `
         <div class="mt-16">
             <a href="/news" class="t-btn primary w-full justify-center py-6 group">
                 <span class="mono-xs font-black tracking-[0.4em] uppercase">Open Global Intelligence Deck</span>

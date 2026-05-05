@@ -37,7 +37,8 @@ class MetricsHydrator extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'METRICS_UPDATE' && payload.data) {
+        const isMetrics = payload.type === 'METRICS_UPDATE' || (payload.type === 'DEBUG' && payload.subType === 'METRICS_UPDATE');
+        if (isMetrics && payload.data) {
           this.updateMetrics(payload.data);
         }
       } catch (e) {}

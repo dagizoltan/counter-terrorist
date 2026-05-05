@@ -79,6 +79,7 @@ export interface SystemMetrics {
     };
     tactical: {
         recentThreats: { indicator: string; type: string; blocked: boolean }[];
+        stats: Record<string, number>;
     };
     discovery: {
         devices: { ip: string; hostname?: string; lastSeen: string }[];
@@ -91,6 +92,14 @@ export interface SystemMetrics {
         mode: string;
         remediations: number;
     };
+    supplyChain: {
+        name: string;
+        version: string;
+        license: string;
+        status: string;
+        feature: string;
+        cve?: string;
+    }[];
 }
 
 export class MetricsService {
@@ -124,7 +133,8 @@ export class MetricsService {
         private news?: any,
         private networkDiscovery?: any,
         private autopilot?: any,
-        private healthService?: any
+        private healthService?: any,
+        private supplyChain?: any
     ) {
         setMetricsService(this);
         this.start();
@@ -282,7 +292,8 @@ export class MetricsService {
                             ...t,
                             blocked: blockedIps.includes(t.indicator)
                         }));
-                    })()
+                    })(),
+                    stats: await this.tacticalIntel?.getStats() ?? {}
                 },
                 discovery: {
                     devices: this.networkDiscovery?.getDevices() ?? []
@@ -298,13 +309,15 @@ export class MetricsService {
                 health: {
                     severity: this.healthService?.getGlobalSeverity() || "UNKNOWN",
                     subsystems: this.healthService?.getAllStatuses() || []
-                }
+                },
+                supplyChain: this.supplyChain?.getSBOM() || []
             };
 
             this.cachedMetrics = metrics;
 
             this.broadcast({
-                type: "METRICS_UPDATE",
+                type: "DEBUG",
+                subType: "METRICS_UPDATE",
                 data: metrics
             });
         } catch (e) {

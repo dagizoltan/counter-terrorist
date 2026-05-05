@@ -81,7 +81,9 @@ export class MorphingService {
             }
 
             await this.audit.logEvent({
-                type: "INFO",
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "decoy:system",
                 message: "DECEPTION MORPH COMPLETE: Mesh infrastructure has successfully changed its footprint."
             });
         } catch (e) {

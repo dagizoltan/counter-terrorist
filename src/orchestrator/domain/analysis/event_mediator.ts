@@ -25,7 +25,13 @@ export class EventMediator {
         // 1. Honeypot Integration
         commandPort.onEvent("honeypot", (response: any) => {
             const event = response.data || response;
-            this.broadcast({ type: "HONEYPOT", message: `Honeypot Trigger: ${event.type}`, data: event });
+            this.broadcast({ 
+                type: LogType.AUDIT, 
+                severity: LogSeverity.CRITICAL,
+                caller: event.caller || "decoy:honeypot",
+                message: `Honeypot Trigger: ${event.type} from ${event.source_ip || 'remote'}`, 
+                data: event 
+            });
             this.eventBus.emit("HONEYPOT", event);
         });
 
@@ -59,17 +65,36 @@ export class EventMediator {
             const event = response.data || response;
             const payload = event.data || event;
             if (payload?.type === "FileAlert") {
-                const { path, action } = payload;
-                const isCanary = await this.canaryService.handleFileAccess(path, "UNKNOWN_COMM");
+                const { path, action, comm, pid } = payload;
+                const actor = comm || "system:internal";
+                const isCanary = await this.canaryService.handleFileAccess(path, actor);
                 
                 // If it's a metadata modification (aging or IDE indexing), skip to avoid feedback loops
                 if (isCanary && action.includes("Metadata")) {
                     return;
                 }
-
-                const type = isCanary ? "THREAT" : "DRIFT_PROCESS";
-                this.broadcast({ type, message: `FIM Alert: ${action} on ${path}`, data: payload });
-                this.eventBus.emit(type, payload); 
+ 
+                const type = isCanary ? LogType.AUDIT : LogType.ACTIVITY;
+                const caller = isCanary ? "decoy:canary" : "fim:observer";
+                const severity = isCanary ? LogSeverity.CRITICAL : LogSeverity.WARNING;
+ 
+                this.logger.log({
+                    timestamp: new Date().toISOString(),
+                    type,
+                    severity,
+                    caller,
+                    message: `File Integrity Violation: ${action} detected on ${path} by ${actor} (PID: ${pid || 'N/A'})`,
+                    payload: { path, action, isCanary, actor, pid }
+                }).catch(() => {});
+ 
+                this.broadcast({ 
+                    type, 
+                    severity,
+                    caller,
+                    message: `FIM Alert: ${action} on ${path} [Actor: ${actor}]`, 
+                    data: payload 
+                });
+                this.eventBus.emit(isCanary ? "THREAT" : "DRIFT_PROCESS", payload); 
             }
         });
 
@@ -97,7 +122,13 @@ export class EventMediator {
             const event = response.data || response;
             const data = event.data || event;
             if (data.type === "ThreatDetected" || data.type === "RKH_SCAN_RESULT") {
-                this.broadcast({ type: "THREAT", message: `Scanner Alert: ${data.type}`, data });
+                this.broadcast({ 
+                    type: LogType.AUDIT, 
+                    severity: LogSeverity.CRITICAL,
+                    caller: "scanner:rkhunter",
+                    message: `Scanner Alert: ${data.type}`, 
+                    data 
+                });
                 this.eventBus.emit("THREAT", data);
             }
         });

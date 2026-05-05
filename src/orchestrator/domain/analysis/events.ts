@@ -1,7 +1,7 @@
 import { LoggingPort, LogSeverity, LogType, EventBusPort } from "@core/ports.ts";
 import { validateEvent, EventName } from "@core/event_schema.ts";
 
-export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY";
+export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG";
 
 export interface SystemEvent {
   type: EventType;
@@ -75,7 +75,7 @@ export class EventBus implements EventBusPort {
 
     // Forward to centralized logging
     const severity = this.mapTypeToSeverity(type);
-    const logType = type === "METRICS_UPDATE" ? LogType.DEBUG : LogType.AUDIT;
+    const logType = (type === "DEBUG" || type === "METRICS_UPDATE") ? LogType.DEBUG : LogType.AUDIT;
 
     this.logging.log({
         timestamp: new Date().toISOString(),

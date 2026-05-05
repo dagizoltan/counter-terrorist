@@ -11,7 +11,7 @@ class FirewallAgent extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'METRICS_UPDATE' && payload.data?.firewall) {
+        if ((payload.type === 'METRICS_UPDATE' || (payload.type === 'DEBUG' && payload.subType === 'METRICS_UPDATE')) && payload.data?.firewall) {
           this.updateUI(payload.data.firewall);
         }
       } catch (e) {}

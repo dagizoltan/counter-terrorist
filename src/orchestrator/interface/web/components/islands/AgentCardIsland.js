@@ -18,7 +18,7 @@ class AgentCardIsland extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'METRICS_UPDATE' && payload.data) {
+        if ((payload.type === 'METRICS_UPDATE' || (payload.type === 'DEBUG' && payload.subType === 'METRICS_UPDATE')) && payload.data) {
           this.updateMetrics(payload.data);
         }
         if (['THREAT', 'CRITICAL', 'INFO', 'HONEYPOT', 'DRIFT_PROCESS', 'EBPF_STRAY_SHELL', 'EBPF_CRITICAL', 'BLOCK'].includes(payload.type)) {

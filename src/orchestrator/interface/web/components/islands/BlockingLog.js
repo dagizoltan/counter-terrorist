@@ -120,44 +120,87 @@ class BlockingLog extends HTMLElement {
     const div = document.createElement('div');
     const severity = (log.severity || 'info').toLowerCase();
     const type = (log.type || 'generic').toUpperCase();
-    const caller = (log.caller || log.actor?.id || 'SYSTEM').toUpperCase();
-    
+    const timestamp = new Date(log.timestamp);
+    const timeStr = timestamp.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const msStr = String(timestamp.getMilliseconds()).padStart(3, '0');
+    const dateStr = timestamp.toLocaleDateString([], { month: 'short', day: '2-digit' });
+
     const severityColor = this.getSeverityColorClass(severity);
-    const typeColor = this.getTypeColorClass(type);
+    const severityTextClass = this.getSeverityTextClass(severity);
     
-    // Use the pre-formatted string from backend if available, otherwise reconstruct it
-    const formatted = log.formatted || `[${type}] [${severity}] [${caller}] ${log.message}`;
-    const [brackets, ...messageParts] = formatted.split(']');
-    const bracketSection = brackets + ']';
-    const messageSection = messageParts.join(']').trim();
-
-    div.className = `flex items-center gap-6 py-2.5 px-6 border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group relative overflow-hidden`;
-    div.innerHTML = `
-      <div class="absolute inset-y-0 left-0 w-1 ${severityColor} opacity-30 group-hover:opacity-100 transition-opacity"></div>
-      
-      <!-- 01 Timestamp -->
-      <div class="flex flex-col w-28 flex-shrink-0">
-        <span class="mono text-[10px] font-black text-slate-400 tabular-nums">${new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}<span class="text-slate-600">.${String(new Date(log.timestamp).getMilliseconds()).padStart(3, '0')}</span></span>
-        <span class="mono text-[8px] text-slate-700 font-bold uppercase tracking-tighter">${new Date(log.timestamp).toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' })}</span>
-      </div>
-
-      <!-- 02 Compliant Taxonomy Block -->
-      <div class="flex-grow min-w-0 flex items-baseline gap-3">
-        <span class="mono text-[10px] font-black uppercase tracking-[0.1em] ${this.getSeverityTextClass(severity)} whitespace-nowrap">
-          ${window.escapeHTML(bracketSection)}
-        </span>
-        <p class="text-[11px] font-medium text-slate-300 tracking-wide truncate group-hover:whitespace-normal transition-all duration-300">
-          ${window.escapeHTML(messageSection)}
-        </p>
-      </div>
-
-      <!-- 03 Actor Payload (Hidden by default, shown on hover/detail) -->
-      ${log.actor?.ip ? `
-        <div class="flex items-center gap-2 px-3 py-1 bg-primary/5 border border-primary/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ml-auto flex-shrink-0">
-          <span class="mono text-[8px] text-primary font-black uppercase">IP: ${log.actor.ip}</span>
+    div.className = `flex flex-col border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group cursor-pointer`;
+    
+    // The main row
+    const rowHtml = `
+      <div class="flex items-center gap-4 py-3 px-6 relative overflow-hidden">
+        <div class="absolute inset-y-0 left-0 w-1 ${severityColor} opacity-30 group-hover:opacity-100 transition-opacity"></div>
+        
+        <!-- 01 Timestamp -->
+        <div class="w-36 flex-shrink-0 mono text-[9px] font-black text-slate-500 tabular-nums">
+          <span>${dateStr}</span>
+          <span class="ml-2 text-slate-400">${timeStr}<span class="text-slate-600">.${msStr}</span></span>
         </div>
-      ` : ''}
+
+        <!-- 02 Type -->
+        <div class="w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest text-slate-400">
+          ${window.escapeHTML(type)}
+        </div>
+        
+        <!-- 02b Caller -->
+        <div class="w-40 flex-shrink-0 mono text-[9px] font-black text-slate-500 truncate uppercase tracking-tight">
+          ${window.escapeHTML(log.caller || 'SYSTEM')}
+        </div>
+
+        <!-- 03 Severity -->
+        <div class="w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest ${severityTextClass}">
+          ${window.escapeHTML(severity)}
+        </div>
+
+        <!-- 04 Message -->
+        <div class="flex-grow min-w-0 text-[10px] font-medium text-slate-300 tracking-wide truncate">
+          ${window.escapeHTML(log.message || '---')}
+        </div>
+
+        <!-- Expand Icon -->
+        <div class="flex-shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="transform transition-transform duration-300 arrow-icon">
+            <path d="m6 9 6 6 6-6"/>
+          </svg>
+        </div>
+      </div>
     `;
+
+    // The detail (expanded) section
+    const detailHtml = `
+      <div class="log-detail hidden px-12 pb-6 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+        <div class="bg-black/40 border border-white/5 rounded-xl p-4 overflow-x-auto custom-scrollbar">
+          <div class="flex items-center gap-2 mb-3">
+             <div class="w-1 h-3 bg-primary/40 rounded-full"></div>
+             <span class="mono text-[8px] font-black text-slate-500 uppercase tracking-widest">Extended_Payload</span>
+          </div>
+          <pre class="mono text-[8.5px] text-primary/80 leading-relaxed whitespace-pre-wrap">${window.escapeHTML(JSON.stringify(log.payload || log, null, 2))}</pre>
+        </div>
+      </div>
+    `;
+
+    div.innerHTML = rowHtml + detailHtml;
+
+    // Toggle logic
+    div.onclick = () => {
+      const detail = div.querySelector('.log-detail');
+      const arrow = div.querySelector('.arrow-icon');
+      const isHidden = detail.classList.contains('hidden');
+      
+      detail.classList.toggle('hidden');
+      arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+      
+      if (isHidden) {
+        div.classList.add('bg-white/[0.03]');
+      } else {
+        div.classList.remove('bg-white/[0.03]');
+      }
+    };
+
     return div;
   }
 

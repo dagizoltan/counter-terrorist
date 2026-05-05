@@ -17,7 +17,7 @@ class AnonymizerController extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'METRICS_UPDATE' && payload.data?.vpn) {
+        if ((payload.type === 'METRICS_UPDATE' || (payload.type === 'DEBUG' && payload.subType === 'METRICS_UPDATE')) && payload.data?.vpn) {
           this.updateState(payload.data.vpn.mode);
         }
         if (payload.type === 'ANONYMIZER_LOG' || payload.type === 'ANONYMIZER_UPDATE') {
@@ -41,23 +41,34 @@ class AnonymizerController extends HTMLElement {
     this.innerHTML = `
       <div class="space-y-6">
         <div class="grid grid-cols-2 gap-4">
-           ${['TRADITIONAL', 'VPNGATE', 'TOR', 'OFF'].map(mode => `
+           ${[
+             { id: 'OFF', label: 'DIRECT_STACK', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M2 12h20"/></svg>' },
+             { id: 'TRADITIONAL', label: 'AES_ENCRYPTED', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' },
+             { id: 'VPNGATE', label: 'MESH_EXIT', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' },
+             { id: 'TOR', label: 'ONION_ROUTED', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>' }
+           ].map(mode => `
              <button 
-               data-mode="${mode}"
-               class="mode-btn group relative flex flex-col items-center justify-center p-6 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all"
+               data-mode="${mode.id}"
+               class="mode-btn group relative flex flex-col items-center justify-center p-6 rounded-2xl border border-white/5 bg-black/40 hover:bg-white/[0.03] transition-all"
              >
-                <div class="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">${mode}</div>
-                <div class="w-2 h-2 rounded-full bg-slate-700 indicator transition-all"></div>
+                <div class="p-3 mb-3 bg-white/5 rounded-xl border border-white/5 text-slate-500 group-hover:text-white transition-colors">
+                   ${mode.icon}
+                </div>
+                <div class="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-2">${mode.label}</div>
+                <div class="w-1.5 h-1.5 rounded-full bg-slate-800 indicator transition-all"></div>
              </button>
            `).join('')}
         </div>
-
-        <div class="bg-black/40 border border-white/5 rounded-2xl overflow-hidden">
+ 
+        <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden shadow-inner">
            <header class="px-6 py-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
-              <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Operation_Log</span>
-              <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+              <div class="flex items-center gap-3">
+                 <div class="w-1 h-3 bg-primary rounded-full"></div>
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Operation_Log</span>
+              </div>
+              <div class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></div>
            </header>
-           <div id="anon-logs" class="h-48 overflow-y-auto custom-scrollbar p-4 space-y-2">
+           <div id="anon-logs" class="h-48 overflow-y-auto custom-scrollbar p-6 space-y-3">
               <div class="text-center py-10 opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Identity_Logs...</div>
            </div>
         </div>

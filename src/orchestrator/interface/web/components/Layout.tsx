@@ -29,25 +29,13 @@ export const Layout = (props: {
           
           {/* ── 01 Navigation Deck (Left) ─────────────────────────────── */}
           <aside class="shell-sidebar relative">
-            <header class="px-6 py-8 border-b border-white/5 relative group cursor-default mb-4">
-              <div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-              <div class="flex items-center gap-4 relative z-10">
-                <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-[0_0_20px_var(--primary-glow)]">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                </div>
-                <div class="flex flex-col">
-                  <h1 class="text-xl font-black tracking-[-0.05em] uppercase italic leading-none text-white">CT ORCH</h1>
-                  <div class="flex items-center gap-2 mt-1">
-                    <div class="w-1 h-1 rounded-full bg-primary animate-pulse"></div>
-                    <span class="text-[8px] text-primary/60 font-black uppercase tracking-[0.3em]">SOVEREIGN_NODE</span>
-                  </div>
-                </div>
-              </div>
+            <header class="h-[var(--header-height-sm)] px-8 flex items-center border-b border-white/5 bg-black/20 shrink-0">
+               <h1 class="text-lg font-black tracking-[0.2em] uppercase italic leading-none text-white">CT ORCH</h1>
             </header>
 
             <nav class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-1">
               {/* DASHBOARD */}
-              <div class="nav-group mb-8">
+              <div class="nav-group mb-8 mt-4">
                 <div class="nav-heading !text-primary flex items-center gap-3">
                    <div class="w-1 h-3 bg-primary rounded-full"></div>
                    DASHBOARD
@@ -55,10 +43,6 @@ export const Layout = (props: {
                 <a href="/dashboard" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
                    Node
-                </a>
-                <a href="/news" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
-                   News
                 </a>
               </div>
 
@@ -116,9 +100,26 @@ export const Layout = (props: {
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/></svg>
                    Active Network
                 </a>
-                <a href="/network/neighbors" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-                   Neighbor Signals
+                 <a href="/network/neighbors" class="nav-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                    Neighbor Signals
+                 </a>
+              </div>
+
+              {/* INTEL */}
+              <div class="nav-group mb-8">
+                <div class="nav-heading flex items-center gap-3" style="color: var(--primary); opacity: 0.8;">
+                   <div class="w-1 h-3 bg-primary rounded-full"></div>
+                   INTEL
+                </div>
+                <a href="/defense/ip-db" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+                   IP Intelligence
+                </a>
+
+                <a href="/news" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+                   Situational News
                 </a>
               </div>
 
@@ -128,9 +129,13 @@ export const Layout = (props: {
                    <div class="w-1 h-3 bg-slate-700 rounded-full"></div>
                    SYSTEM / AUDIT
                 </div>
+                <a href="/forensics" class="nav-link">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                   Forensic Center
+                </a>
                 <a href="/governance" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                   Forensic Ledger
+                   Audit Ledger
                 </a>
                 <a href="/system/supply-chain" class="nav-link">
                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -161,29 +166,12 @@ export const Layout = (props: {
 
           {/* ── 02 Operational Main (Center) ──────────────────────────── */}
           <main class="shell-main relative z-10">
-             {/* Main Deck Header - Now with Integrated Tactical Navigation */}
-             <header class="shell-header">
+             {/* Main Deck Header */}
+             <header class="shell-header h-[var(--header-height)] !px-6 flex items-center justify-between border-b border-white/5 bg-black/20">
                 <div class="flex items-center gap-8">
                    <div class="flex items-center gap-3">
                       <span class="dot active"></span>
                       <span class="mono-xs font-black text-primary tracking-[0.4em] uppercase">Sovereign Active</span>
-                   </div>
-                   
-                   {/* DYNAMIC MODULE NAVIGATION (Header Segmented Control) */}
-                   <div id="module-nav-container" class="hidden md:flex bg-black/60 p-1 rounded-full border border-white/5 backdrop-blur-xl relative h-10 w-[280px]">
-                      <div id="module-indicator" class="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-primary/20 border border-primary/30 rounded-full transition-all duration-300 ease-out z-0"></div>
-                      
-                      {/* Forensic Module Links (Hidden if not in forensics) */}
-                      <div id="nav-forensics" class="hidden flex w-full h-full relative z-10">
-                         <button onclick="window.switchSidebarTab('integrity')" class="flex-1 flex justify-center items-center text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Integrity</button>
-                         <button onclick="window.switchSidebarTab('logs')" class="flex-1 flex justify-center items-center text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Realtime Logs</button>
-                      </div>
-
-                      {/* Network Module Links (Hidden if not in network) */}
-                      <div id="nav-network" class="hidden flex w-full h-full relative z-10">
-                         <a href="/network/active" class="flex-1 flex justify-center items-center text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Active Mesh</a>
-                         <a href="/network/neighbors" class="flex-1 flex justify-center items-center text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-colors">Neighbors</a>
-                      </div>
                    </div>
                 </div>
                 
@@ -207,11 +195,20 @@ export const Layout = (props: {
 
           {/* ── 03 Forensic Telemetry (Right) ─────────────────────────── */}
           <aside class="shell-aside relative z-20 flex flex-col border-l border-white/5 bg-[#080808]">
-             {/* Sidebar Header (Simplified since tabs moved to global header) */}
-             <header class="p-4 shrink-0 flex justify-between items-center border-b border-white/5 bg-black/20">
-                <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em] ml-2">Forensic Audit</span>
-                <div class="flex gap-2 mr-2">
-                   <div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+             {/* Sidebar Header with Icon Tabs */}
+             <header class="h-[var(--header-height)] px-8 flex justify-between items-center border-b border-white/5 bg-black/20 shrink-0">
+                <div class="flex items-center gap-3 ml-2">
+                   <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Forensic Audit</span>
+                   <div class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></div>
+                </div>
+
+                <div id="module-nav-container" class="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
+                   <button id="btn-integrity" onclick="window.switchSidebarTab('integrity')" class="sidebar-nav-icon" title="System Integrity">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                   </button>
+                   <button id="btn-logs" onclick="window.switchSidebarTab('logs')" class="sidebar-nav-icon active" title="Live Telemetry">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12H3"/><path d="M21 6H3"/><path d="M21 18H3"/><path d="M10 6L10 18"/></svg>
+                   </button>
                 </div>
              </header>
 
@@ -280,25 +277,6 @@ export const Layout = (props: {
               link.classList.toggle('active', link.getAttribute('href') === path);
             });
             
-            // Dynamic Header Navigation
-            const navContainer = document.getElementById('module-nav-container');
-            const navForensics = document.getElementById('nav-forensics');
-            const navNetwork = document.getElementById('nav-network');
-            const moduleIndicator = document.getElementById('module-indicator');
-            
-            if (navContainer) {
-               const isForensic = path.includes('governance') || path.includes('forensics') || path.includes('audit');
-               const isNetwork = path.includes('network');
-               
-               navContainer.classList.toggle('hidden', !isForensic && !isNetwork);
-               navForensics.classList.toggle('hidden', !isForensic);
-               navNetwork.classList.toggle('hidden', !isNetwork);
-               
-               if (isNetwork && moduleIndicator) {
-                  moduleIndicator.style.transform = path.includes('neighbors') ? 'translateX(100%)' : 'translateX(0)';
-               }
-            }
-
             // Dynamic Clock
             const clock = document.getElementById('system-clock');
             if (clock) {
@@ -320,15 +298,17 @@ export const Layout = (props: {
           // Global Tab Switching (Forensics)
           window.switchSidebarTab = function(tab) {
             const contents = document.querySelectorAll('.sidebar-tab-content');
-            const moduleIndicator = document.getElementById('module-indicator');
-            const path = window.location.pathname;
-            
             contents.forEach(c => c.classList.add('hidden'));
+            
             const activeContent = document.getElementById('sidebar-tab-' + tab);
             if (activeContent) activeContent.classList.remove('hidden');
 
-            if (moduleIndicator && (path.includes('governance') || path.includes('forensics'))) {
-               moduleIndicator.style.transform = tab === 'integrity' ? 'translateX(0)' : 'translateX(100%)';
+            // Update icon states
+            const btnIntegrity = document.getElementById('btn-integrity');
+            const btnLogs = document.getElementById('btn-logs');
+            if (btnIntegrity && btnLogs) {
+               btnIntegrity.classList.toggle('active', tab === 'integrity');
+               btnLogs.classList.toggle('active', tab === 'logs');
             }
           };
           

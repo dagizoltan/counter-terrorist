@@ -99,14 +99,15 @@ export class SovereignApp {
             protection, mesh, honeypot, processTracker, kernelService, 
             audit, canaryService, command, anonymization, 
             curatedIntel, news, networkDiscovery, autopilot, health,
-            behavioral, geoIp
+            behavioral, geoIp, supplyChain
         } = this.services;
 
         const metricsService = new MetricsService(
             protection.firewall as any, mesh, honeypot, processTracker,
             kernelService, audit as any, canaryService, command as any, protection.vpn,
             behavioral, anonymization, geoIp, broadcast, 
-            curatedIntel, news, networkDiscovery, autopilot, health
+            curatedIntel, news, networkDiscovery, autopilot, health,
+            supplyChain
         );
         setMetricsService(metricsService);
 
@@ -342,7 +343,7 @@ export class SovereignApp {
     private initIntelligenceSubsystem(protection: any, processTracker: any, health: any, configProvider: any) {
         const geoIp = this.safeInit(health, "GeoIP", () => new GeoIpService(loggingService));
         const forensicService = this.safeInit(health, "Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker));
-        const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider));
+        const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider, broadcast));
         const news = this.safeInit(health, "News", () => new NewsSignalService(loggingService));
         const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => new NetworkDiscoveryService(loggingService));
         const incidents = this.safeInit(health, "Incidents", () => new IncidentService(this.kv, loggingService));

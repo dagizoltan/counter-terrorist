@@ -17,7 +17,16 @@ export class FirewallManager {
       return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
     this.blockedIps.add(ip);
-    broadcast({ type: "BLOCK", message: `Blocking malicious IP: ${ip}`, data: { ip } });
+    broadcast({ 
+        type: "AUDIT_EVENT", 
+        data: { 
+            type: LogType.AUDIT, 
+            severity: LogSeverity.WARNING, 
+            caller: "firewall", 
+            message: `Perimeter Block: Malicious IP ${ip} successfully committed to blocklist`,
+            payload: { ip } 
+        } 
+    });
 
     if (this.networkLogs) {
         await this.networkLogs.log({
@@ -49,7 +58,16 @@ export class FirewallManager {
     if (!isValidIP(ip)) {
       return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
-    broadcast({ type: "WARNING", message: `Shadow Banning IP: ${ip} (Throttling to 1KB/s)`, data: { ip } });
+    broadcast({ 
+        type: "AUDIT_EVENT", 
+        data: { 
+            type: LogType.AUDIT, 
+            severity: LogSeverity.WARNING, 
+            caller: "firewall", 
+            message: `Shadow Banning IP: ${ip} (Throttling to 1KB/s)`, 
+            payload: { ip } 
+        } 
+    });
     
     if (this.networkLogs) {
         await this.networkLogs.log({
@@ -82,7 +100,16 @@ export class FirewallManager {
       return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
     this.blockedIps.delete(ip);
-    broadcast({ type: "INFO", message: `Unblocking IP: ${ip}` });
+    broadcast({ 
+        type: "AUDIT_EVENT", 
+        data: { 
+            type: LogType.ACTIVITY, 
+            severity: LogSeverity.INFO, 
+            caller: "firewall", 
+            message: `Unblocking IP: ${ip}`,
+            payload: { ip }
+        } 
+    });
     return await this.provider.unblockIp(ip);
   }
 
@@ -95,7 +122,16 @@ export class FirewallManager {
   }
 
   async killProcess(pid: number) {
-    broadcast({ type: "CRITICAL", message: `Terminating process (PID: ${pid}). Performing forensic dump...` });
+    broadcast({ 
+        type: "AUDIT_EVENT", 
+        data: { 
+            type: LogType.AUDIT, 
+            severity: LogSeverity.ERROR, 
+            caller: "forensics:enforcement", 
+            message: `Terminating process (PID: ${pid}). Performing forensic dump...`,
+            payload: { pid }
+        } 
+    });
     
     // Forensic Preservation: Attempt to dump memory maps before killing
     try {
@@ -116,7 +152,16 @@ export class FirewallManager {
   }
 
   async quarantineProcess(pid: number) {
-    broadcast({ type: "WARNING", message: `Quarantining process (PID: ${pid}). Suspending execution...` });
+    broadcast({ 
+        type: "AUDIT_EVENT", 
+        data: { 
+            type: LogType.AUDIT, 
+            severity: LogSeverity.WARNING, 
+            caller: "forensics:enforcement", 
+            message: `Quarantining process (PID: ${pid}). Suspending execution...`,
+            payload: { pid }
+        } 
+    });
     return await this.provider.quarantineProcess(pid);
   }
 
@@ -125,7 +170,15 @@ export class FirewallManager {
   }
 
   async lockdown() {
-    broadcast({ type: "CRITICAL", message: "LOCKDOWN PROTOCOL INITIATED" });
+    broadcast({ 
+        type: "AUDIT_EVENT", 
+        data: { 
+            type: LogType.AUDIT, 
+            severity: LogSeverity.ERROR, 
+            caller: "firewall", 
+            message: "LOCKDOWN PROTOCOL INITIATED (Fail-Closed Mode Engaged)" 
+        } 
+    });
     
     if (meshManager) {
       meshManager.broadcastLockdown().catch(err => {
@@ -151,7 +204,15 @@ export class FirewallManager {
   }
 
   async flushRules() {
-    broadcast({ type: "WARNING", message: "FLUSHING GLOBAL RULES" });
+    broadcast({ 
+        type: "AUDIT_EVENT", 
+        data: { 
+            type: LogType.ACTIVITY, 
+            severity: LogSeverity.WARNING, 
+            caller: "firewall:mgmt", 
+            message: "FLUSHING GLOBAL RULES" 
+        } 
+    });
     this.blockedIps.clear();
     return await this.provider.flushRules();
   }
