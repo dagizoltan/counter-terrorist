@@ -10,5 +10,6 @@ tokio = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
 chrono = { workspace = true }
-notify = "6.1.1"
+libc = "0.2"
+nix = { version = "0.27", features = ["fs"] }
 anyhow = "1.0"

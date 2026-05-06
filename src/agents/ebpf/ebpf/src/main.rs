@@ -2,30 +2,20 @@
 #![no_main]
 
 use aya_ebpf::{
-    macros::{kprobe, map, classifier, lsm},
+    macros::{kprobe, map, classifier, xdp},
     maps::{PerfEventArray, HashMap},
-    programs::{ProbeContext, TcContext, LsmContext},
+    programs::{ProbeContext, TcContext, XdpContext},
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
 };
 
-// ... (other code)
-
-#[lsm]
-pub fn file_open(ctx: LsmContext) -> i32 {
-    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
-    let comm_str = core::str::from_utf8(&comm).unwrap_or("");
-
-    // Simple policy: If filename contains ".env" and comm is NOT "deno", block.
-    // In a real LSM, we'd inspect the path in ctx.
-    // For this prototype, we demonstrate the hook logic.
-    
-    0 // Allow by default
-}
-use ebpf_common::{SyscallEvent, ShadowBanInfo};
+use ebpf_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue};
 use core::mem;
 
 const TC_ACT_OK: i32 = 0;
 const TC_ACT_SHOT: i32 = 2;
+
+const XDP_PASS: u32 = 2;
+const XDP_DROP: u32 = 1;
 
 #[map]
 static mut EVENTS: PerfEventArray<SyscallEvent> = PerfEventArray::new(0);
@@ -36,66 +26,82 @@ static mut SHADOW_BANS: HashMap<u32, ShadowBanInfo> = HashMap::with_max_entries(
 #[map]
 static mut HIDE_CONFIG: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
 
-#[classifier]
-pub fn tc_ingress(ctx: TcContext) -> i32 {
-    match try_tc_ingress(ctx) {
+#[map]
+static mut ACTIVE_SESSIONS: HashMap<SessionKey, SessionValue> = HashMap::with_max_entries(4096, 0);
+
+#[xdp]
+pub fn xdp_ingress(ctx: XdpContext) -> u32 {
+    match try_xdp_ingress(ctx) {
         Ok(ret) => ret,
-        Err(_) => TC_ACT_OK,
+        Err(_) => XDP_PASS,
     }
 }
 
-fn try_tc_ingress(ctx: TcContext) -> Result<i32, ()> {
+fn try_xdp_ingress(ctx: XdpContext) -> Result<u32, ()> {
     let eth_proto = u16::from_be(ctx.load::<u16>(12).map_err(|_| ())?);
-    if eth_proto != 0x0800 { // ETH_P_IP
-        return Ok(TC_ACT_OK);
-    }
+    if eth_proto != 0x0800 { return Ok(XDP_PASS); }
 
-    // Load source IP (offset: eth(14) + ip_src(12) = 26)
     let src_ip: u32 = ctx.load(26).map_err(|_| ())?;
+    let dst_ip: u32 = ctx.load(30).map_err(|_| ())?;
+    let proto: u8 = ctx.load(23).map_err(|_| ())?;
 
-    if let Some(info) = unsafe { SHADOW_BANS.get_ptr_mut(&src_ip) } {
-        let now = unsafe { bpf_ktime_get_ns() };
-        let sec = now / 1_000_000_000;
-        
-        let info_ref = unsafe { &mut *info };
-        
-        if info_ref.last_timestamp == sec {
-            // Limit to ~10 packets per second (approx 1KB/s)
-            if info_ref.bytes_this_second > 10 {
-                return Ok(TC_ACT_SHOT);
-            }
-            info_ref.bytes_this_second += 1;
-        } else {
-            info_ref.last_timestamp = sec;
-            info_ref.bytes_this_second = 0;
-        }
+    let (src_port, dst_port) = if proto == 6 || proto == 17 {
+        (ctx.load::<u16>(34).map_err(|_| ())?, ctx.load::<u16>(36).map_err(|_| ())?)
+    } else { (0, 0) };
+
+    // STATEFUL CHECK: Look for reversed tuple (Since this is ingress, we match an egress session)
+    let key = SessionKey {
+        src_ip: dst_ip,
+        dst_ip: src_ip,
+        src_port: dst_port,
+        dst_port: src_port,
+        proto,
+    };
+
+    if unsafe { ACTIVE_SESSIONS.get(&key) }.is_some() {
+        return Ok(XDP_PASS);
     }
 
-    Ok(TC_ACT_OK)
+    // Pass public orchestrator ports
+    if u16::from_be(dst_port) == 8001 {
+        return Ok(XDP_PASS);
+    }
+
+    Ok(XDP_DROP)
 }
 
-macro_rules! offset_of {
-    ($type:ty, $field:ident) => {
-        unsafe { &(*(0 as *const $type)).$field as *const _ as usize }
-    };
+#[classifier]
+pub fn tc_egress(ctx: TcContext) -> i32 {
+    let _ = try_tc_egress(ctx);
+    TC_ACT_OK
 }
 
-#[repr(C)]
-struct ethhdr {
-    h_dest: [u8; 6],
-    h_source: [u8; 6],
-    h_proto: u16,
-}
+fn try_tc_egress(ctx: TcContext) -> Result<(), ()> {
+    let eth_proto = u16::from_be(ctx.load::<u16>(12).map_err(|_| ())?);
+    if eth_proto != 0x0800 { return Ok(()); }
 
-// Required for mmap flags check
-const PROT_EXEC: u64 = 0x04;
+    let src_ip: u32 = ctx.load(26).map_err(|_| ())?;
+    let dst_ip: u32 = ctx.load(30).map_err(|_| ())?;
+    let proto: u8 = ctx.load(23).map_err(|_| ())?;
+
+    let (src_port, dst_port) = if proto == 6 || proto == 17 {
+        (ctx.load::<u16>(34).map_err(|_| ())?, ctx.load::<u16>(36).map_err(|_| ())?)
+    } else { (0, 0) };
+
+    let key = SessionKey { src_ip, dst_ip, src_port, dst_port, proto };
+    let val = SessionValue { last_seen: unsafe { bpf_ktime_get_ns() }, bytes_count: 0 };
+    
+    let _ = unsafe { ACTIVE_SESSIONS.insert(&key, &val, 0) };
+    
+    Ok(())
+}
 
 #[kprobe]
 pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
     let mut event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm: bpf_get_current_comm().unwrap_or([0; 16]),
-        syscall_id: 101, // ptrace on x86_64
+        syscall_id: 101,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -104,26 +110,14 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
 #[kprobe]
 pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
     let prot: u64 = ctx.arg(2).unwrap_or(0);
-
-    if (prot & PROT_EXEC) != 0 {
+    if (prot & 0x04) != 0 { // PROT_EXEC
         let mut event = SyscallEvent {
             pid: (bpf_get_current_pid_tgid() >> 32) as u32,
             comm: bpf_get_current_comm().unwrap_or([0; 16]),
-            syscall_id: 9, // mmap on x86_64
+            syscall_id: 9,
         };
         unsafe { EVENTS.output(&ctx, &event, 0) };
     }
-    0
-}
-
-#[kprobe]
-pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
-    let mut event = SyscallEvent {
-        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
-        comm: bpf_get_current_comm().unwrap_or([0; 16]),
-        syscall_id: 59, // execve on x86_64
-    };
-    unsafe { EVENTS.output(&ctx, &event, 0) };
     0
 }
 

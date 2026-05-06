@@ -38,6 +38,9 @@ import { KvSessionRepository } from "@infrastructure/persistence/kv/kv_session_r
 import { KvNetworkLogRepository } from "@infrastructure/persistence/kv/kv_network_log_repository.ts";
 import { LinuxProcessProvider } from "@infrastructure/system/process_provider.ts";
 
+import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
+import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
+
 export class SovereignApp {
     private services!: ServiceContainer;
     private web!: WebAdapter;
@@ -204,7 +207,7 @@ export class SovereignApp {
     }
 
     private async startSubsystems() {
-        const { playbook, autopilot, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, health } = this.services;
+        const { playbook, autopilot, autonomousAutopilot, lifecycle, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, health } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -235,6 +238,9 @@ export class SovereignApp {
         wrap("CuratedIntel", curatedIntel.start(this.kv));
         wrap("NewsSignal", news.start());
         wrap("NetworkDiscovery", networkDiscovery.start());
+        
+        lifecycle.start();
+        autonomousAutopilot.start();
 
         this.startDaemons();
     }
@@ -310,14 +316,15 @@ export class SovereignApp {
         const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider);
 
         const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
-        const { autopilot, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
+        const { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
 
         return {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
             notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService), 
             processTracker, sessions, apiKeys, eventBus,
             honeypot, canaryService, kernelService, forensicService,
-            autopilot, playbook, morphing, chaos,
+            autopilot, autonomousAutopilot, lifecycle, logging: loggingService,
+            playbook, morphing, chaos,
             supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: curatedIntel as any,
             compliance, anonymization, shadowProtocol, deceptionGrid: new DeceptionGridService(honeypot, canaryService, loggingService),
             curatedIntel, news, networkDiscovery, networkLogs: networkLog,
@@ -355,8 +362,11 @@ export class SovereignApp {
         return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
     }
 
-    private async initEngineSubsystem(eventBus: any, playbook: any, notifications: any, mesh: any, shadowProtocol: any, sidecarManager: any, protection: any, forensicService: any, kernelService: any, processTracker: any, honeypot: any, canaryService: any, health: any) {
+    private async initEngineSubsystem(correlation: CorrelationService, eventBus: any, playbook: any, notifications: any, mesh: any, shadowProtocol: any, sidecarManager: any, protection: any, forensicService: any, kernelService: any, processTracker: any, honeypot: any, canaryService: any, health: any) {
         const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService);
+        const autonomousAutopilot = new AutonomousAutopilotService(correlation, sidecarManager, loggingService);
+        const lifecycle = new LifecycleService(sidecarManager, loggingService);
+
         const morphing = this.safeInit(health, "Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));
         const chaos = this.safeInit(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
         const supplyChain = this.safeInit(health, "SupplyChain", () => new SupplyChainService());
@@ -364,7 +374,7 @@ export class SovereignApp {
         const shadow = this.safeInit(health, "Shadow", () => new ShadowService(this.executor, loggingService));
         const covert = this.safeInit(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
 
-        return { autopilot, morphing, chaos, supplyChain, shadow, covert, policy: autopilot.getPolicy() };
+        return { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy: autopilot.getPolicy(), correlation };
     }
 
     private safeInit<T extends object>(health: HealthService, name: string, factory: () => T): T {

@@ -38,7 +38,16 @@ export class NetworkDiscoveryService {
             caller: "DISCOVERY",
             message: "Environmental sensors active. Initiating real-time sweep..."
         });
-        await this.scan();
+        // Non-blocking initial sweep
+        this.scan().catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "DISCOVERY",
+                message: `Initial sweep failed: ${e.message}`
+            });
+        });
         // Frequent sweeps for security visibility (every 20s)
         setInterval(() => this.scan(), 20000); 
     }

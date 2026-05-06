@@ -15,7 +15,28 @@ pub struct ShadowBanInfo {
     pub bytes_this_second: u64,
 }
 
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct SessionKey {
+    pub src_ip: u32,
+    pub dst_ip: u32,
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub proto: u8,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SessionValue {
+    pub last_seen: u64,
+    pub bytes_count: u64,
+}
+
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for SyscallEvent {}
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for ShadowBanInfo {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for SessionKey {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for SessionValue {}

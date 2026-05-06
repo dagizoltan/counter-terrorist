@@ -1,47 +1,49 @@
 {
-  "version": "1.0.0",
-  "signedBy": "TPM_ROOT_CA",
-  "timestamp": "2026-05-06T00:52:00Z",
   "sidecars": {
-    "ebpf": {
-      "hash": "f3d9b69c519b17ceae1402302224951298104fa34be4ca1420887e0d269efb83",
-      "version": "0.1.0",
-      "capabilities": ["CAP_SYS_ADMIN", "CAP_BPF", "CAP_NET_ADMIN"]
-    },
-    "fim": {
-      "hash": "78c6acbe1b3cccaca9ad8ea8955b2fee412677d8cea3fb7f8b0d6784828cb6da",
-      "version": "0.1.0",
-      "capabilities": ["CAP_DAC_READ_SEARCH"]
-    },
-    "scanner": {
-      "hash": "472e14f620ddf724d69fa46349e2c60426d0dc4b2a0cc4ad27d1ddee067cf998",
-      "version": "0.1.0",
-      "capabilities": []
-    },
-    "honeypot": {
-      "hash": "8bb87e59cd9fbdd6c985b548b0e76d3730560b98b7f8403e0abcad40f6300312",
-      "version": "0.1.0",
-      "capabilities": ["CAP_NET_BIND_SERVICE"]
-    },
-    "pcap": {
-      "hash": "76c748ed6f609a7cf8bf546bf21f68edeedbcf5e1a661b06e65728fbbd70b94e",
-      "version": "0.1.0",
-      "capabilities": ["CAP_NET_RAW", "CAP_NET_ADMIN"]
-    },
     "tpm": {
+      "path": "./src/agents/target/release/tpm",
       "hash": "1880b3255b6cf02eb24a51c6a12e42ebad9a88967e340a7b7f54cb2a08b04958",
-      "version": "0.1.0",
-      "capabilities": []
+      "persistent": true
+    },
+    "ebpf": {
+      "path": "./src/agents/target/release/ebpf",
+      "hash": "75aba612a0a97b648c9ae82b7c3caf1c967da8ca6144caba7152abbec8cc032c",
+      "persistent": true,
+      "capabilities": ["cap_sys_admin", "cap_net_admin", "cap_sys_resource"]
     },
     "vpn": {
-      "hash": "92893e3c80b6e2a04cf26dfdcd1c0330b22893b8c7a5a91a0db073bf72f6efe6",
-      "version": "0.1.0",
-      "capabilities": ["CAP_NET_ADMIN"]
+      "path": "./src/agents/target/release/vpn",
+      "hash": "ac97c447df642645a7457ac06f0278e4adc0fc37f4ffd8ab6661d71e8a869583",
+      "persistent": true,
+      "capabilities": ["cap_net_admin"]
     },
     "blocker": {
-      "hash": "6a88a942deee86e2feb2d843b6018dc31f9c9f21294e24ed96de6ed53c2987a6",
-      "version": "0.1.0",
-      "capabilities": ["CAP_KILL", "CAP_NET_ADMIN"]
+      "path": "./src/agents/target/release/blocker",
+      "hash": "718f7dbd0a383fe6f3b66ea13f1a5176790fe63a88af71b61b1784a64bef446c",
+      "persistent": true,
+      "capabilities": ["cap_net_admin", "cap_kill"]
+    },
+    "scanner": {
+      "path": "./src/agents/target/release/scanner",
+      "hash": "5c30c1605622657047179f683176cef0f6ac9dd422c19de52984d02ae74399a9",
+      "persistent": true
+    },
+    "pcap": {
+      "path": "./src/agents/target/release/pcap",
+      "hash": "63b6003147b683d90fec03ca65d29e7997955636535c73274925fbd66c4e8892",
+      "persistent": true,
+      "capabilities": ["cap_net_raw", "cap_net_admin"]
+    },
+    "honeypot": {
+      "path": "./src/agents/target/release/honeypot",
+      "hash": "8bb87e59cd9fbdd6c985b548b0e76d3730560b98b7f8403e0abcad40f6300312",
+      "persistent": true
+    },
+    "fim": {
+        "path": "./src/agents/target/release/fim",
+        "hash": "78c6acbe1b3cccaca9ad8ea8955b2fee412677d8cea3fb7f8b0d6784828cb6da",
+        "persistent": true,
+        "capabilities": ["cap_sys_admin"]
     }
   }
 }

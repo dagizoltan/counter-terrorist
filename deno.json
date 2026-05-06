@@ -25,6 +25,7 @@
     "@api/": "./src/orchestrator/interface/web/api/",
     "@interface/": "./src/orchestrator/interface/web/",
     "@orchestrator/": "./src/orchestrator/",
+    "@app/": "./src/orchestrator/app/",
     "@std/dotenv": "jsr:@std/dotenv@^0.224.0"
   }
 }

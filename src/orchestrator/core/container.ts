@@ -42,6 +42,9 @@ import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
 
 import { PlatformName } from "@infrastructure/system/platform.ts";
+import { LoggingPort } from "./ports.ts";
+import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
+import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
 
 export interface PlatformInfo {
   name: PlatformName;
@@ -65,6 +68,9 @@ export interface ServiceContainer {
   eventBus: EventBus;
   honeypot: HoneypotService;
   autopilot: AutopilotService;
+  autonomousAutopilot: AutonomousAutopilotService;
+  lifecycle: LifecycleService;
+  logging: LoggingPort;
   playbook: PlaybookService;
   morphing: MorphingService;
   chaos: ChaosEngine;

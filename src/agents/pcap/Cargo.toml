@@ -10,3 +10,5 @@ tokio = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
 chrono = { workspace = true }
+socket2 = { version = "0.5", features = ["all"] }
+anyhow = "1.0"

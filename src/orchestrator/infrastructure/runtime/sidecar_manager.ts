@@ -350,7 +350,8 @@ export class SidecarManager implements CommandPort {
                     caller: logData.caller || `SIDECAR:${name}`,
                     message: logData.message
                 });
-                continue;
+                // Note: We continue here if it's a pure log, but tactical events use standard JSON
+                continue; 
             } catch { /* malformed log, continue to regular parsing */ }
           }
 
