@@ -1,37 +1,17 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
-import { TimelineRepository } from "@infrastructure/persistence/repositories/timeline_repository.ts";
-
-export interface NetworkLog {
-    id: string;
-    timestamp: string;
-    direction: "INBOUND" | "OUTBOUND";
-    source: string;
-    destination: string;
-    protocol: string;
-    length: number;
-    action: "ALLOW" | "BLOCK" | "SHADOW";
-}
+import { LoggingPort } from "@core/ports.ts";
+import { NetworkLogRepository, NetworkLogEntry } from "../repositories/network_log_repository.ts";
 
 export class NetworkLogService {
-    private repo: TimelineRepository<NetworkLog>;
+  constructor(
+    private repo: NetworkLogRepository,
+    private logging: LoggingPort
+  ) {}
 
-    constructor(private kv: Deno.Kv, private logging: LoggingPort) {
-        this.repo = new TimelineRepository<NetworkLog>(kv, "network_logs");
-    }
+  async log(entry: NetworkLogEntry) {
+    await this.repo.save(entry);
+  }
 
-    async log(log: Omit<NetworkLog, "id" | "timestamp">) {
-        const id = crypto.randomUUID();
-        const timestamp = new Date().toISOString();
-        const entry: NetworkLog = { ...log, id, timestamp };
-        
-        await this.repo.set(id, entry);
-        
-        // Retention: 7 days
-        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-        this.repo.deleteBefore(sevenDaysAgo).catch(() => {});
-    }
-
-    async getLogs(limit = 100): Promise<NetworkLog[]> {
-        return await this.repo.getLatest(limit);
-    }
+  async getRecent(limit: number = 100) {
+    return await this.repo.getLatest(limit);
+  }
 }

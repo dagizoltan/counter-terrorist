@@ -80,7 +80,8 @@ class EbpfAgent extends HTMLElement {
 
   connectWS() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
@@ -130,7 +131,8 @@ class EbpfAgent extends HTMLElement {
   }
 
   addEvent(event) {
-    this.logs.unshift(event);
+    const logEntry = { ...event, _id: crypto.randomUUID() };
+    this.logs.unshift(logEntry);
     if (this.logs.length > 100) this.logs.pop();
     
     // Update stats
@@ -196,62 +198,66 @@ class EbpfAgent extends HTMLElement {
       return;
     }
  
-    // Populating Live Stream
+    // Live Stream: Detailed per-event telemetry
     container.innerHTML = this.logs.map(log => {
-      const isCritical = log.type === 'DRIFT_PROCESS' || log.message?.toLowerCase().includes('unauthorized');
+      const isCritical = log.type === 'DRIFT_PROCESS' || log.type === 'EBPF_CRITICAL' || log.message?.toLowerCase().includes('unauthorized');
       const pid = log.data?.pid || log.data?.target_pid || '';
       const typeLabel = (log.type || '').replace('EBPF_', '');
  
       return `
-        <div class="p-8 border-b border-white/[0.03] hover:bg-white/[0.02] group relative transition-colors" 
+        <div class="p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group relative transition-colors" 
              style="border-left: 4px solid ${isCritical ? 'var(--danger)' : 'transparent'}">
-          <div class="flex justify-between items-center mb-4 relative z-10">
-             <div class="flex items-center gap-4">
-                <span class="status-pill ${isCritical ? 'danger' : 'primary'}">
+          <div class="flex justify-between items-center mb-2">
+             <div class="flex items-center gap-3">
+                <span class="status-pill ${isCritical ? 'danger' : 'neutral'} text-[8px]">
                   ${window.escapeHTML(typeLabel)}
                 </span>
-                <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Syscall_Intercept</span>
+                <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest text-[9px]">Syscall_Intercept</span>
              </div>
              <span class="mono-xs text-slate-600 font-bold">${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
           </div>
-          <div class="flex items-start gap-4 relative z-10">
-             <div class="mono-sm font-bold ${isCritical ? 'text-danger' : 'text-slate-400'} uppercase tracking-tight leading-relaxed">
-               ${window.escapeHTML(log.message)}
-             </div>
+          <div class="mono-sm font-bold ${isCritical ? 'text-danger' : 'text-slate-400'} uppercase tracking-tight leading-tight mb-3">
+            ${window.escapeHTML(log.message)}
           </div>
           ${isCritical && pid ? `
-            <div class="mt-6 flex gap-4 relative z-10">
-               <button data-purge-pid="${window.escapeHTML(pid)}" class="t-btn danger px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded hover:bg-danger/20 transition-colors">PURGE_PROCESS</button>
+            <div class="flex gap-4">
+               <button data-purge-pid="${window.escapeHTML(pid)}" class="t-btn danger !py-1 !px-3 text-[8px] font-black uppercase tracking-widest rounded transition-colors">PURGE_PID_${pid}</button>
             </div>
           ` : ''}
         </div>
       `;
     }).join('');
  
-    // Populating Ledger Table
-    ledger.innerHTML = this.logs.map(log => {
-       const pid = log.data?.pid || log.data?.target_pid || 'N/A';
-       const typeLabel = (log.type || '').replace('EBPF_', '');
-       const isCritical = log.type === 'DRIFT_PROCESS' || log.message?.toLowerCase().includes('unauthorized');
- 
-       return `
-         <tr class="hover:bg-white/[0.02] transition-colors">
-            <td class="p-4 mono-xs text-slate-500 font-bold">${new Date(log.timestamp).toLocaleTimeString()}</td>
-            <td class="p-4">
-               <span class="status-pill ${isCritical ? 'danger' : 'neutral'} !px-3 !py-0.5 text-[8px]">
-                  ${window.escapeHTML(typeLabel)}
-               </span>
-            </td>
-            <td class="p-4 mono-xs text-slate-400 font-black">PID: ${pid}</td>
-            <td class="p-4 mono-xs text-slate-300 font-bold uppercase tracking-tight">${window.escapeHTML(log.message)}</td>
-            <td class="p-4 text-right">
-               ${pid !== 'N/A' ? `
-                 <button data-purge-pid="${window.escapeHTML(pid)}" class="mono-xs text-danger hover:text-white transition-colors uppercase font-black">PURGE</button>
-               ` : '---'}
-            </td>
-         </tr>
-       `;
-    }).join('');
+    // Ledger Table: Forensic summary of only CRITICAL/DRIFT events to avoid duplication
+    const forensicLogs = this.logs.filter(log => log.type === 'DRIFT_PROCESS' || log.type === 'EBPF_CRITICAL' || log.message?.toLowerCase().includes('unauthorized'));
+    
+    if (forensicLogs.length === 0) {
+      ledger.innerHTML = `<tr><td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Listening_For_Critical_Violations...</td></tr>`;
+    } else {
+      ledger.innerHTML = forensicLogs.map(log => {
+         const pid = log.data?.pid || log.data?.target_pid || 'N/A';
+         const typeLabel = (log.type || '').replace('EBPF_', '');
+         const isCritical = log.type === 'DRIFT_PROCESS' || log.type === 'EBPF_CRITICAL';
+   
+         return `
+           <tr class="hover:bg-white/[0.02] transition-colors">
+              <td class="p-4 mono-xs text-slate-500 font-bold">${new Date(log.timestamp).toLocaleTimeString()}</td>
+              <td class="p-4">
+                 <span class="status-pill ${isCritical ? 'danger' : 'neutral'} !px-3 !py-0.5 text-[8px]">
+                    ${window.escapeHTML(typeLabel)}
+                 </span>
+              </td>
+              <td class="p-4 mono-xs text-slate-400 font-black">PID: ${pid}</td>
+              <td class="p-4 mono-xs text-slate-300 font-bold uppercase tracking-tight truncate max-w-[200px]">${window.escapeHTML(log.message)}</td>
+              <td class="p-4 text-right">
+                 ${pid !== 'N/A' ? `
+                   <button data-purge-pid="${window.escapeHTML(pid)}" class="mono-xs text-danger hover:text-white transition-colors uppercase font-black">PURGE</button>
+                 ` : '---'}
+              </td>
+           </tr>
+         `;
+      }).join('');
+    }
  
     if (!this._clickHandler) {
       this._clickHandler = (e) => {

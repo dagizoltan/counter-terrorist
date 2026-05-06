@@ -1,4 +1,6 @@
 import { LoggingPort, LogSeverity, LogType, LogEntry, SyslogSeverity } from "@core/ports.ts";
+import { TimelineRepository } from "../persistence/repositories/timeline_repository.ts";
+import { DiagnosticRepository } from "../persistence/diagnostic_repository.ts";
 
 export { LogSeverity, LogType, SyslogSeverity };
 
@@ -12,18 +14,21 @@ export class LoggingService implements LoggingPort {
     private maxBufferSize = 1000;
     private isForwarding = false;
     private tlsCaCertPath: string | null = null;
-    private logFilePath = "./volume/logs/orchestrator.log";
+    private diagnosticRepo: DiagnosticRepository | null = null;
 
     /** Persistent TCP/TLS connection, reused across flushes. */
     private persistentConn: Deno.Conn | Deno.TlsConn | null = null;
 
-    constructor() {
+    constructor(kv?: Deno.Kv) {
+        if (kv) {
+            this.diagnosticRepo = new DiagnosticRepository(kv);
+        }
         this.remoteHost = Deno.env.get("SYSLOG_HOST") || null;
         this.remotePort = Number(Deno.env.get("SYSLOG_PORT")) || 514;
         this.transport = (Deno.env.get("SYSLOG_TRANSPORT") as SyslogTransport) || "udp";
         this.tlsCaCertPath = Deno.env.get("SYSLOG_CA_PATH") || null;
 
-        if (this.remoteHost) {
+        if (this.remoteHost) {  
             this.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
@@ -33,6 +38,15 @@ export class LoggingService implements LoggingPort {
             }).catch(() => {});
             this.startFlushInterval();
         }
+    }
+
+    setKv(kv: Deno.Kv) {
+        this.diagnosticRepo = new DiagnosticRepository(kv);
+    }
+
+    async getRecentLogs(limit: number = 100) {
+        if (!this.diagnosticRepo) return [];
+        return await this.diagnosticRepo.getRecent(limit);
     }
 
     private isIntercepting = false;
@@ -97,6 +111,9 @@ export class LoggingService implements LoggingPort {
         const appName = "ct-orch";
         const procId = Deno.pid;
 
+        // 3. Structured Sink: Deno KV (Diagnostic Buffer)
+        await this.writeToKv(entry);
+
         const { timestamp, type, severity = LogSeverity.INFO, caller, message, payload } = entry;
 
         let formattedMsg = `[${(type || LogType.GENERIC).toUpperCase()}] [${(severity || LogSeverity.INFO).toLowerCase()}] [${caller || "UNKNOWN"}] ${message}`;
@@ -119,8 +136,6 @@ export class LoggingService implements LoggingPort {
 
         const pri = (1 * 8) + (severityMap[severity] || 6);
         const syslogMsg = `<${pri}>1 ${timestamp} ${hostname} ${appName} ${procId} - - ${formattedMsg}`;
-
-        this.writeToLocalFile(syslogMsg).catch(() => {});
 
         if (this.remoteHost) {
             this.bufferLog(syslogMsg);
@@ -168,11 +183,10 @@ export class LoggingService implements LoggingPort {
         });
     }
 
-    private async writeToLocalFile(msg: string) {
-        try {
-            await Deno.mkdir("./volume/logs", { recursive: true });
-            await Deno.writeTextFile(this.logFilePath, msg + "\n", { append: true });
-        } catch {}
+    private async writeToKv(entry: LogEntry) {
+        if (this.diagnosticRepo) {
+            await this.diagnosticRepo.addLog(entry).catch(() => {});
+        }
     }
 
     private bufferLog(msg: string) {

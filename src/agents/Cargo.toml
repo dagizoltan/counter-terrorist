@@ -6,6 +6,7 @@ members = [
     "honeypot",
     "pcap", "ebpf",
     "fim",
+    "tpm", "vpn",
 ]
 
 [workspace.dependencies]

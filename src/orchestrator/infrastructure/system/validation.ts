@@ -258,7 +258,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       }
       return true;
     case "blocker":
-      if (!["KillProcess", "BlockIp", "UnblockIp"].includes(req.type)) return false;
+      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess"].includes(req.type)) return false;
       if (req.type === "KillProcess" && typeof req.pid !== "number") return false;
       const targetIp = req.ip;
       if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
@@ -268,13 +268,10 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
       if (req.type === "StartCapture") {
         if (req.interface && typeof req.interface !== "string") return false;
-        // Security: Validate interface name characters
         if (req.interface && !INTERFACE_NAME_REGEX.test(req.interface)) return false;
         if (req.duration && typeof req.duration !== "number") return false;
-        // Security: Cap duration at 1 hour
         if (req.duration && req.duration > 3600) return false;
         if (req.filename && typeof req.filename !== "string") return false;
-        // Security: Reject filenames with path separators (path traversal defense-in-depth)
         if (req.filename) {
           const basename = req.filename.split("/").pop()?.split("\\").pop() || "";
           if (!SAFE_FILENAME_REGEX.test(basename)) return false;
@@ -295,11 +292,19 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof targetPath !== "string") return false;
       return true;
     case "ebpf":
-      if (!["SHADOW_BAN", "HIDE_PID", "SHUTDOWN"].includes(req.type)) return false;
-      if (req.type === "SHADOW_BAN") {
-        if (!isValidIP(req.ip || "")) return false;
-        if (isCriticalInfrastructure(req.ip || "")) return false;
-      }
+      const ebpfTypes = [
+        "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
+        "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN"
+      ];
+      if (!ebpfTypes.includes(req.type)) return false;
+      if ((req.type === "BLOCK_IP" || req.type === "UNBLOCK_IP" || req.type === "SHADOW_BAN") && !isValidIP(req.ip || "")) return false;
+      if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip || "")) return false;
+      return true;
+    case "tpm":
+      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs"].includes(req.type)) return false;
+      return true;
+    case "vpn":
+      if (!["Connect", "Disconnect", "GetStatus"].includes(req.type)) return false;
       return true;
     default:
       return false; // Unknown sidecars are rejected by default

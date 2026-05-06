@@ -1,5 +1,5 @@
 import { FirewallProvider } from "../firewall.ts";
-import { SidecarManager } from "../../../../runtime/sidecar_manager.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { CommandResult, LogSeverity, LogType } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";

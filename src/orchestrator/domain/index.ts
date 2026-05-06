@@ -42,16 +42,18 @@ export { ComplianceService } from "./analysis/compliance_service.ts";
 export { TacticalIntelIngestor as TacticalIntelService } from "./analysis/tactical_intel_ingestor.ts";
 export { ForensicService } from "./analysis/forensic_service.ts";
 export { LedgerService } from "./analysis/ledger_service.ts";
+export { CorrelationService } from "./analysis/correlation_service.ts";
 
 // Engine Domain
-export { MeshManager } from "./engine/mesh.ts";
-export { PlaybookService } from "./engine/playbook_service.ts";
-export { AutopilotService } from "./engine/autopilot_service.ts";
-export { ChaosEngine } from "./engine/chaos_engine.ts";
-export { pluginManager } from "./engine/plugin_manager.ts";
-export { GovernanceService } from "./engine/governance_service.ts";
-export { CovertChannelService } from "./engine/covert_service.ts";
-export { ProvisioningService } from "./engine/provisioning_service.ts";
+export { MeshManager } from "./orchestration/mesh.ts";
+export { PlaybookService } from "./orchestration/playbook_service.ts";
+export { AutopilotService } from "./orchestration/autopilot_service.ts";
+export { ChaosEngine } from "./orchestration/chaos_engine.ts";
+export { pluginManager } from "./orchestration/plugin_manager.ts";
+export { GovernanceService } from "./orchestration/governance_service.ts";
+export { CovertChannelService } from "./orchestration/covert_service.ts";
+export { ProvisioningService } from "./orchestration/provisioning_service.ts";
+export { PolicyEngine } from "./orchestration/policy_engine.ts";
 
 // Types
 export type { Role } from "./identity/api_keys.ts";

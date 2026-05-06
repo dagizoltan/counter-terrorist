@@ -5,7 +5,8 @@ export const ForensicCenterPage = (props: { csrfToken?: string }) => {
   return (
     <Layout title="Investigation Lab // Tactical Signal" islandPaths={[
       '/components/islands/TimelineIsland.js',
-      '/components/islands/ReplayIsland.js'
+      '/components/islands/ReplayIsland.js',
+      '/components/islands/BlockingLog.js'
     ]} csrfToken={props.csrfToken}>
       
       {/* 01_Unified_Page_Header */}

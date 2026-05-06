@@ -336,10 +336,26 @@ export class SidecarManager implements CommandPort {
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (!line.trim()) continue;
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          // New: Structured Log Ingestion
+          if (trimmed.startsWith("[LOG] ")) {
+            try {
+                const logData = JSON.parse(trimmed.substring(6));
+                this.logging.log({
+                    timestamp: logData.timestamp || new Date().toISOString(),
+                    type: logData.log_type || LogType.ACTIVITY,
+                    severity: logData.severity || LogSeverity.INFO,
+                    caller: logData.caller || `SIDECAR:${name}`,
+                    message: logData.message
+                });
+                continue;
+            } catch { /* malformed log, continue to regular parsing */ }
+          }
 
           try {
-            const data = JSON.parse(line) as SidecarResponse;
+            const data = JSON.parse(trimmed) as SidecarResponse;
 
             if (!validateResponse(name as SidecarName, data)) {
               this.logging.log({

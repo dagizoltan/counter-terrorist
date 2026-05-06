@@ -76,30 +76,52 @@ export class CuratedIntelService {
      */
     async start(kv?: Deno.Kv) {
         this.kv = kv || await Deno.openKv();
+        
+        // 1. Recover existing blacklist from persistent storage
+        const iter = this.kv.list<IntelIndicator>({ prefix: ["curated_threats"] });
+        for await (const res of iter) {
+            if (res.value.score >= 85 && res.value.type === "IP") {
+                this.blacklist.add(res.value.indicator);
+            }
+        }
+
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
             caller: "INTEL",
-            message: "Curated Intelligence Pipeline engaged. Lifecycle Manager online."
+            message: `Curated Intelligence Pipeline engaged. ${this.blacklist.size} indicators recovered from persistent store.`
         });
         
-        // Background initial sync
-        this.sync().catch(e => {
+        // 2. Critical Boot Sync: Perform a fast sync of high-priority sources before fully booting
+        // If the blacklist is empty, we MUST have at least some data before proceeding.
+        if (this.blacklist.size < 100) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
+                type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
                 caller: "INTEL",
-                message: `Initial synchronization warning: ${e.message}`
+                message: "Blacklist density critical. Initiating mandatory pre-flight intelligence sync..."
             });
-        });
+            await this.sync().catch(() => {});
+        } else {
+            // Background initial sync if we already have data
+            this.sync().catch(e => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "INTEL",
+                    message: `Initial synchronization warning: ${e.message}`
+                });
+            });
+        }
 
-        // Periodic sync
+        // 3. Periodic sync
         const intervalHours = this.config.getNumber("INTEL_SYNC_INTERVAL_HOURS", 1);
         setInterval(() => this.sync(), intervalHours * 60 * 60 * 1000); 
 
-        // Lifecycle Management Loop (Every 15 minutes)
+        // 4. Lifecycle Management Loop
         setInterval(() => this.processLifecycle(), 15 * 60 * 1000);
     }
 
@@ -408,6 +430,7 @@ export class CuratedIntelService {
             }
 
             await this.kv?.set(["curated_threats", indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
+            await this.kv?.set(["curated_threats_by_type", curated.type, indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
             ingestCount++;
             if (ingestCount > 100000) break; 
         }
@@ -449,8 +472,12 @@ export class CuratedIntelService {
         if (!this.kv) return { threats: [] };
         
         const { type, provider, limit = 50, offset, search } = options;
+        
+        // OPTIMIZATION: Use type-specific index if type is provided and no search is active
+        const prefix = (type && !search) ? ["curated_threats_by_type", type] : ["curated_threats"];
+        
         const iter = this.kv.list<IntelIndicator>(
-            { prefix: ["curated_threats"] }, 
+            { prefix }, 
             { cursor: offset } 
         );
         

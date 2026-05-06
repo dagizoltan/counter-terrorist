@@ -16,6 +16,41 @@ class ThreatExplorer extends HTMLElement {
   async connectedCallback() {
     await this.fetchStats();
     await this.fetchThreats();
+    this.connectWS();
+    this.render();
+  }
+
+  connectWS() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        // type === 'THREAT' comes from EventMediator when a sidecar detects something
+        // OR AUDIT_EVENT with data.type === 'THREAT'
+        if (payload.type === 'THREAT' || (payload.type === 'AUDIT_EVENT' && payload.data?.type === 'THREAT')) {
+          const threat = payload.data?.data || payload.data || payload;
+          if (threat.indicator) {
+            this.addThreat(threat);
+          }
+        }
+      } catch (e) {}
+    };
+
+    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
+  }
+
+  addThreat(threat) {
+    // Check if already exists
+    const index = this.threats.findIndex(t => t.indicator === threat.indicator);
+    if (index !== -1) {
+      this.threats[index] = { ...this.threats[index], ...threat };
+    } else {
+      this.threats.unshift(threat);
+      if (this.threats.length > 500) this.threats.pop();
+    }
     this.render();
   }
 
@@ -259,7 +294,7 @@ class ThreatExplorer extends HTMLElement {
                       return validThreats.map(t => {
                          const isBP = t.geo?.isBulletproof;
                          return `
-                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedIps.has(t.indicator) ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/10'}">
+                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedIps.has(t.indicator) ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/10'} ${t.blocked ? 'opacity-40 grayscale-[0.5]' : ''}">
                             <td class="p-1 text-center">
                                ${t.blocked ? '' : `
                                   <input type="checkbox" ${this.selectedIps.has(t.indicator) ? 'checked' : ''} 

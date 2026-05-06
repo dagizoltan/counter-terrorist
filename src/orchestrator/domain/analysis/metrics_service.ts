@@ -1,18 +1,27 @@
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
-import { MeshManager } from "../engine/mesh.ts";
+import { MeshManager } from "../orchestration/mesh.ts";
 import { HoneypotService, HoneypotModule } from "../protection/honeypot_service.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { KernelService } from "../protection/kernel_service.ts";
 import { AuditService } from "./audit.ts";
 import { CanaryService, CanaryToken } from "../protection/canary_service.ts";
-import { BroadcastFunction } from "../engine/plugins/types.ts";
+import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { MeshNode } from "../engine/mesh.ts";
+import { MeshNode } from "../orchestration/mesh.ts";
 import { VpnPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BehavioralService } from "./behavioral_service.ts";
 import { GeoIpService } from "./geoip_service.ts";
 import { TACTICAL_CONSTANTS } from "../../core/constants.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
+import { 
+    AnonymizationService, 
+    TacticalIntelService, 
+    NewsSignalService, 
+    NetworkDiscoveryService, 
+    AutopilotService, 
+    HealthService, 
+    SupplyChainService 
+} from "../index.ts";
 
 export interface SystemMetrics {
     firewall: {
@@ -126,15 +135,15 @@ export class MetricsService {
         private sidecarManager: SidecarManager,
         private vpn: VpnPort,
         private behavioral: BehavioralService,
-        private anonymization: any, // AnonymizationService
+        private anonymization: AnonymizationService,
         private geoIp: GeoIpService,
         private broadcast: BroadcastFunction,
-        private tacticalIntel?: any,
-        private news?: any,
-        private networkDiscovery?: any,
-        private autopilot?: any,
-        private healthService?: any,
-        private supplyChain?: any
+        private tacticalIntel?: TacticalIntelService,
+        private news?: NewsSignalService,
+        private networkDiscovery?: NetworkDiscoveryService,
+        private autopilot?: AutopilotService,
+        private healthService?: HealthService,
+        private supplyChain?: SupplyChainService
     ) {
         setMetricsService(this);
         this.start();
@@ -282,8 +291,8 @@ export class MetricsService {
                     mode: this.anonymization.getMode(),
                 },
                 geo: {
-                    topCountries: Array.from(new Set(this.geoIp.getCache().map(c => c.country))).slice(0, 5),
-                    totalOrigins: new Set(this.geoIp.getCache().map(c => c.country)).size
+                    topCountries: Array.from(new Set(Object.values(this.geoIp.getCache()).map(c => c.country))).slice(0, 5),
+                    totalOrigins: new Set(Object.values(this.geoIp.getCache()).map(c => c.country)).size
                 },
                 tactical: {
                     recentThreats: await (async () => {

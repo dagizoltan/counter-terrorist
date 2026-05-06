@@ -1,4 +1,4 @@
-import { SidecarManager } from "../../runtime/sidecar_manager.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { PlatformInfo } from "../platform.ts";
 import { AntivirusManager } from "./antivirus/antivirus.ts";

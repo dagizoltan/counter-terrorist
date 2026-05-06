@@ -2,7 +2,7 @@
  * GHOST_COMMAND: Sovereign Security Orchestrator
  * Entry point for the autonomous defense mesh.
  */
-import { SovereignApp } from "./app.ts";
+import { SovereignApp } from "./app/sovereign_app.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 const app = new SovereignApp();

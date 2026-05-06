@@ -157,7 +157,7 @@ async fn main() -> Result<(), anyhow::Error> {
             match cmd.cmd_type.as_str() {
                 "BLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
+                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
                             let _ = m.insert(u32::from(ip).to_be(), 1u32, 0);
                             emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
                         } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
@@ -165,7 +165,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 },
                 "UNBLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
+                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
                             let _ = m.remove(&u32::from(ip).to_be());
                             emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
                         } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
@@ -173,7 +173,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 },
                 "SHADOW_BAN" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap())) {
+                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap())) {
                             let _ = m.insert(u32::from(ip).to_be(), ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
                             emit_response(cmd.id, true, format!("Shadow Ban: {}", ip_str)).await;
                         } else { emit_response(cmd.id, false, "Invalid IP or Map Error".to_string()).await; }
@@ -181,7 +181,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 },
                 "HIDE_PID" => {
                     if let Some(pid) = cmd.pid {
-                        if let Ok(mut m) = aya::maps::HashMap::try_from(bpf_ref.map_mut("HIDE_CONFIG").unwrap()) {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HIDE_CONFIG").unwrap()) {
                             let _ = m.insert(pid, 1, 0);
                             emit_response(cmd.id, true, format!("Stealth: PID {}", pid)).await;
                         } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }

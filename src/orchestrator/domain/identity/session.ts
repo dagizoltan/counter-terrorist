@@ -1,151 +1,90 @@
-/**
- * Session Management Service.
- *
- * Manages ephemeral, revocable browser sessions stored in Deno KV.
- * Session IDs are random UUIDs — the raw API_TOKEN is never stored client-side.
- */
-
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { Role } from "./api_keys.ts";
-import { KvRepository } from "@infrastructure/persistence/repositories/kv_repository.ts";
-import { secureCompare } from "@infrastructure/system/validation.ts";
-import { withTelemetry } from "@core/service_utils.ts";
+import { SessionRepository } from "../repositories/session_repository.ts";
 
 export interface Session {
   id: string;
-  createdAt: number;
-  expiresAt: number;
+  userId: string;
+  role: string;
+  createdAt: string;
+  expiresAt: string;
+  lastSeen: string;
   csrfToken: string;
-  role: Role;
+  metadata?: Record<string, any>;
 }
 
 export class SessionService {
-  public createSession: (role?: Role) => Promise<any>;
-  public validateSession: (sessionId: string | undefined) => Promise<any>;
-  public revokeAllSessions: () => Promise<any>;
-  private ttlMs: number;
-  private repo: KvRepository<Session>;
-
   constructor(
-    private kv: Deno.Kv,
+    private repo: SessionRepository,
     private logging: LoggingPort,
-    ttlHours: number = 24,
-  ) {
-    this.ttlMs = ttlHours * 60 * 60 * 1000;
-    this.repo = new KvRepository<Session>(kv, "sessions");
+    private ttlHours: number = 24
+  ) {}
 
-    // Wrap public methods
-    this.createSession = withTelemetry("Session:Create", this._createSession.bind(this), logging);
-    this.validateSession = withTelemetry("Session:Validate", this._validateSession.bind(this), logging);
-    this.revokeAllSessions = withTelemetry("Session:RevokeAll", this._revokeAllSessions.bind(this), logging);
-
-    // Initial prune and setup interval (every 1 hour)
-    this.pruneExpiredSessions();
-    setInterval(() => this.pruneExpiredSessions(), 60 * 60 * 1000);
-  }
-
-  /**
-   * Background task to remove expired sessions from KV.
-   */
-  public async pruneExpiredSessions(): Promise<void> {
-    try {
-      const now = Date.now();
-      const sessions = await this.repo.list();
-      let pruned = 0;
-      
-      for (const session of sessions) {
-        if (now > session.expiresAt) {
-          await this.repo.delete(session.id);
-          pruned++;
-        }
-      }
-      
-      if (pruned > 0) {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.INFO,
-            caller: "SESSION",
-            message: `Pruned ${pruned} expired sessions from KV storage.`
-        });
-      }
-    } catch (e) {
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
-          severity: LogSeverity.WARNING,
-          caller: "SESSION",
-          message: `Prune failed: ${(e as Error).message}`
-      });
-    }
-  }
-
-  private async _createSession(role: Role = "admin"): Promise<{ sessionId: string; csrfToken: string }> {
-    const sessionId = crypto.randomUUID();
+  async createSession(userId: string, role: string, metadata?: any): Promise<Session> {
+    const id = crypto.randomUUID();
     const csrfToken = crypto.randomUUID();
-    const now = Date.now();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + this.ttlHours * 60 * 60 * 1000);
 
     const session: Session = {
-      id: sessionId,
-      createdAt: now,
-      expiresAt: now + this.ttlMs,
-      csrfToken,
+      id,
+      userId,
       role,
+      createdAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString(),
+      lastSeen: now.toISOString(),
+      csrfToken,
+      metadata,
     };
 
-    await this.repo.set(sessionId, session);
-    return { sessionId, csrfToken };
+    await this.repo.save(session);
+    
+    this.logging.log({
+        timestamp: now.toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "SESSION",
+        message: `New session created for ${userId} [${role}]`
+    });
+
+    return session;
   }
 
-  /**
-   * Validates a session ID. Returns the session if valid and not expired, null otherwise.
-   */
-  private async _validateSession(sessionId: string | undefined): Promise<Session | null> {
-    if (!sessionId) return null;
+  async validateSession(id: string): Promise<{ success: boolean; data?: Session; error?: string }> {
+    const session = await this.repo.getById(id);
+    if (!session) return { success: false, error: "Session not found" };
 
-    try {
-      const session = await this.repo.get(sessionId);
-      if (!session) return null;
+    const expiresAt = new Date(session.expiresAt).getTime();
+    if (Date.now() > expiresAt) {
+      await this.repo.delete(id);
+      return { success: false, error: "Session expired" };
+    }
 
-      if (Date.now() > session.expiresAt) {
-        await this.repo.delete(sessionId);
-        return null;
+    // Update last seen
+    session.lastSeen = new Date().toISOString();
+    await this.repo.save(session);
+
+    return { success: true, data: session };
+  }
+
+  async validateCsrf(id: string, token: string): Promise<boolean> {
+    const session = await this.repo.getById(id);
+    if (!session) return false;
+    return session.csrfToken === token;
+  }
+
+  async revokeSession(id: string): Promise<void> {
+    await this.repo.delete(id);
+  }
+
+  async cleanupExpired(): Promise<number> {
+    let count = 0;
+    const now = Date.now();
+    for await (const session of this.repo.listAll()) {
+      if (new Date(session.expiresAt).getTime() < now) {
+        await this.repo.delete(session.id);
+        count++;
       }
-
-      return session;
-    } catch {
-      return null;
     }
-  }
-
-  /**
-   * Validates the CSRF token for a given session.
-   * Uses constant-time comparison to prevent timing attacks.
-   */
-  async validateCsrf(sessionId: string | undefined, csrfToken: string | undefined): Promise<boolean> {
-    if (!sessionId || !csrfToken) return false;
-
-    const result = await this.validateSession(sessionId);
-    if (!result.success || !result.data) return false;
-
-    // Constant-time comparison for CSRF token
-    return await secureCompare(result.data.csrfToken, csrfToken);
-  }
-
-  /**
-   * Revokes a single session.
-   */
-  async revokeSession(sessionId: string): Promise<void> {
-    await this.repo.delete(sessionId);
-  }
-
-  /**
-   * Revokes all sessions (e.g. on token rotation or security incident).
-   */
-  private async _revokeAllSessions(): Promise<void> {
-    const sessions = await this.repo.list();
-    for (const session of sessions) {
-      await this.repo.delete(session.id);
-    }
+    return count;
   }
 }

@@ -1,4 +1,4 @@
-import { Plugin } from "@domain/engine/plugin_manager.ts";
+import { Plugin } from "@domain/orchestration/plugin_manager.ts";
 import { PlatformInfo } from "@infrastructure/system/platform.ts";
 
 export interface StartupPort {
@@ -124,6 +124,7 @@ export interface LogEntry {
 export interface LoggingPort {
   enableGlobalIntercept(): void;
   log(entry: LogEntry): Promise<void>;
+  getRecentLogs(limit?: number): Promise<LogEntry[]>;
   // Legacy support
   logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: any): Promise<void>;
 }

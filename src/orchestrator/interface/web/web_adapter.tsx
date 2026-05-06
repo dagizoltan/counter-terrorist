@@ -60,25 +60,45 @@ export class WebAdapter implements WebPort {
     
     this.app.use("*", this.security.hardenedHeaders());
 
+    this.app.route("/login", createLoginRouter({
+      checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
+      isTokenValid: (t) => this.isTokenValid(t),
+      sessionService: this.services.sessions,
+      config: this.services.config
+    }));
+    this.app.route("/logout", createLogoutRouter({ sessionService: this.services.sessions }));
+    this.app.get("/login/", (c) => c.redirect("/login"));
+
+    // 0. AUTH FIRST: Protect logging resources from unauthenticated exhaustion
+    this.app.use("*", this.security.auth());
+
     // Unified Logging, Metrics, and Audit Lifecycle
     this.app.use("*", async (c, next) => {
       const start = Date.now();
       const traceId = crypto.randomUUID().slice(0, 8);
       const { method, path } = c.req;
       
-      // 1. FAST PATH: WebSocket Upgrades must bypass middleware logic that touches the request body or response
+      // Quiet Mode: Skip logging for high-frequency dashboard polling to prevent log explosion
+      const isHighFrequency = path.includes("/api/metrics") || 
+                              path.includes("/api/stats") || 
+                              path.includes("/api/compliance/logs") ||
+                              path.includes("/api/agent/status");
+
+      // 1. FAST PATH: WebSocket Upgrades must bypass middleware logic
       if (c.req.header("upgrade") === "websocket") {
         return await next();
       }
 
-      // 2. Logging (No body parsing here to avoid stream consumption issues)
-      await loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity: LogSeverity.INFO,
-        caller: "WEB:API",
-        message: `[REQ:${traceId}] ${method} ${path}`
-      });
+      // 2. Logging (Conditional)
+      if (!isHighFrequency) {
+        await loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "WEB:API",
+          message: `[REQ:${traceId}] ${method} ${path}`
+        });
+      }
 
       if (this.services.networkLogs) {
         const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "127.0.0.1";
@@ -96,13 +116,16 @@ export class WebAdapter implements WebPort {
       
       const duration = Date.now() - start;
       const status = c.res.status;
-      await loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity: LogSeverity.INFO,
-        caller: "WEB:API",
-        message: `[RES:${traceId}] ${method} ${path} -> ${status} (${duration}ms)`
-      });
+      
+      if (!isHighFrequency) {
+        await loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "WEB:API",
+          message: `[RES:${traceId}] ${method} ${path} -> ${status} (${duration}ms)`
+        });
+      }
 
       // 3. COMPLIANCE: Audit state-changing requests
       const isMutation = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
@@ -115,10 +138,12 @@ export class WebAdapter implements WebPort {
               type: "ADMIN_ACTION",
               message: `${actor.id} executed ${method} on ${path}`,
               actor,
+              correlationId: traceId,
               data: { method, path, status, duration }
           });
       }
       
+      c.res.headers.set("X-Request-ID", traceId);
       return result;
     });
 
@@ -193,18 +218,6 @@ export class WebAdapter implements WebPort {
       });
     }
 
-    this.app.route("/login", createLoginRouter({
-      checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
-      isTokenValid: (t) => this.isTokenValid(t),
-      sessionService: this.services.sessions,
-      config: this.services.config
-    }));
-    this.app.route("/logout", createLogoutRouter({ sessionService: this.services.sessions }));
-
-    // Security: Handle trailing slash for auth routes to prevent 404/401 loops
-    this.app.get("/login/", (c) => c.redirect("/login"));
-
-    this.app.use("*", this.security.auth());
 
     const statusAggregator = () => this.getSystemStatus();
     this.app.route("/api", createApiRouter(this.services, this.security));
@@ -251,7 +264,7 @@ export class WebAdapter implements WebPort {
   }
 
   private async getSystemStatus(): Promise<ApplicationStatus> {
-    const { bootstrap } = await import("../../bootstrapper.ts");
+    const { bootstrap } = await import("../../app/bootstrapper.ts");
     const { getMetricsSnapshot } = await import("@domain/analysis/metrics_service.ts");
 
     const baseStatus = await bootstrap();

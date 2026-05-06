@@ -1,5 +1,5 @@
 import { broadcast } from "@api/ws.ts";
-import { meshManager } from "@domain/engine/mesh.ts";
+import { meshManager } from "@domain/orchestration/mesh.ts";
 import { isValidIP } from "../../validation.ts";
 import { FirewallProvider } from "../interfaces.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
@@ -9,8 +9,20 @@ export type { FirewallProvider };
 
 export class FirewallManager {
   private blockedIps: Set<string> = new Set();
+  private kv?: Deno.Kv;
 
   constructor(private provider: FirewallProvider, private networkLogs?: any) {}
+
+  async setKv(kv: Deno.Kv) {
+    this.kv = kv;
+    const iter = kv.list<any>({ prefix: ["enforcement"] });
+    for await (const res of iter) {
+      const ip = res.key[1] as string;
+      this.blockedIps.add(ip);
+      // Immediately enforce in the kernel agent during boot
+      await this.provider.blockIp(ip).catch(() => {});
+    }
+  }
 
   async blockIp(ip: string) {
     if (!isValidIP(ip)) {
@@ -49,6 +61,14 @@ export class FirewallManager {
               message: `Failed to broadcast block for ${ip}: ${err.message}`
           });
       });
+    }
+
+    if (this.kv) {
+        await this.kv.set(["enforcement", ip], { 
+            reason: "MANUAL_BLOCK", 
+            expiresAt: Date.now() + (24 * 60 * 60 * 1000), 
+            committedAt: Date.now() 
+        });
     }
 
     return await this.provider.blockIp(ip);
@@ -100,6 +120,9 @@ export class FirewallManager {
       return { success: false, stdout: "", stderr: `Invalid IP address: ${ip}` };
     }
     this.blockedIps.delete(ip);
+    if (this.kv) {
+        await this.kv.delete(["enforcement", ip]);
+    }
     broadcast({ 
         type: "AUDIT_EVENT", 
         data: { 

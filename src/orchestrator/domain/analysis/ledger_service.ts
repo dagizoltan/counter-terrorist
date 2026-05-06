@@ -1,5 +1,5 @@
 import { AuditEvent } from "./audit.ts";
-import { MeshManager } from "../engine/mesh.ts";
+import { MeshManager } from "../orchestration/mesh.ts";
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
 
 export interface LedgerEntry {

@@ -1,5 +1,5 @@
 import { VpnProvider, VpnResult } from "../vpn.ts";
-import { SidecarManager } from "../../../../runtime/sidecar_manager.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 /**
  * UbuntuVpnProvider

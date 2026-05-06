@@ -40,18 +40,23 @@ class PcapAgent extends HTMLElement {
             </div>
          </div>
 
-         <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden">
-            <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center">
-               <h3 class="tactical-title text-base tracking-widest">INTERCEPT_STREAM</h3>
+         <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
+            <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center backdrop-blur-md">
+               <div class="flex items-center gap-3">
+                  <h3 class="tactical-title text-base tracking-widest">INTERCEPT_STREAM</h3>
+                  <div class="status-pill primary animate-pulse">LIVE</div>
+               </div>
                <div class="mono-xs text-slate-500 font-black uppercase tracking-widest">Real-time Segment Analysis</div>
             </header>
-            <div id="pcap-stream" class="h-[500px] overflow-y-auto custom-scrollbar">
+            <div id="pcap-stream" class="h-[550px] overflow-y-auto custom-scrollbar bg-black/20">
                <div class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Ingress_Signal...</div>
             </div>
          </div>
       </div>
     `;
     this.connectWS();
+    // Auto-initiate capture for real-time visibility
+    setTimeout(() => this.startCapture(), 1000);
   }
 
   connectWS() {

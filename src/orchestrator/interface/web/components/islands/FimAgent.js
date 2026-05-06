@@ -25,14 +25,16 @@ class FimAgent extends HTMLElement {
 
   connectWS() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
         const type = payload.type || '';
-        if (type === 'DRIFT_PROCESS' || type === 'THREAT' || type === 'FIM_ALERT') {
-          this.addAlert(payload.data || payload);
+        // Support both domain events and raw sidecar alerts
+        if (type === 'DRIFT_PROCESS' || type === 'THREAT' || type === 'FIM_ALERT' || (payload.caller === 'fim:observer' && payload.type === 'ACTIVITY')) {
+          this.addAlert(payload.data || payload.payload || payload);
         }
       } catch (e) {}
     };

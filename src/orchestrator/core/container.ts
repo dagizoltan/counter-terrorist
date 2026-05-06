@@ -32,7 +32,11 @@ import {
   HealthService,
   EventMediator,
   BehavioralService,
-  GeoIpService
+  GeoIpService,
+  ShadowService,
+  PolicyEngine,
+  RateLimitService,
+  CorrelationService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
@@ -80,15 +84,16 @@ export interface ServiceContainer {
   canaryService: CanaryService;
   kernelService: KernelService;
   forensicService: ForensicService;
-  shadow: any; // ShadowService
+  shadow: ShadowService;
   covert: CovertChannelService;
   ledger: LedgerService;
   tpm: TPMManager;
-  policy: any; // PolicyEngine
+  policy: PolicyEngine;
   health: HealthService;
   mediator: EventMediator;
   behavioral: BehavioralService;
   geoIp: GeoIpService;
-  rateLimit: any; // RateLimitService
+  correlation: CorrelationService;
+  rateLimit: RateLimitService;
   platformInfo: PlatformInfo;
 }

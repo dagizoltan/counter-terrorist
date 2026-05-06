@@ -73,9 +73,10 @@ export class EventBus implements EventBusPort {
         };
     }
 
-    // Forward to centralized logging
+    // Forward to centralized logging (Suppress massive payloads for periodic noise)
     const severity = this.mapTypeToSeverity(type);
-    const logType = (type === "DEBUG" || type === "METRICS_UPDATE") ? LogType.DEBUG : LogType.AUDIT;
+    const isNoise = type === "DEBUG" || type === "METRICS_UPDATE";
+    const logType = isNoise ? LogType.DEBUG : LogType.AUDIT;
 
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -83,7 +84,7 @@ export class EventBus implements EventBusPort {
         severity,
         caller: "EVENTBUS",
         message: message,
-        payload: validatedData
+        payload: isNoise ? undefined : validatedData
     }).catch(() => {});
 
     // Notify internal subscribers

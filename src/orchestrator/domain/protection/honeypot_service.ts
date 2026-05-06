@@ -1,7 +1,7 @@
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
-import { BroadcastFunction } from "../engine/plugins/types.ts";
+import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface HoneypotModule {

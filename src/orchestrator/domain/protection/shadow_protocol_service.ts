@@ -1,5 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { MeshManager } from "../engine/mesh.ts";
+import { MeshManager } from "../orchestration/mesh.ts";
 import { AnonymizationService } from "./anonymization_service.ts";
 
 /**

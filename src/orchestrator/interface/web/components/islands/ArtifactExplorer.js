@@ -16,6 +16,38 @@ class ArtifactExplorer extends HTMLElement {
   async connectedCallback() {
     await this.fetchStats();
     await this.fetchArtifacts();
+    this.connectWS();
+    this.render();
+  }
+
+  connectWS() {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        if (payload.type === 'THREAT' || (payload.type === 'AUDIT_EVENT' && payload.data?.type === 'THREAT')) {
+          const artifact = payload.data?.data || payload.data || payload;
+          if (artifact.indicator && artifact.type === 'HASH') {
+            this.addArtifact(artifact);
+          }
+        }
+      } catch (e) {}
+    };
+
+    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
+  }
+
+  addArtifact(artifact) {
+    const index = this.artifacts.findIndex(a => a.indicator === artifact.indicator);
+    if (index !== -1) {
+      this.artifacts[index] = { ...this.artifacts[index], ...artifact };
+    } else {
+      this.artifacts.unshift(artifact);
+      if (this.artifacts.length > 500) this.artifacts.pop();
+    }
     this.render();
   }
 
@@ -204,7 +236,7 @@ class ArtifactExplorer extends HTMLElement {
                       }
                       
                       return validArtifacts.map(t => `
-                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedHashes.has(t.indicator) ? 'bg-warning/5 border-warning/20' : 'hover:border-warning/10'}">
+                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedHashes.has(t.indicator) ? 'bg-warning/5 border-warning/20' : 'hover:border-warning/10'} ${t.blocked ? 'opacity-40 grayscale-[0.5]' : ''}">
                             <td class="p-1 text-center">
                                <input type="checkbox" ${this.selectedHashes.has(t.indicator) ? 'checked' : ''} 
                                  onchange="this.closest('artifact-explorer').toggleSelect('${t.indicator}')"

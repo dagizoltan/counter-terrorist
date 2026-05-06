@@ -1,5 +1,6 @@
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { broadcast } from "@api/ws.ts";
+import { AuditService } from "./audit.ts";
 
 interface IpHistory {
   timestamps: number[];
@@ -10,7 +11,7 @@ export class BehavioralService {
   private history: Map<string, IpHistory> = new Map();
   private readonly MAX_HISTORY = 10;
 
-  constructor(private firewall: FirewallManager) {}
+  constructor(private firewall: FirewallManager, private audit?: AuditService) {}
   
   getSuspiciousIps() {
     return Array.from(this.history.entries()).map(([ip, stats]) => ({
@@ -36,7 +37,6 @@ export class BehavioralService {
 
     stats.timestamps.push(now);
 
-    // Keep history lean
     if (stats.timestamps.length > this.MAX_HISTORY) {
       stats.timestamps.shift();
     }
@@ -44,53 +44,68 @@ export class BehavioralService {
       stats.intervals.shift();
     }
 
-    // Only analyze after we have enough intervals
     if (stats.intervals.length >= 8) {
       const entropy = this.calculateEntropy(stats.intervals);
       
+      const message = `Behavioral Analysis: IP ${ip} // Entropy: ${entropy.toFixed(2)}`;
+      
+      if (this.audit) {
+        await this.audit.logEvent({
+            type: "activity",
+            severity: "info",
+            caller: "analysis:behavioral",
+            message,
+            data: { ip, entropy }
+        });
+      }
+
       broadcast({
         type: "AUDIT_EVENT",
         data: {
           type: "activity",
           severity: "info",
           caller: "analysis:behavioral",
-          message: `Behavioral Analysis: IP ${ip} // Entropy: ${entropy.toFixed(2)}`,
+          message,
           data: { ip, entropy }
         }
       });
 
       if (entropy < 1.0) {
-        // Highly predictable (Bot/Brute-force script) - Full Block
         await this.firewall.blockIp(ip);
         return "BLOCK";
       } else {
-        // High entropy (Human/Manual manipulation or noise) - Shadow Ban (Throttle)
         await this.firewall.shadowBanIp(ip);
         return "SHADOW_BAN";
       }
     }
 
-    // Default to block for first few attempts unless we want to wait
     return "PENDING";
   }
 
-  /**
-   * Syscall Anomaly Detection
-   * Monitors for suspicious process behaviors reported via eBPF.
-   */
   async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]) {
     const suspiciousCommands = ["curl", "wget", "chmod", "chown", "nc", "netcat"];
     const sensitiveDirs = ["/etc", "/var/run", "/boot", "/root"];
 
     if (suspiciousCommands.includes(comm) && syscall === "execve") {
-       // Potential ingress/lateral movement tool execution
+       const message = `SUSPICIOUS_EXECUTION: Process '${comm}' (PID: ${pid}) attempted ${syscall} with sensitive pattern.`;
+       
+       if (this.audit) {
+         await this.audit.logEvent({
+            type: "security",
+            severity: "warning",
+            caller: "analysis:behavioral",
+            message,
+            data: { pid, comm, syscall, args }
+         });
+       }
+
        broadcast({
           type: "AUDIT_EVENT",
           data: {
             type: "security",
             severity: "warning",
             caller: "analysis:behavioral",
-            message: `SUSPICIOUS_EXECUTION: Process '${comm}' (PID: ${pid}) attempted ${syscall} with sensitive pattern.`,
+            message,
             data: { pid, comm, syscall, args }
           }
        });
@@ -100,13 +115,25 @@ export class BehavioralService {
     if (syscall === "openat" || syscall === "open") {
        const path = args[0] || "";
        if (sensitiveDirs.some(dir => path.startsWith(dir)) && !comm.includes("systemd")) {
+          const message = `UNAUTHORIZED_ACCESS: Process '${comm}' attempted to access sensitive path: ${path}`;
+          
+          if (this.audit) {
+            await this.audit.logEvent({
+                type: "forensic",
+                severity: "critical",
+                caller: "analysis:behavioral",
+                message,
+                data: { pid, comm, path }
+            });
+          }
+
           broadcast({
             type: "AUDIT_EVENT",
             data: {
               type: "forensic",
               severity: "critical",
               caller: "analysis:behavioral",
-              message: `UNAUTHORIZED_ACCESS: Process '${comm}' attempted to access sensitive path: ${path}`,
+              message,
               data: { pid, comm, path }
             }
           });
@@ -119,22 +146,17 @@ export class BehavioralService {
 
   private calculateEntropy(intervals: number[]): number {
     if (intervals.length === 0) return 0;
-
-    // Bucket intervals (rounding to nearest 100ms for noise reduction)
     const buckets: Map<number, number> = new Map();
     for (const interval of intervals) {
       const bucket = Math.round(interval / 100) * 100;
       buckets.set(bucket, (buckets.get(bucket) || 0) + 1);
     }
-
     let entropy = 0;
     const total = intervals.length;
-
     for (const count of buckets.values()) {
       const p = count / total;
       entropy -= p * Math.log2(p);
     }
-
     return entropy;
   }
 }

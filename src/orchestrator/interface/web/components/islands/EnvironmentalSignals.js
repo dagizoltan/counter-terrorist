@@ -122,7 +122,7 @@ class EnvironmentalSignals extends HTMLElement {
 
     return `
       <div class="glass-panel group relative flex flex-col p-8 bg-black/40 border border-white/5 hover:border-white/20 transition-all duration-300 hover:bg-white/[0.03] shadow-2xl">
-        {/* Top Operational Header */}
+        <!-- Top Operational Header -->
         <div class="flex justify-between items-start mb-10">
           <div class="flex items-center gap-4">
             <div class="p-3 bg-black/60 rounded-xl border border-white/10 group-hover:border-${isWifi ? 'primary' : isBT ? 'warning' : 'success'}/40 transition-colors">
@@ -144,7 +144,7 @@ class EnvironmentalSignals extends HTMLElement {
           </div>
         </div>
 
-        {/* Primary Identification */}
+        <!-- Primary Identification -->
         <div class="mb-10 flex-grow">
           <h4 class="text-3xl font-black text-white italic tracking-tighter uppercase leading-none mb-3 group-hover:translate-x-1 transition-transform">
             ${s.ssid || s.hostname || s.name || 'ANONYMOUS_ENTITY'}
@@ -152,7 +152,7 @@ class EnvironmentalSignals extends HTMLElement {
           <span class="mono text-[9px] font-black text-primary/40 uppercase tracking-[0.2em] italic">${s.publicIntel?.replace(/_/g, ' ') || 'STANDARD_NODE_IDENTIFIED'}</span>
         </div>
 
-        {/* Technical Attributes Grid */}
+        <!-- Technical Attributes Grid -->
         <div class="grid grid-cols-3 gap-3 mb-10">
           ${meta.map(m => `
             <div class="bg-black/60 border border-white/5 p-3 rounded-xl flex flex-col gap-1">

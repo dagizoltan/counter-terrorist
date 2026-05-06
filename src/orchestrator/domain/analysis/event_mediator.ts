@@ -2,7 +2,7 @@ import { EventBus } from "./events.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { CanaryService } from "../protection/canary_service.ts";
 import { LoggingPort, LogType, LogSeverity } from "../../core/ports.ts";
-import { BroadcastFunction } from "../engine/plugins/types.ts";
+import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 
 /**
  * EventMediator

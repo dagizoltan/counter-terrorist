@@ -12,7 +12,7 @@ import { createAgentsApi } from "../api/agents.ts";
 import { createThreatsApi } from "../api/threats.ts";
 import { createComplianceApi } from "../api/compliance.ts";
 import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
-import { bootstrap as getBootstrapInfo } from "../../../bootstrapper.ts";
+import { bootstrap as getBootstrapInfo } from "../../../app/bootstrapper.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { SignatureService } from "@infrastructure/system/protection/signature_service.ts";
 

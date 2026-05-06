@@ -83,10 +83,10 @@ class TimelineIsland extends HTMLElement {
     if (modeEl) {
       const hasEvents = this.events.length > 0;
       modeEl.textContent = hasEvents ? 'BUFFER_SYNCHRONIZED' : 'BUFFER_EMPTY';
-      modeEl.className = `mono-xs font-black tracking-[0.2em] uppercase ${hasEvents ? 'text-primary' : 'text-danger"`;
+      modeEl.className = `mono-xs font-black tracking-[0.2em] uppercase ${hasEvents ? 'text-primary' : 'text-danger'}`;
       const dot = modeEl.previousElementSibling;
       if (dot) {
-        dot.className = `dot ${hasEvents ? 'active' : 'danger'
+        dot.className = `dot ${hasEvents ? 'active' : 'danger'}`;
       }
     }
     
@@ -105,7 +105,7 @@ class TimelineIsland extends HTMLElement {
         const theme = (e.type === 'CRITICAL' || e.severity >= 8) ? 'danger' : 'warning';
         const color = `var(--${theme})`;
         return `<div class="absolute w-[3px] h-6 rounded-full hover:h-8 hover:w-[5px]" style="left:${pct}%; background:${color}; box-shadow:0 0 15px ${color}" title="${this.escape(e.message)}"></div>`;
-      }).join(');
+      }).join('');
     }
   }
 
@@ -134,12 +134,12 @@ class TimelineIsland extends HTMLElement {
     }
 
     const eventsToRender = this.events.slice(0, this.visibleCount);
-    container.innerHTML = eventsToRender.map(ev => this.renderEvent(ev)).join(');
+    container.innerHTML = eventsToRender.map(ev => this.renderEvent(ev)).join('');
     
     if (this.visibleCount < this.events.length) {
       const loadMore = document.createElement('div');
-      loadMore.className = 'py-12' text-center opacity-30';
-      loadMore.innerHTML = `<span class="mono-xs font-bold text-slate-500 uppercase tracking-widest ">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
+      loadMore.className = 'py-12 text-center opacity-30';
+      loadMore.innerHTML = `<span class="mono-xs font-bold text-slate-500 uppercase tracking-widest">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
       container.appendChild(loadMore);
     }
   }
@@ -149,7 +149,7 @@ class TimelineIsland extends HTMLElement {
     const isWarning = ev.type === 'BLOCK' || ev.type === 'WARN' || (ev.severity >= 5 && ev.severity < 8);
     const theme = isCritical ? 'danger' : (isWarning ? 'warning' : 'primary');
     
-    const ts = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '00':00:00';
+    const ts = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '00:00:00';
     let nodeName = 'LOCAL_NODE';
     let msg = ev.message || 'NULL_SIGNAL_DETECTED';
     
@@ -186,7 +186,7 @@ class TimelineIsland extends HTMLElement {
             <div class="absolute top-6 right-6 mono-xs text-slate-800 font-black opacity-0 group-hover/data:opacity-100 uppercase tracking-widest">Raw_Telemetry</div>
             <pre class="whitespace-pre-wrap leading-relaxed text-[10px]">${this.escape(typeof ev.data === 'string' ? ev.data : JSON.stringify(ev.data, null, 2))}</pre>
           </div>
-        ` : '}
+        ` : ''}
       </div>
     `;
   }

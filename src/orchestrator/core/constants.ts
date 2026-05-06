@@ -25,5 +25,11 @@ export const TACTICAL_CONSTANTS = {
     NETWORK: {
         MDNS_PORT: 5353,
         DEFAULT_PORT: 8000
+    },
+    CORRELATION: {
+        CRITICAL_RISK_THRESHOLD: 80,
+        WARNING_RISK_THRESHOLD: 50,
+        MIN_SYSCALL_SCORE: 2,
+        MAX_NODES_PER_SUBJECT: 100
     }
 };

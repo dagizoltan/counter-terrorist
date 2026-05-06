@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { ChaosEngine } from "@domain/engine/chaos_engine.ts";
+import { ChaosEngine } from "@domain/orchestration/chaos_engine.ts";
 
 export function createChaosApi(chaosEngine: ChaosEngine, requireRole: any) {
   const api = new Hono();

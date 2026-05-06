@@ -1,4 +1,4 @@
-import { MeshManager } from "../engine/mesh.ts";
+import { MeshManager } from "../orchestration/mesh.ts";
 import { AuditService } from "./audit.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";

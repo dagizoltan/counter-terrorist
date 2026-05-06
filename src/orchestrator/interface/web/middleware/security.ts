@@ -91,10 +91,10 @@ export class SecurityMiddleware {
       const isAuthRoute = path === "/login" || path === "/login/" || path === "/logout" || path === "/logout/";
       if (isAuthRoute) return next();
       
+      const isPublicPath = path === "/style.css" || path.startsWith("/vendor/") || path.startsWith("/assets/");
       const isStaticAsset = /\.(css|js|png|jpg|jpeg|svg|json|ico|woff2?|ttf|otf)$/i.test(path);
-      const isPublicPath = path.startsWith("/features/") || path.startsWith("/components/") || path.startsWith("/vendor/") || path.startsWith("/assets/");
       
-      if (isStaticAsset || isPublicPath) {
+      if (isStaticAsset && isPublicPath) {
         return next();
       }
 

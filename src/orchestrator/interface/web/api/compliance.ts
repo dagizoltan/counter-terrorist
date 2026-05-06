@@ -22,11 +22,17 @@ export function createComplianceApi(services: ServiceContainer) {
 
     router.get("/logs", async (c) => {
         try {
-            const logs = await Deno.readTextFile("./volume/logs/orchestrator.log");
-            const tail = logs.split("\n").slice(-1000).join("\n");
-            return c.json({ logs: tail });
-        } catch {
-            return c.json({ logs: "No system logs available." });
+            const logging = services.audit.getLogging();
+            const kvLogs = await logging.getRecentLogs(500);
+            
+            // Re-sort back to chronological for the UI (TimelineRepository returns newest first)
+            const formatted = kvLogs.reverse().map(l => l.formatted || `[${l.timestamp}] [${l.type}] [${l.severity}] [${l.caller}] ${l.message}`).join("\n");
+            
+            return c.json({ 
+                logs: formatted || "No recent diagnostic telemetry captured in the ledger." 
+            });
+        } catch (e) {
+            return c.json({ logs: `Log Engine Failure: ${e.message}` });
         }
     });
 

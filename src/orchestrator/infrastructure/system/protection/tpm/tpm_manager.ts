@@ -1,5 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { SidecarManager } from "../../runtime/sidecar_manager.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 /**
  * TPMManager

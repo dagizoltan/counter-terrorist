@@ -14,6 +14,8 @@ export interface TacticalIntel {
 }
 
 export class GeoIpService {
+    private cache: Map<string, TacticalIntel> = new Map();
+
     constructor(private logging: LoggingPort) {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -29,12 +31,31 @@ export class GeoIpService {
      * High-Fidelity Enhancement: Supports local mmdb lookup if available.
      */
     async lookup(ip: string): Promise<TacticalIntel> {
-        // 1. Check local cache/database first (Sovereign mode)
-        const localResult = await this.queryLocalDatabase(ip);
-        if (localResult) return localResult;
+        // 1. Check in-memory cache
+        if (this.cache.has(ip)) return this.cache.get(ip)!;
 
-        // 2. Fallback to deterministic mock for OpSec-safe development
-        return this.deterministicMock(ip);
+        // 2. Check local database
+        const localResult = await this.queryLocalDatabase(ip);
+        if (localResult) {
+            this.cache.set(ip, localResult);
+            return localResult;
+        }
+
+        // 3. Fallback to deterministic mock
+        const result = this.deterministicMock(ip);
+        this.cache.set(ip, result);
+        return result;
+    }
+
+    async resolve(ip: string): Promise<TacticalIntel> {
+        return this.lookup(ip);
+    }
+
+    /**
+     * Returns the current state of the GeoIP cache for metrics.
+     */
+    getCache(): Record<string, TacticalIntel> {
+        return Object.fromEntries(this.cache.entries());
     }
 
     private async queryLocalDatabase(ip: string): Promise<TacticalIntel | null> {
