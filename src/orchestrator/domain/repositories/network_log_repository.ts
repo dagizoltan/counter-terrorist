@@ -6,6 +6,7 @@ export interface NetworkLogEntry {
     length: number;
     action: "ALLOW" | "BLOCK";
     timestamp?: string;
+    metadata?: any;
 }
 
 export interface NetworkLogRepository {

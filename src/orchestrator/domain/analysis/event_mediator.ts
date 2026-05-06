@@ -101,18 +101,35 @@ export class EventMediator {
         // 4. PCAP Integration
         commandPort.onEvent("pcap", (response: any) => {
             const event = response.data || response;
+            const data = event.data || event;
+
             // Bridge sidecar packet events to the UI
-            if (event.type === "PACKET" || event.type === "NETWORK_LOG") {
+            if (event.type === "PACKET" || event.type === "NETWORK_LOG" || event.type === "EXFIL_ALERT") {
+                const severity = event.type === "EXFIL_ALERT" ? LogSeverity.CRITICAL : LogSeverity.INFO;
+                const type = event.type === "EXFIL_ALERT" ? LogType.AUDIT : LogType.ACTIVITY;
+
+                if (event.type === "EXFIL_ALERT") {
+                    this.logger.log({
+                        timestamp: new Date().toISOString(),
+                        type,
+                        severity,
+                        caller: "pcap:dissector",
+                        message: data.message || "Network Exfiltration Attempt Detected",
+                        payload: data
+                    }).catch(() => {});
+                }
+
                 this.broadcast({ 
                     type: event.type, 
-                    message: event.message || `Packet intercepted on ${event.data?.interface || 'mesh'}`, 
-                    data: event.data || event 
+                    severity,
+                    message: data.message || `Packet intercepted on ${data.interface || 'mesh'}`, 
+                    data: data 
                 });
             } else if (event.type === "SIDECAR_ALERT") {
                 this.broadcast({
                     type: "ALERT",
-                    message: event.data?.message || `PCAP Agent Alert: ${event.type}`,
-                    data: event.data
+                    message: data.message || `PCAP Agent Alert: ${event.type}`,
+                    data: data
                 });
             }
         });

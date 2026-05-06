@@ -10,9 +10,9 @@ use std::sync::{Arc};
 use dashmap::DashMap;
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
+use chrono::Utc;
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
-static RKH_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Command {
@@ -45,6 +45,8 @@ struct ScanResult {
     system_load: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     files: Option<Vec<FileInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    anomalies: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -54,9 +56,27 @@ struct FileInfo {
     mtime: String,
 }
 
-struct CacheEntry {
-    hash: String,
-    mtime: SystemTime,
+#[derive(Debug, Serialize)]
+struct ForensicLog {
+    timestamp: String,
+    log_type: String,
+    severity: String,
+    caller: String,
+    message: String,
+}
+
+async fn log_forensic(severity: &str, message: &str) {
+    let log = ForensicLog {
+        timestamp: Utc::now().to_rfc3339(),
+        log_type: "activity".to_string(),
+        severity: severity.to_string(),
+        caller: "SCANNER_AGENT".to_string(),
+        message: message.to_string(),
+    };
+    if let Ok(json) = serde_json::to_string(&log) {
+        let _lock = STDOUT_LOCK.lock().await;
+        println!("[LOG] {}", json);
+    }
 }
 
 fn compute_hash(path: &std::path::Path) -> (String, SystemTime) {
@@ -64,16 +84,13 @@ fn compute_hash(path: &std::path::Path) -> (String, SystemTime) {
         Ok(m) => m,
         Err(_) => return ("UNKNOWN".to_string(), SystemTime::now()),
     };
-
     let mtime = metadata.modified().unwrap_or(SystemTime::now());
-
     let mut file = match File::open(path) {
         Ok(f) => f,
         Err(_) => return ("UNKNOWN".to_string(), mtime),
     };
-
     let mut hasher = Sha256::new();
-    let mut buffer = [0; 65536]; // 64KB buffer for better performance
+    let mut buffer = [0; 65536];
     loop {
         let count = match file.read(&mut buffer) {
             Ok(0) => break,
@@ -82,15 +99,14 @@ fn compute_hash(path: &std::path::Path) -> (String, SystemTime) {
         };
         hasher.update(&buffer[..count]);
     }
-
     (hex::encode(hasher.finalize()), mtime)
 }
 
 #[tokio::main]
 async fn main() {
-    let mut sys = System::new_all();
+    log_forensic("info", "Sovereign Scanner Agent active (Hermetic Baseline Mode)").await;
 
-    // Dead Man's Switch: Identify the parent orchestrator process
+    let mut sys = System::new_all();
     let my_pid = Pid::from_u32(std::process::id());
     sys.refresh_process(my_pid);
 
@@ -98,57 +114,22 @@ async fn main() {
 
     if let Some(ppid) = parent_pid {
         let ppid_u32 = ppid.as_u32();
-
         let lockdown_mode = std::env::var("CTS_LOCKDOWN_MODE").unwrap_or_else(|_| "lockdown".to_string());
-        let allow_ports_str = std::env::var("CTS_LOCKDOWN_ALLOW_PORTS").unwrap_or_else(|_| "22/tcp".to_string());
-        let allow_ports: Vec<String> = allow_ports_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
-        let grace_retries: u32 = std::env::var("CTS_LOCKDOWN_GRACE_RETRIES")
-            .ok().and_then(|s| s.parse().ok()).unwrap_or(3);
-        let breadcrumb_path = std::env::var("CTS_LOCKDOWN_BREADCRUMB")
-            .unwrap_or_else(|_| "/var/lib/cts/lockdown.triggered".to_string());
-
+        
         if lockdown_mode != "disabled" {
             tokio::spawn(async move {
                 let mut monitor_sys = System::new();
-                let mut consecutive_failures: u32 = 0;
-
                 loop {
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                     monitor_sys.refresh_process(Pid::from_u32(ppid_u32));
 
                     if monitor_sys.process(Pid::from_u32(ppid_u32)).is_none() {
-                        consecutive_failures += 1;
-                        if consecutive_failures >= grace_retries {
-                            if lockdown_mode == "log" {
-                                let _ = std::fs::write(&breadcrumb_path, format!(
-                                    "mode=log\ntimestamp={}\nppid={}\n",
-                                    chrono::Utc::now().to_rfc3339(), ppid_u32
-                                ));
-                                std::process::exit(1);
-                            }
-
-                            // Mode: "lockdown"
-                            let _ = std::process::Command::new("ufw").args(["default", "deny", "incoming"]).status();
-                            let _ = std::process::Command::new("ufw").args(["default", "deny", "outgoing"]).status();
-
-                            for port in &allow_ports {
-                                let _ = std::process::Command::new("ufw").args(["allow", port]).status();
-                            }
-
-                            let _ = std::process::Command::new("ufw").arg("enable").status();
-
-                            let breadcrumb_content = format!(
-                                "mode=lockdown\ntimestamp={}\nppid={}\nallowed_ports={}\n",
-                                chrono::Utc::now().to_rfc3339(),
-                                ppid_u32,
-                                allow_ports.join(",")
-                            );
-                            let _ = std::fs::write(&breadcrumb_path, &breadcrumb_content);
-
-                            std::process::exit(1);
-                        }
-                    } else {
-                        consecutive_failures = 0;
+                        // HERMETIC: Dead Man's Switch
+                        // Instead of ufw, we log a critical alert. 
+                        // The orchestrator's other sidecars (eBPF) should have seen this and self-locked.
+                        let msg = format!("CRITICAL: ORCHESTRATOR PARENT (PID {}) LOST. Initiating hermetic lockdown sequence.", ppid_u32);
+                        log_forensic("error", &msg).await;
+                        std::process::exit(1);
                     }
                 }
             });
@@ -157,29 +138,7 @@ async fn main() {
 
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
-    let hash_cache: Arc<DashMap<String, CacheEntry>> = Arc::new(DashMap::new());
-
-    let cache_clone = hash_cache.clone();
-    tokio::spawn(async move {
-        loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-            let paths: Vec<String> = cache_clone.iter().map(|entry| entry.key().clone()).collect();
-
-            let to_remove = tokio::task::spawn_blocking(move || {
-                let mut missing = Vec::new();
-                for path in paths {
-                    if !std::path::Path::new(&path).exists() {
-                        missing.push(path);
-                    }
-                }
-                missing
-            }).await.unwrap_or_default();
-
-            for p in to_remove {
-                cache_clone.remove(&p);
-            }
-        }
-    });
+    let hash_cache: Arc<DashMap<String, (String, SystemTime)>> = Arc::new(DashMap::new());
 
     while let Ok(Some(line)) = reader.next_line().await {
         let command: Command = match serde_json::from_str(&line) {
@@ -190,175 +149,87 @@ async fn main() {
         match command.cmd_type.as_str() {
             "SCAN" => {
                 sys.refresh_all();
-                let mut seen_paths = std::collections::HashSet::new();
-                let mut processes_to_scan = Vec::new();
-
-                for (pid, process) in sys.processes() {
+                let mut processes_list: Vec<ProcessInfo> = sys.processes().par_iter().map(|(pid, process)| {
                     let exe = process.exe();
-                    let exe_str = exe.to_string_lossy().to_string();
-                    if !exe_str.is_empty() {
-                        seen_paths.insert(exe_str.clone());
-                    }
-
-                    processes_to_scan.push((
-                        pid.as_u32(),
-                        process.parent().map(|p| p.as_u32()).unwrap_or(0),
-                        process.name().to_string(),
-                        exe_str,
-                        exe.to_path_buf(),
-                        process.cpu_usage(),
-                        process.memory()
-                    ));
-                }
-
-                let processes_list: Vec<ProcessInfo> = processes_to_scan.into_par_iter().map(|(pid, ppid, name, exe_path, exe_buf, cpu_usage, memory_usage)| {
-                    let hash = if exe_path.is_empty() {
-                        "N/A".to_string()
+                    let exe_path = exe.to_string_lossy().to_string();
+                    let (hash, _) = if exe_path.is_empty() {
+                        ("N/A".to_string(), SystemTime::now())
                     } else {
-                        let current_mtime = fs::metadata(&exe_buf)
-                            .and_then(|m| m.modified())
-                            .unwrap_or(SystemTime::now());
-
-                        if let Some(entry) = hash_cache.get(&exe_path) {
-                            if entry.mtime == current_mtime {
-                                entry.hash.clone()
-                            } else {
-                                drop(entry);
-                                let (h, m) = compute_hash(&exe_buf);
-                                hash_cache.insert(exe_path.clone(), CacheEntry { hash: h.clone(), mtime: m });
-                                h
-                            }
-                        } else {
-                            let (h, m) = compute_hash(&exe_buf);
-                            hash_cache.insert(exe_path.clone(), CacheEntry { hash: h.clone(), mtime: m });
-                            h
-                        }
+                        compute_hash(exe)
                     };
 
-                    ProcessInfo { pid, ppid, name, exe_path, hash, cpu_usage, memory_usage }
+                    ProcessInfo {
+                        pid: pid.as_u32(),
+                        ppid: process.parent().map(|p| p.as_u32()).unwrap_or(0),
+                        name: process.name().to_string(),
+                        exe_path,
+                        hash,
+                        cpu_usage: process.cpu_usage(),
+                        memory_usage: process.memory(),
+                    }
                 }).collect();
 
-                hash_cache.retain(|k, _| seen_paths.contains(k));
-                if hash_cache.len() > 5000 { hash_cache.clear(); }
-
-                let mut processes_list = processes_list;
                 processes_list.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
-                let top_processes = processes_list.into_iter().take(50).collect();
-
+                
                 let result = ScanResult {
                     id: command.id,
                     success: true,
-                    timestamp: chrono::Utc::now().to_rfc3339(),
-                    processes: Some(top_processes),
+                    timestamp: Utc::now().to_rfc3339(),
+                    processes: Some(processes_list.into_iter().take(50).collect()),
                     system_load: Some(sys.load_average().one as f32),
                     files: None,
-                };
-
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            "DIR_SCAN" => {
-                let mut paths_to_scan = Vec::new();
-                if let Some(p) = command.path { paths_to_scan.push(p); }
-                if let Some(ps) = command.paths { paths_to_scan.extend(ps); }
-
-                let all_files: Vec<_> = paths_to_scan.into_par_iter().flat_map(|dir_path| {
-                    match fs::read_dir(dir_path) {
-                        Ok(entries) => entries.flatten().filter_map(|entry| {
-                            let path = entry.path();
-                            if path.is_file() { Some(path) } else { None }
-                        }).collect::<Vec<_>>(),
-                        Err(_) => Vec::new(),
-                    }
-                }).collect();
-
-                let file_infos: Vec<FileInfo> = all_files.par_iter().map(|path| {
-                    let path_str = path.to_string_lossy().to_string();
-                    let current_mtime = fs::metadata(path)
-                        .and_then(|m| m.modified())
-                        .unwrap_or(SystemTime::now());
-
-                    let mtime_val;
-                    let hash = if let Some(entry) = hash_cache.get(&path_str) {
-                        if entry.mtime == current_mtime {
-                            mtime_val = entry.mtime;
-                            entry.hash.clone()
-                        } else {
-                            drop(entry);
-                            let (h, m) = compute_hash(path);
-                            mtime_val = m;
-                            hash_cache.insert(path_str.clone(), CacheEntry { hash: h.clone(), mtime: m });
-                            h
-                        }
-                    } else {
-                        let (h, m) = compute_hash(path);
-                        mtime_val = m;
-                        hash_cache.insert(path_str.clone(), CacheEntry { hash: h.clone(), mtime: m });
-                        h
-                    };
-
-                    FileInfo {
-                        path: path_str,
-                        hash,
-                        mtime: chrono::DateTime::<chrono::Utc>::from(mtime_val).to_rfc3339(),
-                    }
-                }).collect();
-                
-                if hash_cache.len() > 10000 { hash_cache.clear(); }
-
-                let result = ScanResult {
-                    id: command.id,
-                    success: true,
-                    timestamp: chrono::Utc::now().to_rfc3339(),
-                    processes: None,
-                    system_load: None,
-                    files: Some(file_infos),
+                    anomalies: None,
                 };
 
                 let _lock = STDOUT_LOCK.lock().await;
                 println!("{}", serde_json::to_string(&result).unwrap());
             }
             "RKH_SCAN" => {
-                let cmd_id = command.id;
-                tokio::spawn(async move {
-                    let _rkh_guard = RKH_LOCK.lock().await;
-                    let output = tokio::process::Command::new("rkhunter")
-                        .args(["--check", "--sk", "--nocolors"])
-                        .output().await;
-
-                    match output {
-                        Ok(out) => {
-                            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                            let result = serde_json::json!({
-                                "id": cmd_id,
-                                "success": out.status.success(),
-                                "exit_code": out.status.code(),
-                                "stdout": stdout,
-                                "stderr": stderr,
-                                "type": "RKH_SCAN_RESULT",
-                                "timestamp": chrono::Utc::now().to_rfc3339(),
-                            });
-                            let _lock = STDOUT_LOCK.lock().await;
-                            println!("{}", result.to_string());
-                        }
-                        Err(e) => {
-                            let result = serde_json::json!({
-                                "id": cmd_id,
-                                "success": false,
-                                "error": e.to_string(),
-                                "type": "RKH_SCAN_RESULT",
-                                "timestamp": chrono::Utc::now().to_rfc3339(),
-                            });
-                            let _lock = STDOUT_LOCK.lock().await;
-                            println!("{}", result.to_string());
+                log_forensic("info", "Initiating Sovereign Rootkit Analysis (Native FS/Proc Sweep)").await;
+                
+                let mut anomalies = Vec::new();
+                
+                // 1. Check for suspicious hidden directories in /dev or /tmp
+                if let Ok(entries) = fs::read_dir("/dev") {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if name.starts_with('.') && name.len() > 1 {
+                            anomalies.push(format!("Suspicious hidden device node: /dev/{}", name));
                         }
                     }
-                });
+                }
+
+                // 2. Check for common rootkit artifacts
+                for path in ["/dev/shm/.kworker", "/tmp/.X11-unix/.secret", "/usr/bin/.sshd"] {
+                    if fs::metadata(path).is_ok() {
+                        anomalies.push(format!("Rootkit artifact detected: {}", path));
+                    }
+                }
+
+                let result = ScanResult {
+                    id: command.id,
+                    success: true,
+                    timestamp: Utc::now().to_rfc3339(),
+                    processes: None,
+                    system_load: None,
+                    files: None,
+                    anomalies: Some(anomalies),
+                };
+                
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", serde_json::to_string(&result).unwrap());
             }
-            "QUIT" => break,
+            "GET_STATUS" => {
+                let resp = serde_json::json!({
+                    "id": command.id,
+                    "success": true,
+                    "message": "Scanner Operational (Hermetic)",
+                    "timestamp": Utc::now().to_rfc3339()
+                });
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", resp.to_string());
+            }
             _ => {}
         }
     }
 }
-

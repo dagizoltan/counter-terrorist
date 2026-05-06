@@ -29,6 +29,30 @@ enum BlockerCommand {
     DumpProcess { id: String, pid: u32, path: String },
     BlockIp { id: String, ip: String },
     UnblockIp { id: String, ip: String },
+    GetStatus { id: String },
+}
+
+#[derive(Debug, Serialize)]
+struct ForensicLog {
+    timestamp: String,
+    log_type: String,
+    severity: String,
+    caller: String,
+    message: String,
+}
+
+async fn log_forensic(severity: &str, message: &str) {
+    let log = ForensicLog {
+        timestamp: Utc::now().to_rfc3339(),
+        log_type: "activity".to_string(),
+        severity: severity.to_string(),
+        caller: "BLOCKER_AGENT".to_string(),
+        message: message.to_string(),
+    };
+    if let Ok(json) = serde_json::to_string(&log) {
+        let _lock = STDOUT_LOCK.lock().await;
+        println!("[LOG] {}", json);
+    }
 }
 
 async fn emit_response(id: String, success: bool, message: String) {
@@ -47,34 +71,39 @@ async fn emit_response(id: String, success: bool, message: String) {
 
 #[tokio::main]
 async fn main() {
+    log_forensic("info", "Sovereign Blocker Agent active (Hermetic Mode)").await;
+
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
 
     while let Ok(Some(line)) = reader.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<BlockerCommand>(line.trim()) {
-            tokio::spawn(async move {
-                match cmd {
-                    BlockerCommand::KillProcess { id, pid } => {
-                        let res = kill_process_task(pid).await;
-                        emit_response(id, res.0, res.1).await;
-                    },
-                    BlockerCommand::QuarantineProcess { id, pid } => {
-                        let res = quarantine_process_task(pid).await;
-                        emit_response(id, res.0, res.1).await;
-                    },
-                    BlockerCommand::DumpProcess { id, pid, path } => {
-                        let res = dump_process_task(pid, path).await;
-                        emit_response(id, res.0, res.1).await;
-                    },
-                    BlockerCommand::BlockIp { id, ip } => {
-                        // HERMETIC: IP blocking is now handled by the eBPF sidecar
-                        emit_response(id, false, "IP blocking delegated to eBPF/XDP".to_string()).await;
-                    },
-                    BlockerCommand::UnblockIp { id, ip } => {
-                        emit_response(id, false, "IP unblocking delegated to eBPF/XDP".to_string()).await;
-                    }
+            match cmd {
+                BlockerCommand::KillProcess { id, pid } => {
+                    log_forensic("info", &format!("Executing kill on PID {}", pid)).await;
+                    let res = kill_process_task(pid).await;
+                    emit_response(id, res.0, res.1).await;
+                },
+                BlockerCommand::QuarantineProcess { id, pid } => {
+                    log_forensic("info", &format!("Executing quarantine on PID {}", pid)).await;
+                    let res = quarantine_process_task(pid).await;
+                    emit_response(id, res.0, res.1).await;
+                },
+                BlockerCommand::DumpProcess { id, pid, path } => {
+                    log_forensic("info", &format!("Executing memory dump on PID {} to {}", pid, path)).await;
+                    let res = dump_process_task(pid, path).await;
+                    emit_response(id, res.0, res.1).await;
+                },
+                BlockerCommand::BlockIp { id, .. } => {
+                    emit_response(id, false, "IP blocking delegated to eBPF/XDP".to_string()).await;
+                },
+                BlockerCommand::UnblockIp { id, .. } => {
+                    emit_response(id, false, "IP unblocking delegated to eBPF/XDP".to_string()).await;
+                },
+                BlockerCommand::GetStatus { id } => {
+                    emit_response(id, true, "Active".to_string()).await;
                 }
-            });
+            }
         }
     }
 }
@@ -96,7 +125,6 @@ async fn quarantine_process_task(pid: u32) -> (bool, String) {
     sys.refresh_process(Pid::from_u32(pid));
     
     if let Some(process) = sys.process(Pid::from_u32(pid)) {
-        // Native SIGSTOP
         let success = process.kill_with(sysinfo::Signal::Stop).unwrap_or(false);
         (success, if success { format!("Quarantined (SIGSTOP) process {}", pid) } else { format!("Failed to stop {}", pid) })
     } else {
@@ -105,7 +133,6 @@ async fn quarantine_process_task(pid: u32) -> (bool, String) {
 }
 
 async fn dump_process_task(pid: u32, path: String) -> (bool, String) {
-    // Hermetic: Manual procfs copy instead of cp/gcore
     let maps_res = std::fs::copy(format!("/proc/{}/maps", pid), format!("{}.maps", path));
     let env_res = std::fs::copy(format!("/proc/{}/environ", pid), format!("{}.environ", path));
     
