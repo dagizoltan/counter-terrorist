@@ -13,7 +13,7 @@ class TimelineIsland extends HTMLElement {
     
     // Safety: Define escape utility
     this.escape = (str) => {
-      if (!str) return ';
+      if (!str) return '';
       return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
