@@ -150,6 +150,7 @@ export class SidecarManager implements CommandPort {
   private spawningPromises: Map<string, Promise<Deno.ChildProcess | null>> = new Map();
 
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
+    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.ACTIVITY, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `getPersistentSidecar called for: ${name}` });
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     if (this.unsupportedSidecars.has(name)) return null;
     
@@ -164,24 +165,30 @@ export class SidecarManager implements CommandPort {
     // Initiate spawn with a lock
     const spawnPromise = (async () => {
         try {
+            this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `Attempting to spawn: ${name}` });
             const binPath = await this.findBinary(name);
             if (!binPath) {
+                this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "SIDECAR_MANAGER", message: `Binary not found for: ${name}` });
                 this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_NOT_FOUND", sidecar: name });
                 return null;
             }
 
+            const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
+            
             // ENHANCEMENT: Self-Healing Sidecars
-            // Verify integrity before spawn
-            const isHealthy = await this.verifyAndHeal(name, binPath);
-            if (!isHealthy) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "SIDECAR_MANAGER",
-                    message: `CRITICAL: Sidecar ${name} integrity check failed and self-healing was unsuccessful.`
-                });
-                return null;
+            // Verify integrity before spawn (Skip in DEV_MODE to allow debug binaries)
+            if (!isDev) {
+              const isHealthy = await this.verifyAndHeal(name, binPath);
+              if (!isHealthy) {
+                  this.logging.log({
+                      timestamp: new Date().toISOString(),
+                      type: LogType.AUDIT,
+                      severity: LogSeverity.ERROR,
+                      caller: "SIDECAR_MANAGER",
+                      message: `CRITICAL: Sidecar ${name} integrity check failed and self-healing was unsuccessful.`
+                  });
+                  return null;
+              }
             }
 
             const env = await this.getSidecarEnv(name);
@@ -309,11 +316,14 @@ export class SidecarManager implements CommandPort {
       try {
         const info = await Deno.stat(p);
         if (!info.isFile) continue;
-        return await Deno.realPath(p);
-      } catch {
-        continue;
+        const real = await Deno.realPath(p);
+        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.ACTIVITY, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `findBinary(${name}) -> ${real}` });
+        return real;
+      } catch (e) {
+        // Silent fail for stat
       }
     }
+    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "SIDECAR_MANAGER", message: `Could not find binary for ${name} in any searched path.` });
     return null;
   }
 

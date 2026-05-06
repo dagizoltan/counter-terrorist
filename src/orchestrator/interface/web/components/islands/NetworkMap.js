@@ -116,8 +116,8 @@ class NetworkMap extends HTMLElement {
     const wifi = this.querySelector('#wifi-nodes');
     const bt = this.querySelector('#bt-nodes');
 
-    // 1. Identify Gateway
-    const gateway = this.devices.find(d => d.hostname === 'ROUTER_GATEWAY' || d.ip === '192.168.1.1');
+    // 1. Identify Gateway / Central Node
+    const gateway = this.devices.find(d => d.isLocal || d.hostname?.includes('GATEWAY') || d.hostname?.includes('(LOCAL)') || d.ip?.endsWith('.1'));
     const otherAssets = this.devices.filter(d => 
        (d.type === 'MESH' || d.type === 'ETHERNET') && 
        d.mac !== gateway?.mac

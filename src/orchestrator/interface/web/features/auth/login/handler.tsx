@@ -66,13 +66,14 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
 
     const role = await deps.isTokenValid(token);
     if (token && role) {
-      const result = await deps.sessionService.createSession(role);
+      // SessionService returns Session directly, and expects (userId, role)
+      const session = await deps.sessionService.createSession(role, role);
       
-      if (!result.success) {
+      if (!session) {
         return c.json({ error: "Failed to create session" }, 500);
       }
 
-      const { sessionId, csrfToken } = result.data;
+      const { id: sessionId, csrfToken } = session;
 
       const secureCookie = deps.config.getBoolean("COOKIE_SECURE", true);
       const isHttps = c.req.url.startsWith("https:");

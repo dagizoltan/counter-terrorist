@@ -15,7 +15,13 @@ class EnvironmentalSignals extends HTMLElement {
     try {
       const resp = await fetch('/api/network/discovery');
       if (resp.ok) {
-        this.signals = await resp.json();
+        const data = await resp.json();
+        this.signals = {
+          wifi: data.filter(d => d.type === 'WIFI'),
+          bluetooth: data.filter(d => d.type === 'BLUETOOTH'),
+          ethernet: data.filter(d => d.type === 'ETHERNET' || d.type === 'MESH'),
+          mesh: data.filter(d => d.type === 'MESH')
+        };
       }
     } catch (e) {
       console.error('Failed to fetch environmental signals:', e);

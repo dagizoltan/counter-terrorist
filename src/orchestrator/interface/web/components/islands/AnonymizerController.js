@@ -18,7 +18,19 @@ class AnonymizerController extends HTMLElement {
       try {
         const payload = JSON.parse(event.data);
         if ((payload.type === 'METRICS_UPDATE' || (payload.type === 'DEBUG' && payload.subType === 'METRICS_UPDATE')) && payload.data?.vpn) {
-          this.updateState(payload.data.vpn.mode);
+          const vpn = payload.data.vpn;
+          this.updateState(vpn.mode);
+          
+          // Update external metric cards if they exist
+          const protocolEl = document.getElementById('vpn-protocol');
+          const regionEl = document.getElementById('vpn-region');
+          const statusEl = document.getElementById('vpn-status');
+          const rotationEl = document.getElementById('vpn-rotation');
+
+          if (protocolEl && vpn.currentNode) protocolEl.textContent = vpn.currentNode.protocol || 'WIREGUARD';
+          if (regionEl && vpn.currentNode) regionEl.textContent = vpn.currentNode.country || 'GLOBAL';
+          if (statusEl) statusEl.textContent = vpn.mode === 'OFF' ? 'DIRECT' : (vpn.mode === 'TOR' ? 'CRITICAL' : 'OPTIMAL');
+          if (rotationEl) rotationEl.textContent = vpn.rotations > 0 ? `${vpn.rotations} ROTATIONS` : 'INITIALIZING';
         }
         if (payload.type === 'ANONYMIZER_LOG' || payload.type === 'ANONYMIZER_UPDATE') {
           this.addLog(payload);

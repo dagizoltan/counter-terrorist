@@ -233,17 +233,17 @@ export const VpnPage = (props: { csrfToken?: string }) => (
     {/* Metric Cards Row */}
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
       {[
-        { label: 'Tunnel_Protocol', value: 'WIREGUARD', theme: 'primary', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
-        { label: 'Egress_Region', value: 'EU-CENTRAL', theme: 'primary', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3.6 9h16.8 M3.6 15h16.8 M11.5 3a17 17 0 0 0 0 18 M12.5 3a17 17 0 0 1 0 18' },
-        { label: 'Stealth_Level', value: 'MAXIMUM', theme: 'warning', icon: 'M12 2v20M2 12h20' },
-        { label: 'Next_Rotation', value: '24m 12s', theme: 'success', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
+        { id: 'vpn-protocol', label: 'Tunnel_Protocol', value: 'WIREGUARD', theme: 'primary', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
+        { id: 'vpn-region', label: 'Egress_Region', value: 'EU-CENTRAL', theme: 'primary', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3.6 9h16.8 M3.6 15h16.8 M11.5 3a17 17 0 0 0 0 18 M12.5 3a17 17 0 0 1 0 18' },
+        { id: 'vpn-status', label: 'Stealth_Level', value: 'MAXIMUM', theme: 'warning', icon: 'M12 2v20M2 12h20' },
+        { id: 'vpn-rotation', label: 'Next_Rotation', value: '24m 12s', theme: 'success', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
       ].map(card => (
         <div class="t-panel glass-panel p-6 border-t-2 transition-all hover:bg-white/[0.03] group" style={`border-top-color: var(--${card.theme})`}>
           <div class="flex justify-between items-start mb-4">
             <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">{card.label}</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-20 group-hover:opacity-100 transition-opacity"><path d={card.icon}/></svg>
           </div>
-          <span class="text-3xl font-black text-white italic tracking-tighter uppercase">{card.value}</span>
+          <span id={card.id} class="text-3xl font-black text-white italic tracking-tighter uppercase">{card.value}</span>
         </div>
       ))}
     </div>

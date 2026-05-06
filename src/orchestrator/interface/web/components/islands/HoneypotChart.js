@@ -72,11 +72,11 @@ class HoneypotChart extends HTMLElement {
   }
 
   updateChart() {
-    if (!this.data || this.data.length === 0) return;
-
-    const total = this.data.reduce((acc, curr) => acc + curr.hits, 0);
+    const total = (this.data || []).reduce((acc, curr) => acc + (curr.hits || 0), 0);
     const totalEl = this.querySelector('#total-hits');
-    if (totalEl) totalEl.textContent = total;
+    if (totalEl) totalEl.textContent = total.toLocaleString();
+
+    if (!this.data || this.data.length === 0) return;
 
     const width = this.canvas.width = this.canvas.clientWidth * window.devicePixelRatio;
     const height = this.canvas.height = this.canvas.clientHeight * window.devicePixelRatio;
