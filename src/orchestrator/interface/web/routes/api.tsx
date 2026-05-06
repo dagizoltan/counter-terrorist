@@ -15,6 +15,7 @@ import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 import { bootstrap as getBootstrapInfo } from "../../../app/bootstrapper.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { SignatureService } from "@infrastructure/system/protection/signature_service.ts";
+import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
 /**
  * API Router
@@ -195,7 +196,10 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.post("/mesh/resync", async (c: Context) => {
-    services.mesh.getNodes().forEach(n => n.verified = true);
+    const role = c.get("role");
+    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
+    
+    await services.mesh.resyncNodes();
     return c.json({ success: true, message: "Mesh synchronization broadcasted" });
   });
 
@@ -282,12 +286,15 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.post("/defense/isolate", async (c: Context) => {
+    const role = c.get("role");
+    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
+
     const { source, reason, ttl } = await c.req.json();
     if (!source) return c.json({ error: "Source required" }, 400);
     
     // If it's an IP, use the Intelligence Lifecycle Manager
-    const ipRegex = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/;
-    if (ipRegex.test(source)) {
+    if (isValidIP(source)) {
+      if (isCriticalInfrastructure(source)) return c.json({ error: "Cannot isolate critical infrastructure" }, 403);
       await services.curatedIntel.commitIsolation(source, reason || "MANUAL_OPERATOR_INTERVENTION", ttl || 24);
       return c.json({ success: true, message: `Indicator ${source} committed to active defense lifecycle.` });
     }
@@ -297,10 +304,14 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.post("/defense/purge", async (c: Context) => {
+    const role = c.get("role");
+    if (role !== "admin") return c.json({ error: "Forbidden: Admin required for process purge" }, 403);
+
     const { pid } = await c.req.json();
     if (!pid) return c.json({ error: "PID required" }, 400);
     const pidNum = parseInt(pid.toString());
     if (isNaN(pidNum)) return c.json({ error: "Invalid PID" }, 400);
+    if (pidNum <= 1) return c.json({ error: "Cannot purge system critical processes (PID <= 1)" }, 403);
     
     const result = await services.protection.firewall.killProcess(pidNum);
     return c.json(result);

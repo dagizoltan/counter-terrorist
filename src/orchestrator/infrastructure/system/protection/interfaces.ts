@@ -40,6 +40,7 @@ export interface AntivirusProvider {
   getStatus(): Promise<any>;
   scanPath(path: string): Promise<ScanResult>;
   quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }>;
+  syncSignatures(): Promise<CommandResult>;
 }
 
 export interface PersistenceAuditResult {

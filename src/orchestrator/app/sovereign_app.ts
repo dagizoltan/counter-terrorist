@@ -83,7 +83,7 @@ export class SovereignApp {
         await this.initOperationalLayer(this.services);
 
         // ── Phase 7: Finalize ───────────────────────────────────────────────
-        const port = configProvider.getNumber("PORT", 8001);
+        const port = configProvider.getNumber("PORT", 8000);
         this.registerSignalHandlers();
         this.startWatchdog(healthService);
 
@@ -177,27 +177,32 @@ export class SovereignApp {
 
         const isHardwareSecure = await tpm.verifyIntegrity(goldenPcrs);
         const bypassToken = Deno.env.get("SECURE_ENVIRONMENT_TOKEN");
-        const expectedToken = "PROVISIONAL_DEVELOPMENT_BYPASS_UNSAFE";
+        const secureBypass = Deno.env.get("SECURE_BYPASS_TOKEN");
 
-        if (!isHardwareSecure && bypassToken !== expectedToken) {
+        const isValidBypass = secureBypass && 
+                             secureBypass.length >= 32 && 
+                             bypassToken === secureBypass &&
+                             Deno.env.get("ENVIRONMENT") !== "production";
+
+        if (!isHardwareSecure && !isValidBypass) {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
                 caller: "SECURITY",
-                message: "CRITICAL: HARDWARE INTEGRITY FAILURE. Access denied. No valid bypass token provided."
+                message: "CRITICAL: HARDWARE INTEGRITY FAILURE. Access denied. No valid/secure bypass token provided."
             });
             // Soft failure for now if not in strict mode
             if (Deno.env.get("STRICT_HARDWARE_INTEGRITY") === "true") {
                 await this.selfDestruct();
             }
-        } else if (!isHardwareSecure && bypassToken === expectedToken) {
+        } else if (!isHardwareSecure && isValidBypass) {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
                 caller: "SECURITY",
-                message: "WARNING: RUNNING IN UNSAFE BYPASS MODE. System integrity is NOT hardware-verified."
+                message: "WARNING: RUNNING IN UNSAFE BYPASS MODE. System integrity is NOT hardware-verified. Environment: " + Deno.env.get("ENVIRONMENT")
             });
         }
     }

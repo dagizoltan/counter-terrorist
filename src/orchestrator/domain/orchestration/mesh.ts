@@ -888,6 +888,26 @@ export class MeshManager {
         data: { oldId, newId: this.nodeId }
     });
   }
+
+  /**
+   * Cryptographically re-verifies all known nodes in the mesh.
+   */
+  async resyncNodes() {
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "MESH:P2P",
+        message: "Initiating mesh-wide cryptographic re-verification..."
+    });
+
+    const allNodes = Array.from(this.nodes.values());
+    for (const node of allNodes) {
+        // Mark as unverified first to force a fresh handshake
+        node.verified = false;
+        await this.validateAndRegisterNode(node);
+    }
+  }
 }
 
 export let meshManager: MeshManager;

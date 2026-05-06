@@ -6,7 +6,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Primary strategic command interface.
  * Refined for high-readability and zero-underscore policy.
  */
-export const Dashboard = (props: { status: any; csrfToken: string }) => {
+export const Dashboard = (props: { status: any; csrfToken: string; nonce?: string; hostname?: string }) => {
   const { platform } = props.status;
 
   const islandPaths = [
@@ -16,7 +16,7 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
   ];
 
   return (
-    <Layout title="Mission Dashboard // Sovereign Overwatch" islandPaths={islandPaths} csrfToken={props.csrfToken}>
+    <Layout title="Mission Dashboard // Sovereign Overwatch" islandPaths={islandPaths} csrfToken={props.csrfToken} nonce={props.nonce} hostname={props.hostname}>
       {/* 01 Unified Page Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
@@ -142,26 +142,26 @@ export const Dashboard = (props: { status: any; csrfToken: string }) => {
  
               <div class="grid grid-cols-2 gap-6">
                  <div class="t-panel glass-panel border-t-2 border-warning/30 p-6 flex flex-col items-center justify-center text-center">
-                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-4">Total_Lures</span>
-                    <span class="text-4xl font-black text-white italic tracking-tighter">12</span>
+                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-4">Active Lures</span>
+                    <span class="text-4xl font-black text-white italic tracking-tighter">{props.status.honeypot?.activeDecoys || 0}</span>
                  </div>
                  <div class="t-panel glass-panel border-t-2 border-danger/30 p-6 flex flex-col items-center justify-center text-center">
-                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-4">Live_Hits</span>
-                    <span class="text-4xl font-black text-danger italic tracking-tighter">124</span>
+                    <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-4">Total Hits</span>
+                    <span class="text-4xl font-black text-danger italic tracking-tighter">{props.status.honeypot?.totalHits || 0}</span>
                  </div>
               </div>
  
               <div class="t-panel glass-panel border-t-2 border-slate-700 p-8 flex flex-col shadow-2xl">
                  <div class="flex justify-between items-baseline mb-4">
                     <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Strike Back Probability</span>
-                    <span class="mono-xs text-white font-black italic tracking-[0.2em] tabular-nums text-lg">84.2%</span>
+                    <span class="mono-xs text-white font-black italic tracking-[0.2em] tabular-nums text-lg">{(props.status.audit?.integrityScore || 100) * 0.8 + 10}%</span>
                  </div>
                  <div class="h-2 bg-white/5 rounded-full overflow-hidden shadow-inner">
-                    <div class="h-full bg-danger shadow-[0_0_15px_rgba(var(--danger-rgb),0.5)]" style="width: 84.2%"></div>
+                    <div class="h-full bg-danger shadow-[0_0_15px_rgba(var(--danger-rgb),0.5)]" style={`width: ${(props.status.audit?.integrityScore || 100) * 0.8 + 10}%`}></div>
                  </div>
                  <div class="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
-                    <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Countermeasure_State</span>
-                    <span class="status-pill warning !px-3 !py-0.5">ARMED</span>
+                    <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Countermeasure State</span>
+                    <span class={`status-pill ${props.status.audit?.integrityScore > 90 ? 'success' : 'warning'} !px-3 !py-0.5`}>{props.status.audit?.integrityScore > 90 ? 'ARMED' : 'CAUTION'}</span>
                  </div>
               </div>
            </div>

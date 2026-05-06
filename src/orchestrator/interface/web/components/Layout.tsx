@@ -10,6 +10,8 @@ export const Layout = (props: {
   title: string;
   children: any;
   csrfToken?: string;
+  nonce?: string;
+  hostname?: string;
   islandPaths?: string[];
 }) => {
   return (
@@ -18,7 +20,7 @@ export const Layout = (props: {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="csrf-token" content={props.csrfToken} />
-        <title>{props.title} | Sovereign Orchestrator</title>
+        <title>{props.title} | {props.hostname || 'Sovereign Orchestrator'}</title>
         <link rel="stylesheet" href="/style.css" />
       </head>
       <body class="bg-[#050505] text-slate-100 font-sans selection:bg-primary/30 overflow-hidden">
@@ -158,7 +160,7 @@ export const Layout = (props: {
                 <div class="flex items-center gap-8">
                    <div class="flex items-center gap-3">
                       <span class="dot active"></span>
-                      <span class="mono-xs font-black text-primary tracking-[0.4em] uppercase">Sovereign Active</span>
+                      <span class="mono-xs font-black text-primary tracking-[0.4em] uppercase">{props.hostname || 'Sovereign Active'}</span>
                    </div>
                 </div>
                 
@@ -242,19 +244,20 @@ export const Layout = (props: {
         <alert-overlay></alert-overlay>
         
         {/* Authoritative Script Injection */}
-        <script type="module" src="/components/islands/MetricsHydrator.js"></script>
-        <script type="module" src="/components/islands/AlertOverlay.js"></script>
-        <script type="module" src="/components/islands/SystemHealth.js"></script>
-        <script type="module" src="/components/islands/MiniLog.js"></script>
+        <script type="module" src="/components/islands/MetricsHydrator.js" nonce={props.nonce}></script>
+        <script type="module" src="/components/islands/AlertOverlay.js" nonce={props.nonce}></script>
+        <script type="module" src="/components/islands/SystemHealth.js" nonce={props.nonce}></script>
+        <script type="module" src="/components/islands/MiniLog.js" nonce={props.nonce}></script>
         
         {props.islandPaths?.map(path => (
           !['MetricsHydrator.js', 'AlertOverlay.js', 'SystemHealth.js', 'MiniLog.js'].some(f => path.includes(f)) && 
-          <script type="module" src={path}></script>
+          <script type="module" src={path} nonce={props.nonce}></script>
         ))}
 
-        <script dangerouslySetInnerHTML={{ __html: `
+        <script nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
           // Unified UI State Manager
-          window.csrfToken = "${props.csrfToken || ''}";
+          // window.csrfToken is removed for security (SEC-02). 
+          // Use document.querySelector('meta[name="csrf-token"]').content instead.
           
           function syncInterface() {
             const path = window.location.pathname;

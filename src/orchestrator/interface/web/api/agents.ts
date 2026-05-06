@@ -1,6 +1,6 @@
 import { Hono, Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { SidecarName } from "@infrastructure/system/validation.ts";
+import { SidecarName, isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
 export function createAgentsApi(services: ServiceContainer) {
   const router = new Hono();
@@ -54,18 +54,32 @@ export function createAgentsApi(services: ServiceContainer) {
 
   // Firewall specific controls
   router.post("/firewall/block", async (c: Context) => {
+    const role = c.get("role");
+    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
+
     const payload = await c.req.json();
+    if (!payload.ip || !isValidIP(payload.ip)) return c.json({ error: "Invalid IP address" }, 400);
+    if (isCriticalInfrastructure(payload.ip)) return c.json({ error: "Cannot block critical infrastructure" }, 403);
+
     const result = await services.protection.firewall.blockIp(payload.ip);
     return c.json(result);
   });
 
   router.post("/firewall/unblock", async (c: Context) => {
+    const role = c.get("role");
+    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
+
     const payload = await c.req.json();
+    if (!payload.ip || !isValidIP(payload.ip)) return c.json({ error: "Invalid IP address" }, 400);
+
     const result = await services.protection.firewall.unblockIp(payload.ip);
     return c.json(result);
   });
 
   router.post("/firewall/flush", async (c: Context) => {
+    const role = c.get("role");
+    if (role !== "admin") return c.json({ error: "Forbidden: Admin required to flush firewall" }, 403);
+
     const result = await services.protection.firewall.flushRules();
     return c.json(result);
   });
@@ -93,18 +107,8 @@ export function createAgentsApi(services: ServiceContainer) {
   });
   
   router.get("/scanner/ledger", async (c: Context) => {
-    const curatedIntel = services.curatedIntel;
-    const kv = (curatedIntel as any).kv;
-    if (!kv) return c.json([]);
-    
-    const iter = kv.list({ prefix: ["curated_threats"] });
-    const ledger = [];
-    for await (const entry of iter) {
-      if (entry.value.type === "HASH" && entry.value.score >= 90) {
-        ledger.push(entry.value);
-      }
-    }
-    return c.json(ledger.sort((a: any, b: any) => b.score - a.score).slice(0, 50));
+    const ledger = await services.curatedIntel.getLedger({ type: "HASH", minScore: 90, limit: 50 });
+    return c.json(ledger);
   });
 
   return router;

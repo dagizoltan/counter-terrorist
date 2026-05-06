@@ -18,15 +18,23 @@ export class SecurityMiddleware {
    */
   public hardenedHeaders() {
     return async (c: Context, next: Next) => {
-      c.res.headers.set(
-        "Content-Security-Policy",
-        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
-      );
-      c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
-      c.res.headers.set("X-Frame-Options", "DENY");
-      c.res.headers.set("X-Content-Type-Options", "nosniff");
-      c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      // Generate a fresh nonce for every request
+      const nonce = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16))));
+      c.set("nonce", nonce);
+
       await next();
+
+      // Apply headers to the final response
+      if (c.res) {
+        c.res.headers.set(
+          "Content-Security-Policy",
+          `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`
+        );
+        c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+        c.res.headers.set("X-Frame-Options", "DENY");
+        c.res.headers.set("X-Content-Type-Options", "nosniff");
+        c.res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      }
     };
   }
 

@@ -26,12 +26,18 @@ export function createThreatsApi(services: ServiceContainer) {
     });
 
     router.post("/identified/sync", async (c) => {
+        const role = c.get("role");
+        if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
+
         const { provider } = await c.req.json().catch(() => ({}));
         await services.curatedIntel.sync(provider);
         return c.json({ success: true, provider });
     });
 
     router.post("/identified/wipe", async (c) => {
+        const role = c.get("role");
+        if (role !== "admin") return c.json({ error: "Forbidden: Admin role required for database wipe" }, 403);
+
         await services.curatedIntel.wipeDatabase();
         return c.json({ success: true });
     });

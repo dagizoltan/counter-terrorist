@@ -60,6 +60,7 @@ export interface AntivirusPort {
   getStatus(): Promise<any>;
   scanPath(path: string): Promise<{ success: boolean; threatsFound: boolean; message: string; details?: string }>;
   quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }>;
+  syncSignatures(): Promise<CommandResult>;
 }
 
 export interface PersistencePort {

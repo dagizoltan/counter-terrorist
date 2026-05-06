@@ -529,4 +529,22 @@ export class CuratedIntelService {
         }
         return stats;
     }
+
+    async getLedger(options: { type?: string; minScore?: number; limit?: number } = {}): Promise<IntelIndicator[]> {
+        if (!this.kv) return [];
+        const { type = "HASH", minScore = 90, limit = 50 } = options;
+        
+        const iter = this.kv.list<IntelIndicator>({ prefix: ["curated_threats"] });
+        const ledger: IntelIndicator[] = [];
+        
+        for await (const res of iter) {
+            const t = res.value;
+            if (t.type === type && t.score >= minScore) {
+                ledger.push(t);
+            }
+            if (ledger.length >= limit * 2) break; // Fetch more to allow sorting but limit scan
+        }
+        
+        return ledger.sort((a, b) => b.score - a.score).slice(0, limit);
+    }
 }
