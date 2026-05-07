@@ -3,7 +3,7 @@ import { createProtection } from "@infrastructure/system/protection/index.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { PlatformInfo } from "@infrastructure/system/platform.ts";
-import { CommandResult } from "@infrastructure/system/command_manager.ts";
+import { CommandResult } from "@core/ports.ts";
 
 class MockExecutor extends SystemExecutor {
   override async execute(_cmd: string, _args: string[] = []): Promise<CommandResult> {
@@ -13,10 +13,10 @@ class MockExecutor extends SystemExecutor {
 
 Deno.test("createProtection returns a Protection object with all managers", () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
 
-  const protection = createProtection(sidecar, executor, platform);
+  const protection = createProtection(sidecar, executor, platform, null as any);
 
   assertEquals(typeof protection.firewall, "object");
   assertEquals(typeof protection.vpn, "object");

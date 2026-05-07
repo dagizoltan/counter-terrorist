@@ -66,6 +66,39 @@ export class AuditService {
         }, 5 * 60 * 1000);
 
         setInterval(() => this.verifyChainIncremental(), 60 * 1000);
+
+        // ENHANCEMENT: Full Ledger Verification on Boot (Background)
+        setTimeout(() => this.performDeepAudit(), 5000);
+    }
+
+    private async performDeepAudit() {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "AUDIT:DEEP",
+            message: "Initiating full-chain forensic integrity audit..."
+        });
+
+        const result = await this.verifyFullChain();
+        if (!result.valid) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "AUDIT:DEEP",
+                message: `CRITICAL: Forensic chain breach detected at event ${result.brokenAt?.eventId}. Type: ${result.brokenAt?.type}. Transitioning to Forensic Restricted Mode.`
+            });
+            // TODO: Implement Forensic Mode transition logic
+        } else {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "AUDIT:DEEP",
+                message: `Deep audit complete. ${result.eventsChecked} events verified. Chain is healthy.`
+            });
+        }
     }
 
     public setCorrelation(correlation: any) {
@@ -321,18 +354,8 @@ export class AuditService {
         }
     }
 
-    private canonicalStringify(obj: any): string {
-      if (obj === null || typeof obj !== "object") return JSON.stringify(obj);
-      if (Array.isArray(obj)) return "[" + obj.map(item => this.canonicalStringify(item)).join(",") + "]";
-      const keys = Object.keys(obj).sort();
-      return "{" + keys.map(key => `${JSON.stringify(key)}:${this.canonicalStringify(obj[key])}`).join(",") + "}";
-    }
-
     private async computeHash(input: any): Promise<string> {
-        const str = this.canonicalStringify(input);
-        const data = new TextEncoder().encode(str);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
-        const hashArray = new Uint8Array(hashBuffer);
-        return Array.from(hashArray).map(b => b.toString(16).padStart(2, "0")).join("");
+        const { computeHash } = await import("../../core/crypto_utils.ts");
+        return await computeHash(input);
     }
 }

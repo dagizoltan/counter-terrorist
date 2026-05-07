@@ -16,7 +16,7 @@ class MockSidecarManager extends SidecarManager {
   shouldFail = false;
 
   constructor() {
-    super(new SystemExecutor());
+    super(new SystemExecutor(), null as any);
   }
 
   override async sendCommand(_name: string, _cmd: string | object): Promise<any> {

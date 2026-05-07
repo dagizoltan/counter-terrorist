@@ -679,39 +679,12 @@ export class MeshManager {
   }
 
   /**
-   * Deterministic JSON stringifier to ensure signature consistency.
-   */
-  private canonicalStringify(obj: any): string {
-    if (obj === null || typeof obj !== "object") {
-      return JSON.stringify(obj);
-    }
-    if (Array.isArray(obj)) {
-      return "[" + obj.map(item => this.canonicalStringify(item)).join(",") + "]";
-    }
-    const keys = Object.keys(obj).sort();
-    return "{" + keys.map(key => `${JSON.stringify(key)}:${this.canonicalStringify(obj[key])}`).join(",") + "}";
-  }
-
-  /**
    * Generates a HMAC-SHA256 signature for a payload using the MESH_SECRET.
    */
   async signPayload(payload: any): Promise<string> {
     if (!this.meshSecret) return "unsigned";
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(this.meshSecret);
-    const key = await crypto.subtle.importKey(
-      "raw",
-      keyData,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"]
-    );
-    const signature = await crypto.subtle.sign(
-      "HMAC",
-      key,
-      encoder.encode(this.canonicalStringify(payload))
-    );
-    return btoa(String.fromCharCode(...new Uint8Array(signature)));
+    const { signPayload } = await import("../../core/crypto_utils.ts");
+    return await signPayload(payload, this.meshSecret);
   }
 
   /**
@@ -719,24 +692,8 @@ export class MeshManager {
    */
   async verifySignature(payload: any, signature: string): Promise<boolean> {
     if (!this.meshSecret) return false;
-    const encoder = new TextEncoder();
-    const keyData = encoder.encode(this.meshSecret);
-    const key = await crypto.subtle.importKey(
-      "raw",
-      keyData,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["verify"]
-    );
-    const sigData = new Uint8Array(
-      atob(signature).split("").map((c) => c.charCodeAt(0))
-    );
-    return await crypto.subtle.verify(
-      "HMAC",
-      key,
-      sigData,
-      encoder.encode(this.canonicalStringify(payload))
-    );
+    const { verifySignature } = await import("../../core/crypto_utils.ts");
+    return await verifySignature(payload, signature, this.meshSecret);
   }
 
   /**

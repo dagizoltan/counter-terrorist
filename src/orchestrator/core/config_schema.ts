@@ -8,7 +8,7 @@ export const ConfigSchema = z.object({
   PORT: z.coerce.number().default(8000),
   API_TOKEN: z.string().min(16, "API_TOKEN must be at least 16 characters for security"),
   MESH_SECRET: z.string().min(16, "MESH_SECRET must be at least 16 characters"),
-  ALLOWED_ORIGINS: z.string().default("*"),
+  ALLOWED_ORIGINS: z.string().default("self"),
   TLS_CERT_PATH: z.string().optional(),
   TLS_KEY_PATH: z.string().optional(),
   SESSION_TTL_HOURS: z.coerce.number().default(24),

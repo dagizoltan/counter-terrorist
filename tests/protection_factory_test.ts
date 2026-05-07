@@ -35,11 +35,15 @@ class MockSidecarManager extends SidecarManager {
     this.sidecarCalls.push({ name, args });
     return { success: true, stdout: "", stderr: "" };
   }
+
+  override async sendCommand(name: string, _cmd: string | object): Promise<CommandResult> {
+    return { success: true, stdout: "", stderr: "" };
+  }
 }
 
 Deno.test("createVpnManager - Windows platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
 
   const manager = createVpnManager(sidecar, executor, platform);
@@ -52,7 +56,7 @@ Deno.test("createVpnManager - Windows platform", async () => {
 
 Deno.test("createVpnManager - Ubuntu platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
 
   // UbuntuVpnProvider first checks if wg-quick exists
@@ -70,7 +74,7 @@ Deno.test("createVpnManager - Ubuntu platform", async () => {
 
 Deno.test("createVpnManager - Default to Ubuntu for other platforms (macos)", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "macos", version: "15", tag: "macos_15" };
 
   executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
@@ -83,7 +87,7 @@ Deno.test("createVpnManager - Default to Ubuntu for other platforms (macos)", as
 
 Deno.test("createVpnManager - Default to Ubuntu for unknown platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "unknown", version: "unknown", tag: "unknown" };
 
   executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
@@ -96,7 +100,7 @@ Deno.test("createVpnManager - Default to Ubuntu for unknown platform", async () 
 
 Deno.test("createVpnManager - Full lifecycle (Windows)", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
 
   const manager = createVpnManager(sidecar, executor, platform);
@@ -122,7 +126,7 @@ Deno.test("createVpnManager - Full lifecycle (Windows)", async () => {
 
 Deno.test("createVpnManager - Full lifecycle (Ubuntu)", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
 
   executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
@@ -152,10 +156,10 @@ Deno.test("createVpnManager - Full lifecycle (Ubuntu)", async () => {
 
 Deno.test("createFirewallManager - Windows platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
 
-  const manager = createFirewallManager(sidecar, executor, platform);
+  const manager = createFirewallManager(sidecar, executor, platform, null as any);
 
   await manager.blockIp("1.2.3.4");
   assertEquals(executor.lastCmd, "netsh");
@@ -164,10 +168,10 @@ Deno.test("createFirewallManager - Windows platform", async () => {
 
 Deno.test("createFirewallManager - Ubuntu platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new MockSidecarManager(executor);
+  const sidecar = new MockSidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
 
-  const manager = createFirewallManager(sidecar, executor, platform);
+  const manager = createFirewallManager(sidecar, executor, platform, null as any);
 
   await manager.blockIp("1.2.3.4");
   assertEquals(sidecar.sidecarCalls.length, 1);
@@ -177,7 +181,7 @@ Deno.test("createFirewallManager - Ubuntu platform", async () => {
 
 Deno.test("createAntivirusManager", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
 
   const manager = createAntivirusManager(sidecar, executor);
 
@@ -188,7 +192,7 @@ Deno.test("createAntivirusManager", async () => {
 
 Deno.test("createPersistenceManager - Windows platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
 
   const manager = createPersistenceManager(sidecar, executor, platform);
@@ -200,7 +204,7 @@ Deno.test("createPersistenceManager - Windows platform", async () => {
 
 Deno.test("createPersistenceManager - Ubuntu platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
 
   const manager = createPersistenceManager(sidecar, executor, platform);
@@ -212,7 +216,7 @@ Deno.test("createPersistenceManager - Ubuntu platform", async () => {
 
 Deno.test("createPersistenceManager - Default to Ubuntu for other platforms", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor);
+  const sidecar = new SidecarManager(executor, null as any);
   const platform: PlatformInfo = { name: "macos", version: "15", tag: "macos_15" };
 
   const manager = createPersistenceManager(sidecar, executor, platform);
@@ -223,7 +227,7 @@ Deno.test("createPersistenceManager - Default to Ubuntu for other platforms", as
 
 Deno.test("createPcapManager", async () => {
   const executor = new MockExecutor();
-  const sidecar = new MockSidecarManager(executor);
+  const sidecar = new MockSidecarManager(executor, null as any);
 
   const manager = createPcapManager(sidecar, executor);
 

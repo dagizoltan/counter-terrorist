@@ -16,17 +16,19 @@ interface CommandPolicy {
  */
 export class SystemExecutor {
   private static readonly WHITELISTED_COMMANDS = [
-    "clamscan", "mkdir", "mv", "chmod", "ls", "sha256sum", "bash", "systemctl",
-    "crontab", "which", "where", "powershell", "netsh", "taskkill", "tc", "kill",
+    "clamscan", "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
+    "crontab", "which", "where", "netsh", "taskkill", "tc", "kill",
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
-    "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss", "cargo",
-    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sudo", "tcpdump", "rkhunter", "sw_vers", "openssl",
-    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn"
+    "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
+    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
+    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn",
+    "install_service.sh", "update_crontab.sh", "update_comm.sh", "secure_spawn.sh"
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [
     "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", 
-    "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "tcpdump", "setcap"
+    "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "tcpdump", "setcap",
+    "chmod", "mkdir", "cp", "mv", "secure_spawn.sh"
   ];
 
   /**
@@ -46,35 +48,27 @@ export class SystemExecutor {
       maxArgs: 2
     },
     "chmod": {
-      allowedArgs: [/^[0-7]{3,4}$/, /^\.\/volume\/.*$/],
+      allowedArgs: [/^[0-7]{3,4}$/, /^(\.\/volume\/.*|\/etc\/systemd\/system\/cts-.*)$/],
       maxArgs: 2
     },
     "mkdir": {
-      allowedArgs: [/^-p$/, /^\.\/volume\/.*$/],
+      allowedArgs: [/^-p$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
       maxArgs: 2
-    },
-    "bash": {
-      allowedArgs: [/^\.\/scripts\/[a-z0-9_-]+\.sh$/], 
-      maxArgs: 1
     },
     "tcpdump": {
       allowedArgs: [/^-i$/, /^[a-z0-9]+$/, /^-w$/, /^\.\/volume\/storage\/captures\/[a-zA-Z0-9._-]+\.pcap$/, /^-G$/, /^[0-9]+$/, /^-W$/, /^1$/],
       maxArgs: 8
     },
-    "powershell": {
-      allowedArgs: [/^-Command$/, /^([A-Za-z0-9_-]+ VPNConnection -Name '[a-zA-Z0-9_-]+'|Get-VpnConnection)$/],
-      maxArgs: 2
-    },
     "ls": {
-      allowedArgs: [/^-la?$/, /^\.\/volume\/.*$/],
+      allowedArgs: [/^-la?$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
       maxArgs: 2
     },
     "cp": {
-      allowedArgs: [/^\.\/volume\/.*$/, /^\.\/volume\/.*$/],
+      allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
       maxArgs: 2
     },
     "mv": {
-      allowedArgs: [/^\.\/volume\/.*$/, /^\.\/volume\/.*$/],
+      allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
       maxArgs: 2
     },
     "sw_vers": {
@@ -85,17 +79,25 @@ export class SystemExecutor {
       allowedArgs: [/^[a-z0-9-]+$/],
       maxArgs: 1
     },
-    "sudo": {
-      allowedArgs: [/^-n$/, /^(setcap|ufw|tc|iptables|systemctl)$/, /.+/],
-      maxArgs: 10
+    "install_service.sh": {
+      allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /.*/],
+      maxArgs: 2
+    },
+    "update_crontab.sh": {
+      allowedArgs: [/.*/],
+      maxArgs: 1
+    },
+    "update_comm.sh": {
+      allowedArgs: [/^\[[a-z0-9/:]+\]$/, /^[0-9]+$/],
+      maxArgs: 2
+    },
+    "secure_spawn.sh": {
+      allowedArgs: [/^[a-z0-9-]+$/, /^[a-zA-Z0-9./_-]+$/, /^[a-z0-9,._+]*$/],
+      maxArgs: 3
     },
     "openssl": {
-      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /.+/, /^-out$/, /.+/, /.+/],
+      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^[a-zA-Z0-9./_-]+$/, /^-out$/, /^[a-zA-Z0-9./_-]+$/, /^[a-zA-Z0-9./_-]+$/],
       maxArgs: 10
-    },
-    "cargo": {
-      allowedArgs: [/^(build|run|test)$/, /^--release$/, /^--package$/, /^[a-z0-9_-]+$/],
-      maxArgs: 5
     },
     "scanner": { maxArgs: 10 },
     "blocker": { maxArgs: 10 },
