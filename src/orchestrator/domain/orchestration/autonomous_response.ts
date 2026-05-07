@@ -69,7 +69,13 @@ export class AutonomousResponseEngine {
         }
         this.history.set(key, events);
 
-        await this.logging.log(`[AUTONOMOUS] Evaluating threat from ${key}. Score: ${currentScore}`, SyslogSeverity.DEBUG);
+        await this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.INFO,
+            caller: "AUTONOMOUS",
+            message: `Evaluating threat from ${key}. Score: ${currentScore}`
+        });
 
         const decision = this.policy.evaluate(currentScore);
         await this.executeRemediation(key, decision.action, event);
@@ -112,12 +118,24 @@ export class AutonomousResponseEngine {
 
         switch (tier) {
             case "LOCKDOWN":
-                await this.logging.log(`[AUTONOMOUS] GLOBAL LOCKDOWN for ${source}`, SyslogSeverity.EMERGENCY);
+                await this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "AUTONOMOUS",
+                    message: `GLOBAL LOCKDOWN for ${source}`
+                });
                 await this.protection.firewall.lockdown();
                 break;
 
             case "ISOLATE":
-                await this.logging.log(`[AUTONOMOUS] NODE ISOLATION for ${source}`, SyslogSeverity.EMERGENCY);
+                await this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "AUTONOMOUS",
+                    message: `NODE ISOLATION for ${source}`
+                });
                 if (source.includes(".")) {
                     await this.protection.firewall.blockIp(source);
                 } else {
@@ -126,7 +144,13 @@ export class AutonomousResponseEngine {
                 break;
 
             case "BLOCK":
-                await this.logging.log(`[AUTONOMOUS] ENFORCED BLOCK for ${source}`, SyslogSeverity.CRITICAL);
+                await this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "AUTONOMOUS",
+                    message: `ENFORCED BLOCK for ${source}`
+                });
                 if (source.includes(".")) {
                     await this.protection.firewall.blockIp(source);
                 } else {
@@ -148,7 +172,13 @@ export class AutonomousResponseEngine {
                 break;
 
             case "SHADOW":
-                await this.logging.log(`[AUTONOMOUS] SHADOW REDIRECTION for ${source}`, SyslogSeverity.CRITICAL);
+                await this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "AUTONOMOUS",
+                    message: `SHADOW REDIRECTION for ${source}`
+                });
                 if (source.includes(".")) {
                     await this.protection.firewall.shadowBanIp(source);
                 } else {

@@ -22,13 +22,17 @@ export class SystemExecutor {
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
     "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn",
-    "install_service.sh", "update_crontab.sh", "update_comm.sh", "secure_spawn.sh"
+    "/var/lib/cts/scripts/install_service.sh",
+    "/var/lib/cts/scripts/update_crontab.sh",
+    "/var/lib/cts/scripts/update_comm.sh",
+    "/var/lib/cts/scripts/secure_spawn.sh"
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [
     "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", 
     "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "tcpdump", "setcap",
-    "chmod", "mkdir", "cp", "mv", "secure_spawn.sh"
+    "chmod", "mkdir", "cp", "mv",
+    "/var/lib/cts/scripts/secure_spawn.sh"
   ];
 
   /**
@@ -79,19 +83,19 @@ export class SystemExecutor {
       allowedArgs: [/^[a-z0-9-]+$/],
       maxArgs: 1
     },
-    "install_service.sh": {
+    "/var/lib/cts/scripts/install_service.sh": {
       allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /.*/],
       maxArgs: 2
     },
-    "update_crontab.sh": {
+    "/var/lib/cts/scripts/update_crontab.sh": {
       allowedArgs: [/.*/],
       maxArgs: 1
     },
-    "update_comm.sh": {
+    "/var/lib/cts/scripts/update_comm.sh": {
       allowedArgs: [/^\[[a-z0-9/:]+\]$/, /^[0-9]+$/],
       maxArgs: 2
     },
-    "secure_spawn.sh": {
+    "/var/lib/cts/scripts/secure_spawn.sh": {
       allowedArgs: [/^[a-z0-9-]+$/, /^[a-zA-Z0-9./_-]+$/, /^[a-z0-9,._+]*$/],
       maxArgs: 3
     },
@@ -132,11 +136,11 @@ export class SystemExecutor {
 
   private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
     const baseCmd = path.basename(cmd);
-    const policy = SystemExecutor.COMMAND_POLICIES[baseCmd];
+    const policy = SystemExecutor.COMMAND_POLICIES[cmd] || SystemExecutor.COMMAND_POLICIES[baseCmd];
     
     // SECURITY: Deny by default if no policy exists for a whitelisted command
     if (!policy) {
-      return { valid: false, reason: `No security policy defined for whitelisted command '${baseCmd}'. Blocking for safety.` };
+      return { valid: false, reason: `No security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
     }
 
     if (policy.maxArgs !== undefined && args.length > policy.maxArgs) {
@@ -151,8 +155,8 @@ export class SystemExecutor {
             return { valid: false, reason: `Argument '${args[i]}' at index ${i} is not allowed for '${baseCmd}'` };
           }
           
-          // If the pattern looks like a path (starts with ./volume/ or ./scripts/), validate it against traversal
-          if (args[i].startsWith("./volume/") || args[i].startsWith("./scripts/")) {
+          // If the pattern looks like a path (starts with ./volume/ or /var/lib/cts/), validate it against traversal
+          if (args[i].startsWith("./volume/") || args[i].startsWith("/var/lib/cts/")) {
             if (!this.validatePath(args[i])) {
               return { valid: false, reason: `Security Violation: Path traversal detected in argument '${args[i]}'` };
             }
@@ -176,8 +180,8 @@ export class SystemExecutor {
 
   async executeAsync(cmd: string, args: string[] = []): Promise<void> {
     const baseCmd = path.basename(cmd);
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd)) {
-        throw new Error(`Security Violation: Command '${baseCmd}' is not in the system whitelist.`);
+    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+        throw new Error(`Security Violation: Command '${cmd}' is not in the system whitelist.`);
     }
 
     const validation = this.validateArguments(cmd, args);
@@ -188,7 +192,7 @@ export class SystemExecutor {
     let finalCmd = cmd;
     let finalArgs = [...args];
 
-    if (SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) && Deno.uid() !== 0) {
+    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && Deno.uid() !== 0) {
         finalCmd = "sudo";
         finalArgs = ["-n", cmd, ...args];
     }
@@ -205,11 +209,11 @@ export class SystemExecutor {
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
     const baseCmd = path.basename(cmd);
     // Security: Whitelist validation
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd)) {
+    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
         return {
             success: false,
             stdout: "",
-            stderr: `Security Violation: Command '${baseCmd}' is not in the system whitelist.`,
+            stderr: `Security Violation: Command '${cmd}' is not in the system whitelist.`,
         };
     }
 
@@ -227,7 +231,7 @@ export class SystemExecutor {
     let finalArgs = [...args];
 
     // Privilege Elevation: Automatically use sudo for privileged commands if not already root
-    if (SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) && Deno.uid() !== 0) {
+    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && Deno.uid() !== 0) {
         finalCmd = "sudo";
         finalArgs = ["-n", cmd, ...args];
     }
@@ -293,4 +297,3 @@ export class SystemExecutor {
     }
   }
 }
-
