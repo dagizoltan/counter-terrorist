@@ -19,11 +19,19 @@ export class SidecarManager implements CommandPort {
   private defaultInterface: string | null = null;
 
   private manifest: any = null;
+  private manifestPromise: Promise<void> | null = null;
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
     this.startRotationLoop();
-    this.loadManifest();
+    // Manifest load is async and uses logging, so we don't block constructor
+    // but ensure it's called after logging service is ready.
+    this.manifestPromise = new Promise(resolve => {
+        setTimeout(async () => {
+            await this.loadManifest();
+            resolve();
+        }, 0);
+    });
   }
 
   private async loadManifest() {
@@ -31,21 +39,25 @@ export class SidecarManager implements CommandPort {
         const manifestUrl = new URL("./sidecars.manifest.json", import.meta.url);
         const content = await Deno.readTextFile(manifestUrl);
         this.manifest = JSON.parse(content);
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.INFO,
-            caller: "SIDECAR_MANAGER",
-            message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
-        });
+        if (this.logging) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "SIDECAR_MANAGER",
+                message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
+            });
+        }
     } catch (e) {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.WARNING,
-            caller: "SIDECAR_MANAGER",
-            message: `Manifest unavailable. Falling back to environment-based integrity: ${(e as Error).message}`
-        });
+        if (this.logging) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "SIDECAR_MANAGER",
+                message: `Manifest unavailable. Falling back to environment-based integrity: ${(e as Error).message}`
+            });
+        }
     }
   }
 
@@ -150,7 +162,10 @@ export class SidecarManager implements CommandPort {
   private spawningPromises: Map<string, Promise<Deno.ChildProcess | null>> = new Map();
 
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
-    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `getPersistentSidecar called for: ${name}` });
+    await this.manifestPromise;
+    if (this.logging) {
+        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `getPersistentSidecar called for: ${name}` });
+    }
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     if (this.unsupportedSidecars.has(name)) return null;
     
@@ -195,9 +210,13 @@ export class SidecarManager implements CommandPort {
 
             // ENHANCEMENT: Transition to Linux Capabilities (setcap)
             // Removes dependency on sudo -n for sidecar execution
-            await this.setupCapabilities(name, binPath);
+            // We use secure_spawn.sh to move the binary to a secure directory before verification/execution
+            const caps = this.getCapabilities(name) || "";
+            await this.executor.execute("./scripts/secure_spawn.sh", [name, binPath, caps]);
 
-            const command = new Deno.Command(binPath, {
+            const secureBinPath = `/var/lib/cts/bin/${name}`;
+
+            const command = new Deno.Command(secureBinPath, {
                 args: [],
                 stdin: "piped",
                 stdout: "piped",
@@ -527,7 +546,7 @@ export class SidecarManager implements CommandPort {
     return process ? process.pid : null;
   }
 
-  private async setupCapabilities(name: string, binPath: string) {
+  private getCapabilities(name: string): string | undefined {
     const caps: Record<string, string> = {
         "firewall": "cap_net_admin,cap_kill+ep",
         "blocker": "cap_net_admin,cap_kill+ep",
@@ -536,30 +555,7 @@ export class SidecarManager implements CommandPort {
         "vpn": "cap_net_admin+ep",
         "mesh": "cap_net_bind_service+ep"
     };
-
-    const targetCaps = caps[name];
-    if (targetCaps && Deno.build.os === "linux") {
-        try {
-            // Apply capabilities using sudo once (during setup)
-            // This is safer than running the sidecar as root continuously
-            await this.executor.execute("sudo", ["setcap", targetCaps, binPath]);
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.ACTIVITY,
-                severity: LogSeverity.INFO,
-                caller: "SIDECAR_MANAGER",
-                message: `Applied capabilities [${targetCaps}] to sidecar: ${name}`
-            });
-        } catch (e) {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "SIDECAR_MANAGER",
-                message: `Failed to apply capabilities to ${name}: ${(e as Error).message}`
-            });
-        }
-    }
+    return caps[name];
   }
 
   private async verifyAndHeal(name: string, binPath: string, force: boolean = false): Promise<boolean> {

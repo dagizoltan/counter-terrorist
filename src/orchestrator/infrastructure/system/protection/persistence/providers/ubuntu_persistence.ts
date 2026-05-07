@@ -52,7 +52,7 @@ WantedBy=multi-user.target
 
     // 1. Install Systemd Service (only if root)
     if (Deno.uid() === 0) {
-      await this.executor.execute("bash", ["-c", `echo '${serviceContent}' > ${servicePath}`]);
+      await this.executor.execute("./scripts/install_service.sh", [servicePath, serviceContent]);
       await this.executor.execute("systemctl", ["daemon-reload"]);
       await this.executor.execute("systemctl", ["enable", serviceName]);
     }
@@ -61,6 +61,6 @@ WantedBy=multi-user.target
     const startScript = `${projectRoot}/start.sh`;
     // Security: Sanitize paths by quoting them to handle spaces/special chars
     const cronCmd = `* * * * * pgrep -f "deno.*orchestrator" || (cd "${projectRoot}" && "${startScript}")`;
-    await this.executor.execute("bash", ["-c", `(crontab -l 2>/dev/null | grep -v "deno.*orchestrator"; echo '${cronCmd}') | crontab -`]);
+    await this.executor.execute("./scripts/update_crontab.sh", [cronCmd]);
   }
 }

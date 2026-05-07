@@ -1,6 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
-import { checkDependency } from "@orchestrator/bootstrapper.ts";
+import { checkDependency } from "@app/bootstrapper.ts";
 
 Deno.test("checkDependency - which succeeds", async () => {
   const commandStub = stub(Deno, "Command", (cmd: any, options?: any) => {
