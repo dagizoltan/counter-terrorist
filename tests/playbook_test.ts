@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "https://deno.land/std/testing/asserts.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { PlaybookService } from "@domain/engine/playbook_service.ts";
+import { PlaybookService } from "@domain/orchestration/playbook_service.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 

@@ -212,7 +212,7 @@ export class SidecarManager implements CommandPort {
             // Removes dependency on sudo -n for sidecar execution
             // We use secure_spawn.sh to move the binary to a secure directory before verification/execution
             const caps = this.getCapabilities(name) || "";
-            await this.executor.execute("./scripts/secure_spawn.sh", [name, binPath, caps]);
+            await this.executor.execute("/var/lib/cts/scripts/secure_spawn.sh", [name, binPath, caps]);
 
             const secureBinPath = `/var/lib/cts/bin/${name}`;
 
