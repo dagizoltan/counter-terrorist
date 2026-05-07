@@ -36,7 +36,7 @@ export class PlaybookService {
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "PLAYBOOK:ARTIFACT",
             message: `[PLAYBOOK] Engaging 'Artifact Containment' for ${artifact.slice(0, 8)}...`
         });
@@ -83,7 +83,7 @@ export class PlaybookService {
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "PLAYBOOK:PERIMETER",
             message: `[PLAYBOOK] Engaging 'Perimeter Lockdown' for ${ip}`
         });

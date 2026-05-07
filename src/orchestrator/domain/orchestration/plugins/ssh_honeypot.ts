@@ -61,7 +61,7 @@ export class SshHoneypotPlugin implements Plugin {
         type: "AUDIT_EVENT",
         data: {
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "decoy:ssh",
             message: `SSH Honeypot Triggered: Connection from ${remoteAddr}`,
             data: { source_ip: remoteAddr, port: this.port }

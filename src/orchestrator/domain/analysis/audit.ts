@@ -117,6 +117,17 @@ export class AuditService {
         }
     }
 
+    async syncEvents(events: AuditEvent[]) {
+        for (const event of events) {
+            try {
+                await this.repo.save(event);
+            } catch (e) {
+                // Ignore duplicates or errors during blind sync
+            }
+        }
+        await this.restoreChainHead();
+    }
+
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }) {
         this.logQueue = this.logQueue.then(async () => {
             const id = crypto.randomUUID();

@@ -34,7 +34,7 @@ export class AutonomousAutopilotService {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "AUTOPILOT",
             message: `AUTONOMOUS CONTAINMENT ENGAGED for subject: ${chain.subject}. Executing 'Full-Lockdown' playbook.`
         });

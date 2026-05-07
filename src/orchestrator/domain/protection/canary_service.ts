@@ -214,7 +214,7 @@ export class CanaryService {
                 token.triggered = true;
                 this.auditService.logEvent({
                     type: LogType.AUDIT,
-                    severity: LogSeverity.CRITICAL,
+                    severity: LogSeverity.ERROR,
                     caller: "decoy:canary",
                     message: `CANARY TRIGGERED: ${process} accessed ${token.description}`,
                     data: { path: token.projectionPath, process, description: token.description }

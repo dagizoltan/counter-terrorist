@@ -67,7 +67,7 @@ export class ChaosEngine {
 
     await this.auditService.logEvent({
         type: LogType.AUDIT,
-        severity: LogSeverity.CRITICAL,
+        severity: LogSeverity.ERROR,
         caller: "chaos:simulator",
         message: `CHAOS_SIM: Unauthorized access to canary breadcrumb: ${path}`,
         data: { simulation: true, vector: "DATA_EXFIL" }
@@ -96,7 +96,7 @@ export class ChaosEngine {
 
     await this.auditService.logEvent({
         type: LogType.AUDIT,
-        severity: LogSeverity.CRITICAL,
+        severity: LogSeverity.ERROR,
         caller: "chaos:simulator",
         message: `CHAOS_SIM: Cryptominer signature detected in kernel: ${proc}`,
         data: { simulation: true, vector: "UNAUTHORIZED_COMPUTE" }

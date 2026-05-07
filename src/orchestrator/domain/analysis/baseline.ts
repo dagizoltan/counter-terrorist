@@ -300,7 +300,7 @@ export class BaselineService {
                 type: "AUDIT_EVENT",
                 data: {
                     type: LogType.AUDIT,
-                    severity: LogSeverity.CRITICAL,
+                    severity: LogSeverity.ERROR,
                     caller: "system:baseline",
                     message: `CRITICAL FILE MODIFIED: ${criticalChanges[0].path} (and ${criticalChanges.length - 1} others)`,
                     data: criticalChanges

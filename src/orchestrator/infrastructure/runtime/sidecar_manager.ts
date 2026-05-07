@@ -435,13 +435,13 @@ export class SidecarManager implements CommandPort {
 
   async sendCommand(name: string, cmd: string | object): Promise<CommandResult> {
     const child = await this.getPersistentSidecar(name);
-    if (!child) throw new Error(`Sidecar ${name} not found`);
+    if (!child) return { success: false, stdout: "", stderr: `Sidecar ${name} not found` };
 
     const id = crypto.randomUUID();
     let commandObj: any = typeof cmd === "string" ? { id, type: cmd } : { ...cmd, id };
 
     if (!validateRequest(name as SidecarName, commandObj)) {
-      throw new Error(`Security violation: Invalid command for sidecar '${name}'`);
+      return { success: false, stdout: "", stderr: `Security violation: Invalid command for sidecar '${name}'` };
     }
 
     const responsePromise = new Promise<CommandResult>((resolve, reject) => {
@@ -578,7 +578,7 @@ export class SidecarManager implements CommandPort {
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
         caller: "SIDECAR_MANAGER",
-        message: `Integrity Mismatch for ${name}! Expected: ${goldenHash.slice(0, 8)}, Actual: ${currentHash.slice(0, 8)}. Attempting resurrection...`
+        message: `Integrity Mismatch for ${name}! Expected: ${goldenHash?.slice(0, 8) || "UNKNOWN"}, Actual: ${currentHash?.slice(0, 8) || "UNKNOWN"}. Attempting resurrection...`
     });
 
     // SELF-HEALING: Attempt to rotate from golden repository

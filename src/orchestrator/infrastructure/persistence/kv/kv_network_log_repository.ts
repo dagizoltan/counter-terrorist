@@ -2,10 +2,10 @@ import { NetworkLogRepository, NetworkLogEntry } from "@domain/repositories/netw
 import { TimelineRepository } from "../repositories/timeline_repository.ts";
 
 export class KvNetworkLogRepository implements NetworkLogRepository {
-    private repo: TimelineRepository<NetworkLogEntry & { id: string }>;
+    private repo: TimelineRepository<NetworkLogEntry & { id: string; timestamp: string }>;
 
     constructor(kv: Deno.Kv) {
-        this.repo = new TimelineRepository<NetworkLogEntry & { id: string }>(kv, "network_logs");
+        this.repo = new TimelineRepository<NetworkLogEntry & { id: string; timestamp: string }>(kv, "network_logs");
     }
 
     async save(entry: NetworkLogEntry): Promise<void> {

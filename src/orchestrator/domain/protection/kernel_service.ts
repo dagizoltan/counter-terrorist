@@ -160,7 +160,7 @@ export class KernelService {
         
         this.auditService.logEvent({
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "kernel:lsm",
             message: `LSM Enforcement: Blocked syscall '${syscall}' for process ${pid}`,
             data: { pid, syscall }

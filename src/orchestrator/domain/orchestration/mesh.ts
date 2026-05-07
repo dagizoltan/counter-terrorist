@@ -412,7 +412,7 @@ export class MeshManager {
         type: "AUDIT_EVENT",
         data: {
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "mesh:p2p",
             message: `Node ${node.hostname} isolated from mesh network!`,
             data: { nodeId }
@@ -822,15 +822,7 @@ export class MeshManager {
         "Sec-Fetch-User": "?1",
         "Upgrade-Insecure-Requests": "1"
     };
-    if (this.meshSecret) {
-      const signature = await this.signPayload(paddedPayload);
-      headers["X-Mesh-Signature"] = signature;
-    }
 
-    // TRAFFIC CAMOUFLAGE: Random jitter and truly variable padding
-    const jitter = Math.floor(Math.random() * 800); 
-    await new Promise(r => setTimeout(r, jitter));
-    
     // Improved padding: Random length and random content to avoid divisibility/repeat fingerprinting
     const paddingLength = Math.floor(Math.random() * 256);
     const padding = Array.from({ length: paddingLength }, () => Math.random().toString(36)[2]).join('');
@@ -839,6 +831,15 @@ export class MeshManager {
       ...payload,
       _p: padding
     };
+
+    if (this.meshSecret) {
+      const signature = await this.signPayload(paddedPayload);
+      headers["X-Mesh-Signature"] = signature;
+    }
+
+    // TRAFFIC CAMOUFLAGE: Random jitter and truly variable padding
+    const jitter = Math.floor(Math.random() * 800); 
+    await new Promise(r => setTimeout(r, jitter));
 
     const res = await fetch(url, {
         method: "POST",

@@ -27,7 +27,7 @@ export class EventMediator {
             const event = response.data || response;
             this.broadcast({ 
                 type: LogType.AUDIT, 
-                severity: LogSeverity.CRITICAL,
+                severity: LogSeverity.ERROR,
                 caller: event.caller || "decoy:honeypot",
                 message: `Honeypot Trigger: ${event.type} from ${event.source_ip || 'remote'}`, 
                 data: event 
@@ -76,7 +76,7 @@ export class EventMediator {
  
                 const type = isCanary ? LogType.AUDIT : LogType.ACTIVITY;
                 const caller = isCanary ? "decoy:canary" : "fim:observer";
-                const severity = isCanary ? LogSeverity.CRITICAL : LogSeverity.WARNING;
+                const severity = isCanary ? LogSeverity.ERROR : LogSeverity.WARNING;
  
                 this.logger.log({
                     timestamp: new Date().toISOString(),
@@ -105,7 +105,7 @@ export class EventMediator {
 
             // Bridge sidecar packet events to the UI
             if (event.type === "PACKET" || event.type === "NETWORK_LOG" || event.type === "EXFIL_ALERT") {
-                const severity = event.type === "EXFIL_ALERT" ? LogSeverity.CRITICAL : LogSeverity.INFO;
+                const severity = event.type === "EXFIL_ALERT" ? LogSeverity.ERROR : LogSeverity.INFO;
                 const type = event.type === "EXFIL_ALERT" ? LogType.AUDIT : LogType.ACTIVITY;
 
                 if (event.type === "EXFIL_ALERT") {
@@ -141,7 +141,7 @@ export class EventMediator {
             if (data.type === "ThreatDetected" || data.type === "RKH_SCAN_RESULT") {
                 this.broadcast({ 
                     type: LogType.AUDIT, 
-                    severity: LogSeverity.CRITICAL,
+                    severity: LogSeverity.ERROR,
                     caller: "scanner:rkhunter",
                     message: `Scanner Alert: ${data.type}`, 
                     data 

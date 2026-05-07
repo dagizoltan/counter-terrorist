@@ -27,7 +27,7 @@ export class RkhunterManager {
                     type: "AUDIT_EVENT",
                     data: {
                         type: LogType.AUDIT,
-                        severity: LogSeverity.CRITICAL,
+                        severity: LogSeverity.ERROR,
                         caller: "scanner:rkhunter",
                         message: "Rootkit scan completed with warnings or failures.",
                         data: result

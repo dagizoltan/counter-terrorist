@@ -59,7 +59,7 @@ export class SignatureService {
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "SIG_SERVICE",
             message: `INTEGRITY BREACH: Signature mismatch for ${payloadPath}. Execution BLOCKED.`
         });

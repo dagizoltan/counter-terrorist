@@ -426,7 +426,7 @@ export class SovereignApp {
         await loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.CRITICAL,
+            severity: LogSeverity.ERROR,
             caller: "SOVEREIGN",
             message: "CRITICAL: EMERGENCY LOCKDOWN ACTIVATED. System quarantined. Forensic state preserved. Physical/MFA recovery required."
         });

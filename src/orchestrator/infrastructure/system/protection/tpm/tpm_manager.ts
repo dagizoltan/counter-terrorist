@@ -86,7 +86,7 @@ export class TPMManager {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
-                    severity: LogSeverity.CRITICAL,
+                    severity: LogSeverity.ERROR,
                     caller: "TPM",
                     message: `Hardware Integrity Mismatch: PCR ${index} (Expected: ${expected}, Got: ${currentPcrs[Number(index)]})`
                 });

@@ -91,7 +91,7 @@ export class HoneypotPlugin implements Plugin {
           type: "AUDIT_EVENT",
           data: {
               type: LogType.AUDIT,
-              severity: LogSeverity.CRITICAL,
+              severity: LogSeverity.ERROR,
               caller: "decoy:system",
               message: `Honeypot Triggered: Unauthorized access to port ${payload.port}. Tarpitting active.`,
               data: { source_ip: payload.source_ip, port: payload.port }
@@ -135,7 +135,7 @@ export class HoneypotPlugin implements Plugin {
           type: "AUDIT_EVENT",
           data: {
               type: LogType.AUDIT,
-              severity: LogSeverity.CRITICAL,
+              severity: LogSeverity.ERROR,
               caller: "decoy:system",
               message: `Honeypot Triggered: Unauthorized file access to ${payload.path}`,
               data: { path: payload.path, event_type: payload.event_type }

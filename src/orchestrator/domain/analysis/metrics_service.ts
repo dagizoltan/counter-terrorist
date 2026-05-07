@@ -169,7 +169,7 @@ export class MetricsService {
                 loggingService.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
-                    severity: LogSeverity.CRITICAL,
+                    severity: LogSeverity.ERROR,
                     caller: "METRICS",
                     message: `FORENSIC CHAIN BREACH DETECTED at event ${verification.brokenAt?.eventId}. Type: ${verification.brokenAt?.type}`
                 });

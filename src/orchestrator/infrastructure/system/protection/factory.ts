@@ -40,9 +40,9 @@ export function createPersistenceManager(sidecar: SidecarManager, executor: Syst
   if (platform.name === "windows") {
     return new PersistenceManager(new WindowsPersistenceProvider(executor));
   }
-  return new PersistenceManager(new UbuntuPersistenceProvider(sidecar));
+  return new PersistenceManager(new UbuntuPersistenceProvider(executor));
 }
 
 export function createPcapManager(sidecar: SidecarManager, executor: SystemExecutor): PcapManager {
-  return new PcapManager(new UbuntuPcapProvider(sidecar));
+  return new PcapManager(new UbuntuPcapProvider(executor));
 }
