@@ -6,14 +6,14 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Central hub for tactical signals and global intelligence.
  * Refined for high-readability and zero-underscore policy.
  */
-export const IntelligenceCenterPage = (props: { status: any, csrfToken?: string }) => {
+export const IntelligenceCenterPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Intelligence Deck // Tactical Signal" islandPaths={[
       '/components/islands/ThreatMap.js',
       '/components/islands/MeshHeatmap.js',
       '/components/islands/ThreatIntelList.js',
       '/components/islands/NewsFeed.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">

@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use chrono::Utc;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -140,8 +140,9 @@ async fn main() -> anyhow::Result<()> {
 
                 log_forensic("info", &format!("Activating native forensic capture on {}", interface)).await;
 
+                let interface_clone = interface.clone();
                 let h = tokio::spawn(async move {
-                    let mut pcap_writer = filename.as_ref().and_then(|f| PcapngWriter::new(f, &interface).ok());
+                    let mut pcap_writer = filename.as_ref().and_then(|f| PcapngWriter::new(f, &interface_clone).ok());
                     
                     // NATIVE RAW SOCKET (AF_PACKET)
                     // For simulation/dev, we use a loop, but the writer logic is real

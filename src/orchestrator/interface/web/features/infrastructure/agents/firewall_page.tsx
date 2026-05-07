@@ -5,12 +5,12 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Firewall Agent Page
  * Hardened perimeter defense, blocklists, and active containment.
  */
-export const FirewallPage = (props: { status: any, csrfToken?: string }) => {
+export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Firewall Agent // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
       '/components/islands/AnonymizerController.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

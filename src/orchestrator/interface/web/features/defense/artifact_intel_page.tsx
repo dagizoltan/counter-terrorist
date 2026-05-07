@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Artifact Intelligence Page // Forensic Artifacts
  * Dedicated ledger for file hashes, YARA signatures, and malware DNA.
  */
-const ArtifactIntelPage = (props: { status: any, csrfToken?: string }) => {
+const ArtifactIntelPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
    return (
       <Layout title="Artifact Intelligence // Forensic Artifacts" islandPaths={[
          '/components/islands/ArtifactExplorer.js'
-      ]} csrfToken={props.csrfToken}>
+      ]} csrfToken={props.csrfToken} nonce={props.nonce}>
          <section class="p-12 space-y-12 w-full">
             <header class="page-header mb-12">
                <div class="title-group">

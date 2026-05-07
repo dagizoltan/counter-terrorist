@@ -12,6 +12,7 @@ import { SecurityMiddleware } from "./middleware/security.ts";
 import { createUiRouter } from "./routes/ui.tsx";
 import { createApiRouter } from "./routes/api.tsx";
 import { MeshAuthService } from "@domain/index.ts";
+import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 
 /**
  * WebAdapter
@@ -21,6 +22,7 @@ export class WebAdapter implements WebPort {
   private app: Hono;
   private security: SecurityMiddleware;
   private meshAuth?: MeshAuthService;
+  private server?: Deno.HttpServer;
 
   constructor(private services: ServiceContainer) {
     const masterToken = services.config.getToken();
@@ -62,7 +64,7 @@ export class WebAdapter implements WebPort {
 
     this.app.route("/login", createLoginRouter({
       checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
-      isTokenValid: (t) => this.isTokenValid(t),
+      isTokenValid: (t) => this.isTokenValid(t) as any,
       sessionService: this.services.sessions,
       config: this.services.config
     }));
@@ -265,14 +267,13 @@ export class WebAdapter implements WebPort {
 
   private async getSystemStatus(): Promise<ApplicationStatus> {
     const { bootstrap } = await import("../../app/bootstrapper.ts");
-    const { getMetricsSnapshot } = await import("@domain/analysis/metrics_service.ts");
 
     const baseStatus = await bootstrap();
-    const metrics = getMetricsSnapshot();
+    const metrics = getMetricsSnapshot() ?? {};
     
     return {
       ...baseStatus,
-      ...metrics,
+      ...(metrics as any),
       platform: this.services.platformInfo,
       plugins: Object.values(await import("@infrastructure/runtime/sidecar_registry.ts").then(m => m.SIDECAR_REGISTRY)).map(s => {
         let isRunning = this.services.command.isRunning(s.name);
@@ -318,6 +319,24 @@ export class WebAdapter implements WebPort {
       return { allowed: true };
   }
 
+  async stop(): Promise<void> {
+    if (this.server) {
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.ACTIVITY,
+          severity: LogSeverity.INFO,
+          caller: "WEB",
+          message: "Stopping web server..."
+      });
+      await this.server.shutdown();
+      this.server = undefined;
+    }
+  }
+
+  async getStatus() {
+    return getMetricsSnapshot() ?? null;
+  }
+
   async start(port: number = 8000): Promise<void> {
     await this.initialize();
 
@@ -333,7 +352,7 @@ export class WebAdapter implements WebPort {
           message: `SOVEREIGN mTLS Active. Tactical Console: https://localhost:${port}`
       });
       
-      await Deno.serve({ 
+      this.server = Deno.serve({ 
         port,
         cert: nodeCert.cert,
         key: nodeCert.key
@@ -346,7 +365,7 @@ export class WebAdapter implements WebPort {
           caller: "WEB",
           message: `Orchestrator Engine active (INSECURE HTTP). Tactical Console: http://localhost:${port}`
       });
-      await Deno.serve({ port }, this.app.fetch);
+      this.server = Deno.serve({ port }, this.app.fetch);
     }
   }
 }

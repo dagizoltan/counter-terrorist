@@ -26,6 +26,7 @@
     "@interface/": "./src/orchestrator/interface/web/",
     "@orchestrator/": "./src/orchestrator/",
     "@app/": "./src/orchestrator/app/",
-    "@std/dotenv": "jsr:@std/dotenv@^0.224.0"
+    "@std/dotenv": "jsr:@std/dotenv@^0.224.0",
+    "@std/path": "jsr:@std/path@^0.224.0"
   }
 }

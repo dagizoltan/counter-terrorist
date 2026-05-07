@@ -1,13 +1,13 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "../../components/Layout.tsx";
 
-export const AnonymizerPage = (props: { status: any, csrfToken?: string }) => {
+export const AnonymizerPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   const vpnStatus = props.status?.vpn || {};
   
   return (
     <Layout title="Identity Anonymizer // Stealth Control" islandPaths={[
       '/components/islands/AnonymizerController.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

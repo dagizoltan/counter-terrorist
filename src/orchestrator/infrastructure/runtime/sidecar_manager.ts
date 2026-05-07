@@ -150,7 +150,7 @@ export class SidecarManager implements CommandPort {
   private spawningPromises: Map<string, Promise<Deno.ChildProcess | null>> = new Map();
 
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
-    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.ACTIVITY, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `getPersistentSidecar called for: ${name}` });
+    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `getPersistentSidecar called for: ${name}` });
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     if (this.unsupportedSidecars.has(name)) return null;
     
@@ -317,7 +317,7 @@ export class SidecarManager implements CommandPort {
         const info = await Deno.stat(p);
         if (!info.isFile) continue;
         const real = await Deno.realPath(p);
-        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.ACTIVITY, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `findBinary(${name}) -> ${real}` });
+        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `findBinary(${name}) -> ${real}` });
         return real;
       } catch (e) {
         // Silent fail for stat
@@ -616,10 +616,11 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     try {
-        const file = await Deno.readFile(path);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", file);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+        const result = await this.executor.execute("openssl", ["dgst", "-sha256", "-r", path]);
+        if (result.success && result.stdout) {
+            return result.stdout.split(" ")[0].trim();
+        }
+        return null;
     } catch {
         return null;
     }

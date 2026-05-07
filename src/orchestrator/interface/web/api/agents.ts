@@ -1,8 +1,9 @@
 import { Hono, Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { SidecarName, isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
+import { SidecarName, isValidIP, isCriticalInfrastructure, isAllowedSidecar } from "@infrastructure/system/validation.ts";
+import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createAgentsApi(services: ServiceContainer) {
+export function createAgentsApi(services: ServiceContainer, security: SecurityMiddleware) {
   const router = new Hono();
 
   // Restart a sidecar
@@ -28,8 +29,10 @@ export function createAgentsApi(services: ServiceContainer) {
   });
 
   // Send a custom command to an agent
-  router.post("/:name/command", async (c: Context) => {
+  router.post("/:name/command", security.requireRole("admin", "operator"), async (c: Context) => {
     const name = c.req.param("name");
+    if (!isAllowedSidecar(name)) return c.json({ error: "Invalid agent name" }, 400);
+    
     const payload = await c.req.json();
     
     try {

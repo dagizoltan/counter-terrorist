@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * VPN Agent Page
  * Identity stealth, multi-tier rotation, and egress anonymization.
  */
-export const VpnPage = (props: { status: any, csrfToken?: string }) => {
+export const VpnPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="VPN Agent // Identity Stealth" islandPaths={[
       '/components/islands/AnonymizerController.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

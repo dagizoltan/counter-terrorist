@@ -11,3 +11,4 @@ once_cell = { workspace = true }
 parking_lot = { workspace = true }
 chrono = { workspace = true }
 inotify = "0.10"
+rand = "0.8"

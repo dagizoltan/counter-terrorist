@@ -1,7 +1,7 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const FirewallPage = (props: { csrfToken?: string }) => (
+export const FirewallPage = (props: { csrfToken?: string, nonce?: string }) => (
   <Layout title="Firewall Agent" islandPaths={['/components/islands/FirewallAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
@@ -69,7 +69,7 @@ export const FirewallPage = (props: { csrfToken?: string }) => (
   </Layout>
 );
 
-export const FimPage = (props: { csrfToken?: string }) => (
+export const FimPage = (props: { csrfToken?: string, nonce?: string }) => (
   <Layout title="Sentinel Monitor" islandPaths={['/components/islands/FimAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
@@ -103,7 +103,7 @@ export const FimPage = (props: { csrfToken?: string }) => (
   </Layout>
 );
 
-export const PcapPage = (props: { csrfToken?: string }) => (
+export const PcapPage = (props: { csrfToken?: string, nonce?: string }) => (
   <Layout title="Interceptor DPI" islandPaths={['/components/islands/PcapAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
@@ -149,7 +149,7 @@ export const PcapPage = (props: { csrfToken?: string }) => (
   </Layout>
 );
 
-export const HoneypotPage = (props: { csrfToken?: string }) => (
+export const HoneypotPage = (props: { csrfToken?: string, nonce?: string }) => (
   <Layout title="Deception Grid" islandPaths={['/components/islands/HoneypotChart.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
@@ -210,7 +210,7 @@ export const HoneypotPage = (props: { csrfToken?: string }) => (
   </Layout>
 );
 
-export const VpnPage = (props: { csrfToken?: string }) => (
+export const VpnPage = (props: { csrfToken?: string, nonce?: string }) => (
   <Layout title="Identity Anonymizer // Stealth Control" islandPaths={['/components/islands/AnonymizerController.js']} csrfToken={props.csrfToken}>
     <header class="page-header mb-10">
       <div class="title-group">
@@ -298,7 +298,7 @@ export const VpnPage = (props: { csrfToken?: string }) => (
   </Layout>
 );
 
-export const EbpfPage = (props: { csrfToken?: string }) => (
+export const EbpfPage = (props: { csrfToken?: string, nonce?: string }) => (
   <Layout title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
@@ -345,7 +345,7 @@ export const EbpfPage = (props: { csrfToken?: string }) => (
   </Layout>
 );
 
-export const ScannerPage = (props: { csrfToken?: string }) => (
+export const ScannerPage = (props: { csrfToken?: string, nonce?: string }) => (
   <Layout title="Scanner Agent // Tactical Assessment" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken}>
     <header class="page-header mb-12">
       <div class="title-group">
@@ -387,7 +387,7 @@ export const ScannerPage = (props: { csrfToken?: string }) => (
  * Mesh Agent Page
  * Peer discovery, mTLS gossip protocol, and distributed consensus.
  */
-export const MeshPage = (props: { status: any, csrfToken?: string }) => (
+export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: string }) => (
   <Layout title="Mesh Fabric" islandPaths={['/components/islands/VpnAgent.js', '/components/islands/MeshHeatmap.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">

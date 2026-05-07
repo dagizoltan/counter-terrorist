@@ -5,12 +5,12 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Mesh Topology Page
  * High-fidelity P2P consensus and node discovery visualization.
  */
-export const MeshTopologyPage = (props: { status: any, csrfToken?: string }) => {
+export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Mesh Topology // P2P Consensus" islandPaths={[
       '/components/islands/MeshGraph.js',
       '/components/islands/MeshHeatmap.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">

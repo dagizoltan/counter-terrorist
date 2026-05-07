@@ -154,6 +154,49 @@ export class MetricsService {
     private async start() {
         if (this.isRunning) return;
         this.isRunning = true;
+
+        // Perform Full Verification Cycle on Boot
+        try {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "METRICS",
+                message: "Starting Full Forensic Integrity Verification of audit ledger..."
+            });
+            const verification = await this.auditService.verifyFullChain();
+            if (!verification.valid) {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.CRITICAL,
+                    caller: "METRICS",
+                    message: `FORENSIC CHAIN BREACH DETECTED at event ${verification.brokenAt?.eventId}. Type: ${verification.brokenAt?.type}`
+                });
+                // Broadcast immediate alert to UI
+                this.broadcast({
+                    type: "ALERT",
+                    subType: "INTEGRITY_BREACH",
+                    data: verification
+                });
+            } else {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "METRICS",
+                    message: `Full ledger verification successful. ${verification.eventsChecked} links verified.`
+                });
+            }
+        } catch (e) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "METRICS",
+                message: `Initial audit verification failed: ${(e as Error).message}`
+            });
+        }
         
         while (this.isRunning) {
             try {
@@ -243,7 +286,7 @@ export class MetricsService {
                         percent: Math.floor((mem.heapUsed / mem.heapTotal) * 100)
                     },
                     cpu: {
-                        load: Math.floor(Math.random() * 5) + 1 // Simulated low load
+                        load: Math.floor((Deno.loadavg()[0] || 0) * 100) / 100
                     },
                     uptime: "ACTIVE",
                     ebpf: ebpfActive,

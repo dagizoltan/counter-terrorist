@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * eBPF Agent Page
  * Kernel-level observability and enforcement.
  */
-export const EbpfPage = (props: { status: any, csrfToken?: string }) => {
+export const EbpfPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="eBPF Agent // Kernel Observability" islandPaths={[
       '/components/islands/EbpfAgent.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

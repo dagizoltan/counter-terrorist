@@ -6,9 +6,9 @@ import { HoneypotModule } from "@domain/protection/honeypot_service.ts";
  * Honeypots Page
  * Deception infrastructure management.
  */
-export const HoneypotsPage = (props: { modules: HoneypotModule[] }) => {
+export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Honeypot Infrastructure">
+    <Layout title="Honeypot Infrastructure" csrfToken={props.csrfToken} nonce={props.nonce}>
       {/* 1. Unified Page Header */}
       <header class="page-header">
         <div class="title-group">

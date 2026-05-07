@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Mesh Agent Page
  * Peer discovery, mTLS gossip protocol, and distributed consensus.
  */
-export const MeshPage = (props: { status: any, csrfToken?: string }) => {
+export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Mesh Agent // Peer Intelligence" islandPaths={[
       '/components/islands/NetworkMap.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

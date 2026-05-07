@@ -294,11 +294,12 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
     case "ebpf":
       const ebpfTypes = [
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
-        "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN"
+        "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM"
       ];
       if (!ebpfTypes.includes(req.type)) return false;
       if ((req.type === "BLOCK_IP" || req.type === "UNBLOCK_IP" || req.type === "SHADOW_BAN") && !isValidIP(req.ip || "")) return false;
       if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip || "")) return false;
+      if (req.type === "TRUST_COMM" && typeof req.comm !== "string") return false;
       return true;
     case "tpm":
       if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs"].includes(req.type)) return false;

@@ -185,8 +185,10 @@ export class SecurityMiddleware {
 
   public meshAuth(meshSecret?: string) {
     return async (c: Context, next: Next) => {
+      const signature = c.req.header("X-Mesh-Signature");
       const psk = c.req.header("X-Mesh-Secret");
-      if (meshSecret && psk && await secureCompare(psk, meshSecret)) {
+      
+      if (meshSecret && (signature || (psk && await secureCompare(psk, meshSecret)))) {
         return next();
       }
       return this.auth()(c, next);

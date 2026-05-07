@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Active Network Page
  * Focused on Authoritative Mesh Core & Local Infrastructure.
  */
-export const ActiveNetworkPage = (props: { status: any, csrfToken?: string }) => {
+export const ActiveNetworkPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Active Network // Sovereign Mesh" islandPaths={[
       '/components/islands/NetworkMap.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">

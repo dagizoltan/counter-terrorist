@@ -7,7 +7,7 @@ import { ApplicationStatus } from "@core/ports.ts";
  * Hardware and OS deep-dive with high-fidelity tactical grid.
  * Refined for high-readability and zero-underscore policy.
  */
-export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: string }) => {
+export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: string, nonce?: string }) => {
   const { platform } = props.status;
   const metrics = platform?.metrics;
 
@@ -20,7 +20,7 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
   };
 
   return (
-    <Layout title="Infrastructure Hub // Sovereign Overwatch" islandPaths={['/components/islands/SystemHealth.js']} csrfToken={props.csrfToken}>
+    <Layout title="Infrastructure Hub // Sovereign Overwatch" islandPaths={['/components/islands/SystemHealth.js']} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01 Unified Page Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">

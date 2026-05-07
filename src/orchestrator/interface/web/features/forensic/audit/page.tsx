@@ -1,9 +1,9 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const AuditPage = (props: { csrfToken?: string }) => {
+export const AuditPage = (props: { csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js']} csrfToken={props.csrfToken}>
+    <Layout title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js']} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">

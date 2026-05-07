@@ -48,9 +48,9 @@ struct ForensicLog {
 async fn log_forensic(severity: &str, message: &str) {
     let log = ForensicLog {
         timestamp: Utc::now().to_rfc3339(),
-        log_type: "activity",
+        log_type: "activity".to_string(),
         severity: severity.to_string(),
-        caller: "MEM_FORENSICS",
+        caller: "MEM_FORENSICS".to_string(),
         message: message.to_string(),
     };
     if let Ok(json) = serde_json::to_string(&log) {

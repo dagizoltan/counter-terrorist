@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * PCAP Agent Page
  * Deep Packet Capture and real-time traffic analysis.
  */
-export const PcapPage = (props: { status: any, csrfToken?: string }) => {
+export const PcapPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="PCAP Agent // Traffic Capture" islandPaths={[
       '/components/islands/PcapAgent.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

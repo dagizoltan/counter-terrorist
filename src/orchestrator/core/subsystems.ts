@@ -39,7 +39,7 @@ export class SubsystemComposer {
         audit: container.audit,
         health: container.health,
         compliance: container.compliance,
-        governance: container.governance,
+        governance: container.policy,
         ledger: container.ledger
       },
       signal: {

@@ -194,7 +194,7 @@ export class SovereignApp {
             });
             // Soft failure for now if not in strict mode
             if (Deno.env.get("STRICT_HARDWARE_INTEGRITY") === "true") {
-                await this.selfDestruct();
+                await this.emergencyLockdown();
             }
         } else if (!isHardwareSecure && isValidBypass) {
             await loggingService.log({
@@ -257,6 +257,12 @@ export class SovereignApp {
         const ebpf = await sm.getPersistentSidecar("ebpf").catch(() => null);
         if (ebpf) {
             await sm.sendCommand("ebpf", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
+            
+            // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
+            // Skip events from the orchestrator and its trusted sidecars
+            for (const comm of ["deno", "blocker", "ebpf", "fim", "pcap", "scanner", "honeypot"]) {
+                await sm.sendCommand("ebpf", { type: "TRUST_COMM", comm }).catch(() => {});
+            }
         }
     }
 
@@ -401,7 +407,14 @@ export class SovereignApp {
             return new Proxy({} as T, {
                 get: (_, prop) => {
                     return (...args: any[]) => {
-                        console.error(`[EMERGENCY] Call to '${String(prop)}' on failed service '${name}' blocked.`);
+                        const msg = `[EMERGENCY] Call to '${String(prop)}' on failed service '${name}' blocked.`;
+                        loggingService.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.AUDIT,
+                            severity: LogSeverity.ERROR,
+                            caller: "EMERGENCY:PROXY",
+                            message: msg
+                        });
                         return Promise.resolve({ success: false, error: `Service ${name} is unavailable` });
                     };
                 }
@@ -409,16 +422,30 @@ export class SovereignApp {
         }
     }
 
-    private async selfDestruct() {
+    private async emergencyLockdown() {
         await loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
-            severity: LogSeverity.ERROR,
+            severity: LogSeverity.CRITICAL,
             caller: "SOVEREIGN",
-            message: "CRITICAL: SELF-DESTRUCT TRIGGERED."
+            message: "CRITICAL: EMERGENCY LOCKDOWN ACTIVATED. System quarantined. Forensic state preserved. Physical/MFA recovery required."
         });
-        const iter = this.kv.list({ prefix: [] });
-        for await (const entry of iter) await this.kv.delete(entry.key);
+
+        // Persist lockdown state to prevent simple restart bypass
+        await this.kv.set(["system", "lockdown"], {
+            reason: "Hardware Integrity Failure",
+            timestamp: new Date().toISOString(),
+            status: "QUARANTINED"
+        });
+
+        // Disable all network-facing interfaces via eBPF if available
+        try {
+            await this.sidecarManager.sendCommand("ebpf", { type: "LOCKDOWN" });
+        } catch {
+            // Best effort
+        }
+
+        // Halt execution to prevent further compromise
         Deno.exit(1);
     }
 }

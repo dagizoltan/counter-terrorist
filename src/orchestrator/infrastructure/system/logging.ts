@@ -15,9 +15,10 @@ export class LoggingService implements LoggingPort {
     private isForwarding = false;
     private tlsCaCertPath: string | null = null;
     private diagnosticRepo: DiagnosticRepository | null = null;
+    private preInitBuffer: LogEntry[] = [];
 
-    /** Persistent TCP/TLS connection, reused across flushes. */
-    private persistentConn: Deno.Conn | Deno.TlsConn | null = null;
+    /** Persistent TCP/TLS or UDP connection, reused across flushes. */
+    private persistentConn: Deno.Conn | Deno.TlsConn | Deno.DatagramConn | null = null;
 
     constructor(kv?: Deno.Kv) {
         if (kv) {
@@ -42,6 +43,14 @@ export class LoggingService implements LoggingPort {
 
     setKv(kv: Deno.Kv) {
         this.diagnosticRepo = new DiagnosticRepository(kv);
+        // Flush pre-init buffer to KV
+        if (this.preInitBuffer.length > 0) {
+            const logs = [...this.preInitBuffer];
+            this.preInitBuffer = [];
+            for (const entry of logs) {
+                this.diagnosticRepo.addLog(entry).catch(() => {});
+            }
+        }
     }
 
     async getRecentLogs(limit: number = 100) {
@@ -186,6 +195,10 @@ export class LoggingService implements LoggingPort {
     private async writeToKv(entry: LogEntry) {
         if (this.diagnosticRepo) {
             await this.diagnosticRepo.addLog(entry).catch(() => {});
+        } else {
+            // Buffer logs until KV is available
+            this.preInitBuffer.push(entry);
+            if (this.preInitBuffer.length > 500) this.preInitBuffer.shift();
         }
     }
 
@@ -218,12 +231,20 @@ export class LoggingService implements LoggingPort {
     }
 
     private async sendUdp(logs: string[]) {
-        const conn = await Deno.listenDatagram({ port: 0, transport: "udp" });
+        const conn = await this.getOrCreateUdpConnection();
         const encoder = new TextEncoder();
         for (const log of logs) {
             await conn.send(encoder.encode(log), { hostname: this.remoteHost!, port: this.remotePort, transport: "udp" });
         }
-        conn.close();
+    }
+
+    private async getOrCreateUdpConnection(): Promise<Deno.DatagramConn> {
+        if (this.persistentConn && "send" in this.persistentConn) {
+            return this.persistentConn;
+        }
+        this.closePersistentConn();
+        this.persistentConn = Deno.listenDatagram({ port: 0, transport: "udp" });
+        return this.persistentConn as Deno.DatagramConn;
     }
 
     private async sendTcpOrTls(logs: string[], useTls: boolean) {
@@ -240,7 +261,10 @@ export class LoggingService implements LoggingPort {
     }
 
     private async getOrCreateConnection(useTls: boolean): Promise<Deno.Conn | Deno.TlsConn> {
-        if (this.persistentConn) return this.persistentConn;
+        if (this.persistentConn && "write" in this.persistentConn) {
+            return this.persistentConn;
+        }
+        this.closePersistentConn();
         if (useTls) {
             const options: Deno.ConnectTlsOptions = { hostname: this.remoteHost!, port: this.remotePort };
             if (this.tlsCaCertPath) {
@@ -253,7 +277,7 @@ export class LoggingService implements LoggingPort {
         } else {
             this.persistentConn = await Deno.connect({ hostname: this.remoteHost!, port: this.remotePort });
         }
-        return this.persistentConn;
+        return this.persistentConn as Deno.Conn | Deno.TlsConn;
     }
 
     private closePersistentConn() {

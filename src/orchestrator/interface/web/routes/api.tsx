@@ -60,7 +60,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   router.get("/network/logs", async (c: Context) => {
-    const logs = await services.networkLogs.getLogs(50);
+    const logs = await services.networkLogs.getRecent(50);
     return c.json(logs);
   });
 
@@ -80,31 +80,65 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     });
   });
 
-  const syncRateLimits = new Map<string, { count: number; resetAt: number }>();
+  router.get("/mesh/ping", async (c: Context) => {
+    const payload = { success: true, nodeId: services.mesh.getNodeId(), timestamp: Date.now() };
+    const signature = await services.mesh.signPayload(payload);
+    c.header("X-Mesh-Signature", signature);
+    return c.json(payload);
+  });
+
   router.post("/mesh/sync", async (c: Context) => {
     const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
     const now = Date.now();
-    const limit = syncRateLimits.get(peerIp) || { count: 0, resetAt: now + 1000 };
-    if (now > limit.resetAt) {
-      limit.count = 1;
-      limit.resetAt = now + 1000;
-    } else {
-      limit.count++;
-      if (limit.count > 100) return c.json({ error: "Rate limit exceeded" }, 429);
+    const result = await services.rateLimit.checkLimit(`mesh_sync:${peerIp}`, 100, 1000);
+    if (!result.allowed) {
+        return c.json({ 
+            error: "Rate limit exceeded", 
+            code: "RATE_LIMIT_EXCEEDED",
+            retryAfterMs: result.retryAfterMs 
+        }, 429);
     }
-    syncRateLimits.set(peerIp, limit);
 
     const payload = await c.req.json();
+    
+    // SEC-03: HMAC Verification
+    const signature = c.req.header("X-Mesh-Signature");
+    if (signature) {
+        const isValid = await services.mesh.verifySignature(payload, signature);
+        if (!isValid) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "MESH:API",
+                message: `REJECTED: Invalid mesh signature from ${peerIp}`
+            });
+            return c.json({ error: "Invalid signature" }, 401);
+        }
+    } else if (Deno.env.get("MESH_SECRET")) {
+        return c.json({ error: "Missing required mesh signature" }, 401);
+    }
+
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
         caller: "MESH:API",
-        message: `Received mesh sync from ${peerIp}: ${payload.type}`
+        message: `Received verified mesh sync from ${peerIp}: ${payload.type}`
     });
     
     if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
-        await services.protection.firewall.blockIp(payload.ip);
+        if (isValidIP(payload.ip) && !isCriticalInfrastructure(payload.ip)) {
+            await services.protection.firewall.blockIp(payload.ip);
+        } else {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "MESH:API",
+                message: `REJECTED: Malicious/Invalid gossip block IP ${payload.ip} from ${peerIp}`
+            });
+        }
     }
 
     if (payload.type === "GOSSIP_THREAT_HASH" && payload.hash) {
@@ -121,13 +155,6 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
             message: `Mesh-wide binary blacklist updated: ${payload.hash.slice(0, 8)}`,
             data: payload
         });
-    }
-
-    // Periodically cleanup rate limit map
-    if (Math.random() < 0.05) {
-      for (const [ip, l] of syncRateLimits.entries()) {
-        if (now > l.resetAt) syncRateLimits.delete(ip);
-      }
     }
 
     return c.json({ success: true });
@@ -163,7 +190,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   // 3. General Protected APIs
   router.use("*", security.requireRole("admin", "operator", "viewer"));
   
-  router.route("/agents", createAgentsApi(services));
+  router.route("/agents", createAgentsApi(services, security));
   router.route("/reports", createReportsApi(services.baseline, services.protection));
   router.route("/notifications", createNotificationsApi(services.notifications));
   router.route("/audit", createAuditApi(services.audit));

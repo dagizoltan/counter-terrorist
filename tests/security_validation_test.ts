@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { CommandManager } from "@infrastructure/system/command_manager.ts";
+import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { isValidIP, secureCompareBytes, secureCompare } from "@infrastructure/system/validation.ts";
 
 Deno.test("Constant-time Token Comparison (secureCompare)", async () => {
@@ -55,25 +55,31 @@ Deno.test("IP Validation Regex", () => {
   assertEquals(isValidIP("not an ip"), false);
 });
 
-Deno.test("CommandManager Sidecar Allowlist", async () => {
-  const cm = new CommandManager();
+Deno.test("SystemExecutor Security Policies", async () => {
+  const executor = new SystemExecutor();
 
-  // blocker is allowed
-  // Note: runSidecar will try to find the binary, so we just check it doesn't fail on allowlist
-  const result = await cm.runSidecar("blocker", ["{}"]);
-  // It should fail because the binary is not found, but NOT because of allowlist
-  assertEquals(result.stderr.includes("not in the allowlist"), false);
+  // 1. Whitelist validation
+  const result1 = await executor.execute("unauthorized_cmd", []);
+  assertEquals(result1.success, false);
+  assertEquals(result1.stderr.includes("Security Violation"), true);
 
-  // unauthorized is NOT allowed
-  const result2 = await cm.runSidecar("unauthorized", []);
-  assertEquals(result2.stderr.includes("is not in the allowlist"), true);
+  // 2. OpenSSL Policy (Regression for -r and dgst)
+  const result2 = await executor.execute("openssl", ["dgst", "-sha256", "-r", "test.bin"]);
+  // Should pass validation (it might fail execution but not security violation)
+  assertEquals(result2.stderr.includes("Security Violation"), false);
 
-  // getPersistentSidecar should also block unauthorized
-  await assertRejects(
-    async () => {
-      await cm.getPersistentSidecar("unauthorized");
-    },
-    Error,
-    "is not in the allowlist"
-  );
+  const result3 = await executor.execute("openssl", ["invalid_arg"]);
+  assertEquals(result3.success, false);
+  assertEquals(result3.stderr.includes("Security Violation"), true);
+
+  // 3. EBPF Policy (Regression for TRUST_COMM)
+  const validPayload = JSON.stringify({ type: "TRUST_COMM", comm: "systemd" });
+  const result4 = await executor.execute("ebpf", [validPayload]);
+  assertEquals(result4.stderr.includes("Security Violation"), false);
+
+  const invalidPayload = JSON.stringify({ type: "MALICIOUS", comm: "systemd" });
+  const result5 = await executor.execute("ebpf", [invalidPayload]);
+  assertEquals(result5.success, false);
+  assertEquals(result5.stderr.includes("Security Violation"), true);
 });
+

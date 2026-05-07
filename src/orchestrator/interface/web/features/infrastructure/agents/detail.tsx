@@ -1,7 +1,7 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: any }, csrfToken?: string }) => {
+export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: any; description: string; }, csrfToken?: string, nonce?: string }) => {
   const { agent } = props;
   const islandPaths = [
     '/components/islands/BlockingLog.js', 

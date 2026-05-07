@@ -5,13 +5,13 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Supply Chain Page
  * Software Bill of Materials (SBOM) and vulnerability tracking.
  */
-export const SupplyChainPage = (props: { status: any, csrfToken?: string }) => {
+export const SupplyChainPage = (props: { status: any, csrfToken?: string, nonce?: string, hostname?: string }) => {
   const sbom = props.status.supplyChain || [];
   const secureCount = sbom.filter((d: any) => d.status === 'SECURE').length;
   const healthScore = sbom.length > 0 ? Math.round((secureCount / sbom.length) * 100) : 100;
 
   return (
-    <Layout title="Supply Chain Audit" islandPaths={[]} csrfToken={props.csrfToken}>
+    <Layout title="Supply Chain Audit" islandPaths={[]} csrfToken={props.csrfToken} nonce={props.nonce}>
       <header class="page-header">
         <div class="title-group">
           <h1>Supply Chain Integrity</h1>

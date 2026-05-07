@@ -81,32 +81,25 @@ export class HoneypotPlugin implements Plugin {
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
             caller: "HONEYPOT",
-            message: `ALERT: Unauthorized port access on port ${payload.port} from ${payload.source_ip}`
+            message: `ALERT: Unauthorized port access on port ${payload.port} from ${payload.source_ip}. Engaging Tarpit...`
         });
+        
+        // 1. Engage Tarpit immediately to waste their time
+        this.tarpitIp(payload.source_ip).catch(() => {});
+
         this.broadcast({
           type: "AUDIT_EVENT",
           data: {
               type: LogType.AUDIT,
               severity: LogSeverity.CRITICAL,
               caller: "decoy:system",
-              message: `Honeypot Triggered: Unauthorized access to port ${payload.port}`,
+              message: `Honeypot Triggered: Unauthorized access to port ${payload.port}. Tarpitting active.`,
               data: { source_ip: payload.source_ip, port: payload.port }
           }
         });
 
-        // Auto-block logic
-        this.firewall.blockIp(payload.source_ip).catch(err => {
-          loggingService.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.GENERIC,
-              severity: LogSeverity.ERROR,
-              caller: "HONEYPOT",
-              message: `Failed to auto-block ${payload.source_ip}: ${err.message}`
-          });
-        });
-
-        // Trigger PCAP capture (Phase 2 Requirement)
-        this.pcap.startCapture("any", 30).catch(err => {
+        // 2. Trigger PCAP capture for forensics
+        this.pcap.startCapture("any", 60).catch(err => {
           loggingService.log({
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
@@ -115,6 +108,19 @@ export class HoneypotPlugin implements Plugin {
               message: `Failed to trigger PCAP: ${err.message}`
           });
         });
+
+        // 3. Delayed Block: Wait 30s while tarpitting before committing to firewall
+        setTimeout(() => {
+            this.firewall.blockIp(payload.source_ip).catch(err => {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "HONEYPOT",
+                    message: `Failed to auto-block ${payload.source_ip} after tarpit: ${err.message}`
+                });
+            });
+        }, 30000);
         break;
 
       case "FileAccess":
@@ -155,6 +161,36 @@ export class HoneypotPlugin implements Plugin {
           }
         });
         break;
+    }
+  }
+
+  /**
+   * Flag an IP for Tarpitting.
+   * This slows down all subsequent interactions from this IP in the deception grid.
+   */
+  async tarpitIp(ip: string) {
+    loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "HONEYPOT",
+        message: `Engaging Tarpit for IP: ${ip}. Wasting attacker resources...`
+    });
+    
+    try {
+        await this.sidecarManager.sendCommand("honeypot", {
+            type: "Sabotage",
+            source_ip: ip,
+            level: "MAXIMUM"
+        });
+    } catch (error) {
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "HONEYPOT",
+            message: `Failed to engage tarpit for ${ip}: ${(error as Error).message}`
+        });
     }
   }
 }

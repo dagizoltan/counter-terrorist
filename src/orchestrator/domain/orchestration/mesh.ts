@@ -2,6 +2,7 @@ import { broadcast } from "@api/ws.ts";
 import { MeshAuthService } from "../index.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
+import { AuditService } from "../analysis/audit.ts";
 
 export interface MeshNode {
   id: string;
@@ -25,7 +26,7 @@ export class MeshManager {
   constructor(
     private meshAuth: MeshAuthService, 
     private logging: LoggingPort,
-    private audit: any // AuditService
+    private audit: AuditService
   ) {
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -313,6 +314,14 @@ export class MeshManager {
       }
 
       const body = await res.json();
+      
+      // Verify signature if meshSecret is configured
+      if (this.meshSecret) {
+          const sig = res.headers.get("X-Mesh-Signature");
+          if (!sig || !(await this.verifySignature(body, sig))) {
+              throw new Error("Invalid or missing mesh signature");
+          }
+      }
       if (body.success && body.nodeId) {
         // Verified — the node presented a valid mTLS certificate signed by our CA
         node.verified = true;
@@ -814,7 +823,8 @@ export class MeshManager {
         "Upgrade-Insecure-Requests": "1"
     };
     if (this.meshSecret) {
-      headers["X-Mesh-Secret"] = this.meshSecret;
+      const signature = await this.signPayload(paddedPayload);
+      headers["X-Mesh-Signature"] = signature;
     }
 
     // TRAFFIC CAMOUFLAGE: Random jitter and truly variable padding

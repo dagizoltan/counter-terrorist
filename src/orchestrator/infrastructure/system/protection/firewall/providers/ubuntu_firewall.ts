@@ -38,7 +38,7 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async dumpProcessForensics(pid: number): Promise<CommandResult> {
-    const dumpPath = `./volume/logs/forensics_process_${pid}_${Date.now()}.dump`;
+    const dumpPath = `./volume/storage/forensics/forensics_process_${pid}_${Date.now()}.dump`;
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,

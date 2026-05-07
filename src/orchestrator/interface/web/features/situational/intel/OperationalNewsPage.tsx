@@ -6,11 +6,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Detailed tactical signals and global intelligence archive.
  * Refined for high-readability and zero-underscore policy.
  */
-export const NewsPage = (props: { status: any, csrfToken?: string }) => {
+export const NewsPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Tactical News // Intelligence Feed" islandPaths={[
       '/components/islands/NewsFeed.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">

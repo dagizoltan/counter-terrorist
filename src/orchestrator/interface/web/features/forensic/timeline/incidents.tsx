@@ -5,7 +5,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Atomic Incidents Page
  * Hardened incident response portal with CSS-driven design system.
  */
-export const IncidentsPage = (props: { csrfToken?: string }) => {
+export const IncidentsPage = (props: { csrfToken?: string, nonce?: string }) => {
   const scriptContent = `
     async function loadIncidents() {
       try {
@@ -94,7 +94,7 @@ export const IncidentsPage = (props: { csrfToken?: string }) => {
   \`;
 
   return (
-    <Layout title="Security Incidents // Response Management" csrfToken={props.csrfToken}>
+    <Layout title="Security Incidents // Response Management" csrfToken={props.csrfToken} nonce={props.nonce}>
       {/* 1. Header Section */}
       <header class="flex justify-between items-end mb-12">
         <div class="flex items-center gap-4">

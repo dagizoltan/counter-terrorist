@@ -5,14 +5,14 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Network Shield Page
  * Hardened perimeter defense and identity anonymization portal.
  */
-export const NetworkShieldPage = (props: { status: any, csrfToken?: string }) => {
+export const NetworkShieldPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Perimeter Shield // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
       '/components/islands/VpnAgent.js',
       '/components/islands/AnonymizerController.js',
       '/components/islands/NetworkMap.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">

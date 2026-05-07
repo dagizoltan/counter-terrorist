@@ -32,12 +32,12 @@ export function createComplianceApi(services: ServiceContainer) {
                 logs: formatted || "No recent diagnostic telemetry captured in the ledger." 
             });
         } catch (e) {
-            return c.json({ logs: `Log Engine Failure: ${e.message}` });
+            return c.json({ logs: `Log Engine Failure: ${(e as Error).message}` });
         }
     });
 
     router.get("/network", async (c) => {
-        const logs = await services.networkLogs.getLogs(200);
+        const logs = await services.networkLogs.getRecent(200);
         return c.json(logs);
     });
 

@@ -20,6 +20,9 @@ struct SidecarCommand {
     cmd_type: String,
     ip: Option<String>,
     pid: Option<u32>,
+    comm: Option<String>,
+    port: Option<u16>,
+    protocol: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -179,6 +182,46 @@ async fn main() -> Result<(), anyhow::Error> {
                         } else { emit_response(cmd.id, false, "Invalid IP or Map Error".to_string()).await; }
                     }
                 },
+                "ALLOW_PORT" => {
+                    if let Some(port) = cmd.port {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                            let _ = m.insert(port, 1, 0);
+                            emit_response(cmd.id, true, format!("Firewall: Allowed port {}", port)).await;
+                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    }
+                },
+                "DENY_PORT" => {
+                    if let Some(port) = cmd.port {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                            let _ = m.remove(&port);
+                            emit_response(cmd.id, true, format!("Firewall: Denied port {}", port)).await;
+                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    }
+                },
+                "LOCKDOWN" => {
+                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
+                        let _ = m.insert(0, 1, 0); // index 0 is lockdown flag
+                        emit_response(cmd.id, true, "LOCKDOWN engaged".to_string()).await;
+                    } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                },
+                "FLUSH_RULES" => {
+                    let mut success = true;
+                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                        let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
+                        for k in keys { let _ = m.remove(&k); }
+                    } else { success = false; }
+                    
+                    if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                        let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
+                        for k in keys { let _ = m.remove(&k); }
+                    } else { success = false; }
+
+                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
+                        let _ = m.insert(0, 0, 0); // clear lockdown
+                    } else { success = false; }
+
+                    emit_response(cmd.id, success, if success { "Rules flushed".to_string() } else { "Partial flush failure".to_string() }).await;
+                },
                 "HIDE_PID" => {
                     if let Some(pid) = cmd.pid {
                         if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HIDE_CONFIG").unwrap()) {
@@ -188,6 +231,18 @@ async fn main() -> Result<(), anyhow::Error> {
                     }
                 },
                 "GET_STATUS" => emit_response(cmd.id, true, "Active".to_string()).await,
+                "TRUST_COMM" => {
+                    if let Some(comm_str) = cmd.comm {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 16], u8>::try_from(bpf_ref.map_mut("TRUSTED_COMM").unwrap()) {
+                            let mut comm = [0u8; 16];
+                            let bytes = comm_str.as_bytes();
+                            let len = std::cmp::min(bytes.len(), 16);
+                            comm[..len].copy_from_slice(&bytes[..len]);
+                            let _ = m.insert(comm, 1, 0);
+                            emit_response(cmd.id, true, format!("Trusted Comm: {}", comm_str)).await;
+                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    }
+                },
                 "SHUTDOWN" => std::process::exit(0),
                 _ => {}
             }

@@ -106,10 +106,10 @@ export class HoneypotService {
     await this.sidecarManager.getPersistentSidecar("honeypot");
     this.sidecarManager.onEvent("honeypot", (event) => this.handleEvent(event));
 
-    // Initialize firewall rules for active modules
+    // Initialize firewall rules and sidecar modules for active modules
     for (const module of this.modules.values()) {
         if (module.active) {
-            await this.firewall.allowPort(module.port, "tcp");
+            await this.toggleModule(module.id, true).catch(() => {});
         }
     }
 

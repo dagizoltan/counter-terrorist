@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Network Agent Page
  * Topology discovery, packet capture, and mesh visualization.
  */
-export const NetworkPage = (props: { status: any, csrfToken?: string }) => {
+export const NetworkPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Network Agent // Operational Discovery" islandPaths={[
       '/components/islands/NetworkMap.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

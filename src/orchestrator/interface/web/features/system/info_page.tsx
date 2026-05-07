@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * System Info Page
  * Hardware, OS, and overall node health metadata.
  */
-export const SystemInfoPage = (props: { status: any, csrfToken?: string }) => {
+export const SystemInfoPage = (props: { status: any, csrfToken?: string, nonce?: string, hostname?: string }) => {
   return (
     <Layout title="System Info // Node Metadata" islandPaths={[
       '/components/islands/SystemHealth.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

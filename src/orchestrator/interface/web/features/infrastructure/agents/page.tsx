@@ -6,14 +6,14 @@ import { ApplicationStatus } from "@core/ports.ts";
  * Atomic Agents Page
  * Hardened agent management with high-fidelity tactical grid.
  */
-export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: string }) => {
+export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: string, nonce?: string }) => {
   const { plugins } = props.status;
 
   return (
     <Layout title="Agent Registry // Fleet Command" islandPaths={[
       '/components/islands/AgentCardIsland.js',
       '/components/islands/ProcessTree.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">

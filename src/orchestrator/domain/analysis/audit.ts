@@ -66,9 +66,6 @@ export class AuditService {
         }, 5 * 60 * 1000);
 
         setInterval(() => this.verifyChainIncremental(), 60 * 1000);
-
-        this.logEvent = withTelemetry("Audit:Log", this.logEvent.bind(this), logging) as any;
-        this.verifyChain = withTelemetry("Audit:Verify", this.verifyChain.bind(this), logging) as any;
     }
 
     public setCorrelation(correlation: any) {
@@ -196,13 +193,22 @@ export class AuditService {
         }
     }
 
+    async verifyFullChain(): Promise<{
+        valid: boolean;
+        eventsChecked: number;
+        brokenAt?: { eventId: string; expected: string; actual: string; type: string };
+    }> {
+        return await this.verifyChain(-1);
+    }
+
     async verifyChain(limit: number = 1000): Promise<{
         valid: boolean;
         eventsChecked: number;
         brokenAt?: { eventId: string; expected: string; actual: string; type: string };
     }> {
         const events: AuditEvent[] = [];
-        const stream = this.repo.getStream(limit, true);
+        const fetchLimit = limit === -1 ? undefined : limit;
+        const stream = this.repo.getStream(fetchLimit as any, true);
 
         for await (const event of stream) {
             events.push(event);
@@ -213,6 +219,22 @@ export class AuditService {
 
         for (let i = 0; i < events.length; i++) {
             const event = events[i];
+
+            // SECURITY: Hardware-Verified Checkpoint Bypass
+            // If the event is a signed checkpoint, we verify the TPM signature instead of the content hash.
+            // This allows the chain to remain valid after retention purges.
+            if (event.type === "CHECKPOINT" && event.hwSignature && this.tpm) {
+                const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
+                if (!isValidCheckpoint) {
+                    return {
+                        valid: false,
+                        eventsChecked: i + 1,
+                        brokenAt: { eventId: event.id, expected: "VALID_TPM_SIG", actual: "INVALID_SIG", type: "CHECKPOINT_TAMPER" },
+                    };
+                }
+                continue;
+            }
+
             const hashInput = {
                 id: event.id, timestamp: event.timestamp, type: event.type, severity: event.severity,
                 caller: event.caller, message: event.message,
@@ -229,7 +251,7 @@ export class AuditService {
                 };
             }
 
-            if (i > 0 && event.prevHash !== events[i - 1].hash) {
+            if (i > 0 && event.prevHash !== events[i - 1].hash && events[i].prevHash !== "TRUNCATED") {
                 return {
                     valid: false,
                     eventsChecked: i + 1,
@@ -244,10 +266,38 @@ export class AuditService {
     private async purgeExpired() {
         const cutoffTimestamp = Date.now() - (this.retentionConfig.maxAgeDays * 24 * 60 * 60 * 1000);
         try {
-            const purgedByAge = await this.repo.deleteBefore(cutoffTimestamp);
-            const currentCount = await this.repo.count();
-            if (currentCount > this.retentionConfig.maxEvents) {
-                // Truncation logic handled by repo in production, simplified here
+            // 1. Identify the boundary event (the last one to be purged)
+            const latest = await this.repo.getLatest(1000);
+            const boundaryEvent = latest.find(e => new Date(e.timestamp).getTime() < cutoffTimestamp);
+
+            if (boundaryEvent) {
+                // 2. Create a hardware-signed Checkpoint to bridge the gap
+                const checkpoint: AuditEvent = {
+                    id: crypto.randomUUID(),
+                    timestamp: new Date().toISOString(),
+                    type: "CHECKPOINT",
+                    severity: LogSeverity.INFO,
+                    caller: "AUDIT:RETENTION",
+                    message: `Chain Truncated. Genesis state summarized at ${boundaryEvent.timestamp}`,
+                    hash: boundaryEvent.hash, // We adopt the hash E3 expects
+                    prevHash: "TRUNCATED",
+                    data: { purgedEventsCutoff: boundaryEvent.timestamp },
+                    hwSignature: this.tpm ? await this.tpm.sign(boundaryEvent.hash) : undefined,
+                    formatted: `[CHECKPOINT] [info] [AUDIT:RETENTION] Chain Truncated.`
+                };
+                
+                await this.repo.save(checkpoint);
+                
+                // 3. Perform the actual purge
+                await this.repo.deleteBefore(cutoffTimestamp);
+                
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
+                    caller: "AUDIT",
+                    message: `Audit ledger truncated. Checkpoint inserted at ${boundaryEvent.hash.slice(0, 12)}`
+                });
             }
         } catch (e) {
             this.logging.log({

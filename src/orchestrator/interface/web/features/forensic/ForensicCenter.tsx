@@ -1,13 +1,13 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const ForensicCenterPage = (props: { csrfToken?: string }) => {
+export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Investigation Lab // Tactical Signal" islandPaths={[
       '/components/islands/TimelineIsland.js',
       '/components/islands/ReplayIsland.js',
       '/components/islands/BlockingLog.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">

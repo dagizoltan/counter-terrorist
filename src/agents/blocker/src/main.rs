@@ -132,13 +132,29 @@ async fn quarantine_process_task(pid: u32) -> (bool, String) {
     }
 }
 
-async fn dump_process_task(pid: u32, path: String) -> (bool, String) {
-    let maps_res = std::fs::copy(format!("/proc/{}/maps", pid), format!("{}.maps", path));
-    let env_res = std::fs::copy(format!("/proc/{}/environ", pid), format!("{}.environ", path));
+async fn dump_process_task(pid: u32, requested_path: String) -> (bool, String) {
+    let base_dir = "./volume/storage/forensics";
+    
+    // Ensure the jail directory exists
+    if let Err(e) = std::fs::create_dir_all(base_dir) {
+        return (false, format!("Failed to create jail directory: {}", e));
+    }
+
+    // SECURITY: Extract only the filename from the requested path to prevent traversal
+    let path_obj = std::path::Path::new(&requested_path);
+    let filename = match path_obj.file_name() {
+        Some(name) => name.to_string_lossy(),
+        None => return (false, "Invalid dump filename".to_string()),
+    };
+
+    let safe_path = format!("{}/{}", base_dir, filename);
+    
+    let maps_res = std::fs::copy(format!("/proc/{}/maps", pid), format!("{}.maps", safe_path));
+    let env_res = std::fs::copy(format!("/proc/{}/environ", pid), format!("{}.environ", safe_path));
     
     if maps_res.is_ok() && env_res.is_ok() {
-        (true, format!("Dumped process {} metadata to {}", pid, path))
+        (true, format!("Dumped process {} metadata to {}", pid, safe_path))
     } else {
-        (false, "Failed to access /proc files".to_string())
+        (false, "Failed to access /proc files or write to jail".to_string())
     }
 }

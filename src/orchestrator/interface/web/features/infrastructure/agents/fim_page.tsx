@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * FIM Agent Page
  * File Integrity Monitoring and real-time filesystem auditing.
  */
-export const FimPage = (props: { status: any, csrfToken?: string }) => {
+export const FimPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="FIM Agent // Integrity Audit" islandPaths={[
       '/components/islands/FimAgent.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">

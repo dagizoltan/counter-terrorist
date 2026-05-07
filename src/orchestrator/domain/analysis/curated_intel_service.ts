@@ -1,4 +1,5 @@
-import { ConfigurationPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { ConfigurationPort, LoggingPort, LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
+import { GeoIpService } from "./geoip_service.ts";
 
 export interface IntelIndicator {
     indicator: string;
@@ -54,13 +55,14 @@ export class CuratedIntelService {
 
     private allowlist: string[] = [];
     private blacklist: Set<string> = new Set();
+    private stats: Record<string, number> = {};
 
     constructor(
         private logging: LoggingPort, 
-        private firewall: any, 
+        private firewall: FirewallPort, 
         private config: ConfigurationPort,
         private broadcast: (data: any) => void,
-        private geoip?: any
+        private geoip?: GeoIpService
     ) {
         const list = config.getEnv("INTEL_ALLOWLIST") || "";
         this.allowlist = list.split(",").map(i => i.trim()).filter(Boolean);
@@ -160,7 +162,7 @@ export class CuratedIntelService {
                     revalidatedCount++;
                 } else {
                     // PURGE: Remove from active firewall
-                    await this.firewall.unblock(ip);
+                    await this.firewall.unblockIp(ip);
                     await this.kv.delete(["enforcement", ip]);
                     expiredCount++;
                     
@@ -209,7 +211,7 @@ export class CuratedIntelService {
         if (!this.kv) return;
         
         const expiresAt = Date.now() + (ttlHours * 60 * 60 * 1000);
-        await this.firewall.isolate(ip, reason);
+        await this.firewall.blockIp(ip);
         await this.kv.set(["enforcement", ip], { reason, expiresAt, committedAt: Date.now() });
 
         const log = {
@@ -431,6 +433,7 @@ export class CuratedIntelService {
 
             await this.kv?.set(["curated_threats", indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
             await this.kv?.set(["curated_threats_by_type", curated.type, indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
+            this.stats[source.name] = (this.stats[source.name] || 0) + 1;
             ingestCount++;
             if (ingestCount > 100000) break; 
         }
@@ -484,6 +487,9 @@ export class CuratedIntelService {
         const threats: IntelIndicator[] = [];
         let cursor = "";
 
+        // BUG-02 Optimization: Fetch blocked IPs once
+        const blockedSet = new Set(await this.firewall.getBlockedIps());
+
         for await (const res of iter) {
             const t = res.value;
             
@@ -493,8 +499,8 @@ export class CuratedIntelService {
             const matchesSearch = !search || t.indicator.includes(search);
             
             if (matchesType && matchesProvider && matchesSearch) {
-                // Real-time check for block status
-                const blocked = await this.firewall.isBlocked(t.indicator);
+                // Real-time check for block status (Optimized via Set)
+                const blocked = blockedSet.has(t.indicator);
                 threats.push({ ...t, blocked } as any);
             }
             
@@ -513,6 +519,9 @@ export class CuratedIntelService {
     }
 
     async getStats(): Promise<Record<string, number>> {
+        // BUG-01 Optimization: Return pre-calculated stats
+        if (Object.keys(this.stats).length > 0) return this.stats;
+        
         const stats: Record<string, number> = {};
         for (const source of this.sources) {
             stats[source.name] = 0;
@@ -527,6 +536,7 @@ export class CuratedIntelService {
                 stats[res.value.provider] = (stats[res.value.provider] || 0) + 1;
             }
         }
+        this.stats = stats;
         return stats;
     }
 

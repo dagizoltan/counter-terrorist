@@ -29,27 +29,67 @@ static mut HIDE_CONFIG: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
 #[map]
 static mut ACTIVE_SESSIONS: HashMap<SessionKey, SessionValue> = HashMap::with_max_entries(4096, 0);
 
+#[map]
+static mut TRUSTED_COMM: HashMap<[u8; 16], u8> = HashMap::with_max_entries(1024, 0);
+
+#[map]
+static mut XDP_BLOCK_LIST: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0);
+
+#[map]
+static mut ALLOWED_PORTS: HashMap<u16, u8> = HashMap::with_max_entries(1024, 0);
+
+#[map]
+static mut FIREWALL_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(8, 0); // [0] = lockdown
+
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
-    match try_xdp_ingress(ctx) {
+    match try_xdp_ingress(&ctx) {
         Ok(ret) => ret,
         Err(_) => XDP_PASS,
     }
 }
 
-fn try_xdp_ingress(ctx: XdpContext) -> Result<u32, ()> {
-    let eth_proto = u16::from_be(ctx.load::<u16>(12).map_err(|_| ())?);
+#[inline(always)]
+fn load<T>(ctx: &XdpContext, offset: usize) -> Result<T, ()> {
+    let start = ctx.data();
+    let end = ctx.data_end();
+    if start + offset + mem::size_of::<T>() > end {
+        return Err(());
+    }
+    unsafe { Ok(core::ptr::read_unaligned((start + offset) as *const T)) }
+}
+
+fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
+    let eth_proto = u16::from_be(load::<u16>(ctx, 12)?);
     if eth_proto != 0x0800 { return Ok(XDP_PASS); }
 
-    let src_ip: u32 = ctx.load(26).map_err(|_| ())?;
-    let dst_ip: u32 = ctx.load(30).map_err(|_| ())?;
-    let proto: u8 = ctx.load(23).map_err(|_| ())?;
+    let src_ip: u32 = load(ctx, 26)?;
+    let dst_ip: u32 = load(ctx, 30)?;
+    let proto: u8 = load(ctx, 23)?;
 
     let (src_port, dst_port) = if proto == 6 || proto == 17 {
-        (ctx.load::<u16>(34).map_err(|_| ())?, ctx.load::<u16>(36).map_err(|_| ())?)
+        (load::<u16>(ctx, 34)?, load::<u16>(ctx, 36)?)
     } else { (0, 0) };
 
-    // STATEFUL CHECK: Look for reversed tuple (Since this is ingress, we match an egress session)
+    // 1. GLOBAL LOCKDOWN CHECK
+    if let Some(lockdown) = unsafe { FIREWALL_CONFIG.get(&0) } {
+        if *lockdown == 1 {
+            // Even in lockdown, we might want to allow some traffic? 
+            // For now, absolute deny unless it's an active session from us.
+            let key = SessionKey { src_ip: dst_ip, dst_ip: src_ip, src_port: dst_port, dst_port: src_port, proto };
+            if unsafe { ACTIVE_SESSIONS.get(&key) }.is_some() {
+                return Ok(XDP_PASS);
+            }
+            return Ok(XDP_DROP);
+        }
+    }
+
+    // 2. EXPLICIT BLOCK LIST CHECK
+    if unsafe { XDP_BLOCK_LIST.get(&src_ip) }.is_some() {
+        return Ok(XDP_DROP);
+    }
+
+    // 3. STATEFUL CHECK: Look for reversed tuple
     let key = SessionKey {
         src_ip: dst_ip,
         dst_ip: src_ip,
@@ -62,8 +102,13 @@ fn try_xdp_ingress(ctx: XdpContext) -> Result<u32, ()> {
         return Ok(XDP_PASS);
     }
 
-    // Pass public orchestrator ports
-    if u16::from_be(dst_port) == 8001 {
+    // 4. ALLOWED PORTS CHECK
+    let dport_host = u16::from_be(dst_port);
+    if dport_host == 8001 {
+        return Ok(XDP_PASS);
+    }
+
+    if unsafe { ALLOWED_PORTS.get(&dport_host) }.is_some() {
         return Ok(XDP_PASS);
     }
 
@@ -72,20 +117,30 @@ fn try_xdp_ingress(ctx: XdpContext) -> Result<u32, ()> {
 
 #[classifier]
 pub fn tc_egress(ctx: TcContext) -> i32 {
-    let _ = try_tc_egress(ctx);
+    let _ = try_tc_egress(&ctx);
     TC_ACT_OK
 }
 
-fn try_tc_egress(ctx: TcContext) -> Result<(), ()> {
-    let eth_proto = u16::from_be(ctx.load::<u16>(12).map_err(|_| ())?);
+#[inline(always)]
+fn load_tc<T>(ctx: &TcContext, offset: usize) -> Result<T, ()> {
+    let start = ctx.data();
+    let end = ctx.data_end();
+    if start + offset + mem::size_of::<T>() > end {
+        return Err(());
+    }
+    unsafe { Ok(core::ptr::read_unaligned((start + offset) as *const T)) }
+}
+
+fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
+    let eth_proto = u16::from_be(load_tc::<u16>(ctx, 12)?);
     if eth_proto != 0x0800 { return Ok(()); }
 
-    let src_ip: u32 = ctx.load(26).map_err(|_| ())?;
-    let dst_ip: u32 = ctx.load(30).map_err(|_| ())?;
-    let proto: u8 = ctx.load(23).map_err(|_| ())?;
+    let src_ip: u32 = load_tc(ctx, 26)?;
+    let dst_ip: u32 = load_tc(ctx, 30)?;
+    let proto: u8 = load_tc(ctx, 23)?;
 
     let (src_port, dst_port) = if proto == 6 || proto == 17 {
-        (ctx.load::<u16>(34).map_err(|_| ())?, ctx.load::<u16>(36).map_err(|_| ())?)
+        (load_tc::<u16>(ctx, 34)?, load_tc::<u16>(ctx, 36)?)
     } else { (0, 0) };
 
     let key = SessionKey { src_ip, dst_ip, src_port, dst_port, proto };
@@ -97,7 +152,30 @@ fn try_tc_egress(ctx: TcContext) -> Result<(), ()> {
 }
 
 #[kprobe]
+pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    
+    // In-Kernel Filtering: Skip events from known trusted processes (e.g., orchestrator, sidecars)
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
+        return 0;
+    }
+
+    let mut event = SyscallEvent {
+        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        comm,
+        syscall_id: 59,
+    };
+    unsafe { EVENTS.output(&ctx, &event, 0) };
+    0
+}
+
+#[kprobe]
 pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
+        return 0;
+    }
+
     let mut event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm: bpf_get_current_comm().unwrap_or([0; 16]),

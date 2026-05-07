@@ -6,11 +6,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * High-fidelity spatial awareness for ingress neutralization.
  * Implements 'LibreMap' style autonomous visualization.
  */
-export const ThreatMapPage = (props: { status: any, csrfToken?: string }) => {
+export const ThreatMapPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Global Threat Map // Spatial awareness" islandPaths={[
       '/components/islands/ThreatMap.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Page_Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">

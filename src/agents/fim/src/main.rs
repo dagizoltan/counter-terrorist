@@ -8,7 +8,7 @@ use std::os::unix::io::RawFd;
 use libc::{fanotify_init, fanotify_mark, fanotify_response, read};
 use std::fs;
 
-static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(0)));
+static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SidecarResponse {
@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize fanotify: FAN_CLASS_CONTENT allows for permission events
     let fd = unsafe {
-        fanotify_init(libc::FAN_CLASS_CONTENT | libc::FAN_CLOEXEC, libc::O_RDONLY)
+        fanotify_init(libc::FAN_CLASS_CONTENT | libc::FAN_CLOEXEC, libc::O_RDONLY as u32)
     };
 
     if fd < 0 {
@@ -124,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
             let mut offset = 0;
             while offset + std::mem::size_of::<libc::fanotify_event_metadata>() <= n as usize {
                 let metadata = unsafe {
-                    &*(buffer.as_ptr().add(offset) as *const libc::c_fanotify_event_metadata)
+                    &*(buffer.as_ptr().add(offset) as *const libc::fanotify_event_metadata)
                 };
 
                 if metadata.vers != libc::FANOTIFY_METADATA_VERSION as u8 { break; }

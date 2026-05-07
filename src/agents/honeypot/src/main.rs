@@ -107,14 +107,23 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         source_ip: ip.clone(),
                     }).await;
 
-                    // Check for sabotage
-                    {
+                    // Randomized Latency (frustrate scanners)
+                    let base_latency = {
+                        use rand::Rng;
+                        let mut rng = rand::thread_rng();
+                        rng.gen_range(50..500)
+                    };
+                    tokio::time::sleep(tokio::time::Duration::from_millis(base_latency)).await;
+
+                    // Tarpitting Check
+                    let is_tarpitted = {
                         let s = state_clone.lock().await;
-                        if let Some(ls) = s.get(&port) {
-                            if ls.sabotage_ips.contains(&ip) {
-                                tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-                            }
-                        }
+                        s.get(&port).map(|ls| ls.sabotage_ips.contains(&ip)).unwrap_or(false)
+                    };
+
+                    if is_tarpitted {
+                        // Progressive Tarpitting: Slow down initial handshake
+                        tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
                     }
 
                     // INTERACTIVE ENGAGEMENT: Present a fake prompt and capture session data
@@ -124,15 +133,31 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                     let mut line = String::new();
                     
                     // Capture up to 5 lines of interaction for forensic modeling
-                    for _ in 0..5 {
+                    for i in 0..5 {
                         line.clear();
                         if let Ok(n) = reader.read_line(&mut line).await {
                             if n == 0 { break; }
+                            
+                            if is_tarpitted {
+                                // Tarpit: Progressively slow down responses
+                                let delay = (i + 1) * 2000;
+                                tokio::time::sleep(tokio::time::Duration::from_millis(delay as u64)).await;
+                            } else {
+                                // Randomized Latency for responses
+                                let response_latency = {
+                                    use rand::Rng;
+                                    let mut rng = rand::thread_rng();
+                                    rng.gen_range(100..1000)
+                                };
+                                tokio::time::sleep(tokio::time::Duration::from_millis(response_latency)).await;
+                            }
+
                             emit_event(SidecarEvent::SessionData {
                                 port,
                                 source_ip: ip.clone(),
                                 data: line.trim().to_string(),
                             }).await;
+                            
                             // Mimic a "Password:" prompt after login
                             if line.contains("login") || line.len() > 0 {
                                 let _ = reader.get_mut().write_all(b"password: ").await;
@@ -142,6 +167,10 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         }
                     }
                     
+                    if is_tarpitted {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
+                    }
+
                     let _ = reader.get_mut().write_all(b"\nAccess Denied. Connection logged.\n").await;
                     let _ = reader.get_mut().shutdown().await;
                 });

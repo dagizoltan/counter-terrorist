@@ -155,6 +155,7 @@ export interface ConfigurationPort {
 
 export interface WebPort {
   start(port?: number): Promise<void>;
+  stop(): Promise<void>;
 }
 
 export interface AuditEvent {

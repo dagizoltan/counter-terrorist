@@ -69,10 +69,29 @@ export class TPMManager {
         });
         
         const currentPcrs = await this.getPcrs();
-        if (!goldenPcrs) return true;
+        
+        if (!goldenPcrs || Object.keys(goldenPcrs).length === 0) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "TPM",
+                message: "Integrity Violation: No golden PCRs provided. Hardware-rooted trust is mandatory."
+            });
+            return false;
+        }
 
         for (const [index, expected] of Object.entries(goldenPcrs)) {
-            if (currentPcrs[Number(index)] !== expected) return false;
+            if (currentPcrs[Number(index)] !== expected) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.CRITICAL,
+                    caller: "TPM",
+                    message: `Hardware Integrity Mismatch: PCR ${index} (Expected: ${expected}, Got: ${currentPcrs[Number(index)]})`
+                });
+                return false;
+            }
         }
         return true;
     }

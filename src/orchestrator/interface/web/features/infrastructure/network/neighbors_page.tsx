@@ -5,11 +5,11 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Neighbor Networks Page
  * Ambient signals, WiFi APs, and Bluetooth discovery.
  */
-export const NeighborNetworksPage = (props: { status: any, csrfToken?: string }) => {
+export const NeighborNetworksPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Neighbor Signals // Environmental Intelligence" islandPaths={[
       '/components/islands/EnvironmentalSignals.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header mb-12">
         <div class="title-group">
