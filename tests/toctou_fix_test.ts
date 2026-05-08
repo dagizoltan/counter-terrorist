@@ -1,10 +1,12 @@
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
 import { UbuntuAntivirusProvider } from "@infrastructure/system/protection/antivirus/providers/ubuntu_antivirus.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 
 Deno.test("UbuntuAntivirusProvider.quarantine - Security Fix Verification", async () => {
-  const executor = new SystemExecutor();
+  const executor = new SidecarManager(new SystemExecutor(), loggingService as any);
   const provider = new UbuntuAntivirusProvider(executor);
   const testFile = "tests/security_test_file.txt";
   const tempQuarantineDir = await Deno.makeTempDir({ prefix: "cts_quarantine_test" });

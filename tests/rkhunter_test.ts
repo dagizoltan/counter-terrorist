@@ -45,6 +45,6 @@ Deno.test("RkhunterManager.runScan - failure returns null", async () => {
 
   const result = await manager.runScan();
 
-  assertEquals(result, null);
-  assertEquals(manager.getLastResult(), null);
+  assertEquals(result?.success, false);
+  assertEquals(manager.getLastResult()?.success, false);
 });

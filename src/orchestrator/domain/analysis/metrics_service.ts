@@ -243,7 +243,7 @@ export class MetricsService {
             const [firewallStatus, meshNodes, blockedIps, vpnConnected] = await Promise.all([
                 this.firewall.getStatus(),
                 Promise.resolve(this.mesh.getNodes()),
-                this.firewall.getBlockedIps(),
+                await (this.firewall as any).getBlockedIps?() || [],
                 this.vpn.isConnected()
             ]);
 
@@ -348,7 +348,7 @@ export class MetricsService {
                     stats: await this.tacticalIntel?.getStats() ?? {}
                 },
                 discovery: {
-                    devices: this.networkDiscovery?.getDevices() ?? []
+                    devices: (this.networkDiscovery?.getDevices() ?? []).map((d: any) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))
                 },
                 news: {
                     latest: await this.news?.getLatestSignals(50) ?? []

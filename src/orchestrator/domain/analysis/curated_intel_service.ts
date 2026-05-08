@@ -147,13 +147,13 @@ export class CuratedIntelService {
         let revalidatedCount = 0;
 
         for await (const res of iter) {
-            const [_, ip] = res.key;
+            const ip = String(res.key[1]);
             const data = res.value;
             const now = Date.now();
             
             if (now > data.expiresAt) {
                 // EXPIRED: Perform forensic re-verification
-                const isStillMalicious = await this.reverify(ip as string);
+                const isStillMalicious = await this.reverify(ip);
                 
                 if (isStillMalicious) {
                     // Renew TTL (Adaptive extension)

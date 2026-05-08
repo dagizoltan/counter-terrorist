@@ -85,8 +85,8 @@ export class ProcessTracker {
             const msg = e instanceof Error ? e.message : String(e);
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: (LogType as any).AUDIT || "audit",
-                severity: (LogSeverity as any).ERROR || "error",
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
                 caller: "PROCESS",
                 message: `Full scan failed: ${msg}`
             });
@@ -143,8 +143,8 @@ export class ProcessTracker {
         if (ghosts.length > 0) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
-                type: (LogType as any).AUDIT || "audit",
-                severity: (LogSeverity as any).WARNING || "warning",
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
                 caller: "FORENSICS",
                 message: `GHOST PROCESSES DETECTED: ${ghosts.join(", ")}`
             });

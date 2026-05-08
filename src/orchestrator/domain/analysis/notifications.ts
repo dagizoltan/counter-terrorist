@@ -23,7 +23,7 @@ export class NotificationService {
                 this.webhooks = res.value;
             }
         } catch (e) {
-            this.logging.log(`[NOTIFICATIONS] Failed to load webhooks from KV: ${e}`, SyslogSeverity.ERROR);
+            this.logging.logLegacy(`[NOTIFICATIONS] Failed to load webhooks from KV: ${e}`, SyslogSeverity.ERROR);
         }
     }
 
@@ -31,7 +31,7 @@ export class NotificationService {
         // Security: Validate webhook URL to prevent SSRF
         const urlCheck = isValidWebhookUrl(webhook.url);
         if (!urlCheck.valid) {
-            this.logging.log(`[NOTIFICATIONS] Rejected webhook URL: ${urlCheck.reason}`, SyslogSeverity.WARNING);
+            this.logging.logLegacy(`[NOTIFICATIONS] Rejected webhook URL: ${urlCheck.reason}`, SyslogSeverity.WARNING);
             return { error: `Invalid webhook URL: ${urlCheck.reason}` };
         }
 
@@ -84,7 +84,7 @@ export class NotificationService {
                     body: JSON.stringify(body),
                 });
             } catch (e) {
-                this.logging.log(`[NOTIFICATIONS] Failed to trigger webhook ${webhook.name}: ${e}`, SyslogSeverity.ERROR);
+                this.logging.logLegacy(`[NOTIFICATIONS] Failed to trigger webhook ${webhook.name}: ${e}`, SyslogSeverity.ERROR);
             }
         }
     }
