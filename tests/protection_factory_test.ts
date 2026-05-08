@@ -3,7 +3,7 @@ import { createVpnManager, createFirewallManager, createAntivirusManager, create
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { PlatformInfo } from "@infrastructure/system/platform.ts";
-import { CommandResult } from "@infrastructure/system/command_manager.ts";
+import { CommandResult } from "@core/ports.ts";
 
 class MockExecutor extends SystemExecutor {
   calls: Array<{ cmd: string; args: string[] }> = [];

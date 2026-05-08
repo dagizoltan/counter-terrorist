@@ -41,7 +41,7 @@ export class LedgerService {
         this.chain.push(entry);
         this.lastHash = entry.hash;
 
-        this.logging.log(`[LEDGER] Entry ${entry.index} committed: ${entry.hash.slice(0, 8)}`, SyslogSeverity.NOTICE);
+        this.logging.logLegacy(`[LEDGER] Entry ${entry.index} committed: ${entry.hash.slice(0, 8)}`, SyslogSeverity.NOTICE);
 
         // Replicate to mesh via gossip
         this.mesh.broadcast({
@@ -59,7 +59,7 @@ export class LedgerService {
 
         // In a true sovereign mesh, we would validate signatures here.
         this.chain.push(entry);
-        this.logging.log(`[LEDGER] Synced Entry ${entry.index} from ${entry.nodeId}`, SyslogSeverity.INFORMATIONAL);
+        this.logging.logLegacy(`[LEDGER] Synced Entry ${entry.index} from ${entry.nodeId}`, SyslogSeverity.INFORMATIONAL);
     }
 
     private async computeHash(entry: LedgerEntry): Promise<string> {

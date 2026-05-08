@@ -25,7 +25,7 @@ export class IncidentService {
         const entry: Incident = { ...incident, id, timestamp, status: "OPEN" };
         
         await this.repo.set(id, entry);
-        this.logging.log(`[INCIDENT] ${entry.severity}: ${entry.title}`, SyslogSeverity.NOTICE);
+        this.logging.logLegacy(`[INCIDENT] ${entry.severity}: ${entry.title}`, SyslogSeverity.NOTICE);
     }
 
     async getIncidents(limit = 50): Promise<Incident[]> {

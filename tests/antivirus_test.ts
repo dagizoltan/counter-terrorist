@@ -1,9 +1,11 @@
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { AntivirusManager } from "@infrastructure/system/protection/antivirus/antivirus.ts";
 import { UbuntuAntivirusProvider } from "@infrastructure/system/protection/antivirus/providers/ubuntu_antivirus.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 
-const antivirus = new AntivirusManager(new UbuntuAntivirusProvider(new SystemExecutor()));
+const antivirus = new AntivirusManager(new UbuntuAntivirusProvider(new SidecarManager(new SystemExecutor(), loggingService as any)));
 
 Deno.test("AntivirusManager.scanPath validation", async () => {
   // Test allowed paths

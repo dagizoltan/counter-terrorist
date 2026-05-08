@@ -38,7 +38,7 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
     }
   } as any;
 
-  const playbook = new PlaybookService(mockSidecarManager, mockProtection, mockNotifications, mockMeshManager);
+  const playbook = new PlaybookService(mockSidecarManager, mockProtection, mockNotifications, mockMeshManager, {} as any, { on: () => {} } as any);
   await playbook.init();
 
   // Simulate honeypot access
