@@ -97,7 +97,13 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Attach KProbes
-    for (name, func) in [("kprobe_ptrace", "sys_ptrace"), ("kprobe_mmap", "sys_mmap"), ("kprobe_execve", "sys_execve")] {
+    for (name, func) in [
+        ("kprobe_ptrace", "sys_ptrace"),
+        ("kprobe_mmap", "sys_mmap"),
+        ("kprobe_execve", "sys_execve"),
+        ("kprobe_connect", "sys_connect"),
+        ("kprobe_openat", "sys_openat")
+    ] {
         if let Some(prog) = bpf.program_mut(name) {
             if let Ok(p) = <&mut KProbe>::try_from(prog) {
                 let _ = p.load();
@@ -131,13 +137,19 @@ async fn main() -> Result<(), anyhow::Error> {
                             let data = &buffers[i];
                             if data.len() >= std::mem::size_of::<SyscallEvent>() {
                                 let event = unsafe { &*(data.as_ptr() as *const SyscallEvent) };
-                                let syscall = match event.syscall_id { 101 => "ptrace", 9 => "mmap", 59 => "execve", _ => "unknown" };
+                                let syscall = match event.syscall_id {
+                                    101 => "ptrace", 9 => "mmap", 59 => "execve",
+                                    42 => "connect", 257 => "openat", _ => "unknown"
+                                };
                                 let comm = std::str::from_utf8(&event.comm).unwrap_or("unknown").trim_end_matches('\0');
                                 emit_event(serde_json::json!({
                                     "type": "SYSCALL_EVENT",
                                     "pid": event.pid,
                                     "comm": comm,
                                     "syscall": syscall,
+                                    "fd": event.fd,
+                                    "port": event.port,
+                                    "ip": event.ip,
                                     "timestamp": Utc::now().to_rfc3339()
                                 })).await;
                             }

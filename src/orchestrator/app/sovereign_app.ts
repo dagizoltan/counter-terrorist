@@ -177,8 +177,43 @@ export class SovereignApp {
 
     private startWatchdog(health: HealthService) {
         const watchdog = new WatchdogService(health, loggingService, async (name) => {
-            // Re-initialization logic placeholder
-            return false; 
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "SYSTEM:WATCHDOG",
+                message: `Attempting to resurrect failed service: ${name}`
+            });
+
+            try {
+                // 1. Check if it's a sidecar
+                const sidecars = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn"];
+                if (sidecars.includes(name.toLowerCase())) {
+                    await this.sidecarManager.restartSidecar(name.toLowerCase());
+                    return true;
+                }
+
+                // 2. Specialized re-initialization for domain services
+                if (name === "CuratedIntel") {
+                    await this.services.curatedIntel.start(this.kv);
+                    return true;
+                }
+                if (name === "Honeypot") {
+                    await this.services.honeypot.start();
+                    return true;
+                }
+
+                return false;
+            } catch (e) {
+                await loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "SYSTEM:WATCHDOG",
+                    message: `Resurrection failed for ${name}: ${(e as Error).message}`
+                });
+                return false;
+            }
         });
         watchdog.start();
     }

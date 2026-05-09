@@ -299,13 +299,22 @@ export class AuditService {
             // SECURITY: Hardware-Verified Checkpoint Bypass
             // If the event is a signed checkpoint, we verify the TPM signature instead of the content hash.
             // This allows the chain to remain valid after retention purges.
-            if (event.type === "CHECKPOINT" && event.hwSignature && this.tpm) {
-                const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
-                if (!isValidCheckpoint) {
+            if (event.type === "CHECKPOINT") {
+                if (event.hwSignature && this.tpm) {
+                    const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
+                    if (!isValidCheckpoint) {
+                        return {
+                            valid: false,
+                            eventsChecked: i + 1,
+                            brokenAt: { eventId: event.id, expected: "VALID_TPM_SIG", actual: "INVALID_SIG", type: "CHECKPOINT_TAMPER" },
+                        };
+                    }
+                } else if (event.prevHash !== "TRUNCATED") {
+                    // Unsigned checkpoints are only allowed if they are not the genesis of a truncated chain
                     return {
                         valid: false,
                         eventsChecked: i + 1,
-                        brokenAt: { eventId: event.id, expected: "VALID_TPM_SIG", actual: "INVALID_SIG", type: "CHECKPOINT_TAMPER" },
+                        brokenAt: { eventId: event.id, expected: "TPM_SIGNATURE", actual: "UNSIGNED", type: "UNSIGNED_CHECKPOINT" },
                     };
                 }
                 continue;

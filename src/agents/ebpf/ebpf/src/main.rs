@@ -164,6 +164,9 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 59,
+        fd: 0,
+        port: 0,
+        ip: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -180,6 +183,9 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm: bpf_get_current_comm().unwrap_or([0; 16]),
         syscall_id: 101,
+        fd: 0,
+        port: 0,
+        ip: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -193,9 +199,50 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
             pid: (bpf_get_current_pid_tgid() >> 32) as u32,
             comm: bpf_get_current_comm().unwrap_or([0; 16]),
             syscall_id: 9,
+            fd: 0,
+            port: 0,
+            ip: 0,
         };
         unsafe { EVENTS.output(&ctx, &event, 0) };
     }
+    0
+}
+
+#[kprobe]
+pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
+        return 0;
+    }
+
+    let mut event = SyscallEvent {
+        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        comm,
+        syscall_id: 42,
+        fd: ctx.arg(0).unwrap_or(0),
+        port: 0,
+        ip: 0,
+    };
+    unsafe { EVENTS.output(&ctx, &event, 0) };
+    0
+}
+
+#[kprobe]
+pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
+        return 0;
+    }
+
+    let mut event = SyscallEvent {
+        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        comm,
+        syscall_id: 257,
+        fd: 0,
+        port: 0,
+        ip: 0,
+    };
+    unsafe { EVENTS.output(&ctx, &event, 0) };
     0
 }
 
