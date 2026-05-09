@@ -42,31 +42,5 @@ The codebase has been refactored for improved modularity and safety:
 *   **Test Suite**: Stabilized critical security and logic tests including RBAC, Playbooks, and TOCTOU mitigations.
 *   **Type Safety**: Resolved over 60 TypeScript errors across the domain and infrastructure layers.
 
-## 5. Roadmap & Future Enhancements
-
-### 5.1. Mesh-Wide Consensus for Remediation (Phase 3)
-Currently, the AutonomousResponseEngine acts locally. The next evolution is to wire the Quorum Handshake into critical remediations.
-*   **Action**: Modify `executeRemediation` so that "LOCKDOWN" or "NODE_ISOLATION" triggers a mesh-wide vote via `MeshManager.requestQuorumCommand`.
-*   **Goal**: Prevent a single compromised node from triggering a legitimate "self-destruct" or isolation across the fleet without peer verification.
-
-### 5.2. Kill-Chain Visualization (Forensic UI)
-Build a Mesh Forensic Map in the UI that visualizes the forensic data from `CorrelationService`.
-*   **Action**: Implement a graph-based visualizer showing the stages (Recon, Exploitation, C2) of identified kill-chains.
-*   **Goal**: Allow operators to visually track an adversary moving laterally through the mesh in real-time.
-
-### 5.3. LSM Policy-as-Code
-Implement a "Policy Editor" in the Governance section where operators can define Syscall Allowlists for specific binaries.
-*   **Action**: Provide an interface to sign and deploy eBPF/LSM policies to the fleet.
-*   **Goal**: Reach a state where unauthorized `execve` or `ptrace` calls are blocked at the kernel level by default.
-
-### 5.4. Full Capability Hermeticity
-Perform a "Least Privilege" audit on every sidecar and replace all remaining sudo-delegation with Ambient Linux Capabilities.
-*   **Goal**: Completely remove `sudo` from the production runtime environment.
-
-### 5.5. Adaptive Honey-Networks
-Integrate `MorphingService` more deeply with `IntelligenceSubsystem`.
-*   **Action**: Automatically spin up Dynamic Decoy Containers that mimic the target the attacker is probing upon detection of high-fidelity threats.
-*   **Goal**: Turn the mesh into a "Moving Target Defense" system.
-
 ---
 **Architect's Conclusion:** The system is now architecturally sound and "Secure-by-Design." The primary vulnerabilities have been mitigated, and the codebase is ready for production-grade deployment and final functional verification.

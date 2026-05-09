@@ -277,7 +277,7 @@ export class MetricsService {
                 firewall: {
                     blockedCount: rejectCount,
                     rules: fwLines.length,
-                    blockedIps: [...new Set(blockedIps as string[])].slice(0, 20),
+                    blockedIps: [...new Set(blockedIps)].slice(0, 20),
                     suspiciousIps: this.behavioral.getSuspiciousIps().slice(0, 10),
                 },
                 node: {
@@ -347,7 +347,7 @@ export class MetricsService {
                             blocked: blockedIps.includes(t.indicator)
                         }));
                     })(),
-                    stats: await (this.tacticalIntel as any)?.getStats() ?? {}
+                    stats: await this.tacticalIntel?.getStats() ?? {}
                 },
                 discovery: {
                     devices: (this.networkDiscovery?.getDevices() ?? []).map((d: any) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))

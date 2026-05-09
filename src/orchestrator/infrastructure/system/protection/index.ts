@@ -37,9 +37,9 @@ export function createProtection(
   return {
     firewall,
     vpn: createVpnManager(sidecar, executor, platformInfo),
-    antivirus: createAntivirusManager(sidecar, executor),
+    antivirus: createAntivirusManager(sidecar, executor, platformInfo),
     persistence: createPersistenceManager(sidecar, executor, platformInfo),
-    pcap: createPcapManager(sidecar, executor),
+    pcap: createPcapManager(sidecar, executor, platformInfo),
     rkhunter: new RkhunterManager(sidecar),
     lockdown: () => firewall.lockdown(),
   };

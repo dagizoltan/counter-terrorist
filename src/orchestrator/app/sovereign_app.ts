@@ -36,7 +36,7 @@ import { setMetricsService } from "@domain/analysis/metrics_service.ts";
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
 import { KvSessionRepository } from "@infrastructure/persistence/kv/kv_session_repository.ts";
 import { KvNetworkLogRepository } from "@infrastructure/persistence/kv/kv_network_log_repository.ts";
-import { LinuxProcessProvider } from "@infrastructure/system/process_provider.ts";
+import { LinuxProcessProvider, MacOSProcessProvider, WindowsProcessProvider } from "@infrastructure/system/process_provider.ts";
 
 import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
 import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
@@ -361,7 +361,15 @@ export class SovereignApp {
         await rawProtection.firewall.setKv(this.kv);
         const protection = new ProtectionAdapter(rawProtection);
         
-        const processProvider = new LinuxProcessProvider();
+        let processProvider;
+        if (platformInfo.name === "macos") {
+            processProvider = new MacOSProcessProvider();
+        } else if (platformInfo.name === "windows") {
+            processProvider = new WindowsProcessProvider();
+        } else {
+            processProvider = new LinuxProcessProvider();
+        }
+
         const processTracker = new ProcessTracker(loggingService, processProvider, this.sidecarManager);
         
         const sessionRepo = new KvSessionRepository(this.kv);
