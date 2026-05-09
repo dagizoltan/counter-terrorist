@@ -17,6 +17,7 @@ export class SidecarManager implements CommandPort {
   private cleanupRegistered: boolean = false;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
+  private rotationIntervalId?: number;
 
   private manifest: any = null;
   private manifestPromise: Promise<void> | null = null;
@@ -66,7 +67,7 @@ export class SidecarManager implements CommandPort {
    */
   private startRotationLoop() {
     const ROTATION_INTERVAL = 6 * 60 * 60 * 1000; // 6 Hours
-    setInterval(async () => {
+    this.rotationIntervalId = setInterval(async () => {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
@@ -107,11 +108,9 @@ export class SidecarManager implements CommandPort {
     return this.executor;
   }
 
-  private registerCleanup() {
-    if (this.cleanupRegistered) return;
-    
-    const cleanup = async () => {
-      this.isShuttingDown = true;
+  private cleanupHandler = async () => {
+    this.isShuttingDown = true;
+    if (this.logging) {
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.ACTIVITY,
@@ -119,14 +118,17 @@ export class SidecarManager implements CommandPort {
           caller: "SIDECAR_MANAGER",
           message: "Orchestrator exiting, cleaning up sidecars..."
       });
-      for (const name of Array.from(this.persistentProcesses.keys())) {
-        await this.stopSidecar(name);
-      }
-      // Deno.exit(0); // Removing explicit exit as it might interfere with Deno's own cleanup
-    };
+    }
+    for (const name of Array.from(this.persistentProcesses.keys())) {
+      await this.stopSidecar(name);
+    }
+  };
 
-    Deno.addSignalListener("SIGINT", cleanup);
-    Deno.addSignalListener("SIGTERM", cleanup);
+  private registerCleanup() {
+    if (this.cleanupRegistered) return;
+
+    Deno.addSignalListener("SIGINT", this.cleanupHandler);
+    Deno.addSignalListener("SIGTERM", this.cleanupHandler);
     this.cleanupRegistered = true;
   }
 
@@ -503,6 +505,17 @@ export class SidecarManager implements CommandPort {
     await this.getPersistentSidecar(name);
   }
 
+  public stop() {
+    if (this.rotationIntervalId) {
+      clearInterval(this.rotationIntervalId);
+    }
+    if (this.cleanupRegistered) {
+      try { Deno.removeSignalListener("SIGINT", this.cleanupHandler); } catch { /* ignore */ }
+      try { Deno.removeSignalListener("SIGTERM", this.cleanupHandler); } catch { /* ignore */ }
+      this.cleanupRegistered = false;
+    }
+  }
+
   async stopSidecar(name: string): Promise<void> {
     const process = this.persistentProcesses.get(name);
     if (process) {
@@ -565,7 +578,7 @@ export class SidecarManager implements CommandPort {
     // Authoritative check against Signed Manifest
     const goldenHash = this.manifest?.sidecars?.[name]?.hash || Deno.env.get(`CTS_HASH_${name.toUpperCase()}`);
     
-    if (!force && (!goldenHash || currentHash === goldenHash)) {
+    if (!force && (goldenHash && currentHash === goldenHash)) {
         return true; 
     }
 
