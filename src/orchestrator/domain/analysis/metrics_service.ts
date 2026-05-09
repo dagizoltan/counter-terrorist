@@ -243,7 +243,7 @@ export class MetricsService {
             const [firewallStatus, meshNodes, blockedIps, vpnConnected] = await Promise.all([
                 this.firewall.getStatus(),
                 Promise.resolve(this.mesh.getNodes()),
-                await (this.firewall as any).getBlockedIps?() || [],
+                (this.firewall as any).getBlockedIps ? (this.firewall as any).getBlockedIps() : Promise.resolve([]),
                 this.vpn.isConnected()
             ]);
 

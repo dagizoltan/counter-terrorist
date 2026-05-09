@@ -52,6 +52,23 @@ export class SovereignApp {
     async boot() {
         // ── Phase 1: Core infrastructure ──────────────────────────────────────
         await this.initCore();
+
+        // ── Phase 1.1: Security Lockdown Check ───────────────────────────────
+        const lockdown = await this.kv.get(["system", "lockdown"]);
+        if (lockdown.value) {
+            const data = lockdown.value as any;
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "SOVEREIGN:BOOT",
+                message: `BOOT ABORTED: System is in PERMANENT LOCKDOWN. Reason: ${data.reason}. Timestamp: ${data.timestamp}`
+            });
+            console.error("!!! CRITICAL: SYSTEM LOCKED !!!");
+            console.error(`Reason: ${data.reason}`);
+            console.error("Run 'deno run -A scripts/recover.ts' with a valid recovery token to restore access.");
+            Deno.exit(1);
+        }
         
         const config = loadConfig();
         const configProvider = new EnvConfigProvider(config);
@@ -192,10 +209,8 @@ export class SovereignApp {
                 caller: "SECURITY",
                 message: "CRITICAL: HARDWARE INTEGRITY FAILURE. Access denied. No valid/secure bypass token provided."
             });
-            // Soft failure for now if not in strict mode
-            if (Deno.env.get("STRICT_HARDWARE_INTEGRITY") === "true") {
-                await this.emergencyLockdown();
-            }
+            // ENFORCEMENT: Trigger Emergency Lockdown if integrity fails and no secure bypass is active
+            await this.emergencyLockdown("Hardware Integrity Violation");
         } else if (!isHardwareSecure && isValidBypass) {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
@@ -422,18 +437,18 @@ export class SovereignApp {
         }
     }
 
-    private async emergencyLockdown() {
+    private async emergencyLockdown(reason: string = "Hardware Integrity Failure") {
         await loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
             caller: "SOVEREIGN",
-            message: "CRITICAL: EMERGENCY LOCKDOWN ACTIVATED. System quarantined. Forensic state preserved. Physical/MFA recovery required."
+            message: `CRITICAL: EMERGENCY LOCKDOWN ACTIVATED (${reason}). System quarantined. Forensic state preserved. Physical/MFA recovery required.`
         });
 
         // Persist lockdown state to prevent simple restart bypass
         await this.kv.set(["system", "lockdown"], {
-            reason: "Hardware Integrity Failure",
+            reason,
             timestamp: new Date().toISOString(),
             status: "QUARANTINED"
         });
