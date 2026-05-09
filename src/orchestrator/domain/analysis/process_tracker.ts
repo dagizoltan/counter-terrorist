@@ -1,4 +1,4 @@
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, SyslogSeverity, LogType, LogSeverity } from "@core/ports.ts";
 import { ProcessPort } from "@domain/ports/process_port.ts";
 import { CommandPort } from "@core/ports.ts";
 
