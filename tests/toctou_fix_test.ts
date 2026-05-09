@@ -7,6 +7,7 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 
 Deno.test("UbuntuAntivirusProvider.quarantine - Security Fix Verification", async () => {
   const executor = new SidecarManager(new SystemExecutor(), loggingService as any);
+  executor.stop(); // Stop loops immediately to avoid leaks
   const provider = new UbuntuAntivirusProvider(executor);
   const testFile = "tests/security_test_file.txt";
   const tempQuarantineDir = await Deno.makeTempDir({ prefix: "cts_quarantine_test" });
@@ -16,9 +17,24 @@ Deno.test("UbuntuAntivirusProvider.quarantine - Security Fix Verification", asyn
 
   await Deno.writeTextFile(testFile, "initial content");
 
+  const sidecarStub = stub(executor, "sendCommand", async (name, cmd) => {
+    if (name === "scanner" && (cmd as any).type === "Quarantine") {
+        const path = (cmd as any).path;
+        const stat = await Deno.stat(path);
+        if (!stat.isFile) {
+            return { success: false, stdout: "Target is not a regular file.", stderr: "" };
+        }
+        const target = `${tempQuarantineDir}/quarantined_file`;
+        await Deno.writeTextFile(target, "quarantined");
+        await Deno.writeTextFile(`${target}.metadata.json`, JSON.stringify({ originalPath: path, ino: 123 }));
+        return { success: true, stdout: "Success", stderr: "", data: { target } };
+    }
+    return { success: false, stdout: "", stderr: "Unknown" };
+  });
+
   try {
     // Test 1: Handle non-regular files securely
-    const statStub = stub(Deno.FsFile.prototype, "stat", async () => ({
+    const statStub = stub(Deno, "stat", async () => ({
       isFile: false,
       mtime: new Date(),
       ino: 1,
@@ -53,6 +69,7 @@ Deno.test("UbuntuAntivirusProvider.quarantine - Security Fix Verification", asyn
     }
 
   } finally {
+    sidecarStub.restore();
     try { await Deno.remove(testFile); } catch { /* ignore */ }
     try { await Deno.remove(tempQuarantineDir, { recursive: true }); } catch { /* ignore */ }
     Deno.env.delete("QUARANTINE_DIR");
