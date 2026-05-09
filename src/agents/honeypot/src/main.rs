@@ -127,7 +127,13 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                     }
 
                     // INTERACTIVE ENGAGEMENT: Present a fake prompt and capture session data
-                    let _ = socket.write_all(b"Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ").await;
+                    let mut is_vault = false;
+                    if port == 8200 {
+                        is_vault = true;
+                        let _ = socket.write_all(b"{\"initialized\":true,\"sealed\":false,\"version\":\"1.12.0\"}\n").await;
+                    } else {
+                        let _ = socket.write_all(b"Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ").await;
+                    }
                     
                     let mut reader = BufReader::new(socket);
                     let mut line = String::new();
@@ -158,9 +164,13 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                                 data: line.trim().to_string(),
                             }).await;
                             
-                            // Mimic a "Password:" prompt after login
-                            if line.contains("login") || line.len() > 0 {
-                                let _ = reader.get_mut().write_all(b"password: ").await;
+                            if is_vault {
+                                let _ = reader.get_mut().write_all(b"{\"errors\":[\"permission denied\"]}\n").await;
+                            } else {
+                                // Mimic a "Password:" prompt after login
+                                if line.contains("login") || line.len() > 0 {
+                                    let _ = reader.get_mut().write_all(b"password: ").await;
+                                }
                             }
                         } else {
                             break;

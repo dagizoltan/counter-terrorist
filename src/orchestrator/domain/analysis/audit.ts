@@ -10,6 +10,11 @@ export interface ActorContext {
     userAgent?: string;
 }
 
+export enum SystemState {
+    NORMAL = "NORMAL",
+    FORENSIC_RESTRICTED = "FORENSIC_RESTRICTED"
+}
+
 export interface AuditEvent {
     id: string;
     timestamp: string;
@@ -41,6 +46,7 @@ export class AuditService {
     private lastVerifiedHash: string = "GENESIS";
     private retentionConfig: RetentionConfig;
     private logQueue: Promise<void> = Promise.resolve();
+    private state: SystemState = SystemState.NORMAL;
 
     constructor(
         private repo: AuditRepository,
@@ -82,6 +88,12 @@ export class AuditService {
 
         const result = await this.verifyFullChain();
         if (!result.valid) {
+            this.state = SystemState.FORENSIC_RESTRICTED;
+
+            // Apply read-only enforcement at the repository layer
+            const { KvRepository } = await import("../../infrastructure/persistence/repositories/kv_repository.ts");
+            KvRepository.setReadOnly(true);
+
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
@@ -89,7 +101,10 @@ export class AuditService {
                 caller: "AUDIT:DEEP",
                 message: `CRITICAL: Forensic chain breach detected at event ${result.brokenAt?.eventId}. Type: ${result.brokenAt?.type}. Transitioning to Forensic Restricted Mode.`
             });
-            // TODO: Implement Forensic Mode transition logic
+
+            if (this.mesh) {
+                this.mesh.broadcastLockdown().catch(() => {});
+            }
         } else {
             this.logging.log({
                 timestamp: new Date().toISOString(),
@@ -162,7 +177,13 @@ export class AuditService {
     }
 
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }) {
-        this.logQueue = this.logQueue.then(async () => {
+        if (this.state === SystemState.FORENSIC_RESTRICTED &&
+            event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS") {
+            // Block non-essential logs in restricted mode to preserve forensic state
+            return;
+        }
+
+        const logAction = async () => {
             const id = crypto.randomUUID();
             const timestamp = event.timestamp || new Date().toISOString();
             const prevHash = this.lastHash;
@@ -219,9 +240,20 @@ export class AuditService {
                     message: `Failed to save event: ${(e as Error).message}`
                 });
             }
-        });
+        };
+
+        if (this.state === SystemState.FORENSIC_RESTRICTED) {
+            // Synchronous processing in restricted mode
+            await logAction();
+        } else {
+            this.logQueue = this.logQueue.then(logAction);
+        }
         
         return this.logQueue;
+    }
+
+    public getState(): SystemState {
+        return this.state;
     }
 
     async getChainStatus() {
@@ -267,13 +299,22 @@ export class AuditService {
             // SECURITY: Hardware-Verified Checkpoint Bypass
             // If the event is a signed checkpoint, we verify the TPM signature instead of the content hash.
             // This allows the chain to remain valid after retention purges.
-            if (event.type === "CHECKPOINT" && event.hwSignature && this.tpm) {
-                const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
-                if (!isValidCheckpoint) {
+            if (event.type === "CHECKPOINT") {
+                if (event.hwSignature && this.tpm) {
+                    const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
+                    if (!isValidCheckpoint) {
+                        return {
+                            valid: false,
+                            eventsChecked: i + 1,
+                            brokenAt: { eventId: event.id, expected: "VALID_TPM_SIG", actual: "INVALID_SIG", type: "CHECKPOINT_TAMPER" },
+                        };
+                    }
+                } else if (event.prevHash !== "TRUNCATED") {
+                    // Unsigned checkpoints are only allowed if they are not the genesis of a truncated chain
                     return {
                         valid: false,
                         eventsChecked: i + 1,
-                        brokenAt: { eventId: event.id, expected: "VALID_TPM_SIG", actual: "INVALID_SIG", type: "CHECKPOINT_TAMPER" },
+                        brokenAt: { eventId: event.id, expected: "TPM_SIGNATURE", actual: "UNSIGNED", type: "UNSIGNED_CHECKPOINT" },
                     };
                 }
                 continue;

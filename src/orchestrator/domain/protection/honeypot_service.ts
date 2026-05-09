@@ -60,6 +60,13 @@ export class HoneypotService {
       description: "Fake Remote Desktop service to detect lateral movement attempts.",
       active: true,
     });
+    this.registerModule({
+      id: "vault",
+      name: "HashiCorp Vault Decoy",
+      port: 8200,
+      description: "Fake Vault API to detect credential and secret theft attempts.",
+      active: true,
+    });
   }
 
   onEvent(handler: (event: any) => void) {
