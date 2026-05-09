@@ -38,21 +38,27 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
     }
   } as any;
 
-  const playbook = new PlaybookService(mockSidecarManager, mockProtection, mockNotifications, mockMeshManager, {} as any, { on: () => {} } as any);
+  const eventHandlers: Record<string, (data: any) => void> = {};
+  const mockEventBus = {
+    on: (name: string, handler: (data: any) => void) => {
+      eventHandlers[name] = handler;
+    },
+    emit: (name: string, data: any) => {
+        if (eventHandlers[name]) eventHandlers[name](data);
+    }
+  };
+
+  const playbook = new PlaybookService(mockSidecarManager, mockProtection, mockNotifications, mockMeshManager, {} as any, mockEventBus as any);
   await playbook.init();
 
   // Simulate honeypot access
   const event = {
-    event: {
-      type: "PortAccess",
-      payload: {
-        port: 2222,
-        source_ip: "10.0.0.5"
-      }
-    }
+    type: "PortAccess",
+    port: 2222,
+    source_ip: "10.0.0.5"
   };
 
-  mockSidecarManager.emit("honeypot", event);
+  mockEventBus.emit("HONEYPOT", event);
 
   // Wait a bit for async handler
   await new Promise(r => setTimeout(r, 100));

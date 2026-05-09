@@ -40,7 +40,9 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
           <div class="col-span-12 lg:col-span-4 t-panel glass-panel group hover:bg-white/[0.02] transition-all">
             <div class="flex justify-between items-center mb-10">
               <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">System Integrity</span>
-              <div class="status-pill success active !px-4 !py-1 text-[8px]">Optimal</div>
+              <div class={`status-pill ${props.status.audit?.hardwareVerified ? 'success' : 'warning'} active !px-4 !py-1 text-[8px]`}>
+                {props.status.audit?.hardwareVerified ? 'HARDWARE ROOTED' : 'SOFTWARE ONLY'}
+              </div>
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-audit-score-large">{props.status.audit?.integrityScore || 100}<span class="text-success">%</span></span>

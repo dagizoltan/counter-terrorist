@@ -375,7 +375,7 @@ export class CuratedIntelService {
 
             // Enrichment: GeoIP Attribution
             if (curated.type === "IP" && this.geoip) {
-                const geo = await this.geoip.resolve(curated.indicator);
+                const geo = await this.geoip.resolve(curated.indicator) as any;
                 if (geo) {
                     curated.geo = {
                         country: geo.country,
@@ -488,7 +488,7 @@ export class CuratedIntelService {
         let cursor = "";
 
         // BUG-02 Optimization: Fetch blocked IPs once
-        const blockedSet = new Set(await this.firewall.getBlockedIps());
+        const blockedSet = new Set(await (this.firewall as any).getBlockedIps?.() || []);
 
         for await (const res of iter) {
             const t = res.value;

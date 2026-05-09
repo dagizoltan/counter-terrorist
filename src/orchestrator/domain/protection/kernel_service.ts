@@ -2,6 +2,7 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
+import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 
 export interface KernelHardeningStatus {
     aslr: string;
@@ -17,12 +18,22 @@ export class KernelService {
     private lastHardened: string = "";
     private logging: LoggingPort;
 
+    private tpm?: TPMManager;
+
     constructor(
         private executor: SystemExecutor, 
         private auditService: AuditService,
         private sidecarManager?: SidecarManager
     ) {
         this.logging = auditService.getLogging();
+    }
+
+    setTpmManager(tpm: TPMManager) {
+        this.tpm = tpm;
+    }
+
+    getTpmManager(): TPMManager | undefined {
+        return this.tpm;
     }
 
     async start() {

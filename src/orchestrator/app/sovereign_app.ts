@@ -374,6 +374,7 @@ export class SovereignApp {
         this.auditService.setCorrelation(correlation);
 
         const { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService } = this.initSecuritySubsystem(protection, mesh, tpm, health);
+        kernelService.setTpmManager(tpm);
         const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider);
 
         const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
