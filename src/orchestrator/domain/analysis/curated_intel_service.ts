@@ -375,7 +375,7 @@ export class CuratedIntelService {
 
             // Enrichment: GeoIP Attribution
             if (curated.type === "IP" && this.geoip) {
-                const geo = await this.geoip.resolve(curated.indicator);
+                const geo = await this.geoip.resolve(curated.indicator) as any;
                 if (geo) {
                     curated.geo = {
                         country: geo.country,

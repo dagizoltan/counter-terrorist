@@ -7,6 +7,8 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
  * Achieves Full Dependency Hermeticity via native sidecar.
  */
 export class TPMManager {
+    private hardwareVerified: boolean = false;
+
     constructor(
         private sidecar: SidecarManager,
         private logging: LoggingPort
@@ -60,6 +62,7 @@ export class TPMManager {
     }
 
     async verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean> {
+        this.hardwareVerified = false;
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -82,6 +85,7 @@ export class TPMManager {
                     caller: "TPM",
                     message: "Hardware Integrity Verified via TPM NVRAM Golden Hash."
                 });
+                this.hardwareVerified = true;
                 return true;
             } else {
                 this.logging.log({
@@ -119,7 +123,12 @@ export class TPMManager {
                 return false;
             }
         }
+        this.hardwareVerified = true;
         return true;
+    }
+
+    isHardwareVerified(): boolean {
+        return this.hardwareVerified;
     }
 
     async sign(data: string): Promise<string> {

@@ -1,14 +1,29 @@
 import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { EventBus, SystemEvent } from "@domain/analysis/events.ts";
-import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogEntry, LogSeverity, LogType, SyslogSeverity } from "@core/ports.ts";
 
 class MockLogging implements LoggingPort {
-  public logs: { message: string; severity?: SyslogSeverity }[] = [];
+  public logs: LogEntry[] = [];
 
   enableGlobalIntercept(): void {}
 
-  async log(message: string, severity?: SyslogSeverity): Promise<void> {
-    this.logs.push({ message, severity });
+  async log(entry: LogEntry): Promise<void> {
+    this.logs.push(entry);
+  }
+
+  async getRecentLogs(limit?: number): Promise<LogEntry[]> {
+    return this.logs.slice(-(limit || 10));
+  }
+
+  async logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: any): Promise<void> {
+    this.logs.push({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: (severity as any) || LogSeverity.INFO,
+        caller: source || "LEGACY",
+        message,
+        payload
+    });
   }
 }
 
@@ -143,13 +158,13 @@ Deno.test("EventBus severity mapping", () => {
   eventBus.publish("UNKNOWN", "Unknown type");
 
   assertEquals(mockLogging.logs.length, 7);
-  assertEquals(mockLogging.logs[0].severity, SyslogSeverity.CRITICAL);
-  assertEquals(mockLogging.logs[1].severity, SyslogSeverity.ALERT);
-  assertEquals(mockLogging.logs[2].severity, SyslogSeverity.WARNING);
-  assertEquals(mockLogging.logs[3].severity, SyslogSeverity.WARNING);
-  assertEquals(mockLogging.logs[4].severity, SyslogSeverity.WARNING);
-  assertEquals(mockLogging.logs[5].severity, SyslogSeverity.INFORMATIONAL);
-  assertEquals(mockLogging.logs[6].severity, SyslogSeverity.INFORMATIONAL);
+  assertEquals(mockLogging.logs[0].severity, LogSeverity.ERROR);
+  assertEquals(mockLogging.logs[1].severity, LogSeverity.WARNING);
+  assertEquals(mockLogging.logs[2].severity, LogSeverity.WARNING);
+  assertEquals(mockLogging.logs[3].severity, LogSeverity.WARNING);
+  assertEquals(mockLogging.logs[4].severity, LogSeverity.WARNING);
+  assertEquals(mockLogging.logs[5].severity, LogSeverity.INFO);
+  assertEquals(mockLogging.logs[6].severity, LogSeverity.INFO);
 });
 
 Deno.test("EventBus handler error isolation", () => {
@@ -183,11 +198,11 @@ Deno.test("EventBus logs handler errors", async () => {
   eventBus.publish("INFO", "Test error logging");
 
   // Wait for promise-based logging to complete
-  await new Promise(resolve => setTimeout(resolve, 10));
+  await new Promise(resolve => setTimeout(resolve, 50));
 
-  const errorLog = mockLogging.logs.find(l => l.message.includes("[EVENTBUS] Handler error"));
+  const errorLog = mockLogging.logs.find(l => l.message.includes("Handler error:"));
   assertEquals(!!errorLog, true);
-  assertEquals(errorLog?.severity, SyslogSeverity.ERROR);
+  assertEquals(errorLog?.severity, LogSeverity.ERROR);
   assertEquals(errorLog?.message.includes("Test handler error"), true);
 });
 

@@ -59,6 +59,7 @@ export interface SystemMetrics {
     audit: {
         chainVerified: boolean;
         totalEvents: number;
+        hardwareVerified: boolean;
     };
     scanner: {
         lastScanTime: string;
@@ -321,6 +322,7 @@ export class MetricsService {
                 audit: {
                     chainVerified: auditStatus.valid,
                     totalEvents: auditStatus.count,
+                    hardwareVerified: this.kernelService.getTpmManager?.()?.isHardwareVerified() || false,
                 },
                 scanner: {
                     lastScanTime: this.lastScanTime,
