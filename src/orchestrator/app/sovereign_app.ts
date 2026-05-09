@@ -52,6 +52,23 @@ export class SovereignApp {
     async boot() {
         // ── Phase 1: Core infrastructure ──────────────────────────────────────
         await this.initCore();
+
+        // ── Phase 1.1: Security Lockdown Check ───────────────────────────────
+        const lockdown = await this.kv.get(["system", "lockdown"]);
+        if (lockdown.value) {
+            const data = lockdown.value as any;
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "SOVEREIGN:BOOT",
+                message: `BOOT ABORTED: System is in PERMANENT LOCKDOWN. Reason: ${data.reason}. Timestamp: ${data.timestamp}`
+            });
+            console.error("!!! CRITICAL: SYSTEM LOCKED !!!");
+            console.error(`Reason: ${data.reason}`);
+            console.error("Run 'deno run -A scripts/recover.ts' with a valid recovery token to restore access.");
+            Deno.exit(1);
+        }
         
         const config = loadConfig();
         const configProvider = new EnvConfigProvider(config);
@@ -160,8 +177,43 @@ export class SovereignApp {
 
     private startWatchdog(health: HealthService) {
         const watchdog = new WatchdogService(health, loggingService, async (name) => {
-            // Re-initialization logic placeholder
-            return false; 
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "SYSTEM:WATCHDOG",
+                message: `Attempting to resurrect failed service: ${name}`
+            });
+
+            try {
+                // 1. Check if it's a sidecar
+                const sidecars = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn"];
+                if (sidecars.includes(name.toLowerCase())) {
+                    await this.sidecarManager.restartSidecar(name.toLowerCase());
+                    return true;
+                }
+
+                // 2. Specialized re-initialization for domain services
+                if (name === "CuratedIntel") {
+                    await this.services.curatedIntel.start(this.kv);
+                    return true;
+                }
+                if (name === "Honeypot") {
+                    await this.services.honeypot.start();
+                    return true;
+                }
+
+                return false;
+            } catch (e) {
+                await loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "SYSTEM:WATCHDOG",
+                    message: `Resurrection failed for ${name}: ${(e as Error).message}`
+                });
+                return false;
+            }
         });
         watchdog.start();
     }
@@ -192,10 +244,8 @@ export class SovereignApp {
                 caller: "SECURITY",
                 message: "CRITICAL: HARDWARE INTEGRITY FAILURE. Access denied. No valid/secure bypass token provided."
             });
-            // Soft failure for now if not in strict mode
-            if (Deno.env.get("STRICT_HARDWARE_INTEGRITY") === "true") {
-                await this.emergencyLockdown();
-            }
+            // ENFORCEMENT: Trigger Emergency Lockdown if integrity fails and no secure bypass is active
+            await this.emergencyLockdown("Hardware Integrity Violation");
         } else if (!isHardwareSecure && isValidBypass) {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
@@ -422,18 +472,18 @@ export class SovereignApp {
         }
     }
 
-    private async emergencyLockdown() {
+    private async emergencyLockdown(reason: string = "Hardware Integrity Failure") {
         await loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
             caller: "SOVEREIGN",
-            message: "CRITICAL: EMERGENCY LOCKDOWN ACTIVATED. System quarantined. Forensic state preserved. Physical/MFA recovery required."
+            message: `CRITICAL: EMERGENCY LOCKDOWN ACTIVATED (${reason}). System quarantined. Forensic state preserved. Physical/MFA recovery required.`
         });
 
         // Persist lockdown state to prevent simple restart bypass
         await this.kv.set(["system", "lockdown"], {
-            reason: "Hardware Integrity Failure",
+            reason,
             timestamp: new Date().toISOString(),
             status: "QUARANTINED"
         });

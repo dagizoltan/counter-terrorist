@@ -12,6 +12,12 @@ export interface Repository<T> {
  * Base implementation using Deno KV.
  */
 export class KvRepository<T> implements Repository<T> {
+  private static isReadOnly = false;
+
+  public static setReadOnly(value: boolean) {
+    KvRepository.isReadOnly = value;
+  }
+
   constructor(
     protected kv: Deno.Kv,
     protected prefix: string
@@ -23,10 +29,16 @@ export class KvRepository<T> implements Repository<T> {
   }
 
   async set(id: string, data: T): Promise<void> {
+    if (KvRepository.isReadOnly && this.prefix !== "audit" && this.prefix !== "incidents") {
+        throw new Error(`Permission Denied: System is in FORENSIC_RESTRICTED mode. Write blocked for prefix '${this.prefix}'`);
+    }
     await this.kv.set([this.prefix, id], data);
   }
 
   async delete(id: string): Promise<void> {
+    if (KvRepository.isReadOnly && this.prefix !== "audit" && this.prefix !== "incidents") {
+        throw new Error(`Permission Denied: System is in FORENSIC_RESTRICTED mode. Deletion blocked for prefix '${this.prefix}'`);
+    }
     await this.kv.delete([this.prefix, id]);
   }
 
