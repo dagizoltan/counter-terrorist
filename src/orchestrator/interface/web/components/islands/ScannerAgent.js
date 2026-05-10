@@ -75,8 +75,7 @@ class ScannerAgent extends HTMLElement {
       const res = await fetch('/api/agents/scanner/sync-signatures', {
         method: 'POST',
         headers: {
-          'X-CT-Token': csrfToken || '',
-          'Authorization': `Bearer ${csrfToken}`
+          'X-CT-Token': csrfToken || ''
         }
       });
       const result = await res.json();
@@ -117,8 +116,7 @@ class ScannerAgent extends HTMLElement {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-CT-Token': csrfToken || '',
-          'Authorization': `Bearer ${csrfToken}` // Fallback for APIs requiring Bearer
+          'X-CT-Token': csrfToken || ''
         },
         body: JSON.stringify({ 
           path: '/home/',

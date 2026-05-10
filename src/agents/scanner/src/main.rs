@@ -15,6 +15,7 @@ use dashmap::DashMap;
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 // Memory Leak Mitigation: Hash Cache with TTL/Eviction logic
+#[derive(Clone)]
 struct CacheEntry {
     hash: String,
     timestamp: u64,
@@ -116,10 +117,29 @@ fn scan_process_memory(pid: u32) -> Vec<MemoryAnomaly> {
 }
 
 fn hash_file(path: &Path) -> Option<String> {
+    // 1. Check Cache
+    let path_str = path.to_string_lossy().to_string();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+
+    if let Some(entry) = HASH_CACHE.get(&path_str) {
+        if now - entry.timestamp < 3600 { // 1 Hour TTL
+            return Some(entry.hash.clone());
+        }
+    }
+
+    // 2. Perform Hash
     let mut file = File::open(path).ok()?;
     let mut hasher = Sha256::new();
     std::io::copy(&mut file, &mut hasher).ok()?;
-    Some(hex::encode(hasher.finalize()))
+    let hash = hex::encode(hasher.finalize());
+
+    // 3. Update Cache
+    HASH_CACHE.insert(path_str, CacheEntry {
+        hash: hash.clone(),
+        timestamp: now,
+    });
+
+    Some(hash)
 }
 
 async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
@@ -159,6 +179,15 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     log_forensic("info", "Sovereign Multi-Vector Scanner Engine Active").await;
+
+    // Periodic Cache Eviction Task
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(1800)).await; // Every 30 mins
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            HASH_CACHE.retain(|_, v| now - v.timestamp < 3600);
+        }
+    });
 
     let mut sys = System::new_all();
     let stdin = tokio::io::stdin();

@@ -1,6 +1,7 @@
 import { EventBus } from "./events.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { CanaryService } from "../protection/canary_service.ts";
+import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 import { LoggingPort, LogType, LogSeverity } from "../../core/ports.ts";
 import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 
@@ -10,13 +11,17 @@ import { BroadcastFunction } from "../orchestration/plugins/types.ts";
  * This decouples the core application from specific sidecar event formats.
  */
 export class EventMediator {
+    private behavioral: BehavioralAnalyzer;
+
     constructor(
         private eventBus: EventBus,
         private processTracker: ProcessTracker,
         private canaryService: CanaryService,
         private broadcast: BroadcastFunction,
         private logger: LoggingPort
-    ) {}
+    ) {
+        this.behavioral = new BehavioralAnalyzer();
+    }
 
     /**
      * Connects a sidecar manager to the domain mediator.
@@ -40,12 +45,29 @@ export class EventMediator {
             const event = response.data || response;
             if (event.type === "SYSCALL_EVENT") {
                 let type = "EBPF_SYSCALL";
-                if (event.syscall === "ptrace") type = "EBPF_CRITICAL";
+                let severity = LogSeverity.INFO;
+
+                // Neural Defense: Track and score syscall frequency
+                this.behavioral.trackSyscall(event.comm, event.syscall);
+                const anomalyScore = this.behavioral.getSyscallAnomalyScore(event.comm, event.syscall);
+
+                if (event.syscall === "ptrace" || anomalyScore > 0.5) {
+                    type = "EBPF_CRITICAL";
+                    severity = LogSeverity.ERROR;
+                }
                 
                 const analysis = await this.processTracker.analyzeEvent(event.pid, event.comm);
-                if (analysis.isStrayShell) type = "EBPF_STRAY_SHELL";
+                if (analysis.isStrayShell) {
+                    type = "EBPF_STRAY_SHELL";
+                    severity = LogSeverity.WARNING;
+                }
                 
-                this.broadcast({ type, message: `eBPF Alert: ${event.comm} called ${event.syscall}`, data: event });
+                this.broadcast({
+                    type,
+                    severity,
+                    message: `eBPF Alert: ${event.comm} called ${event.syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
+                    data: { ...event, anomalyScore }
+                });
                 this.eventBus.emit(type, event); 
                 
                 if (type === "EBPF_STRAY_SHELL") {
@@ -105,8 +127,19 @@ export class EventMediator {
 
             // Bridge sidecar packet events to the UI
             if (event.type === "PACKET" || event.type === "NETWORK_LOG" || event.type === "EXFIL_ALERT") {
-                const severity = event.type === "EXFIL_ALERT" ? LogSeverity.ERROR : LogSeverity.INFO;
+                let severity = event.type === "EXFIL_ALERT" ? LogSeverity.ERROR : LogSeverity.INFO;
                 const type = event.type === "EXFIL_ALERT" ? LogType.AUDIT : LogType.ACTIVITY;
+
+                // Behavioral: Bot Detection on Network Logs
+                let botScore = 0;
+                if (event.type === "NETWORK_LOG" && data.source) {
+                    this.behavioral.track(data.source);
+                    const analysis = this.behavioral.analyze(data.source);
+                    botScore = analysis.botProbability;
+                    if (botScore > 0.8) {
+                        severity = LogSeverity.WARNING;
+                    }
+                }
 
                 if (event.type === "EXFIL_ALERT") {
                     this.logger.log({
@@ -122,8 +155,8 @@ export class EventMediator {
                 this.broadcast({ 
                     type: event.type, 
                     severity,
-                    message: data.message || `Packet intercepted on ${data.interface || 'mesh'}`, 
-                    data: data 
+                    message: data.message || `Packet intercepted on ${data.interface || 'mesh'} ${botScore > 0.8 ? '[BOT_PROBABILITY_HIGH]' : ''}`,
+                    data: { ...data, botScore }
                 });
             } else if (event.type === "SIDECAR_ALERT") {
                 this.broadcast({
