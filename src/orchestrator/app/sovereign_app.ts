@@ -319,6 +319,7 @@ export class SovereignApp {
         wrap("NewsSignal", news.start());
         wrap("NetworkDiscovery", networkDiscovery.start());
         
+        this.services.baseline.startMonitor();
         lifecycle.start();
         autonomousAutopilot.start();
 
@@ -327,7 +328,7 @@ export class SovereignApp {
 
     private async startDaemons() {
         const { command: sm, platformInfo } = this.services;
-        const daemons = ["honeypot", "fim", "blocker", "pcap"];
+        const daemons = ["honeypot", "fim", "blocker", "pcap", "scanner"];
 
         if (platformInfo.name === "macos") daemons.push("esf");
         if (platformInfo.name === "windows") {

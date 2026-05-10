@@ -193,26 +193,32 @@ export class SidecarManager implements CommandPort {
             // ENHANCEMENT: Transition to Linux Capabilities (setcap)
             // Removes dependency on sudo -n for sidecar execution
             // We use secure_spawn.sh to move the binary to a secure directory BEFORE verification/execution to mitigate TOCTOU
-            const caps = this.getCapabilities(name) || "";
-            const spawnScript = await this.findScript("secure_spawn.sh");
-            if (spawnScript) {
-                await this.executor.execute(spawnScript, [name, binPath, caps]);
-            } else {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "SIDECAR_MANAGER",
-                    message: "CRITICAL: secure_spawn.sh not found. Sidecar deployment will be unprivileged and potentially insecure."
-                });
-            }
+            // NOTE: In DEV_MODE we execute in-place to avoid requiring root-owned /var/lib/cts permissions
+            let execPath = binPath;
 
-            const secureBinPath = `/var/lib/cts/bin/${name}`;
+            if (!isDev) {
+                const caps = this.getCapabilities(name) || "";
+                const spawnScript = await this.findScript("secure_spawn.sh");
+                if (spawnScript) {
+                    const res = await this.executor.execute(spawnScript, [name, binPath, caps]);
+                    if (res.success) {
+                        execPath = `/var/lib/cts/bin/${name}`;
+                    }
+                } else {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.ERROR,
+                        caller: "SIDECAR_MANAGER",
+                        message: "CRITICAL: secure_spawn.sh not found. Sidecar deployment will be unprivileged and potentially insecure."
+                    });
+                }
+            }
 
             // ENHANCEMENT: Self-Healing Sidecars
             // Verify integrity AFTER move to secure location (Skip in DEV_MODE to allow debug binaries)
             if (!isDev) {
-              const isHealthy = await this.verifyAndHeal(name, secureBinPath);
+              const isHealthy = await this.verifyAndHeal(name, execPath);
               if (!isHealthy) {
                   this.logging.log({
                       timestamp: new Date().toISOString(),
@@ -227,7 +233,7 @@ export class SidecarManager implements CommandPort {
 
             const env = await this.getSidecarEnv(name);
 
-            const command = new Deno.Command(secureBinPath, {
+            const command = new Deno.Command(execPath, {
                 args: [],
                 stdin: "piped",
                 stdout: "piped",

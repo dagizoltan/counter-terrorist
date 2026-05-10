@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
+use std::process::Command;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -154,10 +155,25 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
     if root.is_file() {
         if let Some(hash) = hash_file(root) {
             log.push_str(&format!("Scanned {}: {}\n", root.display(), hash));
+
+            // Phase 5: Delegated ClamAV analysis
+            let clam_output = Command::new("clamscan")
+                .arg("--no-summary")
+                .arg(root)
+                .output();
+
+            if let Ok(output) = clam_output {
+                if !output.status.success() {
+                    threats_found = true;
+                    let msg = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    log.push_str(&format!("!!! CLAMAV DETECTED THREAT: {}\n", msg));
+                }
+            }
+
             // Stub threat detection: match a "known malicious" hash (empty file for test)
             if hash == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
                 threats_found = true;
-                log.push_str("!!! THREAT DETECTED: Known malware signature matched.\n");
+                log.push_str("!!! CTS HASH MATCH: Known malware signature matched.\n");
             }
         }
     } else if root.is_dir() {
