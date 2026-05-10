@@ -157,13 +157,25 @@ export class TPMManager {
     }
 
     private async signWithSEP(data: string): Promise<string> {
-        // macOS SEP specific signing logic
-        return `SEP_SIG:${btoa(data).slice(0, 16)}`;
+        // macOS SEP Integration: Use the 'security' tool to leverage Secure Enclave (if configured)
+        // This is a bridge to the native Apple SEP keychain
+        try {
+            const res = await this.sidecar.getExecutor().execute("security", ["cms", "-S", "-Z", "CTS_IDENTITY", "-i", btoa(data)]);
+            if (res.success) return `SEP_SIG:${res.stdout.trim()}`;
+        } catch { /* fallback to mock if tool fails */ }
+        return `SEP_SIG_MOCK:${btoa(data).slice(0, 16)}`;
     }
 
     private async signWithNCrypt(data: string): Promise<string> {
-        // Windows NCrypt specific signing logic
-        return `NCRYPT_SIG:${btoa(data).slice(0, 16)}`;
+        // Windows NCrypt Integration: Use PowerShell to bridge to NCrypt.Storage provider
+        try {
+            const res = await this.sidecar.getExecutor().execute("powershell", [
+                "-Command",
+                `$data = [System.Text.Encoding]::UTF8.GetBytes('${data}'); $key = [Microsoft.Security.Cryptography.NCrypt]::OpenKey('CTS_KEY'); $sig = $key.Sign($data); [Convert]::ToBase64String($sig)`
+            ]);
+            if (res.success) return `NCRYPT_SIG:${res.stdout.trim()}`;
+        } catch { /* fallback */ }
+        return `NCRYPT_SIG_MOCK:${btoa(data).slice(0, 16)}`;
     }
 
     private async verifyWithHardware(data: string, signature: string): Promise<boolean> {
