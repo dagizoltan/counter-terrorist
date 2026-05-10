@@ -132,7 +132,15 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         is_vault = true;
                         let _ = socket.write_all(b"{\"initialized\":true,\"sealed\":false,\"version\":\"1.12.0\"}\n").await;
                     } else {
-                        let _ = socket.write_all(b"Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ").await;
+                        // DECEPTION: Rotating Banners to frustrate OS fingerprinters
+                        let banners = [
+                            "Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ",
+                            "Ubuntu 24.04 LTS - restricted_access_v4\nlogin: ",
+                            "Unauthorized access is a federal crime.\nUser: ",
+                            "Internal Mesh Relay [ID: 0x442A]\nCredentials: "
+                        ];
+                        let banner = banners[rand::thread_rng().gen_range(0..banners.len())];
+                        let _ = socket.write_all(banner.as_bytes()).await;
                     }
                     
                     let mut reader = BufReader::new(socket);
@@ -165,7 +173,14 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                             }).await;
                             
                             if is_vault {
-                                let _ = reader.get_mut().write_all(b"{\"errors\":[\"permission denied\"]}\n").await;
+                                // DECEPTION: Randomized JSON errors for Vault decoy
+                                let errors = [
+                                    "{\"errors\":[\"permission denied\"]}\n",
+                                    "{\"errors\":[\"core: sealed\"]}\n",
+                                    "{\"errors\":[\"invalid token\"]}\n"
+                                ];
+                                let err = errors[rand::thread_rng().gen_range(0..errors.len())];
+                                let _ = reader.get_mut().write_all(err.as_bytes()).await;
                             } else {
                                 // Mimic a "Password:" prompt after login
                                 if line.contains("login") || line.len() > 0 {

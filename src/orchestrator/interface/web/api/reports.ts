@@ -20,5 +20,30 @@ export function createReportsApi(baseline: BaselineService, protection: Protecti
       return c.json(report);
   });
 
+  // NEW: Tactical Evidence Aggregator
+  // Collects list of available forensic artifacts (PCAPs, Memory Dumps)
+  api.get("/forensics/list", async (c) => {
+      const forensicDir = "./volume/storage/forensics";
+      const artifacts = [];
+
+      try {
+          for await (const entry of Deno.readDir(forensicDir)) {
+              if (entry.isFile) {
+                  const stat = await Deno.stat(`${forensicDir}/${entry.name}`);
+                  artifacts.push({
+                      name: entry.name,
+                      size: stat.size,
+                      mtime: stat.mtime?.toISOString(),
+                      type: entry.name.endsWith(".pcap") ? "NETWORK_CAPTURE" : "MEMORY_DUMP"
+                  });
+              }
+          }
+      } catch (e) {
+          // Directory might not exist yet
+      }
+
+      return c.json(artifacts);
+  });
+
   return api;
 }
