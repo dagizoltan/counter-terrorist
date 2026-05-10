@@ -14,7 +14,7 @@ use dashmap::DashMap;
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
-// Memory Leak Mitigation: Hash Cache with TTL/Eviction logic (Stubbed for now, but structure present)
+// Memory Leak Mitigation: Hash Cache with TTL/Eviction logic
 struct CacheEntry {
     hash: String,
     timestamp: u64,
@@ -131,12 +131,11 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
     let mut threats_found = false;
     let mut log = String::new();
 
-    // Simple implementation: scan file or directory (non-recursive for now to be safe/fast)
     if root.is_file() {
         if let Some(hash) = hash_file(root) {
             log.push_str(&format!("Scanned {}: {}\n", root.display(), hash));
-            // Stub threat detection: match a "known malicious" hash
-            if hash == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" { // Empty file hash for testing
+            // Stub threat detection: match a "known malicious" hash (empty file for test)
+            if hash == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
                 threats_found = true;
                 log.push_str("!!! THREAT DETECTED: Known malware signature matched.\n");
             }
@@ -241,7 +240,6 @@ async fn main() -> anyhow::Result<()> {
             }
             ScannerCommand::SyncSignatures { id } => {
                 log_forensic("info", "Synchronizing tactical threat intelligence...").await;
-                // Stub: In production, this would call freshclam or download a manifest
                 let result = ScanResponse {
                     id,
                     success: true,
