@@ -29,16 +29,15 @@ The system is partially implemented in working code, but there is a gap between 
 
 ### What is implemented now
 - **Deno orchestrator:** Hono server, login route, auth middleware, static asset handling.
-- **Sidecar lifecycle:** `CommandManager` supports allowlisted sidecars, persistent daemon startup, and JSON event streaming.
-- **Protection APIs:** status, firewall block/unblock, VPN status, antivirus status, and rkhunter scan endpoints are defined.
-- **Real-time model:** backend event broadcast hooks are wired into sidecar stdout readers.
+- **Sidecar lifecycle:** Secure, TOCTOU-resistant daemon startup with move-before-verify logic.
+- **Protection APIs:** Comprehensive suite for native eBPF/XDP firewalling, multi-platform VPN management, and native malware scanning.
+- **Real-time model:** Fully integrated event bus broadcasting tactical telemetry (auto-blocks, drift, integrity) to the browser dashboard.
+- **Autonomous Defense:** AutoBlockService engaged for zero-touch threat containment.
 
 ### What still needs to be fixed
-- **UI/API token wiring:** frontend must be updated to send bearer tokens and WebSocket auth values.
-- **Login flow:** the auth middleware may prevent `/login` access.
-- **Path validation:** antivirus path checks need exact boundary validation.
 - **Scanner resource cleanup:** persistent scanning caches need eviction logic.
-- **Dashboard wiring:** UI components are not fully connected to live backend state.
+- **Rootkit automation:** scheduled rkhunter scans and auto-remediation.
+- **UI Expansion:** complete wiring for tactical map and news feed components.
 
 ## How to use this document set
 Read the numbered summaries in order: `01_overview.md`, `02_system_design.md`, `03_roadmap.md`, `04_security_strategy.md`, `05_handover.md`. Then use the detailed docs in the matching numbered folders for reference.

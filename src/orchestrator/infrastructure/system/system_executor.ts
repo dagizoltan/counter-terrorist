@@ -21,8 +21,8 @@ export class SystemExecutor {
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
-    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security",
-    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw",
+    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security", "powershell",
+    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw", "wfp",
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
     "/var/lib/cts/scripts/update_comm.sh",
@@ -38,7 +38,7 @@ export class SystemExecutor {
 
   private static readonly PLATFORM_TOOLS = [
     "pfctl", "launchctl", "sw_vers", "spctl", "ifconfig", "killall", "ps",
-    "netsh", "taskkill", "pktmon"
+    "netsh", "taskkill", "pktmon", "powershell", "security"
   ];
 
   /**
@@ -74,7 +74,7 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
-        allowedArgs: [/^-Command$/, /^([A-Z][a-z]+-[A-Z][a-z]+).*$/],
+        allowedArgs: [/^-Command$/, /^([A-Z][a-z]+-[A-Z][a-z]+).*$/, /^.*NCrypt.*$/, /^\$data = .*$/],
         maxArgs: 2
     },
     "netsh": {
@@ -288,7 +288,15 @@ export class SystemExecutor {
         return false;
     }
 
-    if (jailPrefixes && jailPrefixes.length > 0) {
+    // If it's an absolute path, it MUST match a jail prefix
+    if (path.isAbsolute(normalized)) {
+        const safeSystemPaths = ["/etc/os-release", "/sys/class/iommu", "/proc/self/exe"];
+        if (safeSystemPaths.includes(normalized)) return true;
+
+        if (!jailPrefixes || jailPrefixes.length === 0) {
+            return false; // Absolute path with no jail defined
+        }
+
         return jailPrefixes.some(jail => {
             const normalizedJail = path.normalize(jail.endsWith("/") ? jail : jail + "/");
             const normalizedP = path.normalize(normalized.endsWith("/") ? normalized : normalized + "/");

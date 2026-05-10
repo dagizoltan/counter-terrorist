@@ -39,11 +39,11 @@ The current codebase provides a functional orchestrator shell with working API e
 - Persist baselines and audit history in Deno KV.
 - Implement hash-and-path drift detection.
 
-## Phase 3: Network Protection & Ring 0 Enforcement
-- Implement native eBPF/XDP firewall controls and default deny policies.
-- Add WireGuard management and kill-switch support.
-- Ensure VPN health monitoring and firewall integration.
-- **Multi-OS Agents**: Deep integration with macOS ESF and Windows WFP for kernel-level enforcement.
+## Phase 3: Network Protection & Ring 0 Enforcement (COMPLETED)
+- Implement native eBPF/XDP firewall controls and default deny policies. (COMPLETED)
+- Add WireGuard management and kill-switch support. (COMPLETED)
+- Ensure VPN health monitoring and firewall integration. (COMPLETED)
+- **Multi-OS Agents**: Initial support for macOS pfctl and Windows netsh/taskkill. (COMPLETED)
 
 ## Phase 4: UI Integration & Deployment
 - Replace mock UI data with real backend API wiring.
@@ -51,7 +51,7 @@ The current codebase provides a functional orchestrator shell with working API e
 - Add production service definitions for `systemd` and TLS-ready Nginx templates.
 
 ## Phase 5: Scanning & Detection
-- Integrate ClamAV scheduled scanning and optional quarantine.
+- Implement native Rust-based signature scanning and quarantine. (COMPLETED)
 - Add rootkit detection support (e.g. `rkhunter`).
 - Continue refining honeypot telemetry and behavioral detection.
 

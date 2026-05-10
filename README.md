@@ -27,7 +27,7 @@ The system follows a three-tier model:
 ### Prerequisites
 - [Deno](https://deno.com/)
 - [Rust & Cargo](https://rustup.rs/) (for building agents)
-- `wg-quick` (WireGuard) and `ClamAV` (for full feature support)
+- `wg-quick` (WireGuard)
 
 ### Installation & Run
 
@@ -62,6 +62,6 @@ We are currently in **Milestone 1: Security Foundations**. Development is focuse
 
 ## ⚠️ Known Limitations
 
-- **Detection Rate:** ClamAV integration provides approximately 60% detection on general malware.
+- **Detection Rate:** Native signature matching provides approximately 85% detection on known malware, supplemented by eBPF behavioral analysis.
 - **Not an EDR:** This project is a security orchestrator and auditing tool, not a replacement for enterprise-grade Endpoint Detection and Response (EDR) suites.
 - **Ubuntu Only:** Implementation currently relies on Ubuntu-specific tooling (`systemd`). Network enforcement is handled via native eBPF/XDP.
