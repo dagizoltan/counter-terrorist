@@ -34,7 +34,7 @@ export class LedgerService {
             event,
             prevHash: this.lastHash,
             hash: "", // To be computed
-            nodeId: this.mesh.getNodeId()
+            nodeId: this.mesh?.getNodeId() || "local-node"
         };
 
         entry.hash = await this.computeHash(entry);
@@ -43,11 +43,13 @@ export class LedgerService {
 
         this.logging.logLegacy(`[LEDGER] Entry ${entry.index} committed: ${entry.hash.slice(0, 8)}`, SyslogSeverity.NOTICE);
 
-        // Replicate to mesh via gossip
-        this.mesh.broadcast({
-            type: "LEDGER_SYNC",
-            payload: entry
-        });
+        // Replicate to mesh via gossip if available
+        if (this.mesh && this.mesh.getActiveNodeCount() > 0) {
+            this.mesh.broadcast({
+                type: "LEDGER_SYNC",
+                payload: entry
+            });
+        }
     }
 
     /**

@@ -1,6 +1,7 @@
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { broadcast } from "@api/ws.ts";
 import { AuditService } from "./audit.ts";
+import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 
 interface IpHistory {
   timestamps: number[];
@@ -9,6 +10,7 @@ interface IpHistory {
 
 export class BehavioralService {
   private history: Map<string, IpHistory> = new Map();
+  private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
 
   constructor(private firewall: FirewallManager, private audit?: AuditService) {}
@@ -83,6 +85,24 @@ export class BehavioralService {
   }
 
   async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]) {
+    // 1. Neural Analysis (Syscall Frequency Anomaly)
+    this.analyzer.trackSyscall(comm, syscall);
+    const anomalyScore = this.analyzer.getSyscallAnomalyScore(comm, syscall);
+
+    if (anomalyScore > 0.8) {
+        const message = `NEURAL_DEFENSE: Anomalous syscall distribution detected for '${comm}' (${syscall}). Potential polymorphic malware.`;
+        if (this.audit) {
+            await this.audit.logEvent({
+               type: "THREAT",
+               severity: "warning",
+               caller: "analysis:neural",
+               message,
+               data: { pid, comm, syscall, score: anomalyScore }
+            });
+        }
+        return "ALERT";
+    }
+
     const suspiciousCommands = ["curl", "wget", "chmod", "chown", "nc", "netcat"];
     const sensitiveDirs = ["/etc", "/var/run", "/boot", "/root"];
 

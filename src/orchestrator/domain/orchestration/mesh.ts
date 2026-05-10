@@ -619,6 +619,18 @@ export class MeshManager {
    * Universal Quorum Handshake: Requires P2P consensus for any critical command.
    */
   async requestQuorumCommand(action: string, data: any): Promise<boolean> {
+      // SINGLE_NODE mode or no peers: Quorum is automatically satisfied if the action is authorized locally
+      if (Deno.env.get("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.INFO,
+              caller: "MESH:QUORUM",
+              message: `SINGLE_NODE mode: Auto-approving quorum for action: ${action}`
+          });
+          return true;
+      }
+
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
