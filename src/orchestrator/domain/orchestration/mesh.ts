@@ -374,11 +374,19 @@ export class MeshManager {
 
   /**
    * Generic mesh broadcast (Gossip).
+   * Supports 'priority' for critical events like lockdown.
    */
-  async broadcast(payload: any) {
+  async broadcast(payload: any, priority: boolean = false) {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
-    for (const node of verifiedNodes) {
-        this.sendSync(node, payload).catch(err => {
+
+    // TACTICAL: Staggered gossip to prevent network traffic analysis
+    const promises = verifiedNodes.map(async (node, index) => {
+        if (!priority) {
+            // Add jitter to non-priority gossip
+            await new Promise(r => setTimeout(r, index * 100));
+        }
+
+        return this.sendSync(node, payload).catch(err => {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
@@ -387,6 +395,10 @@ export class MeshManager {
                 message: `Gossip failure to ${node.hostname}: ${(err as Error).message}`
             });
         });
+    });
+
+    if (priority) {
+        await Promise.all(promises);
     }
   }
 
@@ -481,28 +493,15 @@ export class MeshManager {
    * Broadcasts a lockdown command to all verified nodes in the mesh.
    */
   async broadcastLockdown() {
-    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
-    if (verifiedNodes.length === 0) return;
-
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.ERROR,
         caller: "MESH:P2P",
-        message: `Gossip: Broadcasting EMERGENCY LOCKDOWN to ${verifiedNodes.length} nodes...`
+        message: "Gossip: Initiating high-priority EMERGENCY LOCKDOWN broadcast..."
     });
 
-    for (const node of verifiedNodes) {
-        this.sendSync(node, { type: "GOSSIP_LOCKDOWN" }).catch(err => {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
-                message: `Failed to gossip lockdown with ${node.hostname}: ${(err as Error).message}`
-            });
-        });
-    }
+    await this.broadcast({ type: "GOSSIP_LOCKDOWN" }, true);
   }
 
   /**

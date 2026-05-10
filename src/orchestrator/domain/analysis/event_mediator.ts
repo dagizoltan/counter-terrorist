@@ -47,9 +47,17 @@ export class EventMediator {
                 let type = "EBPF_SYSCALL";
                 let severity = LogSeverity.INFO;
 
-                // Neural Defense: Track and score syscall frequency
-                this.behavioral.trackSyscall(event.comm, event.syscall);
+                // Neural Defense: Track and score syscall frequency & sequence
+                this.behavioral.trackSyscall(event.pid, event.comm, event.syscall);
                 const anomalyScore = this.behavioral.getSyscallAnomalyScore(event.comm, event.syscall);
+
+                // Intent Modeling: Check for malicious sequences
+                const intent = this.behavioral.getIntentVerdict(event.pid);
+                if (intent) {
+                    type = "EBPF_CRITICAL";
+                    severity = LogSeverity.ERROR;
+                    event.message = `[INTENT_MATCH: ${intent.intent}] ${event.comm} sequence identified as malicious.`;
+                }
 
                 if (event.syscall === "ptrace" || anomalyScore > 0.5) {
                     type = "EBPF_CRITICAL";
