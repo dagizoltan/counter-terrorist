@@ -11,6 +11,7 @@ static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 #[serde(tag = "type")]
 enum Command {
     GetStatus { id: String },
+    UpdatePolicy { id: String, blocked_paths: Vec<String> },
     Shutdown,
 }
 
@@ -42,15 +43,38 @@ async fn emit_event(event_type: &str, data: serde_json::Value) {
 
 #[tokio::main]
 async fn main() {
+    let blocked_paths: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let blocked_paths_clone = Arc::clone(&blocked_paths);
+
     // 1. Initial Handshake
     emit_response(None, true, "Sovereign ESF Agent Active (macOS Sonoma+)".to_string(), None).await;
 
     // 2. MOCK: Endpoint Security Callback Loop
     // In production, this would use `es_subscribe` to listen for:
     // ES_EVENT_TYPE_NOTIFY_EXEC, ES_EVENT_TYPE_NOTIFY_OPEN, ES_EVENT_TYPE_NOTIFY_CONNECT
+    // AND AUTH EVENTS: ES_EVENT_TYPE_AUTH_EXEC
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+
+            // Simulation of an AUTH_EXEC event
+            let target_path = "/usr/bin/unsigned_binary";
+            let mut is_blocked = false;
+            {
+                let paths = blocked_paths_clone.lock().await;
+                if paths.iter().any(|p| target_path.contains(p)) {
+                    is_blocked = true;
+                }
+            }
+
+            if is_blocked {
+                emit_event("ES_AUTH_DENY", serde_json::json!({
+                    "pid": 9999,
+                    "path": target_path,
+                    "reason": "Policy Violation"
+                })).await;
+            }
+
             emit_event("ES_EXEC", serde_json::json!({
                 "pid": 1234,
                 "path": "/usr/bin/curl",
@@ -66,6 +90,11 @@ async fn main() {
             match cmd {
                 Command::GetStatus { id } => {
                     emit_response(Some(id), true, "Active".to_string(), None).await;
+                },
+                Command::UpdatePolicy { id, blocked_paths: new_paths } => {
+                    let mut paths = blocked_paths.lock().await;
+                    *paths = new_paths;
+                    emit_response(Some(id), true, "Policy updated".to_string(), None).await;
                 },
                 Command::Shutdown => {
                     std::process::exit(0);

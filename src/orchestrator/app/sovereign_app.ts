@@ -305,7 +305,10 @@ export class SovereignApp {
         const daemons = ["honeypot", "fim", "blocker", "pcap"];
 
         if (platformInfo.name === "macos") daemons.push("esf");
-        if (platformInfo.name === "windows") daemons.push("etw");
+        if (platformInfo.name === "windows") {
+            daemons.push("etw");
+            daemons.push("wfp");
+        }
 
         daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
         

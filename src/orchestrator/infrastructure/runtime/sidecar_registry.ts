@@ -72,6 +72,12 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Windows Event Tracing for high-fidelity syscall and process monitoring.",
         persistent: true,
         privileged: true
+    },
+    wfp: {
+        name: "wfp",
+        description: "Windows Filtering Platform agent for Ring 0 network and file enforcement.",
+        persistent: true,
+        privileged: true
     }
 };
 

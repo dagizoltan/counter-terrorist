@@ -41,6 +41,9 @@ static mut ALLOWED_PORTS: HashMap<u16, u8> = HashMap::with_max_entries(1024, 0);
 #[map]
 static mut FIREWALL_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(8, 0); // [0] = lockdown
 
+#[map]
+static mut ENFORCEMENT_POLICY: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0); // Key: PID, Value: Policy flags (1=BlockAll, 2=NetBlock, 4=FileBlock)
+
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
     match try_xdp_ingress(&ctx) {
@@ -243,6 +246,28 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         ip: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
+    0
+}
+
+#[aya_ebpf::macros::lsm]
+pub fn file_open(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
+        if (*policy & 4) != 0 || (*policy & 1) != 0 {
+            return -1; // EPERM
+        }
+    }
+    0
+}
+
+#[aya_ebpf::macros::lsm]
+pub fn socket_connect(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
+        if (*policy & 2) != 0 || (*policy & 1) != 0 {
+            return -1; // EPERM
+        }
+    }
     0
 }
 

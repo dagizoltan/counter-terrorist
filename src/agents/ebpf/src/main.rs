@@ -113,10 +113,18 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Attach LSM
-    if let Some(prog) = bpf.program_mut("lsm_file_open") {
-        if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-            if let Some(btf) = Btf::from_sys_fs().ok() {
-                if let Ok(_) = lsm_prog.load("file_open", &btf) {
+    let btf = Btf::from_sys_fs().ok();
+    if let Some(btf) = &btf {
+        if let Some(prog) = bpf.program_mut("file_open") {
+            if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
+                if let Ok(_) = lsm_prog.load("file_open", btf) {
+                    let _ = lsm_prog.attach();
+                }
+            }
+        }
+        if let Some(prog) = bpf.program_mut("socket_connect") {
+            if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
+                if let Ok(_) = lsm_prog.load("socket_connect", btf) {
                     let _ = lsm_prog.attach();
                 }
             }
@@ -199,6 +207,23 @@ async fn main() -> Result<(), anyhow::Error> {
                         if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
                             let _ = m.insert(port, 1, 0);
                             emit_response(cmd.id, true, format!("Firewall: Allowed port {}", port)).await;
+                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    }
+                },
+                "ENFORCE_PID" => {
+                    if let Some(pid) = cmd.pid {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                            // Default to full block (1) for now
+                            let _ = m.insert(pid, 1, 0);
+                            emit_response(cmd.id, true, format!("LSM Enforced for PID {}", pid)).await;
+                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    }
+                },
+                "UNENFORCE_PID" => {
+                    if let Some(pid) = cmd.pid {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                            let _ = m.remove(&pid);
+                            emit_response(cmd.id, true, format!("LSM Enforcement removed for PID {}", pid)).await;
                         } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
                     }
                 },
