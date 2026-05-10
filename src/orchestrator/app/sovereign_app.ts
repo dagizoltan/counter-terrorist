@@ -301,8 +301,13 @@ export class SovereignApp {
     }
 
     private async startDaemons() {
-        const { command: sm } = this.services;
-        ["honeypot", "fim", "blocker", "pcap"].forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
+        const { command: sm, platformInfo } = this.services;
+        const daemons = ["honeypot", "fim", "blocker", "pcap"];
+
+        if (platformInfo.name === "macos") daemons.push("esf");
+        if (platformInfo.name === "windows") daemons.push("etw");
+
+        daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
         
         const ebpf = await sm.getPersistentSidecar("ebpf").catch(() => null);
         if (ebpf) {

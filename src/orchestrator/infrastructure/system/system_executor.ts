@@ -22,7 +22,7 @@ export class SystemExecutor {
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
     "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "powershell",
-    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn",
+    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw",
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
     "/var/lib/cts/scripts/update_comm.sh",
@@ -158,7 +158,9 @@ export class SystemExecutor {
       maxArgs: 1 
     },
     "fim": { maxArgs: 10 },
-    "vpn": { maxArgs: 10 }
+    "vpn": { maxArgs: 10 },
+    "esf": { maxArgs: 10 },
+    "etw": { maxArgs: 10 }
   };
 
 
