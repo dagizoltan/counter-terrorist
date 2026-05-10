@@ -21,7 +21,7 @@ export class SystemExecutor {
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
-    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "powershell",
+    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon",
     "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw",
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
@@ -38,7 +38,7 @@ export class SystemExecutor {
 
   private static readonly PLATFORM_TOOLS = [
     "pfctl", "launchctl", "sw_vers", "spctl", "ifconfig", "killall", "ps",
-    "netsh", "taskkill", "pktmon", "powershell"
+    "netsh", "taskkill", "pktmon"
   ];
 
   /**
@@ -169,7 +169,7 @@ export class SystemExecutor {
    */
   private validatePath(filePath: string): boolean {
     // Basic string check for obvious traversal
-    if (filePath.includes("..")) {
+    if (filePath.includes("..") || filePath.startsWith("//") || filePath.startsWith("\\\\")) {
         return false;
     }
 
@@ -205,8 +205,9 @@ export class SystemExecutor {
           
           // If the pattern looks like a path (starts with ./volume/ or /var/lib/cts/), validate it against traversal
           if (args[i].startsWith("./volume/") || args[i].startsWith("/var/lib/cts/")) {
+            // Updated to use the more robust validatePath from our central validation logic if available or local hardened version
             if (!this.validatePath(args[i])) {
-              return { valid: false, reason: `Security Violation: Path traversal detected in argument '${args[i]}'` };
+              return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${args[i]}'` };
             }
           }
         }

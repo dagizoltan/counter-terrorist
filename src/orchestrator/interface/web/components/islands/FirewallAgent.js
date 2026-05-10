@@ -6,7 +6,15 @@ class FirewallAgent extends HTMLElement {
 
   connectWS() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+
+    // SEC-05: Authenticated WebSocket Handshake
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        url.searchParams.set('token', csrfToken);
+    }
+
+    const ws = new WebSocket(url.toString());
 
     ws.onmessage = (event) => {
       try {
@@ -109,6 +117,9 @@ class FirewallAgent extends HTMLElement {
     }
     trafficEl.innerHTML = (logs || []).map(l => {
       const isBlocked = l.action === 'BLOCK';
+      const botScore = l.botScore || 0;
+      const botIndicator = botScore > 0.8 ? '<span class="text-[8px] px-2 py-0.5 bg-danger/20 text-danger rounded border border-danger/30 font-black ml-4">BOT_PROB_HIGH</span>' : '';
+
       return `
         <div class="flex items-center justify-between p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors">
           <span class="mono-xs text-slate-600 font-bold w-24">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
@@ -116,8 +127,9 @@ class FirewallAgent extends HTMLElement {
              <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${window.escapeHTML(l.source)}</span>
              <span class="text-slate-800 text-[10px] font-black">→</span>
              <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${window.escapeHTML(l.destination)}</span>
+             ${botIndicator}
           </div>
-          <div class="flex items-center gap-3 w-24 justify-end">
+          <div class="flex items-center gap-3 w-32 justify-end">
              <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success'}">${window.escapeHTML(l.action)}</span>
              <div class="dot ${isBlocked ? 'danger' : 'active'}"></div>
           </div>

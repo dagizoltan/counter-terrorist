@@ -141,15 +141,25 @@ fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
     let src_ip: u32 = load_tc(ctx, 26)?;
     let dst_ip: u32 = load_tc(ctx, 30)?;
     let proto: u8 = load_tc(ctx, 23)?;
+    let total_len: u16 = u16::from_be(load_tc(ctx, 16)?); // IP Total Length
 
     let (src_port, dst_port) = if proto == 6 || proto == 17 {
         (load_tc::<u16>(ctx, 34)?, load_tc::<u16>(ctx, 36)?)
     } else { (0, 0) };
 
     let key = SessionKey { src_ip, dst_ip, src_port, dst_port, proto };
-    let val = SessionValue { last_seen: unsafe { bpf_ktime_get_ns() }, bytes_count: 0 };
     
-    let _ = unsafe { ACTIVE_SESSIONS.insert(&key, &val, 0) };
+    // EXFILTRATION DETECTION: Update volume metrics per session
+    if let Some(val) = unsafe { ACTIVE_SESSIONS.get_mut(&key) } {
+        val.last_seen = unsafe { bpf_ktime_get_ns() };
+        val.bytes_count += total_len as u64;
+    } else {
+        let val = SessionValue {
+            last_seen: unsafe { bpf_ktime_get_ns() },
+            bytes_count: total_len as u64
+        };
+        let _ = unsafe { ACTIVE_SESSIONS.insert(&key, &val, 0) };
+    }
     
     Ok(())
 }

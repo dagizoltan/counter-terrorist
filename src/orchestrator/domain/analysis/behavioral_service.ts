@@ -86,7 +86,7 @@ export class BehavioralService {
 
   async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]) {
     // 1. Neural Analysis (Syscall Frequency Anomaly)
-    this.analyzer.trackSyscall(comm, syscall);
+    this.analyzer.trackSyscall(pid, comm, syscall);
     const anomalyScore = this.analyzer.getSyscallAnomalyScore(comm, syscall);
 
     if (anomalyScore > 0.8) {

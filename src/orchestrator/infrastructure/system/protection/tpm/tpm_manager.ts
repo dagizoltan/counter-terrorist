@@ -56,9 +56,21 @@ export class TPMManager {
     }
 
     async getPcrs(indices: number[] = [0, 1, 7]): Promise<Record<number, string>> {
-        const res = await this.sidecar.sendCommand("tpm", { type: "GetPcrs", indices });
-        if (!res.success) throw new Error(`Failed to read PCRs: ${res.stderr}`);
-        return res.data as Record<number, string>;
+        try {
+            const res = await this.sidecar.sendCommand("tpm", { type: "GetPcrs", indices });
+            if (res.success) return res.data as Record<number, string>;
+
+            // If sidecar fails but we are in bypass mode, return mock data
+            if (Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true") {
+                return indices.reduce((acc, idx) => ({ ...acc, [idx]: "MOCK_PCR_DATA" }), {});
+            }
+            throw new Error(`Failed to read PCRs: ${res.stderr}`);
+        } catch (e) {
+            if (Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true") {
+                return indices.reduce((acc, idx) => ({ ...acc, [idx]: "MOCK_PCR_DATA" }), {});
+            }
+            throw e;
+        }
     }
 
     async verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean> {

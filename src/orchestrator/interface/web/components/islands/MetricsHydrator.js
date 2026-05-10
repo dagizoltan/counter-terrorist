@@ -31,6 +31,12 @@ class MetricsHydrator extends HTMLElement {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
 
+    // SEC-05: Authenticated WebSocket Handshake
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        url.searchParams.set('token', csrfToken);
+    }
+
     this._ws = new WebSocket(url.toString());
     const ws = this._ws;
 

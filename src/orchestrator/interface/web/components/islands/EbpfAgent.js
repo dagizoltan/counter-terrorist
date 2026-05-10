@@ -218,6 +218,7 @@ class EbpfAgent extends HTMLElement {
           </div>
           <div class="mono-sm font-bold ${isCritical ? 'text-danger' : 'text-slate-400'} uppercase tracking-tight leading-tight mb-3">
             ${window.escapeHTML(log.message)}
+            ${log.data?.anomalyScore > 0.5 ? `<span class="text-[8px] px-2 py-0.5 bg-danger/20 text-danger rounded border border-danger/30 font-black ml-4">NEURAL_ANOMALY_${(log.data.anomalyScore*100).toFixed(0)}%</span>` : ''}
           </div>
           ${isCritical && pid ? `
             <div class="flex gap-4">

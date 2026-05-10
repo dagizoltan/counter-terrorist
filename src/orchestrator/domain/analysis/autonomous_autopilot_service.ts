@@ -42,18 +42,27 @@ export class AutonomousAutopilotService {
         // 1. NETWORK BLOCK: Block the attacking IP via eBPF
         if (chain.subject.includes(".")) { // Basic IP check
              await this.commands.sendCommand("ebpf", {
-                type: "BlockIp",
-                payload: { ip: chain.subject },
+                type: "BLOCK_IP",
+                ip: chain.subject,
                 id: crypto.randomUUID()
             });
         }
 
-        // 2. PROCESS KILL: If it's a local PID, terminate the process tree
+        // 2. PROCESS KILL & DUMP: If it's a local PID, terminate the process tree after forensic dump
         const processNode = chain.stages.exploitation.find(n => n.type === "PROCESS");
         if (processNode && processNode.pid) {
+            // 2a. Forensic Dump
+            await this.commands.sendCommand("blocker", {
+                type: "DumpProcess",
+                pid: processNode.pid,
+                path: `forensics_dump_breach_${processNode.pid}.dump`,
+                id: crypto.randomUUID()
+            });
+
+            // 2b. Active Kill
             await this.commands.sendCommand("blocker", {
                 type: "KillProcess",
-                payload: { pid: processNode.pid },
+                pid: processNode.pid,
                 id: crypto.randomUUID()
             });
         }
@@ -61,9 +70,9 @@ export class AutonomousAutopilotService {
         // 3. FORENSIC EVIDENCE: Start capturing traffic from this source
         await this.commands.sendCommand("pcap", {
             type: "StartCapture",
-            payload: { 
+            payload: {
                 interface: "eth0", 
-                filename: `forensics_breach_${chain.id.substring(0, 8)}.pcapng` 
+                filename: `./volume/storage/forensics/forensics_breach_${chain.id.substring(0, 8)}.pcap`
             },
             id: crypto.randomUUID()
         });

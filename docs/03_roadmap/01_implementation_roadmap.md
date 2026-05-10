@@ -1,75 +1,47 @@
-# Implementation Roadmap: Counter-Terrorist
+# Implementation Roadmap: Counter-Terrorist (Phase 2 Update)
 
 This document defines the 6 milestones for the Counter-Terrorist security orchestrator.
 
-## Milestone 1: Security Foundations (BLOCKING)
+## Milestone 1: Security Foundations (COMPLETED)
 **Goal:** Implement critical security requirements before any other features.
 
-- [ ] **Task 1.1:** Implement bearer authentication on all `/api/*` routes.
-  - Touches: `orchestrator/main.ts`, `orchestrator/api/`
-- [ ] **Task 1.2:** Add IP address validation to Rust blocker.
-  - Touches: `agents/blocker/main.rs`
-- [ ] **Task 1.3:** Add path validation to antivirus `scanPath` logic.
-  - Touches: `orchestrator/protection/antivirus.ts`
-- [ ] **Task 1.4:** Implement strict sidecar allowlist in `CommandManager`.
-  - Touches: `orchestrator/command_manager.ts`
+- [x] **Task 1.1:** Implement bearer authentication on all `/api/*` routes.
+- [x] **Task 1.2:** Add IP address validation to Rust blocker.
+- [x] **Task 1.3:** Add path validation to antivirus `scanPath` logic.
+- [x] **Task 1.4:** Implement strict sidecar allowlist in `SidecarManager`.
 
-## Milestone 2: Scanner Daemon + Persistence
-**Goal:** Transition to high-performance daemon model and persistent state.
+## Milestone 2: Active Enforcement & Behavioral Intelligence (COMPLETED)
+**Goal:** Transition to high-performance daemon model and autonomous response.
 
-- [ ] **Task 2.1:** Refactor scanner from one-shot to persistent daemon.
-  - Touches: `agents/scanner/main.rs`
-- [ ] **Task 2.2:** Refactor `CommandManager` to hold long-running process reference.
-  - Touches: `orchestrator/command_manager.ts`
-- [ ] **Task 2.3:** Migrate baseline service and audit history to Deno KV.
-  - Touches: `orchestrator/services/baseline.ts`, `orchestrator/services/kv.ts`
-- [ ] **Task 2.4:** Implement hash/path-based drift detection.
-  - Touches: `orchestrator/services/baseline.ts`
+- [x] **Task 2.1:** Refactor scanner to persistent daemon with HASH_CACHE.
+- [x] **Task 2.2:** Implement Behavioral Anomaly Scoring for syscalls and bots.
+- [x] **Task 2.3:** Strengthen breach containment with automated forensic dumps.
+- [x] **Task 2.4:** Secure dashboard real-time telemetry (Authenticated WebSockets).
 
-## Milestone 3: Firewall + VPN Hardening
-**Goal:** Complete network protection layer for Ubuntu.
+## Milestone 3: Advanced Intelligence & Scaling (CURRENT)
+**Goal:** Transition from single-node signature defense to multi-node collective intent.
 
-- [ ] **Task 3.1:** Complete `ufw` integration (status, block, unblock).
-  - Touches: `orchestrator/protection/firewall.ts`
-- [ ] **Task 3.2:** Implement WireGuard connection management via `wg-quick`.
-  - Touches: `orchestrator/protection/vpn.ts`
-- [ ] **Task 3.3:** Implement VPN kill-switch via `ufw` rules.
-  - Touches: `orchestrator/protection/vpn.ts`, `orchestrator/protection/firewall.ts`
-- [ ] **Task 3.4:** Implement VPN health monitoring loop.
-  - Touches: `orchestrator/protection/vpn.ts`
+- [ ] **Task 3.1:** Implement mTLS Gossip protocol for cross-mesh indicator sharing.
+- [ ] **Task 3.2:** Develop local lightweight ML model for behavioral intent modeling.
+- [ ] **Task 3.3:** Implement eBPF-based socket inspection for encrypted exfiltration detection.
 
-## Milestone 4: Dashboard Wiring + Deployment
-**Goal:** Transition from stubs to real data and prepare for production.
+## Milestone 4: Operational UI & Deployment
+**Goal:** Refine Tactical Console for enterprise operators.
 
-- [ ] **Task 4.1:** Connect Hono dashboard and Web Components to real API data.
-  - Touches: `orchestrator/views/`, `orchestrator/web/components/`
-- [ ] **Task 4.2:** Create systemd service files (server and desktop user service).
-  - Touches: `config/systemd/`
-- [ ] **Task 4.3:** Create Nginx configuration template for TLS termination.
-  - Touches: `config/nginx/`
-- [ ] **Task 4.4:** Implement desktop shortcut generation in `bootstrapper.ts`.
-  - Touches: `orchestrator/bootstrapper.ts`
+- [ ] **Task 4.1:** Tactical Evidence Aggregator UI (Download forensic bundles).
+- [ ] **Task 4.2:** Enterprise RBAC (Integration with OIDC/LDAP).
+- [ ] **Task 4.3:** Multi-tenant dashboard views.
 
-## Milestone 5: AV + rkhunter
-**Goal:** Integrate filesystem and rootkit scanning.
+## Milestone 5: Forensics & Deep Audit
+**Goal:** Forensic-grade chain of trust.
 
-- [ ] **Task 5.1:** Implement ClamAV scheduled scan integration.
-  - Touches: `orchestrator/protection/antivirus.ts`
-- [ ] **Task 5.2:** Document custom signature sets and `freshclam` configuration.
-  - Touches: `docs/AV_GUIDE.md`
-- [ ] **Task 5.3:** Integrate `rkhunter` as a scanner plugin.
-  - Touches: `agents/scanner/`, `orchestrator/protection/rkhunter.ts`
-- [ ] **Task 5.4:** Implement quarantine directory logic for flagged files.
-  - Touches: `orchestrator/protection/antivirus.ts`
+- [ ] **Task 5.1:** Deep PCR-hash verification for all system binaries.
+- [ ] **Task 5.2:** Implementation of "Forensic Restricted Mode" for tamper-evident logs.
+- [ ] **Task 5.3:** Integration of OS-native hardware modules (SEP/NCrypt).
 
-## Milestone 6: Audit + Alerting
-**Goal:** Historical tracking and notifications.
+## Milestone 6: Enterprise Readiness
+**Goal:** Compliance and High Availability.
 
-- [ ] **Task 6.1:** Implement persistent audit history in Deno KV.
-  - Touches: `orchestrator/services/audit.ts`
-- [ ] **Task 6.2:** Implement remote syslog forwarding.
-  - Touches: `orchestrator/services/logging.ts`
-- [ ] **Task 6.3:** Implement configurable webhook alerts.
-  - Touches: `orchestrator/services/alerts.ts`
-- [ ] **Task 6.4:** Implement exportable scan reports (JSON/PDF).
-  - Touches: `orchestrator/api/reports.ts`
+- [ ] **Task 6.1:** Remote Syslog (RFC 5424) forwarding.
+- [ ] **Task 6.2:** High Availability (HA) failover for orchestrator state.
+- [ ] **Task 6.3:** Compliance mapping for PCI-DSS/GDPR.
