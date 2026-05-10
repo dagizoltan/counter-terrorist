@@ -14,4 +14,8 @@ export class MacosPcapProvider implements PcapProvider {
   async stopCapture(): Promise<CommandResult> {
     return await this.executor.execute("killall", ["tcpdump"]);
   }
+
+  async getStatus(): Promise<CommandResult> {
+    return await this.executor.execute("pgrep", ["tcpdump"]);
+  }
 }

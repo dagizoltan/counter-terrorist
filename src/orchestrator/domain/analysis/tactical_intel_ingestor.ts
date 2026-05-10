@@ -158,4 +158,22 @@ export class TacticalIntelIngestor {
         }
         return threats;
     }
+
+    async getStats(): Promise<Record<string, number>> {
+        const stats: Record<string, number> = {};
+        for (const source of this.sources) {
+            stats[source.name] = 0;
+        }
+
+        if (!this.kv) return stats;
+        const iter = this.kv.list<ThreatInfo>({ prefix: ["threats"] });
+        for await (const res of iter) {
+            if (stats[res.value.provider] !== undefined) {
+                stats[res.value.provider]++;
+            } else {
+                stats[res.value.provider] = (stats[res.value.provider] || 0) + 1;
+            }
+        }
+        return stats;
+    }
 }

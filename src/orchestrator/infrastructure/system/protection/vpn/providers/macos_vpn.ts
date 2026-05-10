@@ -23,4 +23,9 @@ export class MacosVpnProvider implements VpnProvider {
     const res = await this.executor.execute("wg", ["show"]);
     return res.stdout;
   }
+
+  async flushRules(): Promise<{ success: boolean; message: string; details?: string }> {
+    // macOS specific wg flush would go here
+    return { success: true, message: "VPN Rules Flushed (Mock)" };
+  }
 }

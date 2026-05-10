@@ -211,7 +211,7 @@ Deno.test("EventBus edge cases", () => {
   const eventBus = new EventBus(mockLogging);
   const events: SystemEvent[] = [];
 
-  eventBus.subscribe(e => events.push(e));
+  eventBus.subscribe(e => { events.push(e); });
 
   // Undefined data
   eventBus.publish("INFO", "No data");
@@ -223,7 +223,7 @@ Deno.test("EventBus edge cases", () => {
 
   // Multiple subscribers of different types
   let keyedCount = 0;
-  eventBus.on("INFO", () => keyedCount++);
+  eventBus.on("INFO", () => { keyedCount++; });
 
   eventBus.publish("INFO", "Both");
   assertEquals(events.length, 3);

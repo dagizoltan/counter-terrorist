@@ -34,8 +34,11 @@ export async function checkDependency(cmd: string): Promise<boolean> {
   }
 }
 
+import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+
 export async function bootstrap(): Promise<SystemStatus> {
-  const platformInfo = await getPlatformInfo();
+  const executor = new SystemExecutor();
+  const platformInfo = await getPlatformInfo(executor);
   const os = Deno.build.os;
   const isRoot = os === "windows" ? true : (Deno.uid?.() === 0); // Simplified for Windows
 
