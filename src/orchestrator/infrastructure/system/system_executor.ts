@@ -146,7 +146,7 @@ export class SystemExecutor {
         maxArgs: 1
     },
     "tc": {
-        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid)$/],
+        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid|default)$/, /^[0-9a-z:/._-]+$/, /^[0-9]+(kbps|mbps|gbps|ms|s)$/],
         maxArgs: 20
     },
     "gcore": {
@@ -174,7 +174,7 @@ export class SystemExecutor {
         maxArgs: 2
     },
     "wg": {
-        allowedArgs: [/^(show|set|genkey|pubkey)$/],
+        allowedArgs: [/^(show|set|genkey|pubkey)$/, /^[a-z0-9]+$/, /^[A-Za-z0-9+/=]+$/],
         maxArgs: 10
     },
     "system_profiler": {
@@ -186,19 +186,19 @@ export class SystemExecutor {
         maxArgs: 2
     },
     "unshare": {
-        allowedArgs: [/^--[a-z]+$/],
+        allowedArgs: [/^--[a-z]+$/, /^[a-z0-9/._-]+$/],
         maxArgs: 10
     },
     "iptables": {
-        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N)$/],
+        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N|--append|--delete|--insert|--list|--flush|--new-chain|--policy)$/, /^[A-Z]+$/, /^[a-z0-9.+_-]+$/, /^-p$/, /^(tcp|udp|icmp)$/, /^--dport$/, /^[0-9]+$/, /^-j$/, /^(ACCEPT|DROP|REJECT|LOG)$/, /^[0-9a-fA-F.:/]+$/],
         maxArgs: 20
     },
     "tpm2_sign": {
-        allowedArgs: [/^-c$/, /.*/, /^-g$/, /^(sha256|sha384)$/, /^-o$/],
+        allowedArgs: [/^-c$/, /^[0-9a-fx]+$/, /^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
         maxArgs: 10
     },
     "tpm2_hash": {
-        allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/],
+        allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
         maxArgs: 10
     },
     "rkhunter": {
@@ -206,11 +206,11 @@ export class SystemExecutor {
         maxArgs: 5
     },
     "security": {
-        allowedArgs: [/^(cms|find-identity|unlock-keychain)$/],
+        allowedArgs: [/^(cms|find-identity|unlock-keychain)$/, /^-?[a-zA-Z]+$/, /^[a-zA-Z0-9/._-]+$/],
         maxArgs: 10
     },
     "ip": {
-        allowedArgs: [/^(addr|link|route|neigh|show|dev|default)$/],
+        allowedArgs: [/^(addr|link|route|neigh|show|dev|default|add|del|list)$/, /^[0-9a-z._-]+$/, /^[0-9a-fA-F.:/]+$/],
         maxArgs: 10
     },
     "sysctl": {
@@ -218,23 +218,23 @@ export class SystemExecutor {
         maxArgs: 2
     },
     "nmcli": {
-        allowedArgs: [/^(-t|-f)$/, /.*/, /^(dev|wifi|list)$/],
+        allowedArgs: [/^(-t|-f)$/, /^[A-Z,]+$/, /^(dev|wifi|list)$/],
         maxArgs: 10
     },
     "ping": {
-        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/],
+        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /^[a-z0-9.-]+$/, /^[0-9a-fA-F.:]+$/],
         maxArgs: 10
     },
     "host": {
-        allowedArgs: [/^-t$/, /^(A|AAAA|TXT|MX)$/, /.*/],
+        allowedArgs: [/^-t$/, /^(A|AAAA|TXT|MX)$/, /^[a-zA-Z0-9.-]+$/],
         maxArgs: 3
     },
     "scp": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/],
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+:.*$/],
         maxArgs: 10
     },
     "ssh": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/],
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl .*)$/],
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {
@@ -254,7 +254,7 @@ export class SystemExecutor {
       maxArgs: 3
     },
     "openssl": {
-      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^[a-zA-Z0-9./_-]+$/, /^-out$/, /^[a-zA-Z0-9./_-]+$/, /^[a-zA-Z0-9./_-]+$/],
+      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+\.(bin|pem|crt|key|csr|pub|sig)$/],
       maxArgs: 10
     },
     "scanner": { maxArgs: 10 },
@@ -262,7 +262,7 @@ export class SystemExecutor {
     "honeypot": { maxArgs: 10 },
     "pcap": { maxArgs: 10 },
     "ebpf": { 
-      allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM)".*\}$/],
+      allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID)".*\}$/],
       maxArgs: 1 
     },
     "fim": { maxArgs: 10 },
@@ -314,26 +314,22 @@ export class SystemExecutor {
 
     if (policy.allowedArgs) {
       for (let i = 0; i < args.length; i++) {
-        // If we have a specific pattern for this argument index, use it.
-        // Otherwise, if we have patterns but more arguments than patterns,
-        // use the LAST pattern as a generic validator for remaining arguments (if appropriate)
-        // or just fail if it's strict.
-        const pattern = policy.allowedArgs[i] || (policy.allowedArgs.length > 0 ? policy.allowedArgs[policy.allowedArgs.length - 1] : null);
+        const arg = args[i];
+        // SET-BASED VALIDATION: Check if the argument matches ANY of the allowed patterns
+        const matchesAny = policy.allowedArgs.some(pattern => pattern.test(arg));
 
-        if (pattern) {
-          if (!pattern.test(args[i])) {
-            return { valid: false, reason: `Argument '${args[i]}' at index ${i} is not allowed for '${baseCmd}'` };
-          }
+        if (!matchesAny) {
+          return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseCmd}' (no matching pattern)` };
+        }
+
+        // ALWAYS validate for traversal if it looks like a path or contains '..'
+        if (arg.includes("/") || arg.includes("\\") || arg.includes("..")) {
+          const jailPrefixes = (arg.startsWith("./volume/") || arg.startsWith("/var/lib/cts/"))
+              ? ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"]
+              : undefined;
           
-          // ALWAYS validate for traversal if it looks like a path or contains '..'
-          if (args[i].includes("/") || args[i].includes("\\") || args[i].includes("..")) {
-            const jailPrefixes = (args[i].startsWith("./volume/") || args[i].startsWith("/var/lib/cts/"))
-                ? ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"]
-                : undefined;
-
-            if (!this.validatePath(args[i], jailPrefixes)) {
-              return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${args[i]}'` };
-            }
+          if (!this.validatePath(arg, jailPrefixes)) {
+            return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
           }
         }
       }

@@ -194,7 +194,18 @@ export class SidecarManager implements CommandPort {
             // Removes dependency on sudo -n for sidecar execution
             // We use secure_spawn.sh to move the binary to a secure directory BEFORE verification/execution to mitigate TOCTOU
             const caps = this.getCapabilities(name) || "";
-            await this.executor.execute("/var/lib/cts/scripts/secure_spawn.sh", [name, binPath, caps]);
+            const spawnScript = await this.findScript("secure_spawn.sh");
+            if (spawnScript) {
+                await this.executor.execute(spawnScript, [name, binPath, caps]);
+            } else {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "SIDECAR_MANAGER",
+                    message: "CRITICAL: secure_spawn.sh not found. Sidecar deployment will be unprivileged and potentially insecure."
+                });
+            }
 
             const secureBinPath = `/var/lib/cts/bin/${name}`;
 
@@ -429,6 +440,20 @@ export class SidecarManager implements CommandPort {
       reader.releaseLock();
       this.persistentProcesses.delete(name);
     }
+  }
+
+  private async findScript(name: string): Promise<string | null> {
+    const paths = [
+        `/var/lib/cts/scripts/${name}`,
+        `./scripts/${name}`
+    ];
+    for (const p of paths) {
+        try {
+            const info = await Deno.stat(p);
+            if (info.isFile) return await Deno.realPath(p);
+        } catch { /* ignore */ }
+    }
+    return null;
   }
 
   private async getSidecarEnv(name: string): Promise<Record<string, string>> {

@@ -17,7 +17,7 @@ import {
     IncidentService, ComplianceService, NewsSignalService, 
     LedgerService, HealthService, EventMediator,
     WatchdogService, RateLimitService, TacticalIntelService,
-    CorrelationService, PolicyEngine
+    CorrelationService, PolicyEngine, AutoBlockService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
@@ -384,6 +384,9 @@ export class SovereignApp {
         eventBus: EventBus, mesh: MeshManager, 
         tpm: TPMManager, health: HealthService
     ): Promise<ServiceContainer> {
+        // ── Autonomous Defense ──────────────────────────────────────────────
+        const autoBlock = new AutoBlockService(eventBus, rawProtection.firewall, loggingService);
+
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
         // REPOSITORY INJECTION

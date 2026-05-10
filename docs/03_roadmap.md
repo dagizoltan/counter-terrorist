@@ -25,11 +25,13 @@ The current codebase provides a functional orchestrator shell with working API e
 - **Feature 4:** Package the system with `systemd` service files and TLS-ready reverse proxy templates.
 - **Feature 5:** Add configurable webhook alerts and remote notification support.
 
-## Phase 1: Security Foundations
-- Enforce API bearer authentication on all `/api/*` routes.
-- Implement strict sidecar allowlisting in `CommandManager`.
-- Add IP validation to the blocker agent and path sanitization in antivirus scans.
-- Harden the orchestrator to run with minimal privileges.
+## Phase 1: Security Foundations & Cross-Platform Core
+- Enforce API bearer authentication on all `/api/*` routes. (COMPLETED)
+- Implement strict sidecar allowlisting in `SystemExecutor`. (COMPLETED)
+- Add IP validation to the blocker agent and path sanitization in antivirus scans. (COMPLETED)
+- Harden the orchestrator to run with minimal privileges. (COMPLETED)
+- Implement Move-before-Verify pattern for sidecar integrity. (COMPLETED)
+- **Cross-Platform Bridge**: Initial support for macOS SEP and Windows NCrypt. (COMPLETED)
 
 ## Phase 2: Persistence & Daemon Model
 - Transition the scanner to a persistent Rust daemon.
@@ -37,10 +39,11 @@ The current codebase provides a functional orchestrator shell with working API e
 - Persist baselines and audit history in Deno KV.
 - Implement hash-and-path drift detection.
 
-## Phase 3: Network Protection
+## Phase 3: Network Protection & Ring 0 Enforcement
 - Implement `ufw` firewall controls and default deny policies.
 - Add WireGuard management and kill-switch support.
 - Ensure VPN health monitoring and firewall integration.
+- **Multi-OS Agents**: Deep integration with macOS ESF and Windows WFP for kernel-level enforcement.
 
 ## Phase 4: UI Integration & Deployment
 - Replace mock UI data with real backend API wiring.

@@ -269,11 +269,40 @@ export class WebAdapter implements WebPort {
     const { bootstrap } = await import("../../app/bootstrapper.ts");
 
     const baseStatus = await bootstrap();
-    const metrics = getMetricsSnapshot() ?? {};
+    const metrics = getMetricsSnapshot() as any ?? {};
     
     return {
       ...baseStatus,
-      ...(metrics as any),
+      ...metrics,
+      // Mapping to match UI expectations in Dashboard
+      audit: {
+        ...metrics.audit,
+        hardwareVerified: metrics.audit?.hardwareVerified || false,
+        integrityScore: metrics.node?.integrityScore || 100
+      },
+      node: {
+        ...metrics.node,
+        cpu: { load: metrics.node?.cpu?.load || 0 },
+        uptime: metrics.node?.uptime || "Active"
+      },
+      forensics: {
+        ...metrics.forensics,
+        ebpfActive: metrics.forensics?.ebpfActive || false,
+        fimActive: metrics.forensics?.fimActive || false
+      },
+      mesh: {
+        ...metrics.mesh,
+        activeNodes: metrics.mesh?.activeNodes || 0
+      },
+      vpn: {
+        ...metrics.vpn,
+        active: metrics.vpn?.active || false
+      },
+      honeypot: {
+        ...metrics.honeypot,
+        activeDecoys: metrics.honeypot?.activeDecoys || 0,
+        totalHits: metrics.honeypot?.totalHits || 0
+      },
       platform: this.services.platformInfo,
       plugins: Object.values(await import("@infrastructure/runtime/sidecar_registry.ts").then(m => m.SIDECAR_REGISTRY)).map(s => {
         let isRunning = this.services.command.isRunning(s.name);

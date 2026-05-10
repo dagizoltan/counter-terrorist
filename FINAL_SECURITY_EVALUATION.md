@@ -24,6 +24,7 @@ Following a comprehensive review and hardening phase, the Counter-Terrorist secu
 The project's valuation is driven by its unique architectural convergence:
 *   **IP Defensibility (Deno + Rust Sidecars)**: The "Secure Orchestrator" model is a novel approach to Linux security. Moving the logic to a sandboxed Deno environment while retaining native performance via Rust sidecars creates a proprietary technical advantage over legacy Python/C-based agents.
 *   **Hardware-Rooted Competitive Moat**: Integration with TPM 2.0 (Linux) and Secure Enclaves (macOS) positions the product for high-compliance environments (SOC2, HIPAA, GDPR) where hardware attestation of the security agent itself is increasingly required.
+*   **Multi-Platform Resilience**: Successful transition to a cross-platform architecture, supporting macOS (SEP/ESF) and Windows (NCrypt/ETW/WFP). This allows for a unified security fabric across hybrid-fleet environments.
 *   **Low Operational Overhead**: The system is designed to be "zero-config" and lightweight, targeting the multi-billion dollar "Prosumer" and SME DevOps market that is underserved by enterprise-heavy EDRs.
 
 ### 3.2. Competitive Landscape & Positioning
