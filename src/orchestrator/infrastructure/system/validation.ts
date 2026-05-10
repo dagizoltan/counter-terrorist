@@ -319,7 +319,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs"].includes(req.type)) return false;
       return true;
     case "vpn":
-      if (!["Connect", "Disconnect", "GetStatus"].includes(req.type)) return false;
+      if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
       return true;
     default:
       return false; // Unknown sidecars are rejected by default

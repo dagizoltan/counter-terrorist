@@ -40,7 +40,7 @@ The current codebase provides a functional orchestrator shell with working API e
 - Implement hash-and-path drift detection.
 
 ## Phase 3: Network Protection & Ring 0 Enforcement
-- Implement `ufw` firewall controls and default deny policies.
+- Implement native eBPF/XDP firewall controls and default deny policies.
 - Add WireGuard management and kill-switch support.
 - Ensure VPN health monitoring and firewall integration.
 - **Multi-OS Agents**: Deep integration with macOS ESF and Windows WFP for kernel-level enforcement.

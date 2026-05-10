@@ -328,7 +328,7 @@ export class SovereignApp {
 
     private async startDaemons() {
         const { command: sm, platformInfo } = this.services;
-        const daemons = ["honeypot", "fim", "blocker", "pcap", "scanner"];
+        const daemons = ["honeypot", "fim", "blocker", "pcap", "scanner", "vpn"];
 
         if (platformInfo.name === "macos") daemons.push("esf");
         if (platformInfo.name === "windows") {
@@ -445,6 +445,7 @@ export class SovereignApp {
 
     private initSecuritySubsystem(protection: any, mesh: any, tpm: any, health: any) {
         const anonymization = new AnonymizationService(protection.vpn, loggingService);
+        anonymization.setFirewall(protection.firewall);
         const shadowProtocol = new ShadowProtocolService(mesh, anonymization, loggingService);
         const behavioral = new BehavioralService(protection.firewall as any, this.auditService);
         
