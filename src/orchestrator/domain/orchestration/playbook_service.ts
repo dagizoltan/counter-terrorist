@@ -148,6 +148,35 @@ export class PlaybookService {
     this.eventBus.on("ARTIFACT_FOUND", async (data: any) => {
        await this.executeArtifactContainment(data.indicator, data);
     });
+
+    // Cross-Platform Playbook Hooks
+    this.eventBus.on("ES_EXEC", async (data: any) => {
+        const { path, pid, signing_id } = data;
+        if (path.includes("curl") || path.includes("wget")) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "PLAYBOOK:ESF",
+                message: `macOS Policy Violation: Unauthorized binary execution detected: ${path} (ID: ${signing_id})`
+            });
+            this.updateThreatScore("local", 1);
+        }
+    });
+
+    this.eventBus.on("ETW_PROCESS", async (data: any) => {
+        const { process_name, command_line } = data;
+        if (command_line.includes("powershell -enc")) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "PLAYBOOK:ETW",
+                message: `Windows Policy Violation: Encoded PowerShell detected: ${process_name}`
+            });
+            this.updateThreatScore("local", 2);
+        }
+    });
   }
 
   /**

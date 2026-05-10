@@ -13,6 +13,7 @@ export interface SecurityPolicy {
     thresholds: ThresholdRule[];
     defaultAction: RemediationAction;
     strictMode: boolean;
+    shadowMode: boolean; // NEW: Simulation Mode
     publicKey?: string; // Base64 Ed25519 Public Key
 }
 
@@ -32,6 +33,7 @@ export class PolicyEngine {
         this.policy = {
             version: "1.2.0",
             strictMode: Deno.env.get("STRICT_POLICY_ENFORCEMENT") === "true",
+            shadowMode: Deno.env.get("SHADOW_MODE") !== "false", // Default to true for safety
             defaultAction: "LOG",
             thresholds: [
                 { score: 10, action: "WATCH", description: "Increase forensic sampling rate" },
@@ -48,8 +50,23 @@ export class PolicyEngine {
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
             caller: "POLICY",
-            message: `Sovereign Engine Active. Mode: ${this.policy.strictMode ? 'STRICT' : 'ADAPTIVE'}`
+            message: `Sovereign Engine Active. Mode: ${this.policy.strictMode ? 'STRICT' : 'ADAPTIVE'} (Shadow: ${this.policy.shadowMode})`
         });
+    }
+
+    setShadowMode(value: boolean) {
+        this.policy.shadowMode = value;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "POLICY",
+            message: `Shadow Mode ${value ? 'ENGAGED' : 'DISARMED'}. S-Grade blocks will now be ${value ? 'SIMULATED' : 'ENFORCED'}.`
+        });
+    }
+
+    isShadowMode(): boolean {
+        return this.policy.shadowMode;
     }
 
     /**

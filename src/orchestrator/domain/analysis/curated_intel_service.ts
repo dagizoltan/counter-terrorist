@@ -381,7 +381,7 @@ export class CuratedIntelService {
                         country: geo.country,
                         isp: geo.isp,
                         asn: geo.asn,
-                        isBulletproof: (geo as any).isBulletproof || (geo.threatScore > 80),
+                        isBulletproof: geo.isBulletproof,
                         lat: geo.lat,
                         lon: geo.lon
                     };

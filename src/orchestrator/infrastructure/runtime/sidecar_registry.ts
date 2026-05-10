@@ -60,6 +60,24 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Hardware Root of Trust manager for mesh identity and secrets.",
         persistent: true,
         privileged: true
+    },
+    esf: {
+        name: "esf",
+        description: "macOS Endpoint Security agent for real-time visibility and authorization.",
+        persistent: true,
+        privileged: true
+    },
+    etw: {
+        name: "etw",
+        description: "Windows Event Tracing for high-fidelity syscall and process monitoring.",
+        persistent: true,
+        privileged: true
+    },
+    wfp: {
+        name: "wfp",
+        description: "Windows Filtering Platform agent for Ring 0 network and file enforcement.",
+        persistent: true,
+        privileged: true
     }
 };
 

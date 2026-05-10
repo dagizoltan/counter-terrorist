@@ -145,6 +145,38 @@ export class KernelService {
     }
 
     /**
+     * Enforces a process-level restriction via Ring 0 hooks (LSM/Auth/WFP).
+     */
+    async enforceEnforcement(pid: number, policy: number = 1) {
+        if (!this.sidecarManager) return;
+
+        const os = Deno.build.os;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "KERNEL:ENFORCE",
+            message: `Ring 0 Enforcement: Engaging policy ${policy} for PID ${pid}`
+        });
+
+        if (os === "linux") {
+            await this.sidecarManager.sendCommand("ebpf", { type: "ENFORCE_PID", pid, policy });
+        } else if (os === "darwin") {
+            // macOS ESF Auth enforcement
+            await this.sidecarManager.sendCommand("esf", { type: "UpdatePolicy", blocked_paths: [`/proc/${pid}/`] });
+        } else if (os === "windows") {
+            // Windows WFP enforcement
+            await this.sidecarManager.sendCommand("wfp", { type: "AddBlockRule", ip: "0.0.0.0/0", pid });
+        }
+
+        this.auditService.logEvent({
+            type: "ENFORCEMENT",
+            message: `Ring 0 Enforcement active for PID ${pid}`,
+            data: { pid, policy, os }
+        });
+    }
+
+    /**
      * Enforces a syscall block via eBPF Kernel hooks.
      */
     async blockSyscall(pid: number, syscall: string) {

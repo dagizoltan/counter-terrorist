@@ -21,7 +21,8 @@ export class SystemExecutor {
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
-    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn",
+    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "powershell",
+    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw",
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
     "/var/lib/cts/scripts/update_comm.sh",
@@ -31,14 +32,59 @@ export class SystemExecutor {
   private static readonly PRIVILEGED_COMMANDS = [
     "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", 
     "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "tcpdump", "setcap",
-    "chmod", "mkdir", "cp", "mv",
+    "chmod", "mkdir", "cp", "mv", "pfctl", "pktmon", "netsh",
     "/var/lib/cts/scripts/secure_spawn.sh"
+  ];
+
+  private static readonly PLATFORM_TOOLS = [
+    "pfctl", "launchctl", "sw_vers", "spctl", "ifconfig", "killall", "ps",
+    "netsh", "taskkill", "pktmon", "powershell"
   ];
 
   /**
    * Granular policies for sensitive commands.
    */
   private static readonly COMMAND_POLICIES: Record<string, CommandPolicy> = {
+    "pfctl": {
+        allowedArgs: [/^(-t|-T|-s|-e|-F)$/, /^[a-z_]+$/, /^(add|delete|info|all)$/, /^[0-9a-fA-F.:]+$/],
+        maxArgs: 6
+    },
+    "launchctl": {
+        allowedArgs: [/^(list|load|unload|start|stop)$/, /.*/],
+        maxArgs: 2
+    },
+    "spctl": {
+        allowedArgs: [/^--assess$/, /.*/],
+        maxArgs: 2
+    },
+    "ps": {
+        allowedArgs: [/^(-p|-ax|-o)$/, /^[0-9,a-z]+$/],
+        maxArgs: 4
+    },
+    "killall": {
+        allowedArgs: [/^[a-z0-9-]+$/],
+        maxArgs: 1
+    },
+    "ifconfig": {
+        allowedArgs: [/^[a-z0-9]+$/],
+        maxArgs: 1
+    },
+    "pktmon": {
+        allowedArgs: [/^(start|stop)$/, /^--etw$/, /^-p$/, /^\.\/volume\/.*\.pcap$/],
+        maxArgs: 4
+    },
+    "powershell": {
+        allowedArgs: [/^-Command$/, /^([A-Z][a-z]+-[A-Z][a-z]+).*$/],
+        maxArgs: 2
+    },
+    "netsh": {
+        allowedArgs: [/^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/, /.*/],
+        maxArgs: 10
+    },
+    "taskkill": {
+        allowedArgs: [/^\/F$/, /^\/PID$/, /^[0-9]+$/],
+        maxArgs: 3
+    },
     "systemctl": {
       allowedArgs: [/^(start|stop|restart|status|is-active)$/, /^(cts-.*|ufw|wireguard.*|clamav.*)$/],
       maxArgs: 2
@@ -112,7 +158,9 @@ export class SystemExecutor {
       maxArgs: 1 
     },
     "fim": { maxArgs: 10 },
-    "vpn": { maxArgs: 10 }
+    "vpn": { maxArgs: 10 },
+    "esf": { maxArgs: 10 },
+    "etw": { maxArgs: 10 }
   };
 
 

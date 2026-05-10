@@ -36,7 +36,7 @@ import { setMetricsService } from "@domain/analysis/metrics_service.ts";
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
 import { KvSessionRepository } from "@infrastructure/persistence/kv/kv_session_repository.ts";
 import { KvNetworkLogRepository } from "@infrastructure/persistence/kv/kv_network_log_repository.ts";
-import { LinuxProcessProvider } from "@infrastructure/system/process_provider.ts";
+import { LinuxProcessProvider, MacOSProcessProvider, WindowsProcessProvider } from "@infrastructure/system/process_provider.ts";
 
 import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
 import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
@@ -112,6 +112,31 @@ export class SovereignApp {
             message: `Sovereign Orchestrator fully engaged on port ${port}`
         });
         await this.web.start(port);
+        this.startShadowModeTimer();
+    }
+
+    private startShadowModeTimer() {
+        const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "SYSTEM:SHADOW",
+            message: `Shadow Mode active for ${shadowDuration} hours. S-Grade blocks are simulated.`
+        });
+
+        setTimeout(() => {
+            if (this.services.policy.isShadowMode()) {
+                this.services.policy.setShadowMode(false);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "SYSTEM:SHADOW",
+                    message: "Shadow Mode expired. System is now ARMED and enforcing S-Grade blocks."
+                });
+            }
+        }, shadowDuration * 60 * 60 * 1000);
     }
 
     private async initCore() {
@@ -301,8 +326,16 @@ export class SovereignApp {
     }
 
     private async startDaemons() {
-        const { command: sm } = this.services;
-        ["honeypot", "fim", "blocker", "pcap"].forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
+        const { command: sm, platformInfo } = this.services;
+        const daemons = ["honeypot", "fim", "blocker", "pcap"];
+
+        if (platformInfo.name === "macos") daemons.push("esf");
+        if (platformInfo.name === "windows") {
+            daemons.push("etw");
+            daemons.push("wfp");
+        }
+
+        daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
         
         const ebpf = await sm.getPersistentSidecar("ebpf").catch(() => null);
         if (ebpf) {
@@ -361,7 +394,15 @@ export class SovereignApp {
         await rawProtection.firewall.setKv(this.kv);
         const protection = new ProtectionAdapter(rawProtection);
         
-        const processProvider = new LinuxProcessProvider();
+        let processProvider;
+        if (platformInfo.name === "macos") {
+            processProvider = new MacOSProcessProvider();
+        } else if (platformInfo.name === "windows") {
+            processProvider = new WindowsProcessProvider();
+        } else {
+            processProvider = new LinuxProcessProvider();
+        }
+
         const processTracker = new ProcessTracker(loggingService, processProvider, this.sidecarManager);
         
         const sessionRepo = new KvSessionRepository(this.kv);

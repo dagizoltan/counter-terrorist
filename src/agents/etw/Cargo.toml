@@ -1,0 +1,12 @@
+[package]
+name = "etw"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+chrono = { workspace = true }
+once_cell = { workspace = true }
+# windows = "0.48" - In a real env, we'd use windows-sys for ETW APIs
