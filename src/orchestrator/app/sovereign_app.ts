@@ -112,6 +112,31 @@ export class SovereignApp {
             message: `Sovereign Orchestrator fully engaged on port ${port}`
         });
         await this.web.start(port);
+        this.startShadowModeTimer();
+    }
+
+    private startShadowModeTimer() {
+        const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "SYSTEM:SHADOW",
+            message: `Shadow Mode active for ${shadowDuration} hours. S-Grade blocks are simulated.`
+        });
+
+        setTimeout(() => {
+            if (this.services.policy.isShadowMode()) {
+                this.services.policy.setShadowMode(false);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "SYSTEM:SHADOW",
+                    message: "Shadow Mode expired. System is now ARMED and enforcing S-Grade blocks."
+                });
+            }
+        }, shadowDuration * 60 * 60 * 1000);
     }
 
     private async initCore() {

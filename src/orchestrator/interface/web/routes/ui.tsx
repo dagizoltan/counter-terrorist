@@ -49,6 +49,14 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     return c.html(<ForensicCenterPage csrfToken={csrfToken} nonce={nonce} />);
   });
 
+  router.get("/compliance", async (c: Context) => {
+    const { ComplianceCenterPage } = await import("../features/forensic/compliance/ComplianceCenter.tsx") as any;
+    const status = await getStatus();
+    const csrfToken = c.get("csrfToken");
+    const nonce = c.get("nonce");
+    return c.html(<ComplianceCenterPage status={status} csrfToken={csrfToken} nonce={nonce} />);
+  });
+
   router.get("/infrastructure/mesh", async (c: Context) => {
     const { MeshTopologyPage } = await import("../features/infrastructure/mesh/page.tsx");
     const status = await getStatus();

@@ -11,6 +11,7 @@ import { createSupplyChainApi } from "../api/supply_chain.ts";
 import { createAgentsApi } from "../api/agents.ts";
 import { createThreatsApi } from "../api/threats.ts";
 import { createComplianceApi } from "../api/compliance.ts";
+import { ComplianceMapper } from "@domain/analysis/compliance_mapper.ts";
 import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 import { bootstrap as getBootstrapInfo } from "../../../app/bootstrapper.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
@@ -198,7 +199,15 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   router.route("/chaos", createChaosApi(services.chaos, security.requireRole.bind(security)));
   router.route("/supply-chain", createSupplyChainApi(services.supplyChain));
   router.route("/threats", createThreatsApi(services));
-  router.route("/compliance", createComplianceApi(services));
+
+  const complianceApi = createComplianceApi(services);
+  const mapper = new ComplianceMapper();
+  complianceApi.get("/report", async (c) => {
+    const events = await services.audit.getRecentEvents(500);
+    const mapped = await mapper.mapEvents(events);
+    return c.json(mapper.generateJsonReport(mapped));
+  });
+  router.route("/compliance", complianceApi);
 
   // Autopilot Tactical Intelligence
   router.get("/autopilot/intelligence", (c: Context) => {

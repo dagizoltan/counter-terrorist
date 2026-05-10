@@ -78,7 +78,20 @@ export class AutonomousResponseEngine {
         });
 
         const decision = this.policy.evaluate(currentScore);
-        await this.executeRemediation(key, decision.action, event);
+
+        if (this.policy.isShadowMode() && (decision.action === "BLOCK" || decision.action === "ISOLATE" || decision.action === "LOCKDOWN")) {
+            await this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "AUTONOMOUS:SHADOW",
+                message: `[SHADOW MODE] Simulation: Would have executed '${decision.action}' for ${key}. Reason: ${event.description}`
+            });
+            // Downgrade to WATCH for forensics capture only
+            await this.executeRemediation(key, "WATCH", event);
+        } else {
+            await this.executeRemediation(key, decision.action, event);
+        }
     }
 
     private decayScores() {
