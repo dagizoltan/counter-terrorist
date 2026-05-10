@@ -30,13 +30,15 @@ class MockExecutor extends SystemExecutor {
 
 class MockSidecarManager extends SidecarManager {
   sidecarCalls: Array<{ name: string; args: string[] }> = [];
+  lastSentCommand: { name: string; cmd: any } | null = null;
 
   override async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
     this.sidecarCalls.push({ name, args });
     return { success: true, stdout: "", stderr: "" };
   }
 
-  override async sendCommand(name: string, _cmd: string | object): Promise<CommandResult> {
+  override async sendCommand(name: string, cmd: string | object): Promise<CommandResult> {
+    this.lastSentCommand = { name, cmd };
     return { success: true, stdout: "", stderr: "" };
   }
 }
@@ -181,13 +183,15 @@ Deno.test("createFirewallManager - Ubuntu platform", async () => {
 
 Deno.test("createAntivirusManager", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
+  const sidecar = new MockSidecarManager(executor, null as any);
+  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
 
-  const manager = createAntivirusManager(sidecar, executor);
+  const manager = createAntivirusManager(sidecar, executor, platform);
 
   // UbuntuAntivirusProvider uses clamscan for scanning
   await manager.scanPath("/tmp/test.txt");
-  assertEquals(executor.lastCmd, "clamscan");
+  assertEquals(sidecar.lastSentCommand?.name, "scanner");
+  assertEquals(sidecar.lastSentCommand?.cmd.type, "ScanPath");
 });
 
 Deno.test("createPersistenceManager - Windows platform", async () => {
@@ -228,8 +232,9 @@ Deno.test("createPersistenceManager - Default to Ubuntu for other platforms", as
 Deno.test("createPcapManager", async () => {
   const executor = new MockExecutor();
   const sidecar = new MockSidecarManager(executor, null as any);
+  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
 
-  const manager = createPcapManager(sidecar, executor);
+  const manager = createPcapManager(sidecar, executor, platform);
 
   // PcapManager interacts with persistent sidecar 'pcap'
   // Since we are mocking runSidecar, we can't easily test persistent sidecar interaction without more mocks

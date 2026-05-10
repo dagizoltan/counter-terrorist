@@ -277,7 +277,7 @@ export class MetricsService {
                 firewall: {
                     blockedCount: rejectCount,
                     rules: fwLines.length,
-                    blockedIps: [...new Set(blockedIps)].slice(0, 20),
+                    blockedIps: [...new Set(blockedIps as string[])].slice(0, 20),
                     suspiciousIps: this.behavioral.getSuspiciousIps().slice(0, 10),
                 },
                 node: {

@@ -17,4 +17,8 @@ export class WindowsPcapProvider implements PcapProvider {
   async stopCapture(): Promise<CommandResult> {
     return await this.executor.execute("pktmon", ["stop"]);
   }
+
+  async getStatus(): Promise<CommandResult> {
+    return await this.executor.execute("pktmon", ["status"]);
+  }
 }
