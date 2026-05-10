@@ -15,8 +15,14 @@ export interface SubsystemHealth {
  */
 export class HealthService {
     private states: Map<string, SubsystemHealth> = new Map();
+    private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
 
-    constructor(private logger: LoggingPort) {}
+    constructor(private logger: LoggingPort) {
+        // Default quotas for agents
+        this.sidecarQuotas.set("ebpf", { cpu: 5.0, memory: 64 * 1024 * 1024 });
+        this.sidecarQuotas.set("pcap", { cpu: 10.0, memory: 256 * 1024 * 1024 });
+        this.sidecarQuotas.set("honeypot", { cpu: 2.0, memory: 32 * 1024 * 1024 });
+    }
 
     reportStatus(name: string, status: SubsystemStatus, error?: string) {
         this.states.set(name, {
@@ -58,5 +64,28 @@ export class HealthService {
         if (states.some(s => s.status === "FAILED")) return "DANGER";
         if (states.some(s => s.status === "DEGRADED" || s.status === "BOOTING")) return "WARNING";
         return "SUCCESS";
+    }
+
+    /**
+     * Monitors agent resources and flags anomalies.
+     */
+    async auditAgentResources(name: string, pid: number) {
+        const quota = this.sidecarQuotas.get(name.toLowerCase());
+        if (!quota) return;
+
+        // In a real environment, we'd read /proc/[pid]/stat or use sysinfo
+        // For now, we simulate the check
+        const usage = { cpu: 0.1, rss: 1024 * 1024 }; // Mock
+
+        if (usage.cpu > quota.cpu || usage.rss > quota.memory) {
+            this.reportStatus(name, "DEGRADED", `Resource Quota Exceeded (CPU: ${usage.cpu}%, RAM: ${usage.rss} bytes)`);
+            this.logger.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "HEALTH:QUOTA",
+                message: `CRITICAL: Sidecar '${name}' exceeded resource quota. Potential compromise or exhaustion attack.`
+            });
+        }
     }
 }

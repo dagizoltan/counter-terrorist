@@ -129,6 +129,13 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
+        if let Some(prog) = bpf.program_mut("sb_mount") {
+            if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
+                if let Ok(_) = lsm_prog.load("sb_mount", btf) {
+                    let _ = lsm_prog.attach();
+                }
+            }
+        }
     }
 
     // Handle Perf Events
