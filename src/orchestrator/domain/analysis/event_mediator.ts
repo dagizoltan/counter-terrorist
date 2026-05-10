@@ -166,6 +166,20 @@ export class EventMediator {
                     message: data.message || `Packet intercepted on ${data.interface || 'mesh'} ${botScore > 0.8 ? '[BOT_PROBABILITY_HIGH]' : ''}`,
                     data: { ...data, botScore }
                 });
+
+                // EXFILTRATION ALERTING: Detect high-volume exfiltration from eBPF metrics
+                if (event.type === "NETWORK_LOG" && data.bytes_count && data.bytes_count > 1024 * 1024 * 10) { // 10MB Threshold
+                    const msg = `EXFIL_DETECTION: High volume data transfer detected from ${data.source} (${(data.bytes_count / 1024 / 1024).toFixed(2)} MB)`;
+                    this.logger.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "pcap:exfil",
+                        message: msg,
+                        payload: data
+                    }).catch(() => {});
+                    this.broadcast({ type: "EXFIL_ALERT", severity: LogSeverity.ERROR, message: msg, data });
+                }
             } else if (event.type === "SIDECAR_ALERT") {
                 this.broadcast({
                     type: "ALERT",

@@ -6,6 +6,7 @@ export interface ConnectionTrace {
 export class BehavioralAnalyzer {
     private traces: Map<string, ConnectionTrace[]> = new Map();
     private syscallFrequencies: Map<string, Map<string, number>> = new Map(); // comm -> syscall -> frequency
+    private slidingWindow: Map<string, number[]> = new Map(); // ip -> window of entropy scores
     private syscallSequences: Map<string, string[]> = new Map(); // pid -> recent syscalls
 
     // MALICIOUS INTENT PATTERNS
@@ -37,10 +38,18 @@ export class BehavioralAnalyzer {
         const variance = deltas.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / deltas.length;
         
         // Normalize entropy (higher variance = higher entropy = more human)
-        const entropy = Math.min(variance / 1000, 1); 
-        const botProbability = 1 - entropy;
+        const currentEntropy = Math.min(variance / 1000, 1);
 
-        return { botProbability, entropy };
+        // TACTICAL: Sliding Window to reduce false positives
+        const window = this.slidingWindow.get(ip) || [];
+        window.push(currentEntropy);
+        if (window.length > 5) window.shift();
+        this.slidingWindow.set(ip, window);
+
+        const avgEntropy = window.reduce((a, b) => a + b, 0) / window.length;
+        const botProbability = 1 - avgEntropy;
+
+        return { botProbability, entropy: avgEntropy };
     }
 
     /**

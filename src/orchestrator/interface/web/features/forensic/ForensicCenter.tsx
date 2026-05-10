@@ -6,7 +6,8 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }
     <Layout title="Investigation Lab // Tactical Signal" islandPaths={[
       '/components/islands/TimelineIsland.js',
       '/components/islands/ReplayIsland.js',
-      '/components/islands/BlockingLog.js'
+      '/components/islands/BlockingLog.js',
+      '/components/islands/ForensicVault.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       {/* 01_Unified_Page_Header */}
@@ -47,7 +48,14 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }
         </div>
       </div>
 
-      {/* 03_Temporal_Analysis_Section */}
+      {/* 03_Tactical_Evidence_Vault */}
+      <div class="grid grid-cols-12 gap-6 mb-8">
+        <div class="col-span-12">
+           <forensic-vault></forensic-vault>
+        </div>
+      </div>
+
+      {/* 04_Temporal_Analysis_Section */}
       <section>
          <div class="grid grid-cols-12 gap-6">
             {/* Timeline Visualization */}
