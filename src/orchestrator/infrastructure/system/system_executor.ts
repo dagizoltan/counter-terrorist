@@ -21,7 +21,7 @@ export class SystemExecutor {
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
-    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon",
+    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security",
     "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw",
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
@@ -129,6 +129,114 @@ export class SystemExecutor {
       allowedArgs: [/^[a-z0-9-]+$/],
       maxArgs: 1
     },
+    "clamscan": {
+        allowedArgs: [/^(-r|--quiet|--no-summary)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
+        maxArgs: 5
+    },
+    "sha256sum": {
+        allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
+        maxArgs: 1
+    },
+    "crontab": {
+        allowedArgs: [/^-l$/, /^-u$/, /^[a-z0-9-]+$/],
+        maxArgs: 3
+    },
+    "where": {
+        allowedArgs: [/^[a-z0-9-]+$/],
+        maxArgs: 1
+    },
+    "tc": {
+        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid)$/, /.*/],
+        maxArgs: 20
+    },
+    "gcore": {
+        allowedArgs: [/^-o$/, /^(\.\/volume\/.*)$/, /^[0-9]+$/],
+        maxArgs: 3
+    },
+    "tpm2_nvdefine": {
+        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-s$/, /^[0-9]+$/],
+        maxArgs: 3
+    },
+    "tpm2_nvwrite": {
+        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-i$/, /.*/],
+        maxArgs: 3
+    },
+    "tpm2_nvread": {
+        allowedArgs: [/^0x[0-9a-fA-F]+$/],
+        maxArgs: 1
+    },
+    "tpm2_pcrread": {
+        allowedArgs: [/^sha256:[0-9,]+$/],
+        maxArgs: 1
+    },
+    "wg-quick": {
+        allowedArgs: [/^(up|down)$/, /^(all|[a-z0-9]+)$/],
+        maxArgs: 2
+    },
+    "wg": {
+        allowedArgs: [/^(show|set|genkey|pubkey)$/, /.*/],
+        maxArgs: 10
+    },
+    "system_profiler": {
+        allowedArgs: [/^[A-Z][a-zA-Z0-9]+DataType$/],
+        maxArgs: 5
+    },
+    "ss": {
+        allowedArgs: [/^-?[tulnpa]+$/],
+        maxArgs: 2
+    },
+    "unshare": {
+        allowedArgs: [/^--[a-z]+$/, /.*/],
+        maxArgs: 10
+    },
+    "iptables": {
+        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N)$/, /.*/],
+        maxArgs: 20
+    },
+    "tpm2_sign": {
+        allowedArgs: [/^-c$/, /.*/, /^-g$/, /^(sha256|sha384)$/, /^-o$/, /.*/, /.*/],
+        maxArgs: 10
+    },
+    "tpm2_hash": {
+        allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/, /.*/, /.*/],
+        maxArgs: 10
+    },
+    "rkhunter": {
+        allowedArgs: [/^--check$/, /^--sk$/, /^--nocolor$/, /^--report-warnings-only$/],
+        maxArgs: 5
+    },
+    "security": {
+        allowedArgs: [/^(cms|find-identity|unlock-keychain)$/, /.*/],
+        maxArgs: 10
+    },
+    "ip": {
+        allowedArgs: [/^(addr|link|route|neigh|show|dev|show|default)$/, /.*/],
+        maxArgs: 10
+    },
+    "sysctl": {
+        allowedArgs: [/^(-w|-n)$/, /^[a-z0-9._-]+(=[0-9]+)?$/],
+        maxArgs: 2
+    },
+    "nmcli": {
+        allowedArgs: [/^(-t|-f)$/, /.*/, /^(dev|wifi|list)$/],
+        maxArgs: 10
+    },
+    "ping": {
+        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /.*/],
+        maxArgs: 10
+    },
+    "host": {
+        allowedArgs: [/^-t$/, /^(A|AAAA|TXT|MX)$/, /.*/],
+        maxArgs: 3
+    },
+    "scp": {
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /.*/, /.*/],
+        maxArgs: 10
+    },
+    "ssh": {
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /.*/, /.*/],
+        maxArgs: 10
+    },
     "/var/lib/cts/scripts/install_service.sh": {
       allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /.*/],
       maxArgs: 2
@@ -166,8 +274,9 @@ export class SystemExecutor {
 
   /**
    * Prevents Directory Traversal by normalizing and checking for '..' or absolute paths.
+   * Ensures the path is within allowed boundaries if jailPrefixes are provided.
    */
-  private validatePath(filePath: string): boolean {
+  private validatePath(filePath: string, jailPrefixes?: string[]): boolean {
     // Basic string check for obvious traversal
     if (filePath.includes("..") || filePath.startsWith("//") || filePath.startsWith("\\\\")) {
         return false;
@@ -177,6 +286,14 @@ export class SystemExecutor {
     // After normalization, ensure it doesn't escape
     if (normalized.includes("..")) {
         return false;
+    }
+
+    if (jailPrefixes && jailPrefixes.length > 0) {
+        return jailPrefixes.some(jail => {
+            const normalizedJail = path.normalize(jail.endsWith("/") ? jail : jail + "/");
+            const normalizedP = path.normalize(normalized.endsWith("/") ? normalized : normalized + "/");
+            return normalizedP.startsWith(normalizedJail);
+        });
     }
     
     return true;
@@ -203,10 +320,13 @@ export class SystemExecutor {
             return { valid: false, reason: `Argument '${args[i]}' at index ${i} is not allowed for '${baseCmd}'` };
           }
           
-          // If the pattern looks like a path (starts with ./volume/ or /var/lib/cts/), validate it against traversal
-          if (args[i].startsWith("./volume/") || args[i].startsWith("/var/lib/cts/")) {
-            // Updated to use the more robust validatePath from our central validation logic if available or local hardened version
-            if (!this.validatePath(args[i])) {
+          // ALWAYS validate for traversal if it looks like a path or contains '..'
+          if (args[i].includes("/") || args[i].includes("\\") || args[i].includes("..")) {
+            const jailPrefixes = (args[i].startsWith("./volume/") || args[i].startsWith("/var/lib/cts/"))
+                ? ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"]
+                : undefined;
+
+            if (!this.validatePath(args[i], jailPrefixes)) {
               return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${args[i]}'` };
             }
           }

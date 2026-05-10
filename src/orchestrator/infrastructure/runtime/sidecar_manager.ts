@@ -190,31 +190,31 @@ export class SidecarManager implements CommandPort {
 
             const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
             
+            // ENHANCEMENT: Transition to Linux Capabilities (setcap)
+            // Removes dependency on sudo -n for sidecar execution
+            // We use secure_spawn.sh to move the binary to a secure directory BEFORE verification/execution to mitigate TOCTOU
+            const caps = this.getCapabilities(name) || "";
+            await this.executor.execute("/var/lib/cts/scripts/secure_spawn.sh", [name, binPath, caps]);
+
+            const secureBinPath = `/var/lib/cts/bin/${name}`;
+
             // ENHANCEMENT: Self-Healing Sidecars
-            // Verify integrity before spawn (Skip in DEV_MODE to allow debug binaries)
+            // Verify integrity AFTER move to secure location (Skip in DEV_MODE to allow debug binaries)
             if (!isDev) {
-              const isHealthy = await this.verifyAndHeal(name, binPath);
+              const isHealthy = await this.verifyAndHeal(name, secureBinPath);
               if (!isHealthy) {
                   this.logging.log({
                       timestamp: new Date().toISOString(),
                       type: LogType.AUDIT,
                       severity: LogSeverity.ERROR,
                       caller: "SIDECAR_MANAGER",
-                      message: `CRITICAL: Sidecar ${name} integrity check failed and self-healing was unsuccessful.`
+                      message: `CRITICAL: Sidecar ${name} integrity check failed at secure location and self-healing was unsuccessful.`
                   });
                   return null;
               }
             }
 
             const env = await this.getSidecarEnv(name);
-
-            // ENHANCEMENT: Transition to Linux Capabilities (setcap)
-            // Removes dependency on sudo -n for sidecar execution
-            // We use secure_spawn.sh to move the binary to a secure directory before verification/execution
-            const caps = this.getCapabilities(name) || "";
-            await this.executor.execute("/var/lib/cts/scripts/secure_spawn.sh", [name, binPath, caps]);
-
-            const secureBinPath = `/var/lib/cts/bin/${name}`;
 
             const command = new Deno.Command(secureBinPath, {
                 args: [],
