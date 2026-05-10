@@ -117,7 +117,7 @@ export class SovereignApp {
 
     private startShadowModeTimer() {
         const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
-        this.logging.log({
+        loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
@@ -128,7 +128,7 @@ export class SovereignApp {
         setTimeout(() => {
             if (this.services.policy.isShadowMode()) {
                 this.services.policy.setShadowMode(false);
-                this.logging.log({
+                loggingService.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.SUCCESS,

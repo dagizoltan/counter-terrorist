@@ -94,18 +94,28 @@ export function isAllowedSidecar(name: string): name is SidecarName {
 
 /**
  * Validates a filesystem path to prevent traversal and prefix bypass.
+ * Ensures the path is within allowed boundaries if a jail is provided.
  */
-export function validatePath(p: string): boolean {
+export function validatePath(p: string, jailPrefixes?: string[]): boolean {
   if (typeof p !== "string" || p.length === 0) return false;
 
-  // Reject obvious traversal and prefix bypasses (e.g. //etc/passwd)
+  // Reject obvious traversal and prefix bypasses
   if (p.includes("..") || p.startsWith("//") || p.startsWith("\\\\")) return false;
 
+  let normalized: string;
   try {
-    const n = normalize(p);
-    if (n.includes("..")) return false;
+    normalized = normalize(p);
+    if (normalized.includes("..")) return false;
   } catch {
     return false;
+  }
+
+  if (jailPrefixes && jailPrefixes.length > 0) {
+    return jailPrefixes.some(jail => {
+        const normalizedJail = normalize(jail.endsWith("/") ? jail : jail + "/");
+        const normalizedP = normalize(normalized.endsWith("/") ? normalized : normalized + "/");
+        return normalizedP.startsWith(normalizedJail);
+    });
   }
 
   return true;

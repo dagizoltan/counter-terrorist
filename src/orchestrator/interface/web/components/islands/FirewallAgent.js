@@ -6,7 +6,15 @@ class FirewallAgent extends HTMLElement {
 
   connectWS() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+
+    // SEC-05: Authenticated WebSocket Handshake
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        url.searchParams.set('token', csrfToken);
+    }
+
+    const ws = new WebSocket(url.toString());
 
     ws.onmessage = (event) => {
       try {

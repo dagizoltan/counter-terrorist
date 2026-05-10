@@ -17,11 +17,14 @@ class StatusIndicator extends HTMLElement {
   }
 
   async updateStatus() {
-    const name = this.getAttribute('name') || 'Unknown' Agent';
+    const name = this.getAttribute('name') || 'Unknown Agent';
     
     try {
       let isOnline = false;
-      const res = await fetch('/api/agent/status');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/agent/status', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         if (name === "Active Blocker") isOnline = data.firewall?.active;

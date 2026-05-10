@@ -41,7 +41,10 @@ class VpnAgent extends HTMLElement {
 
   async fetchData() {
     try {
-      const res = await fetch('/api/mesh/nodes');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/mesh/nodes', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (!res.ok) return;
       const data = await res.json();
       
