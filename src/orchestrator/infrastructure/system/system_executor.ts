@@ -146,7 +146,7 @@ export class SystemExecutor {
         maxArgs: 1
     },
     "tc": {
-        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid)$/, /.*/],
+        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid)$/],
         maxArgs: 20
     },
     "gcore": {
@@ -174,7 +174,7 @@ export class SystemExecutor {
         maxArgs: 2
     },
     "wg": {
-        allowedArgs: [/^(show|set|genkey|pubkey)$/, /.*/],
+        allowedArgs: [/^(show|set|genkey|pubkey)$/],
         maxArgs: 10
     },
     "system_profiler": {
@@ -186,19 +186,19 @@ export class SystemExecutor {
         maxArgs: 2
     },
     "unshare": {
-        allowedArgs: [/^--[a-z]+$/, /.*/],
+        allowedArgs: [/^--[a-z]+$/],
         maxArgs: 10
     },
     "iptables": {
-        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N)$/, /.*/],
+        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N)$/],
         maxArgs: 20
     },
     "tpm2_sign": {
-        allowedArgs: [/^-c$/, /.*/, /^-g$/, /^(sha256|sha384)$/, /^-o$/, /.*/, /.*/],
+        allowedArgs: [/^-c$/, /.*/, /^-g$/, /^(sha256|sha384)$/, /^-o$/],
         maxArgs: 10
     },
     "tpm2_hash": {
-        allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/, /.*/, /.*/],
+        allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/],
         maxArgs: 10
     },
     "rkhunter": {
@@ -206,11 +206,11 @@ export class SystemExecutor {
         maxArgs: 5
     },
     "security": {
-        allowedArgs: [/^(cms|find-identity|unlock-keychain)$/, /.*/],
+        allowedArgs: [/^(cms|find-identity|unlock-keychain)$/],
         maxArgs: 10
     },
     "ip": {
-        allowedArgs: [/^(addr|link|route|neigh|show|dev|show|default)$/, /.*/],
+        allowedArgs: [/^(addr|link|route|neigh|show|dev|default)$/],
         maxArgs: 10
     },
     "sysctl": {
@@ -222,7 +222,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ping": {
-        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /.*/],
+        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/],
         maxArgs: 10
     },
     "host": {
@@ -230,11 +230,11 @@ export class SystemExecutor {
         maxArgs: 3
     },
     "scp": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /.*/, /.*/],
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/],
         maxArgs: 10
     },
     "ssh": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /.*/, /.*/],
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/],
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {
@@ -314,7 +314,12 @@ export class SystemExecutor {
 
     if (policy.allowedArgs) {
       for (let i = 0; i < args.length; i++) {
-        const pattern = policy.allowedArgs[i];
+        // If we have a specific pattern for this argument index, use it.
+        // Otherwise, if we have patterns but more arguments than patterns,
+        // use the LAST pattern as a generic validator for remaining arguments (if appropriate)
+        // or just fail if it's strict.
+        const pattern = policy.allowedArgs[i] || (policy.allowedArgs.length > 0 ? policy.allowedArgs[policy.allowedArgs.length - 1] : null);
+
         if (pattern) {
           if (!pattern.test(args[i])) {
             return { valid: false, reason: `Argument '${args[i]}' at index ${i} is not allowed for '${baseCmd}'` };
