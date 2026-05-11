@@ -56,7 +56,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   const hostname = parsed.hostname.toLowerCase();
 
   // Block loopback and local-only variants
-  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" || hostname === "::1" || hostname === "[::1]" || hostname === "[::]") {
+  if (hostname === "localhost" || hostname.startsWith("127.") || hostname === "0.0.0.0" || hostname === "::1" || hostname === "[::1]" || hostname === "[::]") {
     return { valid: false, reason: "Loopback and local addresses are not allowed" };
   }
 

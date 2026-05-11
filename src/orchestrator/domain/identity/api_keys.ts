@@ -2,6 +2,7 @@ import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { KvRepository } from "@infrastructure/persistence/repositories/kv_repository.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 import { Result } from "@core/result.ts";
+import { secureCompare } from "@infrastructure/system/validation.ts";
 
 export type Role = "admin" | "operator" | "viewer" | "mesh_peer";
 
@@ -104,7 +105,6 @@ export class ApiKeysService {
       const providedHash = await this.hashKey(rawKey, metadata.salt);
 
       // 4. Constant-time comparison to prevent timing attacks
-      const { secureCompare } = await import("@infrastructure/system/validation.ts");
       if (await secureCompare(providedHash, expectedHash)) {
         metadata.lastUsed = Date.now();
         this.hashRepo.set(expectedHash, metadata).catch(() => {});

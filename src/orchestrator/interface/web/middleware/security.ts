@@ -28,7 +28,7 @@ export class SecurityMiddleware {
       if (c.res) {
         c.res.headers.set(
           "Content-Security-Policy",
-          `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`
+          `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;`
         );
         c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
         c.res.headers.set("X-Frame-Options", "DENY");

@@ -187,9 +187,6 @@ export class WebAdapter implements WebPort {
     
     // Optimized static serving for Deno
     this.app.use("/style.css", serveStatic({ path: "./style.css", root: webRoot }));
-    this.app.use("/features/*", serveStatic({ root: webRoot }));
-    this.app.use("/components/*", serveStatic({ root: webRoot }));
-    this.app.use("/pages/*", serveStatic({ root: webRoot }));
     this.app.use("/vendor/*", serveStatic({ root: webRoot }));
     this.app.use("/assets/*", serveStatic({ root: webRoot }));
     this.app.use("/theme.ts", serveStatic({ path: "./theme.ts", root: webRoot }));

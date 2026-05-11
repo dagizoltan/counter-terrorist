@@ -94,16 +94,19 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
         result = await services.protection.antivirus.scanPath(path || "/home/");
     }
     
+    const data = result.success ? result.data : { success: false, error: result.error.message };
+
     // Update metrics service with the result
     const { recordScannerResult } = await import("../../../domain/analysis/metrics_service.ts");
-    recordScannerResult(new Date().toLocaleTimeString(), result.success ? "OK" : "THREAT_FOUND");
+    const scanStatus = (data.success && !data.threatsFound) ? "OK" : (data.threatsFound ? "THREAT_FOUND" : "SCAN_FAILED");
+    recordScannerResult(new Date().toLocaleTimeString(), scanStatus);
     
-    return c.json(result);
+    return c.json(data);
   });
 
   router.post("/scanner/sync-signatures", security.requireRole("admin", "operator"), async (c: Context) => {
     const result = await services.protection.antivirus.syncSignatures();
-    return c.json(result);
+    return c.json(result.success ? result.data : { success: false, error: result.error.message });
   });
   
   router.get("/scanner/ledger", async (c: Context) => {

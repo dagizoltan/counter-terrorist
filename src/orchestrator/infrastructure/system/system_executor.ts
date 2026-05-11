@@ -75,7 +75,7 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
-        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"\$\(\)\{\}]+$/],
+        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"\$\(\)\{\}\[\];+]+$/],
         maxArgs: 2
     },
     "netsh": {

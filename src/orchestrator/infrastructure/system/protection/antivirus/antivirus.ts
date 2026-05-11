@@ -3,11 +3,21 @@ import { meshManager } from "@domain/orchestration/mesh.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
 import { validatePath } from "../../validation.ts";
+import { Result } from "@core/result.ts";
+import { withTelemetry } from "@core/service_utils.ts";
 
 export type { AntivirusProvider, ScanResult };
 
 export class AntivirusManager {
-  constructor(private provider: AntivirusProvider) {}
+  public quarantine: (path: string) => Promise<Result<{ success: boolean; message: string; target?: string }>>;
+  public scanPath: (path: string) => Promise<Result<ScanResult>>;
+  public syncSignatures: () => Promise<Result<any>>;
+
+  constructor(private provider: AntivirusProvider) {
+    this.quarantine = withTelemetry("Protection:Quarantine", this._quarantine.bind(this), loggingService);
+    this.scanPath = withTelemetry("Protection:ScanPath", this._scanPath.bind(this), loggingService);
+    this.syncSignatures = withTelemetry("Protection:SyncSignatures", this._syncSignatures.bind(this), loggingService);
+  }
 
   async getStatus() {
     return await this.provider.getStatus();
@@ -19,14 +29,14 @@ export class AntivirusManager {
     return validatePath(p, AntivirusManager.ALLOWED_DIRS);
   }
 
-  async quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }> {
+  private async _quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }> {
     if (!this.validatePath(path)) {
-        return { success: false, message: `Security Violation: Path '${path}' is outside allowed boundaries.` };
+        throw new Error(`Security Violation: Path '${path}' is outside allowed boundaries.`);
     }
     return await this.provider.quarantine(path);
   }
 
-  async scanPath(path: string): Promise<ScanResult> {
+  private async _scanPath(path: string): Promise<ScanResult> {
     if (!this.validatePath(path)) {
         throw new Error(`Security Violation: Path '${path}' is outside allowed boundaries.`);
     }
@@ -53,7 +63,7 @@ export class AntivirusManager {
     return result;
   }
 
-  async syncSignatures() {
+  private async _syncSignatures() {
     return await this.provider.syncSignatures();
   }
 }

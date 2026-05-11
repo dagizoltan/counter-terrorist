@@ -26,9 +26,6 @@ export class KvAuditRepository implements AuditRepository {
     }
 
     async *getStream(limit: number, reverse: boolean): AsyncIterable<AuditEvent> {
-        const iter = (this.repo as any).kv.list({ prefix: ["audit"] }, { limit, reverse });
-        for await (const entry of iter) {
-            yield entry.value as AuditEvent;
-        }
+        yield* this.repo.getStream(limit, reverse);
     }
 }

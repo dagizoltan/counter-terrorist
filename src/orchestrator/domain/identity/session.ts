@@ -1,5 +1,6 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { SessionRepository } from "../repositories/session_repository.ts";
+import { secureCompare } from "@infrastructure/system/validation.ts";
 
 export interface Session {
   id: string;
@@ -68,8 +69,9 @@ export class SessionService {
 
   async validateCsrf(id: string, token: string): Promise<boolean> {
     const session = await this.repo.getById(id);
-    if (!session) return false;
-    return session.csrfToken === token;
+    if (!session || !token) return false;
+
+    return await secureCompare(session.csrfToken, token);
   }
 
   async revokeSession(id: string): Promise<void> {
