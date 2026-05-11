@@ -129,13 +129,13 @@ export interface BaseRequest {
 }
 
 export interface ScannerRequest extends BaseRequest {
-  type: "SCAN" | "DIR_SCAN" | "RKH_SCAN" | "QUIT";
+  type: "SCAN" | "DIR_SCAN" | "RKH_SCAN" | "QUIT" | "MEM_SCAN" | "ScanPath" | "Quarantine" | "SyncSignatures" | "GetStatus";
   path?: string;
   paths?: string[];
 }
 
 export interface BlockerRequest extends BaseRequest {
-  type: "KillProcess" | "BlockIp" | "UnblockIp" | "QuarantineProcess" | "DumpProcess";
+  type: "KillProcess" | "BlockIp" | "UnblockIp" | "QuarantineProcess" | "DumpProcess" | "GetStatus";
   pid?: number;
   ip?: string;
   path?: string;
@@ -256,8 +256,8 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
 
   switch (sidecar) {
     case "scanner":
-      if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT"].includes(req.type)) return false;
-      if (req.type === "DIR_SCAN") {
+      if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"].includes(req.type)) return false;
+      if (req.type === "DIR_SCAN" || req.type === "ScanPath" || req.type === "Quarantine") {
         if (req.path) {
           if (!validatePath(req.path)) return false;
         }
@@ -268,11 +268,12 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       }
       return true;
     case "blocker":
-      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess"].includes(req.type)) return false;
-      if (req.type === "KillProcess" && typeof req.pid !== "number") return false;
+      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus"].includes(req.type)) return false;
+      if ((req.type === "KillProcess" || req.type === "QuarantineProcess" || req.type === "DumpProcess") && typeof req.pid !== "number") return false;
       const targetIp = req.ip;
       if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
       if (req.type === "BlockIp" && isCriticalInfrastructure(targetIp || "")) return false;
+      if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
       return true;
     case "pcap":
       if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
@@ -304,18 +305,21 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
     case "ebpf":
       const ebpfTypes = [
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
-        "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM"
+        "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
+        "ENFORCE_PID", "UNENFORCE_PID"
       ];
       if (!ebpfTypes.includes(req.type)) return false;
       if ((req.type === "BLOCK_IP" || req.type === "UNBLOCK_IP" || req.type === "SHADOW_BAN") && !isValidIP(req.ip || "")) return false;
       if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip || "")) return false;
       if (req.type === "TRUST_COMM" && typeof req.comm !== "string") return false;
+      if ((req.type === "HIDE_PID" || req.type === "ENFORCE_PID" || req.type === "UNENFORCE_PID") && typeof req.pid !== "number") return false;
+      if ((req.type === "ALLOW_PORT" || req.type === "DENY_PORT") && typeof req.port !== "number") return false;
       return true;
     case "tpm":
       if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs"].includes(req.type)) return false;
       return true;
     case "vpn":
-      if (!["Connect", "Disconnect", "GetStatus"].includes(req.type)) return false;
+      if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
       return true;
     default:
       return false; // Unknown sidecars are rejected by default

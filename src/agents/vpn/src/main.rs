@@ -9,14 +9,25 @@ use std::process::Command;
 static STDOUT_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "type", content = "payload")]
+#[serde(tag = "type")]
 enum VpnCommand {
     #[serde(rename = "CONNECT")]
-    Connect { id: String, interface: String, config_path: Option<String> },
+    Connect { id: String, payload: ConnectPayload },
     #[serde(rename = "DISCONNECT")]
-    Disconnect { id: String, interface: String },
+    Disconnect { id: String, payload: DisconnectPayload },
     #[serde(rename = "GET_STATUS")]
     GetStatus { id: String },
+}
+
+#[derive(Debug, Deserialize)]
+struct ConnectPayload {
+    interface: String,
+    config_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DisconnectPayload {
+    interface: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,7 +103,8 @@ async fn main() {
 
         if let Ok(cmd) = serde_json::from_str::<VpnCommand>(line) {
             match cmd {
-                VpnCommand::Connect { id, interface, config_path } => {
+                VpnCommand::Connect { id, payload } => {
+                    let interface = payload.interface;
                     log_forensic("info", &format!("Attempting to connect interface: {}", interface)).await;
                     
                     // In a production environment, we'd use wg-quick or native netlink
@@ -102,7 +114,7 @@ async fn main() {
                         continue;
                     }
 
-                    let msg = if let Some(path) = config_path {
+                    let msg = if let Some(path) = payload.config_path {
                         format!("Interface {} connected using config {}", interface, path)
                     } else {
                         format!("Interface {} connected with default parameters", interface)
@@ -111,7 +123,8 @@ async fn main() {
                     log_forensic("success", &msg).await;
                     emit_response(id, true, msg, None).await;
                 },
-                VpnCommand::Disconnect { id, interface } => {
+                VpnCommand::Disconnect { id, payload } => {
+                    let interface = payload.interface;
                     log_forensic("info", &format!("Disconnecting interface: {}", interface)).await;
                     emit_response(id, true, format!("Interface {} disconnected", interface), None).await;
                 },

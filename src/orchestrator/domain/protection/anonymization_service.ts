@@ -26,10 +26,17 @@ export class AnonymizationService {
     private mode: StealthMode = StealthMode.OFF;
     private rotationInterval?: number;
 
+    private killSwitchInterval?: number;
+    private firewall?: any;
+
     constructor(
         private vpn: VpnPort,
         private logging: LoggingPort
     ) {}
+
+    setFirewall(firewall: any) {
+        this.firewall = firewall;
+    }
 
     async start(initialMode: StealthMode = StealthMode.VPNGATE) {
         this.mode = initialMode;
@@ -48,6 +55,31 @@ export class AnonymizationService {
         // Rotate periodically based on mode intensity
         const intervalMs = this.mode === StealthMode.TOR ? 4 * 60 * 60 * 1000 : 12 * 60 * 60 * 1000;
         this.rotationInterval = setInterval(() => this.rotate(), intervalMs);
+
+        this.startKillSwitch();
+    }
+
+    private startKillSwitch() {
+        if (this.killSwitchInterval) return;
+
+        this.killSwitchInterval = setInterval(async () => {
+            if (this.mode !== StealthMode.OFF && this.mode !== StealthMode.TOR) {
+                const connected = await this.vpn.isConnected();
+                if (!connected) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "KILL_SWITCH",
+                        message: "VPN Connection lost. Engaging global lockdown to prevent leakage."
+                    });
+
+                    if (this.firewall) {
+                        await this.firewall.lockdown();
+                    }
+                }
+            }
+        }, 5000); // Check every 5 seconds
     }
 
     async setMode(newMode: StealthMode) {
@@ -196,6 +228,7 @@ export class AnonymizationService {
 
     stop() {
         if (this.rotationInterval) clearInterval(this.rotationInterval);
+        if (this.killSwitchInterval) clearInterval(this.killSwitchInterval);
         this.mode = StealthMode.OFF;
     }
 }

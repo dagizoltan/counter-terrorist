@@ -21,8 +21,8 @@ export class SystemExecutor {
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
-    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon",
-    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw",
+    "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security", "powershell",
+    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw", "wfp",
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
     "/var/lib/cts/scripts/update_comm.sh",
@@ -38,7 +38,7 @@ export class SystemExecutor {
 
   private static readonly PLATFORM_TOOLS = [
     "pfctl", "launchctl", "sw_vers", "spctl", "ifconfig", "killall", "ps",
-    "netsh", "taskkill", "pktmon"
+    "netsh", "taskkill", "pktmon", "powershell", "security"
   ];
 
   /**
@@ -74,7 +74,7 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
-        allowedArgs: [/^-Command$/, /^([A-Z][a-z]+-[A-Z][a-z]+).*$/],
+        allowedArgs: [/^-Command$/, /^([A-Z][a-z]+-[A-Z][a-z]+).*$/, /^.*NCrypt.*$/, /^\$data = .*$/],
         maxArgs: 2
     },
     "netsh": {
@@ -129,6 +129,114 @@ export class SystemExecutor {
       allowedArgs: [/^[a-z0-9-]+$/],
       maxArgs: 1
     },
+    "clamscan": {
+        allowedArgs: [/^(-r|--quiet|--no-summary)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
+        maxArgs: 5
+    },
+    "sha256sum": {
+        allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
+        maxArgs: 1
+    },
+    "crontab": {
+        allowedArgs: [/^-l$/, /^-u$/, /^[a-z0-9-]+$/],
+        maxArgs: 3
+    },
+    "where": {
+        allowedArgs: [/^[a-z0-9-]+$/],
+        maxArgs: 1
+    },
+    "tc": {
+        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid|default)$/, /^[0-9a-z:/._-]+$/, /^[0-9]+(kbps|mbps|gbps|ms|s)$/],
+        maxArgs: 20
+    },
+    "gcore": {
+        allowedArgs: [/^-o$/, /^(\.\/volume\/.*)$/, /^[0-9]+$/],
+        maxArgs: 3
+    },
+    "tpm2_nvdefine": {
+        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-s$/, /^[0-9]+$/],
+        maxArgs: 3
+    },
+    "tpm2_nvwrite": {
+        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-i$/, /.*/],
+        maxArgs: 3
+    },
+    "tpm2_nvread": {
+        allowedArgs: [/^0x[0-9a-fA-F]+$/],
+        maxArgs: 1
+    },
+    "tpm2_pcrread": {
+        allowedArgs: [/^sha256:[0-9,]+$/],
+        maxArgs: 1
+    },
+    "wg-quick": {
+        allowedArgs: [/^(up|down)$/, /^(all|[a-z0-9]+)$/],
+        maxArgs: 2
+    },
+    "wg": {
+        allowedArgs: [/^(show|set|genkey|pubkey)$/, /^[a-z0-9]+$/, /^[A-Za-z0-9+/=]+$/],
+        maxArgs: 10
+    },
+    "system_profiler": {
+        allowedArgs: [/^[A-Z][a-zA-Z0-9]+DataType$/],
+        maxArgs: 5
+    },
+    "ss": {
+        allowedArgs: [/^-?[tulnpa]+$/],
+        maxArgs: 2
+    },
+    "unshare": {
+        allowedArgs: [/^--[a-z]+$/, /^[a-z0-9/._-]+$/],
+        maxArgs: 10
+    },
+    "iptables": {
+        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N|--append|--delete|--insert|--list|--flush|--new-chain|--policy)$/, /^[A-Z]+$/, /^[a-z0-9.+_-]+$/, /^-p$/, /^(tcp|udp|icmp)$/, /^--dport$/, /^[0-9]+$/, /^-j$/, /^(ACCEPT|DROP|REJECT|LOG)$/, /^[0-9a-fA-F.:/]+$/],
+        maxArgs: 20
+    },
+    "tpm2_sign": {
+        allowedArgs: [/^-c$/, /^[0-9a-fx]+$/, /^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
+        maxArgs: 10
+    },
+    "tpm2_hash": {
+        allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
+        maxArgs: 10
+    },
+    "rkhunter": {
+        allowedArgs: [/^--check$/, /^--sk$/, /^--nocolor$/, /^--report-warnings-only$/],
+        maxArgs: 5
+    },
+    "security": {
+        allowedArgs: [/^(cms|find-identity|unlock-keychain)$/, /^-?[a-zA-Z]+$/, /^[a-zA-Z0-9/._-]+$/],
+        maxArgs: 10
+    },
+    "ip": {
+        allowedArgs: [/^(addr|link|route|neigh|show|dev|default|add|del|list)$/, /^[0-9a-z._-]+$/, /^[0-9a-fA-F.:/]+$/],
+        maxArgs: 10
+    },
+    "sysctl": {
+        allowedArgs: [/^(-w|-n)$/, /^[a-z0-9._-]+(=[0-9]+)?$/],
+        maxArgs: 2
+    },
+    "nmcli": {
+        allowedArgs: [/^(-t|-f)$/, /^[A-Z,]+$/, /^(dev|wifi|list)$/],
+        maxArgs: 10
+    },
+    "ping": {
+        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /^[a-z0-9.-]+$/, /^[0-9a-fA-F.:]+$/],
+        maxArgs: 10
+    },
+    "host": {
+        allowedArgs: [/^-t$/, /^(A|AAAA|TXT|MX)$/, /^[a-zA-Z0-9.-]+$/],
+        maxArgs: 3
+    },
+    "scp": {
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+:.*$/],
+        maxArgs: 10
+    },
+    "ssh": {
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl .*)$/],
+        maxArgs: 10
+    },
     "/var/lib/cts/scripts/install_service.sh": {
       allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /.*/],
       maxArgs: 2
@@ -146,7 +254,7 @@ export class SystemExecutor {
       maxArgs: 3
     },
     "openssl": {
-      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^[a-zA-Z0-9./_-]+$/, /^-out$/, /^[a-zA-Z0-9./_-]+$/, /^[a-zA-Z0-9./_-]+$/],
+      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+\.(bin|pem|crt|key|csr|pub|sig)$/],
       maxArgs: 10
     },
     "scanner": { maxArgs: 10 },
@@ -154,7 +262,7 @@ export class SystemExecutor {
     "honeypot": { maxArgs: 10 },
     "pcap": { maxArgs: 10 },
     "ebpf": { 
-      allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM)".*\}$/],
+      allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID)".*\}$/],
       maxArgs: 1 
     },
     "fim": { maxArgs: 10 },
@@ -166,8 +274,9 @@ export class SystemExecutor {
 
   /**
    * Prevents Directory Traversal by normalizing and checking for '..' or absolute paths.
+   * Ensures the path is within allowed boundaries if jailPrefixes are provided.
    */
-  private validatePath(filePath: string): boolean {
+  private validatePath(filePath: string, jailPrefixes?: string[]): boolean {
     // Basic string check for obvious traversal
     if (filePath.includes("..") || filePath.startsWith("//") || filePath.startsWith("\\\\")) {
         return false;
@@ -177,6 +286,22 @@ export class SystemExecutor {
     // After normalization, ensure it doesn't escape
     if (normalized.includes("..")) {
         return false;
+    }
+
+    // If it's an absolute path, it MUST match a jail prefix
+    if (path.isAbsolute(normalized)) {
+        const safeSystemPaths = ["/etc/os-release", "/sys/class/iommu", "/proc/self/exe"];
+        if (safeSystemPaths.includes(normalized)) return true;
+
+        if (!jailPrefixes || jailPrefixes.length === 0) {
+            return false; // Absolute path with no jail defined
+        }
+
+        return jailPrefixes.some(jail => {
+            const normalizedJail = path.normalize(jail.endsWith("/") ? jail : jail + "/");
+            const normalizedP = path.normalize(normalized.endsWith("/") ? normalized : normalized + "/");
+            return normalizedP.startsWith(normalizedJail);
+        });
     }
     
     return true;
@@ -197,18 +322,22 @@ export class SystemExecutor {
 
     if (policy.allowedArgs) {
       for (let i = 0; i < args.length; i++) {
-        const pattern = policy.allowedArgs[i];
-        if (pattern) {
-          if (!pattern.test(args[i])) {
-            return { valid: false, reason: `Argument '${args[i]}' at index ${i} is not allowed for '${baseCmd}'` };
-          }
+        const arg = args[i];
+        // SET-BASED VALIDATION: Check if the argument matches ANY of the allowed patterns
+        const matchesAny = policy.allowedArgs.some(pattern => pattern.test(arg));
+
+        if (!matchesAny) {
+          return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseCmd}' (no matching pattern)` };
+        }
+
+        // ALWAYS validate for traversal if it looks like a path or contains '..'
+        if (arg.includes("/") || arg.includes("\\") || arg.includes("..")) {
+          const jailPrefixes = (arg.startsWith("./volume/") || arg.startsWith("/var/lib/cts/"))
+              ? ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"]
+              : undefined;
           
-          // If the pattern looks like a path (starts with ./volume/ or /var/lib/cts/), validate it against traversal
-          if (args[i].startsWith("./volume/") || args[i].startsWith("/var/lib/cts/")) {
-            // Updated to use the more robust validatePath from our central validation logic if available or local hardened version
-            if (!this.validatePath(args[i])) {
-              return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${args[i]}'` };
-            }
+          if (!this.validatePath(arg, jailPrefixes)) {
+            return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
           }
         }
       }

@@ -18,7 +18,8 @@ export class RkhunterManager {
 
     async runScan(): Promise<RkhunterResult> {
         try {
-            const result = await this.sidecar.sendCommand("scanner", "RKH_SCAN") as any;
+            // RKH_SCAN is a specialized scan type that checks for known rootkit artifacts
+            const result = await this.sidecar.sendCommand("scanner", { type: "RKH_SCAN" }) as any;
 
             this.lastResult = result;
 

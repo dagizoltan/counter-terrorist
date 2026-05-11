@@ -28,7 +28,7 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
     scanner: {
         name: "scanner",
         description: "Vulnerability and port scanner for local network assessment.",
-        persistent: false, // Runs on demand
+        persistent: true,
         privileged: false
     },
     honeypot: {

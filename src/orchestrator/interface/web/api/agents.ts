@@ -94,8 +94,14 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
 
   // Scanner specific controls
   router.post("/scanner/scan", async (c: Context) => {
-    const { path } = await c.req.json();
-    const result = await services.protection.antivirus.scanPath(path || "/");
+    const { path, type } = await c.req.json();
+
+    let result;
+    if (type === 'ROOTKIT') {
+        result = await services.protection.rkhunter.runScan();
+    } else {
+        result = await services.protection.antivirus.scanPath(path || "/home/");
+    }
     
     // Update metrics service with the result
     const { recordScannerResult } = await import("../../../domain/analysis/metrics_service.ts");

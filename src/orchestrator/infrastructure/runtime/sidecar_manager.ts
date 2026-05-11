@@ -190,17 +190,42 @@ export class SidecarManager implements CommandPort {
 
             const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
             
-            // ENHANCEMENT: Self-Healing Sidecars
-            // Verify integrity before spawn (Skip in DEV_MODE to allow debug binaries)
+            // ENHANCEMENT: Transition to Linux Capabilities (setcap)
+            // Removes dependency on sudo -n for sidecar execution
+            // We use secure_spawn.sh to move the binary to a secure directory BEFORE verification/execution to mitigate TOCTOU
+            // NOTE: In DEV_MODE we execute in-place to avoid requiring root-owned /var/lib/cts permissions
+            let execPath = binPath;
+
             if (!isDev) {
-              const isHealthy = await this.verifyAndHeal(name, binPath);
+                const caps = this.getCapabilities(name) || "";
+                const spawnScript = await this.findScript("secure_spawn.sh");
+                if (spawnScript) {
+                    const res = await this.executor.execute(spawnScript, [name, binPath, caps]);
+                    if (res.success) {
+                        execPath = `/var/lib/cts/bin/${name}`;
+                    }
+                } else {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.ERROR,
+                        caller: "SIDECAR_MANAGER",
+                        message: "CRITICAL: secure_spawn.sh not found. Sidecar deployment will be unprivileged and potentially insecure."
+                    });
+                }
+            }
+
+            // ENHANCEMENT: Self-Healing Sidecars
+            // Verify integrity AFTER move to secure location (Skip in DEV_MODE to allow debug binaries)
+            if (!isDev) {
+              const isHealthy = await this.verifyAndHeal(name, execPath);
               if (!isHealthy) {
                   this.logging.log({
                       timestamp: new Date().toISOString(),
                       type: LogType.AUDIT,
                       severity: LogSeverity.ERROR,
                       caller: "SIDECAR_MANAGER",
-                      message: `CRITICAL: Sidecar ${name} integrity check failed and self-healing was unsuccessful.`
+                      message: `CRITICAL: Sidecar ${name} integrity check failed at secure location and self-healing was unsuccessful.`
                   });
                   return null;
               }
@@ -208,15 +233,7 @@ export class SidecarManager implements CommandPort {
 
             const env = await this.getSidecarEnv(name);
 
-            // ENHANCEMENT: Transition to Linux Capabilities (setcap)
-            // Removes dependency on sudo -n for sidecar execution
-            // We use secure_spawn.sh to move the binary to a secure directory before verification/execution
-            const caps = this.getCapabilities(name) || "";
-            await this.executor.execute("/var/lib/cts/scripts/secure_spawn.sh", [name, binPath, caps]);
-
-            const secureBinPath = `/var/lib/cts/bin/${name}`;
-
-            const command = new Deno.Command(secureBinPath, {
+            const command = new Deno.Command(execPath, {
                 args: [],
                 stdin: "piped",
                 stdout: "piped",
@@ -429,6 +446,20 @@ export class SidecarManager implements CommandPort {
       reader.releaseLock();
       this.persistentProcesses.delete(name);
     }
+  }
+
+  private async findScript(name: string): Promise<string | null> {
+    const paths = [
+        `/var/lib/cts/scripts/${name}`,
+        `./scripts/${name}`
+    ];
+    for (const p of paths) {
+        try {
+            const info = await Deno.stat(p);
+            if (info.isFile) return await Deno.realPath(p);
+        } catch { /* ignore */ }
+    }
+    return null;
   }
 
   private async getSidecarEnv(name: string): Promise<Record<string, string>> {

@@ -17,7 +17,7 @@ import {
     IncidentService, ComplianceService, NewsSignalService, 
     LedgerService, HealthService, EventMediator,
     WatchdogService, RateLimitService, TacticalIntelService,
-    CorrelationService, PolicyEngine
+    CorrelationService, PolicyEngine, AutoBlockService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
@@ -319,6 +319,7 @@ export class SovereignApp {
         wrap("NewsSignal", news.start());
         wrap("NetworkDiscovery", networkDiscovery.start());
         
+        this.services.baseline.startMonitor();
         lifecycle.start();
         autonomousAutopilot.start();
 
@@ -327,7 +328,7 @@ export class SovereignApp {
 
     private async startDaemons() {
         const { command: sm, platformInfo } = this.services;
-        const daemons = ["honeypot", "fim", "blocker", "pcap"];
+        const daemons = ["honeypot", "fim", "blocker", "pcap", "scanner", "vpn"];
 
         if (platformInfo.name === "macos") daemons.push("esf");
         if (platformInfo.name === "windows") {
@@ -384,6 +385,9 @@ export class SovereignApp {
         eventBus: EventBus, mesh: MeshManager, 
         tpm: TPMManager, health: HealthService
     ): Promise<ServiceContainer> {
+        // ── Autonomous Defense ──────────────────────────────────────────────
+        const autoBlock = new AutoBlockService(eventBus, rawProtection.firewall, loggingService);
+
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
         // REPOSITORY INJECTION
@@ -441,6 +445,7 @@ export class SovereignApp {
 
     private initSecuritySubsystem(protection: any, mesh: any, tpm: any, health: any) {
         const anonymization = new AnonymizationService(protection.vpn, loggingService);
+        anonymization.setFirewall(protection.firewall);
         const shadowProtocol = new ShadowProtocolService(mesh, anonymization, loggingService);
         const behavioral = new BehavioralService(protection.firewall as any, this.auditService);
         
