@@ -33,11 +33,11 @@ The current codebase provides a functional orchestrator shell with working API e
 - Implement Move-before-Verify pattern for sidecar integrity. (COMPLETED)
 - **Cross-Platform Bridge**: Initial support for macOS SEP and Windows NCrypt. (COMPLETED)
 
-## Phase 2: Persistence & Daemon Model
-- Transition the scanner to a persistent Rust daemon.
-- Update the orchestrator to maintain persistent sidecar references and handle streaming JSON.
-- Persist baselines and audit history in Deno KV.
-- Implement hash-and-path drift detection.
+## Phase 2: Persistence & Daemon Model (COMPLETED)
+- Transition the scanner to a persistent Rust daemon. (COMPLETED)
+- Update the orchestrator to maintain persistent sidecar references and handle streaming JSON. (COMPLETED)
+- Persist baselines and audit history in Deno KV. (COMPLETED)
+- Implement hash-and-path drift detection. (COMPLETED)
 
 ## Phase 3: Network Protection & Ring 0 Enforcement (COMPLETED)
 - Implement native eBPF/XDP firewall controls and default deny policies. (COMPLETED)
@@ -50,10 +50,10 @@ The current codebase provides a functional orchestrator shell with working API e
 - Wire WebSocket events to dashboard components.
 - Add production service definitions for `systemd` and TLS-ready Nginx templates.
 
-## Phase 5: Scanning & Detection
+## Phase 5: Scanning & Detection (COMPLETED)
 - Implement native Rust-based signature scanning and quarantine. (COMPLETED)
-- Add rootkit detection support (e.g. `rkhunter`).
-- Continue refining honeypot telemetry and behavioral detection.
+- Add rootkit detection support (e.g. `rkhunter`). (COMPLETED)
+- Continue refining honeypot telemetry and behavioral detection. (COMPLETED)
 
 ## Phase 6: Alerting & Reporting
 - Expose secure audit history and report exports.
