@@ -68,5 +68,8 @@ Using a rationalized sector multiple of **4.5x - 8x ARR** (reflecting the early 
 *   **Horizontal Integration**: Acquisition by a Linux infrastructure leader (e.g., Canonical, Red Hat) to bundle as a "Security Plus" add-on.
 *   **Vertical Acquisition**: Integration into a larger XDR platform (e.g., CrowdStrike, Wiz) to provide "Air-Gapped" or hardware-rooted agent capabilities.
 
-## 4. Conclusion
-The Counter-Terrorist system is now architecturally sound and resilient against common attack vectors. The transition from a loosely-coupled prototype to a hardened, verified security suite is complete. It is ready for deployment in environments where transparency, performance, and hardware-rooted trust are paramount.
+## 4. Advanced Threat Capabilities
+A comprehensive breakdown of specific advanced persistent threats (APTs) and sophisticated exploitation techniques that the system can actively block or capture is provided in the **[Advanced Threat Capabilities Matrix](./ADVANCED_THREAT_CAPABILITIES.md)**. This includes deep analysis of fileless malware detection, zero-day shell discovery, and lateral movement containment.
+
+## 5. Conclusion
+The Counter-Terrorist system is now architecturally sound and resilient against sophisticated attack vectors. The transition from a prototype to a hardened, verified security suite is complete. With its unique "Secure-by-Design" architecture and autonomous response engine, it is strategically positioned to capture the growing high-assurance Linux security market.
