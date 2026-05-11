@@ -119,10 +119,15 @@ export class SecurityMiddleware {
             const csrfHeader = c.req.header("X-CT-Token");
             let csrfBody: string | undefined;
             
-            // Try to extract from body if header is missing (for standard form posts)
-            if (!csrfHeader && c.req.header("Content-Type")?.includes("application/x-www-form-urlencoded")) {
-              const body = await c.req.parseBody().catch(() => ({} as Record<string, string>));
-              csrfBody = (body as Record<string, string>).csrfToken as string;
+            // Try to extract from body if header is missing
+            if (!csrfHeader) {
+              const contentType = c.req.header("Content-Type");
+              if (contentType?.includes("application/x-www-form-urlencoded")) {
+                const body = await c.req.parseBody().catch(() => ({} as Record<string, string>));
+                csrfBody = (body as Record<string, string>).csrfToken as string;
+              }
+              // Note: We avoid reading the JSON body here to prevent draining the request stream.
+              // Clients should use the X-CT-Token header for application/json requests.
             }
 
             const providedToken = csrfHeader || csrfBody;

@@ -11,18 +11,15 @@ Deno.test("ApiKeysService - Security and Role Management", async (t) => {
   let idOperator: string;
 
   await t.step("Cannot create keys for admin/mesh_peer", async () => {
-    try {
-      await apiKeys.createApiKey("Test Admin", "admin");
-      throw new Error("Should have failed");
-    } catch (e: any) {
-      assertEquals(e.message, "Cannot create API keys for internal or admin roles");
-    }
+    const res = await apiKeys.createApiKey("Test Admin", "admin") as any;
+    assertEquals(res.success, false);
+    assertEquals(res.error.message, "Cannot create API keys for internal or admin roles");
   });
 
   await t.step("Create valid operator API key", async () => {
-    const res = await apiKeys.createApiKey("Test Operator", "operator");
-    rawKeyOperator = res.rawKey;
-    idOperator = res.id;
+    const res = await apiKeys.createApiKey("Test Operator", "operator") as any;
+    rawKeyOperator = res.data.rawKey;
+    idOperator = res.data.id;
 
     assertEquals(rawKeyOperator.startsWith("ct_operator_"), true);
     assertEquals(idOperator.length > 0, true);
@@ -43,13 +40,13 @@ Deno.test("ApiKeysService - Security and Role Management", async (t) => {
   });
 
   await t.step("Validate API key and resolve role", async () => {
-    const role = await apiKeys.validateApiKey(rawKeyOperator);
-    assertEquals(role, "operator");
+    const role = await apiKeys.validateApiKey(rawKeyOperator) as any;
+    assertEquals(role.data, "operator");
   });
 
   await t.step("Reject invalid/forged API key", async () => {
-    const role = await apiKeys.validateApiKey("ct_operator_invalid123");
-    assertEquals(role, null);
+    const role = await apiKeys.validateApiKey("ct_operator_invalid123") as any;
+    assertEquals(role.data, null);
   });
 
   await t.step("List API keys returns masked data", async () => {
@@ -62,8 +59,8 @@ Deno.test("ApiKeysService - Security and Role Management", async (t) => {
 
   await t.step("Revoke API key", async () => {
     await apiKeys.revokeApiKey(idOperator);
-    const role = await apiKeys.validateApiKey(rawKeyOperator);
-    assertEquals(role, null);
+    const role = await apiKeys.validateApiKey(rawKeyOperator) as any;
+    assertEquals(role.data, null);
     
     const keys = await apiKeys.listApiKeys();
     assertEquals(keys.length, 0);

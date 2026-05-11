@@ -50,7 +50,7 @@ export class SystemExecutor {
         maxArgs: 6
     },
     "launchctl": {
-        allowedArgs: [/^(list|load|unload|start|stop)$/, /.*/],
+        allowedArgs: [/^(list|load|unload|start|stop)$/, /^[a-zA-Z0-9\.\/_ \-]+$/],
         maxArgs: 2
     },
     "spctl": {
@@ -74,11 +74,11 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
-        allowedArgs: [/^-Command$/, /^([A-Z][a-z]+-[A-Z][a-z]+).*$/, /^.*NCrypt.*$/, /^\$data = .*$/],
+        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"\$\(\)\{\}]+$/],
         maxArgs: 2
     },
     "netsh": {
-        allowedArgs: [/^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/, /.*/],
+        allowedArgs: [/^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/, /^[a-zA-Z0-9\s\-\.\/_=:]+$/],
         maxArgs: 10
     },
     "taskkill": {
