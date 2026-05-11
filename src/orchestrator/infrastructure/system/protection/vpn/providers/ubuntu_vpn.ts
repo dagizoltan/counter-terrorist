@@ -10,12 +10,12 @@ export class UbuntuVpnProvider implements VpnProvider {
 
   async connect(interfaceName: string = "wg0"): Promise<VpnResult> {
     const res = await this.sidecar.sendCommand("vpn", { type: "CONNECT", payload: { interface: interfaceName } });
-    return { success: res.success, message: res.message || res.stdout || res.stderr || "" };
+    return { success: res.success, message: res.stdout || res.stderr || "" };
   }
 
   async disconnect(interfaceName: string = "wg0"): Promise<VpnResult> {
     const res = await this.sidecar.sendCommand("vpn", { type: "DISCONNECT", payload: { interface: interfaceName } });
-    return { success: res.success, message: res.message || res.stdout || res.stderr || "" };
+    return { success: res.success, message: res.stdout || res.stderr || "" };
   }
 
   async isConnected(interfaceName: string = "wg0"): Promise<boolean> {

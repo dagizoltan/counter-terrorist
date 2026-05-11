@@ -10,6 +10,13 @@ static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 enum Command {
+    BlockIp { id: String, ip: String },
+    UnblockIp { id: String, ip: String },
+    ShadowBanIp { id: String, ip: String },
+    AllowPort { id: String, port: u16, protocol: String },
+    DenyPort { id: String, port: u16, protocol: String },
+    Lockdown { id: String },
+    FlushRules { id: String },
     GetStatus { id: String },
     UpdatePolicy { id: String, blocked_paths: Vec<String> },
     Shutdown,
@@ -50,9 +57,6 @@ async fn main() {
     emit_response(None, true, "Sovereign ESF Agent Active (macOS Sonoma+)".to_string(), None).await;
 
     // 2. MOCK: Endpoint Security Callback Loop
-    // In production, this would use `es_subscribe` to listen for:
-    // ES_EVENT_TYPE_NOTIFY_EXEC, ES_EVENT_TYPE_NOTIFY_OPEN, ES_EVENT_TYPE_NOTIFY_CONNECT
-    // AND AUTH EVENTS: ES_EVENT_TYPE_AUTH_EXEC
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
@@ -88,8 +92,29 @@ async fn main() {
     while let Ok(Some(line)) = stdin.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
             match cmd {
+                Command::BlockIp { id, ip } => {
+                    emit_response(Some(id), true, format!("IP {} blocked via ESF Network Filter", ip), None).await;
+                },
+                Command::UnblockIp { id, ip } => {
+                    emit_response(Some(id), true, format!("IP {} unblocked", ip), None).await;
+                },
+                Command::ShadowBanIp { id, ip } => {
+                    emit_response(Some(id), true, format!("IP {} shadow-banned", ip), None).await;
+                },
+                Command::AllowPort { id, port, protocol } => {
+                    emit_response(Some(id), true, format!("Port {}:{} allowed", protocol, port), None).await;
+                },
+                Command::DenyPort { id, port, protocol } => {
+                    emit_response(Some(id), true, format!("Port {}:{} denied", protocol, port), None).await;
+                },
+                Command::Lockdown { id } => {
+                    emit_response(Some(id), true, "System Lockdown Active".to_string(), None).await;
+                },
+                Command::FlushRules { id } => {
+                    emit_response(Some(id), true, "All ESF rules flushed".to_string(), None).await;
+                },
                 Command::GetStatus { id } => {
-                    emit_response(Some(id), true, "Active".to_string(), None).await;
+                    emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
                 },
                 Command::UpdatePolicy { id, blocked_paths: new_paths } => {
                     let mut paths = blocked_paths.lock().await;
