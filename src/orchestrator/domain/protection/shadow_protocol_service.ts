@@ -26,7 +26,7 @@ export class ShadowProtocolService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "SHADOW",
+            caller: "orchestrator:domain:protection:shadow_protocol",
             message: "!!! TARGETED ATTACK DETECTED. ACTIVATING SHADOW PROTOCOL !!!"
         });
         this.shadowModeActive = true;
@@ -39,7 +39,7 @@ export class ShadowProtocolService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.WARNING,
-            caller: "SHADOW",
+            caller: "orchestrator:domain:protection:shadow_protocol",
             message: "Local telemetry silenced. Shifting to volatile mesh-gossip logging."
         });
         
@@ -50,7 +50,7 @@ export class ShadowProtocolService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "SHADOW",
+            caller: "orchestrator:domain:protection:shadow_protocol",
             message: "Node successfully phased into shadow state."
         });
     }
@@ -61,7 +61,7 @@ export class ShadowProtocolService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "SHADOW",
+            caller: "orchestrator:domain:protection:shadow_protocol",
             message: "Shadow Protocol deactivated. Returning to nominal stealth."
         });
     }

@@ -46,7 +46,7 @@ async fn log_forensic(severity: &str, message: &str) {
         timestamp: Utc::now().to_rfc3339(),
         log_type: "activity".to_string(),
         severity: severity.to_string(),
-        caller: "BLOCKER_AGENT".to_string(),
+        caller: "blocker:main".to_string(),
         message: message.to_string(),
     };
     if let Ok(json) = serde_json::to_string(&log) {

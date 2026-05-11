@@ -73,7 +73,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
                     severity: LogSeverity.INFO,
-                    caller: "decoy:canary",
+                    caller: "orchestrator:domain:protection:canary",
                     message: `[DEV MODE] Skipping projection: ${newToken.projectionPath}`
                 });
                 return;
@@ -114,7 +114,7 @@ export class CanaryService {
                         timestamp: new Date().toISOString(),
                         type: LogType.DEBUG,
                         severity: LogSeverity.INFO,
-                        caller: "decoy:canary",
+                        caller: "orchestrator:domain:protection:canary",
                         message: `[DEV MODE] Master generated at ${token.masterPath}. Skipping root projection.`
                     });
                     continue; 
@@ -130,7 +130,7 @@ export class CanaryService {
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
                         severity: LogSeverity.WARNING,
-                        caller: "decoy:canary",
+                        caller: "orchestrator:domain:protection:canary",
                         message: `Legitimate file at ${token.projectionPath}. Skipping projection.`
                     });
                     continue;
@@ -144,7 +144,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
                     severity: LogSeverity.INFO,
-                    caller: "decoy:canary",
+                    caller: "orchestrator:domain:protection:canary",
                     message: `Projected breadcrumb: ${token.projectionPath}`
                 });
 
@@ -155,7 +155,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
-                    caller: "decoy:canary",
+                    caller: "orchestrator:domain:protection:canary",
                     message: `Projection failed for ${token.projectionPath}: ${(e as Error).message}`
                 });
             }
@@ -184,7 +184,7 @@ export class CanaryService {
                         timestamp: new Date().toISOString(),
                         type: LogType.DEBUG,
                         severity: LogSeverity.INFO,
-                        caller: "decoy:canary",
+                        caller: "orchestrator:domain:protection:canary",
                         message: `Lure aged (timestamp rotation): ${token.id}`
                     });
                 } catch {
@@ -215,7 +215,7 @@ export class CanaryService {
                 this.auditService.logEvent({
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
-                    caller: "decoy:canary",
+                    caller: "orchestrator:domain:protection:canary",
                     message: `CANARY TRIGGERED: ${process} accessed ${token.description}`,
                     data: { path: token.projectionPath, process, description: token.description }
                 });
@@ -233,7 +233,7 @@ export class CanaryService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "decoy:canary",
+            caller: "orchestrator:domain:protection:canary",
             message: "Rotating projections..."
         });
         for (const token of this.tokens) {
@@ -253,7 +253,7 @@ export class CanaryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
-                    caller: "decoy:canary",
+                    caller: "orchestrator:domain:protection:canary",
                     message: `Cleanup failed: ${(e as Error).message}`
                 });
             }

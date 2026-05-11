@@ -19,7 +19,7 @@ export class TPMManager {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "TPM",
+            caller: "orchestrator:infra:system:protection:tpm",
             message: `Sealing mesh secret '${secretName}' into hardware...`
         });
         
@@ -31,7 +31,7 @@ export class TPMManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "TPM",
+                caller: "orchestrator:infra:system:protection:tpm",
                 message: `Seal cycle failed: ${res.stderr}`
             });
         }
@@ -46,7 +46,7 @@ export class TPMManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
-                caller: "TPM",
+                caller: "orchestrator:infra:system:protection:tpm",
                 message: `Secret '${secretName}' successfully unsealed from hardware.`
             });
             return res.data.data;
@@ -79,7 +79,7 @@ export class TPMManager {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "TPM",
+            caller: "orchestrator:infra:system:protection:tpm",
             message: "Verifying system integrity via hardware PCR attestation..."
         });
         
@@ -94,7 +94,7 @@ export class TPMManager {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.SUCCESS,
-                    caller: "TPM",
+                    caller: "orchestrator:infra:system:protection:tpm",
                     message: "Hardware Integrity Verified via TPM NVRAM Golden Hash."
                 });
                 this.hardwareVerified = true;
@@ -104,7 +104,7 @@ export class TPMManager {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
-                    caller: "TPM",
+                    caller: "orchestrator:infra:system:protection:tpm",
                     message: "CRITICAL: Hardware Integrity Mismatch against NVRAM Golden Hash!"
                 });
                 return false;
@@ -117,7 +117,7 @@ export class TPMManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "TPM",
+                caller: "orchestrator:infra:system:protection:tpm",
                 message: "Integrity Violation: No golden PCRs provided. Hardware-rooted trust is mandatory."
             });
             return false;
@@ -129,7 +129,7 @@ export class TPMManager {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
-                    caller: "TPM",
+                    caller: "orchestrator:infra:system:protection:tpm",
                     message: `Hardware Integrity Mismatch: PCR ${index} (Expected: ${expected}, Got: ${currentPcrs[Number(index)]})`
                 });
                 return false;
@@ -221,7 +221,7 @@ export class TPMManager {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "TPM:PROVISION",
+            caller: "orchestrator:infra:system:protection:tpm:provision",
             message: "Provisioning hardware-rooted Golden PCR baseline..."
         });
 
@@ -237,7 +237,7 @@ export class TPMManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.SUCCESS,
-                caller: "TPM:PROVISION",
+                caller: "orchestrator:infra:system:protection:tpm:provision",
                 message: "Golden PCR baseline successfully sealed in NVRAM."
             });
         }

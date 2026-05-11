@@ -30,7 +30,7 @@ export class ShadowService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "SHADOW",
+            caller: "orchestrator:domain:protection:shadow_service",
             message: `Redirecting attacker ${sourceIp} to Mirror World ${id}...`
         });
 
@@ -53,7 +53,7 @@ export class ShadowService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
-                caller: "SHADOW",
+                caller: "orchestrator:domain:protection:shadow_service",
                 message: `IPTables redirection active for ${sourceIp} -> port 2222`
             });
 
@@ -65,7 +65,7 @@ export class ShadowService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.ERROR,
-                    caller: "SHADOW",
+                    caller: "orchestrator:domain:protection:shadow_service",
                     message: `Mirror World failure: ${err.message}`
                 });
             });
@@ -82,7 +82,7 @@ export class ShadowService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "SHADOW",
+                caller: "orchestrator:domain:protection:shadow_service",
                 message: `Failed to spawn Mirror World: ${(e as Error).message}`
             });
             throw e;

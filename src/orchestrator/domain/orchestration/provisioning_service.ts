@@ -31,7 +31,7 @@ export class ProvisioningService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "PROVISIONING",
+            caller: "orchestrator:domain:orchestration:provisioning_service",
             message: "Scanning network for mesh expansion targets..."
         });
         
@@ -66,7 +66,7 @@ export class ProvisioningService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "PROVISIONING",
+            caller: "orchestrator:domain:orchestration:provisioning_service",
             message: `Attempting lateral propagation to ${ip} (${target.os})...`
         });
 
@@ -81,7 +81,7 @@ export class ProvisioningService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.SUCCESS,
-                caller: "PROVISIONING",
+                caller: "orchestrator:domain:orchestration:provisioning_service",
                 message: `Successfully established node on ${ip}. Waiting for mesh join.`
             });
         } catch (e) {
@@ -90,7 +90,7 @@ export class ProvisioningService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "PROVISIONING",
+                caller: "orchestrator:domain:orchestration:provisioning_service",
                 message: `Lateral movement to ${ip} failed: ${(e as Error).message}`
             });
         }
@@ -116,7 +116,7 @@ export class ProvisioningService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.SUCCESS,
-                caller: "PROVISIONING",
+                caller: "orchestrator:domain:orchestration:provisioning_service",
                 message: `Securely established node on ${ip}.`
             });
         } finally {
@@ -136,7 +136,7 @@ export class ProvisioningService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.INFO,
-                caller: "PROVISIONING",
+                caller: "orchestrator:domain:orchestration:provisioning_service",
                 message: "Mesh expansion disabled via PROVISIONING_ENABLED=false."
             });
             return;

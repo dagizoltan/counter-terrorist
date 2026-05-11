@@ -111,7 +111,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "MESH:API",
+                caller: "orchestrator:interface:web:api:mesh",
                 message: `REJECTED: Invalid mesh signature from ${peerIp}`
             });
             return c.json({ error: "Invalid signature" }, 401);
@@ -124,7 +124,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "MESH:API",
+        caller: "orchestrator:interface:web:api:mesh",
         message: `Received verified mesh sync from ${peerIp}: ${payload.type}`
     });
     
@@ -136,7 +136,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:API",
+                caller: "orchestrator:interface:web:api:mesh",
                 message: `REJECTED: Malicious/Invalid gossip block IP ${payload.ip} from ${peerIp}`
             });
         }
@@ -147,7 +147,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "MESH:THREAT",
+            caller: "orchestrator:interface:web:api:mesh:threat",
             message: `Mesh Threat Intelligence: Blacklisting binary hash ${payload.hash.slice(0, 8)} reported by node ${payload.sourceNode}`
         });
         // In a full implementation, this would update a local 'BinaryBlacklist' or trigger a scan
@@ -381,7 +381,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "GOVERNANCE",
+                caller: "orchestrator:interface:web:api:governance",
                 message: `SECURITY ALERT: Rejected unsigned/invalid policy manifest v${newPolicy.version}`
             });
             return c.json({ error: "Invalid cryptographic signature." }, 401);
@@ -397,7 +397,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "GOVERNANCE",
+        caller: "orchestrator:interface:web:api:governance",
         message: `Security Policy updated: v${newPolicy.version} (${newPolicy.mode})`
     });
     return c.json({ success: true, message: "Security Policy synchronized and active." });

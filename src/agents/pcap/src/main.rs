@@ -104,7 +104,7 @@ async fn log_forensic(severity: &str, message: &str) {
         "timestamp": Utc::now().to_rfc3339(),
         "log_type": "activity",
         "severity": severity,
-        "caller": "PCAP_ENGINE",
+        "caller": "pcap:main",
         "message": message
     });
     if let Ok(json) = serde_json::to_string(&log) {

@@ -57,7 +57,7 @@ export class BaselineService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "BASELINE",
+            caller: "orchestrator:domain:analysis:baseline",
             message: "Restored from Deno KV."
         });
       }
@@ -66,7 +66,7 @@ export class BaselineService {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.ERROR,
-          caller: "BASELINE",
+          caller: "orchestrator:domain:analysis:baseline",
           message: `Failed to restore baseline from KV: ${e}`
       });
     }
@@ -152,7 +152,7 @@ export class BaselineService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
-            caller: "BASELINE",
+            caller: "orchestrator:domain:analysis:baseline",
             message: `Failed to capture processes from scanner: ${(e as Error).message}`
         });
     }
@@ -170,7 +170,7 @@ export class BaselineService {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.ERROR,
-          caller: "BASELINE",
+          caller: "orchestrator:domain:analysis:baseline",
           message: `Failed to scan sensitive files: ${(e as Error).message}`
       });
     }
@@ -193,7 +193,7 @@ export class BaselineService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.SUCCESS,
-        caller: "BASELINE",
+        caller: "orchestrator:domain:analysis:baseline",
         message: "New system baseline established."
     });
     broadcast({ 
@@ -260,7 +260,7 @@ export class BaselineService {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "BASELINE",
+          caller: "orchestrator:domain:analysis:baseline",
           message: `Port drift detected: ${newPorts.join(", ")}`
       });
       broadcast({
@@ -275,7 +275,7 @@ export class BaselineService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "BASELINE",
+            caller: "orchestrator:domain:analysis:baseline",
             message: `Process drift: ${p.name} (PID: ${p.pid}, Path: ${p.exe_path}, Hash: ${p.hash})`
         });
       });
@@ -293,7 +293,7 @@ export class BaselineService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "BASELINE",
+                caller: "orchestrator:domain:analysis:baseline",
                 message: `CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`
             });
             broadcast({
@@ -311,7 +311,7 @@ export class BaselineService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "BASELINE",
+                caller: "orchestrator:domain:analysis:baseline",
                 message: `Filesystem drift: ${changedFiles.length} files modified.`
             });
             broadcast({
@@ -333,7 +333,7 @@ export class BaselineService {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "BASELINE",
+        caller: "orchestrator:domain:analysis:baseline",
         message: `Starting background monitoring loop (Interval: ${intervalMs}ms)`
     });
     setInterval(async () => {
@@ -344,7 +344,7 @@ export class BaselineService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
-            caller: "BASELINE",
+            caller: "orchestrator:domain:analysis:baseline",
             message: `Drift check loop failed: ${e}`
         });
       }

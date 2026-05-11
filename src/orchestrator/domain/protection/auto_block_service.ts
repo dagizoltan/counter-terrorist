@@ -21,7 +21,7 @@ export class AutoBlockService {
       timestamp: new Date().toISOString(),
       type: LogType.ACTIVITY,
       severity: LogSeverity.INFO,
-      caller: "AUTO_BLOCK",
+      caller: "orchestrator:domain:protection:auto_block",
       message: "Automated Threat Response engine engaged."
     });
 
@@ -54,7 +54,7 @@ export class AutoBlockService {
       timestamp: new Date().toISOString(),
       type: LogType.AUDIT,
       severity: LogSeverity.WARNING,
-      caller: "AUTO_BLOCK",
+      caller: "orchestrator:domain:protection:auto_block",
       message: `THREAT MITIGATION: Automated block triggered for ${ip} (Source: ${trigger})`
     });
 
@@ -65,7 +65,7 @@ export class AutoBlockService {
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
               severity: LogSeverity.SUCCESS,
-              caller: "AUTO_BLOCK",
+              caller: "orchestrator:domain:protection:auto_block",
               message: `Successfully neutralized threat from ${ip}`
           });
       } else {
@@ -76,7 +76,7 @@ export class AutoBlockService {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "AUTO_BLOCK",
+        caller: "orchestrator:domain:protection:auto_block",
         message: `Countermeasure failure for ${ip}: ${(e as Error).message}`
       });
     }

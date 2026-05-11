@@ -104,7 +104,7 @@ export function broadcast(data: BroadcastData) {
       timestamp: new Date().toISOString(),
       type: LogType.DEBUG, // Standardize WS noise as DEBUG
       severity,
-      caller: isMetrics ? "METRICS" : "WS:EVENT",
+      caller: isMetrics ? "orchestrator:domain:analysis:metrics" : "orchestrator:interface:web:api:ws:event",
       message: data.message || (isMetrics ? "Periodic system metrics synchronized" : data.type)
     }).catch(() => {});
   }
@@ -119,7 +119,7 @@ export function createWsHandler(role: string = "viewer") {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "WS",
+            caller: "orchestrator:interface:web:api:ws",
             message: "Max connections reached. Rejecting client."
           });
         }
@@ -135,7 +135,7 @@ export function createWsHandler(role: string = "viewer") {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "WS",
+            caller: "orchestrator:interface:web:api:ws",
             message: `Client connected (Role: ${role}). Total connections: ${clients.size}`
         });
       }
@@ -145,7 +145,7 @@ export function createWsHandler(role: string = "viewer") {
         data: {
           type: LogType.ACTIVITY,
           severity: LogSeverity.SUCCESS,
-          caller: "ws:handshake",
+          caller: "orchestrator:interface:web:api:ws:handshake",
           message: `Security Orchestrator Connected // Role: ${role.toUpperCase()}`
         }
       }));
@@ -165,7 +165,7 @@ export function createWsHandler(role: string = "viewer") {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "WS",
+                caller: "orchestrator:interface:web:api:ws",
                 message: "Client rate limit exceeded. Disconnecting abuser."
             });
             ws.close(1008, "Policy Violation - Rate Limit Exceeded");
@@ -196,7 +196,7 @@ export function createWsHandler(role: string = "viewer") {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.ERROR,
-          caller: "WS",
+          caller: "orchestrator:interface:web:api:ws",
           message: `WebSocket error: ${String(event)}`
         });
       }

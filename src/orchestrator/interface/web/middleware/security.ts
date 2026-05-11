@@ -91,7 +91,7 @@ export class SecurityMiddleware {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
-          caller: "SECURITY",
+          caller: "orchestrator:interface:web:middleware:security",
           message: `[SECURITY] REJECTED: Request from blacklisted IP ${ip} to ${path}`
         });
         return c.json({ error: "Access Denied: Malicious IP Detected", code: "BLACK_LIST_REJECT" }, 403);
@@ -149,7 +149,7 @@ export class SecurityMiddleware {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "SECURITY",
+                caller: "orchestrator:interface:web:middleware:security",
                 message: `[SECURITY] CSRF blocked for ${c.req.path}. Method: ${c.req.method}`
               });
               return c.json({ error: "CSRF Validation Failed", code: "CSRF_FAULT" }, 403);
@@ -192,7 +192,7 @@ export class SecurityMiddleware {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "SECURITY",
+          caller: "orchestrator:interface:web:middleware:security",
           message: `[SECURITY] Access denied for role '${role}' to ${c.req.path}`
         });
         return c.json({ error: "Forbidden: Insufficient Permissions" }, 403);

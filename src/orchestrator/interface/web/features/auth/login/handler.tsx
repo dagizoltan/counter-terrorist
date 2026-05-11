@@ -30,7 +30,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "AUTH:HANDLER",
+        caller: "orchestrator:interface:web:features:auth:handler",
         message: `Received login request from ${clientIp}, content-type: ${contentType}`
     });
 
@@ -43,7 +43,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "AUTH",
+        caller: "orchestrator:interface:web:features:auth",
         message: `Login rate limit exceeded for IP ${clientIp}. Retry after ${retryAfterSec}s.`
       });
       
@@ -83,7 +83,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
-          caller: "AUTH:HANDLER",
+          caller: "orchestrator:interface:web:features:auth:handler",
           message: `Setting session cookie: ${sessionId.slice(0, 8)}… (secure: ${shouldBeSecure}, Strict)`
       });
       setCookie(c, "session_token", sessionId, {
@@ -111,7 +111,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       timestamp: new Date().toISOString(),
       type: LogType.AUDIT,
       severity: LogSeverity.WARNING,
-      caller: "AUTH",
+      caller: "orchestrator:interface:web:features:auth",
       message: `Failed login attempt from IP ${clientIp}`
     });
 

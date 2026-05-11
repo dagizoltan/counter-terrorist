@@ -35,7 +35,7 @@ export class NetworkDiscoveryService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "DISCOVERY",
+            caller: "orchestrator:domain:analysis:network_discovery",
             message: "Environmental sensors active. Initiating real-time sweep..."
         });
         // Non-blocking initial sweep
@@ -44,7 +44,7 @@ export class NetworkDiscoveryService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "DISCOVERY",
+                caller: "orchestrator:domain:analysis:network_discovery",
                 message: `Initial sweep failed: ${e.message}`
             });
         });
@@ -85,7 +85,7 @@ export class NetworkDiscoveryService {
                    timestamp: new Date().toISOString(),
                    type: LogType.GENERIC,
                    severity: LogSeverity.WARNING,
-                   caller: "DISCOVERY",
+                   caller: "orchestrator:domain:analysis:network_discovery",
                    message: `Failed to load RealDiscovery: ${(e as Error).message}. Falling back to simulation.`
                });
                const { MockDiscovery } = await import("./mock_discovery.ts");
@@ -164,7 +164,7 @@ export class NetworkDiscoveryService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.ERROR,
-                    caller: "DISCOVERY",
+                    caller: "orchestrator:domain:analysis:network_discovery",
                     message: `Real-time sweep failed: ${(e as Error).message}`
                 });
             }

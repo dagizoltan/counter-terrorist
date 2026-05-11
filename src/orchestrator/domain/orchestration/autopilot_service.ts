@@ -60,7 +60,7 @@ export class AutopilotService {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "AUTOPILOT",
+        caller: "orchestrator:domain:orchestration:autopilot_service",
         message: "Autonomous Defense Mesh engaged."
     }); 
     
@@ -172,7 +172,7 @@ export class AutopilotService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "AUTOPILOT:DECEPTION",
+            caller: "orchestrator:domain:orchestration:autopilot_service:deception",
             message: "Deception lure deployed: hashicorp-vault-proxy"
         });
     } catch (e) {
@@ -180,7 +180,7 @@ export class AutopilotService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.WARNING,
-            caller: "AUTOPILOT:DECEPTION",
+            caller: "orchestrator:domain:orchestration:autopilot_service:deception",
             message: `Lure deployment failed: ${(e as Error).message}`
         });
     }

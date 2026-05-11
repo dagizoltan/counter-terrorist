@@ -25,7 +25,7 @@ export class PlaybookService {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "PLAYBOOK",
+        caller: "orchestrator:domain:orchestration:playbook_service",
         message: "Initializing Automated Response Engine"
     });
 
@@ -40,7 +40,7 @@ export class PlaybookService {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.INFO,
-              caller: "PLAYBOOK",
+              caller: "orchestrator:domain:orchestration:playbook_service",
               message: `Honeypot trigger from ${source_ip} (WHITELISTED/INVALID). Skipping block.`
           });
           return;
@@ -50,7 +50,7 @@ export class PlaybookService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "PLAYBOOK",
+            caller: "orchestrator:domain:orchestration:playbook_service",
             message: `Honeypot trigger on port ${port} from ${source_ip}. Executing auto-block.`
         });
         
@@ -60,7 +60,7 @@ export class PlaybookService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "PLAYBOOK",
+            caller: "orchestrator:domain:orchestration:playbook_service",
             message: `Starting forensic capture for IP: ${source_ip}`
         });
         this.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(() => {});
@@ -76,7 +76,7 @@ export class PlaybookService {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.ERROR,
-              caller: "PLAYBOOK",
+              caller: "orchestrator:domain:orchestration:playbook_service",
               message: `Failed to block IP ${source_ip}: ${(err as Error).message}`
           });
         }
@@ -90,7 +90,7 @@ export class PlaybookService {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
-          caller: "PLAYBOOK",
+          caller: "orchestrator:domain:orchestration:playbook_service",
           message: `FIM trigger: ${action} detected on ${path}`
       });
       
@@ -111,7 +111,7 @@ export class PlaybookService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "PLAYBOOK",
+            caller: "orchestrator:domain:orchestration:playbook_service",
             message: `SUSPICIOUS PTRACE detected from ${comm} (PID: ${pid}). Executing Quarantine.`
         });
         
@@ -127,7 +127,7 @@ export class PlaybookService {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.ERROR,
-              caller: "PLAYBOOK",
+              caller: "orchestrator:domain:orchestration:playbook_service",
               message: `Failed to quarantine process ${pid}: ${(err as Error).message}`
           });
         }
@@ -226,7 +226,7 @@ export class PlaybookService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "PLAYBOOK",
+        caller: "orchestrator:domain:orchestration:playbook_service",
         message: `Manually triggering playbook: ${name}`
     });
     
@@ -236,7 +236,7 @@ export class PlaybookService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "PLAYBOOK",
+            caller: "orchestrator:domain:orchestration:playbook_service",
             message: "Protocol: Emergency Isolation. Isolating local node from mesh."
         });
         await this.meshManager.isolateNode("local");
@@ -255,7 +255,7 @@ export class PlaybookService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
-            caller: "PLAYBOOK",
+            caller: "orchestrator:domain:orchestration:playbook_service",
             message: `Unknown playbook requested: ${name}`
         });
     }
@@ -270,7 +270,7 @@ export class PlaybookService {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
-          caller: "PLAYBOOK",
+          caller: "orchestrator:domain:orchestration:playbook_service",
           message: `Node ${nodeId} reached isolation threshold (${score}). Executing isolation.`
       });
       this.meshManager.isolateNode(nodeId);

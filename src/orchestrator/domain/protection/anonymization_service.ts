@@ -121,7 +121,7 @@ export class AnonymizationService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "anonymizer",
+            caller: "orchestrator:domain:protection:anonymization",
             message: "initiating identity rotation"
         });
         
@@ -152,7 +152,7 @@ export class AnonymizationService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.SUCCESS,
-                caller: "anonymizer",
+                caller: "orchestrator:domain:protection:anonymization",
                 message: "identity rotation complete"
             });
         } catch (e) {
@@ -171,7 +171,7 @@ export class AnonymizationService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "anonymizer",
+            caller: "orchestrator:domain:protection:anonymization",
             message: "establishing new secure tunnel"
         });
 
@@ -179,7 +179,7 @@ export class AnonymizationService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "anonymizer",
+            caller: "orchestrator:domain:protection:anonymization",
             message: "applying routing table updates"
         });
         // Realistic simulation of wg-quick config update would go here

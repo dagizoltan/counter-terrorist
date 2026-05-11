@@ -55,7 +55,7 @@ export async function camouflage() {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "CAMOUFLAGE",
+        caller: "orchestrator:app:bootstrapper",
         message: "Kernel worker identity masked successfully"
     });
   }
@@ -68,7 +68,7 @@ if (import.meta.main) {
       timestamp: new Date().toISOString(),
       type: LogType.AUDIT,
       severity: LogSeverity.INFO,
-      caller: "BOOTSTRAP:SELF_TEST",
+      caller: "orchestrator:app:bootstrapper",
       message: `Forensic environment check passed (OS: ${status.os}, Root: ${status.isRoot})`
   });
 
@@ -78,7 +78,7 @@ if (import.meta.main) {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
-            caller: "BOOTSTRAP:SELF_TEST",
+            caller: "orchestrator:app:bootstrapper",
             message: `Missing critical dependency: ${dep}`
         });
     }
@@ -89,7 +89,7 @@ if (import.meta.main) {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "BOOTSTRAP:SELF_TEST",
+        caller: "orchestrator:app:bootstrapper",
         message: "Sub-optimal privilege level detected. Capability degradation expected."
     });
   }

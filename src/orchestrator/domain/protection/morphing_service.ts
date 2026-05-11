@@ -29,7 +29,7 @@ export class MorphingService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "MORPHING",
+            caller: "orchestrator:domain:protection:morphing",
             message: `Deception Morphing Engine active. Interval: ${intervalMs}ms`
         });
         // Wrap execution in an error-handling block to prevent sidecar timeouts from crashing the orchestrator
@@ -41,7 +41,7 @@ export class MorphingService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.ERROR,
-                    caller: "MORPHING",
+                    caller: "orchestrator:domain:protection:morphing",
                     message: `Critical lifecycle error: ${e instanceof Error ? e.message : String(e)}`
                 });
             }
@@ -58,14 +58,14 @@ export class MorphingService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "MORPHING",
+                caller: "orchestrator:domain:protection:morphing",
                 message: `Honeypot morph failed: ${err.message}`
             }));
             await this.canary.morph().catch(err => this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "MORPHING",
+                caller: "orchestrator:domain:protection:morphing",
                 message: `Canary morph failed: ${err.message}`
             }));
             
@@ -75,7 +75,7 @@ export class MorphingService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.ERROR,
-                    caller: "MORPHING",
+                    caller: "orchestrator:domain:protection:morphing",
                     message: `Mesh rotation failed: ${err.message}`
                 }));
             }
@@ -91,7 +91,7 @@ export class MorphingService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "MORPHING",
+                caller: "orchestrator:domain:protection:morphing",
                 message: `Rotation failed: ${e instanceof Error ? e.message : String(e)}`
             });
         }

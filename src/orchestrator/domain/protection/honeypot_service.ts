@@ -212,7 +212,7 @@ export class HoneypotService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "decoy:http",
+        caller: "orchestrator:domain:protection:honeypot:http",
         message: `Web Decoy Triggered: Path '${route}' from ${source_ip}`,
         payload: { source_ip, route, hitCount: this.hitCount }
     });
@@ -222,7 +222,7 @@ export class HoneypotService {
       data: {
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "decoy:http",
+        caller: "orchestrator:domain:protection:honeypot:http",
         message: `Web Decoy Triggered: Access to ${route} from ${source_ip}`,
         payload: { source_ip, route }
       }
@@ -248,7 +248,7 @@ export class HoneypotService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "decoy:breaker",
+        caller: "orchestrator:domain:protection:honeypot:breaker",
         message: `Initiating Breaker Protocol against ${source_ip}`
     });
     
@@ -269,7 +269,7 @@ export class HoneypotService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "decoy:system",
+        caller: "orchestrator:domain:protection:honeypot:system",
         message: "Engaging Deception Morphing (Port Rotation)..."
     });
 
@@ -327,7 +327,7 @@ export class HoneypotService {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "decoy:system",
+        caller: "orchestrator:domain:protection:honeypot:system",
         message: "Deception Morphing cycle completed successfully."
     });
   }

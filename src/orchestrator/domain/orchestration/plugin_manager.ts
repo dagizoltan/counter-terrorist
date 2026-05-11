@@ -18,7 +18,7 @@ export class PluginManager {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "PLUGINS",
+        caller: "orchestrator:domain:orchestration:plugin_manager",
         message: `Registered plugin: ${plugin.name}`
     });
   }
@@ -31,7 +31,7 @@ export class PluginManager {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "PLUGINS",
+            caller: "orchestrator:domain:orchestration:plugin_manager",
             message: `Started plugin: ${plugin.name}`
         });
       } catch (e) {
@@ -39,7 +39,7 @@ export class PluginManager {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
-            caller: "PLUGINS",
+            caller: "orchestrator:domain:orchestration:plugin_manager",
             message: `Failed to start plugin ${plugin.name}: ${(e as Error).message}`
         });
       }
@@ -55,7 +55,7 @@ export class PluginManager {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
-            caller: "PLUGINS",
+            caller: "orchestrator:domain:orchestration:plugin_manager",
             message: `Error stopping plugin ${plugin.name}: ${(e as Error).message}`
         });
       }

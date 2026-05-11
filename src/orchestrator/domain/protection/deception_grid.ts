@@ -18,7 +18,7 @@ export class DeceptionGridService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "DECEPTION",
+            caller: "orchestrator:domain:protection:deception",
             message: "Enhancing deception grid integrity..."
         });
         
@@ -58,7 +58,7 @@ export class DeceptionGridService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "DECEPTION",
+            caller: "orchestrator:domain:protection:deception",
             message: "Tactical deception grid fully engaged."
         });
     }
@@ -68,7 +68,7 @@ export class DeceptionGridService {
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
             severity: LogSeverity.INFO,
-            caller: "DECEPTION",
+            caller: "orchestrator:domain:protection:deception",
             message: "Injecting fake administrative traces into process memory and history..."
         });
         // In a real scenario, we might append to .bash_history or similar
@@ -85,7 +85,7 @@ export class DeceptionGridService {
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
             severity: LogSeverity.INFO,
-            caller: "DECEPTION",
+            caller: "orchestrator:domain:protection:deception",
             message: "Deploying 'Shadow Admin' identity breadcrumbs..."
         });
         await this.canary.registerToken({
@@ -103,7 +103,7 @@ export class DeceptionGridService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "DECEPTION",
+            caller: "orchestrator:domain:protection:deception",
             message: "Refreshing deception signatures..."
         });
         await this.honeypot.morph();

@@ -49,7 +49,7 @@ export class PolicyEngine {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "POLICY",
+            caller: "orchestrator:domain:orchestration:policy_engine",
             message: `Sovereign Engine Active. Mode: ${this.policy.strictMode ? 'STRICT' : 'ADAPTIVE'} (Shadow: ${this.policy.shadowMode})`
         });
     }
@@ -60,7 +60,7 @@ export class PolicyEngine {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "POLICY",
+            caller: "orchestrator:domain:orchestration:policy_engine",
             message: `Shadow Mode ${value ? 'ENGAGED' : 'DISARMED'}. S-Grade blocks will now be ${value ? 'SIMULATED' : 'ENFORCED'}.`
         });
     }
@@ -97,7 +97,7 @@ export class PolicyEngine {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "POLICY",
+            caller: "orchestrator:domain:orchestration:policy_engine",
             message: `Security Policy synchronized to v${this.policy.version}`
         });
     }

@@ -46,7 +46,7 @@ export async function initializeApplication(deps: ApplicationDependencies) {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "FORENSICS",
+                caller: "orchestrator:core:application:forensics",
                 message: `PCAP capture failed: ${res.stderr}`
             });
           }
@@ -56,7 +56,7 @@ export async function initializeApplication(deps: ApplicationDependencies) {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "FORENSICS",
+                caller: "orchestrator:core:application:forensics",
                 message: `Unexpected PCAP error: ${err.message}`
             });
         });

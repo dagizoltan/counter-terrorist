@@ -53,7 +53,7 @@ export class AntivirusManager {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
-                    caller: "AV:GOSSIP",
+                    caller: "orchestrator:infra:system:protection:antivirus:gossip",
                     message: `Failed to broadcast threat hash ${hash.slice(0, 8)}: ${err.message}`
                 });
             });

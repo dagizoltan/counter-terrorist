@@ -35,7 +35,7 @@ async function detectLinuxVersion(): Promise<string> {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "PLATFORM",
+        caller: "orchestrator:infra:system:platform",
         message: `Failed to detect Linux version: ${e instanceof Error ? e.message : String(e)}`
     });
   }
@@ -52,7 +52,7 @@ async function detectMacosVersion(executor: SystemExecutor): Promise<string> {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "PLATFORM",
+        caller: "orchestrator:infra:system:platform",
         message: `Failed to detect MacOS version: ${e instanceof Error ? e.message : String(e)}`
     });
     return "unknown";
@@ -88,7 +88,7 @@ async function getMetrics(): Promise<PlatformInfo["metrics"]> {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "PLATFORM",
+        caller: "orchestrator:infra:system:platform",
         message: `Failed to get metrics: ${e instanceof Error ? e.message : String(e)}`
     });
     return undefined;

@@ -17,7 +17,7 @@ export class SignatureService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "SIG_SERVICE",
+            caller: "orchestrator:domain:protection:signature",
             message: `Signing payload for hardened delivery: ${payloadPath}`
         });
 
@@ -50,7 +50,7 @@ export class SignatureService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.SUCCESS,
-                caller: "SIG_SERVICE",
+                caller: "orchestrator:domain:protection:signature",
                 message: `Integrity verified for ${payloadPath}. Execution permitted.`
             });
             return true;
@@ -60,7 +60,7 @@ export class SignatureService {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "SIG_SERVICE",
+            caller: "orchestrator:domain:protection:signature",
             message: `INTEGRITY BREACH: Signature mismatch for ${payloadPath}. Execution BLOCKED.`
         });
         return false;

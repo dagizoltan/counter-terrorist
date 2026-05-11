@@ -162,7 +162,7 @@ export class MetricsService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
-                caller: "METRICS",
+                caller: "orchestrator:domain:analysis:metrics",
                 message: "Starting Full Forensic Integrity Verification of audit ledger..."
             });
             const verification = await this.auditService.verifyFullChain();
@@ -171,7 +171,7 @@ export class MetricsService {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
-                    caller: "METRICS",
+                    caller: "orchestrator:domain:analysis:metrics",
                     message: `FORENSIC CHAIN BREACH DETECTED at event ${verification.brokenAt?.eventId}. Type: ${verification.brokenAt?.type}`
                 });
                 // Broadcast immediate alert to UI
@@ -185,7 +185,7 @@ export class MetricsService {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.SUCCESS,
-                    caller: "METRICS",
+                    caller: "orchestrator:domain:analysis:metrics",
                     message: `Full ledger verification successful. ${verification.eventsChecked} links verified.`
                 });
             }
@@ -194,7 +194,7 @@ export class MetricsService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "METRICS",
+                caller: "orchestrator:domain:analysis:metrics",
                 message: `Initial audit verification failed: ${(e as Error).message}`
             });
         }
@@ -207,7 +207,7 @@ export class MetricsService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.ERROR,
-                    caller: "METRICS",
+                    caller: "orchestrator:domain:analysis:metrics",
                     message: `Collection cycle failed: ${e instanceof Error ? e.message : String(e)}`
                 });
             }
@@ -379,7 +379,7 @@ export class MetricsService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "METRICS",
+                caller: "orchestrator:domain:analysis:metrics",
                 message: `Collection error: ${e instanceof Error ? e.message : String(e)}`
             });
         } finally {

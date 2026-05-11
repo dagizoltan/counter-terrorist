@@ -73,7 +73,7 @@ export class AutonomousResponseEngine {
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
             severity: LogSeverity.INFO,
-            caller: "AUTONOMOUS",
+            caller: "orchestrator:domain:orchestration:autonomous_response",
             message: `Evaluating threat from ${key}. Score: ${currentScore}`
         });
 
@@ -84,7 +84,7 @@ export class AutonomousResponseEngine {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
-                caller: "AUTONOMOUS:SHADOW",
+                caller: "orchestrator:domain:orchestration:autonomous_response:shadow",
                 message: `[SHADOW MODE] Simulation: Would have executed '${decision.action}' for ${key}. Reason: ${event.description}`
             });
             // Downgrade to WATCH for forensics capture only
@@ -135,7 +135,7 @@ export class AutonomousResponseEngine {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
-                    caller: "AUTONOMOUS",
+                    caller: "orchestrator:domain:orchestration:autonomous_response",
                     message: `GLOBAL LOCKDOWN for ${source}`
                 });
                 await this.protection.firewall.lockdown();
@@ -146,7 +146,7 @@ export class AutonomousResponseEngine {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
-                    caller: "AUTONOMOUS",
+                    caller: "orchestrator:domain:orchestration:autonomous_response",
                     message: `NODE ISOLATION for ${source}`
                 });
                 if (source.includes(".")) {
@@ -161,7 +161,7 @@ export class AutonomousResponseEngine {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
-                    caller: "AUTONOMOUS",
+                    caller: "orchestrator:domain:orchestration:autonomous_response",
                     message: `ENFORCED BLOCK for ${source}`
                 });
                 if (source.includes(".")) {
@@ -189,7 +189,7 @@ export class AutonomousResponseEngine {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.WARNING,
-                    caller: "AUTONOMOUS",
+                    caller: "orchestrator:domain:orchestration:autonomous_response",
                     message: `SHADOW REDIRECTION for ${source}`
                 });
                 if (source.includes(".")) {

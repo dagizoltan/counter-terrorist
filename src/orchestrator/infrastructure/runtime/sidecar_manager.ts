@@ -44,7 +44,7 @@ export class SidecarManager implements CommandPort {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
-                caller: "SIDECAR_MANAGER",
+                caller: "orchestrator:infra:runtime:sidecar_manager",
                 message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
             });
         }
@@ -54,7 +54,7 @@ export class SidecarManager implements CommandPort {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "SIDECAR_MANAGER",
+                caller: "orchestrator:infra:runtime:sidecar_manager",
                 message: `Manifest unavailable. Falling back to environment-based integrity: ${(e as Error).message}`
             });
         }
@@ -71,7 +71,7 @@ export class SidecarManager implements CommandPort {
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
             severity: LogSeverity.INFO,
-            caller: "SIDECAR_MANAGER",
+            caller: "orchestrator:infra:runtime:sidecar_manager",
             message: "CYCLIC ROTATION TRIGGERED: Re-verifying and refreshing all agent binaries..."
         });
 
@@ -97,7 +97,7 @@ export class SidecarManager implements CommandPort {
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
             severity: LogSeverity.SUCCESS,
-            caller: "SIDECAR_MANAGER",
+            caller: "orchestrator:infra:runtime:sidecar_manager",
             message: `Agent ${name} rotated and re-spawned from Golden Baseline.`
         });
     }
@@ -116,7 +116,7 @@ export class SidecarManager implements CommandPort {
           timestamp: new Date().toISOString(),
           type: LogType.ACTIVITY,
           severity: LogSeverity.INFO,
-          caller: "SIDECAR_MANAGER",
+          caller: "orchestrator:infra:runtime:sidecar_manager",
           message: "Orchestrator exiting, cleaning up sidecars..."
       });
       for (const name of Array.from(this.persistentProcesses.keys())) {
@@ -164,7 +164,7 @@ export class SidecarManager implements CommandPort {
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
     await this.manifestPromise;
     if (this.logging) {
-        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `getPersistentSidecar called for: ${name}` });
+        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "orchestrator:infra:runtime:sidecar_manager", message: `getPersistentSidecar called for: ${name}` });
     }
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     if (this.unsupportedSidecars.has(name)) return null;
@@ -180,10 +180,10 @@ export class SidecarManager implements CommandPort {
     // Initiate spawn with a lock
     const spawnPromise = (async () => {
         try {
-            this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `Attempting to spawn: ${name}` });
+            this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "orchestrator:infra:runtime:sidecar_manager", message: `Attempting to spawn: ${name}` });
             const binPath = await this.findBinary(name);
             if (!binPath) {
-                this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "SIDECAR_MANAGER", message: `Binary not found for: ${name}` });
+                this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "orchestrator:infra:runtime:sidecar_manager", message: `Binary not found for: ${name}` });
                 this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_NOT_FOUND", sidecar: name });
                 return null;
             }
@@ -209,7 +209,7 @@ export class SidecarManager implements CommandPort {
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
                         severity: LogSeverity.ERROR,
-                        caller: "SIDECAR_MANAGER",
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
                         message: "CRITICAL: secure_spawn.sh not found. Sidecar deployment will be unprivileged and potentially insecure."
                     });
                 }
@@ -224,7 +224,7 @@ export class SidecarManager implements CommandPort {
                       timestamp: new Date().toISOString(),
                       type: LogType.AUDIT,
                       severity: LogSeverity.ERROR,
-                      caller: "SIDECAR_MANAGER",
+                      caller: "orchestrator:infra:runtime:sidecar_manager",
                       message: `CRITICAL: Sidecar ${name} integrity check failed at secure location and self-healing was unsuccessful.`
                   });
                   return null;
@@ -246,7 +246,7 @@ export class SidecarManager implements CommandPort {
                 timestamp: new Date().toISOString(),
                 type: LogType.ACTIVITY,
                 severity: LogSeverity.INFO,
-                caller: "SIDECAR_MANAGER",
+                caller: "orchestrator:infra:runtime:sidecar_manager",
                 message: `Spawned persistent sidecar: ${name}`
             });
 
@@ -255,7 +255,7 @@ export class SidecarManager implements CommandPort {
                     timestamp: new Date().toISOString(),
                     type: LogType.ACTIVITY,
                     severity: status.code === 0 ? LogSeverity.INFO : LogSeverity.WARNING,
-                    caller: "SIDECAR_MANAGER",
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
                     message: `Sidecar ${name} exited with code ${status.code}`
                 });
                 this.persistentProcesses.delete(name);
@@ -275,7 +275,7 @@ export class SidecarManager implements CommandPort {
                                 timestamp: new Date().toISOString(),
                                 type: LogType.GENERIC,
                                 severity: LogSeverity.ERROR,
-                                caller: `SIDECAR:${name}`,
+                                caller: `${name}:stderr`,
                                 message: msg.trim()
                             });
                             if (msg.includes("UNSUPPORTED_OS")) {
@@ -292,7 +292,7 @@ export class SidecarManager implements CommandPort {
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
                         severity: LogSeverity.WARNING,
-                        caller: "SIDECAR_MANAGER",
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
                         message: `[${name}] Stderr reader error: ${(e as Error).message}`
                     });
                 } finally {
@@ -353,13 +353,13 @@ export class SidecarManager implements CommandPort {
         const info = await Deno.stat(p);
         if (!info.isFile) continue;
         const real = await Deno.realPath(p);
-        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "SIDECAR_MANAGER", message: `findBinary(${name}) -> ${real}` });
+        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "orchestrator:infra:runtime:sidecar_manager", message: `findBinary(${name}) -> ${real}` });
         return real;
       } catch (e) {
         // Silent fail for stat
       }
     }
-    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "SIDECAR_MANAGER", message: `Could not find binary for ${name} in any searched path.` });
+    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "orchestrator:infra:runtime:sidecar_manager", message: `Could not find binary for ${name} in any searched path.` });
     return null;
   }
 
@@ -393,7 +393,7 @@ export class SidecarManager implements CommandPort {
                     timestamp: logData.timestamp || new Date().toISOString(),
                     type: logData.log_type || LogType.ACTIVITY,
                     severity: logData.severity || LogSeverity.INFO,
-                    caller: logData.caller || `SIDECAR:${name}`,
+                    caller: logData.caller || `${name}:main`,
                     message: logData.message
                 });
                 // Note: We continue here if it's a pure log, but tactical events use standard JSON
@@ -409,7 +409,7 @@ export class SidecarManager implements CommandPort {
                   timestamp: new Date().toISOString(),
                   type: LogType.AUDIT,
                   severity: LogSeverity.ERROR,
-                  caller: "SIDECAR_MANAGER",
+                  caller: "orchestrator:infra:runtime:sidecar_manager",
                   message: `[${name}] Security violation: Invalid response schema.`
               });
               continue;
@@ -439,7 +439,7 @@ export class SidecarManager implements CommandPort {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.WARNING,
-          caller: "SIDECAR_MANAGER",
+          caller: "orchestrator:infra:runtime:sidecar_manager",
           message: `[${name}] Response reader error: ${(e as Error).message}`
       });
     } finally {
@@ -563,7 +563,7 @@ export class SidecarManager implements CommandPort {
         timestamp: new Date().toISOString(),
         type: LogType.ACTIVITY,
         severity: LogSeverity.INFO,
-        caller: "SIDECAR_MANAGER",
+        caller: "orchestrator:infra:runtime:sidecar_manager",
         message: "Shutting down agent fleet..."
     });
     const names = Array.from(this.persistentProcesses.keys());
@@ -604,7 +604,7 @@ export class SidecarManager implements CommandPort {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "SIDECAR_MANAGER",
+        caller: "orchestrator:infra:runtime:sidecar_manager",
         message: `Integrity Mismatch for ${name}! Expected: ${goldenHash?.slice(0, 8) || "UNKNOWN"}, Actual: ${currentHash?.slice(0, 8) || "UNKNOWN"}. Attempting resurrection...`
     });
 
@@ -622,7 +622,7 @@ export class SidecarManager implements CommandPort {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.SUCCESS,
-                    caller: "SIDECAR_MANAGER",
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
                     message: `Successfully healed sidecar ${name}. Integrity restored.`
                 });
                 return true;
@@ -633,7 +633,7 @@ export class SidecarManager implements CommandPort {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "SIDECAR_MANAGER",
+            caller: "orchestrator:infra:runtime:sidecar_manager",
             message: `Healing failed for ${name}: ${(e as Error).message}`
         });
     }
@@ -670,7 +670,7 @@ export class SidecarManager implements CommandPort {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "SIDECAR_MANAGER",
+          caller: "orchestrator:infra:runtime:sidecar_manager",
           message: `Restarting sidecar ${name} (attempt ${restartInfo.count}/3)`
       });
       setTimeout(() => {
@@ -682,7 +682,7 @@ export class SidecarManager implements CommandPort {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
-          caller: "SIDECAR_MANAGER",
+          caller: "orchestrator:infra:runtime:sidecar_manager",
           message: msg
       });
       this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
