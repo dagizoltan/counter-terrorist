@@ -1,5 +1,6 @@
 import { CommandResult } from "@core/ports.ts";
 import * as path from "@std/path";
+import { validatePath } from "./validation.ts";
 
 /**
  * Security Policy for whitelisted commands.
@@ -146,7 +147,7 @@ export class SystemExecutor {
         maxArgs: 1
     },
     "tc": {
-        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid|default)$/, /^[0-9a-z:/._-]+$/, /^[0-9]+(kbps|mbps|gbps|ms|s)$/],
+        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid|default)$/, /^[a-zA-Z0-9\.:\/_\-]+$/, /^[0-9]+(kbps|mbps|gbps|ms|s)$/],
         maxArgs: 20
     },
     "gcore": {
@@ -190,7 +191,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "iptables": {
-        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N|--append|--delete|--insert|--list|--flush|--new-chain|--policy)$/, /^[A-Z]+$/, /^[a-z0-9.+_-]+$/, /^-p$/, /^(tcp|udp|icmp)$/, /^--dport$/, /^[0-9]+$/, /^-j$/, /^(ACCEPT|DROP|REJECT|LOG)$/, /^[0-9a-fA-F.:/]+$/],
+        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N|--append|--delete|--insert|--list|--flush|--new-chain|--policy)$/, /^[A-Z]+$/, /^[a-zA-Z0-9\.\+\-_]+$/, /^-p$/, /^(tcp|udp|icmp)$/, /^--dport$/, /^[0-9]+$/, /^-j$/, /^(ACCEPT|DROP|REJECT|LOG)$/, /^[0-9a-fA-F\.:\/]+$/],
         maxArgs: 20
     },
     "tpm2_sign": {
@@ -210,7 +211,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ip": {
-        allowedArgs: [/^(addr|link|route|neigh|show|dev|default|add|del|list)$/, /^[0-9a-z._-]+$/, /^[0-9a-fA-F.:/]+$/],
+        allowedArgs: [/^(addr|link|route|neigh|show|dev|default|add|del|list)$/, /^[a-zA-Z0-9\._\-]+$/, /^[0-9a-fA-F\.:\/]+$/],
         maxArgs: 10
     },
     "sysctl": {
@@ -234,7 +235,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ssh": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl .*)$/],
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/],
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {
@@ -254,7 +255,7 @@ export class SystemExecutor {
       maxArgs: 3
     },
     "openssl": {
-      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+\.(bin|pem|crt|key|csr|pub|sig)$/],
+      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+(\.(bin|pem|crt|key|csr|pub|sig))?$/],
       maxArgs: 10
     },
     "scanner": { maxArgs: 10 },
@@ -272,40 +273,6 @@ export class SystemExecutor {
   };
 
 
-  /**
-   * Prevents Directory Traversal by normalizing and checking for '..' or absolute paths.
-   * Ensures the path is within allowed boundaries if jailPrefixes are provided.
-   */
-  private validatePath(filePath: string, jailPrefixes?: string[]): boolean {
-    // Basic string check for obvious traversal
-    if (filePath.includes("..") || filePath.startsWith("//") || filePath.startsWith("\\\\")) {
-        return false;
-    }
-
-    const normalized = path.normalize(filePath);
-    // After normalization, ensure it doesn't escape
-    if (normalized.includes("..")) {
-        return false;
-    }
-
-    // If it's an absolute path, it MUST match a jail prefix
-    if (path.isAbsolute(normalized)) {
-        const safeSystemPaths = ["/etc/os-release", "/sys/class/iommu", "/proc/self/exe"];
-        if (safeSystemPaths.includes(normalized)) return true;
-
-        if (!jailPrefixes || jailPrefixes.length === 0) {
-            return false; // Absolute path with no jail defined
-        }
-
-        return jailPrefixes.some(jail => {
-            const normalizedJail = path.normalize(jail.endsWith("/") ? jail : jail + "/");
-            const normalizedP = path.normalize(normalized.endsWith("/") ? normalized : normalized + "/");
-            return normalizedP.startsWith(normalizedJail);
-        });
-    }
-    
-    return true;
-  }
 
   private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
     const baseCmd = path.basename(cmd);
@@ -331,12 +298,12 @@ export class SystemExecutor {
         }
 
         // ALWAYS validate for traversal if it looks like a path or contains '..'
-        if (arg.includes("/") || arg.includes("\\") || arg.includes("..")) {
+        if (arg.includes("/") || arg.includes("\\") || arg.includes("..") || arg.includes("%")) {
           const jailPrefixes = (arg.startsWith("./volume/") || arg.startsWith("/var/lib/cts/"))
               ? ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"]
               : undefined;
           
-          if (!this.validatePath(arg, jailPrefixes)) {
+          if (!validatePath(arg, jailPrefixes)) {
             return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
           }
         }

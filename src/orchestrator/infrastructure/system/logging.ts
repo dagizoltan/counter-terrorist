@@ -107,9 +107,26 @@ export class LoggingService implements LoggingPort {
     private ignoredSources = new Set(["WEB:UI", "HEARTBEAT"]);
     private ignoredKeywords = ["GET /api/ws/events", "GET /api/metrics"];
 
+    /**
+     * Sanitizes a string by removing ANSI escape codes and normalizing line breaks.
+     * Prevents log injection and terminal manipulation while preserving UTF-8 support.
+     */
+    private sanitize(str: string): string {
+        if (typeof str !== "string") return String(str);
+        // 1. Remove ANSI escape sequences
+        const noAnsi = str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
+        // 2. Normalize line breaks and remove control characters (except tab)
+        // Preserves printable ASCII and all non-ASCII (UTF-8) characters
+        return noAnsi.replace(/[\r\n]+/g, " ").replace(/[\x00-\x08\x0B-\x1F\x7F]/g, "").trim();
+    }
+
     async log(entry: LogEntry) {
         if (!entry || typeof entry !== "object") return;
         if (!entry.message) return;
+
+        // Sanitize core fields
+        entry.message = this.sanitize(entry.message);
+        if (entry.caller) entry.caller = this.sanitize(entry.caller);
         
         if (this.ignoredSources.has(entry.caller)) return;
         for (const kw of this.ignoredKeywords) {

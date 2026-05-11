@@ -43,7 +43,7 @@ export class SecurityMiddleware {
    */
   public getActor(c: Context): ActorContext {
     const session = c.get("session");
-    const ip = c.req.header("X-Forwarded-For") || "unknown";
+    const ip = this.getClientIp(c);
     const userAgent = c.req.header("User-Agent");
 
     if (session) {
@@ -64,14 +64,27 @@ export class SecurityMiddleware {
     };
   }
 
+  /**
+   * Securely extracts the client IP, preventing spoofing unless from a trusted proxy.
+   */
+  private getClientIp(c: Context): string {
+    const directIp = (c.env as any)?.remoteAddr?.hostname;
+    const forwardedFor = c.req.header("X-Forwarded-For");
+
+    if (forwardedFor) {
+        const trustedProxies = Deno.env.get("TRUSTED_PROXIES")?.split(",").map(p => p.trim()) || [];
+        if (directIp && trustedProxies.includes(directIp)) {
+            return forwardedFor.split(",")[0]?.trim() || directIp;
+        }
+    }
+
+    return directIp || "unknown";
+  }
+
   public auth() {
     return async (c: Context, next: Next) => {
       const path = c.req.path;
-      
-      // Robust IP extraction: X-Forwarded-For (proxy) -> Deno RemoteAddr (direct) -> "unknown"
-      const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() 
-        || (c.env as any)?.remoteAddr?.hostname 
-        || "unknown";
+      const ip = this.getClientIp(c);
 
       if (this.services.threatIntel.getBlacklist().has(ip)) {
         loggingService.log({

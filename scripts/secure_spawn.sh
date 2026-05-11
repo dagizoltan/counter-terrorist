@@ -19,21 +19,24 @@ fi
 # 1. Create secure jail if missing
 mkdir -p "$DEST_DIR"
 
-# 2. Atomic Copy to jail
-# Use 'cp' then 'mv' for atomicity if on same FS, or just 'cp' to root-owned dir
-cp "$SRC_BIN" "$DEST_BIN"
+# 2. Provision to unique temporary location for hardening
+# This mitigates TOCTOU, ensures atomicity, and prevents naming collisions.
+TMP_BIN=$(mktemp "$DEST_BIN.XXXXXX")
+cp "$SRC_BIN" "$TMP_BIN"
 
-# 3. Lockdown Permissions
-chown root:root "$DEST_BIN"
-chmod 755 "$DEST_BIN"
+# 3. Lockdown Permissions & Capabilities on the temporary file
+chown root:root "$TMP_BIN"
+chmod 755 "$TMP_BIN"
 
-# 4. Apply Linux Capabilities (Ring 0 Parity)
 if [ -n "$CAPS" ] && [ "$CAPS" != "none" ]; then
     if command -v setcap >/dev/null 2>&1; then
-        setcap "$CAPS" "$DEST_BIN"
+        setcap "$CAPS" "$TMP_BIN"
     else
         echo "Warning: setcap not found. Capabilities not applied."
     fi
 fi
+
+# 4. Atomic Swap
+mv "$TMP_BIN" "$DEST_BIN"
 
 echo "Successfully provisioned $NAME at $DEST_BIN"

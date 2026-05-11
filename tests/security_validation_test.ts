@@ -68,7 +68,7 @@ Deno.test("SystemExecutor Security Policies", async () => {
   // Should pass validation (it might fail execution but not security violation)
   assertEquals(result2.stderr.includes("Security Violation"), false);
 
-  const result3 = await executor.execute("openssl", ["invalid_arg"]);
+  const result3 = await executor.execute("openssl", ["invalid&arg"]);
   assertEquals(result3.success, false);
   assertEquals(result3.stderr.includes("Security Violation"), true);
 
