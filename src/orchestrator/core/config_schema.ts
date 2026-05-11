@@ -49,7 +49,7 @@ export function loadConfig(): AppConfig {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "CONFIG",
+        caller: "orchestrator:core:config",
         message: "INVALID CONFIGURATION DETECTED",
         payload: result.error.format()
     }).catch(() => {});

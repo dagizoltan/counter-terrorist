@@ -34,7 +34,7 @@ export class FirewallManager {
         data: { 
             type: LogType.AUDIT, 
             severity: LogSeverity.WARNING, 
-            caller: "firewall", 
+            caller: "orchestrator:infra:system:protection:firewall",
             message: `Perimeter Block: Malicious IP ${ip} successfully committed to blocklist`,
             payload: { ip } 
         } 
@@ -57,7 +57,7 @@ export class FirewallManager {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.WARNING,
-              caller: "FIREWALL:MGMT",
+              caller: "orchestrator:infra:system:protection:firewall:mgmt",
               message: `Failed to broadcast block for ${ip}: ${err.message}`
           });
       });
@@ -83,7 +83,7 @@ export class FirewallManager {
         data: { 
             type: LogType.AUDIT, 
             severity: LogSeverity.WARNING, 
-            caller: "firewall", 
+            caller: "orchestrator:infra:system:protection:firewall",
             message: `Shadow Banning IP: ${ip} (Throttling to 1KB/s)`, 
             payload: { ip } 
         } 
@@ -106,7 +106,7 @@ export class FirewallManager {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.WARNING,
-              caller: "FIREWALL:MGMT",
+              caller: "orchestrator:infra:system:protection:firewall:mgmt",
               message: `Failed to broadcast shadow ban for ${ip}: ${err.message}`
           });
       });
@@ -128,7 +128,7 @@ export class FirewallManager {
         data: { 
             type: LogType.ACTIVITY, 
             severity: LogSeverity.INFO, 
-            caller: "firewall", 
+            caller: "orchestrator:infra:system:protection:firewall",
             message: `Unblocking IP: ${ip}`,
             payload: { ip }
         } 
@@ -158,7 +158,7 @@ export class FirewallManager {
         data: { 
             type: LogType.AUDIT, 
             severity: LogSeverity.ERROR, 
-            caller: "forensics:enforcement", 
+            caller: "orchestrator:infra:system:protection:forensics:enforcement",
             message: `Terminating process (PID: ${pid}). Performing forensic dump...`,
             payload: { pid }
         } 
@@ -174,7 +174,7 @@ export class FirewallManager {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.WARNING,
-            caller: "FORENSICS",
+            caller: "orchestrator:infra:system:protection:forensics",
             message: `Failed to dump process ${pid}: ${(e as Error).message}`
         });
     }
@@ -188,7 +188,7 @@ export class FirewallManager {
         data: { 
             type: LogType.AUDIT, 
             severity: LogSeverity.WARNING, 
-            caller: "forensics:enforcement", 
+            caller: "orchestrator:infra:system:protection:forensics:enforcement",
             message: `Quarantining process (PID: ${pid}). Suspending execution...`,
             payload: { pid }
         } 
@@ -206,7 +206,7 @@ export class FirewallManager {
         data: { 
             type: LogType.AUDIT, 
             severity: LogSeverity.ERROR, 
-            caller: "firewall", 
+            caller: "orchestrator:infra:system:protection:firewall",
             message: "LOCKDOWN PROTOCOL INITIATED (Fail-Closed Mode Engaged)" 
         } 
     });
@@ -217,7 +217,7 @@ export class FirewallManager {
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.WARNING,
-              caller: "FIREWALL:MGMT",
+              caller: "orchestrator:infra:system:protection:firewall:mgmt",
               message: `Failed to broadcast lockdown: ${err.message}`
           });
       });
@@ -240,7 +240,7 @@ export class FirewallManager {
         data: { 
             type: LogType.ACTIVITY, 
             severity: LogSeverity.WARNING, 
-            caller: "firewall:mgmt", 
+            caller: "orchestrator:infra:system:protection:firewall:mgmt",
             message: "FLUSHING GLOBAL RULES" 
         } 
     });

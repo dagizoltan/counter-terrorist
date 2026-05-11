@@ -57,7 +57,7 @@ export class RkhunterManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "RKHUNTER",
+                caller: "orchestrator:infra:system:protection:rkhunter",
                 message: `rkhunter scan failed: ${(e as Error).message}`
             });
             const errResult = { success: false, error: (e as Error).message };

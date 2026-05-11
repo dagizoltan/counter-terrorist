@@ -35,7 +35,7 @@ export class SignatureService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "SIGNATURE",
+                caller: "orchestrator:infra:system:protection:signature",
                 message: `Verification failed: ${(e as Error).message}`
             });
             return false;

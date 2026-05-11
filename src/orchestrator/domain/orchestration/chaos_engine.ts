@@ -19,7 +19,7 @@ export class ChaosEngine {
         timestamp: new Date().toISOString(),
         type: LogType.DEBUG,
         severity: LogSeverity.INFO,
-        caller: "CHAOS",
+        caller: "orchestrator:domain:orchestration:chaos_engine",
         message: `Simulating SSH Brute Force from ${ip}`
     });
     
@@ -40,7 +40,7 @@ export class ChaosEngine {
     await this.auditService.logEvent({
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "chaos:simulator",
+        caller: "orchestrator:domain:orchestration:chaos_engine:simulator",
         message: `CHAOS_SIM: Multi-vector brute force attempt detected from ${ip}`,
         data: { simulation: true, vector: "SSH_BRUTE_FORCE" }
     });
@@ -51,7 +51,7 @@ export class ChaosEngine {
         timestamp: new Date().toISOString(),
         type: LogType.DEBUG,
         severity: LogSeverity.INFO,
-        caller: "CHAOS",
+        caller: "orchestrator:domain:orchestration:chaos_engine",
         message: `Simulating Canary Trigger: ${path}`
     });
     
@@ -68,7 +68,7 @@ export class ChaosEngine {
     await this.auditService.logEvent({
         type: LogType.AUDIT,
         severity: LogSeverity.ERROR,
-        caller: "chaos:simulator",
+        caller: "orchestrator:domain:orchestration:chaos_engine:simulator",
         message: `CHAOS_SIM: Unauthorized access to canary breadcrumb: ${path}`,
         data: { simulation: true, vector: "DATA_EXFIL" }
     });
@@ -79,7 +79,7 @@ export class ChaosEngine {
         timestamp: new Date().toISOString(),
         type: LogType.DEBUG,
         severity: LogSeverity.INFO,
-        caller: "CHAOS",
+        caller: "orchestrator:domain:orchestration:chaos_engine",
         message: `Simulating Malware Execution: ${proc}`
     });
     
@@ -97,7 +97,7 @@ export class ChaosEngine {
     await this.auditService.logEvent({
         type: LogType.AUDIT,
         severity: LogSeverity.ERROR,
-        caller: "chaos:simulator",
+        caller: "orchestrator:domain:orchestration:chaos_engine:simulator",
         message: `CHAOS_SIM: Cryptominer signature detected in kernel: ${proc}`,
         data: { simulation: true, vector: "UNAUTHORIZED_COMPUTE" }
     });

@@ -32,7 +32,7 @@ export class WebAdapter implements WebPort {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "WEB",
+        caller: "orchestrator:interface:web",
         message: `Initializing with services: ${Object.keys(services).join(", ")}`
     });
     if (!services.honeypot) {
@@ -40,7 +40,7 @@ export class WebAdapter implements WebPort {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
-            caller: "WEB",
+            caller: "orchestrator:interface:web",
             message: "CRITICAL: honeypot service is MISSING in container!"
         });
     }
@@ -56,7 +56,7 @@ export class WebAdapter implements WebPort {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "WEB",
+        caller: "orchestrator:interface:web",
         message: "Initializing routes and middleware..."
     });
     
@@ -97,7 +97,7 @@ export class WebAdapter implements WebPort {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
-          caller: "WEB:API",
+          caller: "orchestrator:interface:web:api",
           message: `[REQ:${traceId}] ${method} ${path}`
         });
       }
@@ -124,7 +124,7 @@ export class WebAdapter implements WebPort {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
-          caller: "WEB:API",
+          caller: "orchestrator:interface:web:api",
           message: `[RES:${traceId}] ${method} ${path} -> ${status} (${duration}ms)`
         });
       }
@@ -156,7 +156,7 @@ export class WebAdapter implements WebPort {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.WARNING,
-          caller: "WEB:API",
+          caller: "orchestrator:interface:web:api",
           message: `[WEB:FAIL] ${errorMsg}`,
           payload: { code: err.statusCode }
         });
@@ -166,7 +166,7 @@ export class WebAdapter implements WebPort {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "WEB:API",
+        caller: "orchestrator:interface:web:api",
         message: `[WEB:CRITICAL] ${errorMsg}`,
         payload: { stack: (err as Error).stack }
       });
@@ -181,7 +181,7 @@ export class WebAdapter implements WebPort {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "WEB",
+        caller: "orchestrator:interface:web",
         message: `Static Asset Root: ${webRoot}`
     });
     
@@ -200,7 +200,7 @@ export class WebAdapter implements WebPort {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "HONEYPOT",
+            caller: "orchestrator:interface:web:api:honeypot",
             message: `[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`
           });
           await this.services.honeypot.onWebTrigger(route, ip);
@@ -212,7 +212,7 @@ export class WebAdapter implements WebPort {
         timestamp: new Date().toISOString(),
         type: LogType.DEBUG,
         severity: LogSeverity.WARNING,
-        caller: "WEB",
+        caller: "orchestrator:interface:web",
         message: "[WEB] Honeypot service unavailable. Skipping decoy routes."
       });
     }
@@ -248,7 +248,7 @@ export class WebAdapter implements WebPort {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "WS:AUTH",
+          caller: "orchestrator:interface:web:api:ws:auth",
           message: `Unauthorized WebSocket connection attempt from ${ip}`
         });
         return {
@@ -351,7 +351,7 @@ export class WebAdapter implements WebPort {
           timestamp: new Date().toISOString(),
           type: LogType.ACTIVITY,
           severity: LogSeverity.INFO,
-          caller: "WEB",
+          caller: "orchestrator:interface:web",
           message: "Stopping web server..."
       });
       await this.server.shutdown();
@@ -374,7 +374,7 @@ export class WebAdapter implements WebPort {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
-          caller: "WEB",
+          caller: "orchestrator:interface:web",
           message: `SOVEREIGN mTLS Active. Tactical Console: https://localhost:${port}`
       });
       
@@ -388,7 +388,7 @@ export class WebAdapter implements WebPort {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
-          caller: "WEB",
+          caller: "orchestrator:interface:web",
           message: `Orchestrator Engine active (INSECURE HTTP). Tactical Console: http://localhost:${port}`
       });
       this.server = Deno.serve({ port }, this.app.fetch);

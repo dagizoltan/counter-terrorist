@@ -18,7 +18,7 @@ export class UbuntuFirewallProvider implements FirewallProvider {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "FIREWALL",
+        caller: "orchestrator:infra:system:protection:firewall",
         message: `Shadow Banning IP: ${ip} via Native eBPF TC hooks.`
     });
     
@@ -43,7 +43,7 @@ export class UbuntuFirewallProvider implements FirewallProvider {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "FORENSICS",
+        caller: "orchestrator:infra:system:protection:forensics",
         message: `Dumping process ${pid} memory to ${dumpPath}`
     });
     

@@ -55,7 +55,7 @@ export class KernelService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
-                    caller: "KERNEL",
+                    caller: "orchestrator:domain:protection:kernel",
                     message: `Failed to apply ${param}: ${(e as Error).message}`
                 });
             }
@@ -83,7 +83,7 @@ export class KernelService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.INFO,
-                caller: "KERNEL",
+                caller: "orchestrator:domain:protection:kernel",
                 message: "Stealth Mode disabled. Skipping process camouflage."
             });
             return;
@@ -92,7 +92,7 @@ export class KernelService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.INFO,
-            caller: "KERNEL",
+            caller: "orchestrator:domain:protection:kernel",
             message: "Activating Subterranean Process Camouflage..."
         });
         
@@ -112,7 +112,7 @@ export class KernelService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
-                    caller: "KERNEL",
+                    caller: "orchestrator:domain:protection:kernel",
                     message: `eBPF PID hiding failed: ${err.message}`
                 }));
             }
@@ -121,7 +121,7 @@ export class KernelService {
                 timestamp: new Date().toISOString(),
                 type: LogType.DEBUG,
                 severity: LogSeverity.INFO,
-                caller: "KERNEL",
+                caller: "orchestrator:domain:protection:kernel",
                 message: `Process ${selfPid} successfully camouflaged as '${targetName}'`
             });
         } catch (e) {
@@ -129,7 +129,7 @@ export class KernelService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "KERNEL",
+                caller: "orchestrator:domain:protection:kernel",
                 message: `Camouflage failed: ${(e as Error).message}`
             });
         }
@@ -197,7 +197,7 @@ export class KernelService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.WARNING,
-            caller: "KERNEL",
+            caller: "orchestrator:domain:protection:kernel",
             message: `eBPF syscall block failed: ${err.message}`
         }));
         
@@ -230,7 +230,7 @@ export class KernelService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.WARNING,
-            caller: "KERNEL",
+            caller: "orchestrator:domain:protection:kernel",
             message: `eBPF LSM policy deployment failed: ${err.message}`
         }));
     }

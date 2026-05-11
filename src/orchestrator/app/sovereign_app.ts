@@ -62,7 +62,7 @@ export class SovereignApp {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "SOVEREIGN:BOOT",
+                caller: "orchestrator:app:sovereign_app:boot",
                 message: `BOOT ABORTED: System is in PERMANENT LOCKDOWN. Reason: ${data.reason}. Timestamp: ${data.timestamp}`
             });
             console.error("!!! CRITICAL: SYSTEM LOCKED !!!");
@@ -109,7 +109,7 @@ export class SovereignApp {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.SUCCESS,
-            caller: "ORCHESTRATOR",
+            caller: "orchestrator:app:sovereign_app",
             message: `Sovereign Orchestrator fully engaged on port ${port}`
         });
         await this.web.start(port);
@@ -122,7 +122,7 @@ export class SovereignApp {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "SYSTEM:SHADOW",
+            caller: "orchestrator:app:sovereign_app:shadow",
             message: `Shadow Mode active for ${shadowDuration} hours. S-Grade blocks are simulated.`
         });
 
@@ -133,7 +133,7 @@ export class SovereignApp {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.SUCCESS,
-                    caller: "SYSTEM:SHADOW",
+                    caller: "orchestrator:app:sovereign_app:shadow",
                     message: "Shadow Mode expired. System is now ARMED and enforcing S-Grade blocks."
                 });
             }
@@ -146,7 +146,7 @@ export class SovereignApp {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "BOOT:INIT",
+            caller: "orchestrator:app:sovereign_app:init",
             message: "Initiating Sovereign Boot Sequence (Self-Test Phase)"
         });
         await camouflage();
@@ -207,7 +207,7 @@ export class SovereignApp {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "SYSTEM:WATCHDOG",
+                caller: "orchestrator:app:sovereign_app:watchdog",
                 message: `Attempting to resurrect failed service: ${name}`
             });
 
@@ -235,7 +235,7 @@ export class SovereignApp {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.ERROR,
-                    caller: "SYSTEM:WATCHDOG",
+                    caller: "orchestrator:app:sovereign_app:watchdog",
                     message: `Resurrection failed for ${name}: ${(e as Error).message}`
                 });
                 return false;
@@ -267,7 +267,7 @@ export class SovereignApp {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "SECURITY",
+                caller: "orchestrator:app:sovereign_app:security",
                 message: "CRITICAL: HARDWARE INTEGRITY FAILURE. Access denied. No valid/secure bypass token provided."
             });
             // ENFORCEMENT: Trigger Emergency Lockdown if integrity fails and no secure bypass is active
@@ -277,7 +277,7 @@ export class SovereignApp {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "SECURITY",
+                caller: "orchestrator:app:sovereign_app:security",
                 message: "WARNING: RUNNING IN UNSAFE BYPASS MODE. System integrity is NOT hardware-verified. Environment: " + Deno.env.get("ENVIRONMENT")
             });
         }
@@ -294,7 +294,7 @@ export class SovereignApp {
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
             severity: LogSeverity.INFO,
-            caller: "BOOT:DOMAIN",
+            caller: "orchestrator:app:sovereign_app:domain",
             message: "Activating autonomous subsystems..."
         });
 
@@ -366,7 +366,7 @@ export class SovereignApp {
                 timestamp: new Date().toISOString(),
                 type: LogType.ACTIVITY,
                 severity: LogSeverity.INFO,
-                caller: "SYSTEM",
+                caller: "orchestrator:app:sovereign_app:system",
                 message: "Initiating graceful shutdown..."
             });
 
@@ -497,7 +497,7 @@ export class SovereignApp {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "BOOT",
+                caller: "orchestrator:app:sovereign_app:boot",
                 message: `CRITICAL: Service '${name}' failed to initialize: ${msg}. Deploying Emergency Placeholder.`
             }).catch(() => {});
             health.reportStatus(name, "FAILED", msg);
@@ -510,7 +510,7 @@ export class SovereignApp {
                             timestamp: new Date().toISOString(),
                             type: LogType.AUDIT,
                             severity: LogSeverity.ERROR,
-                            caller: "EMERGENCY:PROXY",
+                            caller: "orchestrator:app:sovereign_app:emergency_proxy",
                             message: msg
                         });
                         return Promise.resolve({ success: false, error: `Service ${name} is unavailable` });
@@ -525,7 +525,7 @@ export class SovereignApp {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "SOVEREIGN",
+            caller: "orchestrator:app:sovereign_app",
             message: `CRITICAL: EMERGENCY LOCKDOWN ACTIVATED (${reason}). System quarantined. Forensic state preserved. Physical/MFA recovery required.`
         });
 

@@ -18,7 +18,7 @@ export class ThreatIntelService {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "INTEL",
+        caller: "orchestrator:domain:protection:threat_intel",
         message: "Threat Intelligence Service initialized with multi-source ingestion."
     });
     
@@ -38,7 +38,7 @@ export class ThreatIntelService {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
-        caller: "INTEL",
+        caller: "orchestrator:domain:protection:threat_intel",
         message: "Synchronizing threat intelligence from multiple distributed databases..."
     });
     
@@ -67,7 +67,7 @@ export class ThreatIntelService {
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.WARNING,
-            caller: "INTEL",
+            caller: "orchestrator:domain:protection:threat_intel",
             message: `Source ${url} failed: ${(e as Error).message}`
         });
       }
@@ -77,7 +77,7 @@ export class ThreatIntelService {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.SUCCESS,
-        caller: "INTEL",
+        caller: "orchestrator:domain:protection:threat_intel",
         message: `Threat database synchronized. ${this.blacklist.size} unique malicious IPs tracked.`
     });
   }

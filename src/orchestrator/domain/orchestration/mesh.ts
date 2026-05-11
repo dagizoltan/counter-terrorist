@@ -32,7 +32,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: "Initializing Sovereign Mesh Infrastructure..."
     });
     this.meshSecret = Deno.env.get("MESH_SECRET");
@@ -56,7 +56,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.INFO,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `mTLS Identity established for ${this.nodeId}`
       });
     } catch (e) {
@@ -64,7 +64,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.WARNING,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`
       });
     }
@@ -91,7 +91,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: "SINGLE_NODE mode active. Mesh discovery and mDNS listeners bypassed."
       });
       return;
@@ -101,7 +101,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: "Starting zero-config node discovery..."
     });
 
@@ -133,7 +133,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.INFO,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `Probing subnet ${subnet}.0/24...`
       });
       
@@ -176,7 +176,7 @@ export class MeshManager {
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
               severity: LogSeverity.INFO,
-              caller: "MESH:P2P",
+              caller: "orchestrator:domain:orchestration:mesh",
               message: `Discovered verified peer at ${address}`
           });
           this.validateAndRegisterNode({
@@ -197,7 +197,7 @@ export class MeshManager {
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
             severity: LogSeverity.INFO,
-            caller: "MESH:P2P",
+            caller: "orchestrator:domain:orchestration:mesh",
             message: `Probe failed for ${address}: ${msg}`
         });
       }
@@ -219,7 +219,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: "Passive mDNS listener active"
       });
 
@@ -252,7 +252,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `Passive mDNS listener unavailable: ${(e as Error).message}`
       });
     }
@@ -292,7 +292,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.WARNING,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `Cannot validate node ${node.id} — mTLS client not initialized. Skipping.`
       });
       return;
@@ -334,7 +334,7 @@ export class MeshManager {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
-            caller: "MESH:P2P",
+            caller: "orchestrator:domain:orchestration:mesh",
             message: `Node ${node.id} at ${node.address}:${node.port} passed mTLS validation.`
         });
       } else {
@@ -345,7 +345,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `REJECTED node ${node.id} at ${node.address}:${node.port} — mTLS validation failed: ${e instanceof Error ? e.message : String(e)}`
       });
     }
@@ -360,7 +360,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.INFO,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `New node registered: ${node.hostname} (${node.address}:${node.port}) [verified=${node.verified}]`
       });
       broadcast({
@@ -368,7 +368,7 @@ export class MeshManager {
         data: {
             type: LogType.AUDIT,
             severity: LogSeverity.SUCCESS,
-            caller: "mesh:p2p",
+            caller: "orchestrator:domain:orchestration:mesh",
             message: `New security node joined the mesh: ${node.hostname}`,
             data: node
         }
@@ -395,7 +395,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Gossip failure to ${node.hostname}: ${(err as Error).message}`
             });
         });
@@ -421,7 +421,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
-          caller: "MESH:P2P",
+          caller: "orchestrator:domain:orchestration:mesh",
           message: `ISOLATED NODE: ${node.hostname} (${nodeId}) revoked from mesh due to security policy.`
       });
       broadcast({
@@ -429,7 +429,7 @@ export class MeshManager {
         data: {
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "mesh:p2p",
+            caller: "orchestrator:domain:orchestration:mesh",
             message: `Node ${node.hostname} isolated from mesh network!`,
             data: { nodeId }
         }
@@ -448,7 +448,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: `Gossip: Broadcasting block for ${ip} to ${verifiedNodes.length} verified nodes...`
     });
 
@@ -458,7 +458,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Failed to gossip with ${node.hostname}: ${(err as Error).message}`
             });
         });
@@ -476,7 +476,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: `Gossip: Broadcasting threat hash ${hash.slice(0, 8)} to ${verifiedNodes.length} nodes...`
     });
 
@@ -486,7 +486,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Failed to gossip threat to ${node.hostname}: ${(err as Error).message}`
             });
         });
@@ -501,7 +501,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.ERROR,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: "Gossip: Initiating high-priority EMERGENCY LOCKDOWN broadcast..."
     });
 
@@ -521,7 +521,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Failed to gossip audit with ${node.hostname}: ${(err as Error).message}`
             });
         });
@@ -546,7 +546,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Failed to send audit verification to ${node.hostname}: ${(err as Error).message}`
             });
         });
@@ -561,7 +561,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.DEBUG,
                 severity: LogSeverity.INFO,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Requesting state reconciliation from ${node.hostname}...`
             });
             const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
@@ -572,7 +572,7 @@ export class MeshManager {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.INFO,
-                    caller: "MESH:P2P",
+                    caller: "orchestrator:domain:orchestration:mesh",
                     message: `Received state snapshot from ${node.hostname}. Synchronizing...`
                 });
                 await this.audit.syncEvents((res as any).kv_snapshot);
@@ -582,7 +582,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.INFO,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Reconciled state with ${node.hostname}`
             });
         } catch (e) {
@@ -591,7 +591,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Failed to reconcile with ${node.hostname}: ${msg}`
             });
         }
@@ -628,7 +628,7 @@ export class MeshManager {
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
               severity: LogSeverity.INFO,
-              caller: "MESH:QUORUM",
+              caller: "orchestrator:domain:orchestration:mesh:quorum",
               message: `SINGLE_NODE mode: Auto-approving quorum for action: ${action}`
           });
           return true;
@@ -638,7 +638,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.INFO,
-          caller: "MESH:QUORUM",
+          caller: "orchestrator:domain:orchestration:mesh:quorum",
           message: `Requesting mesh consensus for action: ${action}`
       });
       
@@ -650,7 +650,7 @@ export class MeshManager {
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
               severity: LogSeverity.ERROR,
-              caller: "MESH:QUORUM",
+              caller: "orchestrator:domain:orchestration:mesh:quorum",
               message: `Consensus impossible. Active nodes (${verifiedNodes.length + 1}) < Threshold (${threshold}).`
           });
           return false;
@@ -674,7 +674,7 @@ export class MeshManager {
                   timestamp: new Date().toISOString(),
                   type: LogType.GENERIC,
                   severity: LogSeverity.WARNING,
-                  caller: "MESH:QUORUM",
+                  caller: "orchestrator:domain:orchestration:mesh:quorum",
                   message: `Node ${node.hostname} denied or timed out.`
               });
           }
@@ -687,7 +687,7 @@ export class MeshManager {
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: success ? LogSeverity.INFO : LogSeverity.WARNING,
-          caller: "MESH:QUORUM",
+          caller: "orchestrator:domain:orchestration:mesh:quorum",
           message: `Result for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold})`
       });
       return success;
@@ -725,7 +725,7 @@ export class MeshManager {
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
-            caller: "MESH:P2P",
+            caller: "orchestrator:domain:orchestration:mesh",
             message: `Consensus threshold impossible to meet (${totalNodes}/${targetThreshold}). REJECTED.`
         });
         return false; 
@@ -756,7 +756,7 @@ export class MeshManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
-                caller: "MESH:P2P",
+                caller: "orchestrator:domain:orchestration:mesh",
                 message: `Node ${node.hostname} denied/failed approval: ${(e as Error).message}`
             });
         }
@@ -767,7 +767,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: success ? LogSeverity.INFO : LogSeverity.ERROR,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: `Consensus for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${targetThreshold} votes)`
     });
     return success;
@@ -829,7 +829,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.DEBUG,
         severity: LogSeverity.INFO,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: `Tactical mTLS Sync completed with ${node.address}:${node.port}`
     });
   }
@@ -843,7 +843,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: `Initiating Identity Rotation for ${this.nodeId}...`
     });
     
@@ -861,7 +861,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: `Identity Rotation Complete: ${oldId} -> ${this.nodeId}`
     });
     
@@ -880,7 +880,7 @@ export class MeshManager {
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
-        caller: "MESH:P2P",
+        caller: "orchestrator:domain:orchestration:mesh",
         message: "Initiating mesh-wide cryptographic re-verification..."
     });
 

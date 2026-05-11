@@ -137,7 +137,7 @@ export class AuditService {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.INFO,
-                    caller: "AUDIT",
+                    caller: "orchestrator:domain:analysis:audit",
                     message: `Chain head restored: ${this.lastHash.slice(0, 12)}…`
                 });
 
@@ -147,7 +147,7 @@ export class AuditService {
                         timestamp: new Date().toISOString(),
                         type: LogType.AUDIT,
                         severity: LogSeverity.ERROR,
-                        caller: "AUDIT",
+                        caller: "orchestrator:domain:analysis:audit",
                         message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED.`
                     });
                 } else {
@@ -159,7 +159,7 @@ export class AuditService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "AUDIT",
+                caller: "orchestrator:domain:analysis:audit",
                 message: `Failed to restore chain head: ${e instanceof Error ? e.message : String(e)}`
             });
         }
@@ -254,7 +254,7 @@ export class AuditService {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity,
-                    caller: "AUDIT",
+                    caller: "orchestrator:domain:analysis:audit",
                     message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
                     payload: auditEvent.data
                 });
@@ -274,7 +274,7 @@ export class AuditService {
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.ERROR,
-                    caller: "AUDIT",
+                    caller: "orchestrator:domain:analysis:audit",
                     message: `Failed to save event: ${(e as Error).message}`
                 });
             }
@@ -418,7 +418,7 @@ export class AuditService {
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.INFO,
-                    caller: "AUDIT",
+                    caller: "orchestrator:domain:analysis:audit",
                     message: `Audit ledger truncated. Checkpoint inserted at ${boundaryEvent.hash.slice(0, 12)}`
                 });
             }
@@ -427,7 +427,7 @@ export class AuditService {
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
-                caller: "AUDIT",
+                caller: "orchestrator:domain:analysis:audit",
                 message: `Retention purge failed: ${e instanceof Error ? e.message : String(e)}`
             });
         }

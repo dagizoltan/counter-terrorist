@@ -22,7 +22,7 @@ export class ShadowBanService {
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
                     severity: LogSeverity.INFO,
-                    caller: "SHADOW-BAN",
+                    caller: "orchestrator:domain:protection:shadow_ban",
                     message: `Detected interface: ${this.interface}`
                 });
             }
@@ -31,7 +31,7 @@ export class ShadowBanService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "SHADOW-BAN",
+                caller: "orchestrator:domain:protection:shadow_ban",
                 message: "Interface detection failed, defaulting to eth0"
             });
         }
@@ -62,7 +62,7 @@ export class ShadowBanService {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "SHADOW-BAN",
+                caller: "orchestrator:domain:protection:shadow_ban",
                 message: `Failed to apply to ${ip}: ${(e as Error).message}`
             });
             // Fallback to hard block if TC fails

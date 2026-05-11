@@ -14,7 +14,7 @@ try {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "SYSTEM",
+        caller: "orchestrator:core:system",
         message: `Sovereign Boot Failure: ${error instanceof Error ? error.message : String(error)}`,
         payload: { stack: error instanceof Error ? error.stack : undefined }
     }).finally(() => {

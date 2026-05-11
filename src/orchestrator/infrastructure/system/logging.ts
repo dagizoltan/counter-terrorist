@@ -34,7 +34,7 @@ export class LoggingService implements LoggingPort {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.INFO,
-                caller: "LOGGING",
+                caller: "orchestrator:infra:system:logging",
                 message: `Remote syslog enabled: ${this.transport}://${this.remoteHost}:${this.remotePort}`
             }).catch(() => {});
             this.startFlushInterval();
@@ -72,7 +72,7 @@ export class LoggingService implements LoggingPort {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.INFO,
-                caller: "CONSOLE",
+                caller: "orchestrator:infra:system:logging:intercept",
                 message: args.map(String).join(" ")
             }).finally(() => this.isIntercepting = false);
         };
@@ -85,7 +85,7 @@ export class LoggingService implements LoggingPort {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
-                caller: "CONSOLE",
+                caller: "orchestrator:infra:system:logging:intercept",
                 message: args.map(String).join(" ")
             }).finally(() => this.isIntercepting = false);
         };
@@ -98,7 +98,7 @@ export class LoggingService implements LoggingPort {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "CONSOLE",
+                caller: "orchestrator:infra:system:logging:intercept",
                 message: args.map(String).join(" ")
             }).finally(() => this.isIntercepting = false);
         };

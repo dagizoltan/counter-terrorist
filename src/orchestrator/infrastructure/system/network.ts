@@ -35,7 +35,7 @@ export async function getDefaultInterface(): Promise<string> {
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
-        caller: "NETWORK",
+        caller: "orchestrator:infra:system:network",
         message: `Failed to detect default interface: ${e instanceof Error ? e.message : String(e)}`
     });
   }
