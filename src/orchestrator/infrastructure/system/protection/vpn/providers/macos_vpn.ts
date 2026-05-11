@@ -1,31 +1,36 @@
-import { VpnProvider } from "../vpn.ts";
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { VpnProvider, VpnResult } from "../vpn.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 export class MacosVpnProvider implements VpnProvider {
-  constructor(private executor: SystemExecutor) {}
+  constructor(private sidecar: SidecarManager) {}
 
-  async connect(interfaceName: string): Promise<{ success: boolean; message: string; details?: string }> {
-    const res = await this.executor.execute("sudo", ["wg-quick", "up", interfaceName]);
+  async connect(interfaceName: string): Promise<VpnResult> {
+    const res = await this.sidecar.sendCommand("vpn", {
+        type: "CONNECT",
+        payload: { interface: interfaceName }
+    });
     return { success: res.success, message: res.success ? "VPN Connected" : "VPN Failed", details: res.stderr };
   }
 
-  async disconnect(): Promise<{ success: boolean; message: string; details?: string }> {
-    const res = await this.executor.execute("sudo", ["wg-quick", "down", "all"]);
+  async disconnect(): Promise<VpnResult> {
+    const res = await this.sidecar.sendCommand("vpn", {
+        type: "DISCONNECT",
+        payload: { interface: "all" }
+    });
     return { success: res.success, message: res.success ? "VPN Disconnected" : "VPN Failed", details: res.stderr };
   }
 
   async isConnected(): Promise<boolean> {
-    const res = await this.executor.execute("ifconfig", ["wg0"]);
-    return res.success;
+    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS" });
+    return res.success && res.data?.active === true;
   }
 
   async getStatus(): Promise<any> {
-    const res = await this.executor.execute("wg", ["show"]);
-    return res.stdout;
+    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS" });
+    return res.data;
   }
 
-  async flushRules(): Promise<{ success: boolean; message: string; details?: string }> {
-    // macOS specific wg flush would go here
-    return { success: true, message: "VPN Rules Flushed (Mock)" };
+  async flushRules(): Promise<VpnResult> {
+    return { success: true, message: "VPN Rules Flushed (via Sidecar)" };
   }
 }

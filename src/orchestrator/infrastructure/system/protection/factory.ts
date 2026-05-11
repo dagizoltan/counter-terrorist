@@ -24,10 +24,10 @@ import { MacosAntivirusProvider } from "./antivirus/providers/macos_antivirus.ts
 
 export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo, networkLogs: any): FirewallManager {
   if (platform.name === "windows") {
-    return new FirewallManager(new WindowsFirewallProvider(executor), networkLogs);
+    return new FirewallManager(new WindowsFirewallProvider(sidecar), networkLogs);
   }
   if (platform.name === "macos") {
-    return new FirewallManager(new MacosFirewallProvider(executor), networkLogs);
+    return new FirewallManager(new MacosFirewallProvider(sidecar), networkLogs);
   }
   return new FirewallManager(new UbuntuFirewallProvider(sidecar, executor), networkLogs);
 }
@@ -35,9 +35,9 @@ export function createFirewallManager(sidecar: SidecarManager, executor: SystemE
 export function createVpnManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): VpnManager {
   let provider;
   if (platform.name === "windows") {
-    provider = new WindowsVpnProvider(executor);
+    provider = new WindowsVpnProvider(sidecar);
   } else if (platform.name === "macos") {
-    provider = new MacosVpnProvider(executor);
+    provider = new MacosVpnProvider(sidecar);
   } else {
     provider = new UbuntuVpnProvider(sidecar);
   }

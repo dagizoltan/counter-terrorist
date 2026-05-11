@@ -1,26 +1,33 @@
 import { VpnProvider, VpnResult } from "../vpn.ts";
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 export class WindowsVpnProvider implements VpnProvider {
-  constructor(private executor: SystemExecutor) {}
+  constructor(private sidecar: SidecarManager) {}
 
   async connect(interfaceName: string): Promise<VpnResult> {
-    const res = await this.executor.execute("powershell", ["-Command", `Connect-VpnConnection -Name '${interfaceName}'`]);
+    const res = await this.sidecar.sendCommand("vpn", {
+        type: "CONNECT",
+        payload: { interface: interfaceName }
+    });
     return { success: res.success, message: res.stdout + res.stderr };
   }
 
   async disconnect(): Promise<VpnResult> {
-    const res = await this.executor.execute("powershell", ["-Command", "Disconnect-VpnConnection -Name 'MeshVPN'"]);
+    const res = await this.sidecar.sendCommand("vpn", {
+        type: "DISCONNECT",
+        payload: { interface: "MeshVPN" }
+    });
     return { success: res.success, message: res.stdout + res.stderr };
   }
 
   async isConnected(): Promise<boolean> {
-    const res = await this.executor.execute("powershell", ["-Command", "Get-VpnConnection -Name 'MeshVPN'"]);
-    return res.success;
+    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS" });
+    return res.success && res.data?.active === true;
   }
 
   async getStatus(): Promise<any> {
-    return await this.executor.execute("powershell", ["-Command", "Get-VpnConnection"]);
+    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS" });
+    return res.data;
   }
 
   async flushRules(): Promise<VpnResult> {

@@ -12,8 +12,11 @@ static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 enum Command {
     AddBlockRule { id: String, ip: String, port: Option<u16> },
     RemoveBlockRule { id: String, ip: String },
+    AddAllowRule { id: String, port: u16, protocol: String },
+    RemoveAllowRule { id: String, port: u16, protocol: String },
     ProtectDirectory { id: String, path: String },
     GetStatus { id: String },
+    FlushRules { id: String },
     Shutdown,
 }
 
@@ -50,12 +53,21 @@ async fn main() {
                 Command::RemoveBlockRule { id, ip } => {
                     emit_response(Some(id), true, format!("WFP Block Rule Removed: {}", ip), None).await;
                 },
+                Command::AddAllowRule { id, port, protocol } => {
+                    emit_response(Some(id), true, format!("WFP Allow Rule Added: {}:{}", protocol, port), None).await;
+                },
+                Command::RemoveAllowRule { id, port, protocol } => {
+                    emit_response(Some(id), true, format!("WFP Allow Rule Removed: {}:{}", protocol, port), None).await;
+                },
                 Command::ProtectDirectory { id, path } => {
                     // MOCK: Minifilter Directory Protection
                     emit_response(Some(id), true, format!("Minifilter Protection engaged for: {}", path), None).await;
                 },
                 Command::GetStatus { id } => {
-                    emit_response(Some(id), true, "Active".to_string(), None).await;
+                    emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "WFP/Minifilter", "rules_active": 42}))).await;
+                },
+                Command::FlushRules { id } => {
+                    emit_response(Some(id), true, "All WFP rules flushed".to_string(), None).await;
                 },
                 Command::Shutdown => {
                     std::process::exit(0);

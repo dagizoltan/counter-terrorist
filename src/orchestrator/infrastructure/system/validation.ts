@@ -85,7 +85,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   return { valid: true };
 }
 
-export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "tpm", "vpn", "mesh", "firewall"] as const;
+export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "tpm", "vpn", "mesh", "firewall", "esf", "wfp", "etw"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
 export function isAllowedSidecar(name: string): name is SidecarName {
@@ -320,6 +320,26 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       return true;
     case "vpn":
       if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
+      return true;
+    case "esf":
+      const esfTypes = [
+        "BlockIp", "UnblockIp", "ShadowBanIp", "AllowPort", "DenyPort",
+        "Lockdown", "FlushRules", "GetStatus", "UpdatePolicy"
+      ];
+      if (!esfTypes.includes(req.type)) return false;
+      if ((req.type === "BlockIp" || req.type === "UnblockIp" || req.type === "ShadowBanIp") && !isValidIP(req.ip || "")) return false;
+      if (req.type === "BlockIp" && isCriticalInfrastructure(req.ip || "")) return false;
+      if ((req.type === "AllowPort" || req.type === "DenyPort") && typeof req.port !== "number") return false;
+      return true;
+    case "wfp":
+      const wfpTypes = [
+        "AddBlockRule", "RemoveBlockRule", "AddAllowRule", "RemoveAllowRule",
+        "ProtectDirectory", "GetStatus", "FlushRules"
+      ];
+      if (!wfpTypes.includes(req.type)) return false;
+      if ((req.type === "AddBlockRule" || req.type === "RemoveBlockRule") && !isValidIP(req.ip || "")) return false;
+      if (req.type === "AddBlockRule" && isCriticalInfrastructure(req.ip || "")) return false;
+      if ((req.type === "AddAllowRule" || req.type === "RemoveAllowRule") && typeof req.port !== "number") return false;
       return true;
     default:
       return false; // Unknown sidecars are rejected by default
