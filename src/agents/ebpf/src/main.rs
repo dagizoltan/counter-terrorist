@@ -187,18 +187,34 @@ async fn main() -> Result<(), anyhow::Error> {
             match cmd.cmd_type.as_str() {
                 "BLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
+                        let mut xdp_success = false;
                         if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
-                            let _ = m.insert(u32::from(ip).to_be(), 1u32, 0);
-                            emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
-                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                            if m.insert(u32::from(ip).to_be(), 1u32, 0).is_ok() {
+                                xdp_success = true;
+                            }
+                        }
+
+                        // Apply NFTABLES Fallback
+                        let nft_res = apply_nftables_fallback(&ip_str, true).await;
+
+                        if xdp_success || nft_res.is_ok() {
+                            emit_response(cmd.id, true, format!("IP Blocked (XDP: {}, NFT: {})", xdp_success, nft_res.is_ok())).await;
+                        } else {
+                            emit_response(cmd.id, false, "Failed to block IP via all native vectors".to_string()).await;
+                        }
                     }
                 },
                 "UNBLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
+                        let mut xdp_success = false;
                         if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
-                            let _ = m.remove(&u32::from(ip).to_be());
-                            emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
-                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                            if m.remove(&u32::from(ip).to_be()).is_ok() {
+                                xdp_success = true;
+                            }
+                        }
+
+                        let nft_res = apply_nftables_fallback(&ip_str, false).await;
+                        emit_response(cmd.id, true, format!("IP Unblocked (XDP: {}, NFT: {})", xdp_success, nft_res.is_ok())).await;
                     }
                 },
                 "SHADOW_BAN" => {
@@ -295,6 +311,29 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+
+#[cfg(target_os = "linux")]
+async fn apply_nftables_fallback(ip: &str, block: bool) -> Result<(), anyhow::Error> {
+    // Transitioning from legacy iptables to nftables.
+    // In Milestone 2, we will use the 'nftables' crate for programmatic JSON-based management.
+    // For Milestone 1, we use a robust system call to 'nft' to ensure atomic rule application.
+    let status = if block {
+        std::process::Command::new("nft")
+            .args(["add", "rule", "inet", "filter", "input", "ip", "saddr", ip, "drop"])
+            .status()
+    } else {
+        // Note: For deletion, usually handles are preferred, but this works for simple rules
+        std::process::Command::new("nft")
+            .args(["delete", "rule", "inet", "filter", "input", "ip", "saddr", ip])
+            .status()
+    };
+
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(anyhow::anyhow!("nft returned exit code: {}", s)),
+        Err(e) => Err(anyhow::anyhow!("Failed to execute nft: {}", e)),
+    }
+}
 
 async fn run_dummy_mode() -> Result<(), anyhow::Error> {
     emit_response(None, true, "eBPF Sidecar Active (Dummy/Legacy Mode).".to_string()).await;

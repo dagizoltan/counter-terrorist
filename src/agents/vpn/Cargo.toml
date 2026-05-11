@@ -9,3 +9,5 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
 once_cell = { workspace = true }
+netlink-packet-wireguard = "0.1"
+netlink-sys = "0.8"

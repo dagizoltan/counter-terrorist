@@ -16,3 +16,4 @@ once_cell = { workspace = true }
 parking_lot = { workspace = true }
 dashmap = "6.1.0"
 anyhow = { workspace = true }
+yara = { version = "0.27", features = ["vendored"] }

@@ -18,12 +18,12 @@ export class RkhunterManager {
     public runScan: () => Promise<Result<RkhunterResult>>;
 
     constructor(private sidecar: SidecarManager) {
-        this.runScan = withTelemetry("Protection:Rkhunter", this._runScan.bind(this), loggingService);
+        this.runScan = withTelemetry("Protection:Scanner:RKH", this._runScan.bind(this), loggingService);
     }
 
     private async _runScan(): Promise<RkhunterResult> {
         try {
-            // RKH_SCAN is a specialized scan type that checks for known rootkit artifacts
+            // RKH_SCAN is a native specialized scan type that checks for hidden processes and artifacts
             const result = await this.sidecar.sendCommand("scanner", { type: "RKH_SCAN" }) as any;
 
             this.lastResult = result;
@@ -57,8 +57,8 @@ export class RkhunterManager {
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
-                caller: "orchestrator:infra:system:protection:rkhunter",
-                message: `rkhunter scan failed: ${(e as Error).message}`
+                    caller: "orchestrator:infra:system:protection:scanner",
+                    message: `Native rootkit scan failed: ${(e as Error).message}`
             });
             const errResult = { success: false, error: (e as Error).message };
             this.lastResult = errResult;

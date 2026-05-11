@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, PidExt, ProcessExt, System, SystemExt};
 use std::process::Command;
 use std::fs::{self, File};
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -9,7 +10,23 @@ use std::sync::{Arc};
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
 use chrono::Utc;
+use yara::{Compiler, Rules};
 use sha2::{Sha256, Digest};
+
+static YARA_RULES: Lazy<Option<Rules>> = Lazy::new(|| {
+    let rules_str = r#"
+        rule Suspicious_Shell_Pattern {
+            strings:
+                $curl = "curl"
+                $bash = "| bash"
+            condition:
+                $curl and $bash
+        }
+    "#;
+    let compiler = Compiler::new().ok()?;
+    let compiler = compiler.add_rules_str(rules_str).ok()?;
+    compiler.compile_rules().ok()
+});
 use hex;
 use dashmap::DashMap;
 
@@ -119,6 +136,15 @@ fn scan_process_memory(pid: u32) -> Vec<MemoryAnomaly> {
     anomalies
 }
 
+fn perform_yara_scan(path: &Path) -> Option<bool> {
+    if let Some(rules) = &*YARA_RULES {
+        let results = rules.scan_file(path, 10).ok()?;
+        Some(!results.is_empty())
+    } else {
+        None
+    }
+}
+
 fn hash_file(path: &Path) -> Option<String> {
     // 1. Check Cache
     let path_str = path.to_string_lossy().to_string();
@@ -170,6 +196,14 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
             if malicious_hashes.contains(&hash.as_str()) {
                 threats_found = true;
                 log.push_str("!!! NATIVE THREAT MATCH: Malicious file hash identified in CTS database.\n");
+            }
+
+            // NATIVE YARA SCAN
+            if let Some(yara_match) = perform_yara_scan(root) {
+                if yara_match {
+                    threats_found = true;
+                    log.push_str("!!! YARA THREAT MATCH: Malicious patterns identified by native engine.\n");
+                }
             }
 
             // Behavioral heuristics (already present in mem scan, but adding static check here)
@@ -261,8 +295,25 @@ async fn main() -> anyhow::Result<()> {
                     }
                 }
 
-                // 2. Mock kernel module check
-                // In production, we'd use kmod or parse /proc/modules
+                // 2. Native /proc audit for hidden processes
+                if let Ok(entries) = fs::read_dir("/proc") {
+                    let mut proc_pids = std::collections::HashSet::new();
+                    for entry in entries.flatten() {
+                        if let Ok(name) = entry.file_name().into_string() {
+                            if let Ok(pid) = name.parse::<u32>() {
+                                proc_pids.insert(pid);
+                            }
+                        }
+                    }
+
+                    // Cross-reference with sysinfo to find mismatches (indicator of LKM rootkits)
+                    sys.refresh_processes();
+                    for pid in sys.processes().keys() {
+                        if !proc_pids.contains(&pid.as_u32()) {
+                            anomalies.push(format!("Process {} present in sysinfo but hidden in /proc (Potential Rootkit!)", pid));
+                        }
+                    }
+                }
 
                 let threats_found = !anomalies.is_empty();
                 let message = if threats_found {

@@ -27,7 +27,7 @@ export async function bootstrap(): Promise<SystemStatus> {
   const isRoot = os === "windows" ? true : (Deno.uid?.() === 0); // Simplified for Windows
 
   const deps: string[] = ["cargo"];
-  if (os === "linux") deps.push("ufw", "ss");
+  if (os === "linux") deps.push("ss");
   if (os === "darwin") deps.push("launchctl", "system_profiler");
   if (os === "windows") deps.push("powershell");
 

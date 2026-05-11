@@ -17,11 +17,11 @@ interface CommandPolicy {
  */
 export class SystemExecutor {
   private static readonly WHITELISTED_COMMANDS = [
-    "clamscan", "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
+    "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
     "crontab", "which", "where", "netsh", "taskkill", "tc", "kill",
-    "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
-    "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
-    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
+    "cp", "gcore", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
+    "tpm2_pcrread", "wg", "launchctl", "system_profiler", "ss",
+    "unshare", "tpm2_sign", "tpm2_hash", "sw_vers", "openssl",
     "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security", "powershell",
     "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw", "wfp",
     "/var/lib/cts/scripts/install_service.sh",
@@ -31,8 +31,8 @@ export class SystemExecutor {
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [
-    "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", 
-    "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "tcpdump", "setcap",
+    "tc", "wg", "gcore", "unshare", "systemctl",
+    "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "setcap",
     "chmod", "mkdir", "cp", "mv", "pfctl", "pktmon", "netsh",
     "/var/lib/cts/scripts/secure_spawn.sh"
   ];
@@ -87,12 +87,8 @@ export class SystemExecutor {
         maxArgs: 3
     },
     "systemctl": {
-      allowedArgs: [/^(start|stop|restart|status|is-active)$/, /^(cts-.*|ufw|wireguard.*|clamav.*)$/],
+      allowedArgs: [/^(start|stop|restart|status|is-active)$/, /^(cts-.*|wireguard.*|clamav.*)$/],
       maxArgs: 2
-    },
-    "ufw": {
-      allowedArgs: [/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/, /^[0-9a-zA-Z./]+$/],
-      maxArgs: 5
     },
     "kill": {
       allowedArgs: [/^-?[0-9]+$/, /^[0-9]+$/],
@@ -105,10 +101,6 @@ export class SystemExecutor {
     "mkdir": {
       allowedArgs: [/^-p$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
       maxArgs: 2
-    },
-    "tcpdump": {
-      allowedArgs: [/^-i$/, /^[a-z0-9]+$/, /^-w$/, /^\.\/volume\/storage\/captures\/[a-zA-Z0-9._-]+\.pcap$/, /^-G$/, /^[0-9]+$/, /^-W$/, /^1$/],
-      maxArgs: 8
     },
     "ls": {
       allowedArgs: [/^-la?$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
@@ -129,10 +121,6 @@ export class SystemExecutor {
     "which": {
       allowedArgs: [/^[a-z0-9-]+$/],
       maxArgs: 1
-    },
-    "clamscan": {
-        allowedArgs: [/^(-r|--quiet|--no-summary)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
-        maxArgs: 5
     },
     "sha256sum": {
         allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
@@ -170,10 +158,6 @@ export class SystemExecutor {
         allowedArgs: [/^sha256:[0-9,]+$/],
         maxArgs: 1
     },
-    "wg-quick": {
-        allowedArgs: [/^(up|down)$/, /^(all|[a-z0-9]+)$/],
-        maxArgs: 2
-    },
     "wg": {
         allowedArgs: [/^(show|set|genkey|pubkey)$/, /^[a-z0-9]+$/, /^[A-Za-z0-9+/=]+$/],
         maxArgs: 10
@@ -190,10 +174,6 @@ export class SystemExecutor {
         allowedArgs: [/^--[a-z]+$/, /^[a-z0-9/._-]+$/],
         maxArgs: 10
     },
-    "iptables": {
-        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N|--append|--delete|--insert|--list|--flush|--new-chain|--policy)$/, /^[A-Z]+$/, /^[a-zA-Z0-9\.\+\-_]+$/, /^-p$/, /^(tcp|udp|icmp)$/, /^--dport$/, /^[0-9]+$/, /^-j$/, /^(ACCEPT|DROP|REJECT|LOG)$/, /^[0-9a-fA-F\.:\/]+$/],
-        maxArgs: 20
-    },
     "tpm2_sign": {
         allowedArgs: [/^-c$/, /^[0-9a-fx]+$/, /^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
         maxArgs: 10
@@ -201,10 +181,6 @@ export class SystemExecutor {
     "tpm2_hash": {
         allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
         maxArgs: 10
-    },
-    "rkhunter": {
-        allowedArgs: [/^--check$/, /^--sk$/, /^--nocolor$/, /^--report-warnings-only$/],
-        maxArgs: 5
     },
     "security": {
         allowedArgs: [/^(cms|find-identity|unlock-keychain)$/, /^-?[a-zA-Z]+$/, /^[a-zA-Z0-9/._-]+$/],
@@ -235,7 +211,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ssh": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/],
+        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|wireguard.*|clamav.*))$/],
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {

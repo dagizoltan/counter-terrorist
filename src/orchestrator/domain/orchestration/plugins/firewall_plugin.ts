@@ -30,7 +30,7 @@ export class FirewallPlugin implements Plugin {
           type: LogType.GENERIC,
           severity: LogSeverity.WARNING,
           caller: "FIREWALL-PLUGIN",
-          message: "Native firewall (ufw) restricted. Starting in SOFTWARE-ONLY mode."
+          message: "Native kernel firewall restricted. Starting in SOFTWARE-ONLY mode."
       });
       this.active = true; // Still allow it to be active for process-level protection
     }
