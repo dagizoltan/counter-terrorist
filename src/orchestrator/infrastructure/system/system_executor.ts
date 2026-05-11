@@ -17,13 +17,13 @@ interface CommandPolicy {
  */
 export class SystemExecutor {
   private static readonly WHITELISTED_COMMANDS = [
-    "clamscan", "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
+    "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
     "crontab", "which", "where", "netsh", "taskkill", "tc", "kill",
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
-    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "tcpdump", "rkhunter", "sw_vers", "openssl",
+    "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sw_vers", "openssl",
     "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security", "powershell",
-    "scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn", "esf", "etw", "wfp",
+    "analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "tunnel", "sentinel-darwin", "telemetry-win", "enforcer-win",
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
     "/var/lib/cts/scripts/update_comm.sh",
@@ -32,7 +32,7 @@ export class SystemExecutor {
 
   private static readonly PRIVILEGED_COMMANDS = [
     "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", 
-    "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "tcpdump", "setcap",
+    "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "setcap",
     "chmod", "mkdir", "cp", "mv", "pfctl", "pktmon", "netsh",
     "/var/lib/cts/scripts/secure_spawn.sh"
   ];
@@ -258,18 +258,19 @@ export class SystemExecutor {
       allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+(\.(bin|pem|crt|key|csr|pub|sig))?$/],
       maxArgs: 10
     },
-    "scanner": { maxArgs: 10 },
-    "blocker": { maxArgs: 10 },
-    "honeypot": { maxArgs: 10 },
-    "pcap": { maxArgs: 10 },
-    "ebpf": { 
+    "analyzer": { maxArgs: 10 },
+    "enforcer": { maxArgs: 10 },
+    "decoy": { maxArgs: 10 },
+    "netcap": { maxArgs: 10 },
+    "sentinel": { 
       allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID)".*\}$/],
       maxArgs: 1 
     },
-    "fim": { maxArgs: 10 },
-    "vpn": { maxArgs: 10 },
-    "esf": { maxArgs: 10 },
-    "etw": { maxArgs: 10 }
+    "watchfile": { maxArgs: 10 },
+    "tunnel": { maxArgs: 10 },
+    "sentinel-darwin": { maxArgs: 10 },
+    "telemetry-win": { maxArgs: 10 },
+    "enforcer-win": { maxArgs: 10 }
   };
 
 

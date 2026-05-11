@@ -24,7 +24,7 @@ export class TPMManager {
         });
         
         const index = "0x1500001";
-        const res = await this.sidecar.sendCommand("tpm", { type: "Seal", index, data });
+        const res = await this.sidecar.sendCommand("trustroot", { type: "Seal", index, data });
         
         if (!res.success) {
             this.logging.log({
@@ -39,7 +39,7 @@ export class TPMManager {
 
     async unsealSecret(secretName: string): Promise<string | null> {
         const index = "0x1500001";
-        const res = await this.sidecar.sendCommand("tpm", { type: "Unseal", index });
+        const res = await this.sidecar.sendCommand("trustroot", { type: "Unseal", index });
         
         if (res.success && res.data?.data) {
             this.logging.log({
@@ -57,7 +57,7 @@ export class TPMManager {
 
     async getPcrs(indices: number[] = [0, 1, 7]): Promise<Record<number, string>> {
         try {
-            const res = await this.sidecar.sendCommand("tpm", { type: "GetPcrs", indices });
+            const res = await this.sidecar.sendCommand("trustroot", { type: "GetPcrs", indices });
             if (res.success) return res.data as Record<number, string>;
 
             // If sidecar fails but we are in bypass mode, return mock data
@@ -153,7 +153,7 @@ export class TPMManager {
             return await this.signWithNCrypt(data);
         }
 
-        const res = await this.sidecar.sendCommand("tpm", { type: "Sign", data });
+        const res = await this.sidecar.sendCommand("trustroot", { type: "Sign", data });
         return res.data?.signature || "";
     }
 
@@ -164,7 +164,7 @@ export class TPMManager {
             return await this.verifyWithHardware(data, signature);
         }
 
-        const res = await this.sidecar.sendCommand("tpm", { type: "Verify", data, signature });
+        const res = await this.sidecar.sendCommand("trustroot", { type: "Verify", data, signature });
         return res.success;
     }
 
@@ -198,15 +198,15 @@ export class TPMManager {
     }
 
     async nvDefine(index: string, size: number) {
-        return await this.sidecar.sendCommand("tpm", { type: "NvDefine", index, size });
+        return await this.sidecar.sendCommand("trustroot", { type: "NvDefine", index, size });
     }
 
     async nvWrite(index: string, data: string) {
-        return await this.sidecar.sendCommand("tpm", { type: "NvWrite", index, data });
+        return await this.sidecar.sendCommand("trustroot", { type: "NvWrite", index, data });
     }
 
     async nvRead(index: string): Promise<string | null> {
-        const res = await this.sidecar.sendCommand("tpm", { type: "NvRead", index });
+        const res = await this.sidecar.sendCommand("trustroot", { type: "NvRead", index });
         if (res.success && res.data?.data) {
             return res.data.data;
         }

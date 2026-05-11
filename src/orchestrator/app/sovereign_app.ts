@@ -213,7 +213,7 @@ export class SovereignApp {
 
             try {
                 // 1. Check if it's a sidecar
-                const sidecars = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "vpn"];
+                const sidecars = ["analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "tunnel"];
                 if (sidecars.includes(name.toLowerCase())) {
                     await this.sidecarManager.restartSidecar(name.toLowerCase());
                     return true;
@@ -329,24 +329,24 @@ export class SovereignApp {
 
     private async startDaemons() {
         const { command: sm, platformInfo } = this.services;
-        const daemons = ["honeypot", "fim", "blocker", "pcap", "scanner", "vpn"];
+        const daemons = ["decoy", "watchfile", "enforcer", "netcap", "analyzer", "tunnel"];
 
-        if (platformInfo.name === "macos") daemons.push("esf");
+        if (platformInfo.name === "macos") daemons.push("sentinel-darwin");
         if (platformInfo.name === "windows") {
-            daemons.push("etw");
-            daemons.push("wfp");
+            daemons.push("telemetry-win");
+            daemons.push("enforcer-win");
         }
 
         daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
         
-        const ebpf = await sm.getPersistentSidecar("ebpf").catch(() => null);
+        const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
         if (ebpf) {
-            await sm.sendCommand("ebpf", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
+            await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
             
             // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
             // Skip events from the orchestrator and its trusted sidecars
-            for (const comm of ["deno", "blocker", "ebpf", "fim", "pcap", "scanner", "honeypot"]) {
-                await sm.sendCommand("ebpf", { type: "TRUST_COMM", comm }).catch(() => {});
+            for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
+                await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
             }
         }
     }
@@ -538,7 +538,7 @@ export class SovereignApp {
 
         // Disable all network-facing interfaces via eBPF if available
         try {
-            await this.sidecarManager.sendCommand("ebpf", { type: "LOCKDOWN" });
+            await this.sidecarManager.sendCommand("sentinel", { type: "LOCKDOWN" });
         } catch {
             // Best effort
         }

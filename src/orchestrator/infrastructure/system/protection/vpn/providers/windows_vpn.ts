@@ -5,7 +5,7 @@ export class WindowsVpnProvider implements VpnProvider {
   constructor(private sidecar: SidecarManager) {}
 
   async connect(interfaceName: string): Promise<VpnResult> {
-    const res = await this.sidecar.sendCommand("vpn", {
+    const res = await this.sidecar.sendCommand("tunnel", {
         type: "CONNECT",
         payload: { interface: interfaceName }
     });
@@ -13,7 +13,7 @@ export class WindowsVpnProvider implements VpnProvider {
   }
 
   async disconnect(): Promise<VpnResult> {
-    const res = await this.sidecar.sendCommand("vpn", {
+    const res = await this.sidecar.sendCommand("tunnel", {
         type: "DISCONNECT",
         payload: { interface: "MeshVPN" }
     });
@@ -21,12 +21,12 @@ export class WindowsVpnProvider implements VpnProvider {
   }
 
   async isConnected(): Promise<boolean> {
-    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS" });
+    const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS" });
     return res.success && res.data?.active === true;
   }
 
   async getStatus(): Promise<any> {
-    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS" });
+    const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS" });
     return res.data;
   }
 

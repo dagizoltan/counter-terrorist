@@ -8,12 +8,12 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}
 
   async blockIp(ip: string): Promise<CommandResult> {
-    // Transitioning from UFW to high-performance eBPF/XDP blocking
-    return await this.sidecar.sendCommand("ebpf", { type: "BLOCK_IP", ip });
+    // High-performance eBPF/XDP blocking via native sentinel agent
+    return await this.sidecar.sendCommand("sentinel", { type: "BLOCK_IP", ip });
   }
 
   async shadowBanIp(ip: string): Promise<CommandResult> {
-    // Transitioning from 'tc' binary to native eBPF Traffic Control
+    // Native eBPF TC hooks via sentinel agent
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -22,19 +22,19 @@ export class UbuntuFirewallProvider implements FirewallProvider {
         message: `Shadow Banning IP: ${ip} via Native eBPF TC hooks.`
     });
     
-    return await this.sidecar.sendCommand("ebpf", { type: "SHADOW_BAN", ip });
+    return await this.sidecar.sendCommand("sentinel", { type: "SHADOW_BAN", ip });
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("ebpf", { type: "UNBLOCK_IP", ip });
+    return await this.sidecar.sendCommand("sentinel", { type: "UNBLOCK_IP", ip });
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "KillProcess", pid });
+    return await this.sidecar.sendCommand("enforcer", { type: "KillProcess", pid });
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "QuarantineProcess", pid });
+    return await this.sidecar.sendCommand("enforcer", { type: "QuarantineProcess", pid });
   }
 
   async dumpProcessForensics(pid: number): Promise<CommandResult> {
@@ -47,29 +47,29 @@ export class UbuntuFirewallProvider implements FirewallProvider {
         message: `Dumping process ${pid} memory to ${dumpPath}`
     });
     
-    return await this.sidecar.sendCommand("blocker", { type: "DumpProcess", pid, path: dumpPath });
+    return await this.sidecar.sendCommand("enforcer", { type: "DumpProcess", pid, path: dumpPath });
   }
 
   async getStatus(): Promise<CommandResult> {
-    // Hermetic: Query the agent status instead of UFW
-    return await this.sidecar.sendCommand("ebpf", { type: "GET_STATUS" });
+    // Hermetic: Query the sentinel agent status
+    return await this.sidecar.sendCommand("sentinel", { type: "GET_STATUS" });
   }
 
   async lockdown(): Promise<CommandResult> {
     // Global lockdown via eBPF XDP default-deny
-    return await this.sidecar.sendCommand("ebpf", { type: "LOCKDOWN" });
+    return await this.sidecar.sendCommand("sentinel", { type: "LOCKDOWN" });
   }
   
   async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("ebpf", { type: "ALLOW_PORT", port, protocol });
+    return await this.sidecar.sendCommand("sentinel", { type: "ALLOW_PORT", port, protocol });
   }
 
   async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("ebpf", { type: "DENY_PORT", port, protocol });
+    return await this.sidecar.sendCommand("sentinel", { type: "DENY_PORT", port, protocol });
   }
 
   async flushRules(): Promise<CommandResult> {
-    // Hermetic: Flush agent maps instead of resetting UFW
-    return await this.sidecar.sendCommand("ebpf", { type: "FLUSH_RULES" });
+    // Hermetic: Flush sentinel agent maps
+    return await this.sidecar.sendCommand("sentinel", { type: "FLUSH_RULES" });
   }
 }

@@ -66,10 +66,10 @@ export function createPersistenceManager(sidecar: SidecarManager, executor: Syst
 
 export function createPcapManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): PcapManager {
   if (platform.name === "macos") {
-    return new PcapManager(new MacosPcapProvider(executor));
+    return new PcapManager(new MacosPcapProvider(sidecar));
   }
   if (platform.name === "windows") {
     return new PcapManager(new WindowsPcapProvider(executor));
   }
-  return new PcapManager(new UbuntuPcapProvider(executor));
+  return new PcapManager(new UbuntuPcapProvider(sidecar));
 }

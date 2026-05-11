@@ -1,55 +1,32 @@
 import { PcapProvider } from "../pcap.ts";
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { CommandResult } from "@core/ports.ts";
 
+/**
+ * UbuntuPcapProvider
+ * Achieves Full Dependency Hermeticity for packet capture via native sidecar.
+ * Replaces legacy `tcpdump` shell-out with the Rust `pcap` agent's raw socket capture.
+ */
 export class UbuntuPcapProvider implements PcapProvider {
-  private activeCaptures: Map<string, Deno.ChildProcess> = new Map();
+  constructor(private sidecar: SidecarManager) {}
 
-  constructor(private executor: SystemExecutor) {}
-
-  async startCapture(interfaceName: string, duration: number, filename: string, filter?: string): Promise<CommandResult> {
-    const args = [
-      "-i", interfaceName,
-      "-w", `./volume/pcaps/${filename}`,
-      "-G", duration.toString(),
-      "-W", "1"
-    ];
-
-    if (filter) {
-      args.push(filter);
-    }
-
-    try {
-      const command = new Deno.Command("tcpdump", {
-        args,
-        stdout: "piped",
-        stderr: "piped",
-      });
-      
-      const child = command.spawn();
-      this.activeCaptures.set(filename, child);
-      
-      return { success: true, stdout: `Started capture on ${interfaceName} -> ${filename}`, stderr: "" };
-    } catch (e) {
-      return { success: false, stdout: "", stderr: (e as Error).message };
-    }
+  async startCapture(interfaceName: string, duration: number, filename: string, _filter?: string): Promise<CommandResult> {
+    return await this.sidecar.sendCommand("pcap", {
+      type: "StartCapture",
+      interface: interfaceName,
+      filename
+    });
   }
 
-  async stopCapture(filename: string): Promise<CommandResult> {
-    const child = this.activeCaptures.get(filename);
-    if (child) {
-      try {
-        child.kill();
-        this.activeCaptures.delete(filename);
-        return { success: true, stdout: `Stopped capture: ${filename}`, stderr: "" };
-      } catch (e) {
-        return { success: false, stdout: "", stderr: (e as Error).message };
-      }
-    }
-    return { success: false, stdout: "", stderr: "Capture not found" };
+  async stopCapture(_filename: string): Promise<CommandResult> {
+    return await this.sidecar.sendCommand("pcap", {
+      type: "StopCapture"
+    });
   }
 
   async getStatus(): Promise<CommandResult> {
-    return { success: true, stdout: `Active captures: ${this.activeCaptures.size}`, stderr: "" };
+    return await this.sidecar.sendCommand("pcap", {
+      type: "GetStatus"
+    });
   }
 }

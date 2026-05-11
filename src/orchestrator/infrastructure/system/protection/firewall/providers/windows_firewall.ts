@@ -6,28 +6,28 @@ export class WindowsFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager) {}
 
   async blockIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("wfp", { type: "AddBlockRule", ip });
+    return await this.sidecar.sendCommand("enforcer-win", { type: "AddBlockRule", ip });
   }
 
   async shadowBanIp(ip: string): Promise<CommandResult> {
     // WFP doesn't natively support shadow ban in this mock, so we just block
-    return await this.sidecar.sendCommand("wfp", { type: "AddBlockRule", ip });
+    return await this.sidecar.sendCommand("enforcer-win", { type: "AddBlockRule", ip });
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("wfp", { type: "RemoveBlockRule", ip });
+    return await this.sidecar.sendCommand("enforcer-win", { type: "RemoveBlockRule", ip });
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "KillProcess", pid });
+    return await this.sidecar.sendCommand("enforcer", { type: "KillProcess", pid });
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "QuarantineProcess", pid });
+    return await this.sidecar.sendCommand("enforcer", { type: "QuarantineProcess", pid });
   }
 
   async getStatus(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("wfp", { type: "GetStatus" });
+    return await this.sidecar.sendCommand("enforcer-win", { type: "GetStatus" });
   }
 
   async lockdown(): Promise<CommandResult> {
@@ -36,14 +36,14 @@ export class WindowsFirewallProvider implements FirewallProvider {
   }
 
   async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("wfp", { type: "AddAllowRule", port, protocol });
+    return await this.sidecar.sendCommand("enforcer-win", { type: "AddAllowRule", port, protocol });
   }
 
   async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("wfp", { type: "RemoveAllowRule", port, protocol });
+    return await this.sidecar.sendCommand("enforcer-win", { type: "RemoveAllowRule", port, protocol });
   }
 
   async flushRules(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("wfp", { type: "FlushRules" });
+    return await this.sidecar.sendCommand("enforcer-win", { type: "FlushRules" });
   }
 }

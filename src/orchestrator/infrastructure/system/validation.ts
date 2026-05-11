@@ -85,7 +85,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   return { valid: true };
 }
 
-export const ALLOWED_SIDECARS = ["scanner", "blocker", "honeypot", "pcap", "ebpf", "fim", "tpm", "vpn", "mesh", "firewall", "esf", "wfp", "etw"] as const;
+export const ALLOWED_SIDECARS = ["analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "trustroot", "tunnel", "mesh", "firewall", "sentinel-darwin", "enforcer-win", "telemetry-win"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
 export function isAllowedSidecar(name: string): name is SidecarName {
@@ -271,7 +271,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
   if (!req.type) return false;
 
   switch (sidecar) {
-    case "scanner":
+    case "analyzer":
       if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"].includes(req.type)) return false;
       if (req.type === "DIR_SCAN" || req.type === "ScanPath" || req.type === "Quarantine") {
         if (req.path) {
@@ -283,7 +283,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
         }
       }
       return true;
-    case "blocker":
+    case "enforcer":
       if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus"].includes(req.type)) return false;
       if ((req.type === "KillProcess" || req.type === "QuarantineProcess" || req.type === "DumpProcess") && typeof req.pid !== "number") return false;
       const targetIp = req.ip;
@@ -291,8 +291,8 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (req.type === "BlockIp" && isCriticalInfrastructure(targetIp || "")) return false;
       if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
       return true;
-    case "pcap":
-      if (!["StartCapture", "StopCapture"].includes(req.type)) return false;
+    case "netcap":
+      if (!["StartCapture", "StopCapture", "GetStatus"].includes(req.type)) return false;
       if (req.type === "StartCapture") {
         if (req.interface && typeof req.interface !== "string") return false;
         if (req.interface && !INTERFACE_NAME_REGEX.test(req.interface)) return false;
@@ -305,7 +305,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
         }
       }
       return true;
-    case "honeypot":
+    case "decoy":
       if (!["ToggleModule", "UpdateModule", "Sabotage", "GetStatus"].includes(req.type)) return false;
       if (req.type === "ToggleModule" || req.type === "UpdateModule") {
         if (typeof req.module !== "string") return false;
@@ -313,12 +313,12 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       }
       if (req.type === "Sabotage" && typeof req.source_ip !== "string") return false;
       return true;
-    case "fim":
+    case "watchfile":
       if (!["WatchPath", "UnwatchPath", "GetStatus"].includes(req.type)) return false;
       const targetPath = req.path;
       if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof targetPath !== "string") return false;
       return true;
-    case "ebpf":
+    case "sentinel":
       const ebpfTypes = [
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
         "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
@@ -331,13 +331,13 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if ((req.type === "HIDE_PID" || req.type === "ENFORCE_PID" || req.type === "UNENFORCE_PID") && typeof req.pid !== "number") return false;
       if ((req.type === "ALLOW_PORT" || req.type === "DENY_PORT") && typeof req.port !== "number") return false;
       return true;
-    case "tpm":
-      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs"].includes(req.type)) return false;
+    case "trustroot":
+      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity"].includes(req.type)) return false;
       return true;
-    case "vpn":
+    case "tunnel":
       if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
       return true;
-    case "esf":
+    case "sentinel-darwin":
       const esfTypes = [
         "BlockIp", "UnblockIp", "ShadowBanIp", "AllowPort", "DenyPort",
         "Lockdown", "FlushRules", "GetStatus", "UpdatePolicy"
@@ -347,7 +347,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (req.type === "BlockIp" && isCriticalInfrastructure(req.ip || "")) return false;
       if ((req.type === "AllowPort" || req.type === "DenyPort") && typeof req.port !== "number") return false;
       return true;
-    case "wfp":
+    case "enforcer-win":
       const wfpTypes = [
         "AddBlockRule", "RemoveBlockRule", "AddAllowRule", "RemoveAllowRule",
         "ProtectDirectory", "GetStatus", "FlushRules"

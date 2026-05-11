@@ -236,8 +236,8 @@ export class MetricsService {
         try {
             // 1. Detection Phase (Run once)
             if (this.scannerAvailable === null) {
-                this.scannerAvailable = (await this.sidecarManager.getExecutor().execute("which", ["clamscan"])).success;
-                this.vpnAvailable = (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success || true;
+                this.scannerAvailable = this.sidecarManager.isRunning("analyzer");
+                this.vpnAvailable = this.sidecarManager.isRunning("vpn") || (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success;
             }
 
             // 2. High-Frequency Phase (Parallelized for Performance)

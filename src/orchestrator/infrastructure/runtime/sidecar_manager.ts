@@ -468,7 +468,7 @@ export class SidecarManager implements CommandPort {
         "RUST_LOG": "info"
     };
 
-    if (name === "ebpf" || name === "pcap") {
+    if (name === "sentinel" || name === "netcap") {
         if (!this.defaultInterface) {
             const { getDefaultInterface } = await import("../system/network.ts");
             this.defaultInterface = await getDefaultInterface();
@@ -476,7 +476,7 @@ export class SidecarManager implements CommandPort {
         env["CTS_IFACE"] = this.defaultInterface;
     }
 
-    if (name === "pcap") {
+    if (name === "netcap") {
         env["CTS_CAPTURE_DIR"] = "./volume/storage/captures";
     }
 
@@ -580,10 +580,10 @@ export class SidecarManager implements CommandPort {
   private getCapabilities(name: string): string | undefined {
     const caps: Record<string, string> = {
         "firewall": "cap_net_admin,cap_kill+ep",
-        "blocker": "cap_net_admin,cap_kill+ep",
-        "ebpf": "cap_sys_admin,cap_net_admin,cap_sys_resource+ep",
-        "pcap": "cap_net_raw,cap_net_admin+ep",
-        "vpn": "cap_net_admin+ep",
+        "enforcer": "cap_net_admin,cap_kill+ep",
+        "sentinel": "cap_sys_admin,cap_net_admin,cap_sys_resource+ep",
+        "netcap": "cap_net_raw,cap_net_admin+ep",
+        "tunnel": "cap_net_admin+ep",
         "mesh": "cap_net_bind_service+ep"
     };
     return caps[name];
@@ -643,11 +643,10 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     try {
-        const result = await this.executor.execute("openssl", ["dgst", "-sha256", "-r", path]);
-        if (result.success && result.stdout) {
-            return result.stdout.split(" ")[0].trim();
-        }
-        return null;
+        const data = await Deno.readFile(path);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        return Array.from(new Uint8Array(hashBuffer))
+            .map(b => b.toString(16).padStart(2, "0")).join("");
     } catch {
         return null;
     }

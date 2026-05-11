@@ -6,42 +6,42 @@ export class MacosFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager) {}
 
   async blockIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "BlockIp", ip });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "BlockIp", ip });
   }
 
   async shadowBanIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "ShadowBanIp", ip });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "ShadowBanIp", ip });
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "UnblockIp", ip });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "UnblockIp", ip });
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "KillProcess", pid });
+    return await this.sidecar.sendCommand("enforcer", { type: "KillProcess", pid });
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("blocker", { type: "QuarantineProcess", pid });
+    return await this.sidecar.sendCommand("enforcer", { type: "QuarantineProcess", pid });
   }
 
   async getStatus(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "GetStatus" });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "GetStatus" });
   }
 
   async lockdown(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "Lockdown" });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "Lockdown" });
   }
 
   async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "AllowPort", port, protocol });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "AllowPort", port, protocol });
   }
 
   async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "DenyPort", port, protocol });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "DenyPort", port, protocol });
   }
 
   async flushRules(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("esf", { type: "FlushRules" });
+    return await this.sidecar.sendCommand("sentinel-darwin", { type: "FlushRules" });
   }
 }

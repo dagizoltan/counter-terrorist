@@ -1,21 +1,32 @@
 import { PcapProvider } from "../pcap.ts";
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { CommandResult } from "@core/ports.ts";
 
+/**
+ * MacosPcapProvider
+ * Achieves Full Dependency Hermeticity for packet capture via native sidecar.
+ * Replaces legacy `tcpdump` shell-out with the Rust `pcap` agent's raw socket capture.
+ */
 export class MacosPcapProvider implements PcapProvider {
-  constructor(private executor: SystemExecutor) {}
+  constructor(private sidecar: SidecarManager) {}
 
-  async startCapture(interface_name: string = "any", duration: number = 60, filename: string = "capture.pcap", filter: string = ""): Promise<CommandResult> {
-    const args = ["-i", interface_name, "-G", duration.toString(), "-W", "1", "-w", `./volume/storage/captures/${filename}`];
-    if (filter) args.push(filter);
-    return await this.executor.execute("tcpdump", args);
+  async startCapture(interfaceName: string = "any", _duration: number = 60, filename: string = "capture.pcap", _filter?: string): Promise<CommandResult> {
+    return await this.sidecar.sendCommand("pcap", {
+      type: "StartCapture",
+      interface: interfaceName,
+      filename
+    });
   }
 
   async stopCapture(): Promise<CommandResult> {
-    return await this.executor.execute("killall", ["tcpdump"]);
+    return await this.sidecar.sendCommand("pcap", {
+      type: "StopCapture"
+    });
   }
 
   async getStatus(): Promise<CommandResult> {
-    return await this.executor.execute("pgrep", ["tcpdump"]);
+    return await this.sidecar.sendCommand("pcap", {
+      type: "GetStatus"
+    });
   }
 }

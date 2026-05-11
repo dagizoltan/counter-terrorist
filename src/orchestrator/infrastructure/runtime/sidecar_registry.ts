@@ -7,17 +7,19 @@ export interface SidecarConfig {
 }
 
 export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
-    vpn: {
-        name: "vpn",
-        description: "Multi-tier identity rotation and stealth exit-node management.",
+    tunnel: {
+        name: "tunnel",
+        description: "Encrypted network tunnel management via WireGuard.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "tunnel"
     },
-    blocker: {
-        name: "blocker",
-        description: "Active enforcement agent for process termination and forensic dumping.",
+    enforcer: {
+        name: "enforcer",
+        description: "Active enforcement agent for process termination, quarantine, and forensic dumping.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "enforcer"
     },
     mesh: {
         name: "mesh",
@@ -25,59 +27,68 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         persistent: true,
         privileged: true
     },
-    scanner: {
-        name: "scanner",
-        description: "Vulnerability and port scanner for local network assessment.",
+    analyzer: {
+        name: "analyzer",
+        description: "Threat analysis agent for malware scanning, rootkit detection, and signature-based file inspection.",
         persistent: true,
-        privileged: false
+        privileged: false,
+        binaryName: "analyzer"
     },
-    honeypot: {
-        name: "honeypot",
-        description: "Multi-vector deception service with SSH, Telnet, and HTTP decoys.",
+    decoy: {
+        name: "decoy",
+        description: "Multi-vector deception service with SSH, Telnet, and HTTP traps, tarpitting, and attacker profiling.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "decoy"
     },
-    ebpf: {
-        name: "ebpf",
-        description: "Kernel-level observer and LSM enforcer for zero-trust access control.",
+    sentinel: {
+        name: "sentinel",
+        description: "Kernel-level XDP/TC firewall, LSM policy enforcer, and syscall tracer for zero-trust access control.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "sentinel"
     },
-    fim: {
-        name: "fim",
-        description: "File Integrity Monitor for tracking unauthorized access to canary breadcrumbs.",
+    watchfile: {
+        name: "watchfile",
+        description: "File integrity monitor using fanotify for real-time unauthorized access detection.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "watchfile"
     },
-    pcap: {
-        name: "pcap",
-        description: "Packet capture and deep packet inspection for mesh traffic.",
+    netcap: {
+        name: "netcap",
+        description: "Native PCAPng packet capture and deep packet inspection via raw sockets.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "netcap"
     },
-    tpm: {
-        name: "tpm",
-        description: "Hardware Root of Trust manager for mesh identity and secrets.",
+    trustroot: {
+        name: "trustroot",
+        description: "Hardware Root of Trust manager for TPM seal/unseal, signing, PCR attestation, and NVRAM secrets.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "trustroot"
     },
-    esf: {
-        name: "esf",
-        description: "macOS Endpoint Security agent for real-time visibility and authorization.",
+    "sentinel-darwin": {
+        name: "sentinel-darwin",
+        description: "macOS Endpoint Security Framework agent for real-time visibility and kernel-level authorization.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "sentinel-darwin"
     },
-    etw: {
-        name: "etw",
-        description: "Windows Event Tracing for high-fidelity syscall and process monitoring.",
+    "telemetry-win": {
+        name: "telemetry-win",
+        description: "Windows Event Tracing agent for high-fidelity syscall and process monitoring.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "telemetry-win"
     },
-    wfp: {
-        name: "wfp",
+    "enforcer-win": {
+        name: "enforcer-win",
         description: "Windows Filtering Platform agent for Ring 0 network and file enforcement.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        binaryName: "enforcer-win"
     }
 };
 

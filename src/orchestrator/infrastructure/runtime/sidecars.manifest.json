@@ -1,46 +1,46 @@
 {
   "sidecars": {
-    "tpm": {
-      "path": "./src/agents/target/release/tpm",
+    "trustroot": {
+      "path": "./src/agents/target/release/trustroot",
       "hash": "1880b3255b6cf02eb24a51c6a12e42ebad9a88967e340a7b7f54cb2a08b04958",
       "persistent": true
     },
-    "ebpf": {
-      "path": "./src/agents/target/release/ebpf",
+    "sentinel": {
+      "path": "./src/agents/target/release/sentinel",
       "hash": "75aba612a0a97b648c9ae82b7c3caf1c967da8ca6144caba7152abbec8cc032c",
       "persistent": true,
       "capabilities": ["cap_sys_admin", "cap_net_admin", "cap_sys_resource"]
     },
-    "vpn": {
-      "path": "./src/agents/target/release/vpn",
+    "tunnel": {
+      "path": "./src/agents/target/release/tunnel",
       "hash": "ac97c447df642645a7457ac06f0278e4adc0fc37f4ffd8ab6661d71e8a869583",
       "persistent": true,
       "capabilities": ["cap_net_admin"]
     },
-    "blocker": {
-      "path": "./src/agents/target/release/blocker",
+    "enforcer": {
+      "path": "./src/agents/target/release/enforcer",
       "hash": "718f7dbd0a383fe6f3b66ea13f1a5176790fe63a88af71b61b1784a64bef446c",
       "persistent": true,
       "capabilities": ["cap_net_admin", "cap_kill"]
     },
-    "scanner": {
-      "path": "./src/agents/target/release/scanner",
+    "analyzer": {
+      "path": "./src/agents/target/release/analyzer",
       "hash": "5c30c1605622657047179f683176cef0f6ac9dd422c19de52984d02ae74399a9",
       "persistent": true
     },
-    "pcap": {
-      "path": "./src/agents/target/release/pcap",
+    "netcap": {
+      "path": "./src/agents/target/release/netcap",
       "hash": "63b6003147b683d90fec03ca65d29e7997955636535c73274925fbd66c4e8892",
       "persistent": true,
       "capabilities": ["cap_net_raw", "cap_net_admin"]
     },
-    "honeypot": {
-      "path": "./src/agents/target/release/honeypot",
+    "decoy": {
+      "path": "./src/agents/target/release/decoy",
       "hash": "8bb87e59cd9fbdd6c985b548b0e76d3730560b98b7f8403e0abcad40f6300312",
       "persistent": true
     },
-    "fim": {
-        "path": "./src/agents/target/release/fim",
+    "watchfile": {
+        "path": "./src/agents/target/release/watchfile",
         "hash": "78c6acbe1b3cccaca9ad8ea8955b2fee412677d8cea3fb7f8b0d6784828cb6da",
         "persistent": true,
         "capabilities": ["cap_sys_admin"]

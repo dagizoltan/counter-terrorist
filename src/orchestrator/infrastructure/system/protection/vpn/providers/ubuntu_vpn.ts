@@ -9,22 +9,22 @@ export class UbuntuVpnProvider implements VpnProvider {
   constructor(private sidecar: SidecarManager) {}
 
   async connect(interfaceName: string = "wg0"): Promise<VpnResult> {
-    const res = await this.sidecar.sendCommand("vpn", { type: "CONNECT", payload: { interface: interfaceName } });
+    const res = await this.sidecar.sendCommand("tunnel", { type: "CONNECT", payload: { interface: interfaceName } });
     return { success: res.success, message: res.stdout || res.stderr || "" };
   }
 
   async disconnect(interfaceName: string = "wg0"): Promise<VpnResult> {
-    const res = await this.sidecar.sendCommand("vpn", { type: "DISCONNECT", payload: { interface: interfaceName } });
+    const res = await this.sidecar.sendCommand("tunnel", { type: "DISCONNECT", payload: { interface: interfaceName } });
     return { success: res.success, message: res.stdout || res.stderr || "" };
   }
 
   async isConnected(interfaceName: string = "wg0"): Promise<boolean> {
-    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS", payload: {} });
+    const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS", payload: {} });
     return res.success && (res.data?.active === true || res.data?.active_interfaces?.includes(interfaceName));
   }
 
   async getStatus(): Promise<any> {
-    const res = await this.sidecar.sendCommand("vpn", { type: "GET_STATUS", payload: {} });
+    const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS", payload: {} });
     return res.data;
   }
 
