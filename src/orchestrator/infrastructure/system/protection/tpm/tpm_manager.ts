@@ -181,9 +181,11 @@ export class TPMManager {
     private async signWithNCrypt(data: string): Promise<string> {
         // Windows NCrypt Integration: Use PowerShell to bridge to NCrypt.Storage provider
         try {
+            // SECURITY: Base64 encode the data before passing to PowerShell to prevent injection
+            const b64Data = btoa(data);
             const res = await this.sidecar.getExecutor().execute("powershell", [
                 "-Command",
-                `$data = [System.Text.Encoding]::UTF8.GetBytes('${data}'); $key = [Microsoft.Security.Cryptography.NCrypt]::OpenKey('CTS_KEY'); $sig = $key.Sign($data); [Convert]::ToBase64String($sig)`
+                `$data = [System.Convert]::FromBase64String('${b64Data}'); $key = [Microsoft.Security.Cryptography.NCrypt]::OpenKey('CTS_KEY'); $sig = $key.Sign($data); [Convert]::ToBase64String($sig)`
             ]);
             if (res.success) return `NCRYPT_SIG:${res.stdout.trim()}`;
         } catch { /* fallback */ }

@@ -165,12 +165,50 @@ export class AuditService {
         }
     }
 
+    /**
+     * Synchronizes events from mesh peers, verifying integrity before merging.
+     */
     async syncEvents(events: AuditEvent[]) {
-        for (const event of events) {
+        if (!events || events.length === 0) return;
+
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "AUDIT:SYNC",
+            message: `Verifying and merging ${events.length} mesh events...`
+        });
+
+        // 1. Sort events chronologically to allow chain verification
+        const sorted = [...events].sort((a, b) =>
+            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        );
+
+        for (const event of sorted) {
             try {
+                // 2. Structural & Integrity Validation
+                const hashInput = {
+                    id: event.id, timestamp: event.timestamp, type: event.type, severity: event.severity,
+                    caller: event.caller, message: event.message,
+                    actor: event.actor, data: event.data,
+                    correlationId: event.correlationId, prevHash: event.prevHash,
+                };
+                const expectedHash = await this.computeHash(hashInput);
+
+                if (event.hash !== expectedHash) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "AUDIT:SYNC",
+                        message: `REJECTED: Hash mismatch in mesh event ${event.id}. Malicious sync attempt?`
+                    });
+                    continue;
+                }
+
                 await this.repo.save(event);
             } catch (e) {
-                // Ignore duplicates or errors during blind sync
+                // Ignore duplicates or errors during sync
             }
         }
         await this.restoreChainHead();

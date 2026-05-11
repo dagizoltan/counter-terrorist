@@ -1,6 +1,8 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { KvRepository } from "@infrastructure/persistence/repositories/kv_repository.ts";
 import { withTelemetry } from "@core/service_utils.ts";
+import { Result } from "@core/result.ts";
+import { secureCompare } from "@infrastructure/system/validation.ts";
 
 export type Role = "admin" | "operator" | "viewer" | "mesh_peer";
 
@@ -15,9 +17,11 @@ export interface ApiKeyMetadata {
 export class ApiKeysService {
   private hashRepo: KvRepository<ApiKeyMetadata>;
   private idRepo: KvRepository<string>;
-  public createApiKey: (name: string, role: Role) => Promise<any>;
-  public validateApiKey: (rawKey: string | undefined) => Promise<any>;
-  public revokeApiKey: (id: string) => Promise<any>;
+
+  // Public decorated methods
+  public createApiKey: (name: string, role: Role) => Promise<Result<{ rawKey: string; id: string }>>;
+  public validateApiKey: (rawKey: string | undefined) => Promise<Result<Role | null>>;
+  public revokeApiKey: (id: string) => Promise<Result<void>>;
 
   constructor(private kv: Deno.Kv, private logging: LoggingPort) {
     this.hashRepo = new KvRepository<ApiKeyMetadata>(kv, "api_keys_hash");
@@ -101,7 +105,6 @@ export class ApiKeysService {
       const providedHash = await this.hashKey(rawKey, metadata.salt);
 
       // 4. Constant-time comparison to prevent timing attacks
-      const { secureCompare } = await import("@infrastructure/system/validation.ts");
       if (await secureCompare(providedHash, expectedHash)) {
         metadata.lastUsed = Date.now();
         this.hashRepo.set(expectedHash, metadata).catch(() => {});

@@ -26,6 +26,7 @@ import { loggingService, LogSeverity, LogType } from "@infrastructure/system/log
 import { broadcast, initBroadcaster } from "@api/ws.ts";
 import { createProtection } from "@infrastructure/system/protection/index.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
+import { secureCompare } from "@infrastructure/system/validation.ts";
 import { bootstrap, camouflage } from "./bootstrapper.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { loadConfig } from "@core/config_schema.ts";
@@ -258,7 +259,7 @@ export class SovereignApp {
 
         const isValidBypass = secureBypass && 
                              secureBypass.length >= 32 && 
-                             bypassToken === secureBypass &&
+                             (await secureCompare(bypassToken, secureBypass)) &&
                              Deno.env.get("ENVIRONMENT") !== "production";
 
         if (!isHardwareSecure && !isValidBypass) {

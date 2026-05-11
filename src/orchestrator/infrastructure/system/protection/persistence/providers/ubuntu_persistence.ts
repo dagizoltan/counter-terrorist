@@ -39,8 +39,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=${projectRoot}
-ExecStart=${binaryPath} run --allow-all --unstable-kv ${mainScript}
+WorkingDirectory="${projectRoot}"
+ExecStart="${binaryPath}" run --allow-all --unstable-kv "${mainScript}"
 Restart=always
 RestartSec=5
 StandardOutput=journal

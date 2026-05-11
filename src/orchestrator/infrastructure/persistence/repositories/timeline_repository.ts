@@ -80,4 +80,11 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
     await this.kv.set(["stats", this.prefix, "count"], new Deno.KvU64(BigInt(count)));
     return count;
   }
+
+  async *getStream(limit?: number, reverse?: boolean): AsyncIterable<T> {
+    const iter = this.kv.list<T>({ prefix: [this.prefix] }, { limit, reverse });
+    for await (const entry of iter) {
+      yield entry.value;
+    }
+  }
 }

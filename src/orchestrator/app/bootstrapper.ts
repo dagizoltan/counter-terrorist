@@ -5,6 +5,7 @@
 
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
+import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 
 export interface SystemStatus {
   os: string;
@@ -13,28 +14,11 @@ export interface SystemStatus {
   dependencies: Record<string, boolean>;
 }
 
-export async function checkDependency(cmd: string): Promise<boolean> {
-  try {
-    const command = new Deno.Command("which", {
-      args: [cmd],
-    });
-    const { success } = await command.output();
-    return success;
-  } catch {
-    // For Windows 'which' doesn't exist, we might need 'where'
-    try {
-      const command = new Deno.Command("where", {
-        args: [cmd],
-      });
-      const { success } = await command.output();
-      return success;
-    } catch {
-      return false;
-    }
-  }
+export async function checkDependency(executor: SystemExecutor, cmd: string): Promise<boolean> {
+  const checkCmd = Deno.build.os === "windows" ? "where" : "which";
+  const result = await executor.execute(checkCmd, [cmd]);
+  return result.success;
 }
-
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 
 export async function bootstrap(): Promise<SystemStatus> {
   const executor = new SystemExecutor();
@@ -49,7 +33,7 @@ export async function bootstrap(): Promise<SystemStatus> {
 
   const dependencies: Record<string, boolean> = {};
   for (const dep of deps) {
-    dependencies[dep] = await checkDependency(dep);
+    dependencies[dep] = await checkDependency(executor, dep);
   }
 
   return {

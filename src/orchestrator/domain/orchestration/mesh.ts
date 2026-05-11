@@ -157,6 +157,10 @@ export class MeshManager {
   private async probeNode(address: string) {
     if (!this.httpClient) return;
 
+    // SECURITY: Validate address to prevent SSRF or malformed requests during discovery
+    const { isValidIP } = await import("@infrastructure/system/validation.ts");
+    if (!isValidIP(address)) return;
+
     try {
       // SECURE DISCOVERY: Always use HTTPS and mTLS client
       const url = `https://${address}:${this.port}/api/mesh/ping`;

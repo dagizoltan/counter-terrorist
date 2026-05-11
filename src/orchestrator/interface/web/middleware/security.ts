@@ -28,7 +28,7 @@ export class SecurityMiddleware {
       if (c.res) {
         c.res.headers.set(
           "Content-Security-Policy",
-          `default-src 'self'; script-src 'self' 'nonce-${nonce}'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';`
+          `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;`
         );
         c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
         c.res.headers.set("X-Frame-Options", "DENY");
@@ -43,7 +43,7 @@ export class SecurityMiddleware {
    */
   public getActor(c: Context): ActorContext {
     const session = c.get("session");
-    const ip = c.req.header("X-Forwarded-For") || "unknown";
+    const ip = this.getClientIp(c);
     const userAgent = c.req.header("User-Agent");
 
     if (session) {
@@ -64,14 +64,27 @@ export class SecurityMiddleware {
     };
   }
 
+  /**
+   * Securely extracts the client IP, preventing spoofing unless from a trusted proxy.
+   */
+  private getClientIp(c: Context): string {
+    const directIp = (c.env as any)?.remoteAddr?.hostname;
+    const forwardedFor = c.req.header("X-Forwarded-For");
+
+    if (forwardedFor) {
+        const trustedProxies = Deno.env.get("TRUSTED_PROXIES")?.split(",").map(p => p.trim()) || [];
+        if (directIp && trustedProxies.includes(directIp)) {
+            return forwardedFor.split(",")[0]?.trim() || directIp;
+        }
+    }
+
+    return directIp || "unknown";
+  }
+
   public auth() {
     return async (c: Context, next: Next) => {
       const path = c.req.path;
-      
-      // Robust IP extraction: X-Forwarded-For (proxy) -> Deno RemoteAddr (direct) -> "unknown"
-      const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() 
-        || (c.env as any)?.remoteAddr?.hostname 
-        || "unknown";
+      const ip = this.getClientIp(c);
 
       if (this.services.threatIntel.getBlacklist().has(ip)) {
         loggingService.log({
@@ -119,10 +132,15 @@ export class SecurityMiddleware {
             const csrfHeader = c.req.header("X-CT-Token");
             let csrfBody: string | undefined;
             
-            // Try to extract from body if header is missing (for standard form posts)
-            if (!csrfHeader && c.req.header("Content-Type")?.includes("application/x-www-form-urlencoded")) {
-              const body = await c.req.parseBody().catch(() => ({} as Record<string, string>));
-              csrfBody = (body as Record<string, string>).csrfToken as string;
+            // Try to extract from body if header is missing
+            if (!csrfHeader) {
+              const contentType = c.req.header("Content-Type");
+              if (contentType?.includes("application/x-www-form-urlencoded")) {
+                const body = await c.req.parseBody().catch(() => ({} as Record<string, string>));
+                csrfBody = (body as Record<string, string>).csrfToken as string;
+              }
+              // Note: We avoid reading the JSON body here to prevent draining the request stream.
+              // Clients should use the X-CT-Token header for application/json requests.
             }
 
             const providedToken = csrfHeader || csrfBody;

@@ -55,9 +55,9 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
 
   const hostname = parsed.hostname.toLowerCase();
 
-  // Block loopback
-  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "[::1]") {
-    return { valid: false, reason: "Loopback addresses are not allowed" };
+  // Block loopback and local-only variants
+  if (hostname === "localhost" || hostname.startsWith("127.") || hostname === "0.0.0.0" || hostname === "::1" || hostname === "[::1]" || hostname === "[::]") {
+    return { valid: false, reason: "Loopback and local addresses are not allowed" };
   }
 
   // Block cloud metadata endpoints
@@ -99,8 +99,24 @@ export function isAllowedSidecar(name: string): name is SidecarName {
 export function validatePath(p: string, jailPrefixes?: string[]): boolean {
   if (typeof p !== "string" || p.length === 0) return false;
 
-  // Reject obvious traversal and prefix bypasses
-  if (p.includes("..") || p.startsWith("//") || p.startsWith("\\\\")) return false;
+  // 1. URL Decode to catch encoded bypasses (e.g. %2e%2e, %252e%252e)
+  let decoded = p;
+  try {
+    // Repeatedly decode until no more changes to catch multi-level encoding
+    let previous;
+    do {
+      previous = decoded;
+      decoded = decodeURIComponent(decoded);
+    } while (decoded !== previous);
+  } catch {
+    // If decoding fails, we still proceed with the original string but it's suspicious
+  }
+
+  // 2. Detect and reject null-byte injections
+  if (decoded.includes("\0") || p.includes("\0")) return false;
+
+  // 3. Reject obvious traversal and prefix bypasses
+  if (decoded.includes("..") || p.includes("..") || p.startsWith("//") || p.startsWith("\\\\") || decoded.startsWith("//") || decoded.startsWith("\\\\")) return false;
 
   let normalized: string;
   try {

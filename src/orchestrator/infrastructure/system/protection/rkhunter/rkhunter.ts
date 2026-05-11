@@ -2,6 +2,8 @@ import { broadcast } from "@api/ws.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
+import { Result } from "@core/result.ts";
+import { withTelemetry } from "@core/service_utils.ts";
 
 export interface RkhunterResult {
     success: boolean;
@@ -13,10 +15,13 @@ export interface RkhunterResult {
 
 export class RkhunterManager {
     private lastResult: RkhunterResult | null = null;
+    public runScan: () => Promise<Result<RkhunterResult>>;
 
-    constructor(private sidecar: SidecarManager) {}
+    constructor(private sidecar: SidecarManager) {
+        this.runScan = withTelemetry("Protection:Rkhunter", this._runScan.bind(this), loggingService);
+    }
 
-    async runScan(): Promise<RkhunterResult> {
+    private async _runScan(): Promise<RkhunterResult> {
         try {
             // RKH_SCAN is a specialized scan type that checks for known rootkit artifacts
             const result = await this.sidecar.sendCommand("scanner", { type: "RKH_SCAN" }) as any;

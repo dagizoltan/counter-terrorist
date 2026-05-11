@@ -7,7 +7,7 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
   const router = new Hono();
 
   // Restart a sidecar
-  router.post("/:name/restart", async (c: Context) => {
+  router.post("/:name/restart", security.requireRole("admin", "operator"), async (c: Context) => {
     const name = c.req.param("name") as SidecarName;
     try {
       await services.command.restartSidecar(name);
@@ -18,7 +18,7 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
   });
 
   // Stop a sidecar
-  router.post("/:name/stop", async (c: Context) => {
+  router.post("/:name/stop", security.requireRole("admin", "operator"), async (c: Context) => {
     const name = c.req.param("name") as SidecarName;
     try {
       await services.command.stopSidecar(name);
@@ -44,22 +44,19 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
   });
 
   // VPN specific controls
-  router.post("/vpn/connect", async (c: Context) => {
+  router.post("/vpn/connect", security.requireRole("admin", "operator"), async (c: Context) => {
     const { interface: iface } = await c.req.json();
     const result = await services.protection.vpn.connect(iface || "wg0");
     return c.json(result);
   });
 
-  router.post("/vpn/disconnect", async (c: Context) => {
+  router.post("/vpn/disconnect", security.requireRole("admin", "operator"), async (c: Context) => {
     const result = await services.protection.vpn.disconnect();
     return c.json(result);
   });
 
   // Firewall specific controls
-  router.post("/firewall/block", async (c: Context) => {
-    const role = c.get("role");
-    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
-
+  router.post("/firewall/block", security.requireRole("admin", "operator"), async (c: Context) => {
     const payload = await c.req.json();
     if (!payload.ip || !isValidIP(payload.ip)) return c.json({ error: "Invalid IP address" }, 400);
     if (isCriticalInfrastructure(payload.ip)) return c.json({ error: "Cannot block critical infrastructure" }, 403);
@@ -68,10 +65,7 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
     return c.json(result);
   });
 
-  router.post("/firewall/unblock", async (c: Context) => {
-    const role = c.get("role");
-    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
-
+  router.post("/firewall/unblock", security.requireRole("admin", "operator"), async (c: Context) => {
     const payload = await c.req.json();
     if (!payload.ip || !isValidIP(payload.ip)) return c.json({ error: "Invalid IP address" }, 400);
 
@@ -79,10 +73,7 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
     return c.json(result);
   });
 
-  router.post("/firewall/flush", async (c: Context) => {
-    const role = c.get("role");
-    if (role !== "admin") return c.json({ error: "Forbidden: Admin required to flush firewall" }, 403);
-
+  router.post("/firewall/flush", security.requireRole("admin"), async (c: Context) => {
     const result = await services.protection.firewall.flushRules();
     return c.json(result);
   });
@@ -93,7 +84,7 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
   });
 
   // Scanner specific controls
-  router.post("/scanner/scan", async (c: Context) => {
+  router.post("/scanner/scan", security.requireRole("admin", "operator"), async (c: Context) => {
     const { path, type } = await c.req.json();
 
     let result;
@@ -103,16 +94,19 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
         result = await services.protection.antivirus.scanPath(path || "/home/");
     }
     
+    const data = result.success ? result.data : { success: false, error: result.error.message };
+
     // Update metrics service with the result
     const { recordScannerResult } = await import("../../../domain/analysis/metrics_service.ts");
-    recordScannerResult(new Date().toLocaleTimeString(), result.success ? "OK" : "THREAT_FOUND");
+    const scanStatus = (data.success && !data.threatsFound) ? "OK" : (data.threatsFound ? "THREAT_FOUND" : "SCAN_FAILED");
+    recordScannerResult(new Date().toLocaleTimeString(), scanStatus);
     
-    return c.json(result);
+    return c.json(data);
   });
 
-  router.post("/scanner/sync-signatures", async (c: Context) => {
+  router.post("/scanner/sync-signatures", security.requireRole("admin", "operator"), async (c: Context) => {
     const result = await services.protection.antivirus.syncSignatures();
-    return c.json(result);
+    return c.json(result.success ? result.data : { success: false, error: result.error.message });
   });
   
   router.get("/scanner/ledger", async (c: Context) => {
