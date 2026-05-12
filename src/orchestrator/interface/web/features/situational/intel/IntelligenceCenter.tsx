@@ -78,7 +78,7 @@ export const IntelligenceCenterPage = (props: { status: any, csrfToken?: string,
            <div class="flex flex-col flex-grow t-panel glass-panel p-8 border-t-2 border-slate-700 bg-black/40">
                <header class="mb-8 flex justify-between items-center">
                   <h3 class="mono-xs font-black text-slate-400 tracking-[0.4em] uppercase">Latest Signals</h3>
-                  <a href="/news" class="mono-xs font-black text-slate-500 tracking-widest uppercase hover:text-white transition-colors">Full Feed</a>
+                  <a href="/intel/feed" class="mono-xs font-black text-slate-500 tracking-widest uppercase hover:text-white transition-colors">Full Feed</a>
                </header>
                <news-feed detailed="false" limit="6"></news-feed>
            </div>

@@ -18,7 +18,7 @@ class AlertOverlay extends HTMLElement {
     connect() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
-        const socket = new WebSocket(url.toString());
+        const socket = new SharedWebSocket(url.toString());
         
         socket.onmessage = (event) => {
             try {

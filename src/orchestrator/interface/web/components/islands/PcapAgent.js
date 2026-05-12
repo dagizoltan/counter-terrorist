@@ -64,7 +64,7 @@ class PcapAgent extends HTMLElement {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
     const url = `${protocol}//${window.location.host}/api/ws/events${csrf ? `?token=${csrf}` : ''}`;
     
-    this._ws = new WebSocket(url);
+    this._ws = new SharedWebSocket(url);
 
     this._ws.onmessage = (event) => {
       try {

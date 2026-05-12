@@ -17,19 +17,31 @@ export function createAgentsRouter(getStatus: () => Promise<ApplicationStatus>) 
   router.get("/:name", async (c: Context) => {
     const name = c.req.param("name");
     const status = await getStatus();
-    const agent = status.plugins.find(p => p.name === name);
+    const canonicalName = 
+      (name === "sentinel") ? "firewall" :
+      (name === "tunnel") ? "vpn" :
+      (name === "analyzer") ? "scanner" :
+      (name === "watchfile") ? "fim" :
+      (name === "netcap") ? "pcap" :
+      (name === "decoy") ? "honeypot" : name;
+
+    const agent = status.plugins.find(p => 
+      p.name === name || 
+      p.name === canonicalName || 
+      ((name === "sentinel" || name === "firewall") && (p.name === "ebpf" || p.name === "enforcer")) ||
+      ((name === "vpn" || name === "tunnel") && p.name === "tunnel")
+    );
     const csrfToken = c.get("csrfToken") as string;
     const nonce = c.get("nonce") as string;
 
     if (!agent) return c.notFound();
 
-    const { FirewallPage, VpnPage, ScannerPage, EbpfPage, FimPage, PcapPage, HoneypotPage, MeshPage } = await import("./subpages/core.tsx");
+    const { FirewallPage, ScannerPage, EbpfPage, FimPage, PcapPage, HoneypotPage, MeshPage } = await import("./subpages/core.tsx");
     
-    if (name === "firewall" || name === "sentinel") return c.html(<FirewallPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "vpn" || name === "tunnel") return c.html(<VpnPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "firewall" || name === "sentinel" || name === "vpn" || name === "tunnel") return c.html(<FirewallPage csrfToken={csrfToken} nonce={nonce} />);
     if (name === "mesh") return c.html(<MeshPage status={status} csrfToken={csrfToken} nonce={nonce} />);
     if (name === "scanner" || name === "analyzer") return c.html(<ScannerPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "ebpf" || name === "sentinel") return c.html(<EbpfPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "ebpf") return c.html(<EbpfPage csrfToken={csrfToken} nonce={nonce} />);
     if (name === "fim" || name === "watchfile") return c.html(<FimPage csrfToken={csrfToken} nonce={nonce} />);
     if (name === "pcap" || name === "netcap") return c.html(<PcapPage csrfToken={csrfToken} nonce={nonce} />);
     if (name === "honeypot" || name === "decoy") return c.html(<HoneypotPage csrfToken={csrfToken} nonce={nonce} />);

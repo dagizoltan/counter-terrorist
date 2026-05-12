@@ -89,7 +89,7 @@ class NewsFeed extends HTMLElement {
       return;
     }
  
-    const gridClass = isDetailed ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8' : (isCompact ? 'space-y-3' : 'space-y-6');
+    const gridClass = isDetailed ? 'flex flex-col space-y-6' : (isCompact ? 'space-y-3' : 'space-y-6');
  
     this.innerHTML = `
       <div class="${gridClass}">
@@ -134,7 +134,7 @@ class NewsFeed extends HTMLElement {
  
       ${!isDetailed && !isCompact ? `
         <div class="mt-16">
-            <a href="/news" class="t-btn primary w-full justify-center py-6 group">
+            <a href="/intel/feed" class="t-btn primary w-full justify-center py-6 group">
                 <span class="mono-xs font-black tracking-[0.4em] uppercase">Open Global Intelligence Deck</span>
                 <svg class="transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m15 18 6-6-6-6"/></svg>
             </a>

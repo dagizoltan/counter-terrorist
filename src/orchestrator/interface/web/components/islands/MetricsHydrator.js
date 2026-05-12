@@ -37,7 +37,7 @@ class MetricsHydrator extends HTMLElement {
         url.searchParams.set('token', csrfToken);
     }
 
-    this._ws = new WebSocket(url.toString());
+    this._ws = new SharedWebSocket(url.toString());
     const ws = this._ws;
 
     ws.onmessage = (event) => {

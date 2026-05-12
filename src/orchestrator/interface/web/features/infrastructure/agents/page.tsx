@@ -147,7 +147,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
                  <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">All active dependencies cryptographically signed and audited</p>
               </div>
            </div>
-           <a href="/supply-chain" class="t-btn success px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em]">Inspect Full Provenance</a>
+           <a href="/system/supply-chain" class="t-btn success px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em]">Inspect Full Provenance</a>
         </div>
       </section>
 

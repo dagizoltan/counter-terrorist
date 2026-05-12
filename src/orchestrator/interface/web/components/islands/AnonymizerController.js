@@ -12,7 +12,7 @@ class AnonymizerController extends HTMLElement {
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
-    const ws = new WebSocket(url.toString());
+    const ws = new SharedWebSocket(url.toString());
 
     ws.onmessage = (event) => {
       try {
