@@ -7,7 +7,7 @@
     },
     "sentinel": {
       "path": "./src/agents/target/release/sentinel",
-      "hash": "75aba612a0a97b648c9ae82b7c3caf1c967da8ca6144caba7152abbec8cc032c",
+      "hash": "ae40733560beb5de3c7adbb54a3cbed4103962236d5d7739b363632cc34bd583",
       "persistent": true,
       "capabilities": ["cap_sys_admin", "cap_net_admin", "cap_sys_resource"]
     },

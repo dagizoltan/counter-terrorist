@@ -112,7 +112,7 @@ export class SecurityMiddleware {
       const isAuthRoute = path === "/login" || path === "/login/" || path === "/logout" || path === "/logout/";
       if (isAuthRoute) return next();
       
-      const isPublicPath = path === "/style.css" || path.startsWith("/vendor/") || path.startsWith("/assets/");
+      const isPublicPath = path === "/style.css" || path.startsWith("/vendor/") || path.startsWith("/assets/") || path.startsWith("/components/");
       const isStaticAsset = /\.(css|js|png|jpg|jpeg|svg|json|ico|woff2?|ttf|otf)$/i.test(path);
       
       if (isStaticAsset && isPublicPath) {
@@ -164,6 +164,7 @@ export class SecurityMiddleware {
         const token = authHeader.substring(7).trim();
         if (await secureCompare(token, this.masterToken)) {
           c.set("role", "admin");
+          c.set("csrfToken", token); // Use master token as fallback for WS/CSRF
           return next();
         }
       }
@@ -173,6 +174,7 @@ export class SecurityMiddleware {
         const result = await this.services.apiKeys.validateApiKey(apiKey);
         if (result.success && result.data) {
           c.set("role", result.data);
+          c.set("csrfToken", apiKey);
           return next();
         }
       }

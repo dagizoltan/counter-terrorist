@@ -38,26 +38,54 @@ class NetworkMap extends HTMLElement {
 
   async fetchTopology() {
     try {
-      this.isScanning = true;
-      const res = await fetch('/api/network/discovery');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/network/discovery', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (res.ok) {
         const data = await res.json();
+        let allDevices = [];
         if (Array.isArray(data)) {
-           this.devices = data;
+            allDevices = data;
         } else if (typeof data === 'object') {
-           // Flatten categorized object into a single array for the map view
-           this.devices = [
-             ...(data.wifi || []),
-             ...(data.bluetooth || []),
-             ...(data.ethernet || [])
-           ];
+            allDevices = [
+              ...(data.wifi || []),
+              ...(data.bluetooth || []),
+              ...(data.ethernet || []),
+              ...(data.mesh || [])
+            ];
         }
+
+        // Authoritative Deduplication: Prioritize MESH > ETHERNET > WIFI/BT
+        const unique = new Map();
+        allDevices.forEach(d => {
+            const mac = d.mac?.toLowerCase();
+            if (!mac) return;
+            const existing = unique.get(mac);
+            if (!existing || (d.type === 'MESH' && existing.type !== 'MESH')) {
+                unique.set(mac, d);
+            }
+        });
+        this.devices = Array.from(unique.values());
       }
     } catch (e) {
       console.error("[NETWORK-MAP] Sync Error:", e);
     } finally {
       this.isScanning = false;
       this.render();
+      this.updateScanIndicator();
+    }
+  }
+
+  updateScanIndicator() {
+    const indicator = this.querySelector('#scan-indicator');
+    if (indicator) {
+        const meshCount = this.devices.filter(d => d.type === 'MESH').length;
+        const total = this.devices.length;
+        indicator.innerHTML = `
+            <span class="dot active"></span>
+            <span class="mono-xs font-black text-primary uppercase tracking-[0.2em]">Grid_Telemetry_Live // [M:${meshCount}] [T:${total}]</span>
+        `;
     }
   }
 

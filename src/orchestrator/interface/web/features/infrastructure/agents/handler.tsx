@@ -25,14 +25,14 @@ export function createAgentsRouter(getStatus: () => Promise<ApplicationStatus>) 
 
     const { FirewallPage, VpnPage, ScannerPage, EbpfPage, FimPage, PcapPage, HoneypotPage, MeshPage } = await import("./subpages/core.tsx");
     
-    if (name === "firewall") return c.html(<FirewallPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "vpn") return c.html(<VpnPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "firewall" || name === "sentinel") return c.html(<FirewallPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "vpn" || name === "tunnel") return c.html(<VpnPage csrfToken={csrfToken} nonce={nonce} />);
     if (name === "mesh") return c.html(<MeshPage status={status} csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "scanner") return c.html(<ScannerPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "ebpf") return c.html(<EbpfPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "fim") return c.html(<FimPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "pcap") return c.html(<PcapPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "honeypot") return c.html(<HoneypotPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "scanner" || name === "analyzer") return c.html(<ScannerPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "ebpf" || name === "sentinel") return c.html(<EbpfPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "fim" || name === "watchfile") return c.html(<FimPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "pcap" || name === "netcap") return c.html(<PcapPage csrfToken={csrfToken} nonce={nonce} />);
+    if (name === "honeypot" || name === "decoy") return c.html(<HoneypotPage csrfToken={csrfToken} nonce={nonce} />);
 
     return c.html(<AgentDetailPage agent={agent} csrfToken={csrfToken} nonce={nonce} />);
   });

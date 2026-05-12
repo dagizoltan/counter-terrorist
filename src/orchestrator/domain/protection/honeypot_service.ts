@@ -154,9 +154,9 @@ export class HoneypotService {
       });
 
       this.broadcast({
-        type: "AUDIT_EVENT",
+        type: "TACTICAL_TRIGGER",
         data: {
-          type: LogType.AUDIT,
+          type: "HONEYPOT_HIT",
           severity: LogSeverity.WARNING,
           caller: callerId,
           message: `Honeypot Triggered: Access to Port ${port} from ${source_ip}`,
@@ -218,9 +218,9 @@ export class HoneypotService {
     });
 
     this.broadcast({
-      type: "AUDIT_EVENT",
+      type: "TACTICAL_TRIGGER",
       data: {
-        type: LogType.AUDIT,
+        type: "WEB_DECOY_HIT",
         severity: LogSeverity.WARNING,
         caller: "orchestrator:domain:protection:honeypot:http",
         message: `Web Decoy Triggered: Access to ${route} from ${source_ip}`,

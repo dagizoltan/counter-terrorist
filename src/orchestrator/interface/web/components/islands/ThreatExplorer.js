@@ -56,7 +56,10 @@ class ThreatExplorer extends HTMLElement {
 
   async fetchStats() {
     try {
-      const resp = await fetch('/api/threats/identified/stats');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const resp = await fetch('/api/threats/identified/stats', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (resp.ok) {
         this.stats = await resp.json();
         this.render();
@@ -71,16 +74,19 @@ class ThreatExplorer extends HTMLElement {
     this.loading = true;
     this.render();
     try {
-      const params = new URLSearchParams({
-        type: this.filter.type,
-        limit: '100',
-        provider: this.filter.provider,
-        search: this.filter.search,
-        offset: append ? this.filter.offset : ''
-      });
+        const params = new URLSearchParams({
+          type: this.filter.type,
+          limit: '100',
+          provider: this.filter.provider,
+          search: this.filter.search,
+          offset: append ? this.filter.offset : ''
+        });
 
-      const resp = await fetch(`/api/threats/identified?${params.toString()}`);
-      if (resp.ok) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const resp = await fetch(`/api/threats/identified?${params.toString()}`, {
+          headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+        });
+        if (resp.ok) {
         const { threats, nextCursor } = await resp.json();
         this.threats = append ? [...this.threats, ...threats] : threats;
         this.filter.offset = nextCursor;
@@ -161,9 +167,13 @@ class ThreatExplorer extends HTMLElement {
     this.loading = true;
     this.render();
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
       await fetch('/api/threats/identified/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CT-Token': csrfToken } : {})
+        },
         body: JSON.stringify({ provider })
       });
       // Give it a moment to start ingesting then refresh stats

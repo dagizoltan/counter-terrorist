@@ -163,9 +163,6 @@ export class SidecarManager implements CommandPort {
 
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
     await this.manifestPromise;
-    if (this.logging) {
-        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "orchestrator:infra:runtime:sidecar_manager", message: `getPersistentSidecar called for: ${name}` });
-    }
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     if (this.unsupportedSidecars.has(name)) return null;
     

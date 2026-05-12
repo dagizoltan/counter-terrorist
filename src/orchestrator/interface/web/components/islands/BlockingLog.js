@@ -19,8 +19,12 @@ class BlockingLog extends HTMLElement {
   }
 
   renderBase() {
+    const isCompact = this.getAttribute('compact') === 'true';
+    const limit = parseInt(this.getAttribute('limit') || '2000');
+
     this.innerHTML = `
-      <div class="flex flex-col h-full bg-black/40 rounded-3xl border border-white/5 overflow-hidden">
+      <div class="flex flex-col h-full ${isCompact ? '' : 'bg-black/40 rounded-3xl border border-white/5'} overflow-hidden">
+        ${isCompact ? '' : `
         <div class="p-6 border-b border-white/5 bg-black/20 flex flex-col gap-4">
           <div class="flex justify-between items-center">
             <span class="mono text-[9px] font-black uppercase tracking-widest text-slate-500">Signal_Filter</span>
@@ -37,8 +41,9 @@ class BlockingLog extends HTMLElement {
             <button type="submit" class="t-btn py-2 text-[10px]">BLOCK</button>
           </form>
         </div>
+        `}
 
-        <div id="log-container" class="flex-grow overflow-y-auto p-4 space-y-1">
+        <div id="log-container" class="flex-grow overflow-y-auto ${isCompact ? 'p-0' : 'p-4'} space-y-1">
             <!-- Real-time entries will be prepended here -->
         </div>
       </div>
@@ -58,7 +63,7 @@ class BlockingLog extends HTMLElement {
       const ip = this.querySelector('#ip-input').value;
       if (!ip) return;
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      await fetch('/api/infrastructure/system/protection/firewall/block', {
+      await fetch('/api/defense/isolate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CT-Token': csrfToken },
         body: JSON.stringify({ ip })
@@ -234,15 +239,18 @@ class BlockingLog extends HTMLElement {
 
   prependLog(log) {
     if (!this.container) return;
+    const limit = parseInt(this.getAttribute('limit') || '2000');
     const el = this.createLogElement(log);
     this.container.prepend(el);
-    if (this.container.children.length > 2000) {
+    if (this.container.children.length > limit) {
         this.container.lastElementChild.remove();
     }
   }
 
   appendLog(log) {
     if (!this.container) return;
+    const limit = parseInt(this.getAttribute('limit') || '2000');
+    if (this.container.children.length >= limit) return;
     const el = this.createLogElement(log);
     this.container.appendChild(el);
   }

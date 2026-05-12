@@ -41,13 +41,7 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         privileged: true,
         binaryName: "decoy"
     },
-    sentinel: {
-        name: "sentinel",
-        description: "Kernel-level XDP/TC firewall, LSM policy enforcer, and syscall tracer for zero-trust access control.",
-        persistent: true,
-        privileged: true,
-        binaryName: "sentinel"
-    },
+
     watchfile: {
         name: "watchfile",
         description: "File integrity monitor using fanotify for real-time unauthorized access detection.",

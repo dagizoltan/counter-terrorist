@@ -317,7 +317,7 @@ export class SovereignApp {
         wrap("Canary", canaryService.start());
         wrap("KernelService", kernelService.start());
         wrap("CuratedIntel", curatedIntel.start(this.kv));
-        wrap("NewsSignal", news.start());
+        wrap("NewsSignal", news.start(this.kv));
         wrap("NetworkDiscovery", networkDiscovery.start());
         
         this.services.baseline.startMonitor();
@@ -343,16 +343,16 @@ export class SovereignApp {
 
         daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
         
-        const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
-        if (ebpf) {
-            await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
-            
-            // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
-            // Skip events from the orchestrator and its trusted sidecars
-            for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
-                await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
-            }
-        }
+        // const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
+        // if (ebpf) {
+        //     await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
+        //     
+        //     // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
+        //     // Skip events from the orchestrator and its trusted sidecars
+        //     for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
+        //         await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
+        //     }
+        // }
     }
 
     private async seedForensics() {
@@ -390,9 +390,6 @@ export class SovereignApp {
         eventBus: EventBus, mesh: MeshManager, 
         tpm: TPMManager, health: HealthService
     ): Promise<ServiceContainer> {
-        // ── Autonomous Defense ──────────────────────────────────────────────
-        const autoBlock = new AutoBlockService(eventBus, rawProtection.firewall, loggingService);
-
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
         // REPOSITORY INJECTION
@@ -402,6 +399,9 @@ export class SovereignApp {
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         await rawProtection.firewall.setKv(this.kv);
         const protection = new ProtectionAdapter(rawProtection);
+
+        // ── Autonomous Defense ──────────────────────────────────────────────
+        const autoBlock = new AutoBlockService(eventBus, rawProtection.firewall, loggingService);
         
         let processProvider;
         if (platformInfo.name === "macos") {
@@ -425,7 +425,7 @@ export class SovereignApp {
 
         const { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService } = this.initSecuritySubsystem(protection, mesh, tpm, health);
         kernelService.setTpmManager(tpm);
-        const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider);
+        const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider, mesh);
 
         const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
         const { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
@@ -463,12 +463,16 @@ export class SovereignApp {
         return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
     }
 
-    private initIntelligenceSubsystem(protection: any, processTracker: any, health: any, configProvider: any) {
+    private initIntelligenceSubsystem(protection: any, processTracker: any, health: any, configProvider: any, mesh: any) {
         const geoIp = this.safeInit(health, "GeoIP", () => new GeoIpService(loggingService));
         const forensicService = this.safeInit(health, "Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker));
         const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider, broadcast, geoIp));
         const news = this.safeInit(health, "News", () => new NewsSignalService(loggingService));
-        const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => new NetworkDiscoveryService(loggingService, this.executor));
+        const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => {
+            const svc = new NetworkDiscoveryService(loggingService, this.executor);
+            svc.setMesh(mesh);
+            return svc;
+        });
         const incidents = this.safeInit(health, "Incidents", () => new IncidentService(this.kv, loggingService));
         const compliance = this.safeInit(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
 

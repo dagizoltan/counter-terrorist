@@ -1,5 +1,5 @@
-import { jsx } from "hono/jsx";
 import { Hono, Context } from "hono";
+import { IntelEnricher } from "@domain/analysis/intel_enricher.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "../middleware/security.ts";
 import { createReportsApi } from "../api/reports.ts";
@@ -28,8 +28,6 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   // 1. Environmental Infrastructure (Discovery & Logs) - HIGH PRIORITY MATCHING
   // 1. Environmental Infrastructure (Ambient Signal Discovery)
   router.get("/network/discovery", async (c: Context) => {
-    const { IntelEnricher } = await import("@domain/analysis/intel_enricher.ts");
-    
     // Ambient signals ONLY (WiFi, Bluetooth, Nearby Assets)
     // Active mesh topology is excluded per user requirements
     const devices = services.networkDiscovery.getDevices();
@@ -264,7 +262,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json({
       firewall: { 
         active: true,
-        pid: services.command.getPID("blocker"),
+        pid: services.command.getPID("enforcer"),
         capabilities: ["PACKET_FILTER", "RATE_LIMITING", "IP_ISOLATION"],
         root: true,
         metrics: metrics?.firewall
@@ -277,19 +275,19 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         metrics: metrics?.vpn
       },
       ebpf: {
-        active: services.command.isRunning("ebpf"),
+        active: services.command.isRunning("sentinel"),
         capabilities: ["LSM", "SYSCALL_HOOK", "PID_HIDING"],
         root: true,
         metrics: metrics?.forensics
       },
       fim: {
-        active: services.command.isRunning("fim"),
+        active: services.command.isRunning("watchfile"),
         capabilities: ["INOTIFY", "AUDIT_LOGGING"],
         root: true,
         metrics: metrics?.forensics
       },
       honeypot: {
-        active: services.command.isRunning("honeypot"),
+        active: services.command.isRunning("decoy"),
         capabilities: ["DECEPTION", "LOGGING"],
         root: false,
         metrics: metrics?.honeypot

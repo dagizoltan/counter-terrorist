@@ -103,7 +103,7 @@ export class KernelService {
             const targetName = "[kworker/u64:1]";
             await this.executor.execute("/var/lib/cts/scripts/update_comm.sh", [targetName, selfPid.toString()]);
             
-            // Deep Stealth: Register with eBPF Kernel filter
+            /* Deep Stealth: Register with eBPF Kernel filter
             if (this.sidecarManager) {
                 await this.sidecarManager.sendCommand("sentinel", {
                     type: "HIDE_PID",
@@ -116,6 +116,7 @@ export class KernelService {
                     message: `eBPF PID hiding failed: ${err.message}`
                 }));
             }
+            */
 
             this.logging.log({
                 timestamp: new Date().toISOString(),

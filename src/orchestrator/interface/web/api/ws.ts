@@ -98,7 +98,7 @@ export function broadcast(data: BroadcastData) {
   if (data.type === "CRITICAL") severity = LogSeverity.ERROR;
   else if (data.type?.startsWith("DRIFT") || data.type === "BLOCK") severity = LogSeverity.WARNING;
 
-  if (sharedLogging) {
+  if (sharedLogging && data.type !== "AUDIT_EVENT") {
     const isMetrics = data.type === "METRICS_UPDATE" || data.subType === "METRICS_UPDATE";
     sharedLogging.log({
       timestamp: new Date().toISOString(),

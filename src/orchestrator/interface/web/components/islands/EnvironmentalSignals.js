@@ -168,7 +168,7 @@ class EnvironmentalSignals extends HTMLElement {
           `).join('')}
         </div>
 
-        {/* Telemetry Block */}
+        <!-- Telemetry Block -->
         <div class="bg-black/80 p-5 rounded-2xl border border-white/5 mb-8">
           <div class="flex justify-between items-end mb-3">
              <span class="mono text-[7px] font-black text-slate-500 uppercase tracking-[0.5em]">Signal_Magnitude</span>
@@ -179,7 +179,7 @@ class EnvironmentalSignals extends HTMLElement {
           </div>
         </div>
 
-        {/* Action / Forensic Footer */}
+        <!-- Action / Forensic Footer -->
         <div class="pt-6 border-t border-white/5 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-all">
            <div class="flex items-center gap-3">
               <div class="p-1.5 bg-white/5 rounded border border-white/10">

@@ -16,11 +16,36 @@ export class FirewallManager {
   async setKv(kv: Deno.Kv) {
     this.kv = kv;
     const iter = kv.list<any>({ prefix: ["enforcement"] });
+    const ips: string[] = [];
     for await (const res of iter) {
       const ip = res.key[1] as string;
       this.blockedIps.add(ip);
-      // Immediately enforce in the kernel agent during boot
-      await this.provider.blockIp(ip).catch(() => {});
+      ips.push(ip);
+    }
+
+    if (ips.length > 0) {
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.INFO,
+          caller: "orchestrator:infra:system:protection:firewall",
+          message: `Hydrating firewall with ${ips.length} existing enforcement rules...`
+      });
+
+      // Parallel enforcement with concurrency limit to avoid OS overhead
+      const limit = 50;
+      for (let i = 0; i < ips.length; i += limit) {
+        const batch = ips.slice(i, i + limit);
+        await Promise.all(batch.map(ip => this.provider.blockIp(ip).catch(() => {})));
+      }
+
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.SUCCESS,
+          caller: "orchestrator:infra:system:protection:firewall",
+          message: `Firewall hydration complete.`
+      });
     }
   }
 

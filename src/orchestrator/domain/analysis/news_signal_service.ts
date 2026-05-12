@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+are import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export type TacticalSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -29,8 +29,8 @@ export class NewsSignalService {
 
     constructor(private logging: LoggingPort) {}
 
-    async start() {
-        this.kv = await Deno.openKv();
+    async start(kv?: Deno.Kv) {
+        this.kv = kv || await Deno.openKv();
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
@@ -83,15 +83,27 @@ export class NewsSignalService {
                 if (!response.ok) continue;
                 const xml = await response.text();
                 
-                const items = xml.match(/<item>([\s\S]*?)<\/item>/g) || [];
+                // Authoritative Parsing: Handle both RSS <item> and Atom <entry>
+                const items = xml.match(/<(item|entry)>([\s\S]*?)<\/(item|entry)>/g) || [];
                 
                 for (const itemXml of items.slice(0, 25)) {
-                    const title = itemXml.match(/<title>(.*?)<\/title>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1") || "Untitled Signal";
-                    const link = itemXml.match(/<link>(.*?)<\/link>/)?.[1] || "#";
-                    const summary = itemXml.match(/<description>(.*?)<\/description>/)?.[1]?.replace(/<!\[CDATA\[(.*?)\]\]>/g, "$1")?.slice(0, 250) + "..." || "";
+                    const title = itemXml.match(/<(title|headline)>([\s\S]*?)<\/(title|headline)>/)?.[2]
+                        ?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+                        ?.replace(/<[^>]+>/g, '') // Strip HTML tags
+                        ?.trim() || "Untitled Signal";
+                        
+                    const linkMatch = itemXml.match(/<link[^>]*href=["'](.*?)["']/i) || itemXml.match(/<link>(.*?)<\/link>/i);
+                    const link = linkMatch?.[1] || "#";
+                    
+                    const summaryMatch = itemXml.match(/<(description|summary|content)>([\s\S]*?)<\/(description|summary|content)>/);
+                    const summary = summaryMatch?.[2]
+                        ?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+                        ?.replace(/<[^>]+>/g, '') // Strip HTML tags
+                        ?.slice(0, 300)
+                        ?.trim() || "";
                     
                     const { severity, score } = this.analyzeRisk(title + " " + summary);
-                    const id = btoa(encodeURIComponent(title)).slice(0, 16);
+                    const id = btoa(encodeURIComponent(title)).slice(0, 16).replace(/\//g, '_');
                     
                     const item: NewsItem = {
                         id,

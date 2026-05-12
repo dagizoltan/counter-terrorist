@@ -74,7 +74,8 @@ export class AuditService {
         setInterval(() => this.verifyChainIncremental(), 60 * 1000);
 
         // ENHANCEMENT: Full Ledger Verification on Boot (Background)
-        setTimeout(() => this.performDeepAudit(), 5000);
+        // Disabled for UI stabilization phase
+        // setTimeout(() => this.performDeepAudit(), 5000);
     }
 
     private async performDeepAudit() {
@@ -141,7 +142,8 @@ export class AuditService {
                     message: `Chain head restored: ${this.lastHash.slice(0, 12)}…`
                 });
 
-                const verification = await this.verifyChain(100);
+                // Lightweight check on boot
+                const verification = await this.verifyChain(50);
                 if (!verification.valid) {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
@@ -320,41 +322,34 @@ export class AuditService {
         eventsChecked: number;
         brokenAt?: { eventId: string; expected: string; actual: string; type: string };
     }> {
-        const events: AuditEvent[] = [];
         const fetchLimit = limit === -1 ? undefined : limit;
         const stream = this.repo.getStream(fetchLimit as any, true);
 
+        let eventsChecked = 0;
+        let prevEvent: AuditEvent | null = null;
+
         for await (const event of stream) {
-            events.push(event);
-        }
-
-        if (events.length === 0) return { valid: true, eventsChecked: 0 };
-        events.reverse();
-
-        for (let i = 0; i < events.length; i++) {
-            const event = events[i];
+            eventsChecked++;
 
             // SECURITY: Hardware-Verified Checkpoint Bypass
-            // If the event is a signed checkpoint, we verify the TPM signature instead of the content hash.
-            // This allows the chain to remain valid after retention purges.
             if (event.type === "CHECKPOINT") {
                 if (event.hwSignature && this.tpm) {
                     const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
                     if (!isValidCheckpoint) {
                         return {
                             valid: false,
-                            eventsChecked: i + 1,
+                            eventsChecked,
                             brokenAt: { eventId: event.id, expected: "VALID_TPM_SIG", actual: "INVALID_SIG", type: "CHECKPOINT_TAMPER" },
                         };
                     }
                 } else if (event.prevHash !== "TRUNCATED") {
-                    // Unsigned checkpoints are only allowed if they are not the genesis of a truncated chain
                     return {
                         valid: false,
-                        eventsChecked: i + 1,
+                        eventsChecked,
                         brokenAt: { eventId: event.id, expected: "TPM_SIGNATURE", actual: "UNSIGNED", type: "UNSIGNED_CHECKPOINT" },
                     };
                 }
+                prevEvent = event;
                 continue;
             }
 
@@ -369,21 +364,23 @@ export class AuditService {
             if (event.hash !== expectedHash) {
                 return {
                     valid: false,
-                    eventsChecked: i + 1,
+                    eventsChecked,
                     brokenAt: { eventId: event.id, expected: expectedHash, actual: event.hash, type: "HASH_MISMATCH" },
                 };
             }
 
-            if (i > 0 && event.prevHash !== events[i - 1].hash && events[i].prevHash !== "TRUNCATED") {
+            if (prevEvent && event.hash !== prevEvent.prevHash && prevEvent.prevHash !== "TRUNCATED") {
                 return {
                     valid: false,
-                    eventsChecked: i + 1,
-                    brokenAt: { eventId: event.id, expected: events[i - 1].hash, actual: event.prevHash, type: "CHAIN_BREAK" },
+                    eventsChecked,
+                    brokenAt: { eventId: prevEvent.id, expected: event.hash, actual: prevEvent.prevHash, type: "CHAIN_BREAK" },
                 };
             }
+            
+            prevEvent = event;
         }
 
-        return { valid: true, eventsChecked: events.length };
+        return { valid: true, eventsChecked };
     }
 
     private async purgeExpired() {

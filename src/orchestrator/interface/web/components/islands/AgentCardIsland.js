@@ -13,7 +13,14 @@ class AgentCardIsland extends HTMLElement {
 
   connectWS() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/events`);
+    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        url.searchParams.set('token', csrfToken);
+    }
+
+    const ws = new WebSocket(url.toString());
 
     ws.onmessage = (event) => {
       try {
@@ -37,7 +44,15 @@ class AgentCardIsland extends HTMLElement {
   handleEvent(event) {
     if (!event.message) return;
     const msg = event.message.toLowerCase();
-    if (msg.includes(this.agentName) || (this.agentName === 'firewall' && msg.includes('block'))) {
+    const isTarget = msg.includes(this.agentName) || 
+                   (this.agentName === 'firewall' && (msg.includes('block') || msg.includes('sentinel'))) ||
+                   (this.agentName === 'sentinel' && (msg.includes('block') || msg.includes('firewall'))) ||
+                   (this.agentName === 'scanner' && msg.includes('analyzer')) ||
+                   (this.agentName === 'analyzer' && msg.includes('scanner')) ||
+                   (this.agentName === 'vpn' && msg.includes('tunnel')) ||
+                   (this.agentName === 'tunnel' && msg.includes('vpn'));
+
+    if (isTarget) {
        const feed = this.querySelector('.agent-feed');
        if (feed) {
           const entry = document.createElement('div');
@@ -55,34 +70,34 @@ class AgentCardIsland extends HTMLElement {
     let colorVar = 'var(--primary)';
     let percentage = 0;
 
-    if (this.agentName === 'firewall') {
+    if (this.agentName === 'firewall' || this.agentName === 'sentinel') {
       value = m.firewall?.blockedCount ?? '0';
       label = 'Blocked IPs';
       colorVar = value > 0 ? 'var(--danger)' : 'var(--success)';
       percentage = Math.min((value / 100) * 100, 100);
-    } else if (this.agentName === 'honeypot') {
+    } else if (this.agentName === 'honeypot' || this.agentName === 'decoy') {
       value = m.honeypot?.totalHits ?? '0';
       label = 'Attack Hits';
       colorVar = value > 0 ? 'var(--warning)' : 'var(--success)';
       percentage = Math.min((value / 50) * 100, 100);
-    } else if (this.agentName === 'scanner') {
+    } else if (this.agentName === 'scanner' || this.agentName === 'analyzer') {
       const isAvailable = m.scanner?.available !== false;
       value = isAvailable ? (m.scanner?.lastScanResult === 'OK' ? 'OK' : 'WAIT') : 'ABSENT';
       label = 'Malware Scan';
       colorVar = !isAvailable ? 'var(--text-muted)' : (value === 'OK' ? 'var(--success)' : 'var(--warning)');
       percentage = value === 'OK' ? 100 : (isAvailable ? 50 : 0);
-    } else if (this.agentName === 'ebpf') {
+    } else if (this.agentName === 'ebpf' || this.agentName === 'sentinel') {
       value = m.node?.ebpf ? 'LIVE' : 'FAIL';
       label = 'Kernel LSM';
       colorVar = value === 'LIVE' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'LIVE' ? 100 : 0;
-    } else if (this.agentName === 'fim') {
+    } else if (this.agentName === 'fim' || this.agentName === 'watchfile') {
       value = m.node?.fim ? 'WATCH' : 'STOP';
       label = 'File Integrity';
       colorVar = value === 'WATCH' ? 'var(--success)' : 'var(--danger)';
       percentage = value === 'WATCH' ? 100 : 0;
-    } else if (this.agentName === 'vpn') {
-      const vpnActive = m.vpn?.telemetry?.status === 'ACTIVE';
+    } else if (this.agentName === 'vpn' || this.agentName === 'tunnel') {
+      const vpnActive = m.vpn?.active || m.vpn?.telemetry?.status === 'ACTIVE';
       value = vpnActive ? 'LINK' : 'FAIL';
       label = 'Stealth Tunnel';
       colorVar = value === 'LINK' ? 'var(--success)' : 'var(--danger)';

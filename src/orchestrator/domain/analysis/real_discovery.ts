@@ -178,13 +178,17 @@ export class RealDiscovery {
             const aps: any[] = [];
             for (const line of stdout.split("\n")) {
                 if (!line.trim()) continue;
-                const rawParts = line.replace(/\\:/g, "__COLON__").split(":");
-                if (rawParts.length >= 4) {
+                
+                // nmcli terse output escapes colons as \:
+                // We split by colons that are NOT preceded by a backslash
+                const parts = line.split(/(?<!\\):/).map(p => p.replace(/\\:/g, ":"));
+                
+                if (parts.length >= 4) {
                     aps.push({
-                        ssid: rawParts[0].replace(/__COLON__/g, ":") || "--",
-                        mac: rawParts[1].replace(/__COLON__/g, ":").toLowerCase(),
-                        signal: parseInt(rawParts[2]),
-                        encryption: rawParts[3].replace(/__COLON__/g, ":") || "OPEN",
+                        ssid: parts[0] || "--",
+                        mac: parts[1].toLowerCase(),
+                        signal: parseInt(parts[2]) || 0,
+                        encryption: parts[3] || "OPEN",
                         type: "WIFI"
                     });
                 }

@@ -47,6 +47,7 @@ export interface FirewallPort {
   quarantineProcess(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
   flushRules(): Promise<CommandResult>;
+  getBlockedIps(): Promise<string[]>;
 }
 
 export interface VpnPort {

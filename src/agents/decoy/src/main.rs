@@ -25,7 +25,7 @@ struct SidecarResponse {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 enum Command {
-    UpdateModule { id: String, module: String, oldPort: u16, newPort: u16 },
+    UpdateModule { id: String, module: String, old_port: u16, new_port: u16 },
     ToggleModule { id: String, module: String, active: bool, port: u16 },
     RemoveModule { id: String, port: u16 },
     Sabotage { id: String, source_ip: String, level: String },
@@ -223,19 +223,19 @@ async fn main() {
             Ok(_) => {
                 if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
                     match cmd {
-                        Command::UpdateModule { id, oldPort, newPort, .. } => {
+                        Command::UpdateModule { id, old_port, new_port, .. } => {
                             {
                                 let mut s = state.lock().await;
-                                if let Some(ls) = s.get_mut(&oldPort) {
+                                if let Some(ls) = s.get_mut(&old_port) {
                                     ls.active = false;
                                 }
                             }
                             let state_clone = Arc::clone(&state);
-                            state.lock().await.insert(newPort, ListenerState { port: newPort, active: true, sabotage_ips: vec![] });
+                            state.lock().await.insert(new_port, ListenerState { port: new_port, active: true, sabotage_ips: vec![] });
                             tokio::spawn(async move {
-                                start_port_listener(newPort, state_clone).await;
+                                start_port_listener(new_port, state_clone).await;
                             });
-                            emit_response(id, true, format!("Morphed port {} to {}", oldPort, newPort)).await;
+                            emit_response(id, true, format!("Morphed port {} to {}", old_port, new_port)).await;
                         }
                         Command::ToggleModule { id, active, port, .. } => {
                             if active {

@@ -59,14 +59,14 @@ class AlertOverlay extends HTMLElement {
 
         this.innerHTML = `
             <div class="fixed inset-0 z-[10002] pointer-events-none overflow-hidden ">
-                {/* 1. Global Red Pulsing Border */}
+                <!-- 1. Global Red Pulsing Border -->
                 <div class="absolute inset-0 border-[20px] border-danger opacity-40 "></div>
                 
-                {/* 2. Glitchy Scanline Overlay */}
+                <!-- 2. Glitchy Scanline Overlay -->
                 <div class="absolute inset-0 bg-danger/5 opacity-20 pointer-events-none mix-blend-overlay"></div>
                 <div class="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none"></div>
 
-                {/* 3. Central Alert Banner */}
+                <!-- 3. Central Alert Banner -->
                 <div class="absolute top-1/4 left-0 w-full bg-danger/95 text-white py-12 border-y-4 border-white/20 transform -skew-y-1 backdrop-blur-xl pointer-events-auto shadow-[0_0_50px_rgba(var(--danger-rgb),0.8)]">
                     <div class="container mx-auto px-12 flex items-center justify-between">
                         <div class="flex items-center gap-12">
@@ -82,7 +82,7 @@ class AlertOverlay extends HTMLElement {
                     </div>
                 </div>
 
-                {/* 4. Warning Symbols in Background */}
+                <!-- 4. Warning Symbols in Background -->
                 <div class="absolute bottom-20 right-20 opacity-10 ">
                     <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>

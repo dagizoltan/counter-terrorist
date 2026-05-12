@@ -25,9 +25,14 @@ export class NetworkDiscoveryService {
     private devices: Map<string, NetworkDevice> = new Map();
     private discovery: any;
     private selfId: string = "LOCAL_NODE";
+    private mesh?: any;
 
     constructor(private logging: LoggingService, private executor: any) {
         this.selfId = "LOCAL_NODE";
+    }
+
+    setMesh(mesh: any) {
+        this.mesh = mesh;
     }
 
     async start() {
@@ -156,6 +161,30 @@ export class NetworkDiscoveryService {
                             type: "BLUETOOTH"
                         });
                         currentBatch.add(id);
+                    });
+                }
+
+                // 3. Mesh Integration (Verified Peers)
+                if (this.mesh) {
+                    const nodes = this.mesh.getNodes();
+                    nodes.forEach((node: any) => {
+                        const mac = (node.id || "").toLowerCase();
+                        if (!mac) return;
+
+                        const existing = this.devices.get(mac);
+                        this.devices.set(mac, {
+                            id: mac,
+                            ip: node.address,
+                            mac,
+                            vendor: "Sovereign-Ghost",
+                            isMeshNode: true,
+                            isLocal: mac === this.selfId,
+                            lastSeen: new Date(node.lastSeen).toISOString(),
+                            hostname: node.hostname,
+                            state: node.verified ? "VERIFIED" : "UNVERIFIED",
+                            type: "MESH"
+                        });
+                        currentBatch.add(mac);
                     });
                 }
 

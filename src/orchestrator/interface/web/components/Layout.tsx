@@ -36,111 +36,95 @@ export const Layout = (props: {
             </header>
 
             <nav class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-1">
-              {/* 01 OBSERVE (Signal Intelligence) */}
-              <div class="nav-group mb-8 mt-4">
+              {/* 01 MONITOR (System Awareness) */}
+              <div class="nav-group mb-6 mt-2">
                 <div class="nav-heading !text-primary flex items-center gap-3">
                    <div class="w-1 h-3 bg-primary rounded-full"></div>
-                   01 // OBSERVE
+                   01 // MONITOR
                 </div>
-                <a href="/dashboard" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-                   Node Health
+                <a href="/dashboard" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                   System Overview
                 </a>
-                <a href="/network/neighbors" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-                   Neighbor Signals
+                <a href="/network/neighbors" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+                   Network Signals
                 </a>
-                <a href="/agents/scanner" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                   Environmental Scan
-                </a>
-                <a href="/agents/pcap" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="M21 6H3"/><path d="M21 18H3"/></svg>
-                   Packet Capture
+                <a href="/agents" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="M12 7v5l3 3"/></svg>
+                   Agent Fleet Status
                 </a>
               </div>
 
-              {/* 02 ORIENT (Threat Attribution) */}
-              <div class="nav-group mb-8">
+              {/* 02 INTELLIGENCE (Threat Intel) */}
+              <div class="nav-group mb-6">
                 <div class="nav-heading !text-warning flex items-center gap-3">
                    <div class="w-1 h-3 bg-warning rounded-full"></div>
-                   02 // ORIENT
+                   02 // INTELLIGENCE
                 </div>
-                <a href="/intel/map" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                   Threat Attribution
+                <a href="/intel/feed" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                   Open Source Intel
                 </a>
-                <a href="/intel/feed" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
-                   Intelligence Feed
+                <a href="/intel/public-ip-collections" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+                   IP Threat Databases
                 </a>
-                <a href="/agents/ebpf" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m19 21-7-7-7 7"/><path d="M12 14V3"/><path d="m5 3 7 7 7-7"/></svg>
-                   Kernel Telemetry
-                </a>
-                <a href="/agents/fim" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M10 9H8"/></svg>
-                   Integrity Audit
+                <a href="/intel/map" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+                   Global Threat Map
                 </a>
               </div>
 
-              {/* 03 DECIDE (Policy & Control) */}
-              <div class="nav-group mb-8">
-                <div class="nav-heading !text-success flex items-center gap-3">
-                   <div class="w-1 h-3 bg-success rounded-full"></div>
-                   03 // DECIDE
-                </div>
-                <a href="/forensics" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                   Forensic Analysis
-                </a>
-                <a href="/system/supply-chain" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-                   Supply Chain Audit
-                </a>
-                <a href="/compliance" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                   Compliance Center
-                </a>
-              </div>
-
-              {/* 04 ACT (Defensive Response) */}
-              <div class="nav-group mb-8">
+              {/* 03 DEFENSE (Active Protection) */}
+              <div class="nav-group mb-6">
                 <div class="nav-heading !text-danger flex items-center gap-3">
                    <div class="w-1 h-3 bg-danger rounded-full"></div>
-                   04 // ACT
+                   03 // DEFENSE
                 </div>
-                <a href="/agents/firewall" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                   Perimeter Control
+                <a href="/agents/sentinel" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                   Firewall & Perimeter
                 </a>
-                <a href="/agents/vpn" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                   Anonymization
-                </a>
-                <a href="/agents/deception" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
+                <a href="/agents/decoy" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg>
                    Deception Grid
                 </a>
               </div>
 
-              {/* SYSTEM & AUDIT */}
-              <div class="nav-group pt-6 border-t border-white/5 mt-6 mb-12">
+              {/* 04 FORENSICS (Audit & Ledger) */}
+              <div class="nav-group mb-6">
+                <div class="nav-heading !text-success flex items-center gap-3">
+                   <div class="w-1 h-3 bg-success rounded-full"></div>
+                   04 // FORENSICS
+                </div>
+                <a href="/system/ledger" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M10 9H8"/></svg>
+                   Operational Ledger
+                </a>
+                <a href="/forensics" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                   Forensic Analysis
+                </a>
+                <a href="/compliance" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                   Compliance Center
+                </a>
+              </div>
+
+              {/* 05 SYSTEM (Administration) */}
+              <div class="nav-group pt-4 border-t border-white/5 mt-4 mb-8">
                 <div class="nav-heading !text-slate-500 flex items-center gap-3 mb-2">
                    <div class="w-1 h-3 bg-slate-700 rounded-full"></div>
-                   PLATFORM
+                   05 // SYSTEM
                 </div>
-                <a href="/system/ledger" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
-                   Audit Ledger
+                <a href="/system/info" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                   Platform Status
                 </a>
-                <a href="/system/settings" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2-2v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-                   Settings
-                </a>
-                <a href="/system/info" class="nav-link">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                   System Status
+                <a href="/system/settings" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2-2v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                   Global Settings
                 </a>
               </div>
             </nav>
@@ -169,8 +153,12 @@ export const Layout = (props: {
                 </div>
                 
                 <div class="flex items-center gap-6">
-                   <div id="system-clock" class="mono-xs text-slate-400 font-black tracking-[0.2em] bg-black/40 px-4 py-2 rounded border border-white/5">00:00:00</div>
-                </div>
+                    <div class="flex items-center gap-2 bg-danger/5 border border-danger/20 px-4 py-2 rounded-lg">
+                       <div class="w-1.5 h-1.5 bg-danger rounded-full animate-pulse shadow-[0_0_8px_var(--danger)]"></div>
+                       <span id="stat-fw-grid" class="mono text-[8px] text-danger font-black uppercase tracking-widest">Grid Armed</span>
+                    </div>
+                    <div id="system-clock" class="mono-xs text-slate-400 font-black tracking-[0.2em] bg-black/40 px-4 py-2 rounded border border-white/5">00:00:00</div>
+                 </div>
              </header>
 
              {/* Content Stage */}
@@ -220,11 +208,17 @@ export const Layout = (props: {
                 {/* Tab Content: Logs */}
                 <div id="sidebar-tab-logs" class="sidebar-tab-content pt-6 animate-in fade-in slide-in-from-right-4 duration-500">
                    <div class="mb-10">
-                      <div class="flex items-center gap-2 mb-6 px-2">
-                         <div class="w-1 h-3 bg-primary rounded-full"></div>
-                         <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">Live Telemetry</span>
+                      <div class="flex justify-between items-center mb-6 px-2">
+                         <div class="flex items-center gap-2">
+                            <div class="w-1 h-3 bg-primary rounded-full"></div>
+                            <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">Live_Telemetry</span>
+                         </div>
+                         <div class="flex items-center gap-2 bg-success/5 border border-success/20 px-3 py-1 rounded-full">
+                            <div class="w-1.5 h-1.5 bg-success rounded-full animate-pulse shadow-[0_0_8px_var(--success)]"></div>
+                            <span class="mono text-[7px] text-success font-black uppercase tracking-widest">Live</span>
+                         </div>
                       </div>
-                      <mini-log></mini-log>
+                      <mini-log id="sidebar-log"></mini-log>
                    </div>
                 </div>
              </div>
@@ -268,7 +262,9 @@ export const Layout = (props: {
             
             // Sidebar Navigation Active State
             document.querySelectorAll('.nav-link').forEach(link => {
-              link.classList.toggle('active', link.getAttribute('href') === path);
+              const href = link.getAttribute('href');
+              const isActive = path === href || (href !== '/' && path.startsWith(href));
+              link.classList.toggle('active', isActive);
             });
             
             // Dynamic Clock

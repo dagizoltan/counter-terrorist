@@ -35,15 +35,6 @@ export class WebAdapter implements WebPort {
         caller: "orchestrator:interface:web",
         message: `Initializing with services: ${Object.keys(services).join(", ")}`
     });
-    if (!services.honeypot) {
-        loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:interface:web",
-            message: "CRITICAL: honeypot service is MISSING in container!"
-        });
-    }
 
     this.meshAuth = services.meshAuth;
     this.security = new SecurityMiddleware(services, masterToken);
@@ -52,16 +43,31 @@ export class WebAdapter implements WebPort {
 
   private async initialize() {
     if (this.app.routes.length > 0) return;
-    loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:interface:web",
-        message: "Initializing routes and middleware..."
-    });
     
+    // ── DECEPTION GRID (HONEYPOT) - MUST BE FIRST ─────────────────────
+    // These routes must bypass all security and logging middleware to capture raw attacker data.
+    if (this.services.honeypot) {
+      const honeyRoutes = this.services.honeypot.getDecoyRoutes();
+      honeyRoutes.forEach(route => {
+        this.app.get(route, async (c) => {
+          const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+          loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:interface:web:api:honeypot",
+            message: `[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`
+          });
+          await this.services.honeypot.onWebTrigger(route, ip);
+          return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
+        });
+      });
+    }
+
+    // Apply global security headers
     this.app.use("*", this.security.hardenedHeaders());
 
+    // Auth Routes (Login/Logout)
     this.app.route("/login", createLoginRouter({
       checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
       isTokenValid: (t) => this.isTokenValid(t) as any,
@@ -71,8 +77,15 @@ export class WebAdapter implements WebPort {
     this.app.route("/logout", createLogoutRouter({ sessionService: this.services.sessions }));
     this.app.get("/login/", (c) => c.redirect("/login"));
 
-    // 0. AUTH FIRST: Protect logging resources from unauthenticated exhaustion
-    this.app.use("*", this.security.auth());
+    // 0. AUTH MIDDLEWARE: Protect core resources
+    this.app.use("*", (c, next) => {
+        const path = c.req.path;
+        // Skip auth for static assets and login
+        if (path === "/login" || path === "/logout" || path.startsWith("/assets/") || path.startsWith("/vendor/") || path === "/style.css") {
+            return next();
+        }
+        return this.security.auth()(c, next);
+    });
 
     // Unified Logging, Metrics, and Audit Lifecycle
     this.app.use("*", async (c, next) => {
@@ -80,18 +93,15 @@ export class WebAdapter implements WebPort {
       const traceId = crypto.randomUUID().slice(0, 8);
       const { method, path } = c.req;
       
-      // Quiet Mode: Skip logging for high-frequency dashboard polling to prevent log explosion
       const isHighFrequency = path.includes("/api/metrics") || 
                               path.includes("/api/stats") || 
                               path.includes("/api/compliance/logs") ||
                               path.includes("/api/agent/status");
 
-      // 1. FAST PATH: WebSocket Upgrades must bypass middleware logic
       if (c.req.header("upgrade") === "websocket") {
         return await next();
       }
 
-      // 2. Logging (Conditional)
       if (!isHighFrequency) {
         await loggingService.log({
           timestamp: new Date().toISOString(),
@@ -129,7 +139,6 @@ export class WebAdapter implements WebPort {
         });
       }
 
-      // 3. COMPLIANCE: Audit state-changing requests
       const isMutation = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
       const isSuccess = status >= 200 && status < 300;
       const isSensitiveApi = path.startsWith("/api/admin") || path.startsWith("/api/mesh") || path.startsWith("/api/agents");
@@ -177,47 +186,13 @@ export class WebAdapter implements WebPort {
     const webRoot = await Deno.stat("./web").then(s => s.isDirectory).catch(() => false) 
       ? "./web" 
       : "./src/orchestrator/interface/web";
-    loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:interface:web",
-        message: `Static Asset Root: ${webRoot}`
-    });
     
-    // Optimized static serving for Deno
     this.app.use("/style.css", serveStatic({ path: "./style.css", root: webRoot }));
     this.app.use("/vendor/*", serveStatic({ root: webRoot }));
     this.app.use("/assets/*", serveStatic({ root: webRoot }));
+    this.app.use("/components/*", serveStatic({ root: webRoot }));
     this.app.use("/theme.ts", serveStatic({ path: "./theme.ts", root: webRoot }));
     
-    if (this.services.honeypot) {
-      const honeyRoutes = this.services.honeypot.getDecoyRoutes();
-      honeyRoutes.forEach(route => {
-        this.app.get(route, async (c) => {
-          const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
-          loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:interface:web:api:honeypot",
-            message: `[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`
-          });
-          await this.services.honeypot.onWebTrigger(route, ip);
-          return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
-        });
-      });
-    } else {
-      loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.DEBUG,
-        severity: LogSeverity.WARNING,
-        caller: "orchestrator:interface:web",
-        message: "[WEB] Honeypot service unavailable. Skipping decoy routes."
-      });
-    }
-
-
     const statusAggregator = () => this.getSystemStatus();
     this.app.route("/api", createApiRouter(this.services, this.security));
     this.app.route("/", createUiRouter(this.services, this.security, statusAggregator));
@@ -225,13 +200,11 @@ export class WebAdapter implements WebPort {
     this.app.get("/api/ws/events", upgradeWebSocket(async (c) => {
       let role: string | null = null;
       
-      // 1. Try Bearer Token or Query Parameter
       const token = c.req.query("token") || c.req.header("Authorization")?.replace("Bearer ", "");
       if (token) {
         role = await this.isTokenValid(token);
       }
       
-      // 2. Try Session Cookie (Fallback)
       if (!role) {
         const sessionId = getCookie(c, "session_token");
         if (sessionId) {
@@ -271,7 +244,6 @@ export class WebAdapter implements WebPort {
     return {
       ...baseStatus,
       ...metrics,
-      // Mapping to match UI expectations in Dashboard
       audit: {
         ...metrics.audit,
         hardwareVerified: metrics.audit?.hardwareVerified || false,
@@ -305,11 +277,10 @@ export class WebAdapter implements WebPort {
         let isRunning = this.services.command.isRunning(s.name);
         let status = isRunning ? "ACTIVE" : "INACTIVE";
 
-        // Hybrid Status Logic: Map services to the 'Agent' view
         if (s.name === 'vpn' && this.services.anonymization) {
             status = this.services.anonymization.getTelemetry().status;
         } else if (s.name === 'mesh' && this.services.mesh) {
-            status = "ACTIVE"; // Core Mesh is always initialized in boot
+            status = "ACTIVE";
         } else if (s.name === 'firewall' && this.services.protection) {
             isRunning = this.services.command.isRunning('blocker');
             status = isRunning ? "ACTIVE" : "INACTIVE";
@@ -339,7 +310,6 @@ export class WebAdapter implements WebPort {
   }
 
   private async checkLoginRateLimit(ip: string) {
-      // Hardened Login Rate Limit: 10 attempts per minute (more conservative for login)
       const result = await this.services.rateLimit.checkLimit(`login:${ip}`, 10, 60000);
       if (!result.allowed) return { allowed: false, retryAfterMs: result.retryAfterMs };
       return { allowed: true };

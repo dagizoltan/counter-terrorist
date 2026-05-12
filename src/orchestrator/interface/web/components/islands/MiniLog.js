@@ -5,6 +5,15 @@ class MiniLog extends HTMLElement {
   }
 
   connectedCallback() {
+    // Ensure escape helper is available
+    if (!window.escapeHTML) {
+      window.escapeHTML = (str) => {
+        if (typeof str !== 'string') return String(str);
+        return str.replace(/[&<>"']/g, (m) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[m]));
+      };
+    }
     this.render();
     this.fetchInitial();
     this.connect();
@@ -26,21 +35,45 @@ class MiniLog extends HTMLElement {
   }
 
   connect() {
+    if (this._ws) {
+      this._ws.onclose = null;
+      this._ws.close();
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
 
-    const socket = new WebSocket(url.toString());
-    socket.onmessage = (event) => {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        url.searchParams.set('token', csrfToken);
+    }
+
+    this._ws = new WebSocket(url.toString());
+    const ws = this._ws;
+
+    ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        const tacticalTypes = ['BLOCK', 'ALERT', 'AUDIT_EVENT', 'audit', 'activity', 'generic', 'debug', 'CRITICAL', 'WARNING', 'INFO'];
+        const tacticalTypes = ['BLOCK', 'ALERT', 'AUDIT_EVENT', 'TACTICAL_TRIGGER', 'audit', 'activity', 'generic', 'debug', 'CRITICAL', 'WARNING', 'INFO'];
         if (tacticalTypes.includes(payload.type)) {
-          this.logs.unshift(payload.data || payload);
+          const logData = payload.data || payload;
+          this.logs.unshift(logData);
           if (this.logs.length > 100) this.logs.pop();
           this.render();
         }
       } catch (e) {}
     };
+
+    ws.onclose = () => {
+      this._reconnectTimer = setTimeout(() => this.connect(), 5000);
+    };
+  }
+
+  disconnectedCallback() {
+    clearTimeout(this._reconnectTimer);
+    if (this._ws) {
+      this._ws.onclose = null;
+      this._ws.close();
+    }
   }
 
   getSeverityClass(severity) {
@@ -94,40 +127,38 @@ class MiniLog extends HTMLElement {
           const typeColorClass = this.getTypeColorClass(type);
           
           return `
-            <div class="flex flex-col border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group cursor-pointer overflow-hidden">
-              <!-- Main Compact Row -->
-              <div class="flex items-center gap-3 py-1.5 px-3 relative">
-                <div class="absolute inset-y-0 left-0 w-0.5 ${this.getSeverityBgClass(severity)} opacity-20 group-hover:opacity-100 transition-opacity"></div>
+            <div class="flex flex-col border-b border-white/[0.02] hover:bg-white/[0.05] transition-colors group cursor-pointer overflow-hidden">
+              <!-- Ultra-Compact Single Row -->
+              <div class="flex items-center gap-2 py-1 px-2 relative h-6">
+                <div class="absolute inset-y-0 left-0 w-0.5 ${this.getSeverityBgClass(severity)} opacity-40 group-hover:opacity-100"></div>
                 
-                <!-- Metadata Left -->
-                <span class="w-12 flex-shrink-0 mono text-[8px] font-black uppercase tracking-tighter ${typeColorClass} opacity-80">
-                  ${window.escapeHTML(type)}
+                <span class="flex-shrink-0 mono text-[6.5px] font-black uppercase tracking-tighter ${typeColorClass} w-8">
+                  ${window.escapeHTML(type.slice(0, 4))}
+                </span>
+
+                <span class="flex-shrink-0 mono text-[6.5px] font-bold uppercase tracking-tighter ${severityTextClass} w-6">
+                  ${window.escapeHTML(severity.slice(0, 3))}
+                </span>
+
+                <span class="flex-shrink-0 mono text-[6.5px] text-slate-500 font-bold uppercase truncate tracking-tighter w-16 opacity-60">
+                  ${window.escapeHTML(caller.slice(0, 10))}
+                </span>
+
+                <span class="flex-grow min-w-0 text-[7.5px] text-slate-300 font-medium truncate tracking-tight">
+                  ${window.escapeHTML(log.message || '---')}
                 </span>
  
-                <span class="w-10 flex-shrink-0 mono text-[8px] font-black uppercase tracking-tighter ${severityTextClass}">
-                  ${window.escapeHTML(severity.slice(0, 4))}
-                </span>
- 
-                <span class="flex-grow min-w-0 mono text-[8px] text-slate-400 font-black uppercase truncate tracking-tighter">
-                  ${window.escapeHTML(caller)}
-                </span>
- 
-                <!-- Time Right -->
-                <span class="flex-shrink-0 mono text-[8px] font-black text-slate-500 tabular-nums">
+                <span class="flex-shrink-0 mono text-[6.5px] font-black text-slate-600 tabular-nums">
                   ${timeStr}
                 </span>
- 
-                <div class="flex-shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" class="transform transition-transform duration-300 arrow-icon">
-                    <path d="m6 9 6 6 6-6"/>
-                  </svg>
-                </div>
               </div>
- 
-              <!-- Message Detail (Hidden by default) -->
-              <div class="message-detail hidden px-6 py-4 bg-black/40">
-                <div class="mono text-[8px] text-slate-500 leading-relaxed tracking-tight border-l border-white/10 pl-3 py-1">
+  
+              <!-- Expanded Payload (Hidden) -->
+              <div class="message-detail hidden px-4 py-3 bg-black/60 border-t border-white/5">
+                <div class="mono text-[8px] text-primary/90 leading-relaxed bg-black/40 p-3 rounded-lg border border-white/5">
+                  <div class="text-slate-500 mb-2 uppercase tracking-widest border-b border-white/5 pb-1">Full_Forensic_Message</div>
                   ${window.escapeHTML(log.message || '---')}
+                  ${log.payload ? `<div class="mt-2 pt-2 border-t border-white/5 text-[7px] text-slate-500 uppercase">Payload: ${JSON.stringify(log.payload)}</div>` : ''}
                 </div>
               </div>
             </div>
@@ -140,10 +171,17 @@ class MiniLog extends HTMLElement {
     this.querySelectorAll('.group').forEach(el => {
       el.onclick = () => {
         const detail = el.querySelector('.message-detail');
-        const arrow = el.querySelector('.arrow-icon');
+        if (!detail) return;
         const isHidden = detail.classList.contains('hidden');
+        
+        // Toggle expansion
         detail.classList.toggle('hidden');
-        arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        
+        // Optional: rotate arrow if it exists (not in current ultra-compact design)
+        const arrow = el.querySelector('.arrow-icon');
+        if (arrow) {
+            arrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
       };
     });
   }

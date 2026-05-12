@@ -1,6 +1,7 @@
 import { LoggingPort, LogSeverity, LogType, LogEntry, SyslogSeverity } from "@core/ports.ts";
 import { TimelineRepository } from "../persistence/repositories/timeline_repository.ts";
 import { DiagnosticRepository } from "../persistence/diagnostic_repository.ts";
+import { broadcast } from "@api/ws.ts";
 
 export { LogSeverity, LogType, SyslogSeverity };
 
@@ -178,6 +179,12 @@ export class LoggingService implements LoggingPort {
             // Console format: TIMESTAMP [TYPE] [SEVERITY] [CALLER] MESSAGE
             this.originalLog(`${timestamp} ${c}[${type.toUpperCase()}] [${severity.toLowerCase()}] [${caller}]${reset} ${message}`);
         }
+
+        // 4. Real-time Broadcast: Sink to connected UI consoles
+        broadcast({
+            type: "AUDIT_EVENT",
+            data: entry
+        });
     }
 
     async logLegacy(message: string, severity: LogSeverity | SyslogSeverity = LogSeverity.INFO, source: string = "SYSTEM", payload?: any) {

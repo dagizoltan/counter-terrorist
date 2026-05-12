@@ -435,16 +435,40 @@ export class CuratedIntelService {
             await this.kv?.set(["curated_threats_by_type", curated.type, indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
             this.stats[source.name] = (this.stats[source.name] || 0) + 1;
             ingestCount++;
+            
+            // Log progress every 10k items to prove activity to the operator
+            if (ingestCount % 10000 === 0) {
+                const progressLog = {
+                    timestamp: new Date().toISOString(),
+                    type: LogType.ACTIVITY,
+                    severity: LogSeverity.INFO,
+                    caller: `intel:${source.name.toLowerCase()}`,
+                    message: `Ingestion in progress: ${ingestCount} indicators parsed...`
+                };
+                this.logging.log(progressLog);
+                this.broadcast(progressLog);
+            }
+
             if (ingestCount > 100000) break; 
         }
 
         this.logging.log({
             timestamp: new Date().toISOString(),
-            type: LogType.DEBUG,
-            severity: LogSeverity.INFO,
+            type: LogType.AUDIT,
+            severity: LogSeverity.SUCCESS,
             caller: "threat-intel",
-            message: `Ingested ${ingestCount} from ${source.name} (Active Blocks: ${blockCount})`
+            message: `COMPLETED: Ingested ${ingestCount} indicators from ${source.name}. ${newIPsBlocked} new tactical isolations committed.`
         });
+        
+        // Broadcast the final summary for this source
+        this.broadcast({
+            timestamp: new Date().toISOString(),
+            type: "AUDIT",
+            severity: "SUCCESS",
+            caller: `intel:${source.name.toLowerCase()}`,
+            message: `Ingestion cycle finished. DB_COUNT: ${ingestCount}`
+        });
+
         return newIPsBlocked;
     }
 

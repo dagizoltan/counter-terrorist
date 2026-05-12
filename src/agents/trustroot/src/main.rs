@@ -144,8 +144,8 @@ async fn generate_ca_task(common_name: String) -> (bool, String, Option<serde_js
     })))
 }
 
-async fn issue_node_cert_task(node_id: String, ca_cert_pem: String, ca_key_pem: String) -> (bool, String, Option<serde_json::Value>) {
-    use rcgen::{Certificate, CertificateParams, KeyPair, DistinguishedName, CertificateSigningRequest};
+async fn issue_node_cert_task(node_id: String, _ca_cert_pem: String, ca_key_pem: String) -> (bool, String, Option<serde_json::Value>) {
+    use rcgen::{Certificate, CertificateParams, KeyPair, DistinguishedName};
 
     // 1. Generate Node Key Pair
     let node_key_pair = match KeyPair::generate(&rcgen::PKCS_RSA_SHA256) {
@@ -163,7 +163,7 @@ async fn issue_node_cert_task(node_id: String, ca_cert_pem: String, ca_key_pem: 
     params.key_pair = Some(node_key_pair);
 
     // 3. Load CA
-    let ca_key_pair = match KeyPair::from_pem(&ca_key_pem) {
+    let _ca_key_pair = match KeyPair::from_pem(&ca_key_pem) {
         Ok(k) => k,
         Err(e) => return (false, format!("Failed to load CA key: {}", e), None),
     };

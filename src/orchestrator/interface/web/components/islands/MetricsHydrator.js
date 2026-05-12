@@ -94,9 +94,14 @@ class MetricsHydrator extends HTMLElement {
     this.setText('stat-fw-blocked', blockedCount.toLocaleString());
     this.setText('evt-blocked-count', blockedCount.toLocaleString());
     
+    if (m.firewall) {
+        this.updateStatus('stat-fw-grid', m.firewall.rules > 0 ? 'ARMED' : 'BYPASS');
+    }
+    
     if (m.audit) {
         this.updateStatus('stat-audit-chain', m.audit.chainVerified ? 'VERIFIED' : 'BROKEN');
         this.setText('stat-audit-score', `${m.node?.integrityScore ?? 0}%`);
+        this.setText('stat-audit-score-large', `${m.node?.integrityScore ?? 0}%`);
     }
 
     if (m.honeypot) {
