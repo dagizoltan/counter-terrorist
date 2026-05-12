@@ -105,7 +105,7 @@ export class KernelService {
             
             // Deep Stealth: Register with eBPF Kernel filter
             if (this.sidecarManager) {
-                await this.sidecarManager.sendCommand("ebpf", {
+                await this.sidecarManager.sendCommand("sentinel", {
                     type: "HIDE_PID",
                     pid: selfPid
                 }).catch(err => this.logging.log({
@@ -160,13 +160,13 @@ export class KernelService {
         });
 
         if (os === "linux") {
-            await this.sidecarManager.sendCommand("ebpf", { type: "ENFORCE_PID", pid, policy });
+            await this.sidecarManager.sendCommand("sentinel", { type: "ENFORCE_PID", pid, policy });
         } else if (os === "darwin") {
             // macOS ESF Auth enforcement
-            await this.sidecarManager.sendCommand("esf", { type: "UpdatePolicy", blocked_paths: [`/proc/${pid}/`] });
+            await this.sidecarManager.sendCommand("sentinel-darwin", { type: "UpdatePolicy", blocked_paths: [`/proc/${pid}/`] });
         } else if (os === "windows") {
             // Windows WFP enforcement
-            await this.sidecarManager.sendCommand("wfp", { type: "AddBlockRule", ip: "0.0.0.0/0", pid });
+            await this.sidecarManager.sendCommand("enforcer-win", { type: "AddBlockRule", ip: "0.0.0.0/0", pid });
         }
 
         this.auditService.logEvent({
@@ -189,7 +189,7 @@ export class KernelService {
             caller: "KERNEL:LSM",
             message: `LSM Enforcement: Blocking syscall '${syscall}' for PID ${pid}`
         });
-        await this.sidecarManager.sendCommand("ebpf", {
+        await this.sidecarManager.sendCommand("sentinel", {
             type: "BLOCK_SYSCALL",
             pid,
             syscall
@@ -223,7 +223,7 @@ export class KernelService {
             caller: "KERNEL:LSM",
             message: "Deploying Deep LSM Policy..."
         });
-        await this.sidecarManager.sendCommand("ebpf", {
+        await this.sidecarManager.sendCommand("sentinel", {
             type: "LSM_POLICY",
             policy
         }).catch(err => this.logging.log({

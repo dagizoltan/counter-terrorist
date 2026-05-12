@@ -41,7 +41,7 @@ export class AutonomousAutopilotService {
 
         // 1. NETWORK BLOCK: Block the attacking IP via eBPF
         if (chain.subject.includes(".")) { // Basic IP check
-             await this.commands.sendCommand("ebpf", {
+             await this.commands.sendCommand("sentinel", {
                 type: "BLOCK_IP",
                 ip: chain.subject,
                 id: crypto.randomUUID()
@@ -52,7 +52,7 @@ export class AutonomousAutopilotService {
         const processNode = chain.stages.exploitation.find(n => n.type === "PROCESS");
         if (processNode && processNode.pid) {
             // 2a. Forensic Dump
-            await this.commands.sendCommand("blocker", {
+            await this.commands.sendCommand("enforcer", {
                 type: "DumpProcess",
                 pid: processNode.pid,
                 path: `forensics_dump_breach_${processNode.pid}.dump`,
@@ -60,7 +60,7 @@ export class AutonomousAutopilotService {
             });
 
             // 2b. Active Kill
-            await this.commands.sendCommand("blocker", {
+            await this.commands.sendCommand("enforcer", {
                 type: "KillProcess",
                 pid: processNode.pid,
                 id: crypto.randomUUID()
@@ -68,7 +68,7 @@ export class AutonomousAutopilotService {
         }
 
         // 3. FORENSIC EVIDENCE: Start capturing traffic from this source
-        await this.commands.sendCommand("pcap", {
+        await this.commands.sendCommand("netcap", {
             type: "StartCapture",
             payload: {
                 interface: "eth0", 

@@ -39,7 +39,7 @@ const ALL_TAGS = [
 
 export const pluginCatalog: PlatformPluginDefinition[] = [
   {
-    id: "vpn",
+    id: "tunnel",
     supportedTags: ALL_TAGS,
     create: ({ vpn }) => new VpnPlugin(vpn),
   },
@@ -54,7 +54,7 @@ export const pluginCatalog: PlatformPluginDefinition[] = [
     create: ({ mesh }) => new MeshPlugin(mesh),
   },
   {
-    id: "honeypot",
+    id: "decoy",
     supportedTags: ALL_TAGS,
     create: ({ sidecarManager, firewall, pcap, broadcast }) =>
       new HoneypotPlugin(sidecarManager, firewall, pcap, broadcast),

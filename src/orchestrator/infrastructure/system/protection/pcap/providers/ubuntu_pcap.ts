@@ -11,7 +11,7 @@ export class UbuntuPcapProvider implements PcapProvider {
   constructor(private sidecar: SidecarManager) {}
 
   async startCapture(interfaceName: string, duration: number, filename: string, _filter?: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("pcap", {
+    return await this.sidecar.sendCommand("netcap", {
       type: "StartCapture",
       interface: interfaceName,
       filename
@@ -19,13 +19,13 @@ export class UbuntuPcapProvider implements PcapProvider {
   }
 
   async stopCapture(_filename: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("pcap", {
+    return await this.sidecar.sendCommand("netcap", {
       type: "StopCapture"
     });
   }
 
   async getStatus(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("pcap", {
+    return await this.sidecar.sendCommand("netcap", {
       type: "GetStatus"
     });
   }

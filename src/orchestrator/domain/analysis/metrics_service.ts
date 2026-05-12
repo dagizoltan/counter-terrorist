@@ -237,7 +237,7 @@ export class MetricsService {
             // 1. Detection Phase (Run once)
             if (this.scannerAvailable === null) {
                 this.scannerAvailable = this.sidecarManager.isRunning("analyzer");
-                this.vpnAvailable = this.sidecarManager.isRunning("vpn") || (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success;
+                this.vpnAvailable = this.sidecarManager.isRunning("tunnel") || (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success;
             }
 
             // 2. High-Frequency Phase (Parallelized for Performance)
@@ -249,8 +249,8 @@ export class MetricsService {
             ]);
 
             const honeypotModules = this.honeypot.getModules();
-            const ebpfActive = this.sidecarManager.isRunning("ebpf");
-            const fimActive = this.sidecarManager.isRunning("fim");
+            const ebpfActive = this.sidecarManager.isRunning("sentinel");
+            const fimActive = this.sidecarManager.isRunning("watchfile");
 
             const fwLines = firewallStatus.stdout?.split('\n').filter((l: string) => l.trim()) || [];
             const rejectCount = (firewallStatus.stdout?.match(/REJECT|DROP|DENY/g) || []).length;

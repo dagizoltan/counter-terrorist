@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-    "scanner",
-    "blocker",
-    "honeypot",
-    "pcap", "ebpf",
-    "fim",
-    "tpm", "vpn",
-    "esf", "etw", "wfp",
+    "analyzer",
+    "enforcer",
+    "decoy",
+    "netcap", "sentinel",
+    "watchfile",
+    "trustroot", "tunnel",
+    "sentinel-darwin", "telemetry-win", "enforcer-win",
 ]
 
 [workspace.dependencies]

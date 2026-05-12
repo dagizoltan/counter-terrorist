@@ -3,7 +3,7 @@ import { VpnPort, LogSeverity, LogType } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 
 export class VpnPlugin implements Plugin {
-  name = "vpn";
+  name = "tunnel";
   description = "Manages secure mesh communication and mTLS tunnels between defense nodes.";
   private active = false;
 

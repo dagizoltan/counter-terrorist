@@ -100,7 +100,7 @@ export class HoneypotService {
       } else {
         await this.firewall.denyPort(module.port, "tcp");
       }
-      await this.sidecarManager.sendCommand("honeypot", {
+      await this.sidecarManager.sendCommand("decoy", {
         type: "ToggleModule",
         module: id, 
         active, 
@@ -110,8 +110,8 @@ export class HoneypotService {
   }
 
   async start() {
-    await this.sidecarManager.getPersistentSidecar("honeypot");
-    this.sidecarManager.onEvent("honeypot", (event) => this.handleEvent(event));
+    await this.sidecarManager.getPersistentSidecar("decoy");
+    this.sidecarManager.onEvent("decoy", (event) => this.handleEvent(event));
 
     // Initialize firewall rules and sidecar modules for active modules
     for (const module of this.modules.values()) {
@@ -254,7 +254,7 @@ export class HoneypotService {
     
     // We send a Sabotage command to the honeypot sidecar
     // The sidecar will then inject jitter and errors for this specific IP
-    await this.sidecarManager.sendCommand("honeypot", {
+    await this.sidecarManager.sendCommand("decoy", {
         type: "Sabotage",
         source_ip, 
         level: "HIGH"
@@ -296,7 +296,7 @@ export class HoneypotService {
       await this.firewall.denyPort(oldPort, "tcp");
       await this.firewall.allowPort(newPort, "tcp");
 
-      await this.sidecarManager.sendCommand("honeypot", {
+      await this.sidecarManager.sendCommand("decoy", {
         type: "UpdateModule",
         module: id, 
         oldPort, 

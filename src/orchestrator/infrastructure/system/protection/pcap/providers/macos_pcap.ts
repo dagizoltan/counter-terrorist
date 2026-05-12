@@ -11,7 +11,7 @@ export class MacosPcapProvider implements PcapProvider {
   constructor(private sidecar: SidecarManager) {}
 
   async startCapture(interfaceName: string = "any", _duration: number = 60, filename: string = "capture.pcap", _filter?: string): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("pcap", {
+    return await this.sidecar.sendCommand("netcap", {
       type: "StartCapture",
       interface: interfaceName,
       filename
@@ -19,13 +19,13 @@ export class MacosPcapProvider implements PcapProvider {
   }
 
   async stopCapture(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("pcap", {
+    return await this.sidecar.sendCommand("netcap", {
       type: "StopCapture"
     });
   }
 
   async getStatus(): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("pcap", {
+    return await this.sidecar.sendCommand("netcap", {
       type: "GetStatus"
     });
   }

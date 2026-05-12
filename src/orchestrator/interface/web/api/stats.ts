@@ -9,7 +9,7 @@ export function createStatsApi(eventBus: EventBusPort) {
   const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
   // Subscribe to honeypot events
-  eventBus.on("honeypot", (data) => {
+  eventBus.on("decoy", (data) => {
     if (data.event?.type === "PortAccess") {
       const now = Date.now();
       const last = honeypotHits[honeypotHits.length - 1];

@@ -30,11 +30,11 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("enforcer", { type: "KillProcess", pid });
+    return await this.sidecar.sendCommand("sentinel", { type: "KillProcess", pid });
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    return await this.sidecar.sendCommand("enforcer", { type: "QuarantineProcess", pid });
+    return await this.sidecar.sendCommand("sentinel", { type: "QuarantineProcess", pid });
   }
 
   async dumpProcessForensics(pid: number): Promise<CommandResult> {
@@ -47,7 +47,7 @@ export class UbuntuFirewallProvider implements FirewallProvider {
         message: `Dumping process ${pid} memory to ${dumpPath}`
     });
     
-    return await this.sidecar.sendCommand("enforcer", { type: "DumpProcess", pid, path: dumpPath });
+    return await this.sidecar.sendCommand("sentinel", { type: "DumpProcess", pid, path: dumpPath });
   }
 
   async getStatus(): Promise<CommandResult> {

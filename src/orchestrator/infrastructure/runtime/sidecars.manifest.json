@@ -2,7 +2,7 @@
   "sidecars": {
     "trustroot": {
       "path": "./src/agents/target/release/trustroot",
-      "hash": "1880b3255b6cf02eb24a51c6a12e42ebad9a88967e340a7b7f54cb2a08b04958",
+      "hash": "bb8af0f9662c2201556eb41427ae7df6c6ad92bafe84d320550eb5b4e7474c38",
       "persistent": true
     },
     "sentinel": {
@@ -13,37 +13,42 @@
     },
     "tunnel": {
       "path": "./src/agents/target/release/tunnel",
-      "hash": "ac97c447df642645a7457ac06f0278e4adc0fc37f4ffd8ab6661d71e8a869583",
+      "hash": "5c2c38fb8afa7701c5466738dc4c729e87ac2df8c4513690ff6fa8ca9836c79e",
       "persistent": true,
       "capabilities": ["cap_net_admin"]
     },
     "enforcer": {
       "path": "./src/agents/target/release/enforcer",
-      "hash": "718f7dbd0a383fe6f3b66ea13f1a5176790fe63a88af71b61b1784a64bef446c",
+      "hash": "8a65ae29bc29708ae079760f962fdd8c3bee0e483cb66f712b3e89615ade1984",
       "persistent": true,
       "capabilities": ["cap_net_admin", "cap_kill"]
     },
     "analyzer": {
       "path": "./src/agents/target/release/analyzer",
-      "hash": "5c30c1605622657047179f683176cef0f6ac9dd422c19de52984d02ae74399a9",
+      "hash": "c24665d241330fb1226199c3279e050ab70804de6160959b9efff9a3fd8b0d1d",
       "persistent": true
     },
     "netcap": {
       "path": "./src/agents/target/release/netcap",
-      "hash": "63b6003147b683d90fec03ca65d29e7997955636535c73274925fbd66c4e8892",
+      "hash": "218e4ff456a89b14f1a3b690b39be7acade9be632c04861dc9d96afae9c1e5b5",
       "persistent": true,
       "capabilities": ["cap_net_raw", "cap_net_admin"]
     },
     "decoy": {
       "path": "./src/agents/target/release/decoy",
-      "hash": "8bb87e59cd9fbdd6c985b548b0e76d3730560b98b7f8403e0abcad40f6300312",
+      "hash": "e916fc400812448cac67840dafebb0e23d2255a99f412f1ca985d50829c7330e",
       "persistent": true
     },
     "watchfile": {
         "path": "./src/agents/target/release/watchfile",
-        "hash": "78c6acbe1b3cccaca9ad8ea8955b2fee412677d8cea3fb7f8b0d6784828cb6da",
+        "hash": "c94a0466c8899ed1eaf46484d1cf8d94590e21bfce5b04844e80467548b2b0ee",
         "persistent": true,
         "capabilities": ["cap_sys_admin"]
+    },
+    "sentinel-darwin": {
+        "path": "./src/agents/target/release/sentinel-darwin",
+        "hash": "8ef55d8a72e5b566840667633c1695a29825f7ff9d043c279f0eaa78510d4e09",
+        "persistent": true
     }
   }
 }

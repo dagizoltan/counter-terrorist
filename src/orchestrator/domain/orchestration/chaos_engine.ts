@@ -25,7 +25,7 @@ export class ChaosEngine {
     
     // Send fake events to the honeypot pipeline (Unified Schema)
     for (let i = 0; i < 6; i++) {
-        this.sidecar.emitEvent("honeypot", {
+        this.sidecar.emitEvent("decoy", {
             success: true,
             data: {
                 type: "PortAccess",

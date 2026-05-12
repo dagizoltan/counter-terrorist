@@ -1,4 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 
 /**
  * Mesh Authentication Service: Manages the internal PKI for mTLS communication.
@@ -33,7 +34,7 @@ export class MeshAuthService {
   constructor(
     private kv: Deno.Kv,
     private logging: LoggingPort,
-    private tpm?: any // TPMManager
+    private tpm?: TPMManager
   ) {}
 
   /**
@@ -263,131 +264,36 @@ export class MeshAuthService {
   private async issueNodeCert(nodeId: string): Promise<CertPair> {
     // SECURITY: Sanitize nodeId to prevent configuration injection
     const safeNodeId = nodeId.replace(/[^a-zA-Z0-9\.\-]/g, "");
-    
     const ca = await this.getRootCA();
-    const tempDir = await Deno.makeTempDir();
-    const caCertPath = `${tempDir}/ca.crt`;
-    const nodeConfPath = `${tempDir}/node.conf`;
-    const nodeCsrPath = `${tempDir}/node.csr`;
 
-    try {
-      await Deno.writeTextFile(caCertPath, ca.cert);
-      const nodeConf = `
-[req]
-distinguished_name = req_distinguished_name
-prompt = no
-[req_distinguished_name]
-CN = ${safeNodeId}
-[v3_req]
-basicConstraints = CA:FALSE
-keyUsage = digitalSignature, keyEncipherment
-extendedKeyUsage = clientAuth, serverAuth
-subjectKeyIdentifier = hash
-`;
-      await Deno.writeTextFile(nodeConfPath, nodeConf);
-
-      // 1. Generate Node Key and CSR in memory
-      const genReqCmd = new Deno.Command("openssl", {
-        args: [
-          "req", "-new", "-newkey", "rsa:2048",
-          "-keyout", "/dev/stdout", "-out", "/dev/stdout",
-          "-nodes", "-config", nodeConfPath, "-sha256"
-        ],
-        stdout: "piped",
-        stderr: "piped",
-      });
-
-      const reqOutput = await genReqCmd.output();
-      if (!reqOutput.success) {
-        throw new Error(`Failed to generate node request: ${new TextDecoder().decode(reqOutput.stderr)}`);
-      }
-
-      const reqPem = new TextDecoder().decode(reqOutput.stdout);
-      const nodeKey = reqPem.match(/-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/)?.[0];
-      const nodeCsr = reqPem.match(/-----BEGIN CERTIFICATE REQUEST-----[\s\S]*?-----END CERTIFICATE REQUEST-----/)?.[0];
-
-      if (!nodeKey || !nodeCsr) {
-        throw new Error("Failed to extract node key or CSR from OpenSSL output");
-      }
-
-      await Deno.writeTextFile(nodeCsrPath, nodeCsr);
-
-      // 2. Sign CSR using CA key from memory (via stdin)
-      const signCmd = new Deno.Command("openssl", {
-        args: [
-          "x509", "-req", "-in", nodeCsrPath,
-          "-CA", caCertPath, "-CAkey", "/dev/stdin",
-          "-CAcreateserial", "-out", "/dev/stdout",
-          "-days", "365", "-sha256", "-extfile", nodeConfPath, "-extensions", "v3_req"
-        ],
-        stdin: "piped",
-        stdout: "piped",
-        stderr: "piped",
-      });
-
-      const signer = signCmd.spawn();
-      const writer = signer.stdin.getWriter();
-      await writer.write(new TextEncoder().encode(ca.key));
-      await writer.close();
-
-      const signOutput = await signer.output();
-      if (!signOutput.success) {
-        throw new Error(`Failed to sign certificate: ${new TextDecoder().decode(signOutput.stderr)}`);
-      }
-
-      const cert = new TextDecoder().decode(signOutput.stdout);
-
-      return { cert, key: nodeKey, timestamp: Date.now() };
-    } finally {
-      await Deno.remove(tempDir, { recursive: true });
+    if (this.tpm) {
+        const res = await this.tpm.issueNodeCert(safeNodeId, ca.cert, ca.key);
+        if (res.success && res.data?.cert && res.data?.key) {
+            return {
+                cert: res.data.cert,
+                key: res.data.key,
+                timestamp: Date.now()
+            };
+        }
+        throw new Error(`TPM Node Cert Issuance failed: ${res.message}`);
     }
+
+    throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native cert issuance.");
   }
 
   private async generateSelfSignedCA(): Promise<CertPair> {
-    const caConf = `
-[req]
-distinguished_name = req_distinguished_name
-x509_extensions = v3_ca
-prompt = no
-[req_distinguished_name]
-CN = MeshRootCA
-[v3_ca]
-basicConstraints = critical,CA:TRUE
-keyUsage = critical, digitalSignature, cRLSign, keyCertSign
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer
-`;
-
-    const genCaCmd = new Deno.Command("openssl", {
-      args: [
-        "req", "-x509", "-newkey", "rsa:4096",
-        "-keyout", "/dev/stdout", "-out", "/dev/stdout",
-        "-days", "3650", "-nodes", "-config", "/dev/stdin",
-        "-sha256"
-      ],
-      stdin: "piped",
-      stdout: "piped",
-      stderr: "piped",
-    });
-
-    const child = genCaCmd.spawn();
-    const writer = child.stdin.getWriter();
-    await writer.write(new TextEncoder().encode(caConf));
-    await writer.close();
-
-    const { success, stdout, stderr } = await child.output();
-    if (!success) {
-      throw new Error(`Failed to generate Root CA: ${new TextDecoder().decode(stderr)}`);
+    if (this.tpm) {
+        const res = await this.tpm.generateSelfSignedCA("MeshRootCA");
+        if (res.success && res.data?.cert && res.data?.key) {
+            return {
+                cert: res.data.cert,
+                key: res.data.key,
+                timestamp: Date.now()
+            };
+        }
+        throw new Error(`TPM CA Generation failed: ${res.message}`);
     }
 
-    const output = new TextDecoder().decode(stdout);
-    const cert = output.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/)?.[0];
-    const key = output.match(/-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/)?.[0];
-
-    if (!cert || !key) {
-      throw new Error("Failed to extract CA cert or key from OpenSSL output");
-    }
-
-    return { cert, key, timestamp: Date.now() };
+    throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native CA generation.");
   }
 }

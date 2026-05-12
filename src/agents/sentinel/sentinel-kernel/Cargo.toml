@@ -1,0 +1,18 @@
+[package]
+name = "sentinel-kernel"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+aya-ebpf = "0.1"
+aya-log-ebpf = "0.1"
+sentinel-common = { path = "../common" }
+
+[profile.release]
+panic = "abort"
+
+[[bin]]
+name = "sentinel-kernel"
+path = "src/main.rs"

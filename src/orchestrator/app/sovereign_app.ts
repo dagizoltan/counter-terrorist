@@ -329,7 +329,11 @@ export class SovereignApp {
 
     private async startDaemons() {
         const { command: sm, platformInfo } = this.services;
-        const daemons = ["decoy", "watchfile", "enforcer", "netcap", "analyzer", "tunnel"];
+        const daemons = ["decoy", "watchfile", "netcap", "analyzer", "tunnel"];
+
+        if (platformInfo.name !== "linux") {
+            daemons.push("enforcer");
+        }
 
         if (platformInfo.name === "macos") daemons.push("sentinel-darwin");
         if (platformInfo.name === "windows") {

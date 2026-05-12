@@ -1,0 +1,15 @@
+[package]
+name = "watchfile"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+chrono = { workspace = true }
+libc = "0.2"
+nix = { version = "0.27", features = ["fs"] }
+anyhow = "1.0"

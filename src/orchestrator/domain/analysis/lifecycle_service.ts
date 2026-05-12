@@ -30,7 +30,7 @@ export class LifecycleService {
     private initializeDefaultTasks() {
         this.tasks.push({
             id: "kernel-attestation",
-            agent: "scanner",
+            agent: "analyzer",
             command: "ATTEST_KERNEL",
             intervalMs: 300000, // 5 Minutes
             jitterMs: 30000
@@ -38,14 +38,14 @@ export class LifecycleService {
 
         this.tasks.push({
             id: "file-integrity-baseline",
-            agent: "fim",
+            agent: "watchfile",
             command: "GetStatus",
             intervalMs: 600000, // 10 Minutes
         });
 
         this.tasks.push({
             id: "pcap-health-check",
-            agent: "pcap",
+            agent: "netcap",
             command: "GetStatus",
             intervalMs: 60000, // 1 Minute
         });
@@ -118,7 +118,7 @@ export class LifecycleService {
         });
 
         // 1. Signal VPN Agent to generate new keys
-        await this.commands.sendCommand("vpn", { type: "RotateKeys", id: crypto.randomUUID() });
+        await this.commands.sendCommand("tunnel", { type: "RotateKeys", id: crypto.randomUUID() });
         
         // 2. Signal Mesh Agent to rotate mTLS identity
         // await this.commands.sendCommand("mesh", { type: "RotateIdentity", id: crypto.randomUUID() });

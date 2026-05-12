@@ -36,7 +36,7 @@ export class ProvisioningService {
         });
         
         // Use the scanner sidecar to find hosts with SSH (22) or WinRM (5985)
-        const scanResult = await this.sidecar.runSidecar("scanner", [
+        const scanResult = await this.sidecar.runSidecar("analyzer", [
             JSON.stringify({ type: "ScanNetwork", payload: { ports: [22, 5985] } })
         ]);
 

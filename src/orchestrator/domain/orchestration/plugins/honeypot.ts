@@ -33,7 +33,7 @@ export class HoneypotPlugin implements Plugin {
     });
 
     try {
-      const child = await this.sidecarManager.getPersistentSidecar("honeypot");
+      const child = await this.sidecarManager.getPersistentSidecar("decoy");
       if (!child) {
         loggingService.log({
             timestamp: new Date().toISOString(),
@@ -45,7 +45,7 @@ export class HoneypotPlugin implements Plugin {
         return;
       }
 
-      this.sidecarManager.onEvent("honeypot", (event) => {
+      this.sidecarManager.onEvent("decoy", (event) => {
         this.handleEvent(event);
       });
 
@@ -178,7 +178,7 @@ export class HoneypotPlugin implements Plugin {
     });
     
     try {
-        await this.sidecarManager.sendCommand("honeypot", {
+        await this.sidecarManager.sendCommand("decoy", {
             type: "Sabotage",
             source_ip: ip,
             level: "MAXIMUM"

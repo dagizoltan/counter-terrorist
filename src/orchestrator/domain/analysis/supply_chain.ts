@@ -38,7 +38,7 @@ export class SupplyChainService {
         }
 
         // 2. Parse Rust Agent Dependencies (Simplified scan)
-        const agents = ["ebpf", "fim", "firewall", "deception", "network"];
+        const agents = ["sentinel", "watchfile", "firewall", "deception", "network"];
         for (const agent of agents) {
             try {
                 const path = `./src/agents/${agent}/Cargo.toml`;

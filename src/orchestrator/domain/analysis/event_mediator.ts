@@ -28,7 +28,7 @@ export class EventMediator {
      */
     wireSidecars(commandPort: any) {
         // 1. Honeypot Integration
-        commandPort.onEvent("honeypot", (response: any) => {
+        commandPort.onEvent("decoy", (response: any) => {
             const event = response.data || response;
             this.broadcast({ 
                 type: LogType.AUDIT, 
@@ -41,7 +41,7 @@ export class EventMediator {
         });
 
         // 2. eBPF Integration
-        commandPort.onEvent("ebpf", async (response: any) => {
+        commandPort.onEvent("sentinel", async (response: any) => {
             const event = response.data || response;
             if (event.type === "SYSCALL_EVENT") {
                 let type = "EBPF_SYSCALL";
@@ -91,7 +91,7 @@ export class EventMediator {
         });
 
         // 3. FIM (File Integrity) Integration
-        commandPort.onEvent("fim", async (response: any) => {
+        commandPort.onEvent("watchfile", async (response: any) => {
             const event = response.data || response;
             const payload = event.data || event;
             if (payload?.type === "FileAlert") {
@@ -129,7 +129,7 @@ export class EventMediator {
         });
 
         // 4. PCAP Integration
-        commandPort.onEvent("pcap", (response: any) => {
+        commandPort.onEvent("netcap", (response: any) => {
             const event = response.data || response;
             const data = event.data || event;
 
@@ -190,7 +190,7 @@ export class EventMediator {
         });
 
         // 5. Scanner Integration
-        commandPort.onEvent("scanner", (response: any) => {
+        commandPort.onEvent("analyzer", (response: any) => {
             const event = response.data || response;
             const data = event.data || event;
             if (data.type === "ThreatDetected" || data.type === "RKH_SCAN_RESULT") {

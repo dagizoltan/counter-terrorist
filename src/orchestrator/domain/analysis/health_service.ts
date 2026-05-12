@@ -19,9 +19,9 @@ export class HealthService {
 
     constructor(private logger: LoggingPort) {
         // Default quotas for agents
-        this.sidecarQuotas.set("ebpf", { cpu: 5.0, memory: 64 * 1024 * 1024 });
-        this.sidecarQuotas.set("pcap", { cpu: 10.0, memory: 256 * 1024 * 1024 });
-        this.sidecarQuotas.set("honeypot", { cpu: 2.0, memory: 32 * 1024 * 1024 });
+        this.sidecarQuotas.set("sentinel", { cpu: 5.0, memory: 64 * 1024 * 1024 });
+        this.sidecarQuotas.set("netcap", { cpu: 10.0, memory: 256 * 1024 * 1024 });
+        this.sidecarQuotas.set("decoy", { cpu: 2.0, memory: 32 * 1024 * 1024 });
     }
 
     reportStatus(name: string, status: SubsystemStatus, error?: string) {

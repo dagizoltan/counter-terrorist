@@ -26,7 +26,7 @@ export const ChaosEventSchema = z.object({
 });
 
 export const SystemEventRegistry = {
-  "honeypot": HoneypotHitSchema,
+  "decoy": HoneypotHitSchema,
   "drift": DriftDetectedSchema,
   "chaos": ChaosEventSchema,
   "INFO": z.any(),

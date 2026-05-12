@@ -213,6 +213,22 @@ export class TPMManager {
         return null;
     }
 
+    async generateSelfSignedCA(commonName: string) {
+        return await this.sidecar.sendCommand("trustroot", { 
+            type: "GenerateSelfSignedCA", 
+            common_name: commonName 
+        });
+    }
+
+    async issueNodeCert(nodeId: string, caCert: string, caKey: string) {
+        return await this.sidecar.sendCommand("trustroot", { 
+            type: "IssueNodeCert", 
+            node_id: nodeId, 
+            ca_cert: caCert, 
+            ca_key: caKey 
+        });
+    }
+
     /**
      * Seals the current PCR state into TPM NVRAM as the 'Golden' baseline.
      */

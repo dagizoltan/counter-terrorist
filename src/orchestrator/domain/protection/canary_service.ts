@@ -88,7 +88,7 @@ export class CanaryService {
             } catch {}
 
             await Deno.link(newToken.masterPath, newToken.projectionPath);
-            this.sidecar.sendCommand("fim", { type: "WatchPath", path: absProjection }).catch(() => {});
+            this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch(() => {});
         } catch {}
     }
 
@@ -149,7 +149,7 @@ export class CanaryService {
                 });
 
                 // 3. Register with FIM
-                this.sidecar.sendCommand("fim", { type: "WatchPath", path: absProjection }).catch(() => {});
+                this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch(() => {});
             } catch (e) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),

@@ -131,7 +131,7 @@ export class BaselineService {
 
     // Capture Processes (via our persistent sidecar)
     try {
-        const scanResult = await this.sidecar.sendCommand("scanner", "SCAN");
+        const scanResult = await this.sidecar.sendCommand("analyzer", "SCAN");
         const data = scanResult.data as any;
         if (scanResult.success && data && data.processes) {
             const scanProcs = data.processes;
@@ -160,7 +160,7 @@ export class BaselineService {
     // Capture Sensitive Files
     const sensitivePaths = ["/etc", "/usr/local/bin"];
     try {
-      const res = await this.sidecar.sendCommand("scanner", { type: "DIR_SCAN", paths: sensitivePaths });
+      const res = await this.sidecar.sendCommand("analyzer", { type: "DIR_SCAN", paths: sensitivePaths });
       const data = res.data as any;
       if (res.success && data && data.files) {
         files = files.concat(data.files);

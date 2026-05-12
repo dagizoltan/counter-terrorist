@@ -5,6 +5,8 @@
 import { copy } from "https://deno.land/std@0.224.0/fs/copy.ts";
 import { emptyDir } from "https://deno.land/std@0.224.0/fs/empty_dir.ts";
 import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { crypto } from "https://deno.land/std@0.224.0/crypto/mod.ts";
+import { encodeHex } from "https://deno.land/std@0.224.0/encoding/hex.ts";
 
 const TARGET_ROOT = "./target";
 const SRC_ROOT = "./src/orchestrator";
@@ -56,6 +58,12 @@ async function collectWebAssets(dest: string) {
     }
   };
   await walk(webSrc, dest);
+}
+
+async function calculateHash(path: string): Promise<string> {
+  const data = await Deno.readFile(path);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return encodeHex(hashBuffer);
 }
 
 async function prepareVendor(webDest: string) {
@@ -153,14 +161,39 @@ async function packageApp() {
     // 2. Build Phase: Agents
     const agentsDir = join(buildDir, "agents");
     await Deno.mkdir(agentsDir, { recursive: true });
-    const agents = ["scanner", "blocker", "honeypot", "pcap", "fim"];
+    const agents = ["analyzer", "enforcer", "decoy", "netcap", "watchfile", "trustroot", "tunnel"];
+    const manifestPath = join(SRC_ROOT, "infrastructure/runtime/sidecars.manifest.json");
+    const manifest = JSON.parse(await Deno.readTextFile(manifestPath));
+
     for (const agent of agents) {
       const agentBin = `${agent}${target.platform === "windows" ? ".exe" : ""}`;
+      const srcPath = join(AGENTS_ROOT, agentBin);
+      const destPath = join(agentsDir, agentBin);
+      
       try {
-        await copy(join(AGENTS_ROOT, agentBin), join(agentsDir, agentBin), { overwrite: true });
+        await copy(srcPath, destPath, { overwrite: true });
+        // Update manifest hash for the build
+        if (target.platform === "linux") {
+            const hash = await calculateHash(destPath);
+            if (manifest.sidecars[agent]) {
+                manifest.sidecars[agent].hash = hash;
+            }
+        }
       } catch {
-        try { await copy(join(AGENTS_ROOT, agent), join(agentsDir, agentBin), { overwrite: true }); } catch {}
+        try { 
+            await copy(join(AGENTS_ROOT, agent), destPath, { overwrite: true });
+            if (target.platform === "linux") {
+                const hash = await calculateHash(destPath);
+                if (manifest.sidecars[agent]) {
+                    manifest.sidecars[agent].hash = hash;
+                }
+            }
+        } catch {}
       }
+    }
+    
+    if (target.platform === "linux") {
+        await Deno.writeTextFile(manifestPath, JSON.stringify(manifest, null, 2));
     }
 
     // 3. Build Phase: Web
