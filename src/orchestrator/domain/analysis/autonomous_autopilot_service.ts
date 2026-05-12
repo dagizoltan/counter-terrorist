@@ -18,6 +18,36 @@ export class AutonomousAutopilotService {
      */
     public start() {
         setInterval(() => this.evaluateThreats(), 5000);
+        
+        // Scheduled Rootkit Audit (Every 1 hour)
+        setInterval(() => this.runScheduledRootkitScan(), 60 * 60 * 1000);
+        // Initial scan on boot
+        setTimeout(() => this.runScheduledRootkitScan(), 30000);
+    }
+
+    private async runScheduledRootkitScan() {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.INFO,
+            caller: "AUTOPILOT",
+            message: "Initiating scheduled Rootkit Vulnerability Audit..."
+        });
+
+        try {
+            await this.commands.sendCommand("analyzer", {
+                type: "RKH_SCAN",
+                id: crypto.randomUUID()
+            });
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "AUTOPILOT",
+                message: `Scheduled RKH_SCAN failed: ${(e as Error).message}`
+            });
+        }
     }
 
     private async evaluateThreats() {

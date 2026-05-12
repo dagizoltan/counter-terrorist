@@ -208,9 +208,29 @@ export class SecurityMiddleware {
       const signature = c.req.header("X-Mesh-Signature");
       const psk = c.req.header("X-Mesh-Secret");
       
-      if (meshSecret && (signature || (psk && await secureCompare(psk, meshSecret)))) {
+      if (!meshSecret) return this.auth()(c, next);
+
+      // 1. PSK Check (Fast path for internal mesh communication)
+      if (psk && await secureCompare(psk, meshSecret)) {
         return next();
       }
+
+      // 2. Cryptographic Signature Verification
+      // This is required for mesh gossip (POST) to ensure message integrity.
+      if (signature && ["POST", "PUT", "PATCH"].includes(c.req.method)) {
+        try {
+          const body = await c.req.raw.clone().json();
+          const isValid = await this.services.mesh.verifySignature(body, signature);
+          if (isValid) {
+            return next();
+          }
+        } catch {
+          // Fall through to standard auth if JSON parse fails
+        }
+      }
+
+      // 3. Fallback to standard administrative/UI authentication
+      // Allows the dashboard (authenticated via session/cookie) to access mesh status.
       return this.auth()(c, next);
     };
   }

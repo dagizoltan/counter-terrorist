@@ -2,6 +2,10 @@
  * ThreatIntelList Island
  * Authoritative OSINT ingestion and enforcement manifest.
  */
+const escapeHTML = (str) => String(str).replace(/[&<>"']/g, m => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+})[m]);
+
 class ThreatIntelList extends HTMLElement {
   constructor() {
     super();
@@ -59,18 +63,18 @@ class ThreatIntelList extends HTMLElement {
       return `
         <div class="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-xl group hover:border-white/10 ">
            <div class="flex items-center gap-8">
-              <div class="dot ${theme} ${t.blocked ? ' : 'shadow-danger""></div>
+              <div class="dot ${theme} ${t.blocked ? '' : 'pulse'}"></div>
               <div class="flex flex-col gap-2">
-                 <span class="mono-sm font-bold tracking-tight ${t.blocked ? 'text-success' : 'text-white'} uppercase select-all">${window.escapeHTML(t.indicator)}</span>
+                 <span class="mono-sm font-bold tracking-tight ${t.blocked ? 'text-success' : 'text-white'} uppercase select-all">${escapeHTML(t.indicator)}</span>
                  <div class="flex items-center gap-4">
-                    <span class="mono-xs font-bold text-slate-600 uppercase tracking-[0.2em]">${window.escapeHTML(t.threatType)}</span>
+                    <span class="mono-xs font-bold text-slate-600 uppercase tracking-[0.2em]">${escapeHTML(t.threatType)}</span>
                     <span class="text-slate-800 text-[10px]">//</span>
-                    <span class="mono-xs font-bold text-primary/40 uppercase tracking-[0.1em]">${window.escapeHTML(t.provider)}</span>
+                    <span class="mono-xs font-bold text-primary/40 uppercase tracking-[0.1em]">${escapeHTML(t.provider)}</span>
                  </div>
               </div>
            </div>
            <div class="flex items-center">
-              <div class="status-pill ${theme} ${t.blocked ? ' : 'pulse'}">
+              <div class="status-pill ${theme} ${t.blocked ? 'active' : 'pulse'}">
                  ${t.blocked ? 'ENFORCEMENT_ACTIVE' : 'AWAITING_NEUTRALIZATION'}
               </div>
            </div>

@@ -67,4 +67,12 @@ API_TOKEN=${API_TOKEN} \
 MESH_SECRET=${MESH_SECRET} \
 PKI_SECRET=${PKI_SECRET} \
 PROVISIONING_ENABLED=${PROVISIONING_ENABLED:-false} \
-deno run --allow-all --unstable-kv src/orchestrator/index.ts
+deno run \
+  --unstable-kv \
+  --allow-read=./,./src,./volume,/var/lib/cts,/etc/hostname \
+  --allow-write=./volume,/var/lib/cts \
+  --allow-net \
+  --allow-env \
+  --allow-run=/usr/bin/sudo,/usr/bin/sha256sum,/usr/bin/cargo,deno \
+  --allow-sys=hostname,networkInterfaces,uid \
+  src/orchestrator/index.ts

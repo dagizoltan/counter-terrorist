@@ -100,24 +100,6 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
 
     const payload = await c.req.json();
     
-    // SEC-03: HMAC Verification
-    const signature = c.req.header("X-Mesh-Signature");
-    if (signature) {
-        const isValid = await services.mesh.verifySignature(payload, signature);
-        if (!isValid) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:interface:web:api:mesh",
-                message: `REJECTED: Invalid mesh signature from ${peerIp}`
-            });
-            return c.json({ error: "Invalid signature" }, 401);
-        }
-    } else if (Deno.env.get("MESH_SECRET")) {
-        return c.json({ error: "Missing required mesh signature" }, 401);
-    }
-
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,

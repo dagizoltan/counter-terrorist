@@ -136,11 +136,13 @@ fn hash_file(path: &Path) -> Option<String> {
     std::io::copy(&mut file, &mut hasher).ok()?;
     let hash = hex::encode(hasher.finalize());
 
-    // 3. Update Cache
-    HASH_CACHE.insert(path_str, CacheEntry {
-        hash: hash.clone(),
-        timestamp: now,
-    });
+    // 3. Update Cache (With Capacity Guard)
+    if HASH_CACHE.len() < 100_000 {
+        HASH_CACHE.insert(path_str, CacheEntry {
+            hash: hash.clone(),
+            timestamp: now,
+        });
+    }
 
     Some(hash)
 }
