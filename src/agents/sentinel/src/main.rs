@@ -8,7 +8,7 @@ use aya::Bpf;
 use aya::maps::PerfEventArray;
 use aya::programs::{KProbe, SchedClassifier, TcAttachType, Lsm};
 use aya::{include_bytes_aligned, Btf};
-use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, LpmKey};
 use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
 
@@ -63,6 +63,18 @@ async fn emit_event(data: serde_json::Value) {
     if let Ok(json) = serde_json::to_string(&resp) {
         let _lock = STDOUT_LOCK.lock().await;
         println!("{}", json);
+    }
+}
+
+fn parse_ip_or_cidr(s: &str) -> Option<(std::net::Ipv4Addr, u32)> {
+    if let Some((ip_part, mask_part)) = s.split_once('/') {
+        let ip = ip_part.parse::<std::net::Ipv4Addr>().ok()?;
+        let mask = mask_part.parse::<u32>().ok()?;
+        if mask > 32 { return None; }
+        Some((ip, mask))
+    } else {
+        let ip = s.parse::<std::net::Ipv4Addr>().ok()?;
+        Some((ip, 32))
     }
 }
 
@@ -222,18 +234,24 @@ async fn main() -> Result<(), anyhow::Error> {
             match cmd.cmd_type.as_str() {
                 "BLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
-                            let _ = m.insert(u32::from(ip).to_be(), 1u32, 0);
-                            emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
-                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                        if let Some((ip, mask)) = parse_ip_or_cidr(&ip_str) {
+                            if let Ok(mut m) = aya::maps::LpmTrie::<_, LpmKey, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                let key = LpmKey { prefix_len: mask, data: u32::from(ip).to_be() };
+                                let _ = m.insert(&key, 1u32, 0);
+                                emit_response(cmd.id, true, format!("XDP Blocked (LPM): {}/{}", ip, mask)).await;
+                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
+                        } else { emit_response(cmd.id, false, "Invalid IP/CIDR".to_string()).await; }
                     }
                 },
                 "UNBLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
-                            let _ = m.remove(&u32::from(ip).to_be());
-                            emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
-                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                        if let Some((ip, mask)) = parse_ip_or_cidr(&ip_str) {
+                            if let Ok(mut m) = aya::maps::LpmTrie::<_, LpmKey, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                let key = LpmKey { prefix_len: mask, data: u32::from(ip).to_be() };
+                                let _ = m.remove(&key);
+                                emit_response(cmd.id, true, format!("XDP Unblocked (LPM): {}/{}", ip, mask)).await;
+                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
+                        } else { emit_response(cmd.id, false, "Invalid IP/CIDR".to_string()).await; }
                     }
                 },
                 "SHADOW_BAN" => {
@@ -285,7 +303,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 },
                 "FLUSH_RULES" => {
                     let mut success = true;
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                    if let Ok(mut m) = aya::maps::LpmTrie::<_, LpmKey, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
                         let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
                         for k in keys { let _ = m.remove(&k); }
                     } else { success = false; }
@@ -311,11 +329,11 @@ async fn main() -> Result<(), anyhow::Error> {
                 },
                 "GET_STATUS" => {
                     let mut blocked_ips = Vec::new();
-                    if let Ok(m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                    if let Ok(m) = aya::maps::LpmTrie::<_, LpmKey, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
                         for res in m.iter() {
-                            if let Ok((ip_be, _)) = res {
-                                let ip = std::net::Ipv4Addr::from(u32::from_be(ip_be));
-                                blocked_ips.push(ip.to_string());
+                            if let Ok((key, _)) = res {
+                                let ip = std::net::Ipv4Addr::from(u32::from_be(key.data));
+                                blocked_ips.push(format!("{}/{}", ip, key.prefix_len));
                             }
                         }
                     }

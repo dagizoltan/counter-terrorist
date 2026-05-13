@@ -35,6 +35,13 @@ pub struct SessionValue {
     pub bytes_count: u64,
 }
 
+#[repr(C, packed)]
+#[derive(Clone, Copy)]
+pub struct LpmKey {
+    pub prefix_len: u32,
+    pub data: u32,
+}
+
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for SyscallEvent {}
 #[cfg(feature = "user")]
@@ -43,3 +50,5 @@ unsafe impl aya::Pod for ShadowBanInfo {}
 unsafe impl aya::Pod for SessionKey {}
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for SessionValue {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for LpmKey {}

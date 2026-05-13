@@ -71,6 +71,11 @@ export interface SystemMetrics {
         interface: string;
         available: boolean;
         mode?: string;
+        exitIp?: string;
+        exitCountry?: string;
+        latency?: string;
+        rotations?: number;
+        currentNode?: any;
     };
     geo: {
         topCountries: string[];
@@ -332,10 +337,9 @@ export class MetricsService {
                     available: !!this.scannerAvailable
                 },
                 vpn: {
-                    active: vpnConnected || (meshNodes.filter(n => n.verified && (Date.now() - n.lastSeen < 600000)).length > 0),
+                    ...this.anonymization.getTelemetry(),
                     interface: vpnConnected ? "wg0" : "Sovereign Mesh (mTLS)",
                     available: !!this.vpnAvailable,
-                    mode: this.anonymization.getMode(),
                 },
                 geo: (() => {
                     const countries = new Set(Object.values(this.geoIp.getCache()).map(c => c.country));

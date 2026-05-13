@@ -56,31 +56,33 @@ class ThreatIntelList extends HTMLElement {
       return;
     }
 
-    container.innerHTML = threats.map(t => {
-      const theme = t.blocked ? 'success' : 'danger';
-      const color = `var(--${theme})`;
-      
-      return `
-        <div class="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-xl group hover:border-white/10 ">
-           <div class="flex items-center gap-8">
-              <div class="dot ${theme} ${t.blocked ? '' : 'pulse'}"></div>
-              <div class="flex flex-col gap-2">
-                 <span class="mono-sm font-bold tracking-tight ${t.blocked ? 'text-success' : 'text-white'} uppercase select-all">${escapeHTML(t.indicator)}</span>
-                 <div class="flex items-center gap-4">
-                    <span class="mono-xs font-bold text-slate-600 uppercase tracking-[0.2em]">${escapeHTML(t.threatType)}</span>
-                    <span class="text-slate-800 text-[10px]">//</span>
-                    <span class="mono-xs font-bold text-primary/40 uppercase tracking-[0.1em]">${escapeHTML(t.provider)}</span>
-                 </div>
-              </div>
-           </div>
-           <div class="flex items-center">
-              <div class="status-pill ${theme} ${t.blocked ? 'active' : 'pulse'}">
-                 ${t.blocked ? 'ENFORCEMENT_ACTIVE' : 'AWAITING_NEUTRALIZATION'}
-              </div>
-           </div>
-        </div>
-      `;
-    }).join('');
+    container.innerHTML = threats
+      .sort((a, b) => (a.blocked === b.blocked ? 0 : a.blocked ? 1 : -1))
+      .map(t => {
+        const theme = t.blocked ? 'neutral' : 'danger';
+        const color = t.blocked ? 'var(--slate-500)' : 'var(--danger)';
+        
+        return `
+          <div class="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-xl group hover:border-white/10 ${t.blocked ? 'opacity-25 grayscale' : ''}">
+             <div class="flex items-center gap-8">
+                <div class="dot ${theme} ${t.blocked ? '' : 'pulse'}"></div>
+                <div class="flex flex-col gap-2">
+                   <span class="mono-sm font-bold tracking-tight ${t.blocked ? 'text-slate-500' : 'text-white'} uppercase select-all">${escapeHTML(t.indicator)}</span>
+                   <div class="flex items-center gap-4">
+                      <span class="mono-xs font-bold text-slate-600 uppercase tracking-[0.2em]">${escapeHTML(t.threatType)}</span>
+                      <span class="text-slate-800 text-[10px]">//</span>
+                      <span class="mono-xs font-bold text-primary/40 uppercase tracking-[0.1em]">${escapeHTML(t.provider)}</span>
+                   </div>
+                </div>
+             </div>
+             <div class="flex items-center">
+                <div class="status-pill ${theme} ${t.blocked ? 'active' : 'pulse'}">
+                   ${t.blocked ? 'ENFORCEMENT_ACTIVE' : 'AWAITING_NEUTRALIZATION'}
+                </div>
+             </div>
+          </div>
+        `;
+      }).join('');
   }
 }
 

@@ -2,7 +2,7 @@ import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 export const FirewallPage = (props: { csrfToken?: string, nonce?: string }) => (
-  <Layout nonce={props.nonce} title="Perimeter Defense // Firewall & Tunnel" islandPaths={['/components/islands/FirewallAgent.js', '/components/islands/AnonymizerController.js', '/components/islands/VpnAgent.js']} csrfToken={props.csrfToken}>
+  <Layout nonce={props.nonce} title="Perimeter Defense // Firewall & Tunnel" islandPaths={['/components/islands/FirewallAgent.js', '/components/islands/AnonymizerController.js', '/components/islands/VpnAgent.js', '/components/islands/TunnelTelemetry.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
         <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-danger/40 text-slate-500 hover:text-danger group transition-all">
@@ -79,23 +79,23 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string }) => (
                  <div class="status-pill active px-6 py-2">LIVE_FEED</div>
               </div>
             </header>
-            <div class="flex-grow p-10 relative overflow-hidden flex items-center justify-center min-h-[300px]">
-               <div class="absolute inset-0 opacity-20 pointer-events-none">
-                  <div class="w-full h-full bg-[radial-gradient(circle_at_center,var(--primary-glow)_0%,transparent_70%)]"></div>
-                  <div class="absolute top-0 left-0 w-full h-full bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-               </div>
-               
-               <div class="text-center space-y-8 z-10">
+            
+            <div class="p-10 grid grid-cols-1 md:grid-cols-2 gap-12 flex-grow">
+               <div class="flex flex-col justify-center space-y-8 border-r border-white/5 pr-12">
                   <div class="relative inline-block">
-                    <div class="text-7xl font-black text-primary italic tracking-[0.1em] opacity-10 blur-sm absolute inset-0">STEALTH</div>
-                    <div class="text-7xl font-black text-white italic tracking-[0.1em] relative">STEALTH</div>
+                    <div id="vpn-big-label-bg" class="text-7xl font-black text-primary italic tracking-[0.1em] opacity-10 blur-sm absolute inset-0">STEALTH</div>
+                    <div id="vpn-big-label" class="text-7xl font-black text-white italic tracking-[0.1em] relative">STEALTH</div>
                   </div>
                   <div class="flex flex-col gap-4">
-                    <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.8em] animate-pulse">Identity obfuscation engaged</p>
-                    <div class="flex justify-center gap-2">
+                    <p id="vpn-big-status" class="mono-xs text-slate-500 font-black uppercase tracking-[0.8em] animate-pulse">Identity obfuscation engaged</p>
+                    <div id="vpn-bars" class="flex gap-2">
                       {[1,2,3,4,5].map(i => <div class="w-12 h-1 bg-primary/20 rounded-full overflow-hidden"><div class="h-full bg-primary animate-progress" style={`animation-delay: ${i*0.2}s`}></div></div>)}
                     </div>
                   </div>
+               </div>
+
+               <div class="flex flex-col justify-center">
+                  <tunnel-telemetry></tunnel-telemetry>
                </div>
             </div>
           </div>

@@ -86,7 +86,7 @@ export class SecurityMiddleware {
       const path = c.req.path;
       const ip = this.getClientIp(c);
 
-      if (this.services.threatIntel.getBlacklist().has(ip)) {
+      if (this.services.threatIntel?.getBlacklist().has(ip)) {
         loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
@@ -99,7 +99,7 @@ export class SecurityMiddleware {
       
       if (path.startsWith("/api/")) {
         // Relaxed API rate limit (500 req/min) to accommodate dashboard polling and multiple active modules.
-        const result = await this.services.rateLimit.checkLimit(ip, 500, 60000);
+        const result = await this.services.rateLimit?.checkLimit(ip, 500, 60000) || { allowed: true };
         if (!result.allowed) {
           return c.json({ 
             error: "Too Many Requests", 

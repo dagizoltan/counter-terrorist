@@ -291,6 +291,9 @@ class ThreatExplorer extends HTMLElement {
                       const validThreats = this.threats
                         .filter(t => t.type === 'IP' && ipRegex.test(t.indicator))
                         .sort((a, b) => {
+                          // Prioritize ACTIVE threats (not blocked)
+                          if (a.blocked !== b.blocked) return a.blocked ? 1 : -1;
+                          
                           const dateA = new Date(a.lastSeen).getTime();
                           const dateB = new Date(b.lastSeen).getTime();
                           if (dateA !== dateB) return dateB - dateA;
@@ -304,7 +307,7 @@ class ThreatExplorer extends HTMLElement {
                       return validThreats.map(t => {
                          const isBP = t.geo?.isBulletproof;
                          return `
-                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedIps.has(t.indicator) ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/10'} ${t.blocked ? 'opacity-40 grayscale-[0.5]' : ''}">
+                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedIps.has(t.indicator) ? 'bg-primary/5 border-primary/20' : 'hover:border-primary/10'} ${t.blocked ? 'opacity-20 grayscale pointer-events-none' : ''}">
                             <td class="p-1 text-center">
                                ${t.blocked ? '' : `
                                   <input type="checkbox" ${this.selectedIps.has(t.indicator) ? 'checked' : ''} 

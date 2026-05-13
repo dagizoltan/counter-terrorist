@@ -3,7 +3,10 @@ import { Layout } from "@interface/components/Layout.tsx";
 import { HoneypotModule } from "@domain/protection/honeypot_service.ts";
 
 export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
-  const islandPaths = ['/pages/dashboard/islands/HoneypotChart.js'];
+  const islandPaths = [
+    '/pages/dashboard/islands/HoneypotChart.js',
+    '/components/islands/HoneypotLog.js'
+  ];
 
   return (
     <Layout nonce={props.nonce} title={`${props.module.name} // Forensic Detail`} islandPaths={islandPaths}>
@@ -48,23 +51,7 @@ export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
               <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500">Forensic Event Pipeline</h3>
            </div>
            <div class="p-8">
-              <div class="space-y-4 font-mono text-[10px]">
-                 <div class="flex gap-4 text-slate-500">
-                    <span class="text-white font-bold">[12:44:01]</span>
-                    <span class="text-red-500 uppercase font-black">Connection</span>
-                    <span>192.168.1.100 initiated handshake on port {props.module.port}</span>
-                 </div>
-                 <div class="flex gap-4 text-slate-500">
-                    <span class="text-white font-bold">[12:44:03]</span>
-                    <span class="text-yellow-500 uppercase font-black">Payload</span>
-                    <span>Received SSH-2.0-libssh_0.8.1 banner</span>
-                 </div>
-                 <div class="flex gap-4 text-slate-500">
-                    <span class="text-white font-bold">[12:44:05]</span>
-                    <span class="text-green-500 uppercase font-black">Blocked</span>
-                    <span>IP quarantined by Firewall Engine</span>
-                 </div>
-              </div>
+              <honeypot-log module-id={props.module.id}></honeypot-log>
            </div>
         </div>
       </div>

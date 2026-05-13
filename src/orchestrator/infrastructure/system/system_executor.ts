@@ -211,7 +211,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ip": {
-        allowedArgs: [/^(addr|link|route|neigh|show|dev|default|add|del|list)$/, /^[a-zA-Z0-9\._\-]+$/, /^[0-9a-fA-F\.:\/]+$/],
+        allowedArgs: [/^(-4|-6)$/, /^(addr|link|route|neigh|neighbor|show|dev|default|add|del|list)$/, /^[a-zA-Z0-9\._\-]+$/, /^[0-9a-fA-F\.:\/]+$/],
         maxArgs: 10
     },
     "sysctl": {
@@ -223,7 +223,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ping": {
-        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /^[a-z0-9.-]+$/, /^[0-9a-fA-F.:]+$/],
+        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /^[a-z0-9.-]+$/, /^[0-9a-fA-F.:%]+$/],
         maxArgs: 10
     },
     "host": {

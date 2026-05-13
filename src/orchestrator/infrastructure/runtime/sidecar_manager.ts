@@ -447,19 +447,29 @@ export class SidecarManager implements CommandPort {
           if (!trimmed) continue;
 
           // New: Structured Log Ingestion
-          if (trimmed.startsWith("[LOG] ")) {
+          if (trimmed.startsWith("[LOG]")) {
             try {
-                const logData = JSON.parse(trimmed.substring(6));
+                const jsonStr = trimmed.startsWith("[LOG] ") ? trimmed.substring(6) : trimmed.substring(5);
+                const logData = JSON.parse(jsonStr);
                 this.logging.log({
                     timestamp: logData.timestamp || new Date().toISOString(),
                     type: logData.log_type || LogType.ACTIVITY,
                     severity: logData.severity || LogSeverity.INFO,
                     caller: logData.caller || `${name}:main`,
-                    message: logData.message
+                    message: logData.message,
+                    payload: logData.payload
                 });
                 // Note: We continue here if it's a pure log, but tactical events use standard JSON
                 continue; 
-            } catch { /* malformed log, continue to regular parsing */ }
+            } catch (e) { 
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `Malformed log from ${name}: ${trimmed.substring(0, 50)}... Error: ${e.message}`
+                });
+            }
           }
 
           try {

@@ -20,30 +20,38 @@ class ThreatMap extends HTMLElement {
     this.style.height = '100%';
 
     await this.loadDependencies();
-    this.initMap();
+    // Tactical Delay: Ensure browser layout engine has finalized dimensions
+    setTimeout(() => this.initMap(), 100);
     this.connectWS();
     this.fetchHistoricalThreats();
   }
 
   async loadDependencies() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (window.L) return resolve();
 
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.onerror = () => reject(new Error('Leaflet CSS failed to load'));
       document.head.appendChild(link);
 
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Leaflet JS failed to load'));
       document.head.appendChild(script);
     });
   }
 
   initMap() {
+    if (!window.L) return;
     const L = window.L;
     
+    if (this.map) {
+      this.map.remove();
+    }
+
     // Initialize map with a dark tactical theme
     this.map = L.map(this, {
       center: [20, 0],
@@ -52,6 +60,9 @@ class ThreatMap extends HTMLElement {
       attributionControl: false,
       worldCopyJump: true
     });
+
+    // Invalidate size to fix rendering issues in dynamic layouts
+    setTimeout(() => this.map.invalidateSize(), 500);
 
     // CartoDB Dark Matter - High contrast for tactical visualization
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {

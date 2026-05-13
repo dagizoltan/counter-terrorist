@@ -3,12 +3,12 @@
 
 use aya_ebpf::{
     macros::{kprobe, map, classifier, xdp},
-    maps::{PerfEventArray, HashMap},
+    maps::{PerfEventArray, HashMap, LpmTrie},
     programs::{ProbeContext, TcContext, XdpContext},
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
 };
 
-use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, LpmKey};
 use core::mem;
 
 const TC_ACT_OK: i32 = 0;
@@ -33,7 +33,7 @@ static mut ACTIVE_SESSIONS: HashMap<SessionKey, SessionValue> = HashMap::with_ma
 static mut TRUSTED_COMM: HashMap<[u8; 16], u8> = HashMap::with_max_entries(1024, 0);
 
 #[map]
-static mut XDP_BLOCK_LIST: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0);
+static mut XDP_BLOCK_LIST: LpmTrie<u32, u32> = LpmTrie::with_max_entries(4096, 0);
 
 #[map]
 static mut ALLOWED_PORTS: HashMap<u16, u8> = HashMap::with_max_entries(1024, 0);
@@ -87,8 +87,9 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
         }
     }
 
-    // 2. EXPLICIT BLOCK LIST CHECK
-    if unsafe { XDP_BLOCK_LIST.get(&src_ip) }.is_some() {
+    // 2. EXPLICIT BLOCK LIST CHECK (LPM)
+    let key = LpmKey { prefix_len: 32, data: src_ip };
+    if unsafe { XDP_BLOCK_LIST.get(&key) }.is_some() {
         return Ok(XDP_DROP);
     }
 

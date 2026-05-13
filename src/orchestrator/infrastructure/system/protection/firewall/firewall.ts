@@ -18,7 +18,7 @@ export class FirewallManager {
     const iter = kv.list<any>({ prefix: ["enforcement"] });
     const ips: string[] = [];
     for await (const res of iter) {
-      const ip = res.key[2] as string;
+      const ip = res.key[1] as string;
       if (ip) {
         this.blockedIps.add(ip);
         ips.push(ip);

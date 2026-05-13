@@ -45,7 +45,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         isMeshNode: true,
         type: "MESH",
         state: "REACHABLE",
-        lastSeen: new Date(n.lastSeen).toISOString()
+        lastSeen: n.lastSeen ? new Date(n.lastSeen).toISOString() : new Date().toISOString()
     }));
  
     const enriched = {
