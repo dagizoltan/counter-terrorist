@@ -8,7 +8,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const NewsPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Tactical News // Intelligence Feed" islandPaths={[
+    <Layout nonce={props.nonce} title="Tactical News // Intelligence Feed" islandPaths={[
       '/components/islands/NewsFeed.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const NeighborNetworksPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Neighbor Signals // Environmental Intelligence" islandPaths={[
+    <Layout nonce={props.nonce} title="Neighbor Signals // Environmental Intelligence" islandPaths={[
       '/components/islands/EnvironmentalSignals.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

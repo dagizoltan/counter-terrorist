@@ -11,7 +11,7 @@ export const SupplyChainPage = (props: { status: any, csrfToken?: string, nonce?
   const healthScore = sbom.length > 0 ? Math.round((secureCount / sbom.length) * 100) : 100;
 
   return (
-    <Layout title="Supply Chain Audit" islandPaths={[]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Supply Chain Audit" islandPaths={[]} csrfToken={props.csrfToken} >
       <header class="page-header">
         <div class="title-group">
           <h1>Supply Chain Integrity</h1>

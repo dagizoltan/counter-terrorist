@@ -3,7 +3,7 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const SupplyChainPage = (props: { sbom: any[]; healthScore: number; csrfToken: string }) => {
   return (
-    <Layout title="Supply Chain Integrity" csrfToken={props.csrfToken}>
+    <Layout nonce={props.nonce} title="Supply Chain Integrity" csrfToken={props.csrfToken}>
       {/* 1. Unified Page Header */}
       <header class="page-header">
         <div class="title-group">

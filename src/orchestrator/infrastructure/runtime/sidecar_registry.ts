@@ -21,6 +21,13 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         privileged: true,
         binaryName: "enforcer"
     },
+    sentinel: {
+        name: "sentinel",
+        description: "High-fidelity eBPF-based syscall monitoring and kernel-level threat detection.",
+        persistent: true,
+        privileged: true,
+        binaryName: "sentinel"
+    },
     mesh: {
         name: "mesh",
         description: "Autonomous peer discovery and mTLS-secured gossip protocol for collective intelligence.",

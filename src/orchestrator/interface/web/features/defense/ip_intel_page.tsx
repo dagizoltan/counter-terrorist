@@ -2,7 +2,7 @@ import { Layout } from "../../components/Layout.tsx";
 
 export default function IpIntelPage(props: { status: any, csrfToken?: string, nonce?: string }) {
     return (
-       <Layout title="IP Intelligence DB // Tactical Intelligence" islandPaths={[
+       <Layout nonce={props.nonce} title="IP Intelligence DB // Tactical Intelligence" islandPaths={[
           '/components/islands/ThreatExplorer.js'
        ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       <section class="p-12 space-y-12 w-full">

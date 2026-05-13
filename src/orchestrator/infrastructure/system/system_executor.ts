@@ -338,7 +338,9 @@ export class SystemExecutor {
     let finalCmd = cmd;
     let finalArgs = [...args];
 
-    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && Deno.uid() !== 0) {
+    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && 
+        Deno.uid() !== 0 && 
+        Deno.env.get("CTS_NO_SUDO") !== "true") {
         finalCmd = "sudo";
         finalArgs = ["-n", cmd, ...args];
     }
@@ -377,7 +379,9 @@ export class SystemExecutor {
     let finalArgs = [...args];
 
     // Privilege Elevation: Automatically use sudo for privileged commands if not already root
-    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && Deno.uid() !== 0) {
+    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && 
+        Deno.uid() !== 0 && 
+        Deno.env.get("CTS_NO_SUDO") !== "true") {
         finalCmd = "sudo";
         finalArgs = ["-n", cmd, ...args];
     }

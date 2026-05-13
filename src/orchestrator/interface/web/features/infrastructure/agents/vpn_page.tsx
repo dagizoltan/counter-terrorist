@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const VpnPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="VPN Agent // Identity Stealth" islandPaths={[
+    <Layout nonce={props.nonce} title="VPN Agent // Identity Stealth" islandPaths={[
       '/components/islands/AnonymizerController.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

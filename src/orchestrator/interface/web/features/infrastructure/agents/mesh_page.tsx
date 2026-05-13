@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Mesh Agent // Peer Intelligence" islandPaths={[
+    <Layout nonce={props.nonce} title="Mesh Agent // Peer Intelligence" islandPaths={[
       '/components/islands/NetworkMap.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

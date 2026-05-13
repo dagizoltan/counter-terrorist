@@ -351,7 +351,7 @@ export class WebAdapter implements WebPort {
         } else if (s.name === 'mesh' && this.services.mesh) {
             status = "ACTIVE";
         } else if (s.name === 'firewall' && this.services.protection) {
-            isRunning = this.services.command.isRunning('blocker');
+            isRunning = this.services.command.isRunning('enforcer');
             status = isRunning ? "ACTIVE" : "INACTIVE";
         }
 

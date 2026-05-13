@@ -22,6 +22,12 @@ export const Layout = (props: {
         <meta name="csrf-token" content={props.csrfToken} />
         <title>{props.title} | {props.hostname || 'Sovereign Orchestrator'}</title>
         <link rel="stylesheet" href="/style.css" />
+        <script nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
+          window.escapeHTML = function(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+          };
+        ` }} />
       </head>
       <body class="bg-[#050505] text-slate-100 font-sans selection:bg-primary/30 overflow-hidden">
         <div class="noise-overlay pointer-events-none opacity-[0.03]"></div>
@@ -190,10 +196,10 @@ export const Layout = (props: {
                 </div>
 
                 <div id="module-nav-container" class="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
-                   <button id="btn-integrity" onclick="window.switchSidebarTab('integrity')" class="sidebar-nav-icon" title="System Integrity">
+                   <button id="btn-integrity" data-tab="integrity" class="sidebar-nav-icon" title="System Integrity">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                    </button>
-                   <button id="btn-logs" onclick="window.switchSidebarTab('logs')" class="sidebar-nav-icon active" title="Live Telemetry">
+                   <button id="btn-logs" data-tab="logs" class="sidebar-nav-icon active" title="Live Telemetry">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12H3"/><path d="M21 6H3"/><path d="M21 18H3"/><path d="M10 6L10 18"/></svg>
                    </button>
                 </div>
@@ -288,11 +294,6 @@ export const Layout = (props: {
           syncInterface();
           window.addEventListener('popstate', syncInterface);
 
-          // Global Utility: escapeHTML
-          window.escapeHTML = function(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-          };
 
           // Global Tab Switching (Forensics)
           window.switchSidebarTab = function(tab) {
@@ -310,6 +311,14 @@ export const Layout = (props: {
                btnLogs.classList.toggle('active', tab === 'logs');
             }
           };
+
+          // Secure Event Delegation for Sidebar
+          document.getElementById('module-nav-container')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-tab]');
+            if (btn) {
+              window.switchSidebarTab(btn.getAttribute('data-tab'));
+            }
+          });
           
           // Default tab
           window.switchSidebarTab('logs');

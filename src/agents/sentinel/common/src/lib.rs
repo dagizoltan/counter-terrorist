@@ -19,7 +19,7 @@ pub struct ShadowBanInfo {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SessionKey {
     pub src_ip: u32,
     pub dst_ip: u32,

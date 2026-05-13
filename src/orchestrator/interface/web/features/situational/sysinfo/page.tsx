@@ -20,7 +20,7 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
   };
 
   return (
-    <Layout title="Infrastructure Hub // Sovereign Overwatch" islandPaths={['/components/islands/SystemHealth.js']} csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Infrastructure Hub // Sovereign Overwatch" islandPaths={['/components/islands/SystemHealth.js']} csrfToken={props.csrfToken} >
       
       {/* 01 Unified Page Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">

@@ -8,7 +8,7 @@ use aya::Bpf;
 use aya::maps::PerfEventArray;
 use aya::programs::{KProbe, SchedClassifier, TcAttachType, Lsm};
 use aya::{include_bytes_aligned, Btf};
-use sentinel_common::{SyscallEvent, ShadowBanInfo};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue};
 use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
 
@@ -180,6 +180,39 @@ async fn main() -> Result<(), anyhow::Error> {
         });
     }
 
+    // High-Frequency Session Polling: Export eBPF session metrics to the UI
+    let bpf_ref = unsafe { &mut *bpf_ptr };
+    if let Ok(m) = aya::maps::HashMap::<_, SessionKey, SessionValue>::try_from(bpf_ref.map_mut("ACTIVE_SESSIONS").unwrap()) {
+        tokio::spawn(async move {
+            let mut last_processed = std::collections::HashMap::new();
+            loop {
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                for res in m.iter() {
+                    if let Ok((key, val)) = res {
+                        let bytes = val.bytes_count;
+                        let last_bytes = last_processed.get(&key).unwrap_or(&0);
+                        if bytes > *last_bytes {
+                            let src_ip = std::net::Ipv4Addr::from(u32::from_be(key.src_ip));
+                            let dst_ip = std::net::Ipv4Addr::from(u32::from_be(key.dst_ip));
+                            emit_event(serde_json::json!({
+                                "type": "NETWORK_LOG",
+                                "source": src_ip.to_string(),
+                                "destination": dst_ip.to_string(),
+                                "src_port": u16::from_be(key.src_port),
+                                "dst_port": u16::from_be(key.dst_port),
+                                "protocol": match key.proto { 6 => "TCP", 17 => "UDP", _ => "OTHER" },
+                                "bytes_count": bytes - *last_bytes,
+                                "action": "ALLOW",
+                                "timestamp": Utc::now().to_rfc3339()
+                            })).await;
+                            last_processed.insert(key, bytes);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     emit_response(None, true, "eBPF Sidecar Active.".to_string()).await;
 
     let mut stdin = BufReader::new(io::stdin()).lines();
@@ -276,7 +309,43 @@ async fn main() -> Result<(), anyhow::Error> {
                         } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
                     }
                 },
-                "GET_STATUS" => emit_response(cmd.id, true, "Active".to_string()).await,
+                "GET_STATUS" => {
+                    let mut blocked_ips = Vec::new();
+                    if let Ok(m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                        for res in m.iter() {
+                            if let Ok((ip_be, _)) = res {
+                                let ip = std::net::Ipv4Addr::from(u32::from_be(ip_be));
+                                blocked_ips.push(ip.to_string());
+                            }
+                        }
+                    }
+
+                    let mut shadow_bans = Vec::new();
+                    if let Ok(m) = aya::maps::HashMap::<_, u32, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap()) {
+                        for res in m.iter() {
+                            if let Ok((ip_be, _)) = res {
+                                let ip = std::net::Ipv4Addr::from(u32::from_be(ip_be));
+                                shadow_bans.push(ip.to_string());
+                            }
+                        }
+                    }
+
+                    let resp = SidecarResponse {
+                        id: cmd.id,
+                        success: true,
+                        message: Some("Active".to_string()),
+                        data: Some(serde_json::json!({
+                            "blocked_ips": blocked_ips,
+                            "shadow_bans": shadow_bans,
+                            "xdp_active": true
+                        })),
+                        timestamp: Utc::now().to_rfc3339(),
+                    };
+                    if let Ok(json) = serde_json::to_string(&resp) {
+                        let _lock = STDOUT_LOCK.lock().await;
+                        println!("{}", json);
+                    }
+                },
                 "TRUST_COMM" => {
                     if let Some(comm_str) = cmd.comm {
                         if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 16], u8>::try_from(bpf_ref.map_mut("TRUSTED_COMM").unwrap()) {

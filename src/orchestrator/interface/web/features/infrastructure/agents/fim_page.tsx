@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const FimPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="FIM Agent // Integrity Audit" islandPaths={[
+    <Layout nonce={props.nonce} title="FIM Agent // Integrity Audit" islandPaths={[
       '/components/islands/FimAgent.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

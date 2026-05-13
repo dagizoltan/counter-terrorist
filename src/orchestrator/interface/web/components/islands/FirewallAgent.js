@@ -2,6 +2,25 @@ class FirewallAgent extends HTMLElement {
   connectedCallback() {
     this.fetchData();
     this.connectWS();
+    this.setupDelegation();
+  }
+
+  setupDelegation() {
+    const listEl = document.getElementById('fw-blocked-list');
+    if (listEl) {
+      listEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="unblock"]');
+        if (btn) {
+          const ip = btn.getAttribute('data-ip');
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+          fetch('/api/agents/firewall/unblock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CT-Token': csrfToken || '' },
+            body: JSON.stringify({ ip })
+          }).then(() => location.reload());
+        }
+      });
+    }
   }
 
   connectWS() {
@@ -41,17 +60,28 @@ class FirewallAgent extends HTMLElement {
       const agentData = await agentRes.json();
       const pid = agentData.firewall?.pid;
 
-      const lines = (data.stdout || '').split('\n').filter(l => l.trim());
-      const blockedIps = [];
-      for (const line of lines) {
-        const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
-        if (match && (line.includes('DROP') || line.includes('REJECT') || line.includes('DENY'))) {
-          blockedIps.push(match[1]);
+      let blockedIps = [];
+      
+      // Handle Sentinel (JSON), Unified State (blocked_ips), or UFW (Text) fallback
+      if (data.blocked_ips) {
+        blockedIps = data.blocked_ips;
+      } else if (data.data && data.data.blocked_ips) {
+        blockedIps = data.data.blocked_ips;
+      } else {
+        const lines = (data.stdout || '').split('\n').filter(l => l.trim());
+        for (const line of lines) {
+          const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (match && (line.includes('DROP') || line.includes('REJECT') || line.includes('DENY'))) {
+            blockedIps.push(match[1]);
+          }
         }
       }
+      
       this.updateUI({ blockedCount: blockedIps.length, blockedIps, pid });
       this.fetchTraffic();
-    } catch (e) {}
+    } catch (e) {
+      console.error("FirewallAgent fetch error:", e);
+    }
   }
 
   async fetchTraffic() {
@@ -90,7 +120,7 @@ class FirewallAgent extends HTMLElement {
                  <span class="mono-sm font-black text-danger uppercase tracking-widest">${window.escapeHTML(ip)}</span>
               </div>
               <div class="flex items-center gap-6">
-                <button onclick="fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token':'${csrfToken || ''}'}, body:JSON.stringify({ip:'${window.escapeHTML(ip)}'})}).then(() => location.reload())" 
+                <button data-action="unblock" data-ip="${window.escapeHTML(ip)}"
                         class="opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white decoration-white/20 tracking-widest transition-opacity">Release IP</button>
                 <div class="flex items-center gap-3">
                    <div class="dot danger"></div>

@@ -8,7 +8,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const SystemInfoPage = (props: { status: any, csrfToken?: string, nonce?: string, hostname?: string }) => {
   return (
-    <Layout title="System Info // Node Metadata" islandPaths={[
+    <Layout nonce={props.nonce} title="System Info // Node Metadata" islandPaths={[
       '/components/islands/SystemHealth.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

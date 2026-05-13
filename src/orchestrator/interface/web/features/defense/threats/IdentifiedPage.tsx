@@ -3,7 +3,7 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const IdentifiedPage = () => {
   return (
-    <Layout title="Identified Threats // Reputation Database" csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Identified Threats // Reputation Database" csrfToken={props.csrfToken} >
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-6">
         <div>
           <h1 class="text-4xl font-black tracking-tighter uppercase mb-2 flex items-center gap-4">

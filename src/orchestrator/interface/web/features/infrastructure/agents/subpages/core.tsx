@@ -2,7 +2,7 @@ import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 export const FirewallPage = (props: { csrfToken?: string, nonce?: string }) => (
-  <Layout title="Perimeter Defense // Firewall & Tunnel" islandPaths={['/components/islands/FirewallAgent.js', '/components/islands/AnonymizerController.js', '/components/islands/VpnAgent.js']} csrfToken={props.csrfToken}>
+  <Layout nonce={props.nonce} title="Perimeter Defense // Firewall & Tunnel" islandPaths={['/components/islands/FirewallAgent.js', '/components/islands/AnonymizerController.js', '/components/islands/VpnAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
         <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-danger/40 text-slate-500 hover:text-danger group transition-all">
@@ -127,8 +127,8 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string }) => (
             <div class="space-y-4">
                <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white rounded-lg transition-colors" />
                <div class="grid grid-cols-2 gap-4">
-                  <button onclick="const ip=document.getElementById('fw-block-input').value; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({ip}) }).then(() => location.reload())" class="t-btn danger w-full py-4 text-[10px] uppercase font-black tracking-widest">Block_IP</button>
-                  <button onclick="if(confirm('Flush all rules?')) fetch('/api/agents/firewall/flush', { method: 'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content} }).then(() => location.reload())" class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest" style="background:transparent; border-color:var(--border-subtle);">Flush_All</button>
+                  <button id="fw-block-btn" class="t-btn danger w-full py-4 text-[10px] uppercase font-black tracking-widest">Block_IP</button>
+                  <button id="fw-flush-btn" class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest" style="background:transparent; border-color:var(--border-subtle);">Flush_All</button>
                </div>
             </div>
           </div>
@@ -157,11 +157,38 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string }) => (
 
     <firewall-agent></firewall-agent>
     <vpn-agent></vpn-agent>
+    
+    <script nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
+      document.getElementById('fw-block-btn')?.addEventListener('click', () => {
+        const ip = document.getElementById('fw-block-input').value;
+        const csrf = document.querySelector('meta[name=csrf-token]')?.content;
+        fetch('/api/agents/firewall/block', { 
+          method: 'POST', 
+          headers: {'Content-Type': 'application/json', 'X-CT-Token': csrf}, 
+          body: JSON.stringify({ip}) 
+        }).then(r => r.json()).then(d => { 
+          if(d.success) location.reload(); 
+          else alert('Block failed: ' + (d.error || 'Unknown error')); 
+        });
+      });
+
+      document.getElementById('fw-flush-btn')?.addEventListener('click', () => {
+        if(!confirm('Flush all rules?')) return;
+        const csrf = document.querySelector('meta[name=csrf-token]')?.content;
+        fetch('/api/agents/firewall/flush', { 
+          method: 'POST', 
+          headers: {'X-CT-Token': csrf} 
+        }).then(r => r.json()).then(d => { 
+          if(d.success) location.reload(); 
+          else alert('Flush failed: ' + (d.error || 'Unknown error')); 
+        });
+      });
+    ` }} />
   </Layout>
 );
 
 export const EbpfPage = (props: { csrfToken?: string, nonce?: string }) => (
-  <Layout title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']} csrfToken={props.csrfToken}>
+  <Layout nonce={props.nonce} title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
         <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
@@ -190,8 +217,8 @@ export const EbpfPage = (props: { csrfToken?: string, nonce?: string }) => (
         </div>
         <div class="t-panel">
           <span class="metric-tag mb-8 block">LSM_Directives</span>
-          <button onclick="fetch('/api/agents/ebpf/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'HIDE_PID'})})" class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
-          <button onclick="fetch('/api/agents/ebpf/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'RESTRICT_NETWORK'})})" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
+          <button id="ebpf-hide-btn" class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
+          <button id="ebpf-restrict-btn" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
         </div>
       </div>
       <div class="col-span-12 lg:col-span-8 t-panel p-0 overflow-hidden">
@@ -204,11 +231,37 @@ export const EbpfPage = (props: { csrfToken?: string, nonce?: string }) => (
       </div>
     </div>
     <ebpf-agent></ebpf-agent>
+
+    <script nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
+      document.getElementById('ebpf-hide-btn')?.addEventListener('click', () => {
+        const csrf = document.querySelector('meta[name=csrf-token]')?.content;
+        fetch('/api/agents/ebpf/command', {
+          method:'POST', 
+          headers: {'X-CT-Token': csrf, 'Content-Type': 'application/json'}, 
+          body: JSON.stringify({type:'HIDE_PID'})
+        }).then(r => r.json()).then(d => {
+          if(d.success) alert('PID hidden in kernel');
+          else alert('Command failed');
+        });
+      });
+
+      document.getElementById('ebpf-restrict-btn')?.addEventListener('click', () => {
+        const csrf = document.querySelector('meta[name=csrf-token]')?.content;
+        fetch('/api/agents/ebpf/command', {
+          method:'POST', 
+          headers: {'X-CT-Token': csrf, 'Content-Type': 'application/json'}, 
+          body: JSON.stringify({type:'RESTRICT_NETWORK'})
+        }).then(r => r.json()).then(d => {
+          if(d.success) alert('Kernel IO restricted');
+          else alert('Command failed');
+        });
+      });
+    ` }} />
   </Layout>
 );
 
 export const ScannerPage = (props: { csrfToken?: string, nonce?: string }) => (
-  <Layout title="Scanner Agent // Tactical Assessment" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken}>
+  <Layout nonce={props.nonce} title="Scanner Agent // Tactical Assessment" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken}>
     <header class="page-header mb-12">
       <div class="title-group">
         <div class="flex items-center gap-4 mb-2">
@@ -250,7 +303,7 @@ export const ScannerPage = (props: { csrfToken?: string, nonce?: string }) => (
  * Peer discovery, mTLS gossip protocol, and distributed consensus.
  */
 export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: string }) => (
-  <Layout title="Mesh Fabric" islandPaths={['/components/islands/VpnAgent.js', '/components/islands/MeshHeatmap.js']} csrfToken={props.csrfToken}>
+  <Layout nonce={props.nonce} title="Mesh Fabric" islandPaths={['/components/islands/VpnAgent.js', '/components/islands/MeshHeatmap.js']} csrfToken={props.csrfToken}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
         <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-success/40 text-slate-500 hover:text-success group">
@@ -284,8 +337,8 @@ export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: strin
           <div class="t-panel">
              <span class="metric-tag mb-8 block">Control_Directives</span>
              <div class="space-y-4">
-                <button onclick="fetch('/api/mesh/resync', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}})" class="t-btn w-full">Broadcast Resync</button>
-                <button class="t-btn w-full danger" style="background:transparent; border-color:var(--danger); color:var(--danger);">Isolate Local Node</button>
+                <button id="mesh-resync-btn" class="t-btn w-full">Broadcast Resync</button>
+                <button id="mesh-isolate-btn" class="t-btn w-full danger" style="background:transparent; border-color:var(--danger); color:var(--danger);">Isolate Local Node</button>
              </div>
           </div>
        </div>
@@ -316,5 +369,18 @@ export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: strin
     </div>
 
     <vpn-agent></vpn-agent>
+
+    <script nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
+      document.getElementById('mesh-resync-btn')?.addEventListener('click', () => {
+        const csrf = document.querySelector('meta[name=csrf-token]')?.content;
+        fetch('/api/mesh/resync', {
+          method:'POST', 
+          headers: {'X-CT-Token': csrf}
+        }).then(r => r.json()).then(d => {
+          if(d.success) alert('Mesh resync broadcasted');
+          else alert('Command failed');
+        });
+      });
+    ` }} />
   </Layout>
 );

@@ -299,7 +299,7 @@ export class CuratedIntelService {
         let newIPsBlocked = 0;
 
         let consecutiveExisting = 0;
-        const CONSECUTIVE_THRESHOLD = 50; // Delta-Update heuristic
+        const CONSECUTIVE_THRESHOLD = 500; // Delta-Update heuristic (Increased for high-fidelity)
 
         for (const line of lines) {
             if (!line || line.startsWith("#") || line.length < 5) continue;
@@ -313,12 +313,12 @@ export class CuratedIntelService {
             }
 
             if (source.name === "MalwareBazaar") {
-                // MalwareBazaar uses ", " as separator with quoted fields
-                const parts = line.split(", ");
+                // Robust CSV splitting for MalwareBazaar (handles quoted fields)
+                const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.trim().replace(/^"|"$/g, ''));
                 if (parts.length > 8) {
-                    indicator = parts[1].replace(/"/g, "").trim(); // SHA256
-                    threatType = parts[8].replace(/"/g, "").trim(); // Signature/Family
-                    if (threatType === "n/a") threatType = "Unknown Malware";
+                    indicator = parts[1]; // SHA256
+                    threatType = parts[8]; // Signature/Family
+                    if (threatType === "n/a" || !threatType) threatType = "Unknown Malware";
                     
                     // Validation: Ensure it's a valid hex hash
                     if (!/^[a-fA-F0-9]{64}$/.test(indicator)) {
@@ -485,7 +485,12 @@ export class CuratedIntelService {
         for await (const res of iter) {
             await this.kv.delete(res.key);
         }
+        const iter2 = this.kv.list({ prefix: ["curated_threats_by_type"] });
+        for await (const res of iter2) {
+            await this.kv.delete(res.key);
+        }
         this.blacklist.clear();
+        this.stats = {};
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,

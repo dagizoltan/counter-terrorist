@@ -48,6 +48,22 @@ export class SidecarManager implements CommandPort {
                 message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
             });
         }
+        
+        // ── Auto-Start Persistent Agents ────────────────────────────────────
+        // Ensures all critical defense agents are active from boot, not just on-demand.
+        for (const name of PERSISTENT_SIDECARS) {
+            this.getPersistentSidecar(name).catch(e => {
+                if (this.logging) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
+                        message: `Critical Failure: Persistent agent '${name}' failed to initialize: ${e.message}`
+                    });
+                }
+            });
+        }
     } catch (e) {
         if (this.logging) {
             this.logging.log({
@@ -230,8 +246,47 @@ export class SidecarManager implements CommandPort {
 
             const env = await this.getSidecarEnv(name);
 
-            const command = new Deno.Command(execPath, {
-                args: [],
+            let finalExecPath = execPath;
+            let finalArgs: string[] = [];
+
+            // ENHANCEMENT: Capabilities-First Execution
+            // We check if the binary has the required capabilities set. 
+            // If it does, we don't need sudo, even if it's a privileged sidecar.
+            let hasCaps = false;
+            if (Deno.build.os === "linux") {
+                try {
+                    const checkCaps = await this.executor.execute("getcap", [execPath]);
+                    if (checkCaps.success && checkCaps.stdout.includes("=")) {
+                        hasCaps = true;
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.DEBUG,
+                            severity: LogSeverity.INFO,
+                            caller: "orchestrator:infra:runtime:sidecar_manager",
+                            message: `Capabilities detected for ${name}. Bypassing sudo.`
+                        });
+                    }
+                } catch { /* ignore */ }
+            }
+
+            if (isDev && PRIVILEGED_SIDECARS.includes(name) && Deno.uid() !== 0 && !hasCaps) {
+                // Only use sudo if we really have to and we are in dev mode
+                if (Deno.env.get("CTS_NO_SUDO") === "true") {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.WARNING,
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
+                        message: `WARNING: Sidecar ${name} requires privileges but CTS_NO_SUDO is set. Attempting unprivileged execution...`
+                    });
+                } else {
+                    finalExecPath = "sudo";
+                    finalArgs = ["-n", execPath];
+                }
+            }
+
+            const command = new Deno.Command(finalExecPath, {
+                args: finalArgs,
                 stdin: "piped",
                 stdout: "piped",
                 stderr: "piped",
@@ -319,9 +374,12 @@ export class SidecarManager implements CommandPort {
     // Support environment variable overrides for custom binary locations
     const envPath = Deno.env.get(`CTS_BINARY_${name.toUpperCase()}`);
     
+    const manifestPath = this.manifest?.sidecars?.[name]?.path;
+    
     const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
     const paths = [
       envPath,
+      manifestPath,
       `/opt/cts/bin/${name}${extension}`,
       `/usr/local/bin/cts-${name}${extension}`,
       `./agents/${name}${extension}`,
@@ -534,6 +592,13 @@ export class SidecarManager implements CommandPort {
   async stopSidecar(name: string): Promise<void> {
     const process = this.persistentProcesses.get(name);
     if (process) {
+      if (PRIVILEGED_SIDECARS.includes(name) && Deno.uid() !== 0) {
+          // If it's privileged and we aren't root, we likely need sudo to kill it
+          await this.executor.execute("kill", ["-15", process.pid.toString()]);
+          // Wait a bit for graceful exit then force kill if needed
+          await new Promise(r => setTimeout(r, 1000));
+          await this.executor.execute("kill", ["-9", process.pid.toString()]);
+      }
       try {
         process.kill("SIGTERM");
         

@@ -1,6 +1,6 @@
 import { jsx } from "hono/jsx";
 
-export const Login = (props: { error?: string }) => {
+export const Login = (props: { error?: string, nonce?: string }) => {
   return (
     <html lang="en">
       <head>
@@ -8,7 +8,7 @@ export const Login = (props: { error?: string }) => {
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Authenticate | Sovereign Orchestrator</title>
         <link rel="stylesheet" href="/style.css" />
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
           body.auth-page {
             display: flex;
             align-items: center;

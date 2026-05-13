@@ -3,7 +3,7 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const ComplianceCenterPage = (props: { status: any; csrfToken: string; nonce?: string }) => {
   return (
-    <Layout title="Compliance Center" csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Compliance Center" csrfToken={props.csrfToken} >
       <header class="page-header mb-8">
         <h1 class="tactical-title text-4xl">Compliance Center</h1>
         <span class="subtitle">Hardware-Signed Evidence & Regulatory Mapping</span>

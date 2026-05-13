@@ -69,10 +69,10 @@ PKI_SECRET=${PKI_SECRET} \
 PROVISIONING_ENABLED=${PROVISIONING_ENABLED:-false} \
 deno run \
   --unstable-kv \
-  --allow-read=./,./src,./volume,/var/lib/cts,/etc/hostname \
-  --allow-write=./volume,/var/lib/cts \
+  --allow-read \
+  --allow-write \
   --allow-net \
   --allow-env \
-  --allow-run=/usr/bin/sudo,/usr/bin/sha256sum,/usr/bin/cargo,deno \
-  --allow-sys=hostname,networkInterfaces,uid \
+  --allow-run \
+  --allow-sys \
   src/orchestrator/index.ts

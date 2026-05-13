@@ -103,7 +103,8 @@ class BlockingLog extends HTMLElement {
         if (this.logs.length > 2000) this.logs.pop();
         
         // Only prepend if it matches the current filter
-        if (this.filter === 'ALL' || data.type === this.filter) {
+        const isAudit = data.type === 'audit' || data.type === 'AUDIT';
+        if ((this.filter === 'ALL' && !isAudit) || data.type === this.filter) {
           this.prependLog(data);
         }
       } catch (e) {}
@@ -115,7 +116,7 @@ class BlockingLog extends HTMLElement {
     if (!this.container) return;
     this.container.innerHTML = '';
     const filteredLogs = this.filter === 'ALL'
-      ? this.logs
+      ? this.logs.filter(log => log.type !== 'audit' && log.type !== 'AUDIT')
       : this.logs.filter(log => log.type === this.filter);
     
     filteredLogs.forEach(log => this.appendLog(log));

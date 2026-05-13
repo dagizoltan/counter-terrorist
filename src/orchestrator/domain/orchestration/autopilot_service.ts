@@ -6,6 +6,7 @@ import { AutonomousResponseEngine } from "./autonomous_response.ts";
 import { ProtectionPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { NotificationService } from "../analysis/notifications.ts";
 import { MeshManager } from "./mesh.ts";
+import { CorrelationService } from "../analysis/correlation_service.ts";
 
 import { PolicyEngine } from "./policy_engine.ts";
 
@@ -23,7 +24,8 @@ export class AutopilotService {
     private logging: LoggingPort,
     private processTracker: ProcessTracker,
     private forensics: ForensicService,
-    private kernel: any // KernelService
+    private kernel: any, // KernelService
+    private correlation: CorrelationService
   ) {
     this.policy = new PolicyEngine(logging);
     this.engine = new AutonomousResponseEngine(
@@ -157,6 +159,22 @@ export class AutopilotService {
             });
         }
     }, 60000); 
+
+    // Behavioral Correlation Poll (Every 10 seconds)
+    setInterval(async () => {
+        const chains = this.correlation.getKillChains();
+        for (const chain of chains) {
+            if (chain.isConfirmedBreach && chain.overallRisk >= 100) {
+                await this.engine.evaluate({
+                    source: chain.subject,
+                    type: "KILL_CHAIN_VERDICT",
+                    severity: 10,
+                    description: `Confirmed breach pattern detected: ${chain.id}`,
+                    data: { chain }
+                });
+            }
+        }
+    }, 10000);
   }
 
   private async spawnLureProcess() {

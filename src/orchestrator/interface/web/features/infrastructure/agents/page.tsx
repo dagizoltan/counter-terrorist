@@ -10,7 +10,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
   const { plugins } = props.status;
 
   return (
-    <Layout title="Agent Registry // Fleet Command" islandPaths={[
+    <Layout nonce={props.nonce} title="Agent Registry // Fleet Command" islandPaths={[
       '/components/islands/AgentCardIsland.js',
       '/components/islands/ProcessTree.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>

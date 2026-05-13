@@ -41,6 +41,8 @@ import { LinuxProcessProvider, MacOSProcessProvider, WindowsProcessProvider } fr
 
 import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
 import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
+import { bootstrapCore } from "./boot.ts";
+import { ServiceRegistry } from "../core/registry.ts";
 
 export class SovereignApp {
     private services!: ServiceContainer;
@@ -49,8 +51,13 @@ export class SovereignApp {
     private sidecarManager!: SidecarManager;
     private executor!: SystemExecutor;
     private auditService!: AuditService;
+    private configProvider!: EnvConfigProvider;
 
     async boot() {
+        // ── Phase 0: Configuration ───────────────────────────────────────────
+        const config = loadConfig();
+        this.configProvider = new EnvConfigProvider(config);
+
         // ── Phase 1: Core infrastructure ──────────────────────────────────────
         await this.initCore();
 
@@ -71,20 +78,16 @@ export class SovereignApp {
             Deno.exit(1);
         }
         
-        const config = loadConfig();
-        const configProvider = new EnvConfigProvider(config);
         const platformInfo = await getPlatformInfo(this.executor);
         
         // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
-        const tpmManager = new TPMManager(this.sidecarManager, loggingService);
+        const tpmManager = ServiceRegistry.get<TPMManager>("tpm");
+        this.auditService = ServiceRegistry.get<AuditService>("audit");
+        
         const notificationService = new NotificationService(this.kv, loggingService);
         const eventBus = new EventBus(loggingService);
         const healthService = new HealthService(loggingService);
         
-        // REPOSITORY INJECTION
-        const auditRepo = new KvAuditRepository(this.kv);
-        this.auditService = new AuditService(auditRepo, loggingService, tpmManager);
-
         // ── Phase 3: Mesh & Network ──────────────────────────────────────────
         const meshManager = await this.initMesh(tpmManager);
 
@@ -93,7 +96,7 @@ export class SovereignApp {
 
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
-            configProvider, platformInfo, notificationService, 
+            this.configProvider, platformInfo, notificationService, 
             eventBus, meshManager, tpmManager, healthService
         );
 
@@ -101,7 +104,7 @@ export class SovereignApp {
         await this.initOperationalLayer(this.services);
 
         // ── Phase 7: Finalize ───────────────────────────────────────────────
-        const port = configProvider.getNumber("PORT", 8000);
+        const port = this.configProvider.getNumber("PORT", 8000);
         this.registerSignalHandlers();
         this.startWatchdog(healthService);
 
@@ -141,22 +144,13 @@ export class SovereignApp {
     }
 
     private async initCore() {
-        loggingService.enableGlobalIntercept();
-        await loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.INFO,
-            caller: "orchestrator:app:sovereign_app:init",
-            message: "Initiating Sovereign Boot Sequence (Self-Test Phase)"
-        });
+        const { kv, sidecarManager } = await bootstrapCore(this.configProvider);
+        this.kv = kv;
+        this.sidecarManager = sidecarManager;
+        this.executor = ServiceRegistry.get("executor");
+
         await camouflage();
         await load({ export: true, allowEmptyValues: true });
-        
-        this.kv = await Deno.openKv("./volume/storage/orchestrator.db");
-        loggingService.setKv(this.kv);
-        this.executor = new SystemExecutor();
-        this.sidecarManager = new SidecarManager(this.executor, loggingService);
-        
         await bootstrap();
     }
 
@@ -288,7 +282,7 @@ export class SovereignApp {
     }
 
     private async startSubsystems() {
-        const { playbook, autopilot, autonomousAutopilot, lifecycle, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, health } = this.services;
+        const { playbook, autopilot, lifecycle, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, health } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -322,7 +316,17 @@ export class SovereignApp {
         
         this.services.baseline.startMonitor();
         lifecycle.start();
-        autonomousAutopilot.start();
+        autopilot.start();
+
+        this.syncAllIntelligence().catch(e => {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:app:sovereign_app:sync",
+                message: `Initial intelligence synchronization failed: ${e.message}. System running on local cache.`
+            });
+        });
 
         this.startDaemons();
     }
@@ -331,7 +335,7 @@ export class SovereignApp {
         const { command: sm, platformInfo } = this.services;
         const daemons = ["decoy", "watchfile", "netcap", "analyzer", "tunnel"];
 
-        if (platformInfo.name !== "linux") {
+        if (platformInfo.name !== "ubuntu") {
             daemons.push("enforcer");
         }
 
@@ -343,16 +347,43 @@ export class SovereignApp {
 
         daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
         
-        // const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
-        // if (ebpf) {
-        //     await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
-        //     
-        //     // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
-        //     // Skip events from the orchestrator and its trusted sidecars
-        //     for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
-        //         await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
-        //     }
-        // }
+        const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
+        if (ebpf) {
+            await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
+            
+            // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
+            // Skip events from the orchestrator and its trusted sidecars
+            for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
+                await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
+            }
+        }
+    }
+
+    private async syncAllIntelligence() {
+        const { curatedIntel, news, protection } = this.services;
+        
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:app:sovereign_app:sync",
+            message: "Initiating global intelligence synchronization..."
+        });
+
+        // Trigger non-blocking but high-priority syncs
+        await Promise.allSettled([
+            curatedIntel.sync(),
+            news.sync(),
+            (protection.antivirus as any).syncSignatures ? (protection.antivirus as any).syncSignatures() : Promise.resolve()
+        ]);
+
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:app:sovereign_app:sync",
+            message: "Global intelligence synchronization complete."
+        });
     }
 
     private async seedForensics() {
@@ -428,14 +459,14 @@ export class SovereignApp {
         const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider, mesh);
 
         const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
-        const { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
+        const { autopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
 
         return {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
             notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService), 
             processTracker, sessions, apiKeys, eventBus,
             honeypot, canaryService, kernelService, forensicService,
-            autopilot, autonomousAutopilot, lifecycle, logging: loggingService,
+            autopilot, lifecycle, logging: loggingService,
             playbook, morphing, chaos,
             supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: curatedIntel as any,
             compliance, anonymization, shadowProtocol, deceptionGrid: new DeceptionGridService(honeypot, canaryService, loggingService),
@@ -443,7 +474,7 @@ export class SovereignApp {
             incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,
-            mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService),
+            mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService, networkLog),
             behavioral, geoIp, rateLimit, policy, correlation
         };
     }
@@ -480,8 +511,7 @@ export class SovereignApp {
     }
 
     private async initEngineSubsystem(correlation: CorrelationService, eventBus: any, playbook: any, notifications: any, mesh: any, shadowProtocol: any, sidecarManager: any, protection: any, forensicService: any, kernelService: any, processTracker: any, honeypot: any, canaryService: any, health: any) {
-        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService);
-        const autonomousAutopilot = new AutonomousAutopilotService(correlation, sidecarManager, loggingService);
+        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService, correlation);
         const lifecycle = new LifecycleService(sidecarManager, loggingService);
 
         const morphing = this.safeInit(health, "Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));
@@ -491,7 +521,7 @@ export class SovereignApp {
         const shadow = this.safeInit(health, "Shadow", () => new ShadowService(this.executor, loggingService));
         const covert = this.safeInit(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
 
-        return { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy: autopilot.getPolicy(), correlation };
+        return { autopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy: autopilot.getPolicy(), correlation };
     }
 
     private safeInit<T extends object>(health: HealthService, name: string, factory: () => T): T {

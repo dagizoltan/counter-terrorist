@@ -26,7 +26,8 @@ class MiniLog extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        this.logs = await res.json();
+        const allLogs = await res.json();
+        this.logs = allLogs.filter(log => log.type !== 'audit' && log.type !== 'AUDIT');
         this.render();
       }
     } catch (e) {
@@ -56,6 +57,11 @@ class MiniLog extends HTMLElement {
         const tacticalTypes = ['BLOCK', 'ALERT', 'AUDIT_EVENT', 'TACTICAL_TRIGGER', 'audit', 'activity', 'generic', 'debug', 'CRITICAL', 'WARNING', 'INFO'];
         if (tacticalTypes.includes(payload.type)) {
           const logData = payload.data || payload;
+          
+          // Filter: Exclude administrative AUDIT logs from the real-time telemetry stream
+          // as they "poison" the tactical visibility during high-activity periods.
+          if (logData.type === 'audit' || logData.type === 'AUDIT') return;
+          
           this.logs.unshift(logData);
           if (this.logs.length > 100) this.logs.pop();
           this.render();

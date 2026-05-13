@@ -6,7 +6,7 @@ export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
   const islandPaths = ['/pages/dashboard/islands/HoneypotChart.js'];
 
   return (
-    <Layout title={`${props.module.name} // Forensic Detail`} islandPaths={islandPaths}>
+    <Layout nonce={props.nonce} title={`${props.module.name} // Forensic Detail`} islandPaths={islandPaths}>
       {/* 1. Unified Page Header */}
       <header class="page-header">
         <div class="title-group">

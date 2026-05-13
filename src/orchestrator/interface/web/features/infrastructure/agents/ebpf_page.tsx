@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const EbpfPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="eBPF Agent // Kernel Observability" islandPaths={[
+    <Layout nonce={props.nonce} title="eBPF Agent // Kernel Observability" islandPaths={[
       '/components/islands/EbpfAgent.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

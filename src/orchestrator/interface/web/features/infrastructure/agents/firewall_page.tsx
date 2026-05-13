@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Firewall Agent // Active Enforcement" islandPaths={[
+    <Layout nonce={props.nonce} title="Firewall Agent // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
       '/components/islands/AnonymizerController.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>

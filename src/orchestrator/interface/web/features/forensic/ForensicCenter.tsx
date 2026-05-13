@@ -3,7 +3,7 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Investigation Lab // Tactical Signal" islandPaths={[
+    <Layout nonce={props.nonce} title="Investigation Lab // Tactical Signal" islandPaths={[
       '/components/islands/TimelineIsland.js',
       '/components/islands/ReplayIsland.js',
       '/components/islands/BlockingLog.js',

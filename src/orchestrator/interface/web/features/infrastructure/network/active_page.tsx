@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const ActiveNetworkPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Active Network // Sovereign Mesh" islandPaths={[
+    <Layout nonce={props.nonce} title="Active Network // Sovereign Mesh" islandPaths={[
       '/components/islands/NetworkMap.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

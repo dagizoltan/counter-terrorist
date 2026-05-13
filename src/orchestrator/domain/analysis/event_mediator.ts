@@ -5,6 +5,8 @@ import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 import { LoggingPort, LogType, LogSeverity } from "../../core/ports.ts";
 import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 
+import { NetworkLogService } from "../analysis/network_log_service.ts";
+
 /**
  * EventMediator
  * Orchestrates event routing between infrastructure (sidecars) and domain services.
@@ -18,7 +20,8 @@ export class EventMediator {
         private processTracker: ProcessTracker,
         private canaryService: CanaryService,
         private broadcast: BroadcastFunction,
-        private logger: LoggingPort
+        private logger: LoggingPort,
+        private networkLogs: NetworkLogService
     ) {
         this.behavioral = new BehavioralAnalyzer();
     }
@@ -87,6 +90,24 @@ export class EventMediator {
                         message: `Stray shell detected: ${event.comm} (PID: ${event.pid})`
                     });
                 }
+            } else if (event.type === "NETWORK_LOG") {
+                // Bridge network logs from eBPF
+                this.networkLogs.log({
+                    direction: event.direction || "OUTBOUND",
+                    source: event.source,
+                    destination: event.destination,
+                    protocol: event.protocol || "TCP",
+                    length: event.bytes_count || 0,
+                    action: event.action || "ALLOW",
+                    timestamp: event.timestamp
+                }).catch(() => {});
+
+                this.broadcast({
+                    type: "NETWORK_LOG",
+                    severity: LogSeverity.INFO,
+                    message: `Network: ${event.source} -> ${event.destination} (${event.protocol})`,
+                    data: event
+                });
             }
         });
 
@@ -166,6 +187,20 @@ export class EventMediator {
                     message: data.message || `Packet intercepted on ${data.interface || 'mesh'} ${botScore > 0.8 ? '[BOT_PROBABILITY_HIGH]' : ''}`,
                     data: { ...data, botScore }
                 });
+
+                // Persist to the tactical ledger
+                if (event.type === "NETWORK_LOG" || event.type === "EXFIL_ALERT") {
+                    this.networkLogs.log({
+                        timestamp: new Date().toISOString(),
+                        direction: data.direction || "INBOUND",
+                        source: data.source || "UNKNOWN",
+                        destination: data.destination || "LOCAL",
+                        protocol: data.protocol || "ANY",
+                        length: data.bytes_count || 0,
+                        action: event.type === "EXFIL_ALERT" ? "BLOCK" : (data.action || "ALLOW"),
+                        botScore
+                    }).catch(() => {});
+                }
 
                 // EXFILTRATION ALERTING: Detect high-volume exfiltration from eBPF metrics
                 if (event.type === "NETWORK_LOG" && data.bytes_count && data.bytes_count > 1024 * 1024 * 10) { // 10MB Threshold

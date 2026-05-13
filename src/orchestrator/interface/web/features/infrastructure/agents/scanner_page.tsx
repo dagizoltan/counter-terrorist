@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const ScannerPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Scanner Agent // Tactical Assessment" islandPaths={[
+    <Layout nonce={props.nonce} title="Scanner Agent // Tactical Assessment" islandPaths={[
       '/components/islands/ScannerAgent.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       

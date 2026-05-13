@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Mesh Topology // P2P Consensus" islandPaths={[
+    <Layout nonce={props.nonce} title="Mesh Topology // P2P Consensus" islandPaths={[
       '/components/islands/MeshGraph.js',
       '/components/islands/MeshHeatmap.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>

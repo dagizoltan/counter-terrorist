@@ -7,11 +7,18 @@ import { CorrelationService, KillChain } from "./correlation_service.ts";
  * Automatically executes defensive playbooks based on behavioral correlation verdicts.
  */
 export class AutonomousAutopilotService {
+    private containedSubjects: Set<string> = new Set();
+    private protection: any; // ProtectionAdapter
+
     constructor(
         private correlation: CorrelationService,
         private commands: CommandPort,
         private logging: LoggingPort
     ) {}
+
+    public setProtection(protection: any) {
+        this.protection = protection;
+    }
 
     /**
      * Continuously monitors the correlation engine for breaches.
@@ -54,13 +61,15 @@ export class AutonomousAutopilotService {
         const chains = this.correlation.getKillChains();
         
         for (const chain of chains) {
-            if (chain.isConfirmedBreach && chain.overallRisk >= 100) {
+            if (chain.isConfirmedBreach && chain.overallRisk >= 100 && !this.containedSubjects.has(chain.subject)) {
                 await this.executeContainment(chain);
             }
         }
     }
 
     private async executeContainment(chain: KillChain) {
+        this.containedSubjects.add(chain.subject);
+        
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -69,8 +78,11 @@ export class AutonomousAutopilotService {
             message: `AUTONOMOUS CONTAINMENT ENGAGED for subject: ${chain.subject}. Executing 'Full-Lockdown' playbook.`
         });
 
-        // 1. NETWORK BLOCK: Block the attacking IP via eBPF
-        if (chain.subject.includes(".")) { // Basic IP check
+        // 1. NETWORK BLOCK: Block the attacking IP via FirewallManager (which handles Sentinel/eBPF)
+        if (chain.subject.includes(".") && this.protection) { // Basic IP check
+             await this.protection.firewall.blockIp(chain.subject);
+        } else if (chain.subject.includes(".")) {
+             // Fallback if protection not yet wired
              await this.commands.sendCommand("sentinel", {
                 type: "BLOCK_IP",
                 ip: chain.subject,
@@ -80,16 +92,10 @@ export class AutonomousAutopilotService {
 
         // 2. PROCESS KILL & DUMP: If it's a local PID, terminate the process tree after forensic dump
         const processNode = chain.stages.exploitation.find(n => n.type === "PROCESS");
-        if (processNode && processNode.pid) {
-            // 2a. Forensic Dump
-            await this.commands.sendCommand("enforcer", {
-                type: "DumpProcess",
-                pid: processNode.pid,
-                path: `forensics_dump_breach_${processNode.pid}.dump`,
-                id: crypto.randomUUID()
-            });
-
-            // 2b. Active Kill
+        if (processNode && processNode.pid && this.protection) {
+            await this.protection.firewall.killProcess(processNode.pid);
+        } else if (processNode && processNode.pid) {
+            // Fallback
             await this.commands.sendCommand("enforcer", {
                 type: "KillProcess",
                 pid: processNode.pid,
@@ -98,14 +104,18 @@ export class AutonomousAutopilotService {
         }
 
         // 3. FORENSIC EVIDENCE: Start capturing traffic from this source
-        await this.commands.sendCommand("netcap", {
-            type: "StartCapture",
-            payload: {
-                interface: "eth0", 
-                filename: `./volume/storage/forensics/forensics_breach_${chain.id.substring(0, 8)}.pcap`
-            },
-            id: crypto.randomUUID()
-        });
+        if (this.protection && this.protection.pcap) {
+            await this.protection.pcap.startCapture("eth0", 300, `forensics_breach_${chain.id.substring(0, 8)}.pcap`, `host ${chain.subject}`);
+        } else {
+            await this.commands.sendCommand("netcap", {
+                type: "StartCapture",
+                payload: {
+                    interface: "eth0", 
+                    filename: `./volume/storage/forensics/forensics_breach_${chain.id.substring(0, 8)}.pcap`
+                },
+                id: crypto.randomUUID()
+            });
+        }
 
         this.logging.log({
             timestamp: new Date().toISOString(),

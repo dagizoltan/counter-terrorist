@@ -8,7 +8,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const IntelligenceCenterPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Intelligence Deck // Tactical Signal" islandPaths={[
+    <Layout nonce={props.nonce} title="Intelligence Deck // Tactical Signal" islandPaths={[
       '/components/islands/ThreatMap.js',
       '/components/islands/MeshHeatmap.js',
       '/components/islands/ThreatIntelList.js',

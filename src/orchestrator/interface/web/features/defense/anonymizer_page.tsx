@@ -5,7 +5,7 @@ export const AnonymizerPage = (props: { status: any, csrfToken?: string, nonce?:
   const vpnStatus = props.status?.vpn || {};
   
   return (
-    <Layout title="Identity Anonymizer // Stealth Control" islandPaths={[
+    <Layout nonce={props.nonce} title="Identity Anonymizer // Stealth Control" islandPaths={[
       '/components/islands/AnonymizerController.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
