@@ -53,6 +53,9 @@ export class AuditService {
     private retentionConfig: RetentionConfig;
     private logQueue: Promise<void> = Promise.resolve();
     private state: SystemState = SystemState.NORMAL;
+    /** BUG-03: Promise that resolves once the chain head is restored from DB. */
+    private ready: Promise<void>;
+    private intervals: number[] = [];
 
     constructor(
         private repo: AuditRepository,
@@ -66,18 +69,18 @@ export class AuditService {
             maxEvents: Number(Deno.env.get("AUDIT_MAX_EVENTS")) || 10000,
         };
 
-        this.restoreChainHead();
+        this.ready = this.restoreChainHead();
         
         // Background maintenance
-        setInterval(() => this.purgeExpired(), 60 * 60 * 1000);
-        setInterval(async () => {
+        this.intervals.push(setInterval(() => this.purgeExpired(), 60 * 60 * 1000));
+        this.intervals.push(setInterval(async () => {
           if (this.mesh) {
             const status = await this.getChainStatus();
             this.mesh.broadcastAuditVerification(status.lastHash, status.count);
           }
-        }, 5 * 60 * 1000);
+        }, 5 * 60 * 1000));
 
-        setInterval(() => this.verifyChainIncremental(), 60 * 1000);
+        this.intervals.push(setInterval(() => this.verifyChainIncremental(), 60 * 1000));
 
         // ENHANCEMENT: Full Ledger Verification on Boot (Background)
         // Disabled for UI stabilization phase
@@ -120,7 +123,11 @@ export class AuditService {
                 caller: "AUDIT:DEEP",
                 message: `Deep audit complete. ${result.eventsChecked} events verified. Chain is healthy.`
             });
-        }
+    }
+
+    public stop() {
+        this.intervals.forEach(clearInterval);
+        this.intervals = [];
     }
 
     public setCorrelation(correlation: ICorrelationProcessor) {
@@ -229,6 +236,7 @@ export class AuditService {
     }
 
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }) {
+        await this.ready;
         if (this.state === SystemState.FORENSIC_RESTRICTED &&
             event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS") {
             // Block non-essential logs in restricted mode to preserve forensic state
@@ -381,6 +389,9 @@ export class AuditService {
                 };
             }
 
+            // BUG-02: Reverse Chain Logic
+            // Since we iterate newest-to-oldest, prevEvent is newer than event.
+            // Therefore, prevEvent.prevHash must equal event.hash.
             if (prevEvent && event.hash !== prevEvent.prevHash && prevEvent.prevHash !== "TRUNCATED") {
                 return {
                     valid: false,

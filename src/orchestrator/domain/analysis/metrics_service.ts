@@ -156,16 +156,17 @@ export class MetricsService {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        // Perform Full Verification Cycle on Boot
-        try {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.INFO,
-                caller: "orchestrator:domain:analysis:metrics",
-                message: "Starting Full Forensic Integrity Verification of audit ledger..."
-            });
-            const verification = await this.auditService.verifyFullChain();
+        // PERF-01: Perform Full Verification Cycle in background to not block boot
+        setTimeout(async () => {
+            try {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.INFO,
+                    caller: "orchestrator:domain:analysis:metrics",
+                    message: "Starting Full Forensic Integrity Verification of audit ledger (Background)..."
+                });
+                const verification = await this.auditService.verifyFullChain();
             if (!verification.valid) {
                 loggingService.log({
                     timestamp: new Date().toISOString(),

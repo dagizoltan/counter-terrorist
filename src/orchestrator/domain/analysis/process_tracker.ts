@@ -121,23 +121,35 @@ export class ProcessTracker {
         const ghosts: number[] = [];
         const ownPid = this.processProvider.getOwnPid();
 
-        // Simplified range for demo, in production this would be more exhaustive
-        const maxPid = 65535; 
+        // PERF-03: Use /proc discovery instead of linear range scanning
+        try {
+            if (Deno.build.os === "linux") {
+                for await (const entry of Deno.readDir("/proc")) {
+                    if (entry.isDirectory && /^\d+$/.test(entry.name)) {
+                        const pid = parseInt(entry.name);
+                        if (pid === ownPid) continue;
 
-        for (let pid = 1; pid <= 20000; pid++) { // Reduced range for performance in this turn
-            if (pid === ownPid) continue;
+                        const existing = this.tree.get(pid);
+                        if (existing && !existing.isGhost) continue;
 
-            if (!this.processProvider.isAlive(pid)) continue;
-
-            const existing = this.tree.get(pid);
-            if (existing && !existing.isGhost) continue;
-
-            const info = await this.processProvider.getProcessInfo(pid);
-            
-            if (!info) {
-                ghosts.push(pid);
-                this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                        const info = await this.processProvider.getProcessInfo(pid);
+                        if (!info) {
+                            ghosts.push(pid);
+                            this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                        }
+                    }
+                }
+            } else {
+                // Fallback for non-linux environments (limited range)
+                for (let pid = 1; pid <= 5000; pid++) {
+                    if (pid === ownPid) continue;
+                    if (!this.processProvider.isAlive(pid)) continue;
+                    const info = await this.processProvider.getProcessInfo(pid);
+                    if (!info) ghosts.push(pid);
+                }
             }
+        } catch (e) {
+            // Silently handle /proc read errors to avoid crashing the forensic loop
         }
 
         if (ghosts.length > 0) {

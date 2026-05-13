@@ -121,6 +121,13 @@ export class MeshManager {
     }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + (Math.random() * 5000));
   }
 
+  public stop() {
+    if (this.discoveryInterval) {
+        clearInterval(this.discoveryInterval);
+        this.discoveryInterval = undefined;
+    }
+  }
+
   private async discoverSubnet() {
     const interfaces = Deno.networkInterfaces();
     const localIps = interfaces

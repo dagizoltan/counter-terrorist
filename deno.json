@@ -1,7 +1,7 @@
 {
   "tasks": {
-    "start": "ALLOW_HARDWARE_BYPASS=true deno run --allow-all --unstable-kv src/orchestrator/index.ts",
-    "start:strict": "deno run --allow-net=0.0.0.0,localhost --allow-read=./,/etc/os-release,/var/lib/cts,/proc --allow-write=./,/var/lib/cts --allow-run=./src/agents/target/release/analyzer,./src/agents/target/release/enforcer,./src/agents/target/release/decoy,./src/agents/target/release/netcap,./src/agents/target/release/sentinel,./src/agents/target/release/watchfile,./src/agents/target/release/trustroot,./src/agents/target/release/tunnel,ufw --allow-sys=hostname,osRelease --allow-env --unstable-kv src/orchestrator/index.ts",
+    "start": "deno run --allow-net=0.0.0.0,localhost --allow-read=./,/etc/os-release,/var/lib/cts,/proc --allow-write=./,/var/lib/cts --allow-run=./src/agents/target/release/analyzer,./src/agents/target/release/enforcer,./src/agents/target/release/decoy,./src/agents/target/release/netcap,./src/agents/target/release/sentinel,./src/agents/target/release/watchfile,./src/agents/target/release/trustroot,./src/agents/target/release/tunnel,ufw --allow-sys=hostname,osRelease --allow-env --unstable-kv src/orchestrator/index.ts",
+    "start:dev-UNSAFE": "ALLOW_HARDWARE_BYPASS=true deno run --allow-all --unstable-kv src/orchestrator/index.ts",
     "dev": "deno run --env --allow-net --allow-read --allow-write --allow-run --allow-sys --allow-env --unstable-kv --watch src/orchestrator/index.ts",
     "bootstrap": "deno run --allow-all src/orchestrator/bootstrapper.ts",
     "build-agents": "cd src/agents && cargo build --release",

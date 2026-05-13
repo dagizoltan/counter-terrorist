@@ -22,7 +22,6 @@ export class SidecarManager implements CommandPort {
   private manifestPromise: Promise<void> | null = null;
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
-    this.registerCleanup();
     this.startRotationLoop();
     // Manifest load is async and uses logging, so we don't block constructor
     // but ensure it's called after logging service is ready.
@@ -131,27 +130,21 @@ export class SidecarManager implements CommandPort {
     return this.executor;
   }
 
-  private registerCleanup() {
-    if (this.cleanupRegistered) return;
+  async shutdown() {
+    if (this.isShuttingDown) return;
+    this.isShuttingDown = true;
 
-    const cleanup = async () => {
-      this.isShuttingDown = true;
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.ACTIVITY,
-          severity: LogSeverity.INFO,
-          caller: "orchestrator:infra:runtime:sidecar_manager",
-          message: "Orchestrator exiting, cleaning up sidecars..."
-      });
-      for (const name of Array.from(this.persistentProcesses.keys())) {
-        await this.stopSidecar(name);
-      }
-      // Deno.exit(0); // Removing explicit exit as it might interfere with Deno's own cleanup
-    };
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.ACTIVITY,
+        severity: LogSeverity.INFO,
+        caller: "orchestrator:infra:runtime:sidecar_manager",
+        message: "Orchestrator exiting, cleaning up sidecars..."
+    });
 
-    Deno.addSignalListener("SIGINT", cleanup);
-    Deno.addSignalListener("SIGTERM", cleanup);
-    this.cleanupRegistered = true;
+    for (const name of Array.from(this.persistentProcesses.keys())) {
+      await this.stopSidecar(name);
+    }
   }
 
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
@@ -721,10 +714,12 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     try {
-        const data = await Deno.readFile(path);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        return Array.from(new Uint8Array(hashBuffer))
-            .map(b => b.toString(16).padStart(2, "0")).join("");
+        // PERF-04: Offload hashing to sha256sum to avoid memory spikes in Deno
+        const result = await this.executor.execute("sha256sum", [path]);
+        if (result.success && result.stdout) {
+            return result.stdout.split(" ")[0].trim();
+        }
+        return null;
     } catch {
         return null;
     }

@@ -58,6 +58,12 @@ export class SovereignApp {
         const config = loadConfig();
         this.configProvider = new EnvConfigProvider(config);
 
+        // ── SEC-04: Refuse CTS_DEV_MODE in production ────────────────────────
+        if (Deno.env.get("CTS_DEV_MODE") === "true" && config.ENVIRONMENT === "production") {
+            console.error("CRITICAL: CTS_DEV_MODE=true is FORBIDDEN in production. All sidecar integrity checks are disabled.");
+            Deno.exit(1);
+        }
+
         // ── Phase 1: Core infrastructure ──────────────────────────────────────
         await this.initCore();
 
@@ -406,8 +412,21 @@ export class SovereignApp {
             });
 
             if (this.web) this.web.stop();
+            
+            // ARCH-05: Coordinated service shutdown
+            if (this.services) {
+                for (const service of Object.values(this.services)) {
+                    if (service && typeof (service as any).stop === "function") {
+                        try { (service as any).stop(); } catch {}
+                    }
+                }
+            }
+
             if (this.sidecarManager) await this.sidecarManager.shutdown();
             if (this.kv) this.kv.close();
+            
+            // Final log sink flush
+            loggingService.stop();
 
             Deno.exit(0);
         };
@@ -422,6 +441,7 @@ export class SovereignApp {
         tpm: TPMManager, health: HealthService
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
+        loggingService.setBroadcaster(broadcast);
 
         // REPOSITORY INJECTION
         const networkLogRepo = new KvNetworkLogRepository(this.kv);

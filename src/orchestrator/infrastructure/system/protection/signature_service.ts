@@ -1,5 +1,6 @@
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
+import { canonicalStringify } from "@core/crypto_utils.ts";
 
 /**
  * SignatureService
@@ -28,7 +29,7 @@ export class SignatureService {
             }
 
             const signature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0));
-            const data = new TextEncoder().encode(JSON.stringify(manifest));
+            const data = new TextEncoder().encode(canonicalStringify(manifest));
 
             return await crypto.subtle.verify(
                 { name: "Ed25519" },

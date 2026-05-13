@@ -3,6 +3,7 @@ import { FirewallManager } from "@infrastructure/system/protection/firewall/fire
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { isValidIP } from "@infrastructure/system/validation.ts";
 
 export interface HoneypotModule {
   id: string;
@@ -28,6 +29,7 @@ export class HoneypotService {
   private modules: Map<string, HoneypotModule> = new Map();
   private eventHandlers: ((event: HoneypotEvent) => void)[] = [];
   private hitCount: number = 0;
+  private morphInterval?: number;
 
   constructor(
     private sidecarManager: SidecarManager,
@@ -149,7 +151,14 @@ export class HoneypotService {
     }
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
-    setInterval(() => this.morph(), 600000); // Every 10 minutes
+    this.morphInterval = setInterval(() => this.morph(), 600000); // Every 10 minutes
+  }
+
+  public stop() {
+    if (this.morphInterval) {
+        clearInterval(this.morphInterval);
+        this.morphInterval = undefined;
+    }
   }
 
   private behavioralService?: IBehavioralService; 
@@ -208,16 +217,19 @@ export class HoneypotService {
       }
 
       // Automated Forensics: Start capture for the attacker's traffic
-      const safeIp = source_ip.replace(/[\.:]/g, '_');
-      this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
-          this.logging.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.GENERIC,
-              severity: LogSeverity.ERROR,
-              caller: "orchestrator:domain:protection:honeypot:pcap",
-              message: `Failed to start PCAP for honeypot hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
-          }).catch(() => {});
-      });
+      // SEC-06: Validate IP before injecting into BPF filter to prevent filter injection
+      if (isValidIP(source_ip)) {
+        const safeIp = source_ip.replace(/[\.:]/g, '_');
+        this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:honeypot:pcap",
+                message: `Failed to start PCAP for honeypot hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
+            }).catch(() => {});
+        });
+      }
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
@@ -276,16 +288,19 @@ export class HoneypotService {
     });
 
     // Automated Forensics: Start capture for the attacker's traffic
-    const safeIp = source_ip.replace(/[\.:]/g, '_');
-    this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:domain:protection:honeypot:pcap",
-            message: `Failed to start PCAP for web decoy hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
-        }).catch(() => {});
-    });
+    // SEC-06: Validate IP before injecting into BPF filter to prevent filter injection
+    if (isValidIP(source_ip)) {
+      const safeIp = source_ip.replace(/[\.:]/g, '_');
+      this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: "orchestrator:domain:protection:honeypot:pcap",
+              message: `Failed to start PCAP for web decoy hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
+          }).catch(() => {});
+      });
+    }
 
     // Active Sabotage: Initiate Breaker protocol on the attacker's session
     this.sabotageSession(source_ip);
@@ -340,6 +355,7 @@ export class HoneypotService {
       let newPort: number;
       const protectedPorts = [8000, 8001, 8002]; // Orchestrator ports
       
+      let morphAttempts = 0;
       do {
         // Preference for common but usually unused ports for better camouflage
         const camouflagePorts = [111, 515, 1024, 2049, 4000, 5000, 9000];
@@ -348,6 +364,12 @@ export class HoneypotService {
            newPort = camouflagePorts[Math.floor(Math.random() * camouflagePorts.length)];
         } else {
            newPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
+        }
+        morphAttempts++;
+        // PERF-05: Prevent infinite loop if all ports are occupied
+        if (morphAttempts > 100) {
+          newPort = oldPort; // Fall back to keeping the existing port
+          break;
         }
       } while (protectedPorts.includes(newPort) || Array.from(this.modules.values()).some(m => m.port === newPort));
 

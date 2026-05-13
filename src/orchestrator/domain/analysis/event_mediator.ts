@@ -17,8 +17,6 @@ export interface CommandPort {
  * This decouples the core application from specific sidecar event formats.
  */
 export class EventMediator {
-    private behavioral: BehavioralAnalyzer;
-
     constructor(
         private eventBus: EventBus,
         private processTracker: ProcessTracker,
