@@ -236,7 +236,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     if let Some(ip_str) = cmd.ip {
                         if let Some((ip, mask)) = parse_ip_or_cidr(&ip_str) {
                             if let Ok(mut m) = aya::maps::LpmTrie::<_, LpmKey, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                                let key = LpmKey { prefix_len: mask, data: u32::from(ip).to_be() };
+                                let key = aya::maps::lpm_trie::Key::new(mask, LpmKey { prefix_len: mask, data: u32::from(ip).to_be() });
                                 let _ = m.insert(&key, 1u32, 0);
                                 emit_response(cmd.id, true, format!("XDP Blocked (LPM): {}/{}", ip, mask)).await;
                             } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
@@ -247,7 +247,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     if let Some(ip_str) = cmd.ip {
                         if let Some((ip, mask)) = parse_ip_or_cidr(&ip_str) {
                             if let Ok(mut m) = aya::maps::LpmTrie::<_, LpmKey, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                                let key = LpmKey { prefix_len: mask, data: u32::from(ip).to_be() };
+                                let key = aya::maps::lpm_trie::Key::new(mask, LpmKey { prefix_len: mask, data: u32::from(ip).to_be() });
                                 let _ = m.remove(&key);
                                 emit_response(cmd.id, true, format!("XDP Unblocked (LPM): {}/{}", ip, mask)).await;
                             } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
@@ -332,8 +332,8 @@ async fn main() -> Result<(), anyhow::Error> {
                     if let Ok(m) = aya::maps::LpmTrie::<_, LpmKey, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
                         for res in m.iter() {
                             if let Ok((key, _)) = res {
-                                let ip = std::net::Ipv4Addr::from(u32::from_be(key.data));
-                                blocked_ips.push(format!("{}/{}", ip, key.prefix_len));
+                                let ip = std::net::Ipv4Addr::from(u32::from_be(key.data().data));
+                                blocked_ips.push(format!("{}/{}", ip, key.prefix_len()));
                             }
                         }
                     }

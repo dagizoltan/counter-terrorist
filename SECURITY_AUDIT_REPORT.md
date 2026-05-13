@@ -18,29 +18,31 @@ The audit was performed exclusively via manual code review and reverse-engineeri
 
 ## 3. Findings & Vulnerabilities
 
-### 3.1. Resolved in Phase 1
+### 3.1. Resolved in Phase 1 & 2
 | Issue | Severity | Description | Fix Action |
 | :--- | :--- | :--- | :--- |
 | **Arbitrary Hash Disclosure** | **High** | The `analyzer` could hash any file (e.g., `/etc/shadow`), allowing for offline cracking. | Implemented path jailing in `validateRequest`. |
 | **Low Auth Entropy** | **High** | `API_TOKEN` minimum length of 16 characters was insufficient for a master secret. | Increased minimum length to 32 characters in `ConfigSchema`. |
 | **Scanner Bypass** | **Medium** | `DIR_SCAN` command was unimplemented in the agent, leading to silent failures. | Implemented `DIR_SCAN` in Rust `analyzer`. |
 | **Incomplete Visibility** | **Medium** | Filesystem scanning was non-recursive, missing threats in subdirectories. | Refactored `analyzer` to perform recursive stack-based walks. |
-| **Sidecar Regression** | **Medium** | Missing `ebpf` and `openssl` policies in `SystemExecutor` caused legitimate defense failures. | Restored whitelists and added JSON-argument policies. |
+| **Sidecar Regression** | **Medium** | Missing `ebpf` and `openssl` policies in `SystemExecutor` caused defense failures. | Restored whitelists and added JSON-argument policies. |
+| **Weak Mesh Auth Fallback** | **Medium** | Mesh routes allowed fallback to session-based auth for mutation requests. | Restricted fallback to GET requests only. |
+| **Incomplete SSRF Guard** | **Medium** | `isValidWebhookUrl` missed several cloud metadata and reserved ranges. | Expanded blacklist for GCP, Testnets, and private IPv6. |
+| **Sentinel Build Failure** | **Medium** | Rust Sentinel agent failed to compile due to Aya version/private field access. | Corrected `LpmKey` usage and private field access. |
 
 ### 3.2. Remaining Vulnerabilities
 | Issue | Severity | Description |
 | :--- | :--- | :--- |
 | **Sidecar TOCTOU** | **Medium** | A race condition exists in `SidecarManager` between binary identification and its copy to the secure `/var/lib/cts/bin/` jail. |
-| **SSRF via Webhooks** | **Medium** | `isValidWebhookUrl` relies on blacklisting and regex. It remains susceptible to DNS Rebinding or IPv6-mapped IPv4 bypasses. |
 | **Local DOS** | **Low** | Malicious users could trigger massive recursive scans on large directories (e.g., `/var/`) to spike CPU/IO and fill the `DashMap` cache. |
 
 ---
 
 ## 4. Performance Bottlenecks
 
-1. **Synchronous Process Offloading:** The orchestrator offloads hashing to the external `sha256sum` binary. Spawning a new process per file for integrity checks (especially during boot) is significantly slower than using an in-process native crypto implementation.
-2. **Memory-Resident Hash Cache:** The `analyzer` agent uses a `DashMap` with a fixed capacity guard (100,000 entries). Large-scale filesystem audits can consume upwards of 50MB of RAM for the cache alone, which may be prohibitive on IoT/Edge deployments.
-3. **Rust Allocation Patterns:** While `MALICIOUS_HASHES` was moved to a `Lazy` static, the recursive directory walker allocates a new `PathBuf` for every entry. On deep hierarchies, this creates significant pressure on the allocator.
+1. **Synchronous Process Offloading (Resolved):** Orchestrator now uses native `crypto.subtle.digest` with streaming file access, eliminating `sha256sum` process spawn overhead.
+2. **Memory-Resident Hash Cache:** The `analyzer` agent uses a `DashMap` with a fixed capacity guard (100,000 entries). Large-scale filesystem audits can consume upwards of 50MB of RAM for the cache alone.
+3. **Rust Allocation Patterns:** The recursive directory walker allocates a new `PathBuf` for every entry. On deep hierarchies, this creates significant pressure on the allocator.
 
 ---
 

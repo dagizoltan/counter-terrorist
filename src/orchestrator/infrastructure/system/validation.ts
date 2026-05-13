@@ -61,7 +61,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   }
 
   // Block cloud metadata endpoints
-  if (hostname === "169.254.169.254" || hostname === "metadata.google.internal") {
+  if (hostname === "169.254.169.254" || hostname === "metadata.google.internal" || hostname === "instance-data" || hostname.endsWith(".metadata.google.internal")) {
     return { valid: false, reason: "Cloud metadata endpoints are not allowed" };
   }
 
@@ -70,16 +70,28 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
     return { valid: false, reason: "Link-local addresses are not allowed" };
   }
 
-  // Block RFC1918 private ranges
+  // Block RFC1918 private ranges and other reserved ranges
   const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
-    const [, a, b] = ipv4Match.map(Number);
+    const [, a, b, c] = ipv4Match.map(Number);
     if (a === 10) return { valid: false, reason: "RFC1918 private addresses (10.x.x.x) are not allowed" };
     if (a === 172 && b >= 16 && b <= 31) return { valid: false, reason: "RFC1918 private addresses (172.16-31.x.x) are not allowed" };
     if (a === 192 && b === 168) return { valid: false, reason: "RFC1918 private addresses (192.168.x.x) are not allowed" };
     if (a === 100 && b >= 64 && b <= 127) return { valid: false, reason: "Carrier-grade NAT (100.64.0.0/10) addresses are not allowed" };
     if (a === 198 && (b === 18 || b === 19)) return { valid: false, reason: "Benchmark testing (198.18.0.0/15) addresses are not allowed" };
+    if (a === 192 && b === 0 && c === 2) return { valid: false, reason: "TEST-NET-1 (192.0.2.0/24) addresses are not allowed" };
+    if (a === 198 && b === 51 && c === 100) return { valid: false, reason: "TEST-NET-2 (198.51.100.0/24) addresses are not allowed" };
+    if (a === 203 && b === 0 && c === 113) return { valid: false, reason: "TEST-NET-3 (203.0.113.0/24) addresses are not allowed" };
     if (a === 0) return { valid: false, reason: "Zero-prefix addresses are not allowed" };
+    if (a >= 224) return { valid: false, reason: "Multicast or reserved addresses are not allowed" };
+  }
+
+  // IPv6 SSRF Protection (Expanded)
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+      const inner = hostname.substring(1, hostname.length - 1);
+      if (inner === "::1" || inner === "::" || inner.startsWith("fe80:") || inner.startsWith("fc00:") || inner.startsWith("fd00:")) {
+          return { valid: false, reason: "Private or local IPv6 addresses are not allowed" };
+      }
   }
 
   return { valid: true };

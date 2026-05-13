@@ -716,13 +716,28 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     try {
-        // PERF-04: Offload hashing to sha256sum to avoid memory spikes in Deno
-        const result = await this.executor.execute("sha256sum", [path]);
-        if (result.success && result.stdout) {
-            return result.stdout.split(" ")[0].trim();
-        }
-        return null;
-    } catch {
+        // OPTIMIZATION: Use Deno.readFile to get a Uint8Array which Web Crypto digest() expects.
+        // For very large files, we could use a custom streaming implementation, but for
+        // agent binaries (typically < 20MB), a single read is efficient and avoids process spawn overhead.
+        const data = await Deno.readFile(path);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:runtime:sidecar_manager:hash",
+            message: `Native hashing failed for ${path}: ${e.message}. Falling back to sha256sum.`
+        });
+
+        try {
+            const result = await this.executor.execute("sha256sum", [path]);
+            if (result.success && result.stdout) {
+                return result.stdout.split(" ")[0].trim();
+            }
+        } catch { /* ignore */ }
         return null;
     }
   }

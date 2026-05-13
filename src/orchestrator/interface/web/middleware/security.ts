@@ -231,7 +231,12 @@ export class SecurityMiddleware {
 
       // 3. Fallback to standard administrative/UI authentication
       // Allows the dashboard (authenticated via session/cookie) to access mesh status.
-      return this.auth()(c, next);
+      // HARDENING: Only fallback for non-mutating requests (GET) to prevent cross-authentication bypasses on gossip routes.
+      if (c.req.method === "GET") {
+          return this.auth()(c, next);
+      }
+
+      return c.json({ error: "Mesh Authentication Required", code: "MESH_AUTH_FAULT" }, 401);
     };
   }
 }
