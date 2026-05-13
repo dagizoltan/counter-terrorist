@@ -28,7 +28,7 @@ export interface SystemMetrics {
         blockedCount: number;
         rules: number;
         blockedIps: string[];
-        suspiciousIps: any[];
+        suspiciousIps: string[];
     };
     mesh: {
         activeNodes: number;
@@ -342,15 +342,15 @@ export class MetricsService {
                 tactical: {
                     recentThreats: await (async () => {
                         const threats = await this.tacticalIntel?.getRecentThreats(10) ?? [];
-                        return threats.slice(0, 10).map((t: any) => ({
+                        return threats.slice(0, 10).map((t: {indicator: string; type: string}) => ({
                             ...t,
-                            blocked: blockedIps.includes(t.indicator)
+                            blocked: (blockedIps as string[]).includes(t.indicator)
                         }));
                     })(),
                     stats: await this.tacticalIntel?.getStats() ?? {}
                 },
                 discovery: {
-                    devices: (this.networkDiscovery?.getDevices() ?? []).map((d: any) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))
+                    devices: (this.networkDiscovery?.getDevices() ?? []).map((d: {ip: string; hostname?: string; lastSeen: string}) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))
                 },
                 news: {
                     latest: await this.news?.getLatestSignals(50) ?? []

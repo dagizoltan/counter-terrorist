@@ -84,6 +84,11 @@ export class BehavioralService {
     return "PENDING";
   }
 
+  analyzeNetworkTraffic(ip: string): { botProbability: number, entropy: number } {
+    this.analyzer.track(ip);
+    return this.analyzer.analyze(ip);
+  }
+
   async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]) {
     // 1. Neural Analysis (Syscall Frequency Anomaly)
     this.analyzer.trackSyscall(pid, comm, syscall);

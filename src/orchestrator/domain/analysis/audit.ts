@@ -2,6 +2,11 @@ import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "../orchestration/mesh.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 import { AuditRepository } from "../repositories/audit_repository.ts";
+import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";
+
+export interface ICorrelationProcessor {
+    processEvent(event: AuditEvent): Promise<void>;
+}
 
 export interface ActorContext {
     id: string;
@@ -51,9 +56,9 @@ export class AuditService {
     constructor(
         private repo: AuditRepository,
         private logging: LoggingPort,
-        private tpm: any | null = null,
+        private tpm: TPMManager | null = null,
         private mesh: MeshManager | null = null,
-        private correlation: any | null = null
+        private correlation: ICorrelationProcessor | null = null
     ) {
         this.retentionConfig = {
             maxAgeDays: Number(Deno.env.get("AUDIT_RETENTION_DAYS")) || 90,
@@ -117,7 +122,7 @@ export class AuditService {
         }
     }
 
-    public setCorrelation(correlation: any) {
+    public setCorrelation(correlation: ICorrelationProcessor) {
         this.correlation = correlation;
     }
 
@@ -210,7 +215,13 @@ export class AuditService {
 
                 await this.repo.save(event);
             } catch (e) {
-                // Ignore duplicates or errors during sync
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.INFO,
+                    caller: "AUDIT:SYNC",
+                    message: `Skipped event ${event.id} during sync (likely duplicate): ${e instanceof Error ? e.message : String(e)}`
+                }).catch(() => {});
             }
         }
         await this.restoreChainHead();

@@ -38,6 +38,8 @@ const SOURCE_WEIGHTS: Record<string, number> = {
  * CuratedIntelService
  * Orchestrates multi-source intelligence ingestion with weighted reputation scoring.
  */
+import { BroadcastFunction } from "../orchestration/plugins/types.ts";
+
 export class CuratedIntelService {
     private kv?: Deno.Kv;
     private sources = [
@@ -61,7 +63,7 @@ export class CuratedIntelService {
         private logging: LoggingPort, 
         private firewall: FirewallPort, 
         private config: ConfigurationPort,
-        private broadcast: (data: any) => void,
+        private broadcast: BroadcastFunction,
         private geoip?: GeoIpService
     ) {
         const list = config.getEnv("INTEL_ALLOWLIST") || "";
@@ -105,7 +107,15 @@ export class CuratedIntelService {
                 caller: "INTEL",
                 message: "Blacklist density critical. Initiating mandatory pre-flight intelligence sync..."
             });
-            await this.sync().catch(() => {});
+            await this.sync().catch(err => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "INTEL",
+                    message: `Mandatory pre-flight sync failed: ${err instanceof Error ? err.message : String(err)}`
+                }).catch(logErr => console.error("[INTEL] Failed to log sync error:", logErr));
+            });
         } else {
             // Background initial sync if we already have data
             this.sync().catch(e => {

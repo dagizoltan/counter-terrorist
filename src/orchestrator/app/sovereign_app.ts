@@ -463,7 +463,7 @@ export class SovereignApp {
 
         return {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
-            notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService), 
+            notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService, broadcast), 
             processTracker, sessions, apiKeys, eventBus,
             honeypot, canaryService, kernelService, forensicService,
             autopilot, lifecycle, logging: loggingService,
@@ -474,7 +474,7 @@ export class SovereignApp {
             incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,
-            mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService, networkLog),
+            mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService, networkLog, behavioral),
             behavioral, geoIp, rateLimit, policy, correlation
         };
     }
