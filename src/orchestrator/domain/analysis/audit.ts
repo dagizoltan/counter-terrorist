@@ -3,6 +3,7 @@ import { MeshManager } from "../orchestration/mesh.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 import { AuditRepository } from "../repositories/audit_repository.ts";
 import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";
+import { computeHash } from "../../core/crypto_utils.ts";
 
 export interface ICorrelationProcessor {
     processEvent(event: AuditEvent): Promise<void>;
@@ -442,7 +443,6 @@ export class AuditService {
     }
 
     private async computeHash(input: any): Promise<string> {
-        const { computeHash } = await import("../../core/crypto_utils.ts");
         return await computeHash(input);
     }
 }

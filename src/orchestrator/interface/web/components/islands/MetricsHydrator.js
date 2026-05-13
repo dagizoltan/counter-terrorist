@@ -50,9 +50,7 @@ class MetricsHydrator extends HTMLElement {
       } catch (e) {}
     };
 
-    ws.onclose = () => {
-      this._reconnectTimer = setTimeout(() => this.connect(), 5000);
-    };
+    /* Reconnection handled by SharedWebSocket */
   }
 
   disconnectedCallback() {

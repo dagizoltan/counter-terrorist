@@ -44,7 +44,7 @@ class FirewallAgent extends HTMLElement {
       } catch (e) {}
     };
 
-    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
+    /* Reconnection handled by SharedWebSocket */
   }
 
   async fetchData() {

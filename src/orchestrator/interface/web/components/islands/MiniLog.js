@@ -27,7 +27,11 @@ class MiniLog extends HTMLElement {
       });
       if (res.ok) {
         const allLogs = await res.json();
-        this.logs = allLogs.filter(log => log.type !== 'audit' && log.type !== 'AUDIT');
+        this.logs = allLogs.filter(log => {
+            const isAudit = log.type === 'audit' || log.type === 'AUDIT';
+            const isInfo = (log.severity || '').toLowerCase() === 'info';
+            return !(isAudit && isInfo);
+        });
         this.render();
       }
     } catch (e) {
@@ -58,9 +62,11 @@ class MiniLog extends HTMLElement {
         if (tacticalTypes.includes(payload.type)) {
           const logData = payload.data || payload;
           
-          // Filter: Exclude administrative AUDIT logs from the real-time telemetry stream
-          // as they "poison" the tactical visibility during high-activity periods.
-          if (logData.type === 'audit' || logData.type === 'AUDIT') return;
+          // Filter: Exclude routine administrative AUDIT logs from the real-time telemetry stream
+          // to reduce noise, but ALLOW warning/error audit logs through to maintain forensic visibility.
+          const isAudit = logData.type === 'audit' || logData.type === 'AUDIT';
+          const isInfo = (logData.severity || '').toLowerCase() === 'info';
+          if (isAudit && isInfo) return;
           
           this.logs.unshift(logData);
           if (this.logs.length > 100) this.logs.pop();
@@ -69,9 +75,7 @@ class MiniLog extends HTMLElement {
       } catch (e) {}
     };
 
-    ws.onclose = () => {
-      this._reconnectTimer = setTimeout(() => this.connect(), 5000);
-    };
+    /* Reconnection handled by SharedWebSocket */
   }
 
   disconnectedCallback() {

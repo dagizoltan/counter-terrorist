@@ -109,7 +109,7 @@ class BlockingLog extends HTMLElement {
         }
       } catch (e) {}
     };
-    socket.onclose = () => setTimeout(() => this.connect(), 5000);
+    /* Reconnection handled by SharedWebSocket */
   }
 
   rebuildList() {

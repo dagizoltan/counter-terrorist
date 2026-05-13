@@ -30,7 +30,7 @@ class ThreatIntelList extends HTMLElement {
       } catch (e) {}
     };
 
-    ws.onclose = () => setTimeout(() => this.connect(), 5000);
+    /* Reconnection handled by SharedWebSocket */
   }
 
   renderBase() {

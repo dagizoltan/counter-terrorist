@@ -12,9 +12,21 @@ export interface HoneypotModule {
   active: boolean;
 }
 
+export interface HoneypotEvent {
+  type: string;
+  source_ip?: string;
+  port?: string | number;
+  data?: any;
+  route?: string;
+}
+
+export interface IBehavioralService {
+  analyze(ip: string): Promise<string>;
+}
+
 export class HoneypotService {
   private modules: Map<string, HoneypotModule> = new Map();
-  private eventHandlers: ((event: any) => void)[] = [];
+  private eventHandlers: ((event: HoneypotEvent) => void)[] = [];
   private hitCount: number = 0;
 
   constructor(
@@ -69,11 +81,11 @@ export class HoneypotService {
     });
   }
 
-  onEvent(handler: (event: any) => void) {
+  onEvent(handler: (event: HoneypotEvent) => void) {
     this.eventHandlers.push(handler);
   }
 
-  private emitEvent(event: any) {
+  private emitEvent(event: HoneypotEvent) {
     for (const handler of this.eventHandlers) {
       handler(event);
     }
@@ -105,7 +117,15 @@ export class HoneypotService {
         module: id, 
         active, 
         port: module.port
-      }).catch(() => {});
+      }).catch(err => {
+        this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.ERROR,
+          caller: "orchestrator:domain:protection:honeypot:toggle",
+          message: `Failed to toggle decoy module ${id}: ${err instanceof Error ? err.message : String(err)}`
+        }).catch(() => {});
+      });
     }
   }
 
@@ -116,7 +136,15 @@ export class HoneypotService {
     // Initialize firewall rules and sidecar modules for active modules
     for (const module of this.modules.values()) {
         if (module.active) {
-            await this.toggleModule(module.id, true).catch(() => {});
+            await this.toggleModule(module.id, true).catch(err => {
+              this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:honeypot:start",
+                message: `Failed to start decoy module ${module.id}: ${err instanceof Error ? err.message : String(err)}`
+              }).catch(() => {});
+            });
         }
     }
 
@@ -124,13 +152,13 @@ export class HoneypotService {
     setInterval(() => this.morph(), 600000); // Every 10 minutes
   }
 
-  private behavioralService?: any; // Injected later or passed in constructor
+  private behavioralService?: IBehavioralService; 
 
-  setBehavioralService(service: any) {
+  setBehavioralService(service: IBehavioralService) {
     this.behavioralService = service;
   }
 
-  private async handleEvent(event: any) {
+  private async handleEvent(event: { data?: any }) {
     const payload = event.data;
     if (!payload) return;
 
@@ -181,7 +209,15 @@ export class HoneypotService {
 
       // Automated Forensics: Start capture for the attacker's traffic
       const safeIp = source_ip.replace(/[\.:]/g, '_');
-      this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
+      this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: "orchestrator:domain:protection:honeypot:pcap",
+              message: `Failed to start PCAP for honeypot hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
+          }).catch(() => {});
+      });
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
@@ -229,11 +265,27 @@ export class HoneypotService {
     });
 
     // Immediate blocking for web decoys as they are 100% malicious
-    this.firewall.blockIp(source_ip).catch(console.error);
+    this.firewall.blockIp(source_ip).catch(err => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:protection:honeypot:web",
+            message: `Failed to block IP ${source_ip} after web trigger: ${err instanceof Error ? err.message : String(err)}`
+        }).catch(() => {});
+    });
 
     // Automated Forensics: Start capture for the attacker's traffic
     const safeIp = source_ip.replace(/[\.:]/g, '_');
-    this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
+    this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:protection:honeypot:pcap",
+            message: `Failed to start PCAP for web decoy hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
+        }).catch(() => {});
+    });
 
     // Active Sabotage: Initiate Breaker protocol on the attacker's session
     this.sabotageSession(source_ip);
@@ -258,7 +310,15 @@ export class HoneypotService {
         type: "Sabotage",
         source_ip, 
         level: "HIGH"
-    }).catch(() => {});
+    }).catch(err => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:protection:honeypot:breaker",
+            message: `Failed to send sabotage command to sidecar for ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
+        }).catch(() => {});
+    });
   }
 
   /**
@@ -301,7 +361,15 @@ export class HoneypotService {
         module: id, 
         oldPort, 
         newPort
-      }).catch(() => {});
+      }).catch(err => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:protection:honeypot:morph",
+            message: `Failed to update decoy module ${id} port rotation from ${oldPort} to ${newPort}: ${err instanceof Error ? err.message : String(err)}`
+        }).catch(() => {});
+      });
 
       this.logging.log({
           timestamp: new Date().toISOString(),

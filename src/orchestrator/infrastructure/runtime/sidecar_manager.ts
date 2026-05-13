@@ -107,7 +107,15 @@ export class SidecarManager implements CommandPort {
     if (healed) {
         // 2. Graceful restart
         await this.stopSidecar(name);
-        await this.getPersistentSidecar(name);
+        await this.getPersistentSidecar(name).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager:rotate",
+                message: `Failed to spawn ${name} after rotation: ${(e as Error).message}`
+            });
+        });
         
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -543,7 +551,7 @@ export class SidecarManager implements CommandPort {
     if (!child) return { success: false, stdout: "", stderr: `Sidecar ${name} not found` };
 
     const id = crypto.randomUUID();
-    let commandObj: any = typeof cmd === "string" ? { id, type: cmd } : { ...cmd, id };
+    let commandObj: Record<string, any> = typeof cmd === "string" ? { id, type: cmd } : { ...(cmd as object), id };
 
     if (!validateRequest(name as SidecarName, commandObj)) {
       return { success: false, stdout: "", stderr: `Security violation: Invalid command for sidecar '${name}'` };
@@ -586,7 +594,15 @@ export class SidecarManager implements CommandPort {
 
   async restartSidecar(name: string): Promise<void> {
     await this.stopSidecar(name);
-    await this.getPersistentSidecar(name);
+    await this.getPersistentSidecar(name).catch(e => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:runtime:sidecar_manager:restart",
+            message: `Failed to restart sidecar ${name}: ${(e as Error).message}`
+        });
+    });
   }
 
   async stopSidecar(name: string): Promise<void> {
@@ -735,7 +751,15 @@ export class SidecarManager implements CommandPort {
           message: `Restarting sidecar ${name} (attempt ${restartInfo.count}/3)`
       });
       setTimeout(() => {
-        this.getPersistentSidecar(name).catch(() => {});
+        this.getPersistentSidecar(name).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager:auto_restart",
+                message: `Auto-restart failed for ${name}: ${(e as Error).message}`
+            });
+        });
       }, Math.pow(2, restartInfo.count - 1) * 1000);
     } else {
       const msg = `Sidecar ${name} failed too many times. Giving up.`;
