@@ -124,6 +124,7 @@ export class AuditService {
                 message: `Deep audit complete. ${result.eventsChecked} events verified. Chain is healthy.`
             });
     }
+    }
 
     public stop() {
         this.intervals.forEach(clearInterval);

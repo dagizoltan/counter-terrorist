@@ -189,16 +189,17 @@ export class MetricsService {
                     caller: "orchestrator:domain:analysis:metrics",
                     message: `Full ledger verification successful. ${verification.eventsChecked} links verified.`
                 });
+                }
+            } catch (e) {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:domain:analysis:metrics",
+                    message: `Audit chain verification task error: ${e instanceof Error ? e.message : String(e)}`
+                });
             }
-        } catch (e) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:domain:analysis:metrics",
-                message: `Initial audit verification failed: ${(e as Error).message}`
-            });
-        }
+        }, 5000);
         
         while (this.isRunning) {
             try {

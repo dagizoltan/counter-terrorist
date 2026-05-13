@@ -28,12 +28,6 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         privileged: true,
         binaryName: "sentinel"
     },
-    mesh: {
-        name: "mesh",
-        description: "Autonomous peer discovery and mTLS-secured gossip protocol for collective intelligence.",
-        persistent: true,
-        privileged: true
-    },
     analyzer: {
         name: "analyzer",
         description: "Threat analysis agent for malware scanning, rootkit detection, and signature-based file inspection.",

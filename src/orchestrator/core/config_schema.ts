@@ -45,16 +45,10 @@ export function loadConfig(): AppConfig {
   const result = ConfigSchema.safeParse(rawConfig);
 
   if (!result.success) {
-    loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity: LogSeverity.ERROR,
-        caller: "orchestrator:core:config",
-        message: "INVALID CONFIGURATION DETECTED",
-        payload: result.error.format()
-    }).catch(() => {});
+    console.error("CONFIGURATION ERROR DETAILS:", JSON.stringify(result.error.format(), null, 2));
     throw new Error("Application failed to boot due to configuration errors.");
   }
+
 
   return result.data;
 }

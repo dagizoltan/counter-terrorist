@@ -60,24 +60,29 @@ async function detectMacosVersion(executor: SystemExecutor): Promise<string> {
 }
 
 async function getMetrics(): Promise<PlatformInfo["metrics"]> {
-  const isLinux = Deno.build.os === "linux";
-  if (!isLinux) return undefined;
-
   try {
-    const meminfo = await Deno.readTextFile("/proc/meminfo");
-    const totalMem = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1] || "0") * 1024;
-    const freeMem = parseInt(meminfo.match(/MemAvailable:\s+(\d+)/)?.[1] || "0") * 1024;
-
-    const loadavg = await Deno.readTextFile("/proc/loadavg");
-    const load = loadavg.split(" ").slice(0, 3).map(parseFloat);
-
-    const uptimeStr = await Deno.readTextFile("/proc/uptime");
-    const uptime = parseFloat(uptimeStr.split(" ")[0]);
-
+    // Use native Deno APIs if available (requires --allow-sys)
+    const mem = Deno.systemMemoryInfo();
+    const load = Deno.loadavg();
     const hostname = Deno.hostname();
 
+    // Uptime is not directly available in Deno sys API yet, fallback to /proc/uptime on Linux
+    let uptime = 0;
+    if (Deno.build.os === "linux") {
+      try {
+        const uptimeStr = await Deno.readTextFile("/proc/uptime");
+        uptime = parseFloat(uptimeStr.split(" ")[0]);
+      } catch {
+        // Fallback
+      }
+    }
+
     return {
-      memory: { total: totalMem, free: freeMem, used: totalMem - freeMem },
+      memory: { 
+        total: mem.total, 
+        free: mem.free + mem.available, // Best effort approximation
+        used: mem.total - mem.available 
+      },
       cpu: { load, cores: navigator.hardwareConcurrency },
       disk: { total: 0, free: 0, used: 0 },
       uptime,
@@ -89,8 +94,39 @@ async function getMetrics(): Promise<PlatformInfo["metrics"]> {
         type: LogType.GENERIC,
         severity: LogSeverity.ERROR,
         caller: "orchestrator:infra:system:platform",
-        message: `Failed to get metrics: ${e instanceof Error ? e.message : String(e)}`
+        message: `Failed to get native metrics: ${e instanceof Error ? e.message : String(e)}. Attempting /proc fallback...`
     });
+
+    // Fallback to manual /proc parsing if native API fails (legacy or permission issues)
+    if (Deno.build.os === "linux") {
+      try {
+        const meminfo = await Deno.readTextFile("/proc/meminfo");
+        const totalMem = parseInt(meminfo.match(/MemTotal:\s+(\d+)/)?.[1] || "0") * 1024;
+        const freeMem = parseInt(meminfo.match(/MemAvailable:\s+(\d+)/)?.[1] || "0") * 1024;
+
+        const loadavg = await Deno.readTextFile("/proc/loadavg");
+        const load = loadavg.split(" ").slice(0, 3).map(parseFloat);
+
+        const uptimeStr = await Deno.readTextFile("/proc/uptime");
+        const uptime = parseFloat(uptimeStr.split(" ")[0]);
+
+        return {
+          memory: { total: totalMem, free: freeMem, used: totalMem - freeMem },
+          cpu: { load, cores: navigator.hardwareConcurrency },
+          disk: { total: 0, free: 0, used: 0 },
+          uptime,
+          hostname: Deno.hostname(),
+        };
+      } catch (inner) {
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:system:platform",
+            message: `Manual /proc fallback failed: ${inner instanceof Error ? inner.message : String(inner)}`
+        });
+      }
+    }
     return undefined;
   }
 }

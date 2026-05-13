@@ -55,6 +55,7 @@ export class SovereignApp {
 
     async boot() {
         // ── Phase 0: Configuration ───────────────────────────────────────────
+        await load({ export: true });
         const config = loadConfig();
         this.configProvider = new EnvConfigProvider(config);
 
@@ -105,6 +106,10 @@ export class SovereignApp {
             this.configProvider, platformInfo, notificationService, 
             eventBus, meshManager, tpmManager, healthService
         );
+
+        // ── Phase 5.5: Establish Behavioral Baselines ───────────────────────
+        await this.services.processTracker.fullScan();
+        await this.services.baseline.captureSnapshot();
 
         // ── Phase 6: Web, Metrics & Signals ──────────────────────────────────
         await this.initOperationalLayer(this.services);

@@ -51,6 +51,11 @@ export class SidecarManager implements CommandPort {
         // ── Auto-Start Persistent Agents ────────────────────────────────────
         // Ensures all critical defense agents are active from boot, not just on-demand.
         for (const name of PERSISTENT_SIDECARS) {
+            // BUG-06: Filter agents by current platform to avoid spawn failures
+            if (name.endsWith("-win") && Deno.build.os !== "windows") continue;
+            if (name.endsWith("-darwin") && Deno.build.os !== "darwin") continue;
+            if (name === "sentinel" && Deno.build.os !== "linux") continue;
+
             this.getPersistentSidecar(name).catch(e => {
                 if (this.logging) {
                     this.logging.log({
@@ -58,7 +63,7 @@ export class SidecarManager implements CommandPort {
                         type: LogType.AUDIT,
                         severity: LogSeverity.ERROR,
                         caller: "orchestrator:infra:runtime:sidecar_manager",
-                        message: `Critical Failure: Persistent agent '${name}' failed to initialize: ${e.message}`
+                        message: `Failed to auto-start persistent sidecar ${name}: ${e instanceof Error ? e.message : String(e)}`
                     });
                 }
             });
