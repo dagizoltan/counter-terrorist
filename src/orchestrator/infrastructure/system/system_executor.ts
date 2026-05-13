@@ -31,7 +31,7 @@ export class SystemExecutor {
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sw_vers", "openssl",
     "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security", "powershell",
-    "analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "tunnel", "sentinel-darwin", "telemetry-win", "enforcer-win", "getcap"
+    "analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "tunnel", "sentinel-darwin", "telemetry-win", "enforcer-win", "getcap", "ebpf"
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [
@@ -258,6 +258,10 @@ export class SystemExecutor {
     "getcap": {
       allowedArgs: [/^[a-zA-Z0-9./_-]+$/],
       maxArgs: 1
+    },
+    "ebpf": {
+        allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID)".*\}$/],
+        maxArgs: 1
     }
   };
 

@@ -644,19 +644,6 @@ export class SidecarManager implements CommandPort {
     }
   }
 
-  async shutdown(): Promise<void> {
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.ACTIVITY,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:infra:runtime:sidecar_manager",
-        message: "Shutting down agent fleet..."
-    });
-    const names = Array.from(this.persistentProcesses.keys());
-    for (const name of names) {
-      await this.stopSidecar(name);
-    }
-  }
 
   getPID(name: string): number | null {
     const process = this.persistentProcesses.get(name);
