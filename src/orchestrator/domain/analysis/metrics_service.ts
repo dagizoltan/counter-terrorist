@@ -253,7 +253,7 @@ export class MetricsService {
             const fimActive = this.sidecarManager.isRunning("watchfile");
 
             const fwLines = firewallStatus.stdout?.split('\n').filter((l: string) => l.trim()) || [];
-            const rejectCount = (firewallStatus.stdout?.match(/REJECT|DROP|DENY/g) || []).length;
+            const blockedIpsSet = new Set(blockedIps as string[]);
 
             // 3. Staggered Phase (Run less frequently)
             let auditStatus = { valid: true, count: 0 };
@@ -275,9 +275,9 @@ export class MetricsService {
             const mem = Deno.memoryUsage();
             const metrics: SystemMetrics = {
                 firewall: {
-                    blockedCount: (blockedIps as string[]).length,
+                    blockedCount: blockedIpsSet.size,
                     rules: fwLines.length,
-                    blockedIps: [...new Set(blockedIps as string[])].slice(0, 20),
+                    blockedIps: Array.from(blockedIpsSet).slice(0, 20),
                     suspiciousIps: this.behavioral.getSuspiciousIps().slice(0, 10),
                 },
                 node: {
@@ -335,16 +335,19 @@ export class MetricsService {
                     available: !!this.vpnAvailable,
                     mode: this.anonymization.getMode(),
                 },
-                geo: {
-                    topCountries: Array.from(new Set(Object.values(this.geoIp.getCache()).map(c => c.country))).slice(0, 5),
-                    totalOrigins: new Set(Object.values(this.geoIp.getCache()).map(c => c.country)).size
-                },
+                geo: (() => {
+                    const countries = new Set(Object.values(this.geoIp.getCache()).map(c => c.country));
+                    return {
+                        topCountries: Array.from(countries).slice(0, 5),
+                        totalOrigins: countries.size
+                    };
+                })(),
                 tactical: {
                     recentThreats: await (async () => {
                         const threats = await this.tacticalIntel?.getRecentThreats(10) ?? [];
                         return threats.slice(0, 10).map((t: {indicator: string; type: string}) => ({
                             ...t,
-                            blocked: (blockedIps as string[]).includes(t.indicator)
+                            blocked: blockedIpsSet.has(t.indicator)
                         }));
                     })(),
                     stats: await this.tacticalIntel?.getStats() ?? {}

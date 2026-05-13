@@ -16,7 +16,7 @@ export const ThreatMapPage = (props: { status: any, csrfToken?: string, nonce?: 
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Global Threat Map</h1>
-          <span class="subtitle">Real-time spatial visualization of adversarial infrastructure</span>
+          <span class="subtitle">Spatial Visualization</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-8 py-4 rounded-full backdrop-blur-xl">

@@ -14,7 +14,7 @@ export const VpnPage = (props: { status: any, csrfToken?: string, nonce?: string
       <header class="page-header">
         <div class="title-group">
           <h1>VPN Agent</h1>
-          <span class="subtitle">Egress Anonymization & Identity Masking // Status: Operational</span>
+          <span class="subtitle">Status: Operational</span>
         </div>
       </header>
 
@@ -41,7 +41,6 @@ export const VpnPage = (props: { status: any, csrfToken?: string, nonce?: string
                   </div>
                   <div class="flex flex-col gap-2">
                      <h3 class="tactical-title text-2xl tracking-widest">TUNNEL TELEMETRY</h3>
-                     <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Real-time exit node performance and latency</p>
                   </div>
                 </div>
                 <div class="flex items-center gap-4">

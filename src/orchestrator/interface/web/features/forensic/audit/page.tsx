@@ -9,7 +9,7 @@ export const AuditPage = (props: { csrfToken?: string, nonce?: string }) => {
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Governance_Ledger</h1>
-          <span class="subtitle">Authoritative Compliance & Enforcement History // Root_Node_Authority</span>
+          <span class="subtitle">Root_Node_Authority</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-8 py-4 rounded-full backdrop-blur-xl">

@@ -14,7 +14,7 @@ export const ScannerPage = (props: { status: any, csrfToken?: string, nonce?: st
       <header class="page-header">
         <div class="title-group">
           <h1>Scanner_Agent</h1>
-          <span class="subtitle">Network Reconnaissance & Vulnerability Assessment // Mode: Tactical</span>
+          <span class="subtitle">Mode: Tactical</span>
         </div>
       </header>
 

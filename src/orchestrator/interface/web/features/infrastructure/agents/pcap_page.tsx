@@ -14,7 +14,7 @@ export const PcapPage = (props: { status: any, csrfToken?: string, nonce?: strin
       <header class="page-header">
         <div class="title-group">
           <h1>Packet_Capture</h1>
-          <span class="subtitle">Deep Packet Inspection & Wire-speed Analysis // Status: Capturing</span>
+          <span class="subtitle">Status: Capturing</span>
         </div>
       </header>
 

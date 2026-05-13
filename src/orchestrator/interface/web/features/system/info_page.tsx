@@ -15,7 +15,7 @@ export const SystemInfoPage = (props: { status: any, csrfToken?: string, nonce?:
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Platform Metadata</h1>
-          <span class="subtitle">Hardware & Operational Telemetry // Node: {props.status?.platform?.hostname || 'SVRGN-NODE'}</span>
+          <span class="subtitle">Node: {props.status?.platform?.hostname || 'SVRGN-NODE'}</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-6 bg-primary/10 border border-primary/20 px-8 py-4 rounded-full backdrop-blur-xl shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)]">
@@ -33,7 +33,6 @@ export const SystemInfoPage = (props: { status: any, csrfToken?: string, nonce?:
               </div>
               <div class="flex flex-col gap-2">
                  <h3 class="tactical-title text-xl tracking-widest uppercase">Hardware Telemetry</h3>
-                 <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Real-time Component Metrics</p>
               </div>
            </header>
            <div class="p-10 bg-black/20">
@@ -48,7 +47,6 @@ export const SystemInfoPage = (props: { status: any, csrfToken?: string, nonce?:
               </div>
               <div class="flex flex-col gap-2">
                  <h3 class="tactical-title text-xl tracking-widest uppercase">Platform Manifest</h3>
-                 <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">OS Kernel & Runtime State</p>
               </div>
            </header>
            <div class="p-10 flex flex-col gap-6 bg-black/20">

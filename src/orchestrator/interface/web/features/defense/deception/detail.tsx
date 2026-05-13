@@ -11,7 +11,7 @@ export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
       <header class="page-header">
         <div class="title-group">
           <h1>{props.module.name}</h1>
-          <span class="subtitle">Honeypot Node: {props.module.id} // Port: {props.module.port}</span>
+          <span class="subtitle">Port: {props.module.port}</span>
         </div>
         <div class="flex gap-4">
           <button class="t-btn px-6 py-3 text-[9px]">Download Logs</button>

@@ -13,7 +13,7 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Investigation Lab</h1>
-          <span class="subtitle">Post-mortem Causal Analysis & Temporal Replay Hub</span>
+          <span class="subtitle">Temporal Replay Hub</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-danger/10 border border-danger/30 px-8 py-4 rounded-full backdrop-blur-xl shadow-[0_0_20px_rgba(var(--danger-rgb),0.15)]">
@@ -32,7 +32,6 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }
                  </div>
                  <div class="flex flex-col gap-1.5">
                     <h3 class="tactical-title text-2xl tracking-widest uppercase">Live Signal Stream</h3>
-                    <p class="mono-xs text-slate-500 font-bold uppercase tracking-[0.4em]">Real-time forensic packet capture and policy enforcement</p>
                  </div>
               </div>
               <div class="flex gap-4">

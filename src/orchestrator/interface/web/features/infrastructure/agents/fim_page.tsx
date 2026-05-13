@@ -14,7 +14,7 @@ export const FimPage = (props: { status: any, csrfToken?: string, nonce?: string
       <header class="page-header">
         <div class="title-group">
           <h1>FIM_Agent</h1>
-          <span class="subtitle">File Integrity Monitoring & Real-time Auditing // Status: Monitoring</span>
+          <span class="subtitle">Status: Monitoring</span>
         </div>
       </header>
 

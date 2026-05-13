@@ -14,7 +14,7 @@ export const ActiveNetworkPage = (props: { status: any, csrfToken?: string, nonc
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Active Network</h1>
-          <span class="subtitle">Authoritative Routing Mesh & Local Infrastructure Topology</span>
+          <span class="subtitle">Active Routes</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-8 py-4 rounded-full backdrop-blur-xl">
@@ -29,7 +29,6 @@ export const ActiveNetworkPage = (props: { status: any, csrfToken?: string, nonc
           <header class="p-8 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
             <div class="flex flex-col gap-2">
                <h3 class="tactical-title text-2xl tracking-widest">Infrastructure Map</h3>
-               <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Live authoritative node interaction & local asset map</p>
             </div>
             <div class="flex gap-4">
                <button class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Refresh Discovery</button>

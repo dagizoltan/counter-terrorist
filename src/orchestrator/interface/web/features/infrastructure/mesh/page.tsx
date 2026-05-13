@@ -15,7 +15,7 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Mesh Topology</h1>
-          <span class="subtitle">P2P Consensus Reached // Nodes Discovered: {props.status?.mesh?.nodes?.length || "0"}</span>
+          <span class="subtitle">Nodes Discovered: {props.status?.mesh?.nodes?.length || "0"}</span>
         </div>
         <div class="flex gap-4">
           <button class="t-btn px-8 py-4 text-[10px] font-black group" onclick="fetch('/api/mesh/resync', { method: 'POST' })">

@@ -15,7 +15,7 @@ export const SupplyChainPage = (props: { status: any, csrfToken?: string, nonce?
       <header class="page-header">
         <div class="title-group">
           <h1>Supply Chain Integrity</h1>
-          <span class="subtitle">Software Bill of Materials (SBOM) // Vulnerability Status: Monitoring</span>
+          <span class="subtitle">Vulnerability Status: Monitoring</span>
         </div>
         <div class="flex items-center gap-4">
            <div class="flex flex-col items-end gap-1">

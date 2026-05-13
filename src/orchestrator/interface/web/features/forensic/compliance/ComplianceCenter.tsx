@@ -6,7 +6,7 @@ export const ComplianceCenterPage = (props: { status: any; csrfToken: string; no
     <Layout nonce={props.nonce} title="Compliance Center" csrfToken={props.csrfToken} >
       <header class="page-header mb-8">
         <h1 class="tactical-title text-4xl">Compliance Center</h1>
-        <span class="subtitle">Hardware-Signed Evidence & Regulatory Mapping</span>
+        <span class="subtitle">Hardware-Signed Evidence</span>
       </header>
 
       <section class="grid grid-cols-1 gap-8">

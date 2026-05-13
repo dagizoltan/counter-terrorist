@@ -14,7 +14,7 @@ export const NeighborNetworksPage = (props: { status: any, csrfToken?: string, n
       <header class="page-header mb-12">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Neighbor Signals</h1>
-          <span class="subtitle">Ambient Signal Intercept & Environmental Intelligence</span>
+          <span class="subtitle">Neighbor Discovery</span>
         </div>
         <div class="flex items-center gap-4">
            <div class="status-pill warning active px-6 py-2 text-[10px]">Scanning...</div>

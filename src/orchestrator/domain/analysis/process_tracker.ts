@@ -127,16 +127,16 @@ export class ProcessTracker {
         for (let pid = 1; pid <= 20000; pid++) { // Reduced range for performance in this turn
             if (pid === ownPid) continue;
 
+            if (!this.processProvider.isAlive(pid)) continue;
+
             const existing = this.tree.get(pid);
             if (existing && !existing.isGhost) continue;
 
             const info = await this.processProvider.getProcessInfo(pid);
             
             if (!info) {
-                if (this.processProvider.isAlive(pid)) {
-                    ghosts.push(pid);
-                    this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
-                }
+                ghosts.push(pid);
+                this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
             }
         }
 

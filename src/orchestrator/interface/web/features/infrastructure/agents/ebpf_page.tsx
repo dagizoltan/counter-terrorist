@@ -14,7 +14,7 @@ export const EbpfPage = (props: { status: any, csrfToken?: string, nonce?: strin
       <header class="page-header">
         <div class="title-group">
           <h1>eBPF_Agent</h1>
-          <span class="subtitle">Kernel-level Security Enforcement & Observability // Status: Active (Fallback)</span>
+          <span class="subtitle">Status: Active (Fallback)</span>
         </div>
       </header>
 

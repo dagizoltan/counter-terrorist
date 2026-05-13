@@ -14,7 +14,7 @@ const ArtifactIntelPage = (props: { status: any, csrfToken?: string, nonce?: str
             <header class="page-header mb-12">
                <div class="title-group">
                   <h1 class="tactical-title text-5xl">Artifact Collections</h1>
-                  <span class="subtitle">Binary Forensic Intelligence // SHA-256 & YARA Registry</span>
+                  <span class="subtitle">SHA-256 & YARA Registry</span>
                </div>
                <div class="flex items-center gap-6">
                   <div class="status-pill warning active px-8 py-3 text-[10px]">Continuous Assurance Active</div>
