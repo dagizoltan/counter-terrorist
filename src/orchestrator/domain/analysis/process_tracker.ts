@@ -72,11 +72,9 @@ export class ProcessTracker {
 
     async fullScan() {
         try {
-            for await (const pid of this.processProvider.listProcesses()) {
-                const stats = await this.processProvider.getProcessInfo(pid);
-                if (stats) {
-                    this.updateProcess(pid, stats.ppid, stats.comm);
-                }
+            const processes = await this.processProvider.getAllProcesses();
+            for (const stats of processes) {
+                this.updateProcess(stats.pid, stats.ppid, stats.comm);
             }
             
             await this.scanForGhosts();

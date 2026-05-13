@@ -322,14 +322,32 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       const ebpfTypes = [
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
         "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
-        "ENFORCE_PID", "UNENFORCE_PID"
+        "ENFORCE_PID", "UNENFORCE_PID", "BLOCK_SYSCALL", "LSM_POLICY"
       ];
       if (!ebpfTypes.includes(req.type)) return false;
-      if ((req.type === "BLOCK_IP" || req.type === "UNBLOCK_IP" || req.type === "SHADOW_BAN") && !isValidIP(req.ip || "")) return false;
-      if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip || "")) return false;
-      if (req.type === "TRUST_COMM" && typeof req.comm !== "string") return false;
-      if ((req.type === "HIDE_PID" || req.type === "ENFORCE_PID" || req.type === "UNENFORCE_PID") && typeof req.pid !== "number") return false;
-      if ((req.type === "ALLOW_PORT" || req.type === "DENY_PORT") && typeof req.port !== "number") return false;
+      
+      // IP Validation
+      if (["BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN"].includes(req.type)) {
+        if (!req.ip || !isValidIP(req.ip)) return false;
+        if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip)) return false;
+      }
+      
+      // Process Name Validation (Strict)
+      if (req.type === "TRUST_COMM") {
+        if (typeof req.comm !== "string" || req.comm.length === 0 || req.comm.length > 16) return false;
+        if (!/^[a-zA-Z0-9._-]+$/.test(req.comm)) return false;
+      }
+      
+      // PID Validation
+      if (["HIDE_PID", "ENFORCE_PID", "UNENFORCE_PID"].includes(req.type)) {
+        if (typeof req.pid !== "number" || req.pid <= 0 || req.pid > 4194304) return false;
+      }
+      
+      // Port Validation
+      if (["ALLOW_PORT", "DENY_PORT"].includes(req.type)) {
+        if (typeof req.port !== "number" || req.port < 1 || req.port > 65535) return false;
+      }
+      
       return true;
     case "trustroot":
       if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity"].includes(req.type)) return false;
