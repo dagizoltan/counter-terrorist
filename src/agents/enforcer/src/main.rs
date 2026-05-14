@@ -29,6 +29,10 @@ enum BlockerCommand {
     DumpProcess { id: String, pid: u32, path: String },
     BlockIp { id: String, ip: String },
     UnblockIp { id: String, ip: String },
+    AllowPort { id: String, port: u16, protocol: String },
+    DenyPort { id: String, port: u16, protocol: String },
+    FlushRules { id: String },
+    Shutdown { id: String },
     GetStatus { id: String },
 }
 
@@ -94,11 +98,72 @@ async fn main() {
                     let res = dump_process_task(pid, path).await;
                     emit_response(id, res.0, res.1).await;
                 },
-                BlockerCommand::BlockIp { id, .. } => {
-                    emit_response(id, false, "IP blocking delegated to eBPF/XDP".to_string()).await;
+                BlockerCommand::BlockIp { id, ip } => {
+                    log_forensic("warning", &format!("Perimeter Defense: Blocking malicious IP {} via iptables fallback", ip)).await;
+                    // Use -C to check if rule exists first to avoid duplicates, then -I to insert at top
+                    let check = Command::new("iptables")
+                        .args(["-C", "INPUT", "-s", &ip, "-j", "DROP"])
+                        .status();
+
+                    let success = if check.is_ok() && check.unwrap().success() {
+                        true // Already blocked
+                    } else {
+                        Command::new("iptables")
+                            .args(["-I", "INPUT", "-s", &ip, "-j", "DROP"])
+                            .status()
+                            .map(|s| s.success())
+                            .unwrap_or(false)
+                    };
+                    emit_response(id, success, if success { format!("IP {} blocked via iptables", ip) } else { "Failed to block IP".to_string() }).await;
                 },
-                BlockerCommand::UnblockIp { id, .. } => {
-                    emit_response(id, false, "IP unblocking delegated to eBPF/XDP".to_string()).await;
+                BlockerCommand::UnblockIp { id, ip } => {
+                    log_forensic("info", &format!("Perimeter Defense: Unblocking IP {}", ip)).await;
+                    // Delete all instances to be sure
+                    let mut success = true;
+                    loop {
+                        let status = Command::new("iptables")
+                            .args(["-D", "INPUT", "-s", &ip, "-j", "DROP"])
+                            .status();
+                        if let Ok(s) = status {
+                            if !s.success() { break; }
+                        } else {
+                            success = false;
+                            break;
+                        }
+                    }
+                    emit_response(id, success, if success { format!("IP {} unblocked via iptables", ip) } else { "Failed to unblock IP".to_string() }).await;
+                },
+                BlockerCommand::AllowPort { id, port, protocol } => {
+                    log_forensic("info", &format!("Firewall: Allowing {} port {}", protocol, port)).await;
+                    let success = Command::new("iptables")
+                        .args(["-I", "INPUT", "-p", &protocol, "--dport", &port.to_string(), "-j", "ACCEPT"])
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false);
+                    emit_response(id, success, if success { format!("Allowed {} port {}", protocol, port) } else { "Failed to allow port".to_string() }).await;
+                },
+                BlockerCommand::DenyPort { id, port, protocol } => {
+                    log_forensic("info", &format!("Firewall: Denying {} port {}", protocol, port)).await;
+                    let success = Command::new("iptables")
+                        .args(["-D", "INPUT", "-p", &protocol, "--dport", &port.to_string(), "-j", "ACCEPT"])
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false);
+                    emit_response(id, success, if success { format!("Denied {} port {}", protocol, port) } else { "Failed to deny port".to_string() }).await;
+                },
+                BlockerCommand::FlushRules { id } => {
+                    log_forensic("warning", "Firewall: Flushing all user-defined iptables rules").await;
+                    let success = Command::new("iptables")
+                        .arg("-F")
+                        .status()
+                        .map(|s| s.success())
+                        .unwrap_or(false);
+                    emit_response(id, success, if success { "Rules flushed".to_string() } else { "Failed to flush rules".to_string() }).await;
+                },
+                BlockerCommand::Shutdown { id } => {
+                    log_forensic("info", "Blocker Agent shutting down").await;
+                    emit_response(id, true, "Shutting down".to_string()).await;
+                    std::process::exit(0);
                 },
                 BlockerCommand::GetStatus { id } => {
                     emit_response(id, true, "Active".to_string()).await;

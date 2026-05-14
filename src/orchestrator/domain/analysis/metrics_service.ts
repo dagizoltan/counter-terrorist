@@ -338,6 +338,7 @@ export class MetricsService {
                 },
                 vpn: {
                     ...this.anonymization.getTelemetry(),
+                    active: vpnConnected,
                     interface: vpnConnected ? "wg0" : "Sovereign Mesh (mTLS)",
                     available: !!this.vpnAvailable,
                 },

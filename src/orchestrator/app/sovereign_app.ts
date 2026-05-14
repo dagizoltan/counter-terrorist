@@ -8,7 +8,7 @@ import {
     BaselineService, ProcessTracker, SessionService, ApiKeysService, 
     EventBus, MeshAuthService, ForensicService, MeshManager, 
     PlaybookService, BehavioralService, MetricsService, 
-    ShadowProtocolService, GeoIpService, AnonymizationService, 
+    ShadowProtocolService, GeoIpService, AnonymizationService, StealthMode,
     CuratedIntelService, DeceptionGridService, MorphingService, 
     ChaosEngine, SupplyChainService, HoneypotService, 
     CanaryService, AutopilotService, KernelService, 
@@ -340,6 +340,19 @@ export class SovereignApp {
         });
 
         this.startDaemons();
+
+        // Ensure Anonymization is active with TRADITIONAL mode by default
+        if (this.services.anonymization) {
+            this.services.anonymization.start(StealthMode.TRADITIONAL).catch(e => {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:app:sovereign_app",
+                    message: `Failed to initialize Anonymization: ${e.message}`
+                });
+            });
+        }
     }
 
     private async startDaemons() {

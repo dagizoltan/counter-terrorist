@@ -335,12 +335,14 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       }
       return true;
     case "enforcer":
-      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus"].includes(req.type)) return false;
+      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus", "AllowPort", "DenyPort", "FlushRules", "Shutdown"].includes(req.type)) return false;
       if ((req.type === "KillProcess" || req.type === "QuarantineProcess" || req.type === "DumpProcess") && typeof req.pid !== "number") return false;
       const targetIp = req.ip;
       if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
       if (req.type === "BlockIp" && isCriticalInfrastructure(targetIp || "")) return false;
       if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
+      if ((req.type === "AllowPort" || req.type === "DenyPort") && typeof req.port !== "number") return false;
+      if ((req.type === "AllowPort" || req.type === "DenyPort") && !["tcp", "udp"].includes(req.protocol)) return false;
       return true;
     case "netcap":
       if (!["StartCapture", "StopCapture", "GetStatus"].includes(req.type)) return false;

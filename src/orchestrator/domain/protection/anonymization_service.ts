@@ -38,7 +38,7 @@ export class AnonymizationService {
         this.firewall = firewall;
     }
 
-    async start(initialMode: StealthMode = StealthMode.VPNGATE) {
+    async start(initialMode: StealthMode = StealthMode.TRADITIONAL) {
         this.mode = initialMode;
         if (this.mode === StealthMode.OFF) return;
 
@@ -47,7 +47,7 @@ export class AnonymizationService {
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
             caller: "ANONYMIZER",
-            message: `Anonymization active. Mode: ${this.mode}. Initializing stealth tunnel...`
+            message: `Anonymization active. Mode: ${this.mode} (AES Encryption). Initializing stealth tunnel...`
         });
         
         await this.rotate();
