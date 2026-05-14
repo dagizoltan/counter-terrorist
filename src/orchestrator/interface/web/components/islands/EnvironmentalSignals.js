@@ -61,7 +61,7 @@ class EnvironmentalSignals extends HTMLElement {
            <div class="flex items-center gap-8 px-8 py-3 bg-primary/5 border border-primary/20 rounded-2xl">
               <div class="flex flex-col">
                  <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-1">Spectrum_Density</span>
-                 <span class="mono-md text-white font-black italic tracking-tighter">${totalCount > 10 ? 'HIGH' : 'STABLE'}</span>
+                 <span class="mono-md text-white font-black italic tracking-tighter">${totalCount > 15 ? 'CRITICAL' : (totalCount > 8 ? 'CONGESTED' : 'STABLE')}</span>
               </div>
               <div class="w-px h-8 bg-white/10"></div>
               <div class="flex flex-col">

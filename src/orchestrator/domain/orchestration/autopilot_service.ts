@@ -245,7 +245,16 @@ export class AutopilotService {
             }
             break;
         case "rotate-keys-on-leaked-credential":
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.CRITICAL,
+                caller: "autopilot:remediation",
+                message: "CRITICAL: Compromised credential pattern detected. Initiating mesh-wide identity rotation."
+            });
             await this.mesh.rotateIdentity();
+            // Broadcast the rotation command to all peers via consensus
+            await this.mesh.requestQuorumCommand("ROTATE_MESH_IDENTITY", { reason: "Leaked Credential" });
             break;
         default:
             this.logging.log({

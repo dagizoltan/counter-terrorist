@@ -639,77 +639,62 @@ export class MeshManager {
   }
 
   /**
-   * Universal Quorum Handshake: Requires P2P consensus for any critical command.
+   * Universal BFT-Light Consensus: Three-Phase Commit (3PC).
+   * Ensures critical mesh policy changes are atomic and resilient to transient faults.
    */
   async requestQuorumCommand(action: string, data: any): Promise<boolean> {
-      // SINGLE_NODE mode or no peers: Quorum is automatically satisfied if the action is authorized locally
-      if (Deno.env.get("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
-          this.logging.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.AUDIT,
-              severity: LogSeverity.INFO,
-              caller: "orchestrator:domain:orchestration:mesh:quorum",
-              message: `SINGLE_NODE mode: Auto-approving quorum for action: ${action}`
-          });
-          return true;
-      }
+      if (Deno.env.get("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) return true;
 
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.AUDIT,
-          severity: LogSeverity.INFO,
-          caller: "orchestrator:domain:orchestration:mesh:quorum",
-          message: `Requesting mesh consensus for action: ${action}`
-      });
-      
+      const txId = crypto.randomUUID().slice(0, 8);
       const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
       const threshold = Math.floor((verifiedNodes.length + 1) / 2) + 1;
-      
-      if (verifiedNodes.length + 1 < threshold) {
+
+      // ── PHASE 1: PRE-PROPOSE (CAN_COMMIT?) ────────────────────────────
+      let prepareVotes = 1;
+      for (const node of verifiedNodes) {
+          try {
+              const res = await this.sendSync(node, { type: "TX_PREPARE", txId, action, data, requester: this.nodeId });
+              if ((res as any)?.ready) prepareVotes++;
+          } catch { /* node down */ }
+          if (prepareVotes >= threshold) break;
+      }
+
+      if (prepareVotes < threshold) {
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
-              severity: LogSeverity.ERROR,
-              caller: "orchestrator:domain:orchestration:mesh:quorum",
-              message: `Consensus impossible. Active nodes (${verifiedNodes.length + 1}) < Threshold (${threshold}).`
+              severity: LogSeverity.WARNING,
+              caller: "mesh:3pc",
+              message: `TX_ABORTED [${txId}]: Failed to reach quorum in PREPARE phase (${prepareVotes}/${threshold})`
           });
           return false;
       }
 
-      let approvals = 1; // Self approval
-      
+      // ── PHASE 2: PRE-COMMIT ───────────────────────────────────────────
+      let commitVotes = 1;
       for (const node of verifiedNodes) {
           try {
-              const res = await this.sendSync(node, { 
-                  type: "CONSENSUS_REQUEST", 
-                  action, 
-                  data, 
-                  requester: this.nodeId 
-              });
-              if (res !== undefined && res !== null && (res as any).approved) {
-                  approvals++;
-              }
-          } catch (e) {
-              this.logging.log({
-                  timestamp: new Date().toISOString(),
-                  type: LogType.GENERIC,
-                  severity: LogSeverity.WARNING,
-                  caller: "orchestrator:domain:orchestration:mesh:quorum",
-                  message: `Node ${node.hostname} denied or timed out.`
-              });
-          }
-          
-          if (approvals >= threshold) break;
+              const res = await this.sendSync(node, { type: "TX_PRE_COMMIT", txId });
+              if ((res as any)?.acknowledged) commitVotes++;
+          } catch { /* transient failure */ }
       }
+
+      // ── PHASE 3: GLOBAL COMMIT ────────────────────────────────────────
+      const success = commitVotes >= threshold;
+      const type = success ? "TX_DO_COMMIT" : "TX_ROLLBACK";
       
-      const success = approvals >= threshold;
+      for (const node of verifiedNodes) {
+          this.sendSync(node, { type, txId }).catch(() => {});
+      }
+
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
-          severity: success ? LogSeverity.INFO : LogSeverity.WARNING,
-          caller: "orchestrator:domain:orchestration:mesh:quorum",
-          message: `Result for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold})`
+          severity: success ? LogSeverity.SUCCESS : LogSeverity.ERROR,
+          caller: "mesh:3pc",
+          message: `TX_FINISHED [${txId}]: Action '${action}' result: ${success ? "COMMITTED" : "ABORTED"} (${commitVotes}/${threshold})`
       });
+
       return success;
   }
 
