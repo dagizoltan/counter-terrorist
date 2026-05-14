@@ -38,7 +38,7 @@ export const Layout = (props: {
           {/* ── 01 Navigation Deck (Left) ─────────────────────────────── */}
           <aside class="shell-sidebar relative">
             <header class="h-[var(--header-height-sm)] px-8 flex items-center border-b border-white/5 bg-black/20 shrink-0">
-               <h1 class="text-lg font-black tracking-[0.2em] uppercase italic leading-none text-white">CT ORCH</h1>
+               <h1 class="text-lg font-black tracking-[0.2em] uppercase italic leading-none text-white">COUNTER-TERRORIST</h1>
             </header>
 
             <nav class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-1">

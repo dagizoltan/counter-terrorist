@@ -23,7 +23,6 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Operational Overview</h1>
           <span class="subtitle">Node: {platform?.hostname || "localhost"}</span>
-          <div id="debug-nonce" style="display:none">{props.nonce}</div>
         </div>
         <div class="flex gap-6 items-center">
           <a href="/compliance" class="t-btn px-8 py-4 bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 group transition-all">

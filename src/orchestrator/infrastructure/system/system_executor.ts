@@ -26,7 +26,7 @@ export class SystemExecutor {
 
   private static readonly WHITELISTED_COMMANDS = [
     "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
-    "crontab", "which", "where", "netsh", "taskkill", "tc", "kill",
+    "crontab", "which", "where", "netsh", "taskkill", "tc", "kill", "tcpdump",
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sw_vers", "openssl",
@@ -285,7 +285,7 @@ export class SystemExecutor {
       }
 
       if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseName)) {
-        throw new Error(`Security Violation: Command basename '${baseName}' is not whitelisted.`);
+        throw new Error(`Security Violation: Command '${baseName}' is not whitelisted.`);
       }
 
       return { resolvedPath: cmd, baseName };

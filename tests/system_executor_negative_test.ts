@@ -7,7 +7,7 @@ Deno.test("SystemExecutor - Blocked commands (whitelist)", async () => {
     // Command not in whitelist
     const result = await executor.execute("rm", ["-rf", "/"]);
     assertEquals(result.success, false);
-    assertEquals(result.stderr.includes("Security Violation: Command 'rm' is not in the system whitelist."), true);
+    assertEquals(result.stderr.includes("Security Violation: Command 'rm' is not whitelisted."), true);
 });
 
 Deno.test("SystemExecutor - Shell escapes (whitelist exclusion)", async () => {
@@ -16,7 +16,7 @@ Deno.test("SystemExecutor - Shell escapes (whitelist exclusion)", async () => {
     // bash should be blocked (it was removed from whitelist in previous hardening)
     const result = await executor.execute("bash", ["-c", "whoami"]);
     assertEquals(result.success, false);
-    assertEquals(result.stderr.includes("Security Violation: Command 'bash' is not in the system whitelist."), true);
+    assertEquals(result.stderr.includes("Security Violation: Command 'bash' is not whitelisted."), true);
 });
 
 Deno.test("SystemExecutor - Argument policy violation", async () => {
