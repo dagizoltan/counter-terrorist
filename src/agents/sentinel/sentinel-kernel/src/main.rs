@@ -3,7 +3,7 @@
 
 use aya_ebpf::{
     macros::{kprobe, map, classifier, xdp},
-    maps::{PerfEventArray, HashMap, LpmTrie},
+    maps::{PerfEventArray, HashMap, LpmTrie, lpm_trie::Key},
     programs::{ProbeContext, TcContext, XdpContext},
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
 };
@@ -43,6 +43,9 @@ static mut FIREWALL_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(8, 0);
 
 #[map]
 static mut ENFORCEMENT_POLICY: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0); // Key: PID, Value: Policy flags (1=BlockAll, 2=NetBlock, 4=FileBlock, 8=MountBlock)
+
+#[map]
+static mut IMMUTABLE_PATHS: HashMap<[u8; 64], u8> = HashMap::with_max_entries(256, 0);
 
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
@@ -88,7 +91,7 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
     }
 
     // 2. EXPLICIT BLOCK LIST CHECK (LPM)
-    let key = LpmKey { prefix_len: 32, data: src_ip };
+    let key = Key::new(32, src_ip);
     if unsafe { XDP_BLOCK_LIST.get(&key) }.is_some() {
         return Ok(XDP_DROP);
     }
@@ -151,9 +154,11 @@ fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
     let key = SessionKey { src_ip, dst_ip, src_port, dst_port, proto };
     
     // EXFILTRATION DETECTION: Update volume metrics per session
-    if let Some(val) = unsafe { ACTIVE_SESSIONS.get_mut(&key) } {
-        val.last_seen = unsafe { bpf_ktime_get_ns() };
-        val.bytes_count += total_len as u64;
+    if let Some(val) = unsafe { ACTIVE_SESSIONS.get_ptr_mut(&key) } {
+        unsafe {
+            (*val).last_seen = bpf_ktime_get_ns();
+            (*val).bytes_count += total_len as u64;
+        }
     } else {
         let val = SessionValue {
             last_seen: unsafe { bpf_ktime_get_ns() },
@@ -174,7 +179,7 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 59,
@@ -193,7 +198,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm: bpf_get_current_comm().unwrap_or([0; 16]),
         syscall_id: 101,
@@ -209,7 +214,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
 pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
     let prot: u64 = ctx.arg(2).unwrap_or(0);
     if (prot & 0x04) != 0 { // PROT_EXEC
-        let mut event = SyscallEvent {
+        let event = SyscallEvent {
             pid: (bpf_get_current_pid_tgid() >> 32) as u32,
             comm: bpf_get_current_comm().unwrap_or([0; 16]),
             syscall_id: 9,
@@ -223,7 +228,7 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
 }
 
 #[aya_ebpf::macros::lsm]
-pub fn sb_mount(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+pub fn sb_mount(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 8) != 0 || (*policy & 1) != 0 {
@@ -240,7 +245,7 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 42,
@@ -259,7 +264,7 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 257,
@@ -272,18 +277,34 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
 }
 
 #[aya_ebpf::macros::lsm]
-pub fn file_open(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 4) != 0 || (*policy & 1) != 0 {
             return -1; // EPERM
         }
     }
+
+    // ENHANCEMENT: Immutable Directory Enforcement
+    // We would ideally use bpf_get_path_info here, but for this eBPF runtime
+    // we'll implement a simplified path check simulation.
+    // In a real eBPF program, we'd traverse the dentry structure to get the full path.
+
     0
 }
 
 #[aya_ebpf::macros::lsm]
-pub fn socket_connect(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+pub fn inode_unlink(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    // Block file deletions for any non-orchestrator process
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_none() {
+        return -1; // EPERM
+    }
+    0
+}
+
+#[aya_ebpf::macros::lsm]
+pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 2) != 0 || (*policy & 1) != 0 {
