@@ -12,6 +12,7 @@ import {
     CuratedIntelService, DeceptionGridService, MorphingService, 
     ChaosEngine, SupplyChainService, HoneypotService, 
     CanaryService, AutopilotService, KernelService, 
+    SecretVault,
     GovernanceService, ShadowService, CovertChannelService, 
     ProvisioningService, NetworkDiscoveryService, NetworkLogService, 
     IncidentService, ComplianceService, NewsSignalService, 
@@ -53,6 +54,7 @@ export class SovereignApp {
     private executor!: SystemExecutor;
     private auditService!: AuditService;
     private configProvider!: EnvConfigProvider;
+    private vault!: SecretVault;
 
     async boot() {
         // ── Phase 0: Configuration ───────────────────────────────────────────
@@ -92,6 +94,10 @@ export class SovereignApp {
         const tpmManager = ServiceRegistry.get<TPMManager>("tpm");
         this.auditService = ServiceRegistry.get<AuditService>("audit");
         
+        this.vault = new SecretVault(loggingService);
+        await this.vault.init(Deno.env.get("API_TOKEN"));
+        ServiceRegistry.register("vault", this.vault);
+
         const notificationService = new NotificationService(this.kv, loggingService);
         const eventBus = new EventBus(loggingService);
         const healthService = new HealthService(loggingService);
@@ -167,8 +173,8 @@ export class SovereignApp {
     }
 
     private async initMesh(tpm: TPMManager): Promise<MeshManager> {
-        const meshAuthService = new MeshAuthService(this.kv, loggingService, tpm);
-        const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService);
+        const meshAuthService = new MeshAuthService(this.kv, loggingService, tpm, this.vault);
+        const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, this.vault);
         
         setMeshManager(meshManager);
         await meshManager.init();

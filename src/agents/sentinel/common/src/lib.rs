@@ -9,6 +9,7 @@ pub struct SyscallEvent {
     pub fd: u32,
     pub port: u16,
     pub ip: u32,
+    pub influence_type: u32, // 0=None, 1=SocketWrite, 2=FileWrite
 }
 
 #[repr(C)]

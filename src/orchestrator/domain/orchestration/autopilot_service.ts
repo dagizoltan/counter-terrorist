@@ -160,6 +160,38 @@ export class AutopilotService {
         }
     }, 60000); 
 
+    // Keyed Listeners for Protocol Anomalies (from eBPF Traffic Dissector)
+    this.eventBus.on("PROTOCOL_ANOMALY", async (data) => {
+        await this.engine.evaluate({
+            source: data.source || "unknown",
+            type: "PROTOCOL_ANOMALY",
+            severity: 7,
+            description: data.message || `Protocol Anomaly: ${data.anomaly_type}`,
+            data
+        });
+
+        // Execute Action Recipe if confidence is high
+        if (data.confidence > 0.9) {
+            await this.executeRemediationRecipe("isolate-on-lateral-movement", data.source);
+        }
+    });
+
+    // Keyed Listeners for Protocol Anomalies (from eBPF Traffic Dissector)
+    this.eventBus.on("PROTOCOL_ANOMALY", async (data) => {
+        await this.engine.evaluate({
+            source: data.source || "unknown",
+            type: "PROTOCOL_ANOMALY",
+            severity: 7,
+            description: data.message || `Protocol Anomaly: ${data.anomaly_type}`,
+            data
+        });
+
+        // Execute Action Recipe if confidence is high
+        if (data.confidence > 0.9) {
+            await this.executeRemediationRecipe("isolate-on-lateral-movement", data.source);
+        }
+    });
+
     // Behavioral Correlation Poll (Every 10 seconds)
     setInterval(async () => {
         const chains = this.correlation.getKillChains();
@@ -201,6 +233,82 @@ export class AutopilotService {
             caller: "orchestrator:domain:orchestration:autopilot_service:deception",
             message: `Lure deployment failed: ${(e as Error).message}`
         });
+    }
+  }
+
+  /**
+   * Executes a predefined "Action Recipe" for autonomous remediation.
+   */
+  async executeRemediationRecipe(recipeName: string, subject: string) {
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "orchestrator:domain:orchestration:autopilot:recipes",
+        message: `Executing Remediation Recipe: '${recipeName}' for subject ${subject}`
+    });
+
+    switch (recipeName) {
+        case "isolate-on-lateral-movement":
+            if (subject.includes(".")) {
+                await this.protection.firewall.blockIp(subject);
+                await this.mesh.broadcastBlock(subject);
+            } else {
+                const pid = parseInt(subject);
+                if (!isNaN(pid)) {
+                    await this.protection.firewall.quarantineProcess(pid);
+                }
+            }
+            break;
+        case "rotate-keys-on-leaked-credential":
+            await this.mesh.rotateIdentity();
+            break;
+        default:
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:autopilot",
+                message: `Unknown recipe: ${recipeName}`
+            });
+    }
+  }
+
+  /**
+   * Executes a predefined "Action Recipe" for autonomous remediation.
+   */
+  async executeRemediationRecipe(recipeName: string, subject: string) {
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "orchestrator:domain:orchestration:autopilot:recipes",
+        message: `Executing Remediation Recipe: '${recipeName}' for subject ${subject}`
+    });
+
+    switch (recipeName) {
+        case "isolate-on-lateral-movement":
+            if (subject.includes(".")) {
+                await this.protection.firewall.blockIp(subject);
+                await this.mesh.broadcastBlock(subject);
+            } else {
+                const pid = parseInt(subject);
+                if (!isNaN(pid)) {
+                    await this.protection.firewall.quarantineProcess(pid);
+                }
+            }
+            break;
+        case "rotate-keys-on-leaked-credential":
+            await this.mesh.rotateIdentity();
+            break;
+        default:
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:autopilot",
+                message: `Unknown recipe: ${recipeName}`
+            });
     }
   }
 }

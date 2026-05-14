@@ -19,6 +19,7 @@ export class KernelService {
     private logging: LoggingPort;
 
     private tpm?: TPMManager;
+    private immutablePaths: string[] = ["/etc/", "/var/lib/cts/", "/usr/bin/", "/bin/"];
 
     constructor(
         private executor: SystemExecutor, 
@@ -71,6 +72,33 @@ export class KernelService {
         });
 
         await this.camouflage();
+        await this.deployImmutablePolicies();
+    }
+
+    /**
+     * Deploys "Immutable Directory" LSM policies to the sentinel agent.
+     */
+    async deployImmutablePolicies() {
+        if (!this.sidecarManager) return;
+
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "KERNEL:LSM",
+            message: `Deploying Directory Immutability Policy: ${this.immutablePaths.length} paths protected.`
+        });
+
+        await this.sidecarManager.sendCommand("sentinel", {
+            type: "SET_LSM_POLICY",
+            paths: this.immutablePaths
+        }).catch(err => this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:domain:protection:kernel",
+            message: `LSM Directory Immutability deployment failed: ${err.message}`
+        }));
     }
 
     /**

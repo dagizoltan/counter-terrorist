@@ -14,6 +14,8 @@ export interface MeshNode {
   verified: boolean;
 }
 
+import { SecretVault } from "../security/secret_vault.ts";
+
 export class MeshManager {
   private nodes: Map<string, MeshNode> = new Map();
   private discoveryInterval: number | null = null;
@@ -26,7 +28,8 @@ export class MeshManager {
   constructor(
     private meshAuth: MeshAuthService, 
     private logging: LoggingPort,
-    private audit: AuditService
+    private audit: AuditService,
+    private vault?: SecretVault
   ) {
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -41,6 +44,11 @@ export class MeshManager {
   async init() {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.port = Number(Deno.env.get("PORT")) || 8000;
+
+    if (this.vault) {
+        const vSecret = await this.vault.getSecret("MESH_SECRET");
+        if (vSecret) this.meshSecret = vSecret;
+    }
 
     try {
       this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
@@ -814,6 +822,7 @@ export class MeshManager {
     if (this.meshSecret) {
       const signature = await this.signPayload(paddedPayload);
       headers["X-Mesh-Signature"] = signature;
+      if (this.vault) await this.vault.setSecret("MESH_SECRET", this.meshSecret);
     }
 
     // TRAFFIC CAMOUFLAGE: Random jitter and truly variable padding

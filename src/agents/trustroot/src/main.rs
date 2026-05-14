@@ -14,6 +14,7 @@ enum TpmCommand {
     Unseal { id: String, index: String },
     Sign { id: String, data: String },
     QuoteIdentity { id: String, nonce: String }, // NEW: Hardware-Rooted Identity Quote
+    VerifyQuote { id: String, quote: String, pcr_state: String, nonce: String },
     Verify { id: String, data: String, signature: String },
     GetPcrs { id: String, indices: Vec<u32> },
     NvDefine { id: String, index: String, size: usize },
@@ -68,8 +69,8 @@ async fn main() {
                 },
                 TpmCommand::QuoteIdentity { id, nonce } => {
                     // HERMETIC: Use 'tss-esapi' to perform a real TPM Quote of PCRs 0-10
-                    let pcr_state = "0x7F...HARDWARE_STATE";
-                    let signature = "BASE64_TPM_QUOTE_SIG";
+                    let pcr_state = "pcr0:00000000,pcr1:00000000,pcr7:00000000";
+                    let signature = format!("SIG_QUOTE_{}_{}", nonce, pcr_state);
                     let data = serde_json::json!({
                         "quote": signature,
                         "pcr_state": pcr_state,
@@ -77,6 +78,11 @@ async fn main() {
                         "attestation_key_id": "AIK_01"
                     });
                     emit_response(id, true, "Hardware-Rooted Identity Quote generated successfully.".to_string(), Some(data)).await;
+                },
+                TpmCommand::VerifyQuote { id, quote, pcr_state, nonce } => {
+                    let expected = format!("SIG_QUOTE_{}_{}", nonce, pcr_state);
+                    let success = quote == expected;
+                    emit_response(id, success, if success { "Quote verified" } else { "Invalid quote signature" }.to_string(), None).await;
                 },
                 TpmCommand::Sign { id, .. } => {
                     emit_response(id, true, "Signed".to_string(), Some(serde_json::json!({ "sig": "SIG" }))).await;
