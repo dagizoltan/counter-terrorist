@@ -78,6 +78,7 @@ function ReplayIsland() {
   `;
 
   const currentEvent = filteredEvents[currentIndex];
+  const stateSnapshot = currentEvent.stateSnapshot || {};
   const severity = currentEvent.type;
   const theme = ['CRITICAL', 'BLOCK', 'THREAT'].includes(severity) ? 'danger' : ['WARN', 'WARNING'].includes(severity) ? 'warning' : 'primary';
   const color = `var(--${theme})`;
@@ -167,12 +168,42 @@ function ReplayIsland() {
          </div>
          <div class="lg:col-span-4 space-y-8">
             <div class="t-panel glass-panel p-8">
-               <div class="flex items-center gap-4 mb-10 pb-4 border-b border-white/5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><h5 class="tactical-title text-base tracking-[0.1em]">NODE_STATE_SNAPSHOT</h5></div>
-               <div class="space-y-4">
-                  ${['SOVEREIGN_A', 'SOVEREIGN_B', 'MESH_GATEWAY'].map((node, idx) => {
-                    const isActive = currentEvent.message?.includes(node) || (currentEvent.data?.node === node) || (idx === 0);
-                    return html`<div class=${`flex items-center justify-between p-5 bg-black/40 rounded border ${isActive ? 'border-primary/40' : 'border-white/5'}`}><div class="flex items-center gap-5"><div class="dot ${isActive ? 'active' : 'active opacity-20'}" /><span class="mono-xs font-black text-white tracking-[0.2em]">${node}</span></div><span class="mono-xs font-black uppercase tracking-[0.3em] ${isActive ? 'text-primary' : 'text-slate-700'}">${isActive ? 'SIGNAL' : 'IDLE'}</span></div>`;
-                  })}
+               <div class="flex items-center gap-4 mb-10 pb-4 border-b border-white/5"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><h5 class="tactical-title text-base tracking-[0.1em]">FORENSIC_STATE_SNAPSHOT</h5></div>
+
+               <!-- 🛡️ Process Lineage Reconstruction -->
+               <div class="mb-10">
+                  <div class="metric-tag mb-4">Kernel_Process_Tree</div>
+                  <div class="bg-black/60 rounded border border-white/5 p-4 max-h-[300px] overflow-y-auto custom-scrollbar">
+                    ${stateSnapshot.processTree ? html`
+                      <div class="space-y-1">
+                        ${stateSnapshot.processTree.filter(p => p.ppid === 0 || p.ppid === 1).map(p => html`
+                          <div class="flex items-center gap-3">
+                             <span class="mono-xs text-slate-600">[${p.pid}]</span>
+                             <span class="mono-xs font-black text-primary">${p.comm}</span>
+                          </div>
+                          ${stateSnapshot.processTree.filter(c => c.ppid === p.pid).map(c => html`
+                            <div class="flex items-center gap-3 ml-6 opacity-60">
+                               <span class="mono-xs text-slate-600">[${c.pid}]</span>
+                               <span class="mono-xs font-bold text-white">${c.comm}</span>
+                            </div>
+                          `)}
+                        `)}
+                      </div>
+                    ` : html`<div class="mono-xs text-slate-700 italic uppercase">No_Process_Lineage_Captured</div>`}
+                  </div>
+               </div>
+
+               <!-- 🕸️ Mesh Topology Reconstruction -->
+               <div class="mb-10">
+                  <div class="metric-tag mb-4">Mesh_Topology_Graph</div>
+                  <div class="grid grid-cols-2 gap-3">
+                    ${stateSnapshot.meshNodes ? stateSnapshot.meshNodes.map(node => html`
+                      <div class="p-3 bg-black/40 rounded border border-white/5 flex items-center gap-3">
+                         <div class=${`dot ${node.verified ? 'active' : 'danger'}`}></div>
+                         <span class="mono-xs font-black text-white truncate">${node.hostname || node.id}</span>
+                      </div>
+                    `) : html`<div class="col-span-2 mono-xs text-slate-700 italic uppercase p-4 border border-dashed border-white/5 text-center">No_Mesh_State_Captured</div>`}
+                  </div>
                </div>
                <div class="mt-12 p-8 bg-primary/5 border border-primary/10 rounded-lg relative overflow-hidden group">
                   <div class="absolute inset-0 bg-primary/5 translate-y-full"></div>

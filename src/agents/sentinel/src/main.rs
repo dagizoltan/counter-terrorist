@@ -26,6 +26,9 @@ struct SidecarCommand {
     protocol: Option<String>,
     paths: Option<Vec<String>>,
     path: Option<String>,
+    nonce: Option<String>,
+    key: Option<String>,
+    value: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -117,7 +120,8 @@ async fn main() -> Result<(), anyhow::Error> {
         ("kprobe_mmap", "sys_mmap"),
         ("kprobe_execve", "sys_execve"),
         ("kprobe_connect", "sys_connect"),
-        ("kprobe_openat", "sys_openat")
+        ("kprobe_openat", "sys_openat"),
+        ("kprobe_write", "sys_write")
     ] {
         if let Some(prog) = bpf.program_mut(name) {
             if let Ok(p) = <&mut KProbe>::try_from(prog) {
@@ -184,6 +188,11 @@ async fn main() -> Result<(), anyhow::Error> {
                                     "pid": event.pid,
                                     "comm": comm,
                                     "syscall": syscall,
+                                "influence": match event.influence_type {
+                                    1 => "SOCKET_WRITE",
+                                    2 => "FILE_WRITE",
+                                    _ => "NONE"
+                                },
                                     "fd": event.fd,
                                     "port": event.port,
                                     "ip": event.ip,
@@ -418,6 +427,35 @@ async fn main() -> Result<(), anyhow::Error> {
                         } else {
                             emit_response(cmd.id, false, "Map Error".to_string()).await;
                         }
+                    }
+                },
+                "QuoteIdentity" => {
+                    if let Some(nonce) = cmd.nonce {
+                        let pcr_state = "pcr0:00000000,pcr1:00000000,pcr7:00000000";
+                        let signature = format!("SIG_QUOTE_{}_{}", nonce, pcr_state);
+                        let data = serde_json::json!({
+                            "quote": signature,
+                            "pcr_state": pcr_state,
+                            "nonce": nonce,
+                            "attestation_key_id": "AIK_SENTINEL"
+                        });
+                        let resp = SidecarResponse {
+                            id: cmd.id,
+                            success: true,
+                            message: Some("Attestation generated".to_string()),
+                            data: Some(data),
+                            timestamp: Utc::now().to_rfc3339(),
+                        };
+                        if let Ok(json) = serde_json::to_string(&resp) {
+                            let _lock = STDOUT_LOCK.lock().await;
+                            println!("{}", json);
+                        }
+                    }
+                },
+                "PROVISION_SECRET" => {
+                    if let (Some(key), Some(value)) = (cmd.key, cmd.value) {
+                        // In a real agent, we would store this secret securely in memory
+                        emit_response(cmd.id, true, format!("Secret {} provisioned", key)).await;
                     }
                 },
                 "QuarantineProcess" => {

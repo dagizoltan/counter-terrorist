@@ -8,6 +8,7 @@ export { ApiKeysService } from "./identity/api_keys.ts";
 export { SessionService } from "./identity/session.ts";
 export { MeshAuthService } from "./identity/mesh_auth.ts";
 export { RateLimitService } from "./identity/rate_limit.ts";
+export { SecretVault } from "./security/secret_vault.ts";
 
 // Protection Domain
 export { HoneypotService } from "./protection/honeypot_service.ts";

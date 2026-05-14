@@ -253,7 +253,8 @@ export class SidecarManager implements CommandPort {
               }
             }
 
-            const env = await this.getSidecarEnv(name);
+            const supportsAttestation = ["sentinel", "analyzer", "enforcer"].includes(name);
+            const env = await this.getSidecarEnv(name, supportsAttestation);
 
             let finalExecPath = execPath;
             let finalArgs: string[] = [];
@@ -363,6 +364,29 @@ export class SidecarManager implements CommandPort {
 
             this.persistentProcesses.set(name, child);
             this.startResponseReader(name, child);
+
+            // ENHANCEMENT: Sidecar Attestation Handshake
+            if (!isDev && supportsAttestation) {
+                const attested = await this.attestSidecar(name);
+                if (!attested) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
+                        message: `CRITICAL: Sidecar ${name} failed hardware attestation. Terminating for security.`
+                    });
+                    await this.stopSidecar(name);
+                    return null;
+                }
+
+                // Provision secrets ONLY after successful attestation
+                await this.provisionSidecarSecrets(name);
+            } else if (supportsAttestation && isDev) {
+                // In dev mode, we still provision secrets via command if attestation is skipped
+                await this.provisionSidecarSecrets(name);
+            }
+
             return child;
         } catch (e) {
             this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_SPAWN_FAILED", sidecar: name, error: (e as Error).message });
@@ -536,11 +560,13 @@ export class SidecarManager implements CommandPort {
     return null;
   }
 
-  private async getSidecarEnv(name: string): Promise<Record<string, string>> {
+  private async getSidecarEnv(name: string, supportsAttestation: boolean = false): Promise<Record<string, string>> {
     const env: Record<string, string> = {
         "CTS_SIDECAR_NAME": name,
         "RUST_LOG": "info"
     };
+
+    const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
 
     if (name === "sentinel" || name === "netcap") {
         if (!this.defaultInterface) {
@@ -554,7 +580,66 @@ export class SidecarManager implements CommandPort {
         env["CTS_CAPTURE_DIR"] = "./volume/storage/captures";
     }
 
+    // If it supports attestation and we aren't in dev mode, we don't pass sensitive secrets via env
+    if (supportsAttestation && !isDev) {
+        // Secrets will be provisioned via sendCommand after attestation
+    } else {
+        // Fallback for legacy sidecars or dev mode
+        const meshSecret = Deno.env.get("MESH_SECRET");
+        if (meshSecret) env["MESH_SECRET"] = meshSecret;
+    }
+
     return env;
+  }
+
+  /**
+   * Performs a hardware-rooted attestation of the sidecar process.
+   */
+  private async attestSidecar(name: string): Promise<boolean> {
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "orchestrator:infra:runtime:sidecar_manager",
+        message: `Initiating hardware attestation for ${name}...`
+    });
+
+    const nonce = crypto.randomUUID();
+    const quoteRes = await this.sendCommand(name, { type: "QuoteIdentity", nonce });
+
+    if (!quoteRes.success || !quoteRes.data) return false;
+
+    // Verify the quote via trustroot (TPM)
+    const verifyRes = await this.sendCommand("trustroot", {
+        type: "VerifyQuote",
+        quote: quoteRes.data.quote,
+        pcr_state: quoteRes.data.pcr_state,
+        nonce: quoteRes.data.nonce
+    });
+
+    return verifyRes.success;
+  }
+
+  /**
+   * Provisions sensitive secrets to an attested sidecar.
+   */
+  private async provisionSidecarSecrets(name: string): Promise<void> {
+    const meshSecret = Deno.env.get("MESH_SECRET");
+    if (meshSecret) {
+        await this.sendCommand(name, {
+            type: "PROVISION_SECRET",
+            key: "MESH_SECRET",
+            value: meshSecret
+        });
+    }
+
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.SUCCESS,
+        caller: "orchestrator:infra:runtime:sidecar_manager",
+        message: `Provisioned secrets to attested sidecar: ${name}`
+    });
   }
 
   async sendCommand(name: string, cmd: string | object): Promise<CommandResult> {

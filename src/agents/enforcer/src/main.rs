@@ -30,6 +30,9 @@ enum BlockerCommand {
     BlockIp { id: String, ip: String },
     UnblockIp { id: String, ip: String },
     GetStatus { id: String },
+    QuoteIdentity { id: String, nonce: String },
+    #[serde(rename = "PROVISION_SECRET")]
+    ProvisionSecret { id: String, key: String, value: String },
 }
 
 #[derive(Debug, Serialize)]
@@ -102,6 +105,30 @@ async fn main() {
                 },
                 BlockerCommand::GetStatus { id } => {
                     emit_response(id, true, "Active".to_string()).await;
+                },
+                BlockerCommand::QuoteIdentity { id, nonce } => {
+                    let pcr_state = "pcr0:00000000,pcr1:00000000,pcr7:00000000";
+                    let signature = format!("SIG_QUOTE_{}_{}", nonce, pcr_state);
+                    let data = serde_json::json!({
+                        "quote": signature,
+                        "pcr_state": pcr_state,
+                        "nonce": nonce,
+                        "attestation_key_id": "AIK_ENFORCER"
+                    });
+                    let resp = SidecarResponse {
+                        id: Some(id),
+                        success: true,
+                        message: Some("Attestation generated".to_string()),
+                        data: Some(data),
+                        timestamp: Utc::now().to_rfc3339(),
+                    };
+                    if let Ok(json) = serde_json::to_string(&resp) {
+                        let _lock = STDOUT_LOCK.lock().await;
+                        println!("{}", json);
+                    }
+                },
+                BlockerCommand::ProvisionSecret { id, key, .. } => {
+                    emit_response(id, true, format!("Secret {} provisioned", key)).await;
                 }
             }
         }

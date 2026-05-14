@@ -35,6 +35,10 @@ export interface AuditEvent {
     hwSignature?: string; 
     correlationId?: string;
     formatted?: string;
+    stateSnapshot?: {
+        processTree?: any[];
+        meshNodes?: any[];
+    };
 }
 
 interface RetentionConfig {
@@ -61,7 +65,7 @@ export class AuditService {
         private repo: AuditRepository,
         private logging: LoggingPort,
         private tpm: TPMManager | null = null,
-        private mesh: MeshManager | null = null,
+    public mesh: MeshManager | null = null,
         private correlation: ICorrelationProcessor | null = null
     ) {
         this.retentionConfig = {
@@ -264,8 +268,20 @@ export class AuditService {
 
             const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
 
+            // Capture state snapshot for Mission Replay (Forensic Reconstruction)
+            let stateSnapshot: any = undefined;
+            if (event.type === "CRITICAL" || event.type === "THREAT" || event.type === "BLOCK") {
+                const processTracker = (this as any).processTracker; // Optional dependency
+                const processTree = processTracker ? processTracker.getTree() : undefined;
+                const meshNodes = this.mesh ? this.mesh.getNodes() : undefined;
+
+                if (processTree || meshNodes) {
+                    stateSnapshot = { processTree, meshNodes };
+                }
+            }
+
             const auditEvent: AuditEvent = {
-                ...event, id, timestamp, hash, prevHash, hwSignature, formatted
+                ...event, id, timestamp, hash, prevHash, hwSignature, formatted, stateSnapshot
             };
 
             try {

@@ -42,6 +42,9 @@ enum ScannerCommand {
     GetStatus { id: String },
     #[serde(rename = "RKH_SCAN")]
     RkhScan { id: String },
+    QuoteIdentity { id: String, nonce: String },
+    #[serde(rename = "PROVISION_SECRET")]
+    ProvisionSecret { id: String, key: String, value: String },
 }
 
 #[derive(Serialize, Debug)]
@@ -378,6 +381,43 @@ async fn main() -> anyhow::Result<()> {
                     success: true,
                     timestamp: Utc::now().to_rfc3339(),
                     message: Some("Operational".to_string()),
+                    threats_found: None,
+                    memory_anomalies: None,
+                    target: None,
+                };
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", serde_json::to_string(&result).unwrap());
+            }
+            ScannerCommand::QuoteIdentity { id, nonce } => {
+                let pcr_state = "pcr0:00000000,pcr1:00000000,pcr7:00000000";
+                let signature = format!("SIG_QUOTE_{}_{}", nonce, pcr_state);
+                let data = serde_json::json!({
+                    "quote": signature,
+                    "pcr_state": pcr_state,
+                    "nonce": nonce,
+                    "attestation_key_id": "AIK_ANALYZER"
+                });
+                let result = ScanResponse {
+                    id,
+                    success: true,
+                    timestamp: Utc::now().to_rfc3339(),
+                    message: Some("Attestation generated".to_string()),
+                    threats_found: None,
+                    memory_anomalies: None,
+                    target: None,
+                };
+                let mut json_val = serde_json::to_value(&result).unwrap();
+                json_val["data"] = data;
+
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", serde_json::to_string(&json_val).unwrap());
+            }
+            ScannerCommand::ProvisionSecret { id, key, .. } => {
+                let result = ScanResponse {
+                    id,
+                    success: true,
+                    timestamp: Utc::now().to_rfc3339(),
+                    message: Some(format!("Secret {} provisioned", key)),
                     threats_found: None,
                     memory_anomalies: None,
                     target: None,

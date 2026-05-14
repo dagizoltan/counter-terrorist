@@ -186,6 +186,7 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         fd: 0,
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -205,6 +206,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
         fd: 0,
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -221,6 +223,7 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
             fd: 0,
             port: 0,
             ip: 0,
+            influence_type: 0,
         };
         unsafe { EVENTS.output(&ctx, &event, 0) };
     }
@@ -252,6 +255,7 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
         fd: ctx.arg(0).unwrap_or(0),
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -271,6 +275,7 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         fd: 0,
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -284,18 +289,11 @@ pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
             return -1; // EPERM
         }
     }
-
-    // ENHANCEMENT: Immutable Directory Enforcement
-    // Simplified simulation: Block write access to /etc/ and /bin/ for non-orchestrator
-    // In a production kernel, we would use d_path or traverse the task path.
     0
 }
 
 #[aya_ebpf::macros::lsm]
 pub fn inode_unlink(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
-    // ENHANCEMENT: Immutable Directory Enforcement
-    // Block file deletions for any non-orchestrator process.
-    // A production implementation would also verify the path against IMMUTABLE_PATHS.
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_none() {
         return -1; // EPERM
@@ -311,6 +309,26 @@ pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
             return -1; // EPERM
         }
     }
+    0
+}
+
+#[kprobe]
+pub fn kprobe_write(ctx: ProbeContext) -> u32 {
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
+        return 0;
+    }
+    let fd: u32 = ctx.arg(0).unwrap_or(0);
+    let event = SyscallEvent {
+        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        comm,
+        syscall_id: 1,
+        fd,
+        port: 0,
+        ip: 0,
+        influence_type: if fd > 2 { 2 } else { 0 },
+    };
+    unsafe { EVENTS.output(&ctx, &event, 0) };
     0
 }
 

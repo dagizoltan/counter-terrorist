@@ -9,6 +9,7 @@ export interface ProcessNode {
     exe?: string;
     children: number[];
     isGhost?: boolean;
+    influencedPids: number[];
 }
 
 /**
@@ -34,7 +35,7 @@ export class ProcessTracker {
             node.comm = comm;
             node.isGhost = isGhost || node.isGhost;
         } else {
-            node = { pid, ppid, comm, children: [], isGhost };
+            node = { pid, ppid, comm, children: [], isGhost, influencedPids: [] };
             this.tree.set(pid, node);
         }
 
@@ -46,12 +47,22 @@ export class ProcessTracker {
         }
     }
 
-    async analyzeEvent(pid: number, comm: string): Promise<{ isStrayShell: boolean; reason?: string; ppid?: number }> {
+    async analyzeEvent(pid: number, comm: string, metadata?: any): Promise<{ isStrayShell: boolean; reason?: string; ppid?: number }> {
         const stats = await this.processProvider.getProcessInfo(pid);
         const ppid = stats?.ppid || null;
         
         if (ppid) {
             this.updateProcess(pid, ppid, comm);
+        }
+
+        if (metadata?.influence && metadata.influence !== "NONE") {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.INFO,
+                caller: "PROCESS:CAUSAL",
+                message: `Influence detected: ${comm} (${pid}) -> ${metadata.influence}`
+            });
         }
 
         if (this.shells.includes(comm)) {
