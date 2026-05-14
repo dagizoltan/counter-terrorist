@@ -25,7 +25,8 @@ export class AutopilotService {
     private processTracker: ProcessTracker,
     private forensics: ForensicService,
     private kernel: any, // KernelService
-    private correlation: CorrelationService
+    private correlation: CorrelationService,
+    private reputation?: ReputationService
   ) {
     this.policy = new PolicyEngine(logging);
     this.engine = new AutonomousResponseEngine(
@@ -36,7 +37,8 @@ export class AutopilotService {
         notifications,
         auditService,
         forensics,
-        logging
+        logging,
+        reputation
     );
   }
 

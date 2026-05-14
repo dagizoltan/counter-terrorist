@@ -45,6 +45,7 @@ export { TacticalIntelIngestor as TacticalIntelService } from "./analysis/tactic
 export { ForensicService } from "./analysis/forensic_service.ts";
 export { LedgerService } from "./analysis/ledger_service.ts";
 export { CorrelationService } from "./analysis/correlation_service.ts";
+export { ReputationService } from "./analysis/reputation_service.ts";
 
 // Engine Domain
 export { MeshManager } from "./orchestration/mesh.ts";

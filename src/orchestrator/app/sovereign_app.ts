@@ -19,6 +19,7 @@ import {
     LedgerService, HealthService, EventMediator,
     WatchdogService, RateLimitService, TacticalIntelService,
     CorrelationService, PolicyEngine, AutoBlockService,
+    ReputationService,
     SubsystemStatus
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
@@ -487,12 +488,14 @@ export class SovereignApp {
         const correlation = new CorrelationService(this.auditService, loggingService);
         this.auditService.setCorrelation(correlation);
 
+        const reputation = new ReputationService(this.kv, loggingService);
+
         const { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService } = this.initSecuritySubsystem(protection, mesh, tpm, health);
         kernelService.setTpmManager(tpm);
         const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider, mesh);
 
         const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
-        const { autopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
+        const { autopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health, reputation);
 
         return {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
@@ -544,8 +547,8 @@ export class SovereignApp {
         return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
     }
 
-    private async initEngineSubsystem(correlation: CorrelationService, eventBus: any, playbook: any, notifications: any, mesh: any, shadowProtocol: any, sidecarManager: any, protection: any, forensicService: any, kernelService: any, processTracker: any, honeypot: any, canaryService: any, health: any) {
-        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService, correlation);
+    private async initEngineSubsystem(correlation: CorrelationService, eventBus: any, playbook: any, notifications: any, mesh: any, shadowProtocol: any, sidecarManager: any, protection: any, forensicService: any, kernelService: any, processTracker: any, honeypot: any, canaryService: any, health: any, reputation?: ReputationService) {
+        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService, correlation, reputation);
         const lifecycle = new LifecycleService(sidecarManager, loggingService);
 
         const morphing = this.safeInit(health, "Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));

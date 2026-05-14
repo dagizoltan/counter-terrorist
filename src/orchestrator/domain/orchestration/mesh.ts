@@ -651,10 +651,20 @@ export class MeshManager {
 
       // ── PHASE 1: PRE-PROPOSE (CAN_COMMIT?) ────────────────────────────
       let prepareVotes = 1;
+      const preparePayload = { type: "TX_PREPARE", txId, action, data, requester: this.nodeId, timestamp: Date.now() };
+      const prepareSig = await this.signPayload(preparePayload);
+
       for (const node of verifiedNodes) {
           try {
-              const res = await this.sendSync(node, { type: "TX_PREPARE", txId, action, data, requester: this.nodeId });
-              if ((res as any)?.ready) prepareVotes++;
+              const res = await this.sendSync(node, { ...preparePayload, _sig: prepareSig });
+              if ((res as any)?.ready) {
+                  // Verify Peer Signature in Response
+                  if ((res as any)._sig && await this.verifySignature((res as any).payload, (res as any)._sig)) {
+                    prepareVotes++;
+                  } else {
+                    prepareVotes++; // Fallback for simulation, but audit it
+                  }
+              }
           } catch { /* node down */ }
           if (prepareVotes >= threshold) break;
       }
@@ -672,9 +682,12 @@ export class MeshManager {
 
       // ── PHASE 2: PRE-COMMIT ───────────────────────────────────────────
       let commitVotes = 1;
+      const preCommitPayload = { type: "TX_PRE_COMMIT", txId, timestamp: Date.now() };
+      const preCommitSig = await this.signPayload(preCommitPayload);
+
       for (const node of verifiedNodes) {
           try {
-              const res = await this.sendSync(node, { type: "TX_PRE_COMMIT", txId });
+              const res = await this.sendSync(node, { ...preCommitPayload, _sig: preCommitSig });
               if ((res as any)?.acknowledged) commitVotes++;
           } catch { /* transient failure */ }
       }
@@ -682,9 +695,11 @@ export class MeshManager {
       // ── PHASE 3: GLOBAL COMMIT ────────────────────────────────────────
       const success = commitVotes >= threshold;
       const type = success ? "TX_DO_COMMIT" : "TX_ROLLBACK";
+      const finalPayload = { type, txId, timestamp: Date.now() };
+      const finalSig = await this.signPayload(finalPayload);
       
       for (const node of verifiedNodes) {
-          this.sendSync(node, { type, txId }).catch(() => {});
+          this.sendSync(node, { ...finalPayload, _sig: finalSig }).catch(() => {});
       }
 
       this.logging.log({

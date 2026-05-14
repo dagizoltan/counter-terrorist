@@ -4,6 +4,7 @@ import { MeshManager } from "./mesh.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { NotificationService } from "../analysis/notifications.ts";
 import { ProtectionPort, LoggingPort, SyslogSeverity, LogType, LogSeverity } from "@core/ports.ts";
+import { ReputationService } from "../analysis/reputation_service.ts";
 
 export type RemediationTier = RemediationAction;
 
@@ -36,7 +37,8 @@ export class AutonomousResponseEngine {
         private notifications: NotificationService,
         private audit: AuditService,
         private forensics: ForensicService,
-        private logging: LoggingPort
+        private logging: LoggingPort,
+        private reputation?: ReputationService
     ) {
         // Automatically decay scores every 5 minutes to allow recovery
         setInterval(() => this.decayScores(), 300000);
@@ -47,7 +49,15 @@ export class AutonomousResponseEngine {
      */
     async evaluate(event: ThreatEvent) {
         const key = event.source;
-        const currentScore = (this.scores.get(key) || 0) + event.severity;
+
+        // ENHANCEMENT: Memory-Aware Threat Evaluation (Reputation Integration)
+        let persistentScore = 0;
+        if (this.reputation) {
+            persistentScore = await this.reputation.getScore(key);
+            await this.reputation.incrementRisk(key, event.severity);
+        }
+
+        const currentScore = (this.scores.get(key) || 0) + event.severity + persistentScore;
         
         // Prevent map explosion (State Exhaustion Protection)
         if (!this.scores.has(key) && this.scores.size >= this.MAX_SOURCES) {
