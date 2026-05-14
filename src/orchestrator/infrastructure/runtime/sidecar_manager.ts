@@ -470,7 +470,7 @@ export class SidecarManager implements CommandPort {
                     type: LogType.DEBUG,
                     severity: LogSeverity.ERROR,
                     caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `Malformed log from ${name}: ${trimmed.substring(0, 50)}... Error: ${e.message}`
+                    message: `Malformed log from ${name}: ${trimmed.substring(0, 50)}... Error: ${(e as any).message}`
                 });
             }
           }
@@ -732,7 +732,7 @@ export class SidecarManager implements CommandPort {
             type: LogType.DEBUG,
             severity: LogSeverity.ERROR,
             caller: "orchestrator:infra:runtime:sidecar_manager:hash",
-            message: `Native hashing failed for ${path}: ${e.message}. Falling back to sha256sum.`
+            message: `Native hashing failed for ${path}: ${(e as any).message}. Falling back to sha256sum.`
         });
 
         try {

@@ -338,6 +338,7 @@ export class MetricsService {
                 },
                 vpn: {
                     ...this.anonymization.getTelemetry(),
+                    active: vpnConnected,
                     interface: vpnConnected ? "wg0" : "Sovereign Mesh (mTLS)",
                     available: !!this.vpnAvailable,
                 },
@@ -359,7 +360,7 @@ export class MetricsService {
                     stats: await this.tacticalIntel?.getStats() ?? {}
                 },
                 discovery: {
-                    devices: (this.networkDiscovery?.getDevices() ?? []).map((d: {ip: string; hostname?: string; lastSeen: string}) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))
+                    devices: (this.networkDiscovery?.getDevices() ?? []).map((d: any) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))
                 },
                 news: {
                     latest: await this.news?.getLatestSignals(50) ?? []

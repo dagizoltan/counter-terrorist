@@ -10,7 +10,7 @@ export const NewsPage = (props: { status: any, csrfToken?: string, nonce?: strin
   return (
     <Layout nonce={props.nonce} title="Tactical News // Intelligence Feed" islandPaths={[
       '/components/islands/NewsFeed.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">

@@ -275,7 +275,7 @@ export class MeshAuthService {
                 timestamp: Date.now()
             };
         }
-        throw new Error(`TPM Node Cert Issuance failed: ${res.message}`);
+        throw new Error(`TPM Node Cert Issuance failed: ${res.stderr || "Unknown error"}`);
     }
 
     throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native cert issuance.");
@@ -291,7 +291,7 @@ export class MeshAuthService {
                 timestamp: Date.now()
             };
         }
-        throw new Error(`TPM CA Generation failed: ${res.message}`);
+        throw new Error(`TPM CA Generation failed: ${res.stderr || "Unknown error"}`);
     }
 
     throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native CA generation.");

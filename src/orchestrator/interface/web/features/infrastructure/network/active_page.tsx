@@ -9,7 +9,7 @@ export const ActiveNetworkPage = (props: { status: any, csrfToken?: string, nonc
   return (
     <Layout nonce={props.nonce} title="Active Network // Sovereign Mesh" islandPaths={[
       '/components/islands/NetworkMap.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">

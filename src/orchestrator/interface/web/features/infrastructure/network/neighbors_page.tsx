@@ -53,7 +53,19 @@ export const NeighborNetworksPage = (props: { status: any, csrfToken?: string, n
 
       {/* SIGNAL MATRIX VIEWPORT */}
       <div class="relative min-h-[600px] animate-in fade-in duration-1000 delay-500">
-        <environmental-signals></environmental-signals>
+        <div class="t-panel glass-panel border-t-2 border-primary/20 p-0 overflow-hidden shadow-2xl bg-black/40">
+           <header class="p-8 border-b border-white/5 flex justify-between items-center bg-black/40">
+              <div class="flex items-center gap-6">
+                 <div class="p-4 bg-primary/10 border border-primary/20 rounded-2xl text-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+                 </div>
+                 <h3 class="tactical-title text-xl tracking-widest uppercase">Live Signal Matrix</h3>
+              </div>
+           </header>
+           <div class="p-8 bg-black/20">
+              <environmental-signals></environmental-signals>
+           </div>
+        </div>
       </div>
     </Layout>
   );

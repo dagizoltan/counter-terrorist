@@ -98,25 +98,6 @@ export const Layout = (props: {
                 </a>
               </div>
 
-              {/* 04 FORENSICS (Audit & Ledger) */}
-              <div class="nav-group mb-6">
-                <div class="nav-heading !text-success flex items-center gap-3">
-                   <div class="w-1 h-3 bg-success rounded-full"></div>
-                   04 // FORENSICS
-                </div>
-                <a href="/system/ledger" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
-                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M10 9H8"/></svg>
-                   Operational Ledger
-                </a>
-                <a href="/forensics" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
-                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                   Forensic Analysis
-                </a>
-                <a href="/compliance" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
-                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                   Compliance Center
-                </a>
-              </div>
 
               {/* 05 SYSTEM (Administration) */}
               <div class="nav-group pt-4 border-t border-white/5 mt-4 mb-8">
@@ -158,9 +139,11 @@ export const Layout = (props: {
                    </div>
                    <div class="hidden lg:flex items-center gap-3">
                       <span class="text-slate-600 font-bold">/</span>
-                      <span class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Sovereign OS</span>
+                      <a href="/system/ledger" class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Ledger</a>
                       <span class="text-slate-600 font-bold">/</span>
-                      <span class="mono-xs font-black text-white tracking-[0.2em] uppercase">{props.title.split('//')[0].trim()}</span>
+                      <a href="/forensics" class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Forensics</a>
+                      <span class="text-slate-600 font-bold">/</span>
+                      <a href="/compliance" class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Compliance</a>
                    </div>
                 </div>
                 

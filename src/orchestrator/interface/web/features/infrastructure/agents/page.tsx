@@ -13,7 +13,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
     <Layout nonce={props.nonce} title="Agent Registry // Fleet Command" islandPaths={[
       '/components/islands/AgentCardIsland.js',
       '/components/islands/ProcessTree.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
