@@ -19,9 +19,15 @@ class HoneypotLog extends HTMLElement {
       try {
         const payload = JSON.parse(event.data);
         // [LOG] prefix is used by sidecars
-        if (payload.type === 'AUDIT_EVENT' && payload.data?.caller?.includes('decoy')) {
+        if ((payload.type === 'AUDIT_EVENT' && payload.data?.caller?.includes('decoy')) || payload.type === 'TACTICAL_TRIGGER') {
             const log = payload.data;
-            if (!this.moduleId || log.message.includes(this.moduleId) || log.payload?.module === this.moduleId) {
+            // Handle both audit logs and tactical triggers
+            const isMatch = !this.moduleId ||
+                            log.message?.includes(this.moduleId) ||
+                            log.payload?.module === this.moduleId ||
+                            log.caller?.includes(this.moduleId);
+
+            if (isMatch) {
                 this.addLog(log);
             }
         }

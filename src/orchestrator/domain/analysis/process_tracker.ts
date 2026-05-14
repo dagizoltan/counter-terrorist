@@ -125,15 +125,35 @@ export class ProcessTracker {
                 for await (const entry of Deno.readDir("/proc")) {
                     if (entry.isDirectory && /^\d+$/.test(entry.name)) {
                         const pid = parseInt(entry.name);
-                        if (pid === ownPid) continue;
+                        if (pid === ownPid || pid < 2) continue;
 
                         const existing = this.tree.get(pid);
                         if (existing && !existing.isGhost) continue;
 
-                        const info = await this.processProvider.getProcessInfo(pid);
+                        // STABILIZATION: Short-lived processes often vanish between readdir and stat.
+                        // We implement a 50ms "Settling Delay" and retry before flagging a ghost.
+                        let info = await this.processProvider.getProcessInfo(pid);
+
                         if (!info) {
-                            ghosts.push(pid);
-                            this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                            await new Promise(r => setTimeout(r, 50));
+                            info = await this.processProvider.getProcessInfo(pid);
+                        }
+
+                        if (!info) {
+                            // If it's still missing after 50ms, it might be a ghost or just a terminated transient process.
+                            // We check if the /proc directory still exists. If it doesn't, it was just transient.
+                            try {
+                                const stat = await Deno.stat(`/proc/${pid}`);
+                                if (stat.isDirectory) {
+                                    ghosts.push(pid);
+                                    this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                                }
+                            } catch {
+                                // Directory gone -> process exited naturally. Not a ghost.
+                            }
+                        } else {
+                            // Filter kernel threads (PPID 2 or 0 depending on kernel)
+                            if (info.ppid === 2 || info.ppid === 0) continue;
                         }
                     }
                 }

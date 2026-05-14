@@ -27,6 +27,22 @@ export async function bootstrapCore(config: EnvConfigProvider) {
     const executor = new SystemExecutor();
     ServiceRegistry.register("executor", executor);
 
+    // 3.1 Verify Core Dependencies (Advisory)
+    const required = ["ip", "sha256sum", "nmcli"];
+    for (const cmd of required) {
+        executor.exists(cmd).then(exists => {
+            if (!exists) {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:boot",
+                    message: `ADVISORY: System command '${cmd}' not found. Some functionality will be restricted.`
+                });
+            }
+        });
+    }
+
     const sidecarManager = new SidecarManager(executor, loggingService);
     ServiceRegistry.register("commands", sidecarManager);
     ServiceRegistry.register("sidecarManager", sidecarManager);

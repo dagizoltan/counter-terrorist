@@ -306,6 +306,23 @@ export class SystemExecutor {
     return { resolvedPath: cmd, baseName: cmd };
   }
 
+  /**
+   * Checks if a command exists in the system PATH.
+   */
+  async exists(cmd: string): Promise<boolean> {
+      try {
+          const command = new Deno.Command("which", {
+              args: [cmd],
+              stdout: "null",
+              stderr: "null",
+          });
+          const status = await command.spawn().status;
+          return status.success;
+      } catch {
+          return false;
+      }
+  }
+
   private validateArguments(baseName: string, args: string[]): { valid: boolean; reason?: string } {
     const policy = SystemExecutor.COMMAND_POLICIES[baseName];
     

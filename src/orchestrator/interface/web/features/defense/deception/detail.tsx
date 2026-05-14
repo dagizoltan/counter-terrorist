@@ -12,15 +12,28 @@ export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
     <Layout nonce={props.nonce} title={`${props.module.name} // Forensic Detail`} islandPaths={islandPaths}>
       {/* 1. Unified Page Header */}
       <header class="page-header">
-        <div class="title-group">
-          <h1>{props.module.name}</h1>
-          <span class="subtitle">Port: {props.module.port}</span>
+        <div class="flex items-center gap-6">
+          <div class="title-group">
+            <h1>{props.module.name}</h1>
+            <div class="flex items-center gap-3 mt-1">
+              <span class="subtitle">Vector: Port_{props.module.port}</span>
+              <div class="w-1 h-1 rounded-full bg-slate-800"></div>
+              <span class={`mono-xs font-black uppercase ${props.module.active ? 'text-success' : 'text-slate-500'}`}>
+                {props.module.active ? 'Operational' : 'Hibernating'}
+              </span>
+            </div>
+          </div>
         </div>
         <div class="flex gap-4">
-          <button class="t-btn px-6 py-3 text-[9px]">Download Logs</button>
-          <button class="t-btn px-6 py-3 text-[9px] border-slate-800">Reset Metrics</button>
+          <button class="t-btn px-6 py-3 text-[9px]">Generate Report</button>
+          <button class="t-btn px-6 py-3 text-[9px] border-slate-800">Clear Telemetry</button>
         </div>
       </header>
+
+      <div class="bg-white/[0.02] border border-white/5 p-8 mb-8">
+          <h3 class="mono-xs font-black text-slate-500 uppercase tracking-widest mb-4">Module_Intelligence_Profile</h3>
+          <p class="text-slate-400 text-sm leading-relaxed max-w-2xl">{props.module.description}</p>
+      </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* STATS GRID */}
