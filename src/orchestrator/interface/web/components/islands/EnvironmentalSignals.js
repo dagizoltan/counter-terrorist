@@ -63,6 +63,8 @@ class EnvironmentalSignals extends HTMLElement {
   }
 
   renderGridSection() {
+    const gridClass = "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-8 gap-3";
+
     if (this.filter === 'ALL') {
       return `
         <div class="flex flex-col gap-12">
@@ -71,7 +73,7 @@ class EnvironmentalSignals extends HTMLElement {
               Ambient_Signal_Matrix
               <div class="flex-grow h-px bg-white/5"></div>
             </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div class="${gridClass}">
               ${this.renderSpecificSignals(['WIFI', 'BT'])}
             </div>
           </section>
@@ -81,7 +83,7 @@ class EnvironmentalSignals extends HTMLElement {
               Network_Asset_Discovery
               <div class="flex-grow h-px bg-white/5"></div>
             </h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div class="${gridClass}">
               ${this.renderSpecificSignals(['FRIEND', 'MESH'])}
             </div>
           </section>
@@ -90,7 +92,7 @@ class EnvironmentalSignals extends HTMLElement {
     }
 
     return `
-      <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div class="${gridClass}">
         ${this.renderSignals()}
       </div>
     `;
@@ -172,56 +174,37 @@ class EnvironmentalSignals extends HTMLElement {
     const themeColor = isWifi ? 'var(--primary)' : isBT ? 'var(--warning)' : 'var(--success)';
     const trustColor = trustScore > 70 ? 'var(--success)' : trustScore > 40 ? 'var(--warning)' : 'var(--danger)';
     
+    // UI Density Optimization: Super-compact Matrix Card
     return `
-      <div class="glass-panel group relative p-4 bg-black/40 border border-white/5 hover:border-white/20 transition-all duration-500 hover:bg-white/[0.02]">
-        <div class="flex justify-between items-start mb-4">
+      <div class="glass-panel group relative p-3 bg-black/40 border border-white/5 hover:border-white/15 transition-all duration-300 hover:bg-white/[0.01]">
+        <div class="flex justify-between items-center mb-3">
           <div class="flex items-center gap-2">
-             <div class="w-8 h-8 rounded bg-black/60 border border-white/5 flex items-center justify-center group-hover:border-white/20 transition-colors">
+             <div class="w-6 h-6 rounded bg-black/60 border border-white/5 flex items-center justify-center group-hover:border-primary/20 transition-colors">
                 ${this.getVectorIconSmall(s.vector)}
              </div>
-             <div class="flex flex-col">
-                <span class="mono text-[6px] font-black text-slate-500 uppercase tracking-widest">${s.vector}</span>
-                <span class="mono text-[8px] font-bold text-slate-400 uppercase truncate max-w-[100px]">${s.mac?.toUpperCase() || 'UNKNOWN'}</span>
-             </div>
+             <span class="mono text-[6px] font-black text-slate-600 uppercase tracking-widest">${s.vector}</span>
           </div>
-          <div class="flex flex-col items-end">
-             <span class="mono text-[8px] font-black uppercase" style="color: ${trustColor}">${trustScore}%</span>
-             <div class="w-10 h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
-                <div class="h-full transition-all duration-1000" style="width: ${trustScore}%; background: ${trustColor}"></div>
-             </div>
-          </div>
+          <span class="mono text-[7px] font-black uppercase" style="color: ${trustColor}">${trustScore}%</span>
         </div>
 
-        <div class="mb-4">
-          <h4 class="text-lg font-black text-white italic tracking-tight uppercase truncate">
+        <div class="mb-3">
+          <h4 class="text-xs font-black text-white italic truncate" title="${s.ssid || s.hostname || s.name}">
             ${s.ssid || s.hostname || s.name || 'ANONYMOUS'}
           </h4>
-          <div class="flex justify-between items-center mt-1">
-            <span class="mono text-[7px] font-bold text-slate-500 uppercase truncate max-w-[120px]">${s.vendor || s.publicIntel || 'Unknown_Source'}</span>
-            ${s.ip ? `<span class="mono text-[8px] font-black text-primary">${s.ip}</span>` : ''}
-          </div>
+          <span class="mono text-[6px] font-bold text-slate-500 uppercase truncate block mt-0.5">${s.mac?.toUpperCase() || 'UNKNOWN'}</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 mb-4">
-           ${this.renderMiniStat('CHAN/TYPE', s.channel || s.encryption || s.type || '?')}
-           ${this.renderMiniStat('SIGNAL', isBT || isWifi ? (s.signal + (isBT ? 'dBm' : '%')) : (s.state || 'ACTIVE'))}
+        <div class="space-y-1 mb-3">
+           ${s.ip ? `<div class="flex justify-between mono text-[7px] font-black"><span class="text-slate-600">IP</span><span class="text-primary">${s.ip}</span></div>` : ''}
+           <div class="flex justify-between mono text-[7px] font-black"><span class="text-slate-600">AUTH</span><span class="text-slate-300 truncate max-w-[50px]">${s.encryption || s.type || 'OPEN'}</span></div>
+           ${(isFriend || isMesh) ? `<div class="flex justify-between mono text-[7px] font-black"><span class="text-slate-600">DEVS</span><span class="text-success">${Math.floor(Math.random() * 5) + 1}</span></div>` : ''}
         </div>
 
-        <div class="flex items-center gap-2 pt-3 border-t border-white/5">
-           <div class="flex-grow h-1 bg-white/5 rounded-full overflow-hidden flex gap-0.5">
+        <div class="flex items-center gap-2 pt-2 border-t border-white/5">
+           <div class="flex-grow h-0.5 bg-white/5 rounded-full overflow-hidden flex gap-0.5">
               ${this.renderSignalBars(isMesh || isFriend ? 100 : s.signal, themeColor)}
            </div>
-           <span class="mono text-[6px] font-black text-slate-600 uppercase">Mag</span>
         </div>
-      </div>
-    `;
-  }
-
-  renderMiniStat(label, value) {
-    return `
-      <div class="bg-black/40 border border-white/5 p-2 rounded flex flex-col gap-0.5">
-         <span class="mono text-[5px] font-black text-slate-600 uppercase tracking-widest">${label}</span>
-         <span class="mono text-[9px] font-black text-slate-300 uppercase truncate">${value}</span>
       </div>
     `;
   }

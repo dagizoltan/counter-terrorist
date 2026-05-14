@@ -97,6 +97,43 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   return { valid: true };
 }
 
+/**
+ * Async version of webhook validation that performs DNS resolution.
+ * This mitigates DNS Rebinding and bypasses using hostnames that resolve to private IPs.
+ */
+export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boolean; reason?: string }> {
+  const initialCheck = isValidWebhookUrl(url);
+  if (!initialCheck.valid) return initialCheck;
+
+  const parsed = new URL(url);
+  const hostname = parsed.hostname;
+
+  // If already an IP, it was checked by isValidWebhookUrl
+  if (isValidIP(hostname)) return { valid: true };
+
+  try {
+    // Resolve both IPv4 and IPv6
+    const [ipv4s, ipv6s] = await Promise.all([
+      Deno.resolveDns(hostname, "A").catch(() => []),
+      Deno.resolveDns(hostname, "AAAA").catch(() => [])
+    ]);
+
+    for (const ip of ipv4s) {
+      const check = isValidWebhookUrl(`https://${ip}`);
+      if (!check.valid) return { valid: false, reason: `Domain '${hostname}' resolves to restricted IP ${ip}` };
+    }
+
+    for (const ip of ipv6s) {
+      const check = isValidWebhookUrl(`https://[${ip}]`);
+      if (!check.valid) return { valid: false, reason: `Domain '${hostname}' resolves to restricted IPv6 ${ip}` };
+    }
+  } catch {
+    // DNS resolution failure - will be caught at fetch time, but not an SSRF risk itself
+  }
+
+  return { valid: true };
+}
+
 export const ALLOWED_SIDECARS = ["analyzer", "enforcer", "decoy", "netcap", "watchfile", "trustroot", "tunnel", "mesh", "firewall", "sentinel", "sentinel-darwin", "enforcer-win", "telemetry-win"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 

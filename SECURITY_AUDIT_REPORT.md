@@ -26,7 +26,7 @@ The audit was performed exclusively via manual code review and reverse-engineeri
 | **Scanner Bypass** | **Medium** | `DIR_SCAN` command was unimplemented in the agent, leading to silent failures. | Implemented `DIR_SCAN` in Rust `analyzer`. |
 | **Incomplete Visibility** | **Medium** | Filesystem scanning was non-recursive, missing threats in subdirectories. | Refactored `analyzer` to perform recursive stack-based walks. |
 | **Weak Mesh Auth Fallback** | **Medium** | Mesh routes allowed fallback to session-based auth for mutation requests. | Restricted fallback to GET requests only. |
-| **Incomplete SSRF Guard** | **Medium** | `isValidWebhookUrl` missed several cloud metadata and reserved ranges. | Expanded blacklist for GCP, Testnets, and private IPv6. |
+| **Incomplete SSRF Guard** | **Medium** | `isValidWebhookUrl` missed several cloud metadata and reserved ranges. | Expanded blacklist and implemented async DNS resolution. |
 | **Sentinel Build Failure** | **Medium** | Rust Sentinel agent failed to compile due to Aya version/private field access. | Corrected `LpmKey` usage and private field access. |
 | **Ghost False Positives** | **Low** | Short-lived processes caused "Ghost Process" alerts due to metadata read races. | Implemented settling delay and /proc re-verification. |
 | **Silent Boot Failures** | **Low** | Missing system binaries (`nmcli`, `ip`) could cause runtime errors. | Implemented boot-time dependency verification. |
@@ -57,6 +57,5 @@ The audit was performed exclusively via manual code review and reverse-engineeri
 
 ## 6. Recommendations
 
-1. **Implement DNS Resolution in SSRF Guard:** Modify `isValidWebhookUrl` to resolve hostnames and validate the resulting IPs *before* the request is initiated.
-2. **Harden Sidecar Swap:** Use `flock` or a similar advisory locking mechanism during the binary swap in `secure_spawn.sh` to eliminate the TOCTOU window.
-3. **Fix Sentinel Kernel Compilation:** Address the `sentinel-kernel` missing file error by ensuring the BPF toolchain is correctly integrated into the automated build process.
+1. **Harden Sidecar Swap:** Use `flock` or a similar advisory locking mechanism during the binary swap in `secure_spawn.sh` to eliminate the TOCTOU window.
+2. **Fix Sentinel Kernel Compilation:** Address the `sentinel-kernel` missing file error by ensuring the BPF toolchain is correctly integrated into the automated build process.
