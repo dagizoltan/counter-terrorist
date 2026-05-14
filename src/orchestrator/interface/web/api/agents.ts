@@ -83,6 +83,10 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
     return c.json(result);
   });
 
+  router.get("/anonymizer/status", async (c: Context) => {
+    return c.json(services.anonymization.getTelemetry());
+  });
+
   // Scanner specific controls
   router.post("/scanner/scan", security.requireRole("admin", "operator"), async (c: Context) => {
     const { path, type } = await c.req.json();

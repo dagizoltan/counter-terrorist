@@ -8,7 +8,10 @@ import { Layout } from "@interface/components/Layout.tsx";
 export const VpnPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout nonce={props.nonce} title="VPN Agent // Identity Stealth" islandPaths={[
-      '/components/islands/AnonymizerController.js'
+      '/components/islands/AnonymizerController.js',
+      '/components/islands/VpnAgent.js',
+      '/components/islands/MiniLog.js',
+      '/components/islands/TunnelTelemetry.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
@@ -44,32 +47,36 @@ export const VpnPage = (props: { status: any, csrfToken?: string, nonce?: string
                   </div>
                 </div>
                 <div class="flex items-center gap-4">
-                   <div class="status-pill active px-8 py-3 font-black tracking-widest">ANONYMOUS</div>
+                   <div id="stat-vpn-status-badge" class="status-pill active px-8 py-3 font-black tracking-widest">ANONYMOUS</div>
                 </div>
              </header>
 
              <div class="p-8 bg-black/20 min-h-[400px]">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div class="p-6 bg-black/40 border border-white/5 rounded-2xl">
-                      <span class="mono-xs text-slate-600 font-black uppercase tracking-widest block mb-4">CURRENT EXIT NODE</span>
-                      <div class="text-2xl font-black text-white italic tracking-tighter">Sweden [193.180.164.21]</div>
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6 mb-8">
+                   <div class="col-span-12 md:col-span-7 p-6 bg-black/40 border border-white/5 rounded-2xl">
+                      <tunnel-telemetry></tunnel-telemetry>
                    </div>
-                   <div class="p-6 bg-black/40 border border-white/5 rounded-2xl">
-                      <span class="mono-xs text-slate-600 font-black uppercase tracking-widest block mb-4">TUNNEL LATENCY</span>
-                      <div class="text-2xl font-black text-success italic tracking-tighter">42ms</div>
+                   <div class="col-span-12 md:col-span-5 flex flex-col gap-4">
+                      <div class="p-6 bg-black/40 border border-white/5 rounded-2xl">
+                          <span class="mono-xs text-slate-600 font-black uppercase tracking-widest block mb-4">CURRENT EXIT NODE</span>
+                          <div id="stat-vpn-ip" class="text-xl font-black text-white italic tracking-tighter truncate">Sweden [193.180.164.21]</div>
+                      </div>
+                      <div class="p-6 bg-black/40 border border-white/5 rounded-2xl">
+                          <span class="mono-xs text-slate-600 font-black uppercase tracking-widest block mb-4">TUNNEL LATENCY</span>
+                          <div id="vpn-latency" class="text-xl font-black text-success italic tracking-tighter">42ms</div>
+                      </div>
                    </div>
                 </div>
                 
-                <div class="mt-8 p-8 border border-white/5 rounded-2xl bg-black/60 font-mono text-[11px] text-slate-400 space-y-2">
-                   <div class="text-primary opacity-50">[INFO] Authenticating with VPNGATE directory...</div>
-                   <div class="text-primary opacity-50">[INFO] Selected Sweden node for high-bandwidth persistence.</div>
-                   <div class="text-success">[OK] OpenVPN Tunnel established successfully.</div>
-                   <div class="text-slate-600">[METRIC] Throughput: 12.4 Mbps // MTU: 1500</div>
+                <div class="mt-8 border-t border-white/5 pt-8">
+                   <mini-log></mini-log>
                 </div>
              </div>
           </div>
         </div>
       </div>
+
+      <vpn-agent></vpn-agent>
     </Layout>
   );
 };

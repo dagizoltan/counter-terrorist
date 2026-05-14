@@ -65,6 +65,7 @@ class MetricsHydrator extends HTMLElement {
     if (m.vpn) {
       const isBypassed = m.vpn.mode === 'OFF';
       this.updateStatus('stat-vpn-status', isBypassed ? 'BYPASSED' : 'ENCRYPTED');
+      this.updateStatus('stat-vpn-status-badge', isBypassed ? 'BYPASSED' : 'ENCRYPTED');
       this.updateStatus('stat-anon-mode', m.vpn.mode ?? 'OFFLINE');
       this.setText('stat-vpn-ip', m.vpn.exitIp || 'UNCONNECTED');
 

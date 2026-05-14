@@ -17,10 +17,15 @@ export class UbuntuFirewallProvider implements FirewallProvider {
       return await this.sidecar.sendCommand("sentinel", { type: "BLOCK_IP", ip });
     }
     
+    // FALLBACK: Use Hermetic Blocker (iptables) if eBPF is unavailable
+    if (this.sidecar.isRunning("enforcer")) {
+        return await this.sidecar.sendCommand("enforcer", { type: "BlockIp", ip });
+    }
+
     return { 
         success: false, 
         stdout: "", 
-        stderr: "Sentinel (eBPF) is unavailable and UFW fallback is disabled." 
+        stderr: "All firewall backends (eBPF, iptables) are unavailable."
     };
   }
 
@@ -39,7 +44,7 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     return { 
         success: false, 
         stdout: "", 
-        stderr: "Sentinel (eBPF) is unavailable." 
+        stderr: "All firewall backends (eBPF, iptables) are unavailable."
     };
   }
 
@@ -47,6 +52,11 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "UNBLOCK_IP", ip });
     }
+
+    if (this.sidecar.isRunning("enforcer")) {
+        return await this.sidecar.sendCommand("enforcer", { type: "UnblockIp", ip });
+    }
+
     return { 
         success: false, 
         stdout: "", 
@@ -79,16 +89,36 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async getStatus(): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
-      return await this.sidecar.sendCommand("sentinel", { type: "GET_STATUS" });
+    const sentinelActive = this.isSentinelAvailable();
+    const enforcerActive = this.sidecar.isRunning("enforcer");
+
+    let data = {
+        sentinel: sentinelActive ? "ACTIVE" : "UNAVAILABLE",
+        enforcer: enforcerActive ? "ACTIVE" : "UNAVAILABLE",
+        primary_backend: sentinelActive ? "eBPF/XDP" : (enforcerActive ? "iptables" : "NONE")
+    };
+
+    if (sentinelActive) {
+      const res = await this.sidecar.sendCommand("sentinel", { type: "GET_STATUS" });
+      return { success: true, stdout: "", stderr: "", data: { ...data, ...res.data } };
     }
-    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
+
+    return { success: true, stdout: "", stderr: "", data };
   }
 
   async lockdown(): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "LOCKDOWN" });
     }
+
+    // Minimal fallback lockdown using iptables to drop everything except established
+    if (this.sidecar.isRunning("enforcer")) {
+        await this.sidecar.sendCommand("enforcer", { type: "FlushRules" });
+        await this.executor.execute("iptables", ["-P", "INPUT", "DROP"]);
+        await this.executor.execute("iptables", ["-A", "INPUT", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"]);
+        return { success: true, stdout: "iptables Lockdown engaged", stderr: "" };
+    }
+
     return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
   }
   
@@ -96,20 +126,35 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "ALLOW_PORT", port, protocol });
     }
-    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
+
+    if (this.sidecar.isRunning("enforcer")) {
+        return await this.sidecar.sendCommand("enforcer", { type: "AllowPort", port, protocol });
+    }
+
+    return { success: false, stdout: "", stderr: "All firewall backends (eBPF, iptables) are unavailable." };
   }
 
   async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "DENY_PORT", port, protocol });
     }
-    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
+
+    if (this.sidecar.isRunning("enforcer")) {
+        return await this.sidecar.sendCommand("enforcer", { type: "DenyPort", port, protocol });
+    }
+
+    return { success: false, stdout: "", stderr: "All firewall backends (eBPF, iptables) are unavailable." };
   }
 
   async flushRules(): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "FLUSH_RULES" });
     }
-    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
+
+    if (this.sidecar.isRunning("enforcer")) {
+        return await this.sidecar.sendCommand("enforcer", { type: "FlushRules" });
+    }
+
+    return { success: false, stdout: "", stderr: "All firewall backends (eBPF, iptables) are unavailable." };
   }
 }

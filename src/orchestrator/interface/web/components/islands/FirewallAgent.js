@@ -41,6 +41,9 @@ class FirewallAgent extends HTMLElement {
         if ((payload.type === 'METRICS_UPDATE' || (payload.type === 'DEBUG' && payload.subType === 'METRICS_UPDATE')) && payload.data?.firewall) {
           this.updateUI(payload.data.firewall);
         }
+        if (payload.type === 'NETWORK_LOG') {
+            this.handleLiveLog(payload.data);
+        }
       } catch (e) {}
     };
 
@@ -134,12 +137,51 @@ class FirewallAgent extends HTMLElement {
     }
   }
 
+  handleLiveLog(log) {
+    const trafficEl = document.getElementById('fw-traffic-list');
+    if (!trafficEl) return;
+
+    // Remove empty state if present
+    const empty = trafficEl.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const entry = this.createLogEntry(log);
+    trafficEl.insertAdjacentHTML('afterbegin', entry);
+
+    // Keep only last 50
+    if (trafficEl.children.length > 50) {
+        trafficEl.lastElementChild.remove();
+    }
+  }
+
+  createLogEntry(l) {
+    const isBlocked = l.action === 'BLOCK';
+    const botScore = l.botScore || 0;
+    const botIndicator = botScore > 0.8 ? '<span class="text-[8px] px-2 py-0.5 bg-danger/20 text-danger rounded border border-danger/30 font-black ml-4">BOT_PROB_HIGH</span>' : '';
+
+    return `
+      <div class="flex items-center justify-between p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors fade-in">
+        <span class="mono-xs text-slate-600 font-bold w-24">${new Date(l.timestamp || Date.now()).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+        <div class="flex-1 flex items-center gap-4 px-4 overflow-hidden">
+           <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${window.escapeHTML(l.source)}</span>
+           <span class="text-slate-800 text-[10px] font-black">→</span>
+           <span class="mono-xs text-slate-400 font-black uppercase truncate tracking-tighter">${window.escapeHTML(l.destination)}</span>
+           ${botIndicator}
+        </div>
+        <div class="flex items-center gap-3 w-32 justify-end">
+           <span class="mono-xs font-black uppercase tracking-widest ${isBlocked ? 'text-danger' : 'text-success'}">${window.escapeHTML(l.action)}</span>
+           <div class="dot ${isBlocked ? 'danger' : 'active'}"></div>
+        </div>
+      </div>
+    `;
+  }
+
   updateTrafficUI(logs) {
     const trafficEl = document.getElementById('fw-traffic-list');
     if (!trafficEl) return;
     if (!logs || logs.length === 0) {
       trafficEl.innerHTML = `
-        <div class="mono-xs text-slate-700  p-12 text-center uppercase tracking-widest font-black">
+        <div class="mono-xs text-slate-700  p-12 text-center uppercase tracking-widest font-black empty-state">
            Awaiting_Packet_Signals...
         </div>
       `;

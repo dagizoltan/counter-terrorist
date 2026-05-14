@@ -9,7 +9,8 @@ export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: s
   return (
     <Layout nonce={props.nonce} title="Firewall Agent // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
-      '/components/islands/AnonymizerController.js'
+      '/components/islands/AnonymizerController.js',
+      '/components/islands/MiniLog.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
@@ -51,9 +52,10 @@ export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: s
 
              <div class="grid grid-cols-12">
                 <div class="col-span-12 lg:col-span-7 p-6 border-r border-white/5 bg-black/20">
-                   <div id="fw-traffic-list" class="bg-black/80 rounded-2xl p-8 border border-white/10 h-[500px] overflow-y-auto custom-scrollbar font-mono text-[11px] leading-relaxed space-y-3">
-                      <div class="flex items-center gap-6 text-slate-600 uppercase tracking-[0.3em]">
-                         Awaiting_Packet_Stream...
+                   <div class="h-[500px] flex flex-col">
+                      <h3 class="tactical-title text-xs uppercase tracking-[0.3em] text-slate-400 mb-4 px-2">LIVE_TACTICAL_STREAM</h3>
+                      <div class="flex-grow bg-black/80 rounded-2xl border border-white/10 overflow-hidden">
+                        <mini-log></mini-log>
                       </div>
                    </div>
                 </div>

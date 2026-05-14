@@ -40,22 +40,29 @@ class AgentCardIsland extends HTMLElement {
   }
 
   handleEvent(event) {
-    if (!event.message) return;
-    const msg = event.message.toLowerCase();
+    if (!event.message && !event.type) return;
+    const msg = (event.message || '').toLowerCase();
+    const type = (event.type || '').toLowerCase();
+
     const isTarget = msg.includes(this.agentName) || 
-                   (this.agentName === 'firewall' && (msg.includes('block') || msg.includes('sentinel'))) ||
-                   (this.agentName === 'sentinel' && (msg.includes('block') || msg.includes('firewall'))) ||
+                   (this.agentName === 'firewall' && (msg.includes('block') || msg.includes('sentinel') || type === 'network_log')) ||
+                   (this.agentName === 'sentinel' && (msg.includes('block') || msg.includes('firewall') || type === 'network_log')) ||
                    (this.agentName === 'scanner' && msg.includes('analyzer')) ||
                    (this.agentName === 'analyzer' && msg.includes('scanner')) ||
-                   (this.agentName === 'vpn' && msg.includes('tunnel')) ||
-                   (this.agentName === 'tunnel' && msg.includes('vpn'));
+                   (this.agentName === 'vpn' && (msg.includes('tunnel') || type === 'tunnel_metrics')) ||
+                   (this.agentName === 'tunnel' && (msg.includes('vpn') || type === 'tunnel_metrics'));
 
     if (isTarget) {
        const feed = this.querySelector('.agent-feed');
        if (feed) {
           const entry = document.createElement('div');
           entry.className = 'text-[7px] font-mono text-slate-500 mb-1 border-l border-white/10 pl-2 opacity-0 fade-in slide-in-from-left-2';
-          entry.textContent = `[${new Date().toLocaleTimeString()}] ${event.message.substring(0, 40)}...`;
+
+          let content = event.message || '';
+          if (type === 'network_log') content = `NET: ${event.data.source} -> ${event.data.destination}`;
+          if (type === 'tunnel_metrics') content = `FLOW: ${(event.data.bps / 1024).toFixed(1)} Kbps`;
+
+          entry.textContent = `[${new Date().toLocaleTimeString()}] ${content.substring(0, 40)}...`;
           feed.prepend(entry);
           if (feed.children.length > 3) feed.lastChild.remove();
        }

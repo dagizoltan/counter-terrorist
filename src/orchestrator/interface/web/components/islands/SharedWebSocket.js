@@ -17,6 +17,11 @@ class WsManager {
         this.ws = new WebSocket(this.url);
         
         this.ws.onmessage = (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+                window.dispatchEvent(new CustomEvent('tactical-event', { detail: payload }));
+            } catch (e) {}
+
             for (const listener of this.listeners) {
                 if (listener.onmessage) {
                     try { listener.onmessage(event); } catch (e) { console.error(e); }
