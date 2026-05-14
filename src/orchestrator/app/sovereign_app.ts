@@ -174,6 +174,7 @@ export class SovereignApp {
 
     private async initMesh(tpm: TPMManager): Promise<MeshManager> {
         const meshAuthService = new MeshAuthService(this.kv, loggingService, tpm, this.vault);
+        (meshAuthService as any).sidecar = this.sidecarManager; // Link for ZT-VPN
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, this.vault);
         
         setMeshManager(meshManager);

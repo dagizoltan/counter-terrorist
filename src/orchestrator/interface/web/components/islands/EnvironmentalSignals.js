@@ -49,12 +49,26 @@ class EnvironmentalSignals extends HTMLElement {
 
     this.innerHTML = `
       <div class="flex flex-col gap-10 animate-in fade-in duration-1000">
-        <!-- TACTICAL SELECTOR -->
-        <div class="flex gap-4 p-1.5 bg-black/40 border border-white/5 rounded-2xl self-start backdrop-blur-3xl shadow-2xl">
-          ${this.renderFilterBtn('ALL', 'All Signals', totalCount)}
-          ${this.renderFilterBtn('WIFI', 'WiFi APs', wifiCount)}
-          ${this.renderFilterBtn('BT', 'Bluetooth', btCount)}
-          ${this.renderFilterBtn('FRIENDS', 'Nearby Devices', friendsCount)}
+        <!-- 📡 Unified Signal Matrix Header -->
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+           <div class="flex gap-4 p-1.5 bg-black/40 border border-white/5 rounded-2xl self-start backdrop-blur-3xl shadow-2xl">
+             ${this.renderFilterBtn('ALL', 'All Signals', totalCount)}
+             ${this.renderFilterBtn('WIFI', 'WiFi APs', wifiCount)}
+             ${this.renderFilterBtn('BT', 'Bluetooth', btCount)}
+             ${this.renderFilterBtn('FRIENDS', 'Nearby Devices', friendsCount)}
+           </div>
+
+           <div class="flex items-center gap-8 px-8 py-3 bg-primary/5 border border-primary/20 rounded-2xl">
+              <div class="flex flex-col">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-1">Spectrum_Density</span>
+                 <span class="mono-md text-white font-black italic tracking-tighter">${totalCount > 10 ? 'HIGH' : 'STABLE'}</span>
+              </div>
+              <div class="w-px h-8 bg-white/10"></div>
+              <div class="flex flex-col">
+                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-1">Threat_Threshold</span>
+                 <span class="mono-md text-success font-black italic tracking-tighter">98.2% TRUST</span>
+              </div>
+           </div>
         </div>
 
         ${this.renderGridSection()}

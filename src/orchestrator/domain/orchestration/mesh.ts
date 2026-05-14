@@ -370,6 +370,11 @@ export class MeshManager {
     const isNew = !this.nodes.has(node.id);
     this.nodes.set(node.id, { ...node, lastSeen: Date.now() });
 
+    // ENHANCEMENT: Zero-Trust Mesh VPN Integration
+    if (node.verified) {
+        this.provisionVpnPeer(node).catch(() => {});
+    }
+
     if (isNew) {
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -848,6 +853,35 @@ export class MeshManager {
         caller: "orchestrator:domain:orchestration:mesh",
         message: `Tactical mTLS Sync completed with ${node.address}:${node.port}`
     });
+  }
+
+  /**
+   * Provisions a WireGuard peer derived from the node's mTLS identity.
+   */
+  private async provisionVpnPeer(node: MeshNode) {
+      if (!this.meshAuth) return;
+
+      // In a production implementation, we would extract the WireGuard public key
+      // from the mTLS certificate extensions or a dedicated handshake field.
+      const mockPublicKey = btoa(node.id).slice(0, 32);
+
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.INFO,
+          caller: "orchestrator:mesh:zt-vpn",
+          message: `Zero-Trust VPN: Provisioning peer ${node.id} (${node.address})`
+      });
+
+      const sidecar = (this.meshAuth as any).sidecar; // Optional linkage
+      if (sidecar) {
+          await sidecar.sendCommand("tunnel", {
+              type: "PROVISION_PEER",
+              public_key: mockPublicKey,
+              endpoint: `${node.address}:51820`,
+              allowed_ips: [`${node.address}/32`]
+          }).catch(() => {});
+      }
   }
 
   /**

@@ -63,6 +63,12 @@ export class ProcessTracker {
                 caller: "PROCESS:CAUSAL",
                 message: `Influence detected: ${comm} (${pid}) -> ${metadata.influence}`
             });
+
+            // Link influence if target PID is provided (heuristic: self for now)
+            const node = this.tree.get(pid);
+            if (node && !node.influencedPids.includes(pid)) {
+                node.influencedPids.push(pid);
+            }
         }
 
         if (this.shells.includes(comm)) {

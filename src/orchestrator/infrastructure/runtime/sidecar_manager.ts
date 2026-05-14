@@ -253,7 +253,7 @@ export class SidecarManager implements CommandPort {
               }
             }
 
-            const supportsAttestation = ["sentinel", "analyzer", "enforcer"].includes(name);
+            const supportsAttestation = ["sentinel", "analyzer", "enforcer", "tunnel"].includes(name);
             const env = await this.getSidecarEnv(name, supportsAttestation);
 
             let finalExecPath = execPath;
