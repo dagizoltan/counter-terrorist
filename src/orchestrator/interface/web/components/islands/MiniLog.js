@@ -58,7 +58,7 @@ class MiniLog extends HTMLElement {
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        const tacticalTypes = ['BLOCK', 'ALERT', 'AUDIT_EVENT', 'TACTICAL_TRIGGER', 'audit', 'activity', 'generic', 'debug', 'CRITICAL', 'WARNING', 'INFO'];
+        const tacticalTypes = ['BLOCK', 'ALERT', 'AUDIT_EVENT', 'TACTICAL_TRIGGER', 'NETWORK_LOG', 'TUNNEL_STATUS', 'audit', 'activity', 'generic', 'debug', 'CRITICAL', 'WARNING', 'INFO'];
         if (tacticalTypes.includes(payload.type)) {
           const logData = payload.data || payload;
           
@@ -208,6 +208,8 @@ class MiniLog extends HTMLElement {
   getTypeColorClass(type) {
     if (type === 'BLOCK' || type === 'THREAT') return 'text-danger';
     if (type === 'AUDIT') return 'text-primary';
+    if (type === 'NETWORK') return 'text-success';
+    if (type === 'TUNNEL') return 'text-primary';
     return 'text-slate-400';
   }
 }

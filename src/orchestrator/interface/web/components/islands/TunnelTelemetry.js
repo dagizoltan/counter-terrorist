@@ -35,15 +35,20 @@ class TunnelTelemetry extends HTMLElement {
 
     window.addEventListener('metrics-update', (e) => {
       const vpn = e.detail.vpn;
-      if (vpn) {
-        // For simulation, we vary throughput if active
-        if (vpn.mode !== 'OFF') {
-          this.throughput = 2 + Math.random() * 15;
-        } else {
-          this.throughput = 0;
-        }
+      if (vpn && !this._lastLiveUpdate) {
+        // Fallback to metrics if no live stream yet
+        this.throughput = vpn.mode !== 'OFF' ? (2 + Math.random() * 5) : 0;
         this.update(this.throughput);
       }
+    });
+
+    // Sub to live stream
+    window.addEventListener('tactical-event', (e) => {
+        if (e.detail.type === 'TUNNEL_METRICS') {
+            this._lastLiveUpdate = Date.now();
+            const mbps = (e.detail.data.bps || 0) / 1000 / 1000;
+            this.update(mbps);
+        }
     });
 
     this.animate();

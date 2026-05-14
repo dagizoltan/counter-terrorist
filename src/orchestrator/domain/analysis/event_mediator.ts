@@ -37,6 +37,8 @@ export class EventMediator {
         commandPort.onEvent("watchfile", this.handleWatchfileEvent.bind(this));
         commandPort.onEvent("netcap", this.handleNetcapEvent.bind(this));
         commandPort.onEvent("analyzer", this.handleAnalyzerEvent.bind(this));
+        commandPort.onEvent("tunnel", this.handleTunnelEvent.bind(this));
+        commandPort.onEvent("enforcer", this.handleEnforcerEvent.bind(this));
 
         this.logger.log({
             timestamp: new Date().toISOString(),
@@ -239,6 +241,54 @@ export class EventMediator {
                 data 
             });
             this.eventBus.emit("THREAT", data);
+        }
+    }
+
+    private handleTunnelEvent(response: any): void {
+        const event = response.data || response;
+        if (event.type === "TUNNEL_UP") {
+            this.broadcast({
+                type: "TUNNEL_STATUS",
+                severity: LogSeverity.SUCCESS,
+                message: `Stealth Tunnel Established: ${event.data.interface}`,
+                data: event.data
+            });
+        } else if (event.type === "THROUGHPUT_METRICS") {
+            this.broadcast({
+                type: "TUNNEL_METRICS",
+                severity: LogSeverity.INFO,
+                silent: true, // Don't audit high-frequency metrics
+                data: event.data
+            });
+        }
+    }
+
+    private handleEnforcerEvent(response: any): void {
+        const event = response.data || response;
+        if (event.type === "FIREWALL_BLOCK") {
+            this.broadcast({
+                type: "BLOCK",
+                severity: LogSeverity.WARNING,
+                message: `Block Triggered: ${event.data.ip}`,
+                data: event.data
+            });
+        } else if (event.type === "NETWORK_LOG") {
+            this.networkLogs.log({
+                timestamp: new Date().toISOString(),
+                direction: "OUTBOUND",
+                source: event.data.source,
+                destination: event.data.destination,
+                protocol: event.data.protocol,
+                length: event.data.bytes_count,
+                action: event.data.action
+            }).catch(() => {});
+
+            this.broadcast({
+                type: "NETWORK_LOG",
+                severity: LogSeverity.INFO,
+                message: `Perimeter: ${event.data.source} -> ${event.data.destination}`,
+                data: event.data
+            });
         }
     }
 }

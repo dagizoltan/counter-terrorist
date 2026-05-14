@@ -243,11 +243,15 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
 
     return c.json({
       firewall: { 
-        active: true,
+        active: services.command.isRunning("enforcer"),
         pid: services.command.getPID("enforcer"),
         capabilities: ["PACKET_FILTER", "RATE_LIMITING", "IP_ISOLATION"],
         root: true,
         metrics: metrics?.firewall
+      },
+      enforcer: {
+        active: services.command.isRunning("enforcer"),
+        pid: services.command.getPID("enforcer")
       },
       vpn: {
         active: await services.protection.vpn.isConnected(),
@@ -256,11 +260,19 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         interface: "wg0",
         metrics: metrics?.vpn
       },
+      tunnel: {
+        active: services.command.isRunning("tunnel"),
+        pid: services.command.getPID("tunnel")
+      },
       ebpf: {
         active: services.command.isRunning("sentinel"),
         capabilities: ["LSM", "SYSCALL_HOOK", "PID_HIDING"],
         root: true,
         metrics: metrics?.forensics
+      },
+      sentinel: {
+        active: services.command.isRunning("sentinel"),
+        pid: services.command.getPID("sentinel")
       },
       fim: {
         active: services.command.isRunning("watchfile"),
@@ -268,11 +280,19 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         root: true,
         metrics: metrics?.forensics
       },
+      watchfile: {
+        active: services.command.isRunning("watchfile"),
+        pid: services.command.getPID("watchfile")
+      },
       honeypot: {
         active: services.command.isRunning("decoy"),
         capabilities: ["DECEPTION", "LOGGING"],
         root: false,
         metrics: metrics?.honeypot
+      },
+      decoy: {
+        active: services.command.isRunning("decoy"),
+        pid: services.command.getPID("decoy")
       }
     });
   });
