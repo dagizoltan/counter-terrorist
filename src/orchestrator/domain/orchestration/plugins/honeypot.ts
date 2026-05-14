@@ -63,8 +63,17 @@ export class HoneypotPlugin implements Plugin {
   }
 
   async stop() {
-    // Currently CommandManager doesn't support explicit sidecar termination via API
-    // but we can mark it inactive.
+    try {
+        await this.sidecarManager.stopSidecar("decoy");
+    } catch (e) {
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "HONEYPOT",
+            message: `Failed to explicitly stop decoy sidecar: ${e.message}`
+        });
+    }
     this.active = false;
   }
 

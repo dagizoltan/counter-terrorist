@@ -101,7 +101,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
  * Async version of webhook validation that performs DNS resolution.
  * This mitigates DNS Rebinding and bypasses using hostnames that resolve to private IPs.
  */
-export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boolean; reason?: string }> {
+export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boolean; reason?: string; resolvedIp?: string }> {
   const initialCheck = isValidWebhookUrl(url);
   if (!initialCheck.valid) return initialCheck;
 
@@ -109,7 +109,7 @@ export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boo
   const hostname = parsed.hostname;
 
   // If already an IP, it was checked by isValidWebhookUrl
-  if (isValidIP(hostname)) return { valid: true };
+  if (isValidIP(hostname)) return { valid: true, resolvedIp: hostname };
 
   try {
     // Resolve both IPv4 and IPv6
@@ -127,6 +127,11 @@ export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boo
       const check = isValidWebhookUrl(`https://[${ip}]`);
       if (!check.valid) return { valid: false, reason: `Domain '${hostname}' resolves to restricted IPv6 ${ip}` };
     }
+
+    // Return the first valid IP to prevent DNS rebinding in safeFetch
+    if (ipv4s.length > 0) return { valid: true, resolvedIp: ipv4s[0] };
+    if (ipv6s.length > 0) return { valid: true, resolvedIp: `[${ipv6s[0]}]` };
+
   } catch {
     // DNS resolution failure - will be caught at fetch time, but not an SSRF risk itself
   }
