@@ -356,7 +356,8 @@ export class WebAdapter implements WebPort {
         } else if (s.name === 'mesh' && this.services.mesh) {
             status = "ACTIVE";
         } else if (s.name === 'firewall' && this.services.protection) {
-            isRunning = this.services.command.isRunning('enforcer');
+            // ENHANCEMENT: Use Sentinel (eBPF) status for authoritative firewall state
+            isRunning = this.services.command.isRunning('sentinel');
             status = isRunning ? "ACTIVE" : "INACTIVE";
         }
 

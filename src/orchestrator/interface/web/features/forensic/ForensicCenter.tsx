@@ -8,7 +8,7 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }
       '/components/islands/ReplayIsland.js',
       '/components/islands/BlockingLog.js',
       '/components/islands/ForensicVault.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">

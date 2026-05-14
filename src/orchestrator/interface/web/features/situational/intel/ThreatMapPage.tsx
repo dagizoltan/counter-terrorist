@@ -10,7 +10,7 @@ export const ThreatMapPage = (props: { status: any, csrfToken?: string, nonce?: 
   return (
     <Layout nonce={props.nonce} title="Global Threat Map // Spatial awareness" islandPaths={[
       '/components/islands/ThreatMap.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       {/* 01_Page_Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">

@@ -10,7 +10,7 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce
     <Layout nonce={props.nonce} title="Mesh Topology // P2P Consensus" islandPaths={[
       '/components/islands/MeshGraph.js',
       '/components/islands/MeshHeatmap.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">

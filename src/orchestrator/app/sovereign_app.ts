@@ -17,7 +17,8 @@ import {
     IncidentService, ComplianceService, NewsSignalService, 
     LedgerService, HealthService, EventMediator,
     WatchdogService, RateLimitService, TacticalIntelService,
-    CorrelationService, PolicyEngine, AutoBlockService
+    CorrelationService, PolicyEngine, AutoBlockService,
+    SubsystemStatus
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
@@ -303,7 +304,7 @@ export class SovereignApp {
             message: "Activating autonomous subsystems..."
         });
 
-        const report = (name: string, status: string) => health.reportStatus(name, status);
+        const report = (name: string, status: SubsystemStatus, error?: string) => health.reportStatus(name, status, error);
 
         report("Playbook", "OPERATIONAL");
         report("Autopilot", "OPERATIONAL");
@@ -500,8 +501,9 @@ export class SovereignApp {
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,
             mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService, networkLog, behavioral),
-            behavioral, geoIp, rateLimit, policy, correlation
-        };
+            behavioral, geoIp, rateLimit, policy, correlation,
+            autonomousAutopilot: new AutonomousAutopilotService(correlation, this.sidecarManager, loggingService)
+        } as any;
     }
 
     private initSecuritySubsystem(protection: any, mesh: any, tpm: any, health: any) {

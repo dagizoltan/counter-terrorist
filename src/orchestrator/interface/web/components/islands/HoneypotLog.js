@@ -15,6 +15,11 @@ class HoneypotLog extends HTMLElement {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const ws = new SharedWebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
+    ws.onopen = () => {
+      this.connected = true;
+      this.render();
+    };
+
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
@@ -42,8 +47,13 @@ class HoneypotLog extends HTMLElement {
   }
 
   render() {
+    const statusIndicator = this.connected
+      ? '<div class="flex items-center gap-2 mb-6"><div class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]"></div><span class="mono text-[7px] text-green-500/50 font-black uppercase tracking-widest">Pipeline_Hot</span></div>'
+      : '<div class="flex items-center gap-2 mb-6"><div class="w-1.5 h-1.5 bg-slate-700 rounded-full"></div><span class="mono text-[7px] text-slate-700 font-black uppercase tracking-widest">Connecting...</span></div>';
+
     if (this.logs.length === 0) {
       this.innerHTML = `
+        ${statusIndicator}
         <div class="flex flex-col items-center justify-center py-10 opacity-20">
            <span class="mono text-[8px] font-black uppercase tracking-[0.4em]">Awaiting_Decoy_Interaction...</span>
         </div>
@@ -52,6 +62,7 @@ class HoneypotLog extends HTMLElement {
     }
 
     this.innerHTML = `
+      ${statusIndicator}
       <div class="space-y-3 font-mono text-[10px]">
         ${this.logs.map(log => {
           const time = new Date(log.timestamp).toLocaleTimeString([], { hour12: false });

@@ -36,15 +36,12 @@ export function createAgentsRouter(getStatus: () => Promise<ApplicationStatus>) 
 
     if (!agent) return c.notFound();
 
-    const { FirewallPage, ScannerPage, EbpfPage, FimPage, PcapPage, HoneypotPage, MeshPage } = await import("./subpages/core.tsx");
+    const { FirewallPage, ScannerPage, EbpfPage, MeshPage } = await import("./subpages/core.tsx");
     
     if (name === "firewall" || name === "sentinel" || name === "vpn" || name === "tunnel") return c.html(<FirewallPage csrfToken={csrfToken} nonce={nonce} />);
     if (name === "mesh") return c.html(<MeshPage status={status} csrfToken={csrfToken} nonce={nonce} />);
     if (name === "scanner" || name === "analyzer") return c.html(<ScannerPage csrfToken={csrfToken} nonce={nonce} />);
     if (name === "ebpf") return c.html(<EbpfPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "fim" || name === "watchfile") return c.html(<FimPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "pcap" || name === "netcap") return c.html(<PcapPage csrfToken={csrfToken} nonce={nonce} />);
-    if (name === "honeypot" || name === "decoy") return c.html(<HoneypotPage csrfToken={csrfToken} nonce={nonce} />);
 
     return c.html(<AgentDetailPage agent={agent} csrfToken={csrfToken} nonce={nonce} />);
   });

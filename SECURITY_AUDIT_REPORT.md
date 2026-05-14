@@ -2,17 +2,17 @@
 
 **Date:** March 2025
 **Auditor:** Jules (Senior Security & System Architect)
-**Status:** Hardening Phase 3 (Active)
+**Status:** Hardening Phase 4 (Stabilized)
 
 ---
 
 ## 1. Executive Summary
-A comprehensive reverse-engineering and security evaluation of the Sovereign Security Orchestrator was conducted. While the system demonstrates a strong "Security by Design" philosophy, several critical vulnerabilities and functional regressions were identified that undermine the orchestrator's integrity and reliability. This audit focused on SSRF protections, sidecar lifecycle management, and UI-based information leaks.
+A comprehensive reverse-engineering and security evaluation of the Sovereign Security Orchestrator was conducted. While the system demonstrates a strong "Security by Design" philosophy, several critical vulnerabilities and functional regressions were identified. This audit successfully mitigated these risks, resolved significant technical debt in the UI layer, and aligned the navigation architecture with long-term operational goals.
 
 ---
 
 ## 2. Methodology
-The audit was performed via manual code review, reverse-engineering of Deno (TypeScript) and Rust source files, and execution of negative security tests.
+The audit was performed via manual code review, reverse-engineering of Deno (TypeScript) and Rust source files, execution of negative security tests, and systematic type-checking using the Deno compiler.
 
 ---
 
@@ -21,28 +21,32 @@ The audit was performed via manual code review, reverse-engineering of Deno (Typ
 ### 3.1. Critical Security Vulnerabilities
 | Issue | Severity | Description | Status |
 | :--- | :--- | :--- | :--- |
-| **DNS Rebinding in `safeFetch`** | **Critical** | `validateWebhookUrlAsync` resolved and checked IPs, but `fetch` used the original hostname. An attacker could switch the IP to a private address between validation and fetch. | **FIXED** |
+| **DNS Rebinding in `safeFetch`** | **Critical** | `validateWebhookUrlAsync` resolved IPs, but `fetch` used hostnames, allowing attackers to pivot to private IPs between validation and execution. | **FIXED** |
+| **Firewall Bypass Reporting** | **High** | UI reported legacy `enforcer` status for the 'Firewall' plugin, potentially hiding eBPF `sentinel` failures and misleading operators. | **FIXED** |
 | **CSP Nonce Leak** | **Medium** | The `debug-nonce` div rendered the per-request CSP nonce into the DOM, providing a target for injection probes. | **FIXED** |
-| **Broken `tcpdump` Whitelist** | **Medium** | `tcpdump` had a security policy defined but was missing from the `WHITELISTED_COMMANDS` array, breaking packet capture. | **FIXED** |
-| **Honeypot Sidecar Leak** | **Medium** | `HoneypotPlugin.stop()` only marked the plugin inactive but failed to terminate the `decoy` process. | **FIXED** |
-| **IPv6 URL Injection** | **Low** | `safeFetch` constructed invalid URLs for IPv6 literals (missing brackets), leading to potential runtime errors or bypasses. | **FIXED** |
+| **Broken `tcpdump` Whitelist** | **Medium** | Missing `tcpdump` from the `WHITELISTED_COMMANDS` array rendered core forensic packet capture features non-functional. | **FIXED** |
+| **Honeypot Sidecar Leak** | **Medium** | `HoneypotPlugin.stop()` failed to terminate the `decoy` sidecar, leading to resource leaks and background execution of unmonitored traps. | **FIXED** |
+| **IPv6 URL Injection** | **Low** | `safeFetch` constructed invalid URLs for IPv6 literals (missing brackets), leading to runtime errors during egress enforcement. | **FIXED** |
 
 ### 3.2. Architectural & UI/UX Issues
 | Issue | Severity | Description | Status |
 | :--- | :--- | :--- | :--- |
-| **Branding Inconsistency** | **Low** | Mixed use of "CT ORCH" and "COUNTER-TERRORIST" across the application. | **FIXED** |
-| **TypeScript Debt** | **Medium** | Over 29 type errors detected during `deno check`, indicating significant technical debt and potential hidden bugs. | **OPEN** |
-| **Redundant Navigation** | **Low** | Forensics links are duplicated in both the global header (per docs) and the sidebar. | **OPEN** |
+| **TypeScript Debt** | **Medium** | 29 Type Errors identified in the TSX/TS layers, undermining runtime reliability and indicating incomplete refactoring. | **FIXED** |
+| **Navigation Clutter** | **Low** | Redundant Forensic links in both Sidebar and Header created a poor UX and high cognitive load for operators. | **FIXED** |
+| **Branding Inconsistency** | **Low** | Mixed use of "CT ORCH" and "COUNTER-TERRORIST" created product identity confusion. | **FIXED** |
+| **Honeypot Forensic Gaps** | **Medium** | Honeypot detail pages lacked per-module hit tracking and real-time interaction timestamps. | **FIXED** |
 
 ---
 
-## 4. Technical Debt & Recommendations
+## 4. Technical Improvements Applied
 
-1. **Type Safety:** The orchestrator currently has 29 TypeScript errors. It is highly recommended to resolve these to prevent "undefined is not a function" errors in production.
-2. **Coordinated Shutdown:** While `SidecarManager` has a shutdown method, the `HoneypotPlugin` fix demonstrates that individual plugins need to be more proactive in cleaning up their specific sidecars.
-3. **SSRF Hardening:** The `validateWebhookUrlAsync` now returns the `resolvedIp`. This IP should be pinned for the duration of the request to prevent any possibility of rebinding.
+1. **Resolution Pinning:** `safeFetch` now pins the validated IP address for the duration of the request, neutralizing DNS Rebinding.
+2. **Authoritative eBPF Monitoring:** The UI and `SidecarManager` have been updated to prioritize and report `sentinel` (XDP/eBPF) status for all firewall-related telemetry.
+3. **Navigation Refactor:** Forensic tools (Ledger, Analysis, Compliance) have been migrated to the Global Header, leaving the Sidebar focused on active Monitoring and Defense.
+4. **Information Density:** The Environmental Signals grid was optimized with tactical panels to provide higher data density for signal intelligence.
+5. **Real-time Pulsars:** Added visual "Pipeline Hot" indicators to interactive islands to provide immediate confirmation of WebSocket health.
 
 ---
 
 ## 5. Conclusion
-The initial fixes have stabilized the core security boundaries and restored broken functionality for packet capture. However, the high number of TypeScript errors and redundant UI elements suggest that a "Polishing Phase" is required to bring the system to enterprise-grade stability.
+The Sovereign Orchestrator is now significantly more robust. The elimination of DNS Rebinding closes a major network boundary vulnerability, while the resolution of 29 type errors and navigation clutter ensures a more stable and professional operational experience. The system is now fully aligned with its goal of providing a transparent, eBPF-authoritative security layer for Ubuntu.

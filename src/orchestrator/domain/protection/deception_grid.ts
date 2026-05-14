@@ -51,7 +51,8 @@ export class DeceptionGridService {
             name: "K8s API Decoy",
             port: 6443,
             description: "Fake Kubernetes API server to detect cluster-level lateral movement.",
-            active: true
+            active: true,
+            hitCount: 0
         });
 
         this.logging.log({

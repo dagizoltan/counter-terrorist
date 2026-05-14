@@ -9,7 +9,7 @@ const ArtifactIntelPage = (props: { status: any, csrfToken?: string, nonce?: str
    return (
       <Layout nonce={props.nonce} title="Artifact Intelligence // Forensic Artifacts" islandPaths={[
          '/components/islands/ArtifactExplorer.js'
-      ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+      ]} csrfToken={props.csrfToken}>
          <section class="p-12 space-y-12 w-full">
             <header class="page-header mb-12">
                <div class="title-group">

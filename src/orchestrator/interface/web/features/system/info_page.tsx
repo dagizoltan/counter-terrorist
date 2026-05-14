@@ -10,7 +10,7 @@ export const SystemInfoPage = (props: { status: any, csrfToken?: string, nonce?:
   return (
     <Layout nonce={props.nonce} title="System Info // Node Metadata" islandPaths={[
       '/components/islands/SystemHealth.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">

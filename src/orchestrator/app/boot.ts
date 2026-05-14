@@ -6,6 +6,7 @@ import { EnvConfigProvider } from "../infrastructure/config/env_config_provider.
 import { AuditService } from "../domain/analysis/audit.ts";
 import { KvAuditRepository } from "../infrastructure/persistence/kv/kv_audit_repository.ts";
 import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
+import { LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 
 /**
  * Core Infrastructure Bootstrapper

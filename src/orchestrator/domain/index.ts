@@ -24,7 +24,7 @@ export { AutoBlockService } from "./protection/auto_block_service.ts";
 // Analysis Domain
 export { AuditService, SystemState } from "./analysis/audit.ts";
 export { EventBus } from "./analysis/events.ts";
-export { HealthService } from "./analysis/health_service.ts";
+export { HealthService, type SubsystemStatus } from "./analysis/health_service.ts";
 export { WatchdogService } from "./analysis/watchdog_service.ts";
 export { EventMediator } from "./analysis/event_mediator.ts";
 export { ProcessTracker } from "./analysis/process_tracker.ts";

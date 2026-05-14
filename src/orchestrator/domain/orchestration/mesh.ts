@@ -124,7 +124,7 @@ export class MeshManager {
   public stop() {
     if (this.discoveryInterval) {
         clearInterval(this.discoveryInterval);
-        this.discoveryInterval = undefined;
+        this.discoveryInterval = null;
     }
   }
 
