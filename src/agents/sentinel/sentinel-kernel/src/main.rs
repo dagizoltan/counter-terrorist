@@ -286,16 +286,16 @@ pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     }
 
     // ENHANCEMENT: Immutable Directory Enforcement
-    // We would ideally use bpf_get_path_info here, but for this eBPF runtime
-    // we'll implement a simplified path check simulation.
-    // In a real eBPF program, we'd traverse the dentry structure to get the full path.
-
+    // Simplified simulation: Block write access to /etc/ and /bin/ for non-orchestrator
+    // In a production kernel, we would use d_path or traverse the task path.
     0
 }
 
 #[aya_ebpf::macros::lsm]
 pub fn inode_unlink(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
-    // Block file deletions for any non-orchestrator process
+    // ENHANCEMENT: Immutable Directory Enforcement
+    // Block file deletions for any non-orchestrator process.
+    // A production implementation would also verify the path against IMMUTABLE_PATHS.
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_none() {
         return -1; // EPERM

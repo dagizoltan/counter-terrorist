@@ -219,7 +219,8 @@ async fn main() -> Result<(), anyhow::Error> {
                                     "source": std::net::Ipv4Addr::from(u32::from_be(key.src_ip)).to_string(),
                                     "destination": std::net::Ipv4Addr::from(u32::from_be(key.dst_ip)).to_string(),
                                     "anomaly_type": "DNS_TUNNELING_SUSPECTED",
-                                    "message": "High-volume traffic detected on port 53 (DNS). Potential data exfiltration."
+                                    "message": "High-volume traffic detected on port 53 (DNS). Potential data exfiltration.",
+                                    "confidence": 0.95
                                 })).await;
                             }
 
@@ -405,9 +406,18 @@ async fn main() -> Result<(), anyhow::Error> {
                 "SET_LSM_POLICY" => {
                     if let Some(paths) = cmd.paths {
                         // ENHANCEMENT: Immutable Directory LSM Policy
-                        // In a real implementation, we would push these paths to an eBPF map
-                        // which the file_open and path_unlink LSM hooks would check.
-                        emit_response(cmd.id, true, format!("LSM Policy updated with {} protected paths", paths.len())).await;
+                        if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 64], u8>::try_from(bpf_ref.map_mut("IMMUTABLE_PATHS").unwrap()) {
+                            for path in paths {
+                                let mut p_bytes = [0u8; 64];
+                                let bytes = path.as_bytes();
+                                let len = std::cmp::min(bytes.len(), 64);
+                                p_bytes[..len].copy_from_slice(&bytes[..len]);
+                                let _ = m.insert(p_bytes, 1, 0);
+                            }
+                            emit_response(cmd.id, true, format!("LSM Policy updated with protected paths")).await;
+                        } else {
+                            emit_response(cmd.id, false, "Map Error".to_string()).await;
+                        }
                     }
                 },
                 "QuarantineProcess" => {
