@@ -26,6 +26,7 @@ The audit was performed via manual code review, reverse-engineering of Deno (Typ
 | **Broken `tcpdump` Whitelist** | **Medium** | `tcpdump` had a security policy defined but was missing from the `WHITELISTED_COMMANDS` array, breaking packet capture. | **FIXED** |
 | **Honeypot Sidecar Leak** | **Medium** | `HoneypotPlugin.stop()` only marked the plugin inactive but failed to terminate the `decoy` process. | **FIXED** |
 | **IPv6 URL Injection** | **Low** | `safeFetch` constructed invalid URLs for IPv6 literals (missing brackets), leading to potential runtime errors or bypasses. | **FIXED** |
+| **Firewall Bypass Reporting** | **Medium** | The UI dashboard checked the status of the legacy `enforcer` (iptables) instead of the authoritative `sentinel` (eBPF) agent, potentially masking eBPF failures. | **FIXED** |
 
 ### 3.2. Architectural & UI/UX Issues
 | Issue | Severity | Description | Status |

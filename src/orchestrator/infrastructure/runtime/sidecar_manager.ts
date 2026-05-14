@@ -50,7 +50,10 @@ export class SidecarManager implements CommandPort {
         
         // ── Auto-Start Persistent Agents ────────────────────────────────────
         // Ensures all critical defense agents are active from boot, not just on-demand.
-        for (const name of PERSISTENT_SIDECARS) {
+        // We prioritize sentinel to ensure XDP/eBPF is active as early as possible.
+        const prioritized = ["sentinel", ...PERSISTENT_SIDECARS.filter(s => s !== "sentinel")];
+
+        for (const name of prioritized) {
             // BUG-06: Filter agents by current platform to avoid spawn failures
             if (name.endsWith("-win") && Deno.build.os !== "windows") continue;
             if (name.endsWith("-darwin") && Deno.build.os !== "darwin") continue;
