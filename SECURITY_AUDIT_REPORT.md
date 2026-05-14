@@ -32,6 +32,7 @@ The audit was performed via manual code review, reverse-engineering of Deno (Typ
 | Issue | Severity | Description | Status |
 | :--- | :--- | :--- | :--- |
 | **Branding Inconsistency** | **Low** | Mixed use of "CT ORCH" and "COUNTER-TERRORIST" across the application. | **FIXED** |
+| **Honeypot Forensic Gaps** | **Medium** | Honeypot detail pages lacked real-time interaction metrics and relied on broken asset paths. | **FIXED** |
 | **TypeScript Debt** | **Medium** | Over 29 type errors detected during `deno check`, indicating significant technical debt and potential hidden bugs. | **OPEN** |
 | **Redundant Navigation** | **Low** | Forensics links are duplicated in both the global header (per docs) and the sidebar. | **OPEN** |
 

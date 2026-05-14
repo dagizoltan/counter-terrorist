@@ -11,6 +11,8 @@ export interface HoneypotModule {
   port: number;
   description: string;
   active: boolean;
+  hitCount: number;
+  lastInteraction?: string;
 }
 
 export interface HoneypotEvent {
@@ -45,6 +47,7 @@ export class HoneypotService {
       port: 22,
       description: "Emulates an OpenSSH 8.2 server to capture brute-force attempts.",
       active: true,
+      hitCount: 0,
     });
     this.registerModule({
       id: "redis",
@@ -52,6 +55,7 @@ export class HoneypotService {
       port: 6379,
       description: "Emulates an unauthenticated Redis instance to detect RCE attempts.",
       active: false,
+      hitCount: 0,
     });
     this.registerModule({
       id: "http",
@@ -59,6 +63,7 @@ export class HoneypotService {
       port: 80,
       description: "Fake administration panel to detect web crawlers and exploit attempts.",
       active: true,
+      hitCount: 0,
     });
     this.registerModule({
       id: "postgresql",
@@ -66,6 +71,7 @@ export class HoneypotService {
       port: 5432,
       description: "Emulates an exposed PostgreSQL instance to capture credential brute-force.",
       active: true,
+      hitCount: 0,
     });
     this.registerModule({
       id: "rdp",
@@ -73,6 +79,7 @@ export class HoneypotService {
       port: 3389,
       description: "Fake Remote Desktop service to detect lateral movement attempts.",
       active: true,
+      hitCount: 0,
     });
     this.registerModule({
       id: "vault",
@@ -80,6 +87,7 @@ export class HoneypotService {
       port: 8200,
       description: "Fake Vault API to detect credential and secret theft attempts.",
       active: true,
+      hitCount: 0,
     });
   }
 
@@ -176,6 +184,10 @@ export class HoneypotService {
       const port = payload.port || "unknown";
       
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
+      if (module) {
+          module.hitCount++;
+          module.lastInteraction = new Date().toISOString();
+      }
       const callerId = module ? `decoy:${module.id}` : "decoy:unknown";
 
       this.hitCount++;
@@ -254,6 +266,11 @@ export class HoneypotService {
    */
   async onWebTrigger(route: string, source_ip: string) {
     this.hitCount++;
+    const module = this.getModule("http");
+    if (module) {
+        module.hitCount++;
+        module.lastInteraction = new Date().toISOString();
+    }
     this.emitEvent({ type: "WebAccess", source_ip, route });
 
     this.logging.log({

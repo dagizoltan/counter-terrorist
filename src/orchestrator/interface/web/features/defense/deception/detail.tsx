@@ -2,14 +2,14 @@ import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { HoneypotModule } from "@domain/protection/honeypot_service.ts";
 
-export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
+export const HoneypotDetailPage = (props: { module: HoneypotModule, nonce?: string, csrfToken?: string }) => {
   const islandPaths = [
-    '/pages/dashboard/islands/HoneypotChart.js',
+    '/components/islands/HoneypotChart.js',
     '/components/islands/HoneypotLog.js'
   ];
 
   return (
-    <Layout nonce={props.nonce} title={`${props.module.name} // Forensic Detail`} islandPaths={islandPaths}>
+    <Layout nonce={props.nonce} title={`${props.module.name} // Forensic Detail`} islandPaths={islandPaths} csrfToken={props.csrfToken}>
       {/* 1. Unified Page Header */}
       <header class="page-header">
         <div class="flex items-center gap-6">
@@ -39,14 +39,16 @@ export const HoneypotDetailPage = (props: { module: HoneypotModule }) => {
         {/* STATS GRID */}
         <div class="lg:col-span-1 space-y-8">
           <div class="bg-white/5 border border-white/5 p-8">
-            <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Interaction Latency</h3>
-            <div class="text-3xl font-black mb-2">12ms</div>
-            <p class="text-[9px] text-slate-500 font-bold uppercase">Real-time response time</p>
+            <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Total Interactions</h3>
+            <div class="text-3xl font-black mb-2">{props.module.hitCount}</div>
+            <p class="text-[9px] text-slate-500 font-bold uppercase">Accumulated triggers</p>
           </div>
           <div class="bg-white/5 border border-white/5 p-8">
-            <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Unique Attackers</h3>
-            <div class="text-3xl font-black mb-2">84</div>
-            <p class="text-[9px] text-slate-500 font-bold uppercase">Last 24 hours</p>
+            <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">Last Engagement</h3>
+            <div class="text-xl font-black mb-2 truncate" title={props.module.lastInteraction || "NEVER"}>
+                {props.module.lastInteraction ? new Date(props.module.lastInteraction).toLocaleTimeString() : 'NEVER'}
+            </div>
+            <p class="text-[9px] text-slate-500 font-bold uppercase">Time of last activity</p>
           </div>
         </div>
 
