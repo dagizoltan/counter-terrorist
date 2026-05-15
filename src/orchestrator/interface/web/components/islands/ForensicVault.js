@@ -82,7 +82,7 @@ class ForensicVault extends HTMLElement {
                           </span>
                        </td>
                        <td class="p-4 text-right">
-                          <button class="mono-xs text-primary hover:text-white transition-colors uppercase font-black">Download</button>
+                          <a href="/api/reports/forensics/download/${window.escapeHTML(a.name)}" class="mono-xs text-primary hover:text-white transition-colors uppercase font-black" download>Download</a>
                        </td>
                     </tr>
                  `).join('')}

@@ -225,7 +225,12 @@ async fn main() -> anyhow::Result<()> {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(1800)).await; // Every 30 mins
             let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-            HASH_CACHE.retain(|_, v| now - v.timestamp < 3600);
+            // B-08: Memory Leak Fix - Evict expired entries OR entries where the file no longer exists
+            HASH_CACHE.retain(|k, v| {
+                let ttl_valid = now - v.timestamp < 3600;
+                let exists = Path::new(k).exists();
+                ttl_valid && exists
+            });
         }
     });
 

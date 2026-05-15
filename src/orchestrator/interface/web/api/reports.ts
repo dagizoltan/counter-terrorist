@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { BaselineService } from "@domain/index.ts";
 import { ProtectionPort } from "@core/ports.ts";
+import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createReportsApi(baseline: BaselineService, protection: ProtectionPort) {
+export function createReportsApi(baseline: BaselineService, protection: ProtectionPort, security: SecurityMiddleware) {
   const api = new Hono();
 
-  api.get("/export", async (c) => {
+  api.get("/export", security.requireRole("admin", "operator", "viewer"), async (c) => {
       const report = {
           generatedAt: new Date().toISOString(),
           baseline: await baseline.checkDrift(),
@@ -22,7 +23,7 @@ export function createReportsApi(baseline: BaselineService, protection: Protecti
 
   // NEW: Tactical Evidence Aggregator
   // Collects list of available forensic artifacts (PCAPs, Memory Dumps)
-  api.get("/forensics/list", async (c) => {
+  api.get("/forensics/list", security.requireRole("admin", "operator", "viewer"), async (c) => {
       const forensicDir = "./volume/storage/forensics";
       const artifacts = [];
 
@@ -43,6 +44,27 @@ export function createReportsApi(baseline: BaselineService, protection: Protecti
       }
 
       return c.json(artifacts);
+  });
+
+  api.get("/forensics/download/:name", security.requireRole("admin", "operator", "viewer"), async (c) => {
+      const name = c.req.param("name");
+
+      // SEC: Path Traversal Mitigation
+      if (name.includes("..") || name.includes("/") || name.includes("\\")) {
+          return c.json({ error: "Invalid filename" }, 400);
+      }
+
+      const forensicDir = "./volume/storage/forensics";
+      const filePath = `${forensicDir}/${name}`;
+
+      try {
+          const file = await Deno.readFile(filePath);
+          c.header("Content-Type", name.endsWith(".pcap") ? "application/vnd.tcpdump.pcap" : "application/octet-stream");
+          c.header("Content-Disposition", `attachment; filename="${name}"`);
+          return c.body(file);
+      } catch (e) {
+          return c.json({ error: "File not found" }, 404);
+      }
   });
 
   return api;

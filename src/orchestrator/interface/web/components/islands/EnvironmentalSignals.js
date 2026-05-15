@@ -13,7 +13,10 @@ class EnvironmentalSignals extends HTMLElement {
 
   async fetchSignals() {
     try {
-      const resp = await fetch('/api/network/discovery');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const resp = await fetch('/api/network/discovery', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (resp.ok) {
         const data = await resp.json();
         this.signals = {

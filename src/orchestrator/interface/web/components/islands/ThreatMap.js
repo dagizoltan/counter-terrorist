@@ -74,7 +74,10 @@ class ThreatMap extends HTMLElement {
 
   async fetchHistoricalThreats() {
     try {
-      const resp = await fetch('/api/threats/identified?limit=200');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const resp = await fetch('/api/threats/identified?limit=200', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (resp.ok) {
         const { threats } = await resp.json();
         threats.forEach(t => {

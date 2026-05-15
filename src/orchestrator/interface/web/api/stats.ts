@@ -1,7 +1,8 @@
 import { Hono, Context } from "hono";
 import { EventBusPort } from "@core/ports.ts";
+import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createStatsApi(eventBus: EventBusPort) {
+export function createStatsApi(eventBus: EventBusPort, security: SecurityMiddleware) {
   const router = new Hono();
 
   // In-memory hit counter for honeypot
@@ -31,7 +32,7 @@ export function createStatsApi(eventBus: EventBusPort) {
     }
   });
 
-  router.get("/honeypot", (c: Context) => {
+  router.get("/honeypot", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
     const now = Date.now();
     // Fill gaps with 0s for a smooth graph
     const data = [];

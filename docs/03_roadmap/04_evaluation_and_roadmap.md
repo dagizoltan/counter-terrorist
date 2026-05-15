@@ -24,10 +24,10 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 
 | Blocker ID | Priority | Description | Impact | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **B-06** | **Highest** | Broken Frontend API Authentication. | The entire UI is non-functional because API requests return 401 Unauthorized. | **NEW** |
-| **B-07** | **Highest** | Broken WebSocket Authentication. | Real-time events and logging in the UI fail to connect (401 Unauthorized). | **NEW** |
-| **B-08** | **High** | Scanner Agent Memory Leak. | `hash_cache` grows indefinitely, leading to high RAM usage and OOM crashes. | **NEW** |
-| **B-09** | **High** | Antivirus Path Validation Bypass. | Using `.startsWith()` allows scanning unauthorized directories (e.g. `/tmp-malicious`). | **NEW** |
+| **B-06** | **Highest** | Broken Frontend API Authentication. | The entire UI is non-functional because API requests return 401 Unauthorized. | **RESOLVED** |
+| **B-07** | **Highest** | Broken WebSocket Authentication. | Real-time events and logging in the UI fail to connect (401 Unauthorized). | **RESOLVED** |
+| **B-08** | **High** | Scanner Agent Memory Leak. | `hash_cache` grows indefinitely, leading to high RAM usage and OOM crashes. | **RESOLVED** |
+| **B-09** | **High** | Antivirus Path Validation Bypass. | Using `.startsWith()` allows scanning unauthorized directories (e.g. `/tmp-malicious`). | **RESOLVED** |
 
 ## 4. Security Audit Findings
 - **Positive:** Input validation for IPs is present in the Rust blocker agent.
@@ -37,13 +37,13 @@ This document provides a comprehensive evaluation of the "Counter-Terrorist" sec
 
 ## 5. Roadmap to Pilot Trials
 
-### Phase 1: Core Fixes (Immediate)
-- **Frontend Authentication Refactoring:** Implement a mechanism to inject the `API_TOKEN` securely into the frontend (e.g., via session cookie, or injecting it into the HTML for the SPA to use) so API and WebSocket requests can succeed.
-- **Scanner Memory Leak Fix:** Implement cache eviction in `agents/scanner/src/main.rs`. Iterate through the `hash_cache` periodically and remove entries for executables that no longer correspond to running processes or do not exist on the filesystem.
-- **Path Validation Fix:** Refactor `AntivirusManager` to verify exact directory matches or ensure trailing slashes (e.g., checking if the path starts with `/tmp/` rather than just `/tmp`).
+### Phase 1: Core Fixes (Completed)
+- **Frontend Authentication Refactoring:** Implemented `X-CT-Token` and session-based CSRF protection. UI islands now correctly pass authorization headers.
+- **Scanner Memory Leak Fix:** Implemented proactive cache eviction in `src/agents/analyzer/src/main.rs` that verifies file existence on disk in addition to TTL.
+- **Path Validation Fix:** Refactored `validatePath` in `validation.ts` to use strict directory boundary checks and proper normalization, preventing prefix bypasses.
 
-### Phase 2: UI/UX Completeness (Short-term)
-- **Real Backend Integration:** Update `StatusIndicator.js` to fetch real agent statuses from the backend instead of using `setTimeout` mocks.
+### Phase 2: UI/UX Completeness (In Progress)
+- **Real Backend Integration:** Update `StatusIndicator.js` to fetch real agent statuses from the backend instead of using `setTimeout` mocks. (COMPLETED)
 - **Dashboard Refinement:** Ensure all hardening controls and system baselines dynamically update based on backend responses.
 
 ### Phase 3: Production Readiness (Pre-Pilot)

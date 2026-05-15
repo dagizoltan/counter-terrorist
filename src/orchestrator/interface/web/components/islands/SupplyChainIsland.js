@@ -9,8 +9,10 @@ function SupplyChainIsland() {
   const [status, setStatus] = useState(null);
 
   useEffect(() => {
-    fetch("/api/supply-chain/sbom").then(r => r.json()).then(setSbom);
-    fetch("/api/supply-chain/status").then(r => r.json()).then(setStatus);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
+    fetch("/api/supply-chain/sbom", { headers }).then(r => r.json()).then(setSbom);
+    fetch("/api/supply-chain/status", { headers }).then(r => r.json()).then(setStatus);
   }, []);
 
   if (!status) return html`

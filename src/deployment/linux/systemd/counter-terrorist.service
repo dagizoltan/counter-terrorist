@@ -12,12 +12,19 @@ Restart=always
 RestartSec=5
 
 # Hardening
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE CAP_BPF
-AmbientCapabilities=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE CAP_BPF
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE CAP_BPF CAP_NET_RAW CAP_SYS_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN CAP_KILL CAP_DAC_OVERRIDE CAP_BPF CAP_NET_RAW CAP_SYS_ADMIN
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/cts /etc/counter-terrorist
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/lib/cts /etc/counter-terrorist /proc/sys/kernel/randomize_va_space /proc/sys/net/ipv4/tcp_syncookies
 
 [Install]
 WantedBy=multi-user.target

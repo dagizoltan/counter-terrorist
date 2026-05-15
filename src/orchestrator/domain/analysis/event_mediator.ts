@@ -26,6 +26,20 @@ export class EventMediator {
         private networkLogs: NetworkLogService,
         private behavioral: BehavioralService
     ) {
+        this.behavioral = new BehavioralAnalyzer();
+
+        // SEC: Initialize in Learning Mode for the first 30 seconds to baseline startup syscalls
+        this.behavioral.setLearningMode(true);
+        setTimeout(() => {
+            this.behavioral.setLearningMode(false);
+            this.logger.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.ACTIVITY,
+                severity: LogSeverity.INFO,
+                caller: "SECURITY:BEHAVIORAL",
+                message: "Neural Defense Learning Phase Complete. Transitioning to Active Enforcement."
+            });
+        }, 30000);
     }
 
     /**

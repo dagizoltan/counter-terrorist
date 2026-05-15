@@ -8,12 +8,15 @@ export class BehavioralAnalyzer {
     private syscallFrequencies: Map<string, Map<string, number>> = new Map(); // comm -> syscall -> frequency
     private slidingWindow: Map<string, number[]> = new Map(); // ip -> window of entropy scores
     private syscallSequences: Map<string, string[]> = new Map(); // pid -> recent syscalls
+    private isLearningMode: boolean = false;
 
     // MALICIOUS INTENT PATTERNS
     private static readonly INTENT_SIGNATURES = [
         { name: "SHELLCODE_INJECT", sequence: ["mmap", "mprotect", "ptrace"], weight: 1.0 },
         { name: "CREDENTIAL_HARVEST", sequence: ["openat", "read", "connect"], weight: 0.8 },
-        { name: "EXFIL_STAGING", sequence: ["socket", "connect", "write"], weight: 0.7 }
+        { name: "EXFIL_STAGING", sequence: ["socket", "connect", "write"], weight: 0.7 },
+        { name: "RECONNAISSANCE", sequence: ["getuid", "getgid", "uname"], weight: 0.5 },
+        { name: "PERSISTENCE_SETUP", sequence: ["openat", "write", "chmod"], weight: 0.6 }
     ];
 
     track(ip: string) {
@@ -84,15 +87,31 @@ export class BehavioralAnalyzer {
         return null;
     }
 
+    setLearningMode(enabled: boolean) {
+        this.isLearningMode = enabled;
+    }
+
+    /**
+     * Enhanced Bayesian Anomaly Scoring
+     * Calculates the probability that a syscall is anomalous given its historical frequency.
+     */
     getSyscallAnomalyScore(comm: string, syscall: string): number {
+        if (this.isLearningMode) return 0;
+
         const freqMap = this.syscallFrequencies.get(comm);
         if (!freqMap) return 0; // New process, no baseline yet
 
         const total = Array.from(freqMap.values()).reduce((a, b) => a + b, 0);
         const count = freqMap.get(syscall) || 0;
 
-        const probability = count / total;
-        // Low probability events are more anomalous
-        return probability < 0.01 ? 1.0 : 0;
+        // Apply Laplacian smoothing (Add-one smoothing) for small samples
+        const smoothedProbability = (count + 1) / (total + 10); // Assume 10 possible syscall types in small window
+
+        // P(Anomalous | Syscall) = 1 - P(Normal | Syscall)
+        // Highly frequent syscalls (e.g. read/write) will have low anomaly scores.
+        // Rare or unseen syscalls in this context (e.g. ptrace by 'deno') will score high.
+        const anomalyScore = Math.max(0, 1 - (smoothedProbability * 5)); // Scaled impact
+
+        return Math.min(anomalyScore, 1.0);
     }
 }

@@ -13,6 +13,10 @@ class AnonymizerController extends HTMLElement {
   connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    if (csrfToken) {
+        url.searchParams.set('token', csrfToken);
+    }
     const ws = new SharedWebSocket(url.toString());
 
     ws.onmessage = (event) => {

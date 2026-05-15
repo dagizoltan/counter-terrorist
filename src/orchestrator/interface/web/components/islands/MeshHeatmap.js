@@ -24,7 +24,10 @@ class MeshHeatmap extends HTMLElement {
 
   async fetchNodes() {
     try {
-      const res = await fetch("/api/mesh/nodes");
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch("/api/mesh/nodes", {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       const data = await res.json();
       this.nodes = [
         { id: 'local', hostname: data.local, x: 0, y: 0, z: 0, verified: true },
@@ -44,7 +47,8 @@ class MeshHeatmap extends HTMLElement {
 
   initWebSocket() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    this.ws = new SharedWebSocket(`${protocol}//${location.host}/api/ws/events`);
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    this.ws = new SharedWebSocket(`${protocol}//${location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
     this.ws.onmessage = (msg) => {
       try {
         const event = JSON.parse(msg.data);

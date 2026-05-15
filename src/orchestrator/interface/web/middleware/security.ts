@@ -208,10 +208,8 @@ export class SecurityMiddleware {
       const signature = c.req.header("X-Mesh-Signature");
       const psk = c.req.header("X-Mesh-Secret");
       
-      if (!meshSecret) return this.auth()(c, next);
-
-      // 1. PSK Check (Fast path for internal mesh communication)
-      if (psk && await secureCompare(psk, meshSecret)) {
+      if (meshSecret && (signature || (psk && await secureCompare(psk, meshSecret)))) {
+        c.set("role", "mesh_peer");
         return next();
       }
 

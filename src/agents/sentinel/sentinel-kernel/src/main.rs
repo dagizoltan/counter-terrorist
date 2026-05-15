@@ -293,22 +293,6 @@ pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
 }
 
 #[aya_ebpf::macros::lsm]
-pub fn inode_unlink(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
-    // ENHANCEMENT: Immutable Directory Enforcement
-    // In a real implementation, we would extract the path from dentry and check IMMUTABLE_PATHS.
-    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
-
-    // Simulation: if it's a known restricted path modification attempt
-    if unsafe { TRUSTED_COMM.get(&comm) }.is_none() {
-        // We simulate checking the map by looking for specific suspicious signatures
-        if comm[0] == b'r' && comm[1] == b'm' { // 'rm'
-             return -1; // EPERM
-        }
-    }
-    0
-}
-
-#[aya_ebpf::macros::lsm]
 pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
