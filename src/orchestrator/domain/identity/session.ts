@@ -1,11 +1,12 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { SessionRepository } from "../repositories/session_repository.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
+import { Role } from "./api_keys.ts";
 
 export interface Session {
   id: string;
   userId: string;
-  role: string;
+  role: Role;
   createdAt: string;
   expiresAt: string;
   lastSeen: string;
@@ -20,7 +21,7 @@ export class SessionService {
     private ttlHours: number = 24
   ) {}
 
-  async createSession(userId: string, role: string, metadata?: any): Promise<Session> {
+  async createSession(userId: string, role: Role, metadata?: any): Promise<Session> {
     const id = crypto.randomUUID();
     const csrfToken = crypto.randomUUID();
     const now = new Date();

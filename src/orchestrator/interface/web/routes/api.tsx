@@ -27,7 +27,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
 
   // 1. Environmental Infrastructure (Discovery & Logs) - HIGH PRIORITY MATCHING
   // 1. Environmental Infrastructure (Ambient Signal Discovery)
-  router.get("/network/discovery", async (c: Context) => {
+  router.get("/network/discovery", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     // Ambient signals ONLY (WiFi, Bluetooth, Nearby Assets)
     // Active mesh topology is excluded per user requirements
     const devices = services.networkDiscovery.getDevices();
@@ -58,7 +58,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json(enriched);
   });
 
-  router.get("/network/logs", async (c: Context) => {
+  router.get("/network/logs", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     const logs = await services.networkLogs.getRecent(50);
     return c.json(logs);
   });
@@ -190,73 +190,63 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   router.use("*", security.requireRole("admin", "operator", "viewer"));
   
   router.route("/agents", createAgentsApi(services, security));
-  router.route("/reports", createReportsApi(services.baseline, services.protection));
-  router.route("/notifications", createNotificationsApi(services.notifications));
-  router.route("/audit", createAuditApi(services.audit));
-  router.route("/stats", createStatsApi(services.eventBus));
+  router.route("/reports", createReportsApi(services.baseline, services.protection, security));
+  router.route("/notifications", createNotificationsApi(services.notifications, security));
+  router.route("/audit", createAuditApi(services.audit, security));
+  router.route("/stats", createStatsApi(services.eventBus, security));
   router.route("/chaos", createChaosApi(services.chaos, security.requireRole.bind(security)));
-  router.route("/supply-chain", createSupplyChainApi(services.supplyChain));
-  router.route("/threats", createThreatsApi(services));
+  router.route("/supply-chain", createSupplyChainApi(services.supplyChain, security));
+  router.route("/threats", createThreatsApi(services, security));
 
-  const complianceApi = createComplianceApi(services);
-  const mapper = new ComplianceMapper();
-  complianceApi.get("/report", async (c) => {
-    const events = await services.audit.getRecentEvents(500);
-    const mapped = await mapper.mapEvents(events);
-    return c.json(mapper.generateJsonReport(mapped));
-  });
-  router.route("/compliance", complianceApi);
+  router.route("/compliance", createComplianceApi(services, security));
 
   // Autopilot Tactical Intelligence
-  router.get("/autopilot/intelligence", (c: Context) => {
+  router.get("/autopilot/intelligence", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
     return c.json(services.autopilot.getTacticalIntelligence());
   });
 
-  router.get("/platform", (c: Context) => {
+  router.get("/platform", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
     const info = services.platformInfo;
     return c.json({ name: info.name, version: info.version, tag: info.tag });
   });
 
-  router.post("/network/rotate", async (c: Context) => {
+  router.post("/network/rotate", security.requireRole("admin", "operator"), async (c: Context) => {
     await services.anonymization.rotate();
     return c.json({ success: true, message: "Identity rotation initiated" });
   });
 
-  router.post("/network/mode", async (c: Context) => {
+  router.post("/network/mode", security.requireRole("admin", "operator"), async (c: Context) => {
     const { mode } = await c.req.json();
     if (!mode) return c.json({ error: "Mode required" }, 400);
     await services.anonymization.setMode(mode);
     return c.json({ success: true, message: `Stealth mode set to ${mode}` });
   });
 
-  router.post("/mesh/resync", async (c: Context) => {
-    const role = c.get("role");
-    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
-    
+  router.post("/mesh/resync", security.requireRole("admin", "operator"), async (c: Context) => {
     await services.mesh.resyncNodes();
     return c.json({ success: true, message: "Mesh synchronization broadcasted" });
   });
 
-  router.post("/node/shadow", async (c: Context) => {
+  router.post("/node/shadow", security.requireRole("admin"), async (c: Context) => {
     return c.json({ success: true, message: "Shadow Mode Engaged" });
   });
 
-  router.get("/metrics", (c: Context) => {
+  router.get("/metrics", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
     const snapshot = getMetricsSnapshot();
     return c.json(snapshot || {});
   });
 
-  router.get("/system/logs", async (c: Context) => {
+  router.get("/system/logs", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     const logs = await services.audit.getRecentEvents(100);
     return c.json(logs);
   });
 
-  router.get("/status", async (c: Context) => {
+  router.get("/status", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     const baseStatus = await getBootstrapInfo();
     return c.json(baseStatus);
   });
 
-  router.get("/agent/status", async (c: Context) => {
+  router.get("/agent/status", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     const metrics = getMetricsSnapshot();
 
     return c.json({
@@ -295,7 +285,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     });
   });
 
-  router.get("/processes/tree", async (c: Context) => {
+  router.get("/processes/tree", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     if (services.processTracker.getTree().length < 5) {
       await services.processTracker.fullScan();
     }
@@ -303,7 +293,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
 
   // 4. Forensics & Active Defense
-  router.get("/forensics/export", async (c: Context) => {
+  router.get("/forensics/export", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     const type = c.req.query("type");
     if (type === "network_intel") {
       try {
@@ -319,10 +309,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json(bundle);
   });
 
-  router.post("/defense/isolate", async (c: Context) => {
-    const role = c.get("role");
-    if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
-
+  router.post("/defense/isolate", security.requireRole("admin", "operator"), async (c: Context) => {
     const { source, reason, ttl } = await c.req.json();
     if (!source) return c.json({ error: "Source required" }, 400);
     
@@ -337,10 +324,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json(result);
   });
 
-  router.post("/defense/purge", async (c: Context) => {
-    const role = c.get("role");
-    if (role !== "admin") return c.json({ error: "Forbidden: Admin required for process purge" }, 403);
-
+  router.post("/defense/purge", security.requireRole("admin"), async (c: Context) => {
     const { pid } = await c.req.json();
     if (!pid) return c.json({ error: "PID required" }, 400);
     const pidNum = parseInt(pid.toString());
@@ -352,6 +336,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   });
   
   // 5. Governance & Policy (Restricted to Admin)
+  router.use("/governance/*", security.requireRole("admin"));
   router.get("/governance/policy", (c: Context) => {
     return c.json(services.policy.getPolicy());
   });

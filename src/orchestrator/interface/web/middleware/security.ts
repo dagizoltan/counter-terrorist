@@ -209,6 +209,7 @@ export class SecurityMiddleware {
       const psk = c.req.header("X-Mesh-Secret");
       
       if (meshSecret && (signature || (psk && await secureCompare(psk, meshSecret)))) {
+        c.set("role", "mesh_peer");
         return next();
       }
       return this.auth()(c, next);

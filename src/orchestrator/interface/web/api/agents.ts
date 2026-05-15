@@ -78,7 +78,7 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
     return c.json(result);
   });
 
-  router.get("/firewall/status", async (c: Context) => {
+  router.get("/firewall/status", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     const result = await services.protection.firewall.getStatus();
     return c.json(result);
   });
@@ -109,7 +109,7 @@ export function createAgentsApi(services: ServiceContainer, security: SecurityMi
     return c.json(result.success ? result.data : { success: false, error: result.error.message });
   });
   
-  router.get("/scanner/ledger", async (c: Context) => {
+  router.get("/scanner/ledger", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
     const ledger = await services.curatedIntel.getLedger({ type: "HASH", minScore: 90, limit: 50 });
     return c.json(ledger);
   });

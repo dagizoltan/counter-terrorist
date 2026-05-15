@@ -1,15 +1,16 @@
 import { Hono } from "hono";
 import { ServiceContainer } from "@core/container.ts";
+import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createThreatsApi(services: ServiceContainer) {
+export function createThreatsApi(services: ServiceContainer, security: SecurityMiddleware) {
     const router = new Hono();
 
-    router.get("/feed", async (c) => {
+    router.get("/feed", security.requireRole("admin", "operator", "viewer"), async (c) => {
         const signals = await services.news.getLatestSignals(50);
         return c.json(signals);
     });
 
-    router.get("/identified", async (c) => {
+    router.get("/identified", security.requireRole("admin", "operator", "viewer"), async (c) => {
         const type = c.req.query("type");
         const provider = c.req.query("provider");
         const search = c.req.query("search");
@@ -20,24 +21,18 @@ export function createThreatsApi(services: ServiceContainer) {
         return c.json(result);
     });
 
-    router.get("/identified/stats", async (c) => {
+    router.get("/identified/stats", security.requireRole("admin", "operator", "viewer"), async (c) => {
         const stats = await services.curatedIntel.getStats();
         return c.json(stats);
     });
 
-    router.post("/identified/sync", async (c) => {
-        const role = (c.get as any)("role");
-        if (role !== "admin" && role !== "operator") return c.json({ error: "Forbidden" }, 403);
-
+    router.post("/identified/sync", security.requireRole("admin", "operator"), async (c) => {
         const { provider } = await c.req.json().catch(() => ({}));
         await services.curatedIntel.sync(provider);
         return c.json({ success: true, provider });
     });
 
-    router.post("/identified/wipe", async (c) => {
-        const role = (c.get as any)("role");
-        if (role !== "admin") return c.json({ error: "Forbidden: Admin role required for database wipe" }, 403);
-
+    router.post("/identified/wipe", security.requireRole("admin"), async (c) => {
         await services.curatedIntel.wipeDatabase();
         return c.json({ success: true });
     });

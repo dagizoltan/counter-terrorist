@@ -1,10 +1,11 @@
 import { Hono } from "hono";
 import { AuditService } from "@domain/index.ts";
+import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createAuditApi(auditService: AuditService) {
+export function createAuditApi(auditService: AuditService, security: SecurityMiddleware) {
   const auditApi = new Hono();
 
-  auditApi.get("/", async (c) => {
+  auditApi.get("/", security.requireRole("admin", "operator", "viewer"), async (c) => {
       const limit = Number(c.req.query("limit")) || 50;
       const events = await auditService.getRecentEvents(limit);
       return c.json(events);
@@ -14,7 +15,7 @@ export function createAuditApi(auditService: AuditService) {
    * Verifies the integrity of the audit log hash chain.
    * Returns whether any events have been tampered with or deleted.
    */
-  auditApi.get("/verify", async (c) => {
+  auditApi.get("/verify", security.requireRole("admin", "operator"), async (c) => {
       const limit = Number(c.req.query("limit")) || 1000;
       try {
         const result = await auditService.verifyChain(limit);
@@ -25,7 +26,7 @@ export function createAuditApi(auditService: AuditService) {
       }
   });
 
-  auditApi.get("/status", async (c) => {
+  auditApi.get("/status", security.requireRole("admin", "operator", "viewer"), async (c) => {
     const status = await auditService.getChainStatus();
     return c.json(status);
   });

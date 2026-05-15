@@ -1,14 +1,15 @@
 import { Hono } from "hono";
 import { NotificationService } from "@domain/index.ts";
+import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createNotificationsApi(notificationService: NotificationService) {
+export function createNotificationsApi(notificationService: NotificationService, security: SecurityMiddleware) {
   const api = new Hono();
 
   api.get("/", (c) => {
       return c.json(notificationService.getWebhooks());
   });
 
-  api.post("/", async (c) => {
+  api.post("/", security.requireRole("admin", "operator"), async (c) => {
       const config = await c.req.json();
       const result = await notificationService.addWebhook(config);
       if ("error" in result) {
@@ -17,7 +18,7 @@ export function createNotificationsApi(notificationService: NotificationService)
       return c.json(result, 201);
   });
 
-  api.delete("/:id", async (c) => {
+  api.delete("/:id", security.requireRole("admin", "operator"), async (c) => {
       const id = c.req.param("id");
       const success = await notificationService.deleteWebhook(id);
       return c.json({ success });
