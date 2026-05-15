@@ -13,7 +13,9 @@ export class BehavioralAnalyzer {
     private static readonly INTENT_SIGNATURES = [
         { name: "SHELLCODE_INJECT", sequence: ["mmap", "mprotect", "ptrace"], weight: 1.0 },
         { name: "CREDENTIAL_HARVEST", sequence: ["openat", "read", "connect"], weight: 0.8 },
-        { name: "EXFIL_STAGING", sequence: ["socket", "connect", "write"], weight: 0.7 }
+        { name: "EXFIL_STAGING", sequence: ["socket", "connect", "write"], weight: 0.7 },
+        { name: "RECONNAISSANCE", sequence: ["getuid", "getgid", "uname"], weight: 0.5 },
+        { name: "PERSISTENCE_SETUP", sequence: ["openat", "write", "chmod"], weight: 0.6 }
     ];
 
     track(ip: string) {

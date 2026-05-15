@@ -53,7 +53,10 @@ class ArtifactExplorer extends HTMLElement {
 
   async fetchStats() {
     try {
-      const resp = await fetch('/api/threats/identified/stats');
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const resp = await fetch('/api/threats/identified/stats', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (resp.ok) {
         this.stats = await resp.json();
         this.render();
@@ -76,7 +79,10 @@ class ArtifactExplorer extends HTMLElement {
         offset: append ? this.filter.offset : ''
       });
 
-      const resp = await fetch(`/api/threats/identified?${params.toString()}`);
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const resp = await fetch(`/api/threats/identified?${params.toString()}`, {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (resp.ok) {
         const { threats, nextCursor } = await resp.json();
         this.artifacts = append ? [...this.artifacts, ...threats] : threats;

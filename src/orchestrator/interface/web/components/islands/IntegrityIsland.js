@@ -10,7 +10,10 @@ export default function IntegrityIsland() {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
-    fetch("/api/audit/status")
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    fetch("/api/audit/status", {
+      headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+    })
       .then(r => r.json())
       .then(setStatus);
   }, []);

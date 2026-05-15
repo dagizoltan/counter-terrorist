@@ -85,7 +85,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   return { valid: true };
 }
 
-export const ALLOWED_SIDECARS = ["analyzer", "enforcer", "decoy", "netcap", "watchfile", "trustroot", "tunnel", "mesh", "firewall", "sentinel-darwin", "enforcer-win", "telemetry-win"] as const;
+export const ALLOWED_SIDECARS = ["analyzer", "enforcer", "decoy", "netcap", "watchfile", "trustroot", "tunnel", "mesh", "firewall", "sentinel-darwin", "enforcer-win", "telemetry-win", "sentinel"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
 export function isAllowedSidecar(name: string): name is SidecarName {
@@ -127,18 +127,22 @@ export function validatePath(p: string, jailPrefixes?: string[]): boolean {
   }
 
   if (jailPrefixes && jailPrefixes.length > 0) {
-    return jailPrefixes.some(jail => {
+    const isInside = jailPrefixes.some(jail => {
         const normalizedJail = normalize(jail.endsWith("/") ? jail : jail + "/");
         const normalizedP = normalize(normalized.endsWith("/") ? normalized : normalized + "/");
         return normalizedP.startsWith(normalizedJail);
     });
+    if (!isInside) return false;
   }
+
+  // B-09: Refined boundary check to prevent prefix bypass (e.g. /tmp-malicious)
+  // Even if no jail is provided, we should ensure the path is safe
+  if (normalized.includes("..")) return false;
 
   return true;
 }
 
 // IPC Schemas
-
 export interface BaseRequest {
   id?: string;
   type: string;

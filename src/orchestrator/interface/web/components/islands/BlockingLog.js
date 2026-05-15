@@ -78,7 +78,10 @@ class BlockingLog extends HTMLElement {
     
     try {
       const url = '/api/audit?limit=1000';
-      const res = await fetch(url);
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch(url, {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
       if (res.ok) {
         const data = await res.json();
         this.logs = Array.isArray(data) ? data : (data.items || []);
@@ -179,6 +182,15 @@ class BlockingLog extends HTMLElement {
     const detailHtml = `
       <div class="log-detail hidden px-12 pb-6 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
         <div class="bg-black/40 border border-white/5 rounded-xl p-4 overflow-x-auto custom-scrollbar">
+          ${log.data?.intent ? `
+          <div class="mb-4 p-3 bg-danger/10 border border-danger/20 rounded-lg">
+             <div class="flex items-center gap-2 mb-1">
+                <div class="w-1.5 h-1.5 bg-danger rounded-full animate-pulse"></div>
+                <span class="mono text-[9px] font-black text-danger uppercase tracking-widest">Behavioral_Intent_Verdict</span>
+             </div>
+             <div class="mono text-[10px] text-slate-300 uppercase font-bold">Intent: <span class="text-danger">${window.escapeHTML(log.data.intent)}</span> // Confidence: <span class="text-white">${(log.data.score * 100).toFixed(0)}%</span></div>
+          </div>
+          ` : ''}
           <div class="flex items-center gap-2 mb-3">
              <div class="w-1 h-3 bg-primary/40 rounded-full"></div>
              <span class="mono text-[8px] font-black text-slate-500 uppercase tracking-widest">Extended_Payload</span>

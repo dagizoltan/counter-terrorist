@@ -150,9 +150,11 @@ fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
     let key = SessionKey { src_ip, dst_ip, src_port, dst_port, proto };
     
     // EXFILTRATION DETECTION: Update volume metrics per session
-    if let Some(val) = unsafe { ACTIVE_SESSIONS.get_mut(&key) } {
-        val.last_seen = unsafe { bpf_ktime_get_ns() };
-        val.bytes_count += total_len as u64;
+    if let Some(val) = unsafe { ACTIVE_SESSIONS.get_ptr_mut(&key) } {
+        unsafe {
+            (*val).last_seen = bpf_ktime_get_ns();
+            (*val).bytes_count += total_len as u64;
+        }
     } else {
         let val = SessionValue {
             last_seen: unsafe { bpf_ktime_get_ns() },
@@ -173,7 +175,7 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 59,
@@ -192,7 +194,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm: bpf_get_current_comm().unwrap_or([0; 16]),
         syscall_id: 101,
@@ -208,7 +210,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
 pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
     let prot: u64 = ctx.arg(2).unwrap_or(0);
     if (prot & 0x04) != 0 { // PROT_EXEC
-        let mut event = SyscallEvent {
+        let event = SyscallEvent {
             pid: (bpf_get_current_pid_tgid() >> 32) as u32,
             comm: bpf_get_current_comm().unwrap_or([0; 16]),
             syscall_id: 9,
@@ -222,7 +224,7 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
 }
 
 #[aya_ebpf::macros::lsm]
-pub fn sb_mount(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+pub fn sb_mount(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 8) != 0 || (*policy & 1) != 0 {
@@ -239,7 +241,7 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 42,
@@ -258,7 +260,7 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let mut event = SyscallEvent {
+    let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 257,
@@ -271,7 +273,7 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
 }
 
 #[aya_ebpf::macros::lsm]
-pub fn file_open(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 4) != 0 || (*policy & 1) != 0 {
@@ -282,7 +284,7 @@ pub fn file_open(ctx: aya_ebpf::programs::LsmContext) -> i32 {
 }
 
 #[aya_ebpf::macros::lsm]
-pub fn socket_connect(ctx: aya_ebpf::programs::LsmContext) -> i32 {
+pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 2) != 0 || (*policy & 1) != 0 {

@@ -45,5 +45,26 @@ export function createReportsApi(baseline: BaselineService, protection: Protecti
       return c.json(artifacts);
   });
 
+  api.get("/forensics/download/:name", async (c) => {
+      const name = c.req.param("name");
+
+      // SEC: Path Traversal Mitigation
+      if (name.includes("..") || name.includes("/") || name.includes("\\")) {
+          return c.json({ error: "Invalid filename" }, 400);
+      }
+
+      const forensicDir = "./volume/storage/forensics";
+      const filePath = `${forensicDir}/${name}`;
+
+      try {
+          const file = await Deno.readFile(filePath);
+          c.header("Content-Type", name.endsWith(".pcap") ? "application/vnd.tcpdump.pcap" : "application/octet-stream");
+          c.header("Content-Disposition", `attachment; filename="${name}"`);
+          return c.body(file);
+      } catch (e) {
+          return c.json({ error: "File not found" }, 404);
+      }
+  });
+
   return api;
 }
