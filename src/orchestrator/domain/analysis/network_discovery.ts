@@ -23,7 +23,6 @@ export interface NetworkDevice {
  */
 export class NetworkDiscoveryService {
     private devices: Map<string, NetworkDevice> = new Map();
-    private spectrumDensity: number = 0;
     private discovery: any;
     private selfId: string = "LOCAL_NODE";
     private mesh?: any;
@@ -189,9 +188,6 @@ export class NetworkDiscoveryService {
                     });
                 }
 
-                // 4. Spectrum Anomaly Detection
-                this.calculateSpectrumDensity();
-
             } catch (e) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
@@ -220,27 +216,6 @@ export class NetworkDiscoveryService {
 
     getDevices(): NetworkDevice[] {
         return Array.from(this.devices.values());
-    }
-
-    getSpectrumDensity(): number {
-        return this.spectrumDensity;
-    }
-
-    private calculateSpectrumDensity() {
-        const total = this.devices.size;
-        const unauthorized = Array.from(this.devices.values()).filter(d => !d.isMeshNode && d.type !== "ETHERNET").length;
-
-        this.spectrumDensity = total > 0 ? (unauthorized / 20) * 100 : 0; // Baseline: 20 unauthorized signals
-
-        if (this.spectrumDensity > 80) {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
-                caller: "discovery:spectrum",
-                message: `HIGH SPECTRUM DENSITY: ${unauthorized} unauthorized signals detected. Potential proximity threat.`
-            });
-        }
     }
 
     private async getPrimaryInterface() {

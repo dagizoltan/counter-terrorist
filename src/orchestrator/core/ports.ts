@@ -45,6 +45,8 @@ export interface FirewallPort {
   lockdown(): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
   quarantineProcess(pid: number): Promise<CommandResult>;
+  enforcePid(pid: number): Promise<CommandResult>;
+  unenforcePid(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
   flushRules(): Promise<CommandResult>;
   getBlockedIps(): Promise<string[]>;

@@ -15,16 +15,12 @@ export class BehavioralService {
 
   constructor(private firewall: FirewallManager, private audit?: AuditService) {}
   
-  getSuspiciousIps(): string[] {
-    return Array.from(this.history.entries())
-      .map(([ip, stats]) => ({
-        ip,
-        attempts: stats.timestamps.length,
-        lastSeen: stats.timestamps[stats.timestamps.length - 1]
-      }))
-      .sort((a, b) => b.attempts - a.attempts)
-      .slice(0, 10)
-      .map(s => s.ip);
+  getSuspiciousIps() {
+    return Array.from(this.history.entries()).map(([ip, stats]) => ({
+      ip,
+      attempts: stats.timestamps.length,
+      lastSeen: stats.timestamps[stats.timestamps.length - 1]
+    }));
   }
 
   async analyze(ip: string) {
@@ -32,11 +28,6 @@ export class BehavioralService {
     let stats = this.history.get(ip);
 
     if (!stats) {
-      // PERF-02: Prevent memory exhaustion under scan/DDoS
-      if (this.history.size > 1000) {
-        const oldestIp = this.history.keys().next().value;
-        if (oldestIp) this.history.delete(oldestIp);
-      }
       stats = { timestamps: [], intervals: [] };
       this.history.set(ip, stats);
     }
@@ -91,11 +82,6 @@ export class BehavioralService {
     }
 
     return "PENDING";
-  }
-
-  analyzeNetworkTraffic(ip: string): { botProbability: number, entropy: number } {
-    this.analyzer.track(ip);
-    return this.analyzer.analyze(ip);
   }
 
   async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]) {

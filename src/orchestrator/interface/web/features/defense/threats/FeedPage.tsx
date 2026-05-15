@@ -3,7 +3,7 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const FeedPage = () => {
   return (
-    <Layout nonce={props.nonce} title="Security Feed // Global Intelligence" csrfToken={props.csrfToken} >
+    <Layout title="Security Feed // Global Intelligence" csrfToken={props.csrfToken} nonce={props.nonce}>
       <div class="mb-12">
         <h1 class="text-4xl font-black tracking-tighter uppercase mb-2 flex items-center gap-4">
           <span class="w-2 h-10 bg-cyber rounded-full"></span>

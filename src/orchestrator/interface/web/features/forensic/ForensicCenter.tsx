@@ -1,19 +1,19 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }) => {
+export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="Investigation Lab // Tactical Signal" islandPaths={[
+    <Layout title="Investigation Lab // Tactical Signal" islandPaths={[
       '/components/islands/TimelineIsland.js',
       '/components/islands/ReplayIsland.js',
       '/components/islands/BlockingLog.js',
       '/components/islands/ForensicVault.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Investigation Lab</h1>
-          <span class="subtitle">Temporal Replay Hub</span>
+          <span class="subtitle">Post-mortem Causal Analysis & Temporal Replay Hub</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-danger/10 border border-danger/30 px-8 py-4 rounded-full backdrop-blur-xl shadow-[0_0_20px_rgba(var(--danger-rgb),0.15)]">
@@ -32,11 +32,14 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }
                  </div>
                  <div class="flex flex-col gap-1.5">
                     <h3 class="tactical-title text-2xl tracking-widest uppercase">Live Signal Stream</h3>
+                    <p class="mono-xs text-slate-500 font-bold uppercase tracking-[0.4em]">Real-time forensic packet capture and policy enforcement</p>
                  </div>
               </div>
               <div class="flex gap-4">
                  <button class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest">Rewind Buffer</button>
+                 {props.userRole === "admin" && (
                  <button class="t-btn danger px-6 py-3 text-[10px] font-black uppercase tracking-widest">Purge Logs</button>
+                 )}
               </div>
            </header>
            <div class="p-6 bg-black/40 min-h-[600px] overflow-x-auto custom-scrollbar">
@@ -71,10 +74,12 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string }
                   <div id="forensic-replay-root"></div>
                </div>
                <footer class="p-8 border-t border-white/5 bg-black/40 flex flex-col gap-4">
-                  <button class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest group/btn">
+                  {(props.userRole === "admin" || props.userRole === "operator") && (
+                  <button onclick="document.querySelector('forensic-vault').generateBundle()" class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest group/btn">
                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="mr-3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                      Generate Evidence Bundle
                   </button>
+                  )}
                </footer>
             </div>
          </div>

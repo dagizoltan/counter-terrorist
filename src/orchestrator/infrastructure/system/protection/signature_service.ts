@@ -1,6 +1,5 @@
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
-import { canonicalStringify } from "@core/crypto_utils.ts";
 
 /**
  * SignatureService
@@ -8,28 +7,22 @@ import { canonicalStringify } from "@core/crypto_utils.ts";
  * Utilizes native Deno SubtleCrypto for zero-dependency sovereign security.
  */
 export class SignatureService {
-    private keyCache: Map<string, CryptoKey> = new Map();
-
     /**
      * Verifies that a manifest was signed by the authoritative operator key.
      */
     async verify(manifest: any, signatureBase64: string, publicKeyBase64: string): Promise<boolean> {
         try {
-            let key = this.keyCache.get(publicKeyBase64);
-            if (!key) {
-                const publicKeyData = Uint8Array.from(atob(publicKeyBase64), c => c.charCodeAt(0));
-                key = await crypto.subtle.importKey(
-                    "raw",
-                    publicKeyData,
-                    { name: "Ed25519", namedCurve: "Ed25519" },
-                    true,
-                    ["verify"]
-                );
-                this.keyCache.set(publicKeyBase64, key);
-            }
-
+            const publicKeyData = Uint8Array.from(atob(publicKeyBase64), c => c.charCodeAt(0));
             const signature = Uint8Array.from(atob(signatureBase64), c => c.charCodeAt(0));
-            const data = new TextEncoder().encode(canonicalStringify(manifest));
+            const data = new TextEncoder().encode(JSON.stringify(manifest));
+
+            const key = await crypto.subtle.importKey(
+                "raw",
+                publicKeyData,
+                { name: "Ed25519", namedCurve: "Ed25519" },
+                true,
+                ["verify"]
+            );
 
             return await crypto.subtle.verify(
                 { name: "Ed25519" },

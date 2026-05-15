@@ -47,12 +47,13 @@ The system follows a three-tier model:
    ```
    *Note: Access the dashboard at http://localhost:8000. Bearer token authentication is required for API access.*
 
-## 🛣️ Current Status: Milestone 1
+## 🛣️ Current Status: Milestone 4 (v5.2-STABLE)
 
-We are currently in **Milestone 1: Security Foundations**. Development is focused on:
-- Hardening the API with Bearer Auth.
-- Implementing strict IP and Path validation.
-- Establishing the sidecar allowlist.
+We have successfully completed **Milestone 4: Operational Sovereignty**. The system is now in an "Armed & Operational" state.
+- **Enterprise RBAC:** Multi-tiered access control (`admin`, `operator`, `viewer`).
+- **Autonomous Defense:** eBPF LSM-based process isolation and automated exfiltration kill-switches.
+- **Forensic Ledger:** Cryptographically signed evidence bundles and hardware-rooted integrity.
+- **Mesh Intelligence:** Secured P2P gossip and persistent behavioral baselines.
 
 ## 🔐 Security Posture
 

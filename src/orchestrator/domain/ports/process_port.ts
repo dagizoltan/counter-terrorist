@@ -7,7 +7,6 @@ export interface ProcessInfo {
 export interface ProcessPort {
     getProcessInfo(pid: number): Promise<ProcessInfo | null>;
     listProcesses(): AsyncIterable<number>;
-    getAllProcesses(): Promise<ProcessInfo[]>;
     isAlive(pid: number): boolean;
     getOwnPid(): number;
 }

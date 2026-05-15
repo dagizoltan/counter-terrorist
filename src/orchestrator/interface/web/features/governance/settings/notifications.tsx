@@ -6,17 +6,17 @@ import { ApplicationStatus } from "@core/ports.ts";
  * Notifications Page
  * External alert relay and webhook management.
  */
-export const NotificationsPage = (props: { status: ApplicationStatus, csrfToken?: string, nonce?: string }) => {
+export const NotificationsPage = (props: { status: ApplicationStatus, csrfToken?: string, nonce?: string, userRole?: string }) => {
   const islandPaths = ['/components/islands/WebhookManager.js'];
 
   return (
-    <Layout nonce={props.nonce} title="Alert Relay // Governance" islandPaths={islandPaths} csrfToken={props.csrfToken} >
+    <Layout title="Alert Relay // Governance" islandPaths={islandPaths} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
         <div class="title-group">
           <h1>Alert Relay</h1>
-          <span class="subtitle">Sync Status: Secure</span>
+          <span class="subtitle">External Pipeline Active // Sync Status: Secure</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-8 py-4 rounded-full">

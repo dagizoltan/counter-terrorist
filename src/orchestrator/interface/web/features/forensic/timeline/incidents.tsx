@@ -94,7 +94,7 @@ export const IncidentsPage = (props: { csrfToken?: string, nonce?: string }) => 
   \`;
 
   return (
-    <Layout nonce={props.nonce} title="Security Incidents // Response Management" csrfToken={props.csrfToken} >
+    <Layout title="Security Incidents // Response Management" csrfToken={props.csrfToken} nonce={props.nonce}>
       {/* 1. Header Section */}
       <header class="flex justify-between items-end mb-12">
         <div class="flex items-center gap-4">

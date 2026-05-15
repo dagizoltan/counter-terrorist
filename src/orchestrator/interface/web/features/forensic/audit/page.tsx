@@ -1,15 +1,15 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const AuditPage = (props: { csrfToken?: string, nonce?: string }) => {
+export const AuditPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js']} csrfToken={props.csrfToken} >
+    <Layout title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Governance_Ledger</h1>
-          <span class="subtitle">Root_Node_Authority</span>
+          <span class="subtitle">Authoritative Compliance & Enforcement History // Root_Node_Authority</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-8 py-4 rounded-full backdrop-blur-xl">
@@ -84,7 +84,9 @@ export const AuditPage = (props: { csrfToken?: string, nonce?: string }) => {
                </div>
                <div class="flex gap-4">
                   <button class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Re-verify_Integrity</button>
+                  {(props.userRole === "admin" || props.userRole === "operator") && (
                   <button class="t-btn primary px-6 py-3 text-[10px] font-black uppercase tracking-widest">Export_Evidence</button>
+                  )}
                </div>
             </header>
             

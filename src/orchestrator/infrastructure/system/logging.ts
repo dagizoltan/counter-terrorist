@@ -1,7 +1,7 @@
 import { LoggingPort, LogSeverity, LogType, LogEntry, SyslogSeverity } from "@core/ports.ts";
 import { TimelineRepository } from "../persistence/repositories/timeline_repository.ts";
 import { DiagnosticRepository } from "../persistence/diagnostic_repository.ts";
-
+import { broadcast } from "@api/ws.ts";
 
 export { LogSeverity, LogType, SyslogSeverity };
 
@@ -14,14 +14,13 @@ export class LoggingService implements LoggingPort {
     private logBuffer: string[] = [];
     private maxBufferSize = 1000;
     private isForwarding = false;
-    private flushInterval: number | undefined;
     private tlsCaCertPath: string | null = null;
     private diagnosticRepo: DiagnosticRepository | null = null;
     private preInitBuffer: LogEntry[] = [];
-    private broadcaster: ((data: any) => void) | null = null;
 
     /** Persistent TCP/TLS or UDP connection, reused across flushes. */
     private persistentConn: Deno.Conn | Deno.TlsConn | Deno.DatagramConn | null = null;
+    private flushIntervalId: number | null = null;
 
     constructor(kv?: Deno.Kv) {
         if (kv) {
@@ -42,10 +41,6 @@ export class LoggingService implements LoggingPort {
             }).catch(() => {});
             this.startFlushInterval();
         }
-
-        if (Deno.build.os !== "windows") {
-            this.startUdsListener();
-        }
     }
 
     setKv(kv: Deno.Kv) {
@@ -58,10 +53,6 @@ export class LoggingService implements LoggingPort {
                 this.diagnosticRepo.addLog(entry).catch(() => {});
             }
         }
-    }
-
-    setBroadcaster(broadcaster: (data: any) => void) {
-        this.broadcaster = broadcaster;
     }
 
     async getRecentLogs(limit: number = 100) {
@@ -191,13 +182,10 @@ export class LoggingService implements LoggingPort {
         }
 
         // 4. Real-time Broadcast: Sink to connected UI consoles
-        if (this.broadcaster) {
-            this.broadcaster({
-                type: "AUDIT_EVENT",
-                data: entry,
-                silent: true // PERF-06
-            });
-        }
+        broadcast({
+            type: "AUDIT_EVENT",
+            data: entry
+        });
     }
 
     async logLegacy(message: string, severity: LogSeverity | SyslogSeverity = LogSeverity.INFO, source: string = "SYSTEM", payload?: any) {
@@ -245,14 +233,18 @@ export class LoggingService implements LoggingPort {
     }
 
     private startFlushInterval() {
-        this.flushInterval = setInterval(() => this.flushLogs(), 5000);
+        this.flushIntervalId = setInterval(() => this.flushLogs(), 5000);
     }
 
-    public stop() {
-        if (this.flushInterval) {
-            clearInterval(this.flushInterval);
-            this.flushInterval = undefined;
+    /**
+     * Terminate background intervals and close connections.
+     */
+    async shutdown() {
+        if (this.flushIntervalId) {
+            clearInterval(this.flushIntervalId);
+            this.flushIntervalId = null;
         }
+        await this.flushLogs();
         this.closePersistentConn();
     }
 

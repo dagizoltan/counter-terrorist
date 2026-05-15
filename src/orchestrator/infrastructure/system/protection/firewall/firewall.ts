@@ -19,10 +19,8 @@ export class FirewallManager {
     const ips: string[] = [];
     for await (const res of iter) {
       const ip = res.key[1] as string;
-      if (ip) {
-        this.blockedIps.add(ip);
-        ips.push(ip);
-      }
+      this.blockedIps.add(ip);
+      ips.push(ip);
     }
 
     if (ips.length > 0) {
@@ -34,22 +32,20 @@ export class FirewallManager {
           message: `Hydrating firewall with ${ips.length} existing enforcement rules...`
       });
 
-      // Parallel enforcement with concurrency limit (Background)
-      (async () => {
-        const limit = 50;
-        for (let i = 0; i < ips.length; i += limit) {
-          const batch = ips.slice(i, i + limit);
-          await Promise.all(batch.map(ip => this.provider.blockIp(ip).catch(() => {})));
-        }
+      // Parallel enforcement with concurrency limit to avoid OS overhead
+      const limit = 50;
+      for (let i = 0; i < ips.length; i += limit) {
+        const batch = ips.slice(i, i + limit);
+        await Promise.all(batch.map(ip => this.provider.blockIp(ip).catch(() => {})));
+      }
 
-        loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.SUCCESS,
-            caller: "orchestrator:infra:system:protection:firewall",
-            message: `Firewall hydration complete.`
-        });
-      })();
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.SUCCESS,
+          caller: "orchestrator:infra:system:protection:firewall",
+          message: `Firewall hydration complete.`
+      });
     }
   }
 
@@ -225,12 +221,26 @@ export class FirewallManager {
     return await this.provider.quarantineProcess(pid);
   }
 
+  async enforcePid(pid: number) {
+    broadcast({
+        type: "AUDIT_EVENT",
+        data: {
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:system:protection:firewall:enforcement",
+            message: `Active LSM Enforcement: Restricted all resource access for PID ${pid}`,
+            payload: { pid }
+        }
+    });
+    return await this.provider.enforcePid(pid);
+  }
+
+  async unenforcePid(pid: number) {
+    return await this.provider.unenforcePid(pid);
+  }
+
   async getStatus() {
-    const providerStatus = await this.provider.getStatus();
-    return {
-      ...providerStatus,
-      blocked_ips: Array.from(this.blockedIps)
-    };
+    return await this.provider.getStatus();
   }
 
   async lockdown() {

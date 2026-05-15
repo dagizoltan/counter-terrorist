@@ -106,20 +106,19 @@ class BlockingLog extends HTMLElement {
         if (this.logs.length > 2000) this.logs.pop();
         
         // Only prepend if it matches the current filter
-        const isAudit = data.type === 'audit' || data.type === 'AUDIT';
-        if ((this.filter === 'ALL' && !isAudit) || data.type === this.filter) {
+        if (this.filter === 'ALL' || data.type === this.filter) {
           this.prependLog(data);
         }
       } catch (e) {}
     };
-    /* Reconnection handled by SharedWebSocket */
+    socket.onclose = () => setTimeout(() => this.connect(), 5000);
   }
 
   rebuildList() {
     if (!this.container) return;
     this.container.innerHTML = '';
     const filteredLogs = this.filter === 'ALL'
-      ? this.logs.filter(log => log.type !== 'audit' && log.type !== 'AUDIT')
+      ? this.logs
       : this.logs.filter(log => log.type === this.filter);
     
     filteredLogs.forEach(log => this.appendLog(log));

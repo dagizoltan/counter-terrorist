@@ -9,6 +9,7 @@ export class BehavioralAnalyzer {
     private slidingWindow: Map<string, number[]> = new Map(); // ip -> window of entropy scores
     private syscallSequences: Map<string, string[]> = new Map(); // pid -> recent syscalls
     private isLearningMode: boolean = false;
+    private kv?: Deno.Kv;
 
     // MALICIOUS INTENT PATTERNS
     private static readonly INTENT_SIGNATURES = [
@@ -89,6 +90,37 @@ export class BehavioralAnalyzer {
 
     setLearningMode(enabled: boolean) {
         this.isLearningMode = enabled;
+        if (!enabled && this.kv) {
+            this.persistBaselines();
+        }
+    }
+
+    async setKv(kv: Deno.Kv) {
+        this.kv = kv;
+        await this.loadBaselines();
+    }
+
+    private async persistBaselines() {
+        if (!this.kv) return;
+        const serialized: Record<string, Record<string, number>> = {};
+        for (const [comm, freqs] of this.syscallFrequencies.entries()) {
+            serialized[comm] = Object.fromEntries(freqs);
+        }
+        await this.kv.set(["behavioral", "baselines", "v1"], {
+            syscallFrequencies: serialized,
+            updatedAt: Date.now()
+        });
+    }
+
+    private async loadBaselines() {
+        if (!this.kv) return;
+        const entry = await this.kv.get<any>(["behavioral", "baselines", "v1"]);
+        if (entry.value && entry.value.syscallFrequencies) {
+            const data = entry.value.syscallFrequencies;
+            for (const [comm, freqs] of Object.entries(data)) {
+                this.syscallFrequencies.set(comm, new Map(Object.entries(freqs as any)));
+            }
+        }
     }
 
     /**

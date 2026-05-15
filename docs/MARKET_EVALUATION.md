@@ -69,10 +69,9 @@ By completing the following milestones, the valuation is projected to grow as fo
 
 | Milestone | Key Deliverables | Projected Valuation (Conservative) | Value Multiplier |
 | :--- | :--- | :--- | :--- |
-| **Current (M2)** | Hardened IPC, Auth, Scanner Engine | **$6M** | 1.0x |
-| **M3 (Intel)** | Mesh Gossip, Intent Analysis, Exfil Detect | **$12M - $15M** | 2.0x |
-| **M4 (Ops)** | Forensic Vault UI, HA State, Compliance Map | **$22M - $28M** | ~4.0x |
-| **M6 (Enterprise)** | RFC 5424, OIDC/RBAC, 1000-node Scale | **$45M - $60M** | ~7.5x |
+| **Current (M4)** | Signed Forensics, LSM Isolation, RBAC UI | **$25M - $30M** | 1.0x |
+| **M5 (Scale)** | 1000-node Mesh, Cross-Cloud Sync, OIDC | **$45M - $55M** | ~1.8x |
+| **M6 (Sovereign)**| Air-Gapped Mode, Custom eBPF Signatures | **$70M - $90M** | ~3.0x |
 
 ### **4.1 Strategic Value Drivers**
 1.  **Intent Analysis (M3):** Moving from "anomaly detection" to "malicious intent" (Behavioral ML) shifts the product from a tool to an **AI-Security Platform**, a 2x valuation jump.

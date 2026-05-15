@@ -92,7 +92,6 @@ class ProcessTree extends HTMLElement {
                  </span>
                  ${isGhost ? '<span class="status-pill error text-[7px] py-0.5 px-2">UNLINKED_GHOST</span>' : ''}
                  ${isProtected ? '<span class="status-pill active text-[7px] py-0.5 px-2">SOVEREIGN</span>' : ''}
-                 ${node.influencedPids?.length > 0 ? `<span class="status-pill warning text-[7px] py-0.5 px-2">INFLUENCER [->${node.influencedPids[0]}]</span>` : ''}
               </div>
               <div class="opacity-0 flex items-center gap-6">
                  <span class="mono-xs text-slate-700 uppercase font-bold tracking-widest">PPID: ${node.ppid}</span>

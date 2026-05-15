@@ -39,7 +39,7 @@ class FimAgent extends HTMLElement {
       } catch (e) {}
     };
 
-    /* Reconnection handled by SharedWebSocket */
+    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
   }
 
   addAlert(alert) {

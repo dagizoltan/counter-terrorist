@@ -1,6 +1,5 @@
 import { ConfigurationPort, LoggingPort, LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
 import { GeoIpService } from "./geoip_service.ts";
-import { isValidIP } from "../../infrastructure/system/validation.ts";
 
 export interface IntelIndicator {
     indicator: string;
@@ -39,8 +38,6 @@ const SOURCE_WEIGHTS: Record<string, number> = {
  * CuratedIntelService
  * Orchestrates multi-source intelligence ingestion with weighted reputation scoring.
  */
-import { BroadcastFunction } from "../orchestration/plugins/types.ts";
-
 export class CuratedIntelService {
     private kv?: Deno.Kv;
     private sources = [
@@ -64,7 +61,7 @@ export class CuratedIntelService {
         private logging: LoggingPort, 
         private firewall: FirewallPort, 
         private config: ConfigurationPort,
-        private broadcast: BroadcastFunction,
+        private broadcast: (data: any) => void,
         private geoip?: GeoIpService
     ) {
         const list = config.getEnv("INTEL_ALLOWLIST") || "";
@@ -82,15 +79,11 @@ export class CuratedIntelService {
     async start(kv?: Deno.Kv) {
         this.kv = kv || await Deno.openKv();
         
-        // 1. Recover existing blacklist and stats from persistent storage
+        // 1. Recover existing blacklist from persistent storage
         const iter = this.kv.list<IntelIndicator>({ prefix: ["curated_threats"] });
         for await (const res of iter) {
-            const t = res.value;
-            if (t.score >= 85 && t.type === "IP") {
-                this.blacklist.add(t.indicator);
-            }
-            if (t.provider) {
-                this.stats[t.provider] = (this.stats[t.provider] || 0) + 1;
+            if (res.value.score >= 85 && res.value.type === "IP") {
+                this.blacklist.add(res.value.indicator);
             }
         }
 
@@ -102,26 +95,17 @@ export class CuratedIntelService {
             message: `Curated Intelligence Pipeline engaged. ${this.blacklist.size} indicators recovered from persistent store.`
         });
         
-        // 2. Critical Boot Sync: Perform a sync of high-priority sources
-        // We now do this in the background to avoid blocking the main orchestrator boot or resurrection loop.
+        // 2. Critical Boot Sync: Perform a fast sync of high-priority sources before fully booting
+        // If the blacklist is empty, we MUST have at least some data before proceeding.
         if (this.blacklist.size < 100) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
                 caller: "INTEL",
-                message: "Blacklist density critical. Initiating background pre-flight intelligence sync. System may be in DEGRADED defensive posture until complete."
+                message: "Blacklist density critical. Initiating mandatory pre-flight intelligence sync..."
             });
-            // Background sync
-            this.sync().catch(err => {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "INTEL",
-                    message: `Pre-flight sync failed: ${err instanceof Error ? err.message : String(err)}`
-                }).catch(() => {});
-            });
+            await this.sync().catch(() => {});
         } else {
             // Background initial sync if we already have data
             this.sync().catch(e => {
@@ -315,7 +299,7 @@ export class CuratedIntelService {
         let newIPsBlocked = 0;
 
         let consecutiveExisting = 0;
-        const CONSECUTIVE_THRESHOLD = 1000; // Stop if we see 1000 consecutive existing items (Delta Update)
+        const CONSECUTIVE_THRESHOLD = 50; // Delta-Update heuristic
 
         for (const line of lines) {
             if (!line || line.startsWith("#") || line.length < 5) continue;
@@ -323,28 +307,18 @@ export class CuratedIntelService {
             let indicator = line.trim();
             let threatType = "Malicious Infrastructure";
 
-            // Source-Specific Parsing & Extraction
             if (source.name === "Abuse.ch") {
                 const parts = line.split(",");
-                if (parts.length > 1) indicator = parts[1].replace(/"/g, "").trim();
-            } else if (source.name === "Spamhaus") {
-                // Format: "IP/MASK ; SBL-ID"
-                indicator = indicator.split(";")[0].trim();
-            } else if (source.name === "AlienVault") {
-                // Format: "IP#Score#Reliability#Type..."
-                indicator = indicator.split("#")[0].trim();
-            } else if (source.name === "FireHOL_L1" || source.name === "FireHOL_L2") {
-                // Often contains subnet masks or comments at end of line
-                indicator = indicator.split(/\s+/)[0].trim();
+                if (parts.length > 1) indicator = parts[1].replace(/"/g, "");
             }
 
             if (source.name === "MalwareBazaar") {
-                // Robust CSV splitting for MalwareBazaar (handles quoted fields)
-                const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.trim().replace(/^"|"$/g, ''));
+                // MalwareBazaar uses ", " as separator with quoted fields
+                const parts = line.split(", ");
                 if (parts.length > 8) {
-                    indicator = parts[1]; // SHA256
-                    threatType = parts[8]; // Signature/Family
-                    if (threatType === "n/a" || !threatType) threatType = "Unknown Malware";
+                    indicator = parts[1].replace(/"/g, "").trim(); // SHA256
+                    threatType = parts[8].replace(/"/g, "").trim(); // Signature/Family
+                    if (threatType === "n/a") threatType = "Unknown Malware";
                     
                     // Validation: Ensure it's a valid hex hash
                     if (!/^[a-fA-F0-9]{64}$/.test(indicator)) {
@@ -355,20 +329,6 @@ export class CuratedIntelService {
                 }
             }
 
-            // Global IP/CIDR Sanitization (strips any trailing noise)
-            if (source.type === "IP") {
-                // Ensure we only have the IP or CIDR part
-                const match = indicator.match(/^([0-9a-fA-F.:\/]+)/);
-                if (match) {
-                    indicator = match[1];
-                }
-                
-                // Final validation: use centralized IP validation
-                if (!isValidIP(indicator)) {
-                    continue;
-                }
-            }
-
             if (this.allowlist.some(a => indicator.startsWith(a))) continue;
 
             const existing = await this.kv?.get<IntelIndicator>(["curated_threats", indicator]);
@@ -376,20 +336,18 @@ export class CuratedIntelService {
             
             if (!isNewToDatabase) {
                 consecutiveExisting++;
+                if (consecutiveExisting > CONSECUTIVE_THRESHOLD) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.INFO,
+                        caller: "threat-intel",
+                        message: `Delta-Update threshold reached for ${source.name}. Skipping remaining records.`
+                    });
+                    break;
+                }
             } else {
-                consecutiveExisting = 0; // Reset on new item
-            }
-            
-            // Delta Update heuristic: if we see too many consecutive existing items, assume the rest of the feed is already processed
-            if (consecutiveExisting >= CONSECUTIVE_THRESHOLD) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.DEBUG,
-                    severity: LogSeverity.INFO,
-                    caller: `intel:${source.name.toLowerCase()}`,
-                    message: `Delta update limit reached (${CONSECUTIVE_THRESHOLD} items). Finishing source processing.`
-                });
-                break;
+                consecutiveExisting = 0;
             }
             
             const weight = SOURCE_WEIGHTS[source.name] || 50;
@@ -445,15 +403,12 @@ export class CuratedIntelService {
                 }
 
                 // AUTO-ISOLATION POLICY: 
-                // High-fidelity indicators (Score >= 85) are automatically committed to active defense.
-                if (curated.score >= 85) {
+                // High-fidelity indicators (Score >= 95) are automatically committed to active defense.
+                if (curated.score >= 95) {
                     const isAlreadyEnforced = (await this.kv?.get(["enforcement", curated.indicator]))?.value;
-                    const isAlreadyBlocked = await this.firewall.isBlocked(curated.indicator);
-
-                    if (!isAlreadyEnforced && !isAlreadyBlocked) {
+                    if (!isAlreadyEnforced) {
                         // Tactical TTL for autonomous blocks: 12h (more aggressive than manual 24h)
                         await this.commitIsolation(curated.indicator, `AUTO_ISOLATE: High-fidelity signal from ${source.name}`, 12);
-                        newIPsBlocked++;
                         
                         const autoLog = {
                             timestamp: new Date().toISOString(),
@@ -494,7 +449,7 @@ export class CuratedIntelService {
                 this.broadcast(progressLog);
             }
 
-            if (ingestCount > 500000) break; 
+            if (ingestCount > 100000) break;
         }
 
         this.logging.log({
@@ -530,20 +485,7 @@ export class CuratedIntelService {
         for await (const res of iter) {
             await this.kv.delete(res.key);
         }
-        const iter2 = this.kv.list({ prefix: ["curated_threats_by_type"] });
-        for await (const res of iter2) {
-            await this.kv.delete(res.key);
-        }
-        const iter3 = this.kv.list({ prefix: ["enforcement"] });
-        for await (const res of iter3) {
-            await this.kv.delete(res.key);
-            // Also unblock in the firewall provider to ensure OS state matches KV
-            const ip = String(res.key[1]);
-            await this.firewall.unblockIp(ip).catch(() => {});
-        }
-
         this.blacklist.clear();
-        this.stats = {};
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,

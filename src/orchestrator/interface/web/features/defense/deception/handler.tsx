@@ -9,18 +9,16 @@ export function createHoneypotsRouter(honeypotService: HoneypotService) {
 
   router.get("/", (c: Context) => {
     const modules = honeypotService.getModules();
-    const nonce = c.get("nonce");
-    const csrfToken = c.get("csrfToken");
-    return c.html(<HoneypotsPage modules={modules} nonce={nonce} csrfToken={csrfToken} />);
+    const userRole = c.get("user")?.role;
+    return c.html(<HoneypotsPage modules={modules} userRole={userRole} />);
   });
 
   router.get("/:id", (c: Context) => {
     const id = c.req.param("id");
     const module = honeypotService.getModule(id);
-    const nonce = c.get("nonce");
-    const csrfToken = c.get("csrfToken");
     if (!module) return c.text("Honeypot not found", 404);
-    return c.html(<HoneypotDetailPage module={module} nonce={nonce} csrfToken={csrfToken} />);
+    const userRole = c.get("user")?.role;
+    return c.html(<HoneypotDetailPage module={module} userRole={userRole} />);
   });
 
   router.post("/api/:id/toggle", async (c: Context) => {

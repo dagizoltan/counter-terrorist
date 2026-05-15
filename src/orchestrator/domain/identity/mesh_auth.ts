@@ -1,6 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
-import { SecretVault } from "../security/secret_vault.ts";
 
 /**
  * Mesh Authentication Service: Manages the internal PKI for mTLS communication.
@@ -35,8 +34,7 @@ export class MeshAuthService {
   constructor(
     private kv: Deno.Kv,
     private logging: LoggingPort,
-    private tpm?: TPMManager,
-    private vault?: SecretVault
+    private tpm?: TPMManager
   ) {}
 
   /**
@@ -108,22 +106,13 @@ export class MeshAuthService {
    * Gets the PKI encryption secret. Falls back to API_TOKEN if PKI_SECRET is not set.
    */
   private async getPkiSecret(): Promise<string> {
-    // 1. Try Memory Vault
-    if (this.vault) {
-        const vSecret = await this.vault.getSecret("PKI_SECRET");
-        if (vSecret) return vSecret;
-    }
-
-    // 2. Try TPM (Hardware-Rooted Root of Trust)
+    // 1. Try TPM (Hardware-Rooted Root of Trust)
     if (this.tpm) {
         const sealed = await this.tpm.unsealSecret("PKI_SECRET");
-        if (sealed) {
-            if (this.vault) await this.vault.setSecret("PKI_SECRET", sealed);
-            return sealed;
-        }
+        if (sealed) return sealed;
     }
 
-    // 3. Fallback to ENV (Standard Production Mode)
+    // 2. Fallback to ENV (Standard Production Mode)
     let secret = Deno.env.get("PKI_SECRET");
     
     if (!secret) {
@@ -141,12 +130,9 @@ export class MeshAuthService {
       secret = fallback;
     }
 
-    // 4. Seal to TPM and Vault
+    // 3. Seal to TPM for future cold-boot resilience
     if (this.tpm && secret) {
         await this.tpm.sealSecret("PKI_SECRET", secret);
-    }
-    if (this.vault && secret) {
-        await this.vault.setSecret("PKI_SECRET", secret);
     }
 
     return secret;
@@ -289,7 +275,7 @@ export class MeshAuthService {
                 timestamp: Date.now()
             };
         }
-        throw new Error(`TPM Node Cert Issuance failed: ${res.stderr || "Unknown error"}`);
+        throw new Error(`TPM Node Cert Issuance failed: ${res.stderr || "Unknown Error"}`);
     }
 
     throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native cert issuance.");
@@ -305,7 +291,7 @@ export class MeshAuthService {
                 timestamp: Date.now()
             };
         }
-        throw new Error(`TPM CA Generation failed: ${res.stderr || "Unknown error"}`);
+        throw new Error(`TPM CA Generation failed: ${res.stderr || "Unknown Error"}`);
     }
 
     throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native CA generation.");

@@ -9,4 +9,3 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
 once_cell = { workspace = true }
-defguard_wireguard_rs = "0.9.6"

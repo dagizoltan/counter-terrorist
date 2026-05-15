@@ -9,7 +9,6 @@ pub struct SyscallEvent {
     pub fd: u32,
     pub port: u16,
     pub ip: u32,
-    pub influence_type: u32, // 0=None, 1=SocketWrite, 2=FileWrite
 }
 
 #[repr(C)]
@@ -20,7 +19,7 @@ pub struct ShadowBanInfo {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SessionKey {
     pub src_ip: u32,
     pub dst_ip: u32,
@@ -36,13 +35,6 @@ pub struct SessionValue {
     pub bytes_count: u64,
 }
 
-#[repr(C, packed)]
-#[derive(Clone, Copy)]
-pub struct LpmKey {
-    pub prefix_len: u32,
-    pub data: u32,
-}
-
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for SyscallEvent {}
 #[cfg(feature = "user")]
@@ -51,5 +43,3 @@ unsafe impl aya::Pod for ShadowBanInfo {}
 unsafe impl aya::Pod for SessionKey {}
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for SessionValue {}
-#[cfg(feature = "user")]
-unsafe impl aya::Pod for LpmKey {}
