@@ -28,6 +28,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
     const hostname = Deno.hostname();
+    
     return c.html(<Dashboard status={status} csrfToken={csrfToken} nonce={nonce} hostname={hostname} />);
   });
 
@@ -120,7 +121,6 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
   // ── AGENT FLEET (Modular Control) ──────────────────────────────────
 
   router.get("/deception", (c) => c.redirect("/agents/deception"));
-  router.get("/agents", (c) => c.redirect("/dashboard"));
 
   // Unified Agent Routing Architecture
   router.route("/agents/deception", createHoneypotsRouter(services.honeypot));

@@ -7,15 +7,15 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Mesh Topology // P2P Consensus" islandPaths={[
+    <Layout nonce={props.nonce} title="Mesh Topology // P2P Consensus" islandPaths={[
       '/components/islands/MeshGraph.js',
       '/components/islands/MeshHeatmap.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Mesh Topology</h1>
-          <span class="subtitle">P2P Consensus Reached // Nodes Discovered: {props.status?.mesh?.nodes?.length || "0"}</span>
+          <span class="subtitle">Nodes Discovered: {props.status?.mesh?.nodes?.length || "0"}</span>
         </div>
         <div class="flex gap-4">
           <button class="t-btn px-8 py-4 text-[10px] font-black group" onclick="fetch('/api/mesh/resync', { method: 'POST' })">

@@ -7,14 +7,14 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const NetworkPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Network Agent // Operational Discovery" islandPaths={[
+    <Layout nonce={props.nonce} title="Network Agent // Operational Discovery" islandPaths={[
       '/components/islands/NetworkMap.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">
           <h1>Network_Agent</h1>
-          <span class="subtitle">Mesh Topology & Deep Packet Inspection // Discovery: Active</span>
+          <span class="subtitle">Discovery: Active</span>
         </div>
       </header>
 
@@ -23,7 +23,6 @@ export const NetworkPage = (props: { status: any, csrfToken?: string, nonce?: st
           <header class="p-6 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
             <div class="flex flex-col gap-2">
                <h3 class="tactical-title text-xl tracking-widest">MESH_TOPOLOGY</h3>
-               <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Live egress mesh visualization</p>
             </div>
             <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-6 py-2 rounded-full">
                <span class="dot active"></span>

@@ -2,6 +2,12 @@ import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "../orchestration/mesh.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 import { AuditRepository } from "../repositories/audit_repository.ts";
+import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";
+import { computeHash } from "../../core/crypto_utils.ts";
+
+export interface ICorrelationProcessor {
+    processEvent(event: AuditEvent): Promise<void>;
+}
 
 export interface ActorContext {
     id: string;
@@ -29,6 +35,10 @@ export interface AuditEvent {
     hwSignature?: string; 
     correlationId?: string;
     formatted?: string;
+    stateSnapshot?: {
+        processTree?: any[];
+        meshNodes?: any[];
+    };
 }
 
 interface RetentionConfig {
@@ -47,31 +57,34 @@ export class AuditService {
     private retentionConfig: RetentionConfig;
     private logQueue: Promise<void> = Promise.resolve();
     private state: SystemState = SystemState.NORMAL;
+    /** BUG-03: Promise that resolves once the chain head is restored from DB. */
+    private ready: Promise<void>;
+    private intervals: number[] = [];
 
     constructor(
         private repo: AuditRepository,
         private logging: LoggingPort,
-        private tpm: any | null = null,
-        private mesh: MeshManager | null = null,
-        private correlation: any | null = null
+        private tpm: TPMManager | null = null,
+    public mesh: MeshManager | null = null,
+        private correlation: ICorrelationProcessor | null = null
     ) {
         this.retentionConfig = {
             maxAgeDays: Number(Deno.env.get("AUDIT_RETENTION_DAYS")) || 90,
             maxEvents: Number(Deno.env.get("AUDIT_MAX_EVENTS")) || 10000,
         };
 
-        this.restoreChainHead();
+        this.ready = this.restoreChainHead();
         
         // Background maintenance
-        setInterval(() => this.purgeExpired(), 60 * 60 * 1000);
-        setInterval(async () => {
+        this.intervals.push(setInterval(() => this.purgeExpired(), 60 * 60 * 1000));
+        this.intervals.push(setInterval(async () => {
           if (this.mesh) {
             const status = await this.getChainStatus();
             this.mesh.broadcastAuditVerification(status.lastHash, status.count);
           }
-        }, 5 * 60 * 1000);
+        }, 5 * 60 * 1000));
 
-        setInterval(() => this.verifyChainIncremental(), 60 * 1000);
+        this.intervals.push(setInterval(() => this.verifyChainIncremental(), 60 * 1000));
 
         // ENHANCEMENT: Full Ledger Verification on Boot (Background)
         // Disabled for UI stabilization phase
@@ -114,10 +127,15 @@ export class AuditService {
                 caller: "AUDIT:DEEP",
                 message: `Deep audit complete. ${result.eventsChecked} events verified. Chain is healthy.`
             });
-        }
+    }
     }
 
-    public setCorrelation(correlation: any) {
+    public stop() {
+        this.intervals.forEach(clearInterval);
+        this.intervals = [];
+    }
+
+    public setCorrelation(correlation: ICorrelationProcessor) {
         this.correlation = correlation;
     }
 
@@ -210,13 +228,20 @@ export class AuditService {
 
                 await this.repo.save(event);
             } catch (e) {
-                // Ignore duplicates or errors during sync
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.INFO,
+                    caller: "AUDIT:SYNC",
+                    message: `Skipped event ${event.id} during sync (likely duplicate): ${e instanceof Error ? e.message : String(e)}`
+                }).catch(() => {});
             }
         }
         await this.restoreChainHead();
     }
 
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }) {
+        await this.ready;
         if (this.state === SystemState.FORENSIC_RESTRICTED &&
             event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS") {
             // Block non-essential logs in restricted mode to preserve forensic state
@@ -243,8 +268,20 @@ export class AuditService {
 
             const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
 
+            // Capture state snapshot for Mission Replay (Forensic Reconstruction)
+            let stateSnapshot: any = undefined;
+            if (event.type === "CRITICAL" || event.type === "THREAT" || event.type === "BLOCK") {
+                const processTracker = (this as any).processTracker; // Optional dependency
+                const processTree = processTracker ? processTracker.getTree() : undefined;
+                const meshNodes = this.mesh ? this.mesh.getNodes() : undefined;
+
+                if (processTree || meshNodes) {
+                    stateSnapshot = { processTree, meshNodes };
+                }
+            }
+
             const auditEvent: AuditEvent = {
-                ...event, id, timestamp, hash, prevHash, hwSignature, formatted
+                ...event, id, timestamp, hash, prevHash, hwSignature, formatted, stateSnapshot
             };
 
             try {
@@ -369,6 +406,9 @@ export class AuditService {
                 };
             }
 
+            // BUG-02: Reverse Chain Logic
+            // Since we iterate newest-to-oldest, prevEvent is newer than event.
+            // Therefore, prevEvent.prevHash must equal event.hash.
             if (prevEvent && event.hash !== prevEvent.prevHash && prevEvent.prevHash !== "TRUNCATED") {
                 return {
                     valid: false,
@@ -431,7 +471,6 @@ export class AuditService {
     }
 
     private async computeHash(input: any): Promise<string> {
-        const { computeHash } = await import("../../core/crypto_utils.ts");
         return await computeHash(input);
     }
 }

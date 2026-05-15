@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const NetworkShieldPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Perimeter Shield // Active Enforcement" islandPaths={[
+    <Layout nonce={props.nonce} title="Perimeter Shield // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
       '/components/islands/VpnAgent.js',
       '/components/islands/AnonymizerController.js',
@@ -18,7 +18,7 @@ export const NetworkShieldPage = (props: { status: any, csrfToken?: string, nonc
       <header class="page-header">
         <div class="title-group">
           <h1>Perimeter Shield</h1>
-          <span class="subtitle">Perimeter Defense & Stealth Portal // Identity: Encrypted</span>
+          <span class="subtitle">Identity: Encrypted</span>
         </div>
         <div class="flex gap-4">
           <button class="t-btn px-8 py-4 text-[10px] font-black group" onclick="location.reload()">
@@ -35,7 +35,6 @@ export const NetworkShieldPage = (props: { status: any, csrfToken?: string, nonc
           <header class="p-8 border-b border-white/10 flex justify-between items-center bg-black/40 backdrop-blur-md">
             <div class="flex flex-col gap-2">
                <h3 class="tactical-title text-xl tracking-widest">TOPOLOGY_DISCOVERY</h3>
-               <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Live egress mesh visualization</p>
             </div>
             <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-6 py-2 rounded-full">
                <span class="dot active"></span>
@@ -106,7 +105,6 @@ export const NetworkShieldPage = (props: { status: any, csrfToken?: string, nonc
                 </div>
                 <div class="flex flex-col gap-2">
                    <h3 class="tactical-title text-2xl tracking-widest">PERIMETER_ENFORCEMENT_STREAM</h3>
-                   <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Real-time packet filtration & ingress blocklist</p>
                 </div>
               </div>
               <div class="flex items-center gap-4">

@@ -20,13 +20,13 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
   };
 
   return (
-    <Layout title="Infrastructure Hub // Sovereign Overwatch" islandPaths={['/components/islands/SystemHealth.js']} csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Infrastructure Hub // Sovereign Overwatch" islandPaths={['/components/islands/SystemHealth.js']} csrfToken={props.csrfToken} >
       
       {/* 01 Unified Page Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Infrastructure Hub</h1>
-          <span class="subtitle">Hardware Topology & OS Integrity Mapping // v4.2.0-STABLE</span>
+          <span class="subtitle">v4.2.0-STABLE</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-6 bg-primary/10 border border-primary/20 px-10 py-5 rounded-full backdrop-blur-xl shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)]">
@@ -46,7 +46,6 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
               </div>
               <div class="flex flex-col gap-2">
                  <h3 class="tactical-title text-2xl tracking-widest uppercase">Hardware Specification</h3>
-                 <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Physical layer audit & inventory</p>
               </div>
            </header>
            
@@ -78,7 +77,6 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
               </div>
               <div class="flex flex-col gap-2">
                  <h3 class="tactical-title text-2xl tracking-widest uppercase">Software Environment</h3>
-                 <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Sovereign runtime & kernel state</p>
               </div>
            </header>
 

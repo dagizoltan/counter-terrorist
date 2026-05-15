@@ -14,6 +14,11 @@ import { createApiRouter } from "./routes/api.tsx";
 import { MeshAuthService } from "@domain/index.ts";
 import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 
+/** Escapes HTML special characters to prevent XSS in error pages. */
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
 /**
  * WebAdapter
  * The primary ingress controller for the Security Orchestrator.
@@ -50,7 +55,7 @@ export class WebAdapter implements WebPort {
       const honeyRoutes = this.services.honeypot.getDecoyRoutes();
       honeyRoutes.forEach(route => {
         this.app.get(route, async (c) => {
-          const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+          const ip = (c.env as any)?.remoteAddr?.hostname || "unknown";
           loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -200,7 +205,7 @@ export class WebAdapter implements WebPort {
                       A catastrophic failure occurred within the orchestrator runtime sequence.
                    </p>
                    <div class="bg-black/60 p-4 rounded border border-white/5 mb-10 overflow-x-auto text-left">
-                      <span class="mono-xs text-danger font-black">${errorMsg}</span>
+                      <span class="mono-xs text-danger font-black">${escapeHtml(errorMsg)}</span>
                    </div>
                    <a href="/" class="t-btn block w-full py-4 text-center font-black tracking-widest uppercase">
                       Initiate Recovery Reboot
@@ -351,7 +356,8 @@ export class WebAdapter implements WebPort {
         } else if (s.name === 'mesh' && this.services.mesh) {
             status = "ACTIVE";
         } else if (s.name === 'firewall' && this.services.protection) {
-            isRunning = this.services.command.isRunning('blocker');
+            // ENHANCEMENT: Use Sentinel (eBPF) status for authoritative firewall state
+            isRunning = this.services.command.isRunning('sentinel');
             status = isRunning ? "ACTIVE" : "INACTIVE";
         }
 

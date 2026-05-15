@@ -10,16 +10,16 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
   const { plugins } = props.status;
 
   return (
-    <Layout title="Agent Registry // Fleet Command" islandPaths={[
+    <Layout nonce={props.nonce} title="Agent Registry // Fleet Command" islandPaths={[
       '/components/islands/AgentCardIsland.js',
       '/components/islands/ProcessTree.js'
-    ]} csrfToken={props.csrfToken} nonce={props.nonce}>
+    ]} csrfToken={props.csrfToken}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
         <div class="title-group">
           <h1>Agent Fleet</h1>
-          <span class="subtitle">Orchestration Synced // Nodes in Registry: {plugins.length.toString().padStart(2, '0')}</span>
+          <span class="subtitle">Nodes in Registry: {plugins.length.toString().padStart(2, '0')}</span>
         </div>
         <div class="flex gap-4">
           <button class="t-btn px-6 py-3 text-[9px]">
@@ -144,7 +144,6 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
               </div>
               <div class="flex flex-col gap-2">
                  <h3 class="tactical-title text-2xl tracking-widest">SUPPLY CHAIN VERIFIED</h3>
-                 <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">All active dependencies cryptographically signed and audited</p>
               </div>
            </div>
            <a href="/system/supply-chain" class="t-btn success px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em]">Inspect Full Provenance</a>

@@ -86,7 +86,7 @@ export class SecurityMiddleware {
       const path = c.req.path;
       const ip = this.getClientIp(c);
 
-      if (this.services.threatIntel.getBlacklist().has(ip)) {
+      if (this.services.threatIntel?.getBlacklist().has(ip)) {
         loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
@@ -99,7 +99,7 @@ export class SecurityMiddleware {
       
       if (path.startsWith("/api/")) {
         // Relaxed API rate limit (500 req/min) to accommodate dashboard polling and multiple active modules.
-        const result = await this.services.rateLimit.checkLimit(ip, 500, 60000);
+        const result = await this.services.rateLimit?.checkLimit(ip, 500, 60000) || { allowed: true };
         if (!result.allowed) {
           return c.json({ 
             error: "Too Many Requests", 
@@ -212,7 +212,29 @@ export class SecurityMiddleware {
         c.set("role", "mesh_peer");
         return next();
       }
-      return this.auth()(c, next);
+
+      // 2. Cryptographic Signature Verification
+      // This is required for mesh gossip (POST) to ensure message integrity.
+      if (signature && ["POST", "PUT", "PATCH"].includes(c.req.method)) {
+        try {
+          const body = await c.req.raw.clone().json();
+          const isValid = await this.services.mesh.verifySignature(body, signature);
+          if (isValid) {
+            return next();
+          }
+        } catch {
+          // Fall through to standard auth if JSON parse fails
+        }
+      }
+
+      // 3. Fallback to standard administrative/UI authentication
+      // Allows the dashboard (authenticated via session/cookie) to access mesh status.
+      // HARDENING: Only fallback for non-mutating requests (GET) to prevent cross-authentication bypasses on gossip routes.
+      if (c.req.method === "GET") {
+          return this.auth()(c, next);
+      }
+
+      return c.json({ error: "Mesh Authentication Required", code: "MESH_AUTH_FAULT" }, 401);
     };
   }
 }

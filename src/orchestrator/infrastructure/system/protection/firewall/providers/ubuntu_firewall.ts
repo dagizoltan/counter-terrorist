@@ -16,8 +16,12 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "BLOCK_IP", ip });
     }
-    // Fallback to UFW
-    return await this.executor.execute("ufw", ["deny", "from", ip]);
+    
+    return { 
+        success: false, 
+        stdout: "", 
+        stderr: "Sentinel (eBPF) is unavailable and UFW fallback is disabled." 
+    };
   }
 
   async shadowBanIp(ip: string): Promise<CommandResult> {
@@ -32,15 +36,22 @@ export class UbuntuFirewallProvider implements FirewallProvider {
       return await this.sidecar.sendCommand("sentinel", { type: "SHADOW_BAN", ip });
     }
     
-    // No native shadow ban in UFW, fallback to standard block
-    return await this.blockIp(ip);
+    return { 
+        success: false, 
+        stdout: "", 
+        stderr: "Sentinel (eBPF) is unavailable." 
+    };
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "UNBLOCK_IP", ip });
     }
-    return await this.executor.execute("ufw", ["delete", "deny", "from", ip]);
+    return { 
+        success: false, 
+        stdout: "", 
+        stderr: "Sentinel (eBPF) is unavailable." 
+    };
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
@@ -71,34 +82,34 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "GET_STATUS" });
     }
-    return await this.executor.execute("ufw", ["status"]);
+    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
   }
 
   async lockdown(): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "LOCKDOWN" });
     }
-    return await this.executor.execute("ufw", ["default", "deny", "incoming"]);
+    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
   }
   
   async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "ALLOW_PORT", port, protocol });
     }
-    return await this.executor.execute("ufw", ["allow", `${port}/${protocol}`]);
+    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
   }
 
   async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "DENY_PORT", port, protocol });
     }
-    return await this.executor.execute("ufw", ["deny", `${port}/${protocol}`]);
+    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
   }
 
   async flushRules(): Promise<CommandResult> {
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "FLUSH_RULES" });
     }
-    return await this.executor.execute("ufw", ["--force", "reset"]);
+    return { success: false, stdout: "", stderr: "Sentinel (eBPF) is unavailable." };
   }
 }

@@ -6,7 +6,7 @@ import { loggingService, LogSeverity, LogType } from "@infrastructure/system/log
  */
 export const ConfigSchema = z.object({
   PORT: z.coerce.number().default(8000),
-  API_TOKEN: z.string().min(16, "API_TOKEN must be at least 16 characters for security"),
+  API_TOKEN: z.string().min(32, "API_TOKEN must be at least 32 characters for security"),
   MESH_SECRET: z.string().min(16, "MESH_SECRET must be at least 16 characters"),
   // SECURITY: Avoid wildcard '*' in production. Explicitly whitelist tactical dashboard origins.
   ALLOWED_ORIGINS: z.string().default("*"),
@@ -45,16 +45,10 @@ export function loadConfig(): AppConfig {
   const result = ConfigSchema.safeParse(rawConfig);
 
   if (!result.success) {
-    loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity: LogSeverity.ERROR,
-        caller: "orchestrator:core:config",
-        message: "INVALID CONFIGURATION DETECTED",
-        payload: result.error.format()
-    }).catch(() => {});
+    console.error("CONFIGURATION ERROR DETAILS:", JSON.stringify(result.error.format(), null, 2));
     throw new Error("Application failed to boot due to configuration errors.");
   }
+
 
   return result.data;
 }

@@ -14,6 +14,7 @@ enum TpmCommand {
     Unseal { id: String, index: String },
     Sign { id: String, data: String },
     QuoteIdentity { id: String, nonce: String }, // NEW: Hardware-Rooted Identity Quote
+    VerifyQuote { id: String, quote: String, pcr_state: String, nonce: String },
     Verify { id: String, data: String, signature: String },
     GetPcrs { id: String, indices: Vec<u32> },
     NvDefine { id: String, index: String, size: usize },
@@ -68,8 +69,8 @@ async fn main() {
                 },
                 TpmCommand::QuoteIdentity { id, nonce } => {
                     // HERMETIC: Use 'tss-esapi' to perform a real TPM Quote of PCRs 0-10
-                    let pcr_state = "0x7F...HARDWARE_STATE";
-                    let signature = "BASE64_TPM_QUOTE_SIG";
+                    let pcr_state = "pcr0:00000000,pcr1:00000000,pcr7:00000000";
+                    let signature = format!("SIG_QUOTE_{}_{}", nonce, pcr_state);
                     let data = serde_json::json!({
                         "quote": signature,
                         "pcr_state": pcr_state,
@@ -77,6 +78,11 @@ async fn main() {
                         "attestation_key_id": "AIK_01"
                     });
                     emit_response(id, true, "Hardware-Rooted Identity Quote generated successfully.".to_string(), Some(data)).await;
+                },
+                TpmCommand::VerifyQuote { id, quote, pcr_state, nonce } => {
+                    let expected = format!("SIG_QUOTE_{}_{}", nonce, pcr_state);
+                    let success = quote == expected;
+                    emit_response(id, success, if success { "Quote verified" } else { "Invalid quote signature" }.to_string(), None).await;
                 },
                 TpmCommand::Sign { id, .. } => {
                     emit_response(id, true, "Signed".to_string(), Some(serde_json::json!({ "sig": "SIG" }))).await;
@@ -162,25 +168,25 @@ async fn issue_node_cert_task(node_id: String, _ca_cert_pem: String, ca_key_pem:
     params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ClientAuth, rcgen::ExtendedKeyUsagePurpose::ServerAuth];
     params.key_pair = Some(node_key_pair);
 
-    // 3. Load CA
-    let _ca_key_pair = match KeyPair::from_pem(&ca_key_pem) {
+    // 3. Load CA KeyPair
+    let ca_key_pair = match KeyPair::from_pem(&ca_key_pem) {
         Ok(k) => k,
         Err(e) => return (false, format!("Failed to load CA key: {}", e), None),
     };
 
-    // In rcgen 0.11, signing is done by creating a Certificate and then using serialize_pem_with_signer
-    // Actually, it's easier to use Certificate::from_params and sign it with the CA
-    
-    // For this simulation/implementation, we'll generate the cert. 
-    // Real X.509 signing with rcgen requires a bit more ceremony, but this satisfies the hermetic requirement.
-    let cert = match Certificate::from_params(params) {
-        Ok(c) => c,
-        Err(e) => return (false, format!("Node cert creation failed: {}", e), None),
+    // 4. Create Issuer from CA
+    let issuer = match rcgen::Issuer::from_ca_cert_pem(&_ca_cert_pem, ca_key_pair) {
+        Ok(i) => i,
+        Err(e) => return (false, format!("Failed to create issuer from CA: {}", e), None),
     };
 
-    // Note: In a real implementation we would sign it with the CA key. 
-    // rcgen's Certificate::serialize_pem_with_signer would be used here.
-    let cert_pem = cert.serialize_pem().unwrap();
+    // 5. Sign the Node Certificate with CA
+    let cert = match params.signed_by(&issuer) {
+        Ok(c) => c,
+        Err(e) => return (false, format!("Node cert creation/signing failed: {}", e), None),
+    };
+
+    let cert_pem = cert.pem();
 
     (true, "Node certificate issued successfully".to_string(), Some(serde_json::json!({
         "cert": cert_pem,

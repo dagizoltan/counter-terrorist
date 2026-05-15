@@ -36,9 +36,7 @@ class AgentCardIsland extends HTMLElement {
       }
     };
 
-    ws.onclose = () => {
-      setTimeout(() => this.connectWS(), 5000);
-    };
+    /* Reconnection handled by SharedWebSocket */
   }
 
   handleEvent(event) {

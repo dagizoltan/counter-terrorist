@@ -3,12 +3,12 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const SupplyChainPage = (props: { sbom: any[]; healthScore: number; csrfToken: string }) => {
   return (
-    <Layout title="Supply Chain Integrity" csrfToken={props.csrfToken}>
+    <Layout nonce={props.nonce} title="Supply Chain Integrity" csrfToken={props.csrfToken}>
       {/* 1. Unified Page Header */}
       <header class="page-header">
         <div class="title-group">
           <h1>Supply Chain Integrity</h1>
-          <span class="subtitle">SBOM Verified Chain // Integrity Score: {props.healthScore}%</span>
+          <span class="subtitle">Integrity Score: {props.healthScore}%</span>
         </div>
         <div class="flex items-center gap-6">
           <div class="flex items-center gap-4 bg-success/10 border border-success/30 px-8 py-4 rounded-full">

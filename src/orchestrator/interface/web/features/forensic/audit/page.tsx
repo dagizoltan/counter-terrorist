@@ -3,13 +3,13 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const AuditPage = (props: { csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js']} csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js']} csrfToken={props.csrfToken} >
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Governance_Ledger</h1>
-          <span class="subtitle">Authoritative Compliance & Enforcement History // Root_Node_Authority</span>
+          <span class="subtitle">Root_Node_Authority</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-8 py-4 rounded-full backdrop-blur-xl">

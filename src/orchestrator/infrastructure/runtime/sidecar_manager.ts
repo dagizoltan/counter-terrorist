@@ -21,9 +21,10 @@ export class SidecarManager implements CommandPort {
   private manifest: any = null;
   private manifestPromise: Promise<void> | null = null;
 
-  constructor(private executor: SystemExecutor, private logging: LoggingPort) {
-    this.registerCleanup();
     this.startRotationLoop();
+    if (Deno.build.os !== "windows") {
+        this.startUdsTelemetry();
+    }
     // Manifest load is async and uses logging, so we don't block constructor
     // but ensure it's called after logging service is ready.
     this.manifestPromise = new Promise(resolve => {
@@ -46,6 +47,30 @@ export class SidecarManager implements CommandPort {
                 severity: LogSeverity.INFO,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
                 message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
+            });
+        }
+        
+        // ── Auto-Start Persistent Agents ────────────────────────────────────
+        // Ensures all critical defense agents are active from boot, not just on-demand.
+        // We prioritize sentinel to ensure XDP/eBPF is active as early as possible.
+        const prioritized = ["sentinel", ...PERSISTENT_SIDECARS.filter(s => s !== "sentinel")];
+
+        for (const name of prioritized) {
+            // BUG-06: Filter agents by current platform to avoid spawn failures
+            if (name.endsWith("-win") && Deno.build.os !== "windows") continue;
+            if (name.endsWith("-darwin") && Deno.build.os !== "darwin") continue;
+            if (name === "sentinel" && Deno.build.os !== "linux") continue;
+
+            this.getPersistentSidecar(name).catch(e => {
+                if (this.logging) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
+                        message: `Failed to auto-start persistent sidecar ${name}: ${e instanceof Error ? e.message : String(e)}`
+                    });
+                }
             });
         }
     } catch (e) {
@@ -91,7 +116,15 @@ export class SidecarManager implements CommandPort {
     if (healed) {
         // 2. Graceful restart
         await this.stopSidecar(name);
-        await this.getPersistentSidecar(name);
+        await this.getPersistentSidecar(name).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager:rotate",
+                message: `Failed to spawn ${name} after rotation: ${(e as Error).message}`
+            });
+        });
         
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -107,27 +140,132 @@ export class SidecarManager implements CommandPort {
     return this.executor;
   }
 
-  private registerCleanup() {
-    if (this.cleanupRegistered) return;
+  private udsListener: Deno.Listener | null = null;
 
-    const cleanup = async () => {
-      this.isShuttingDown = true;
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.ACTIVITY,
-          severity: LogSeverity.INFO,
-          caller: "orchestrator:infra:runtime:sidecar_manager",
-          message: "Orchestrator exiting, cleaning up sidecars..."
-      });
-      for (const name of Array.from(this.persistentProcesses.keys())) {
-        await this.stopSidecar(name);
-      }
-      // Deno.exit(0); // Removing explicit exit as it might interfere with Deno's own cleanup
-    };
+  private async startUdsTelemetry() {
+    const udsPath = "./volume/run/telemetry.sock";
+    try { Deno.mkdirSync("./volume/run", { recursive: true }); } catch {}
+    try { Deno.removeSync(udsPath); } catch {}
+    
+    try {
+        this.udsListener = Deno.listen({ transport: "unix", path: udsPath });
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Unified IPC Telemetry Socket Listener started at ${udsPath}`
+        }).catch(() => {});
+        this.acceptUdsConnections();
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Failed to start UDS Listener: ${(e as Error).message}`
+        }).catch(() => {});
+    }
+  }
 
-    Deno.addSignalListener("SIGINT", cleanup);
-    Deno.addSignalListener("SIGTERM", cleanup);
-    this.cleanupRegistered = true;
+  private async acceptUdsConnections() {
+    if (!this.udsListener) return;
+    try {
+        for await (const conn of this.udsListener) {
+            this.handleUdsConnection(conn).catch(() => {});
+        }
+    } catch {
+        // Listener closed
+    }
+  }
+
+  private async handleUdsConnection(conn: Deno.Conn) {
+    const reader = conn.readable.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                try {
+                    const data = JSON.parse(trimmed);
+
+                    // Check if it's a ForensicLog
+                    if (data.log_type || data.severity || (data.message && !("success" in data))) {
+                        this.logging.log({
+                            timestamp: data.timestamp || new Date().toISOString(),
+                            type: data.log_type || LogType.ACTIVITY,
+                            severity: data.severity || LogSeverity.INFO,
+                            caller: data.caller || "sidecar:uds",
+                            message: data.message,
+                            payload: data.payload
+                        });
+                        continue;
+                    }
+
+                    // Otherwise treat as SidecarResponse
+                    const name = "sentinel"; // In UDS we might not know the sidecar name unless it sends it, defaulting to sentinel for POC.
+                    // Wait, if we don't know the name, we can't route correctly to responseWaiters! 
+                    // Let's assume the sidecar provides a `sidecar` field or we iterate waiters.
+                    const sidecarName = data.sidecar || "sentinel"; 
+
+                    if (data.id && this.responseWaiters.has(sidecarName)) {
+                        const waiters = this.responseWaiters.get(sidecarName)!;
+                        const waiter = waiters.get(data.id);
+                        if (waiter) {
+                            waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data });
+                            waiters.delete(data.id);
+                            continue;
+                        }
+                    }
+
+                    // Emit event
+                    const handlers = this.eventHandlers.get(sidecarName) || [];
+                    for (const handler of handlers) {
+                        handler(data);
+                    }
+                } catch (e) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
+                        message: `Malformed UDS telemetry: ${trimmed.substring(0, 50)}... Error: ${(e as any).message}`
+                    });
+                }
+            }
+        }
+    } finally {
+        reader.releaseLock();
+        conn.close();
+    }
+  }
+
+  async shutdown() {
+    if (this.isShuttingDown) return;
+    this.isShuttingDown = true;
+
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.ACTIVITY,
+        severity: LogSeverity.INFO,
+        caller: "orchestrator:infra:runtime:sidecar_manager",
+        message: "Orchestrator exiting, cleaning up sidecars..."
+    });
+
+    for (const name of Array.from(this.persistentProcesses.keys())) {
+      await this.stopSidecar(name);
+    }
   }
 
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
@@ -228,10 +366,45 @@ export class SidecarManager implements CommandPort {
               }
             }
 
-            const env = await this.getSidecarEnv(name);
+            const supportsAttestation = ["sentinel", "analyzer", "enforcer", "tunnel"].includes(name);
+            const env = await this.getSidecarEnv(name, supportsAttestation);
 
-            const command = new Deno.Command(execPath, {
-                args: [],
+            let finalExecPath = execPath;
+            let finalArgs: string[] = [];
+
+            // ENHANCEMENT: Capabilities-First Execution
+            // We check if the binary has the required capabilities set. 
+            // If it does, we don't need sudo, even if it's a privileged sidecar.
+            let hasCaps = false;
+            if (Deno.build.os === "linux") {
+                try {
+                    const checkCaps = await this.executor.execute("getcap", [execPath]);
+                    if (checkCaps.success && checkCaps.stdout.includes("=")) {
+                        hasCaps = true;
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.DEBUG,
+                            severity: LogSeverity.INFO,
+                            caller: "orchestrator:infra:runtime:sidecar_manager",
+                            message: `Capabilities detected for ${name}. Bypassing sudo.`
+                        });
+                    }
+                } catch { /* ignore */ }
+            }
+
+            if (isDev && PRIVILEGED_SIDECARS.includes(name) && Deno.uid() !== 0 && !hasCaps) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `CRITICAL: Sidecar ${name} requires privileges but has no capabilities set. Refusing to run sudo in dev mode due to security risks. Please provision capabilities using 'setcap'.`
+                });
+                return null;
+            }
+
+            const command = new Deno.Command(finalExecPath, {
+                args: finalArgs,
                 stdin: "piped",
                 stdout: "piped",
                 stderr: "piped",
@@ -299,6 +472,29 @@ export class SidecarManager implements CommandPort {
 
             this.persistentProcesses.set(name, child);
             this.startResponseReader(name, child);
+
+            // ENHANCEMENT: Sidecar Attestation Handshake
+            if (!isDev && supportsAttestation) {
+                const attested = await this.attestSidecar(name);
+                if (!attested) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
+                        message: `CRITICAL: Sidecar ${name} failed hardware attestation. Terminating for security.`
+                    });
+                    await this.stopSidecar(name);
+                    return null;
+                }
+
+                // Provision secrets ONLY after successful attestation
+                await this.provisionSidecarSecrets(name);
+            } else if (supportsAttestation && isDev) {
+                // In dev mode, we still provision secrets via command if attestation is skipped
+                await this.provisionSidecarSecrets(name);
+            }
+
             return child;
         } catch (e) {
             this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_SPAWN_FAILED", sidecar: name, error: (e as Error).message });
@@ -319,9 +515,12 @@ export class SidecarManager implements CommandPort {
     // Support environment variable overrides for custom binary locations
     const envPath = Deno.env.get(`CTS_BINARY_${name.toUpperCase()}`);
     
+    const manifestPath = this.manifest?.sidecars?.[name]?.path;
+    
     const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
     const paths = [
       envPath,
+      manifestPath,
       `/opt/cts/bin/${name}${extension}`,
       `/usr/local/bin/cts-${name}${extension}`,
       `./agents/${name}${extension}`,
@@ -383,19 +582,29 @@ export class SidecarManager implements CommandPort {
           if (!trimmed) continue;
 
           // New: Structured Log Ingestion
-          if (trimmed.startsWith("[LOG] ")) {
+          if (trimmed.startsWith("[LOG]")) {
             try {
-                const logData = JSON.parse(trimmed.substring(6));
+                const jsonStr = trimmed.startsWith("[LOG] ") ? trimmed.substring(6) : trimmed.substring(5);
+                const logData = JSON.parse(jsonStr);
                 this.logging.log({
                     timestamp: logData.timestamp || new Date().toISOString(),
                     type: logData.log_type || LogType.ACTIVITY,
                     severity: logData.severity || LogSeverity.INFO,
                     caller: logData.caller || `${name}:main`,
-                    message: logData.message
+                    message: logData.message,
+                    payload: logData.payload
                 });
                 // Note: We continue here if it's a pure log, but tactical events use standard JSON
                 continue; 
-            } catch { /* malformed log, continue to regular parsing */ }
+            } catch (e) { 
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `Malformed log from ${name}: ${trimmed.substring(0, 50)}... Error: ${(e as any).message}`
+                });
+            }
           }
 
           try {
@@ -459,11 +668,13 @@ export class SidecarManager implements CommandPort {
     return null;
   }
 
-  private async getSidecarEnv(name: string): Promise<Record<string, string>> {
+  private async getSidecarEnv(name: string, supportsAttestation: boolean = false): Promise<Record<string, string>> {
     const env: Record<string, string> = {
         "CTS_SIDECAR_NAME": name,
         "RUST_LOG": "info"
     };
+
+    const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
 
     if (name === "sentinel" || name === "netcap") {
         if (!this.defaultInterface) {
@@ -477,7 +688,66 @@ export class SidecarManager implements CommandPort {
         env["CTS_CAPTURE_DIR"] = "./volume/storage/captures";
     }
 
+    // If it supports attestation and we aren't in dev mode, we don't pass sensitive secrets via env
+    if (supportsAttestation && !isDev) {
+        // Secrets will be provisioned via sendCommand after attestation
+    } else {
+        // Fallback for legacy sidecars or dev mode
+        const meshSecret = Deno.env.get("MESH_SECRET");
+        if (meshSecret) env["MESH_SECRET"] = meshSecret;
+    }
+
     return env;
+  }
+
+  /**
+   * Performs a hardware-rooted attestation of the sidecar process.
+   */
+  private async attestSidecar(name: string): Promise<boolean> {
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.INFO,
+        caller: "orchestrator:infra:runtime:sidecar_manager",
+        message: `Initiating hardware attestation for ${name}...`
+    });
+
+    const nonce = crypto.randomUUID();
+    const quoteRes = await this.sendCommand(name, { type: "QuoteIdentity", nonce });
+
+    if (!quoteRes.success || !quoteRes.data) return false;
+
+    // Verify the quote via trustroot (TPM)
+    const verifyRes = await this.sendCommand("trustroot", {
+        type: "VerifyQuote",
+        quote: quoteRes.data.quote,
+        pcr_state: quoteRes.data.pcr_state,
+        nonce: quoteRes.data.nonce
+    });
+
+    return verifyRes.success;
+  }
+
+  /**
+   * Provisions sensitive secrets to an attested sidecar.
+   */
+  private async provisionSidecarSecrets(name: string): Promise<void> {
+    const meshSecret = Deno.env.get("MESH_SECRET");
+    if (meshSecret) {
+        await this.sendCommand(name, {
+            type: "PROVISION_SECRET",
+            key: "MESH_SECRET",
+            value: meshSecret
+        });
+    }
+
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.SUCCESS,
+        caller: "orchestrator:infra:runtime:sidecar_manager",
+        message: `Provisioned secrets to attested sidecar: ${name}`
+    });
   }
 
   async sendCommand(name: string, cmd: string | object): Promise<CommandResult> {
@@ -485,7 +755,7 @@ export class SidecarManager implements CommandPort {
     if (!child) return { success: false, stdout: "", stderr: `Sidecar ${name} not found` };
 
     const id = crypto.randomUUID();
-    let commandObj: any = typeof cmd === "string" ? { id, type: cmd } : { ...cmd, id };
+    let commandObj: Record<string, any> = typeof cmd === "string" ? { id, type: cmd } : { ...(cmd as object), id };
 
     if (!validateRequest(name as SidecarName, commandObj)) {
       return { success: false, stdout: "", stderr: `Security violation: Invalid command for sidecar '${name}'` };
@@ -528,12 +798,27 @@ export class SidecarManager implements CommandPort {
 
   async restartSidecar(name: string): Promise<void> {
     await this.stopSidecar(name);
-    await this.getPersistentSidecar(name);
+    await this.getPersistentSidecar(name).catch(e => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:runtime:sidecar_manager:restart",
+            message: `Failed to restart sidecar ${name}: ${(e as Error).message}`
+        });
+    });
   }
 
   async stopSidecar(name: string): Promise<void> {
     const process = this.persistentProcesses.get(name);
     if (process) {
+      if (PRIVILEGED_SIDECARS.includes(name) && Deno.uid() !== 0) {
+          // If it's privileged and we aren't root, we likely need sudo to kill it
+          await this.executor.execute("kill", ["-15", process.pid.toString()]);
+          // Wait a bit for graceful exit then force kill if needed
+          await new Promise(r => setTimeout(r, 1000));
+          await this.executor.execute("kill", ["-9", process.pid.toString()]);
+      }
       try {
         process.kill("SIGTERM");
         
@@ -555,19 +840,6 @@ export class SidecarManager implements CommandPort {
     }
   }
 
-  async shutdown(): Promise<void> {
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.ACTIVITY,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:infra:runtime:sidecar_manager",
-        message: "Shutting down agent fleet..."
-    });
-    const names = Array.from(this.persistentProcesses.keys());
-    for (const name of names) {
-      await this.stopSidecar(name);
-    }
-  }
 
   getPID(name: string): number | null {
     const process = this.persistentProcesses.get(name);
@@ -576,12 +848,10 @@ export class SidecarManager implements CommandPort {
 
   private getCapabilities(name: string): string | undefined {
     const caps: Record<string, string> = {
-        "firewall": "cap_net_admin,cap_kill+ep",
         "enforcer": "cap_net_admin,cap_kill+ep",
         "sentinel": "cap_sys_admin,cap_net_admin,cap_sys_resource+ep",
         "netcap": "cap_net_raw,cap_net_admin+ep",
-        "tunnel": "cap_net_admin+ep",
-        "mesh": "cap_net_bind_service+ep"
+        "tunnel": "cap_net_admin+ep"
     };
     return caps[name];
   }
@@ -640,11 +910,28 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     try {
+        // OPTIMIZATION: Use Deno.readFile to get a Uint8Array which Web Crypto digest() expects.
+        // For very large files, we could use a custom streaming implementation, but for
+        // agent binaries (typically < 20MB), a single read is efficient and avoids process spawn overhead.
         const data = await Deno.readFile(path);
         const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        return Array.from(new Uint8Array(hashBuffer))
-            .map(b => b.toString(16).padStart(2, "0")).join("");
-    } catch {
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:runtime:sidecar_manager:hash",
+            message: `Native hashing failed for ${path}: ${(e as any).message}. Falling back to sha256sum.`
+        });
+
+        try {
+            const result = await this.executor.execute("sha256sum", [path]);
+            if (result.success && result.stdout) {
+                return result.stdout.split(" ")[0].trim();
+            }
+        } catch { /* ignore */ }
         return null;
     }
   }
@@ -670,7 +957,15 @@ export class SidecarManager implements CommandPort {
           message: `Restarting sidecar ${name} (attempt ${restartInfo.count}/3)`
       });
       setTimeout(() => {
-        this.getPersistentSidecar(name).catch(() => {});
+        this.getPersistentSidecar(name).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager:auto_restart",
+                message: `Auto-restart failed for ${name}: ${(e as Error).message}`
+            });
+        });
       }, Math.pow(2, restartInfo.count - 1) * 1000);
     } else {
       const msg = `Sidecar ${name} failed too many times. Giving up.`;

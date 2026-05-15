@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export default function AuditIntegrity({ status, csrfToken }: { status?: any, csrfToken?: string }) {
   return (
-    <Layout title="Mesh Integrity // Autonomous Defense Mesh" csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Mesh Integrity // Autonomous Defense Mesh" csrfToken={props.csrfToken} >
       <div style="max-width:1200px; margin:0 auto;">
         <header style="margin-bottom:3rem;">
           <div class="section-header">System Security</div>

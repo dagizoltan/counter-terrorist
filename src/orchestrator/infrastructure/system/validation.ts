@@ -3,7 +3,7 @@
  */
 import { normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
 
-export const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
+export const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:\/\d{1,2})?$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))(?:\/\d{1,3})?$/;
 
 export function isValidIP(ip: string): boolean {
   return IP_REGEX.test(ip);
@@ -61,7 +61,7 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
   }
 
   // Block cloud metadata endpoints
-  if (hostname === "169.254.169.254" || hostname === "metadata.google.internal") {
+  if (hostname === "169.254.169.254" || hostname === "metadata.google.internal" || hostname === "instance-data" || hostname.endsWith(".metadata.google.internal")) {
     return { valid: false, reason: "Cloud metadata endpoints are not allowed" };
   }
 
@@ -70,16 +70,70 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
     return { valid: false, reason: "Link-local addresses are not allowed" };
   }
 
-  // Block RFC1918 private ranges
+  // Block RFC1918 private ranges and other reserved ranges
   const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
-    const [, a, b] = ipv4Match.map(Number);
+    const [, a, b, c] = ipv4Match.map(Number);
     if (a === 10) return { valid: false, reason: "RFC1918 private addresses (10.x.x.x) are not allowed" };
     if (a === 172 && b >= 16 && b <= 31) return { valid: false, reason: "RFC1918 private addresses (172.16-31.x.x) are not allowed" };
     if (a === 192 && b === 168) return { valid: false, reason: "RFC1918 private addresses (192.168.x.x) are not allowed" };
     if (a === 100 && b >= 64 && b <= 127) return { valid: false, reason: "Carrier-grade NAT (100.64.0.0/10) addresses are not allowed" };
     if (a === 198 && (b === 18 || b === 19)) return { valid: false, reason: "Benchmark testing (198.18.0.0/15) addresses are not allowed" };
+    if (a === 192 && b === 0 && c === 2) return { valid: false, reason: "TEST-NET-1 (192.0.2.0/24) addresses are not allowed" };
+    if (a === 198 && b === 51 && c === 100) return { valid: false, reason: "TEST-NET-2 (198.51.100.0/24) addresses are not allowed" };
+    if (a === 203 && b === 0 && c === 113) return { valid: false, reason: "TEST-NET-3 (203.0.113.0/24) addresses are not allowed" };
     if (a === 0) return { valid: false, reason: "Zero-prefix addresses are not allowed" };
+    if (a >= 224) return { valid: false, reason: "Multicast or reserved addresses are not allowed" };
+  }
+
+  // IPv6 SSRF Protection (Expanded)
+  if (hostname.startsWith("[") && hostname.endsWith("]")) {
+      const inner = hostname.substring(1, hostname.length - 1);
+      if (inner === "::1" || inner === "::" || inner.startsWith("fe80:") || inner.startsWith("fc00:") || inner.startsWith("fd00:")) {
+          return { valid: false, reason: "Private or local IPv6 addresses are not allowed" };
+      }
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Async version of webhook validation that performs DNS resolution.
+ * This mitigates DNS Rebinding and bypasses using hostnames that resolve to private IPs.
+ */
+export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boolean; reason?: string; resolvedIp?: string }> {
+  const initialCheck = isValidWebhookUrl(url);
+  if (!initialCheck.valid) return initialCheck;
+
+  const parsed = new URL(url);
+  const hostname = parsed.hostname;
+
+  // If already an IP, it was checked by isValidWebhookUrl
+  if (isValidIP(hostname)) return { valid: true, resolvedIp: hostname };
+
+  try {
+    // Resolve both IPv4 and IPv6
+    const [ipv4s, ipv6s] = await Promise.all([
+      Deno.resolveDns(hostname, "A").catch(() => []),
+      Deno.resolveDns(hostname, "AAAA").catch(() => [])
+    ]);
+
+    for (const ip of ipv4s) {
+      const check = isValidWebhookUrl(`https://${ip}`);
+      if (!check.valid) return { valid: false, reason: `Domain '${hostname}' resolves to restricted IP ${ip}` };
+    }
+
+    for (const ip of ipv6s) {
+      const check = isValidWebhookUrl(`https://[${ip}]`);
+      if (!check.valid) return { valid: false, reason: `Domain '${hostname}' resolves to restricted IPv6 ${ip}` };
+    }
+
+    // Return the first valid IP to prevent DNS rebinding in safeFetch
+    if (ipv4s.length > 0) return { valid: true, resolvedIp: ipv4s[0] };
+    if (ipv6s.length > 0) return { valid: true, resolvedIp: `[${ipv6s[0]}]` };
+
+  } catch {
+    // DNS resolution failure - will be caught at fetch time, but not an SSRF risk itself
   }
 
   return { valid: true };
@@ -120,7 +174,7 @@ export function validatePath(p: string, jailPrefixes?: string[]): boolean {
 
   let normalized: string;
   try {
-    normalized = normalize(p);
+    normalized = normalize(decoded);
     if (normalized.includes("..")) return false;
   } catch {
     return false;
@@ -274,16 +328,18 @@ export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
 export function validateRequest(sidecar: SidecarName, req: any): boolean {
   if (!req.type) return false;
 
+  const ANALYZER_JAIL = ["/home/", "/var/www/", "./volume/", "/var/lib/cts/", "/tmp/", "/var/tmp/"];
+
   switch (sidecar) {
     case "analyzer":
       if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"].includes(req.type)) return false;
       if (req.type === "DIR_SCAN" || req.type === "ScanPath" || req.type === "Quarantine") {
         if (req.path) {
-          if (!validatePath(req.path)) return false;
+          if (!validatePath(req.path, ANALYZER_JAIL)) return false;
         }
         if (req.paths) {
           if (!Array.isArray(req.paths)) return false;
-          if (!req.paths.every((p: string) => validatePath(p))) return false;
+          if (!req.paths.every((p: string) => validatePath(p, ANALYZER_JAIL))) return false;
         }
       }
       return true;
@@ -326,17 +382,35 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       const ebpfTypes = [
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
         "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
-        "ENFORCE_PID", "UNENFORCE_PID"
+        "ENFORCE_PID", "UNENFORCE_PID", "BLOCK_SYSCALL", "LSM_POLICY"
       ];
       if (!ebpfTypes.includes(req.type)) return false;
-      if ((req.type === "BLOCK_IP" || req.type === "UNBLOCK_IP" || req.type === "SHADOW_BAN") && !isValidIP(req.ip || "")) return false;
-      if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip || "")) return false;
-      if (req.type === "TRUST_COMM" && typeof req.comm !== "string") return false;
-      if ((req.type === "HIDE_PID" || req.type === "ENFORCE_PID" || req.type === "UNENFORCE_PID") && typeof req.pid !== "number") return false;
-      if ((req.type === "ALLOW_PORT" || req.type === "DENY_PORT") && typeof req.port !== "number") return false;
+      
+      // IP Validation
+      if (["BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN"].includes(req.type)) {
+        if (!req.ip || !isValidIP(req.ip)) return false;
+        if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip)) return false;
+      }
+      
+      // Process Name Validation (Strict)
+      if (req.type === "TRUST_COMM") {
+        if (typeof req.comm !== "string" || req.comm.length === 0 || req.comm.length > 16) return false;
+        if (!/^[a-zA-Z0-9._-]+$/.test(req.comm)) return false;
+      }
+      
+      // PID Validation
+      if (["HIDE_PID", "ENFORCE_PID", "UNENFORCE_PID"].includes(req.type)) {
+        if (typeof req.pid !== "number" || req.pid <= 0 || req.pid > 4194304) return false;
+      }
+      
+      // Port Validation
+      if (["ALLOW_PORT", "DENY_PORT"].includes(req.type)) {
+        if (typeof req.port !== "number" || req.port < 1 || req.port > 65535) return false;
+      }
+      
       return true;
     case "trustroot":
-      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity"].includes(req.type)) return false;
+      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert"].includes(req.type)) return false;
       return true;
     case "tunnel":
       if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
@@ -360,6 +434,10 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if ((req.type === "AddBlockRule" || req.type === "RemoveBlockRule") && !isValidIP(req.ip || "")) return false;
       if (req.type === "AddBlockRule" && isCriticalInfrastructure(req.ip || "")) return false;
       if ((req.type === "AddAllowRule" || req.type === "RemoveAllowRule") && typeof req.port !== "number") return false;
+      return true;
+    case "telemetry-win":
+      const telemetryWinTypes = ["GetStatus", "StartTelemetry", "StopTelemetry"];
+      if (!telemetryWinTypes.includes(req.type)) return false;
       return true;
     default:
       return false; // Unknown sidecars are rejected by default

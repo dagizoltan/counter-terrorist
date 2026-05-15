@@ -9,6 +9,7 @@ export interface ProcessNode {
     exe?: string;
     children: number[];
     isGhost?: boolean;
+    influencedPids: number[];
 }
 
 /**
@@ -34,7 +35,7 @@ export class ProcessTracker {
             node.comm = comm;
             node.isGhost = isGhost || node.isGhost;
         } else {
-            node = { pid, ppid, comm, children: [], isGhost };
+            node = { pid, ppid, comm, children: [], isGhost, influencedPids: [] };
             this.tree.set(pid, node);
         }
 
@@ -46,12 +47,28 @@ export class ProcessTracker {
         }
     }
 
-    async analyzeEvent(pid: number, comm: string): Promise<{ isStrayShell: boolean; reason?: string; ppid?: number }> {
+    async analyzeEvent(pid: number, comm: string, metadata?: any): Promise<{ isStrayShell: boolean; reason?: string; ppid?: number }> {
         const stats = await this.processProvider.getProcessInfo(pid);
         const ppid = stats?.ppid || null;
         
         if (ppid) {
             this.updateProcess(pid, ppid, comm);
+        }
+
+        if (metadata?.influence && metadata.influence !== "NONE") {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.INFO,
+                caller: "PROCESS:CAUSAL",
+                message: `Influence detected: ${comm} (${pid}) -> ${metadata.influence}`
+            });
+
+            // Link influence if target PID is provided (heuristic: self for now)
+            const node = this.tree.get(pid);
+            if (node && !node.influencedPids.includes(pid)) {
+                node.influencedPids.push(pid);
+            }
         }
 
         if (this.shells.includes(comm)) {
@@ -72,11 +89,9 @@ export class ProcessTracker {
 
     async fullScan() {
         try {
-            for await (const pid of this.processProvider.listProcesses()) {
-                const stats = await this.processProvider.getProcessInfo(pid);
-                if (stats) {
-                    this.updateProcess(pid, stats.ppid, stats.comm);
-                }
+            const processes = await this.processProvider.getAllProcesses();
+            for (const stats of processes) {
+                this.updateProcess(stats.pid, stats.ppid, stats.comm);
             }
             
             await this.scanForGhosts();
@@ -121,23 +136,55 @@ export class ProcessTracker {
         const ghosts: number[] = [];
         const ownPid = this.processProvider.getOwnPid();
 
-        // Simplified range for demo, in production this would be more exhaustive
-        const maxPid = 65535; 
+        // PERF-03: Use /proc discovery instead of linear range scanning
+        try {
+            if (Deno.build.os === "linux") {
+                for await (const entry of Deno.readDir("/proc")) {
+                    if (entry.isDirectory && /^\d+$/.test(entry.name)) {
+                        const pid = parseInt(entry.name);
+                        if (pid === ownPid || pid < 2) continue;
 
-        for (let pid = 1; pid <= 20000; pid++) { // Reduced range for performance in this turn
-            if (pid === ownPid) continue;
+                        const existing = this.tree.get(pid);
+                        if (existing && !existing.isGhost) continue;
 
-            const existing = this.tree.get(pid);
-            if (existing && !existing.isGhost) continue;
+                        // STABILIZATION: Short-lived processes often vanish between readdir and stat.
+                        // We implement a 50ms "Settling Delay" and retry before flagging a ghost.
+                        let info = await this.processProvider.getProcessInfo(pid);
 
-            const info = await this.processProvider.getProcessInfo(pid);
-            
-            if (!info) {
-                if (this.processProvider.isAlive(pid)) {
-                    ghosts.push(pid);
-                    this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                        if (!info) {
+                            await new Promise(r => setTimeout(r, 50));
+                            info = await this.processProvider.getProcessInfo(pid);
+                        }
+
+                        if (!info) {
+                            // If it's still missing after 50ms, it might be a ghost or just a terminated transient process.
+                            // We check if the /proc directory still exists. If it doesn't, it was just transient.
+                            try {
+                                const stat = await Deno.stat(`/proc/${pid}`);
+                                if (stat.isDirectory) {
+                                    ghosts.push(pid);
+                                    this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                                }
+                            } catch {
+                                // Directory gone -> process exited naturally. Not a ghost.
+                            }
+                        } else {
+                            // Filter kernel threads (PPID 2 or 0 depending on kernel)
+                            if (info.ppid === 2 || info.ppid === 0) continue;
+                        }
+                    }
+                }
+            } else {
+                // Fallback for non-linux environments (limited range)
+                for (let pid = 1; pid <= 5000; pid++) {
+                    if (pid === ownPid) continue;
+                    if (!this.processProvider.isAlive(pid)) continue;
+                    const info = await this.processProvider.getProcessInfo(pid);
+                    if (!info) ghosts.push(pid);
                 }
             }
+        } catch (e) {
+            // Silently handle /proc read errors to avoid crashing the forensic loop
         }
 
         if (ghosts.length > 0) {

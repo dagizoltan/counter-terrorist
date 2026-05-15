@@ -8,12 +8,12 @@ import { HoneypotModule } from "@domain/protection/honeypot_service.ts";
  */
 export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout title="Honeypot Infrastructure" csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Honeypot Infrastructure" csrfToken={props.csrfToken} >
       {/* 1. Unified Page Header */}
       <header class="page-header">
         <div class="title-group">
           <h1>Deception Operations</h1>
-          <span class="subtitle">Decoys Deployed // Trap Network: Active</span>
+          <span class="subtitle">Trap Network: Active</span>
         </div>
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-4 bg-warning/10 border border-warning/30 px-8 py-4 rounded-full">

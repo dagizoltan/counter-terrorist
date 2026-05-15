@@ -3,12 +3,12 @@
 
 use aya_ebpf::{
     macros::{kprobe, map, classifier, xdp},
-    maps::{PerfEventArray, HashMap},
+    maps::{PerfEventArray, HashMap, LpmTrie, lpm_trie::Key},
     programs::{ProbeContext, TcContext, XdpContext},
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
 };
 
-use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, LpmKey};
 use core::mem;
 
 const TC_ACT_OK: i32 = 0;
@@ -33,7 +33,7 @@ static mut ACTIVE_SESSIONS: HashMap<SessionKey, SessionValue> = HashMap::with_ma
 static mut TRUSTED_COMM: HashMap<[u8; 16], u8> = HashMap::with_max_entries(1024, 0);
 
 #[map]
-static mut XDP_BLOCK_LIST: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0);
+static mut XDP_BLOCK_LIST: LpmTrie<u32, u32> = LpmTrie::with_max_entries(4096, 0);
 
 #[map]
 static mut ALLOWED_PORTS: HashMap<u16, u8> = HashMap::with_max_entries(1024, 0);
@@ -43,6 +43,9 @@ static mut FIREWALL_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(8, 0);
 
 #[map]
 static mut ENFORCEMENT_POLICY: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0); // Key: PID, Value: Policy flags (1=BlockAll, 2=NetBlock, 4=FileBlock, 8=MountBlock)
+
+#[map]
+static mut IMMUTABLE_PATHS: HashMap<[u8; 64], u8> = HashMap::with_max_entries(256, 0);
 
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
@@ -87,8 +90,9 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
         }
     }
 
-    // 2. EXPLICIT BLOCK LIST CHECK
-    if unsafe { XDP_BLOCK_LIST.get(&src_ip) }.is_some() {
+    // 2. EXPLICIT BLOCK LIST CHECK (LPM)
+    let key = Key::new(32, src_ip);
+    if unsafe { XDP_BLOCK_LIST.get(&key) }.is_some() {
         return Ok(XDP_DROP);
     }
 
@@ -182,6 +186,7 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         fd: 0,
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -201,6 +206,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
         fd: 0,
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -217,6 +223,7 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
             fd: 0,
             port: 0,
             ip: 0,
+            influence_type: 0,
         };
         unsafe { EVENTS.output(&ctx, &event, 0) };
     }
@@ -248,6 +255,7 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
         fd: ctx.arg(0).unwrap_or(0),
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -267,6 +275,7 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         fd: 0,
         port: 0,
         ip: 0,
+        influence_type: 0,
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -291,6 +300,26 @@ pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
             return -1; // EPERM
         }
     }
+    0
+}
+
+#[kprobe]
+pub fn kprobe_write(ctx: ProbeContext) -> u32 {
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
+        return 0;
+    }
+    let fd: u32 = ctx.arg(0).unwrap_or(0);
+    let event = SyscallEvent {
+        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        comm,
+        syscall_id: 1,
+        fd,
+        port: 0,
+        ip: 0,
+        influence_type: if fd > 2 { 2 } else { 0 },
+    };
+    unsafe { EVENTS.output(&ctx, &event, 0) };
     0
 }
 

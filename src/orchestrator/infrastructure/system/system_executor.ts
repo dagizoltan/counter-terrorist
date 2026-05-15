@@ -14,32 +14,30 @@ interface CommandPolicy {
 
 /**
  * Executes one-off system commands with strict security validation.
+ * HARDENED: Only allows absolute paths or short names that resolve to trusted directories.
  */
 export class SystemExecutor {
+  private static readonly TRUSTED_BIN_PATHS = [
+    "/usr/bin/", "/bin/", "/usr/sbin/", "/sbin/", "/usr/local/bin/"
+  ];
+
+  private static readonly TRUSTED_SCRIPTS_DIR = "/var/lib/cts/scripts/";
+  private static readonly TRUSTED_SIDECARS_DIR = "/var/lib/cts/bin/";
+
   private static readonly WHITELISTED_COMMANDS = [
     "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
-    "crontab", "which", "where", "netsh", "taskkill", "tc", "kill",
+    "crontab", "which", "where", "netsh", "taskkill", "tc", "kill", "tcpdump",
     "cp", "gcore", "ufw", "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread",
     "tpm2_pcrread", "wg-quick", "wg", "launchctl", "system_profiler", "ss",
     "unshare", "iptables", "tpm2_sign", "tpm2_hash", "sw_vers", "openssl",
     "pfctl", "ifconfig", "killall", "spctl", "ps", "pktmon", "ip", "sysctl", "nmcli", "ping", "host", "scp", "ssh", "security", "powershell",
-    "analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "tunnel", "sentinel-darwin", "telemetry-win", "enforcer-win",
-    "/var/lib/cts/scripts/install_service.sh",
-    "/var/lib/cts/scripts/update_crontab.sh",
-    "/var/lib/cts/scripts/update_comm.sh",
-    "/var/lib/cts/scripts/secure_spawn.sh"
+    "analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "tunnel", "sentinel-darwin", "telemetry-win", "enforcer-win", "getcap", "ebpf"
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [
     "ufw", "tc", "iptables", "wg-quick", "wg", "gcore", "unshare", "systemctl", 
     "tpm2_nvdefine", "tpm2_nvwrite", "tpm2_nvread", "tpm2_pcrread", "setcap",
-    "chmod", "mkdir", "cp", "mv", "pfctl", "pktmon", "netsh",
-    "/var/lib/cts/scripts/secure_spawn.sh"
-  ];
-
-  private static readonly PLATFORM_TOOLS = [
-    "pfctl", "launchctl", "sw_vers", "spctl", "ifconfig", "killall", "ps",
-    "netsh", "taskkill", "pktmon", "powershell", "security"
+    "chmod", "mkdir", "cp", "mv", "pfctl", "pktmon", "netsh"
   ];
 
   /**
@@ -75,8 +73,10 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
-        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"\$\(\)\{\}\[\];+]+$/],
-        maxArgs: 2
+        // HARDENED: Restrictive regex, allowing pipes but denying subshells and redirection
+        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"\|\,\[\]]+$/],
+        maxArgs: 2,
+        blockedStrings: [";", "&&", "||", ">", "<", "`", "$(", "{", "}", "Invoke-Expression", "IEX"]
     },
     "netsh": {
         allowedArgs: [/^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/, /^[a-zA-Z0-9\s\-\.\/_=:]+$/],
@@ -87,15 +87,15 @@ export class SystemExecutor {
         maxArgs: 3
     },
     "systemctl": {
-      allowedArgs: [/^(start|stop|restart|status|is-active)$/, /^(cts-.*|ufw|wireguard.*|clamav.*)$/],
+      allowedArgs: [/^(start|stop|restart|status|is-active|daemon-reload|enable|disable)$/, /^(cts-.*|ufw|wireguard.*|clamav.*)$/],
       maxArgs: 2
     },
     "ufw": {
-      allowedArgs: [/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/, /^[0-9a-zA-Z./]+$/],
+      allowedArgs: [/^(status|enable|disable|allow|deny|delete|default|reload|reset|--force)$/, /^[0-9a-zA-Z./]+$/],
       maxArgs: 5
     },
     "kill": {
-      allowedArgs: [/^-?[0-9]+$/, /^[0-9]+$/],
+      allowedArgs: [/^-?[0-9A-Z]+$/, /^[0-9]+$/],
       maxArgs: 2
     },
     "chmod": {
@@ -111,7 +111,7 @@ export class SystemExecutor {
       maxArgs: 8
     },
     "ls": {
-      allowedArgs: [/^-la?$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
+      allowedArgs: [/^-la?$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts.*)$/],
       maxArgs: 2
     },
     "cp": {
@@ -211,7 +211,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ip": {
-        allowedArgs: [/^(addr|link|route|neigh|show|dev|default|add|del|list)$/, /^[a-zA-Z0-9\._\-]+$/, /^[0-9a-fA-F\.:\/]+$/],
+        allowedArgs: [/^(-4|-6)$/, /^(addr|link|route|neigh|neighbor|show|dev|default|add|del|list)$/, /^[a-zA-Z0-9\._\-]+$/, /^[0-9a-fA-F\.:\/]+$/],
         maxArgs: 10
     },
     "sysctl": {
@@ -223,7 +223,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ping": {
-        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /^[a-z0-9.-]+$/, /^[0-9a-fA-F.:]+$/],
+        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /^[a-z0-9.-]+$/, /^[0-9a-fA-F.:%]+$/],
         maxArgs: 10
     },
     "host": {
@@ -237,22 +237,6 @@ export class SystemExecutor {
     "ssh": {
         allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/],
         maxArgs: 10
-    },
-    "/var/lib/cts/scripts/install_service.sh": {
-      allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /.*/],
-      maxArgs: 2
-    },
-    "/var/lib/cts/scripts/update_crontab.sh": {
-      allowedArgs: [/.*/],
-      maxArgs: 1
-    },
-    "/var/lib/cts/scripts/update_comm.sh": {
-      allowedArgs: [/^\[[a-z0-9/:]+\]$/, /^[0-9]+$/],
-      maxArgs: 2
-    },
-    "/var/lib/cts/scripts/secure_spawn.sh": {
-      allowedArgs: [/^[a-z0-9-]+$/, /^[a-zA-Z0-9./_-]+$/, /^[a-z0-9,._+]*$/],
-      maxArgs: 3
     },
     "openssl": {
       allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+(\.(bin|pem|crt|key|csr|pub|sig))?$/],
@@ -270,35 +254,95 @@ export class SystemExecutor {
     "tunnel": { maxArgs: 10 },
     "sentinel-darwin": { maxArgs: 10 },
     "telemetry-win": { maxArgs: 10 },
-    "enforcer-win": { maxArgs: 10 }
+    "enforcer-win": { maxArgs: 10 },
+    "getcap": {
+      allowedArgs: [/^[a-zA-Z0-9./_-]+$/],
+      maxArgs: 1
+    },
+    "ebpf": {
+        allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID)".*\}$/],
+        maxArgs: 1
+    }
   };
 
+  /**
+   * Validates and resolves a command to its absolute path.
+   */
+  private resolveCommand(cmd: string): { resolvedPath: string; baseName: string } {
+    const isAbsolute = path.isAbsolute(cmd);
+    const baseName = path.basename(cmd);
 
+    if (isAbsolute) {
+      // 1. If absolute, it MUST be in a trusted directory OR match a specific script
+      const isTrustedDir = SystemExecutor.TRUSTED_BIN_PATHS.some(p => cmd.startsWith(p)) || 
+                           cmd.startsWith(SystemExecutor.TRUSTED_SCRIPTS_DIR) ||
+                           cmd.startsWith(SystemExecutor.TRUSTED_SIDECARS_DIR);
+      
+      const isDevSidecar = Deno.env.get("CTS_DEV_MODE") === "true" && cmd.startsWith(Deno.cwd());
 
-  private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
-    const baseCmd = path.basename(cmd);
-    const policy = SystemExecutor.COMMAND_POLICIES[cmd] || SystemExecutor.COMMAND_POLICIES[baseCmd];
+      if (!isTrustedDir && !isDevSidecar) {
+        throw new Error(`Security Violation: Absolute path '${cmd}' is not in a trusted location.`);
+      }
+
+      if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseName)) {
+        throw new Error(`Security Violation: Command '${baseName}' is not whitelisted.`);
+      }
+
+      return { resolvedPath: cmd, baseName };
+    }
+
+    // 2. If short name, it MUST be in the whitelist and we resolve it
+    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+      throw new Error(`Security Violation: Command '${cmd}' is not whitelisted.`);
+    }
+
+    // In a real system, we would use a secure 'which' implementation here.
+    // For this orchestrator, we assume short names are resolved via PATH safely 
+    // IF and only IF they are whitelisted and don't contain any path separators.
+    if (cmd.includes("/") || cmd.includes("\\")) {
+        throw new Error(`Security Violation: Relative paths are forbidden in command names.`);
+    }
+
+    return { resolvedPath: cmd, baseName: cmd };
+  }
+
+  /**
+   * Checks if a command exists in the system PATH.
+   */
+  async exists(cmd: string): Promise<boolean> {
+      try {
+          const command = new Deno.Command("which", {
+              args: [cmd],
+              stdout: "null",
+              stderr: "null",
+          });
+          const status = await command.spawn().status;
+          return status.success;
+      } catch {
+          return false;
+      }
+  }
+
+  private validateArguments(baseName: string, args: string[]): { valid: boolean; reason?: string } {
+    const policy = SystemExecutor.COMMAND_POLICIES[baseName];
     
-    // SECURITY: Deny by default if no policy exists for a whitelisted command
     if (!policy) {
-      return { valid: false, reason: `No security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
+      return { valid: false, reason: `No security policy defined for whitelisted command '${baseName}'. Blocking for safety.` };
     }
 
     if (policy.maxArgs !== undefined && args.length > policy.maxArgs) {
-      return { valid: false, reason: `Too many arguments for '${baseCmd}' (max: ${policy.maxArgs})` };
+      return { valid: false, reason: `Too many arguments for '${baseName}' (max: ${policy.maxArgs})` };
     }
 
     if (policy.allowedArgs) {
       for (let i = 0; i < args.length; i++) {
         const arg = args[i];
-        // SET-BASED VALIDATION: Check if the argument matches ANY of the allowed patterns
         const matchesAny = policy.allowedArgs.some(pattern => pattern.test(arg));
 
         if (!matchesAny) {
-          return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseCmd}' (no matching pattern)` };
+          return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseName}'` };
         }
 
-        // ALWAYS validate for traversal if it looks like a path or contains '..'
         if (arg.includes("/") || arg.includes("\\") || arg.includes("..") || arg.includes("%")) {
           const jailPrefixes = (arg.startsWith("./volume/") || arg.startsWith("/var/lib/cts/"))
               ? ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"]
@@ -325,22 +369,21 @@ export class SystemExecutor {
   }
 
   async executeAsync(cmd: string, args: string[] = []): Promise<void> {
-    const baseCmd = path.basename(cmd);
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
-        throw new Error(`Security Violation: Command '${cmd}' is not in the system whitelist.`);
-    }
+    const { resolvedPath, baseName } = this.resolveCommand(cmd);
 
-    const validation = this.validateArguments(cmd, args);
+    const validation = this.validateArguments(baseName, args);
     if (!validation.valid) {
         throw new Error(`Security Violation: ${validation.reason}`);
     }
 
-    let finalCmd = cmd;
+    let finalCmd = resolvedPath;
     let finalArgs = [...args];
 
-    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && Deno.uid() !== 0) {
+    if (SystemExecutor.PRIVILEGED_COMMANDS.includes(baseName) && 
+        Deno.uid() !== 0 && 
+        Deno.env.get("CTS_NO_SUDO") !== "true") {
         finalCmd = "sudo";
-        finalArgs = ["-n", cmd, ...args];
+        finalArgs = ["-n", resolvedPath, ...args];
     }
 
     const command = new Deno.Command(finalCmd, {
@@ -353,33 +396,30 @@ export class SystemExecutor {
   }
 
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
-    const baseCmd = path.basename(cmd);
-    // Security: Whitelist validation
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
-        return {
-            success: false,
-            stdout: "",
-            stderr: `Security Violation: Command '${cmd}' is not in the system whitelist.`,
-        };
+    let resolvedPath: string;
+    let baseName: string;
+
+    try {
+        const resolution = this.resolveCommand(cmd);
+        resolvedPath = resolution.resolvedPath;
+        baseName = resolution.baseName;
+    } catch (e) {
+        return { success: false, stdout: "", stderr: (e as Error).message };
     }
 
-    // Security: Granular Argument Validation
-    const validation = this.validateArguments(cmd, args);
+    const validation = this.validateArguments(baseName, args);
     if (!validation.valid) {
-        return {
-            success: false,
-            stdout: "",
-            stderr: `Security Violation: ${validation.reason}`,
-        };
+        return { success: false, stdout: "", stderr: `Security Violation: ${validation.reason}` };
     }
 
-    let finalCmd = cmd;
+    let finalCmd = resolvedPath;
     let finalArgs = [...args];
 
-    // Privilege Elevation: Automatically use sudo for privileged commands if not already root
-    if ((SystemExecutor.PRIVILEGED_COMMANDS.includes(baseCmd) || SystemExecutor.PRIVILEGED_COMMANDS.includes(cmd)) && Deno.uid() !== 0) {
+    if (SystemExecutor.PRIVILEGED_COMMANDS.includes(baseName) && 
+        Deno.uid() !== 0 && 
+        Deno.env.get("CTS_NO_SUDO") !== "true") {
         finalCmd = "sudo";
-        finalArgs = ["-n", cmd, ...args];
+        finalArgs = ["-n", resolvedPath, ...args];
     }
 
     let timeoutId: number | undefined;
@@ -397,13 +437,9 @@ export class SystemExecutor {
       const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => {
           if (child) {
-            try {
-              child.kill();
-            } catch {
-              // Ignore
-            }
+            try { child.kill(); } catch { /* Ignore */ }
           }
-          reject(new Error(`Command '${cmd} ${args.join(" ")}' timed out after ${timeoutMs}ms`));
+          reject(new Error(`Command '${cmd}' timed out after ${timeoutMs}ms`));
         }, timeoutMs);
       });
 
@@ -420,19 +456,10 @@ export class SystemExecutor {
 
       let data;
       if (stdoutStr.trim().startsWith("{") || stdoutStr.trim().startsWith("[")) {
-        try {
-          data = JSON.parse(stdoutStr);
-        } catch {
-          // Not valid JSON
-        }
+        try { data = JSON.parse(stdoutStr); } catch { /* Ignore */ }
       }
 
-      return {
-        success: code === 0,
-        stdout: stdoutStr,
-        stderr: stderrStr,
-        data,
-      };
+      return { success: code === 0, stdout: stdoutStr, stderr: stderrStr, data };
     } catch (error) {
       if (timeoutId) clearTimeout(timeoutId);
       return {

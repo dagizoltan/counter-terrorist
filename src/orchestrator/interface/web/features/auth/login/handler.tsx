@@ -16,7 +16,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
   const router = new Hono();
 
   router.get("/", (c: Context) => {
-    return c.html(<Login />);
+    return c.html(<Login nonce={c.get("nonce")} />);
   });
 
   router.post("/", async (c: Context) => {
@@ -52,7 +52,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       if (contentType && contentType.includes("application/json")) {
         return c.json({ error: errorMsg }, 429);
       }
-      return c.html(<Login error={errorMsg} />, 429);
+      return c.html(<Login error={errorMsg} nonce={c.get("nonce")} />, 429);
     }
 
     let token: string | undefined;
@@ -118,7 +118,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
     if (contentType && contentType.includes("application/json")) {
         return c.json({ error: "Invalid token" }, 401);
     }
-    return c.html(<Login error="Invalid token" />);
+    return c.html(<Login error="Invalid token" nonce={c.get("nonce")} />);
   });
 
   return router;

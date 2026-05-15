@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const NetworkPage = () => {
   return (
-    <Layout title="Network Access Logs // Perimeter Audit" csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Network Access Logs // Perimeter Audit" csrfToken={props.csrfToken} >
       <div style="margin-bottom:3rem;">
         <div style="display:flex; align-items:center; gap:1.5rem;">
           <div style="width:8px; height:40px; background:var(--cyber-blue); border-radius:4px; box-shadow:0 0 20px var(--cyber-blue-glow);"></div>

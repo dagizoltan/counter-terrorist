@@ -67,4 +67,12 @@ API_TOKEN=${API_TOKEN} \
 MESH_SECRET=${MESH_SECRET} \
 PKI_SECRET=${PKI_SECRET} \
 PROVISIONING_ENABLED=${PROVISIONING_ENABLED:-false} \
-deno run --allow-all --unstable-kv src/orchestrator/index.ts
+deno run \
+  --unstable-kv \
+  --allow-read \
+  --allow-write \
+  --allow-net \
+  --allow-env \
+  --allow-run \
+  --allow-sys \
+  src/orchestrator/index.ts

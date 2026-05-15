@@ -10,13 +10,13 @@ export const NotificationsPage = (props: { status: ApplicationStatus, csrfToken?
   const islandPaths = ['/components/islands/WebhookManager.js'];
 
   return (
-    <Layout title="Alert Relay // Governance" islandPaths={islandPaths} csrfToken={props.csrfToken} nonce={props.nonce}>
+    <Layout nonce={props.nonce} title="Alert Relay // Governance" islandPaths={islandPaths} csrfToken={props.csrfToken} >
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
         <div class="title-group">
           <h1>Alert Relay</h1>
-          <span class="subtitle">External Pipeline Active // Sync Status: Secure</span>
+          <span class="subtitle">Sync Status: Secure</span>
         </div>
         <div class="flex items-center gap-6">
            <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-8 py-4 rounded-full">

@@ -125,7 +125,14 @@ export class RealDiscovery {
             });
 
             return Array.from(merged.values());
-        } catch {
+        } catch (e) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "SECURITY-DISCOVERY:ETHERNET",
+                message: `Ethernet discovery failed: ${(e as Error).message}`
+            });
             return [];
         }
     }
@@ -194,7 +201,14 @@ export class RealDiscovery {
                 }
             }
             return aps;
-        } catch {
+        } catch (e) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "SECURITY-DISCOVERY:WIFI",
+                message: `WiFi discovery failed: ${(e as Error).message}`
+            });
             return [];
         }
     }
