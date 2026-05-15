@@ -268,13 +268,7 @@ export class SovereignApp {
         }
 
         const isHardwareSecure = await tpm.verifyIntegrity(goldenPcrs);
-        const bypassToken = Deno.env.get("SECURE_ENVIRONMENT_TOKEN");
-        const secureBypass = Deno.env.get("SECURE_BYPASS_TOKEN");
-
-        const isValidBypass = secureBypass && 
-                             secureBypass.length >= 32 && 
-                             (await secureCompare(bypassToken, secureBypass)) &&
-                             Deno.env.get("ENVIRONMENT") !== "production";
+        const isValidBypass = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true" && Deno.env.get("ENVIRONMENT") !== "production";
 
         if (!isHardwareSecure && !isValidBypass) {
             await loggingService.log({

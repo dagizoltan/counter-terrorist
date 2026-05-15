@@ -280,19 +280,14 @@ export class SidecarManager implements CommandPort {
             }
 
             if (isDev && PRIVILEGED_SIDECARS.includes(name) && Deno.uid() !== 0 && !hasCaps) {
-                // Only use sudo if we really have to and we are in dev mode
-                if (Deno.env.get("CTS_NO_SUDO") === "true") {
-                    this.logging.log({
-                        timestamp: new Date().toISOString(),
-                        type: LogType.GENERIC,
-                        severity: LogSeverity.WARNING,
-                        caller: "orchestrator:infra:runtime:sidecar_manager",
-                        message: `WARNING: Sidecar ${name} requires privileges but CTS_NO_SUDO is set. Attempting unprivileged execution...`
-                    });
-                } else {
-                    finalExecPath = "sudo";
-                    finalArgs = ["-n", execPath];
-                }
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `CRITICAL: Sidecar ${name} requires privileges but has no capabilities set. Refusing to run sudo in dev mode due to security risks. Please provision capabilities using 'setcap'.`
+                });
+                return null;
             }
 
             const command = new Deno.Command(finalExecPath, {
@@ -740,12 +735,10 @@ export class SidecarManager implements CommandPort {
 
   private getCapabilities(name: string): string | undefined {
     const caps: Record<string, string> = {
-        "firewall": "cap_net_admin,cap_kill+ep",
         "enforcer": "cap_net_admin,cap_kill+ep",
         "sentinel": "cap_sys_admin,cap_net_admin,cap_sys_resource+ep",
         "netcap": "cap_net_raw,cap_net_admin+ep",
-        "tunnel": "cap_net_admin+ep",
-        "mesh": "cap_net_bind_service+ep"
+        "tunnel": "cap_net_admin+ep"
     };
     return caps[name];
   }

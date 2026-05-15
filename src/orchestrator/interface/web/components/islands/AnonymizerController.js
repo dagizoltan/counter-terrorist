@@ -28,10 +28,10 @@ class AnonymizerController extends HTMLElement {
           
           const statusEl = document.getElementById('vpn-status');
           if (statusEl) {
-             const status = vpn.mode === 'OFF' ? 'BYPASSED' : (vpn.mode === 'TOR' ? 'CRITICAL' : 'OPTIMAL');
+             const status = vpn.mode === 'OFF' ? 'BYPASSED' : (vpn.mode === 'STUB_FALLBACK' ? 'MOCKED' : (vpn.mode === 'TOR' ? 'CRITICAL' : 'OPTIMAL'));
              statusEl.textContent = status;
              statusEl.classList.remove('text-success', 'text-warning', 'text-danger');
-             statusEl.classList.add(status === 'BYPASSED' ? 'text-danger' : (status === 'CRITICAL' ? 'text-warning' : 'text-success'));
+             statusEl.classList.add(status === 'BYPASSED' || status === 'MOCKED' ? 'text-danger' : (status === 'CRITICAL' ? 'text-warning' : 'text-success'));
           }
 
           const rotationEl = document.getElementById('vpn-rotation');

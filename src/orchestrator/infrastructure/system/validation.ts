@@ -139,7 +139,7 @@ export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boo
   return { valid: true };
 }
 
-export const ALLOWED_SIDECARS = ["analyzer", "enforcer", "decoy", "netcap", "watchfile", "trustroot", "tunnel", "mesh", "firewall", "sentinel", "sentinel-darwin", "enforcer-win", "telemetry-win"] as const;
+export const ALLOWED_SIDECARS = ["analyzer", "enforcer", "decoy", "netcap", "watchfile", "trustroot", "tunnel", "sentinel", "sentinel-darwin", "enforcer-win", "telemetry-win"] as const;
 export type SidecarName = typeof ALLOWED_SIDECARS[number];
 
 export function isAllowedSidecar(name: string): name is SidecarName {
@@ -174,7 +174,7 @@ export function validatePath(p: string, jailPrefixes?: string[]): boolean {
 
   let normalized: string;
   try {
-    normalized = normalize(p);
+    normalized = normalize(decoded);
     if (normalized.includes("..")) return false;
   } catch {
     return false;
@@ -406,7 +406,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       
       return true;
     case "trustroot":
-      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity"].includes(req.type)) return false;
+      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert"].includes(req.type)) return false;
       return true;
     case "tunnel":
       if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
@@ -430,6 +430,10 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if ((req.type === "AddBlockRule" || req.type === "RemoveBlockRule") && !isValidIP(req.ip || "")) return false;
       if (req.type === "AddBlockRule" && isCriticalInfrastructure(req.ip || "")) return false;
       if ((req.type === "AddAllowRule" || req.type === "RemoveAllowRule") && typeof req.port !== "number") return false;
+      return true;
+    case "telemetry-win":
+      const telemetryWinTypes = ["GetStatus", "StartTelemetry", "StopTelemetry"];
+      if (!telemetryWinTypes.includes(req.type)) return false;
       return true;
     default:
       return false; // Unknown sidecars are rejected by default

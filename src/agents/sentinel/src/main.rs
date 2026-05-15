@@ -508,8 +508,9 @@ async fn dump_process_task(pid: u32, requested_path: String) -> (bool, String) {
     };
     let safe_path = format!("{}/{}", base_dir, filename);
     let maps_res = std::fs::copy(format!("/proc/{}/maps", pid), format!("{}.maps", safe_path));
-    let env_res = std::fs::copy(format!("/proc/{}/environ", pid), format!("{}.environ", safe_path));
-    if maps_res.is_ok() && env_res.is_ok() {
+    // SECURITY: Intentionally omitting /proc/[pid]/environ dump to prevent leakage of 
+    // orchestration secrets (PKI_SECRET, API_TOKEN) into the forensics folder.
+    if maps_res.is_ok() {
         (true, format!("Dumped process {} metadata to {}", pid, safe_path))
     } else { (false, "Failed to access /proc files or write to jail".to_string()) }
 }

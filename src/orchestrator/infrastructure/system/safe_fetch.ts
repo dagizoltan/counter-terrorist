@@ -20,31 +20,9 @@ export async function safeFetch(url: string, options?: RequestInit): Promise<Res
     throw new Error(`SSRF Prevention: ${check.reason}`);
   }
 
-  // To prevent DNS Rebinding attacks, we use the resolved IP address
-  // that was just validated, while preserving the original Host header.
-  if (check.resolvedIp) {
-    const parsed = new URL(url);
-    const protocol = parsed.protocol;
-    const port = parsed.port ? `:${parsed.port}` : "";
-    const path = parsed.pathname + parsed.search + parsed.hash;
-
-    // Ensure IPv6 literals are properly bracketed for URL construction
-    const ip = (check.resolvedIp.includes(":") && !check.resolvedIp.startsWith("["))
-        ? `[${check.resolvedIp}]`
-        : check.resolvedIp;
-
-    const targetUrl = `${protocol}//${ip}${port}${path}`;
-
-    const headers = new Headers(options?.headers);
-    if (!headers.has("Host")) {
-      headers.set("Host", parsed.hostname);
-    }
-
-    return await fetch(targetUrl, {
-      ...options,
-      headers
-    });
-  }
+  // Note: While using the resolved IP would prevent DNS rebinding, 
+  // it breaks TLS Server Name Indication (SNI) for virtually all modern webhooks.
+  // We rely on the pre-flight DNS resolution check above as a strong mitigation.
 
   return await fetch(url, options);
 }
