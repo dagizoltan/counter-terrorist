@@ -21,8 +21,10 @@ export class SidecarManager implements CommandPort {
   private manifest: any = null;
   private manifestPromise: Promise<void> | null = null;
 
-  constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.startRotationLoop();
+    if (Deno.build.os !== "windows") {
+        this.startUdsTelemetry();
+    }
     // Manifest load is async and uses logging, so we don't block constructor
     // but ensure it's called after logging service is ready.
     this.manifestPromise = new Promise(resolve => {
@@ -136,6 +138,117 @@ export class SidecarManager implements CommandPort {
 
   getExecutor(): SystemExecutor {
     return this.executor;
+  }
+
+  private udsListener: Deno.Listener | null = null;
+
+  private async startUdsTelemetry() {
+    const udsPath = "./volume/run/telemetry.sock";
+    try { Deno.mkdirSync("./volume/run", { recursive: true }); } catch {}
+    try { Deno.removeSync(udsPath); } catch {}
+    
+    try {
+        this.udsListener = Deno.listen({ transport: "unix", path: udsPath });
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Unified IPC Telemetry Socket Listener started at ${udsPath}`
+        }).catch(() => {});
+        this.acceptUdsConnections();
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Failed to start UDS Listener: ${(e as Error).message}`
+        }).catch(() => {});
+    }
+  }
+
+  private async acceptUdsConnections() {
+    if (!this.udsListener) return;
+    try {
+        for await (const conn of this.udsListener) {
+            this.handleUdsConnection(conn).catch(() => {});
+        }
+    } catch {
+        // Listener closed
+    }
+  }
+
+  private async handleUdsConnection(conn: Deno.Conn) {
+    const reader = conn.readable.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+
+                try {
+                    const data = JSON.parse(trimmed);
+
+                    // Check if it's a ForensicLog
+                    if (data.log_type || data.severity || (data.message && !("success" in data))) {
+                        this.logging.log({
+                            timestamp: data.timestamp || new Date().toISOString(),
+                            type: data.log_type || LogType.ACTIVITY,
+                            severity: data.severity || LogSeverity.INFO,
+                            caller: data.caller || "sidecar:uds",
+                            message: data.message,
+                            payload: data.payload
+                        });
+                        continue;
+                    }
+
+                    // Otherwise treat as SidecarResponse
+                    const name = "sentinel"; // In UDS we might not know the sidecar name unless it sends it, defaulting to sentinel for POC.
+                    // Wait, if we don't know the name, we can't route correctly to responseWaiters! 
+                    // Let's assume the sidecar provides a `sidecar` field or we iterate waiters.
+                    const sidecarName = data.sidecar || "sentinel"; 
+
+                    if (data.id && this.responseWaiters.has(sidecarName)) {
+                        const waiters = this.responseWaiters.get(sidecarName)!;
+                        const waiter = waiters.get(data.id);
+                        if (waiter) {
+                            waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data });
+                            waiters.delete(data.id);
+                            continue;
+                        }
+                    }
+
+                    // Emit event
+                    const handlers = this.eventHandlers.get(sidecarName) || [];
+                    for (const handler of handlers) {
+                        handler(data);
+                    }
+                } catch (e) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:infra:runtime:sidecar_manager",
+                        message: `Malformed UDS telemetry: ${trimmed.substring(0, 50)}... Error: ${(e as any).message}`
+                    });
+                }
+            }
+        }
+    } finally {
+        reader.releaseLock();
+        conn.close();
+    }
   }
 
   async shutdown() {

@@ -50,9 +50,19 @@ async fn emit_response(id: Option<String>, success: bool, message: String) {
         data: None,
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
+    if let Ok(mut json) = serde_json::to_value(&resp) {
+        json["sidecar"] = serde_json::Value::String("sentinel".to_string());
+        if let Ok(json_str) = serde_json::to_string(&json) {
+            use tokio::net::UnixStream;
+            use tokio::io::AsyncWriteExt;
+            let uds_path = "./volume/run/telemetry.sock";
+            if let Ok(mut stream) = UnixStream::connect(uds_path).await {
+                let _ = stream.write_all(format!("{}\n", json_str).as_bytes()).await;
+            } else {
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", json_str);
+            }
+        }
     }
 }
 
@@ -64,9 +74,19 @@ async fn emit_event(data: serde_json::Value) {
         data: Some(data),
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
+    if let Ok(mut json) = serde_json::to_value(&resp) {
+        json["sidecar"] = serde_json::Value::String("sentinel".to_string());
+        if let Ok(json_str) = serde_json::to_string(&json) {
+            use tokio::net::UnixStream;
+            use tokio::io::AsyncWriteExt;
+            let uds_path = "./volume/run/telemetry.sock";
+            if let Ok(mut stream) = UnixStream::connect(uds_path).await {
+                let _ = stream.write_all(format!("{}\n", json_str).as_bytes()).await;
+            } else {
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", json_str);
+            }
+        }
     }
 }
 

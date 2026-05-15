@@ -42,6 +42,10 @@ export class LoggingService implements LoggingPort {
             }).catch(() => {});
             this.startFlushInterval();
         }
+
+        if (Deno.build.os !== "windows") {
+            this.startUdsListener();
+        }
     }
 
     setKv(kv: Deno.Kv) {

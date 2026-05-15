@@ -53,8 +53,16 @@ async fn log_forensic(severity: &str, message: &str) {
         message: message.to_string(),
     };
     if let Ok(json) = serde_json::to_string(&log) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("[LOG] {}", json);
+        use tokio::net::UnixStream;
+        use tokio::io::AsyncWriteExt;
+        
+        let uds_path = "./volume/run/telemetry.sock";
+        if let Ok(mut stream) = UnixStream::connect(uds_path).await {
+            let _ = stream.write_all(format!("{}\n", json).as_bytes()).await;
+        } else {
+            let _lock = STDOUT_LOCK.lock().await;
+            println!("[LOG] {}", json);
+        }
     }
 }
 
