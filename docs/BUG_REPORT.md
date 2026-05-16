@@ -176,3 +176,37 @@ This report catalogs logic flaws, security risks, performance bottlenecks, and i
 - **Description:** `validateAndRegisterNode` performs a full mTLS fetch even if the node is already verified (it only updates `lastSeen` *after* the check).
 - **Impact:** Unnecessary network traffic and CPU overhead on both nodes every discovery cycle.
 - **Recommended Fix:** Move the `existing?.verified` check to the top of the function to return early.
+
+---
+
+## 8. Domain & State Logic Errors
+
+### BUG-26: IPC Naming Schema Mismatch in `ChaosEngine`
+- **File:** `src/orchestrator/domain/orchestration/chaos_engine.ts`
+- **Description:** `simulateCanaryTrigger` sends events to the `fim` sidecar, and `simulateMalwareExecution` sends events to `ebpf`. However, the `SIDECAR_REGISTRY` and `SidecarManager` use `watchfile` and `sentinel` respectively.
+- **Impact:** Chaos simulation will fail silently as `emitEvent` will target non-existent sidecar names.
+- **Recommended Fix:** Update `ChaosEngine` to use canonical names: `watchfile` (for FIM) and `sentinel` (for eBPF).
+
+### BUG-27: Broken Logic in `AuditService` Chronological Sync
+- **File:** `src/orchestrator/domain/analysis/audit.ts`
+- **Description:** `syncEvents` sorts events chronologically and then computes the `expectedHash` including `prevHash`. However, if the local `lastHash` doesn't match the `prevHash` of the first incoming event, the entire chain will remain valid but disconnected from the local history.
+- **Impact:** The audit ledger could have multiple "floating" chains, breaking the immutable property of a single continuous ledger.
+- **Recommended Fix:** Validate that the first event in a sync batch either connects to a known local hash or is a hardware-signed `CHECKPOINT`.
+
+### BUG-28: Race Condition in `AuditService` logQueue
+- **File:** `src/orchestrator/domain/analysis/audit.ts`
+- **Description:** `logEvent` uses `this.logQueue = this.logQueue.then(logAction)`. If `logAction` (which is async) throws or hangs, all subsequent audit logging across the entire system is permanently blocked.
+- **Impact:** Total loss of observability and auditability during a failure.
+- **Recommended Fix:** Use a `.catch()` block within the chain to ensure the queue continues even if a single write fails.
+
+### BUG-29: Missing Same-Origin Check for WebSockets
+- **File:** `src/orchestrator/interface/web/web_adapter.tsx`
+- **Description:** The `/api/ws/events` endpoint upgrades to WebSocket after validating the token/cookie but does not check the `Origin` header.
+- **Impact:** Cross-Site WebSocket Hijacking (CSWSH). A malicious site could initiate a WebSocket connection to the orchestrator using the user's authenticated session cookie, potentially leaking real-time security events.
+- **Recommended Fix:** Implement a strict `Origin` header check in the `upgradeWebSocket` handler.
+
+### BUG-30: Potential Deadlock in `MetricsService` Collection
+- **File:** `src/orchestrator/domain/analysis/metrics_service.ts`
+- **Description:** `collectAndBroadcast` uses `if (this.isCollecting) return;` followed by `await Promise.all([...])`.
+- **Impact:** If one of the parallel promises (e.g., `this.firewall.getStatus()`) hangs indefinitely due to a sidecar issue, `isCollecting` will remain `true` forever, permanently stopping metrics updates for the UI.
+- **Recommended Fix:** Wrap the collection phase in a `Promise.race` with a timeout.
