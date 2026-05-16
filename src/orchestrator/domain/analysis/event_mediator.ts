@@ -15,7 +15,13 @@ export class EventMediator {
     private learningTimeout: number | null = null;
 
     shutdown() {
-        if (this.learningTimeout) clearTimeout(this.learningTimeout);
+        if (this.learningTimeout) {
+            clearTimeout(this.learningTimeout);
+            this.learningTimeout = null;
+        }
+        if (this.behavioral) {
+            this.behavioral.shutdown();
+        }
         this.logger.log({
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,

@@ -70,19 +70,83 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
     return { valid: false, reason: "Link-local addresses are not allowed" };
   }
 
-  // Block RFC1918 private ranges
-  const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (ipv4Match) {
-    const [, a, b] = ipv4Match.map(Number);
-    if (a === 10) return { valid: false, reason: "RFC1918 private addresses (10.x.x.x) are not allowed" };
-    if (a === 172 && b >= 16 && b <= 31) return { valid: false, reason: "RFC1918 private addresses (172.16-31.x.x) are not allowed" };
-    if (a === 192 && b === 168) return { valid: false, reason: "RFC1918 private addresses (192.168.x.x) are not allowed" };
-    if (a === 100 && b >= 64 && b <= 127) return { valid: false, reason: "Carrier-grade NAT (100.64.0.0/10) addresses are not allowed" };
-    if (a === 198 && (b === 18 || b === 19)) return { valid: false, reason: "Benchmark testing (198.18.0.0/15) addresses are not allowed" };
-    if (a === 0) return { valid: false, reason: "Zero-prefix addresses are not allowed" };
+  if (isPrivateIp(hostname)) {
+    return { valid: false, reason: "Unauthorized private or internal IP address" };
   }
 
   return { valid: true };
+}
+
+/**
+ * Checks if an IP address is private, loopback, or otherwise unauthorized for webhooks.
+ */
+export function isPrivateIp(ip: string): boolean {
+  if (ip === "localhost" || ip === "127.0.0.1" || ip === "0.0.0.0" || ip === "::1" || ip === "[::1]" || ip === "[::]") {
+    return true;
+  }
+
+  if (ip === "169.254.169.254" || ip.startsWith("169.254.")) {
+    return true;
+  }
+
+  // IPv6 Unique Local Address (fc00::/7) and Link-Local (fe80::/10)
+  if (ip.toLowerCase().startsWith("fc") || ip.toLowerCase().startsWith("fd") || ip.toLowerCase().startsWith("fe80")) {
+    return true;
+  }
+
+  const ipv4Match = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (a === 10) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 100 && b >= 64 && b <= 127) return true;
+    if (a === 198 && (b === 18 || b === 19)) return true;
+    if (a === 0) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Validates a webhook URL asynchronously, performing DNS resolution to prevent DNS rebinding.
+ */
+export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boolean; reason?: string; resolvedIp?: string }> {
+  const initialCheck = isValidWebhookUrl(url);
+  if (!initialCheck.valid) return initialCheck;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { valid: false, reason: "Invalid URL format" };
+  }
+
+  const hostname = parsed.hostname;
+
+  // If it's already an IP, it was already checked by isValidWebhookUrl (which calls isPrivateIp)
+  if (IP_REGEX.test(hostname)) {
+    return { valid: true, resolvedIp: hostname };
+  }
+
+  try {
+    const ips = await Deno.resolveDns(hostname, "A");
+    if (ips.length === 0) {
+      return { valid: false, reason: "Could not resolve hostname" };
+    }
+
+    // Check all resolved IPs
+    for (const resolvedIp of ips) {
+        if (isPrivateIp(resolvedIp)) {
+            return { valid: false, reason: `Hostname resolves to unauthorized IP: ${resolvedIp}` };
+        }
+    }
+
+    return { valid: true, resolvedIp: ips[0] };
+  } catch (e) {
+    // If DNS resolution fails, we block it to be safe
+    return { valid: false, reason: `DNS resolution failed: ${e instanceof Error ? e.message : String(e)}` };
+  }
 }
 
 export const ALLOWED_SIDECARS = ["analyzer", "enforcer", "decoy", "netcap", "watchfile", "trustroot", "tunnel", "mesh", "firewall", "sentinel-darwin", "enforcer-win", "telemetry-win", "sentinel"] as const;

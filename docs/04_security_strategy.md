@@ -9,12 +9,14 @@
 - API token enforcement on all authenticated endpoints.
 - Sidecar command allowlisting and strict binary execution paths.
 - Input validation for IP addresses, filesystem paths, and request payloads.
+- SSRF and DNS Rebinding protection for outbound webhooks using IP-level validation and safe-fetch utilities.
 - Separation between orchestrator logic and privileged native agents.
 
 ## Risk Observations
 - Current UI integration must be fixed to ensure tokens are passed on API and WebSocket connections.
 - Path validation needs exact directory boundary checks to prevent prefix bypasses.
-- Persistent sidecars need careful lifecycle management to avoid memory leaks and zombie processes.
+- Deep JSON inspection for IPC payloads is required to prevent path smuggling.
+- Persistent sidecars need careful lifecycle management and streaming integrity checks to avoid resource exhaustion.
 
 ## AI-Assisted Development Practices
 - Use AI to generate boilerplate, but require human review of every security-relevant change.

@@ -640,13 +640,45 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     try {
-        const data = await Deno.readFile(path);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        return Array.from(new Uint8Array(hashBuffer))
-            .map(b => b.toString(16).padStart(2, "0")).join("");
+        const file = await Deno.open(path, { read: true });
+        try {
+            const hashBuffer = await this.digestStream("SHA-256", file.readable);
+            return Array.from(new Uint8Array(hashBuffer))
+                .map(b => b.toString(16).padStart(2, "0")).join("");
+        } finally {
+            try { file.close(); } catch { /* already closed */ }
+        }
     } catch {
         return null;
     }
+  }
+
+  private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
+      // Manual streaming digest to maintain compatibility with standard Web Crypto which lacks ReadableStream support
+      const reader = stream.getReader();
+      const chunks: Uint8Array[] = [];
+
+      try {
+          while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push(value);
+          }
+      } finally {
+          reader.releaseLock();
+      }
+
+      // Concat and digest (Still better than Deno.readFile as we control the read loop,
+      // but ideally we'd use a crypto library that supports incremental updates)
+      const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+      const combined = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+          combined.set(chunk, offset);
+          offset += chunk.length;
+      }
+
+      return await crypto.subtle.digest(algorithm, combined);
   }
 
   private handleSidecarExit(name: string, exitCode: number) {

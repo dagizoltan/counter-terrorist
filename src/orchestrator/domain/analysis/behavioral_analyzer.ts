@@ -32,6 +32,16 @@ export class BehavioralAnalyzer {
         this.traces.set(ip, trace);
     }
 
+    shutdown() {
+        if (this.kv) {
+            this.persistBaselines().catch(() => {});
+        }
+        this.traces.clear();
+        this.syscallFrequencies.clear();
+        this.slidingWindow.clear();
+        this.syscallSequences.clear();
+    }
+
     analyze(ip: string): { botProbability: number, entropy: number } {
         const trace = this.traces.get(ip);
         if (!trace || trace.length < 5) return { botProbability: 0, entropy: 1 };
