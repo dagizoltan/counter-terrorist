@@ -42,3 +42,31 @@ export async function getDefaultInterface(): Promise<string> {
 
   return "eth0"; // Ultimate fallback
 }
+
+/**
+ * Performs a safe fetch by using a pre-validated and resolved IP address.
+ * This prevents DNS rebinding by ensuring the request is sent to the verified IP,
+ * while maintaining the original Host header for compatibility.
+ */
+export async function safeFetch(url: string, resolvedIp: string, options: RequestInit = {}): Promise<Response> {
+    const parsed = new URL(url);
+    const originalHost = parsed.host;
+
+    // Construct the safe URL using the IP address.
+    // Use brackets for IPv6 literals.
+    const isIpv6 = resolvedIp.includes(":");
+    const safeHostname = isIpv6 ? `[${resolvedIp}]` : resolvedIp;
+
+    const safeUrl = new URL(url);
+    safeUrl.hostname = safeHostname;
+
+    const headers = new Headers(options.headers || {});
+    if (!headers.has("Host")) {
+        headers.set("Host", originalHost);
+    }
+
+    return await fetch(safeUrl.toString(), {
+        ...options,
+        headers
+    });
+}

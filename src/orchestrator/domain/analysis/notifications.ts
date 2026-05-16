@@ -1,5 +1,6 @@
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
-import { isValidWebhookUrl } from "@infrastructure/system/validation.ts";
+import { validateWebhookUrlAsync } from "@infrastructure/system/validation.ts";
+import { safeFetch } from "@infrastructure/system/network.ts";
 
 export interface WebhookConfig {
     id: string;
@@ -28,8 +29,8 @@ export class NotificationService {
     }
 
     async addWebhook(webhook: Omit<WebhookConfig, "id">): Promise<WebhookConfig | { error: string }> {
-        // Security: Validate webhook URL to prevent SSRF
-        const urlCheck = isValidWebhookUrl(webhook.url);
+        // Security: Validate webhook URL to prevent SSRF and DNS Rebinding
+        const urlCheck = await validateWebhookUrlAsync(webhook.url);
         if (!urlCheck.valid) {
             this.logging.logLegacy(`[NOTIFICATIONS] Rejected webhook URL: ${urlCheck.reason}`, SyslogSeverity.WARNING);
             return { error: `Invalid webhook URL: ${urlCheck.reason}` };
@@ -69,6 +70,13 @@ export class NotificationService {
             if (!webhook.enabled) continue;
 
             try {
+                // Re-validate and resolve IP at notification time to prevent DNS rebinding
+                const urlCheck = await validateWebhookUrlAsync(webhook.url);
+                if (!urlCheck.valid || !urlCheck.resolvedIp) {
+                    this.logging.logLegacy(`[NOTIFICATIONS] Webhook ${webhook.name} validation failed at notify time: ${urlCheck.reason}`, SyslogSeverity.ERROR);
+                    continue;
+                }
+
                 let body = {};
                 if (webhook.type === "slack") {
                     body = { text: `*[${event.type}]* ${event.message}\n\`\`\`${JSON.stringify(event.data || {}, null, 2)}\`\`\`` };
@@ -78,7 +86,7 @@ export class NotificationService {
                     body = event;
                 }
 
-                await fetch(webhook.url, {
+                await safeFetch(webhook.url, urlCheck.resolvedIp, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(body),

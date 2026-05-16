@@ -56,7 +56,10 @@ export class AutopilotService {
 
   shutdown() {
       this.isStarted = false;
-      if (this.intervalId) clearInterval(this.intervalId);
+      if (this.intervalId) {
+          clearInterval(this.intervalId);
+          this.intervalId = null;
+      }
       this.unsubscribers.forEach(u => u());
       this.unsubscribers = [];
       if (this.lureProcess) {

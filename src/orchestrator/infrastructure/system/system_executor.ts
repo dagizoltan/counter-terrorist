@@ -287,7 +287,10 @@ export class SystemExecutor {
   private static readonly SYSTEM_JAILS = [
     "./volume/",
     "/var/lib/cts/",
-    "/etc/systemd/system/cts-"
+    "/etc/systemd/system/cts-",
+    "/home/",
+    "/var/www/",
+    "/tmp/"
   ];
 
   private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
@@ -321,15 +324,15 @@ export class SystemExecutor {
         }
 
         // B. Structured Content Validation (Jail Enforcement)
+        if (isPathSensitive) {
+            const validation = this.validateSensitiveArgument(arg, baseCmd);
+            if (!validation.valid) return validation;
+        }
+
         if (this.isPotentiallyDangerous(arg)) {
-            if (isPathSensitive) {
-                const validation = this.validateSensitiveArgument(arg, baseCmd);
-                if (!validation.valid) return validation;
-            } else {
-                // Fallback traversal check for non-sensitive commands
-                if (!validatePath(arg)) {
-                    return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
-                }
+            // Fallback traversal check for all commands (even non-sensitive ones)
+            if (!validatePath(arg)) {
+                return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
             }
         }
 
@@ -348,29 +351,53 @@ export class SystemExecutor {
 
   private isPotentiallyDangerous(arg: string): boolean {
       return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
-             arg.includes("%") || arg.includes("{") || arg.includes("$");
+             arg.includes("%") || arg.includes("{") || arg.includes("$") ||
+             arg.includes("&") || arg.includes("|") || arg.includes(";");
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
+      // Security: Check for path traversal and restricted characters first
+      if (this.isPotentiallyDangerous(arg)) {
+          if (!validatePath(arg)) {
+              return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}' for sensitive command '${baseCmd}'` };
+          }
+      }
+
+      // Special case: openssl dgst -sha256 -r
+      if (baseCmd === "openssl" && (arg === "dgst" || arg === "-sha256" || arg === "-r")) {
+          return { valid: true };
+      }
+
       // Handle JSON-embedded paths (Sidecar IPC)
       if (arg.startsWith("{")) {
           try {
               const parsed = JSON.parse(arg);
-              // Recursively check for 'path' or 'paths' keys in the JSON structure
+              // Recursively check for path-related keys in the JSON structure
               const paths = this.extractPathsFromJson(parsed);
               for (const p of paths) {
                   if (!validatePath(p, SystemExecutor.SYSTEM_JAILS)) {
                       return { valid: false, reason: `Security Violation: Unauthorized path '${p}' in JSON payload for sensitive command '${baseCmd}'` };
                   }
               }
+              return { valid: true }; // If it was JSON and all paths were valid, we're done
           } catch {
               // Not valid JSON, continue to raw string validation
           }
       }
 
       // Raw String Validation
-      if (!validatePath(arg, SystemExecutor.SYSTEM_JAILS)) {
-          return { valid: false, reason: `Security Violation: Unauthorized path or traversal detected in argument '${arg}' for sensitive command '${baseCmd}'` };
+      // For sensitive commands, if it's NOT a path-like string (e.g. "dgst", "-sha256"),
+      // we only check for basic traversal. If it IS path-like, we enforce the jail.
+      const isPathLike = arg.includes("/") || arg.includes("\\") || arg.startsWith("./") || arg.startsWith("/");
+
+      if (isPathLike) {
+          if (!validatePath(arg, SystemExecutor.SYSTEM_JAILS)) {
+              return { valid: false, reason: `Security Violation: Unauthorized path or traversal detected in argument '${arg}' for sensitive command '${baseCmd}'` };
+          }
+      } else {
+          if (!validatePath(arg)) {
+              return { valid: false, reason: `Security Violation: Path traversal detected in argument '${arg}' for sensitive command '${baseCmd}'` };
+          }
       }
 
       return { valid: true };
@@ -380,8 +407,10 @@ export class SystemExecutor {
       const paths: string[] = [];
       if (!obj || typeof obj !== "object") return paths;
 
+      const pathKeys = ["path", "target", "exe_path", "log_path", "source", "destination", "output"];
+
       for (const [key, value] of Object.entries(obj)) {
-          if ((key === "path" || key === "target") && typeof value === "string") {
+          if (pathKeys.includes(key) && typeof value === "string") {
               paths.push(value);
           } else if (key === "paths" && Array.isArray(value)) {
               paths.push(...value.filter(v => typeof v === "string"));
