@@ -86,3 +86,93 @@ This report catalogs logic flaws, security risks, performance bottlenecks, and i
 - **Error:** `AssertionError: Values are not equal. [- undefined, + "rkhunter scan passed"]`.
 - **Cause:** The sidecar mock response for `RKH_SCAN` does not align with the expected domain format.
 - **Recommended Fix:** Align `RkhunterManager` IPC parsing with the `analyzer` sidecar output schema.
+
+---
+
+## 5. Advanced Logic & Sidecar Issues
+
+### BUG-13: Concurrent Stdout Corruption (Sentinel Sidecar)
+- **File:** `src/agents/sentinel/src/main.rs`
+- **Description:** The `emit_event` function, which handles high-frequency eBPF perf events, does not use the `STDOUT_LOCK`.
+- **Impact:** When multiple eBPF events occur simultaneously with a command response or a log message, the output to stdout becomes interleaved and corrupts the JSON stream. This causes the Deno `SidecarManager` to fail parsing, leading to dropped security events.
+- **Recommended Fix:** Wrap `println!` in `emit_event` with the same `Lazy<Arc<Mutex<()>>>` used by other output functions.
+
+### BUG-14: Excessive Disk I/O (PCAP Sidecar)
+- **File:** `src/agents/netcap/src/main.rs`
+- **Description:** The `PcapngWriter` calls `self.writer.flush()?` after every single packet write.
+- **Impact:** On a high-traffic network, this will cause massive CPU overhead due to frequent system calls and potentially premature SSD wear. It significantly limits the scalability of the forensic capture system.
+- **Recommended Fix:** Remove the per-packet flush and rely on the `BufWriter` default behavior or implement a time-based flush (e.g., every 1 second).
+
+### BUG-15: Silent Failure in Forensic Capture Task
+- **File:** `src/agents/netcap/src/main.rs`
+- **Description:** The `tokio::spawn` task for `StartCapture` uses `.ok()` when creating the `PcapngWriter`. If file creation fails (e.g., due to permissions in `./volume/storage/captures`), the task continues to run a dummy loop without notifying the orchestrator of the failure.
+- **Impact:** The UI shows "Recording Active" while no data is actually being saved, creating a false sense of forensic security.
+- **Recommended Fix:** Check the result of `PcapngWriter::new` and emit a `SidecarResponse` with `success: false` if it fails.
+
+### BUG-16: Brittle Authorized Process Detection in FIM
+- **File:** `src/agents/watchfile/src/main.rs`
+- **Description:** The Fanotify guard uses simple string comparison on `comm` names (`comm != "fim" && comm != "deno" && comm != "systemd"`) to permit modifications to `/bin` and `/etc/shadow`.
+- **Impact:** A malicious process named `deno` or `fim` could bypass these critical file protections. Conversely, if the orchestrator is run with a different binary name, it will be blocked from its own legitimate operations.
+- **Recommended Fix:** Use PID-based verification or, ideally, verify the binary hash of the calling process via `/proc/[pid]/exe` before allowing modification.
+
+### BUG-17: Race Condition in `AutopilotService` Shutdown
+- **File:** `src/orchestrator/domain/orchestration/autopilot_service.ts`
+- **Description:** The `shutdown()` method kills the `lureProcess` but does not handle the case where a new lure process might be in the middle of spawning or if the reference is stale.
+- **Impact:** Potential for "zombie" lure processes to remain active after the orchestrator has supposedly stopped, leading to port conflicts on restart.
+- **Recommended Fix:** Ensure `spawnLureProcess` checks the `isStarted` flag and implement a more robust process tracking for all spawned child tasks.
+
+---
+
+## 6. eBPF & Kernel Boundary Issues
+
+### BUG-18: XDP Default-Deny Policy Risk
+- **File:** `src/agents/sentinel/sentinel-kernel/src/main.rs`
+- **Description:** The `try_xdp_ingress` function returns `Ok(XDP_DROP)` at the end of the chain.
+- **Impact:** This implements a strict default-deny firewall at the XDP level. If the `ALLOWED_PORTS` map is not correctly populated (e.g., during a race condition at boot or if a management port is forgotten), the host will lose all network connectivity, including SSH and the CTS orchestrator's own mesh management traffic.
+- **Recommended Fix:** Ensure a "fail-open" or "fail-to-legacy-firewall" transition period during boot, or hardcode essential management ports (like 22 and 8000) in the kernel code as a safety fallback.
+
+### BUG-19: eBPF Session Table Exhaustion
+- **File:** `src/agents/sentinel/sentinel-kernel/src/main.rs`
+- **Description:** The `ACTIVE_SESSIONS` map has a max capacity of 4096 entries and no kernel-side eviction logic for stale sessions.
+- **Impact:** A simple port-scanning attack or high-concurrency legitimate traffic can fill this table. Once full, new stateful connections (required for the XDP stateful check bypass) will fail to be recorded, resulting in all new traffic being dropped by the default-deny policy (BUG-18).
+- **Recommended Fix:** Implement a LRU eviction policy in the eBPF program or have the userspace agent periodically sweep and prune the map.
+
+### BUG-20: Unsafe Pointer Dereference (Sentinel Userspace)
+- **File:** `src/agents/sentinel/src/main.rs`
+- **Description:** The code uses `unsafe { &mut *bpf_ptr }` and `Box::into_raw` to manage the `Bpf` instance across threads.
+- **Impact:** While intended to allow sharing the BPF handle, it bypasses Rust's safety guarantees. If the `Bpf` instance is dropped or the pointer becomes invalid during a command execution, it will cause a segmentation fault (Sidecar Crash).
+- **Recommended Fix:** Use `Arc<Mutex<Bpf>>` or `Arc<RwLock<Bpf>>` to safely share the BPF handle across async tasks.
+
+### BUG-21: Logic Error in `kprobe_ptrace` Comm Retrieval
+- **File:** `src/agents/sentinel/sentinel-kernel/src/main.rs`
+- **Description:** The `kprobe_ptrace` function calls `bpf_get_current_comm()` twice but uses the second call for the event payload without checking for success, and then uses the first result only for the trust check.
+- **Impact:** Minor performance overhead and potential for inconsistent `comm` reporting if the process name changes between calls.
+- **Recommended Fix:** Call `bpf_get_current_comm()` once and reuse the resulting byte array.
+
+---
+
+## 7. Performance & State Machine Faults
+
+### BUG-22: Unbounded Loop in `scanForGhosts`
+- **File:** `src/orchestrator/domain/analysis/process_tracker.ts`
+- **Description:** The `scanForGhosts` function loops from 1 to 20,000 (partially optimized from 65,535) and performs async `getProcessInfo` and `isAlive` checks for every PID.
+- **Impact:** On a system with many PIDs or slow `/proc` access, this function will block the domain service loop for seconds, causing high CPU usage and delaying event processing. Since it's called periodically (every 60s) and also on demand after critical syscalls, it can lead to "collection pile-up".
+- **Recommended Fix:** Use `this.processProvider.listProcesses()` to get only active PIDs and check them against the known `tree`. Only probe "unknown" PIDs rather than the entire 16-bit range.
+
+### BUG-23: Memory Leak in `BehavioralAnalyzer` Traces
+- **File:** `src/orchestrator/domain/analysis/behavioral_analyzer.ts`
+- **Description:** While `traces` are capped at 50 entries, the `traces` map itself is never pruned of stale IPs.
+- **Impact:** On a long-running public-facing server, the `traces` map will grow indefinitely as unique IPs connect, eventually leading to OOM (Out of Memory).
+- **Recommended Fix:** Implement a TTL-based eviction for the `traces` map, removing entries that haven't been updated for several hours.
+
+### BUG-24: Ineffective Intent Modeling (Signature Matching)
+- **File:** `src/orchestrator/domain/analysis/behavioral_analyzer.ts`
+- **Description:** `getIntentVerdict` uses `sequence.includes(s)` for every element in the signature.
+- **Impact:** Since it doesn't check the *order* or *proximity* of the syscalls, it will trigger a `SHELLCODE_INJECT` verdict if a process calls `mmap`, `mprotect`, and `ptrace` at any point in its last 5 calls, even if they are unrelated. This leads to extremely high false positive rates for complex legitimate binaries.
+- **Recommended Fix:** Use an ordered sequence matcher or a hidden Markov model (HMM) to verify the actual transition path between syscalls.
+
+### BUG-25: Redundant mTLS Handshakes
+- **File:** `src/orchestrator/domain/orchestration/mesh.ts`
+- **Description:** `validateAndRegisterNode` performs a full mTLS fetch even if the node is already verified (it only updates `lastSeen` *after* the check).
+- **Impact:** Unnecessary network traffic and CPU overhead on both nodes every discovery cycle.
+- **Recommended Fix:** Move the `existing?.verified` check to the top of the function to return early.
