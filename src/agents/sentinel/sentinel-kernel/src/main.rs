@@ -107,7 +107,9 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
 
     // 4. ALLOWED PORTS CHECK
     let dport_host = u16::from_be(dst_port);
-    if dport_host == 8001 {
+
+    // BUG-18: Fail-safe management ports to prevent lockout
+    if dport_host == 22 || dport_host == 8000 || dport_host == 8001 {
         return Ok(XDP_PASS);
     }
 
@@ -196,7 +198,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
 
     let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
-        comm: bpf_get_current_comm().unwrap_or([0; 16]),
+        comm, // BUG-21: Reuse comm instead of calling bpf_get_current_comm() again
         syscall_id: 101,
         fd: 0,
         port: 0,

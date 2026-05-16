@@ -24,7 +24,17 @@ export class RkhunterManager {
     private async _runScan(): Promise<RkhunterResult> {
         try {
             // RKH_SCAN is a specialized scan type that checks for known rootkit artifacts
-            const result = await this.sidecar.sendCommand("analyzer", { type: "RKH_SCAN" }) as any;
+            let result = await this.sidecar.sendCommand("analyzer", { type: "RKH_SCAN" }) as any;
+
+            // BUG-12: Rkhunter sidecar response normalization
+            if (result && result.data) {
+                result = {
+                    success: result.success,
+                    stdout: result.data.stdout,
+                    stderr: result.data.stderr,
+                    ...result.data
+                };
+            }
 
             this.lastResult = result;
 
@@ -60,9 +70,9 @@ export class RkhunterManager {
                 caller: "orchestrator:infra:system:protection:rkhunter",
                 message: `rkhunter scan failed: ${(e as Error).message}`
             });
-            const errResult = { success: false, error: (e as Error).message };
+            const errResult = { success: false, error: (e as Error).message } as any;
             this.lastResult = errResult;
-            return errResult;
+            throw e;
         }
     }
 

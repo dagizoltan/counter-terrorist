@@ -10,27 +10,31 @@ const antivirus = new AntivirusManager(new UbuntuAntivirusProvider(new SidecarMa
 Deno.test("AntivirusManager.scanPath validation", async () => {
   // Test allowed paths
   const result1 = await antivirus.scanPath("/tmp/safe.txt");
-  // It might fail because clamscan is not installed, but it should NOT fail due to path validation
-  if (!result1.message.includes("is not in the allowed scan list")) {
+
+  // BUG-10: Handle Result type correctly
+  if (result1.success) {
       console.log("Allowed /tmp/safe.txt - OK");
   } else {
-      throw new Error("Failed to allow /tmp/safe.txt");
+      // If it fails for reasons other than path validation, it's still "allowed" by the manager
+      if (!result1.error.message.includes("outside allowed boundaries")) {
+          console.log("Allowed /tmp/safe.txt (Scan failed/unavailable) - OK");
+      } else {
+          throw new Error("Failed to allow /tmp/safe.txt: " + result1.error.message);
+      }
   }
 
   // Test bypass attempts
-  try {
-      await antivirus.scanPath("/tmp-malicious/file.txt");
-      throw new Error("Should have thrown error");
-  } catch (e) {
-      assertEquals((e as Error).message.includes("outside allowed boundaries"), true);
+  const result2 = await antivirus.scanPath("/tmp-malicious/file.txt");
+  assertEquals(result2.success, false);
+  if (!result2.success) {
+      assertEquals(result2.error.message.includes("outside allowed boundaries"), true);
       console.log("Blocked /tmp-malicious/file.txt - OK");
   }
 
-  try {
-      await antivirus.scanPath("/etc/passwd");
-      throw new Error("Should have thrown error");
-  } catch (e) {
-      assertEquals((e as Error).message.includes("outside allowed boundaries"), true);
+  const result3 = await antivirus.scanPath("/etc/passwd");
+  assertEquals(result3.success, false);
+  if (!result3.success) {
+      assertEquals(result3.error.message.includes("outside allowed boundaries"), true);
       console.log("Blocked /etc/passwd - OK");
   }
 });

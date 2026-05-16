@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use chrono::Utc;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use parking_lot::Mutex;
 use once_cell::sync::Lazy;
 use aya::Bpf;
 use aya::maps::PerfEventArray;
@@ -47,7 +47,8 @@ async fn emit_response(id: Option<String>, success: bool, message: String) {
         timestamp: Utc::now().to_rfc3339(),
     };
     if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
+        // BUG-13: STDOUT lock to prevent corruption
+        let _lock = STDOUT_LOCK.lock();
         println!("{}", json);
     }
 }
@@ -61,7 +62,7 @@ async fn emit_event(data: serde_json::Value) {
         timestamp: Utc::now().to_rfc3339(),
     };
     if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
+        let _lock = STDOUT_LOCK.lock();
         println!("{}", json);
     }
 }
@@ -77,20 +78,20 @@ async fn main() -> Result<(), anyhow::Error> {
     #[cfg(not(debug_assertions))]
     let bpf_bytes = include_bytes_aligned!("../../target/bpfel-unknown-none/release/sentinel-kernel");
 
-    // We load it and then leak it to get a raw pointer
-    let bpf_ptr: *mut Bpf = match Bpf::load(bpf_bytes) {
-        Ok(b) => Box::into_raw(Box::new(b)),
+    // BUG-20: Refactor Bpf management to use safe interior mutability
+    // and 'static references for async tasks.
+    let bpf_instance = match Bpf::load(bpf_bytes) {
+        Ok(b) => b,
         Err(e) => {
             emit_response(None, false, format!("Failed to load BPF: {}", e)).await;
             return run_dummy_mode().await;
         }
     };
-
-    // Helper to get a mutable reference from the raw pointer
-    let bpf = unsafe { &mut *bpf_ptr };
+    // Leak the mutex to gain a 'static reference
+    let bpf_static: &'static Mutex<Bpf> = Box::leak(Box::new(Mutex::new(bpf_instance)));
 
     // Attach TC
-    if let Some(prog) = bpf.program_mut("tc_ingress") {
+    if let Some(prog) = bpf_static.lock().program_mut("tc_ingress") {
         if let Ok(tc_prog) = <&mut SchedClassifier>::try_from(prog) {
             let _ = tc_prog.load();
             let iface = std::env::var("CTS_IFACE").unwrap_or_else(|_| "eth0".to_string());
@@ -106,7 +107,7 @@ async fn main() -> Result<(), anyhow::Error> {
         ("kprobe_connect", "sys_connect"),
         ("kprobe_openat", "sys_openat")
     ] {
-        if let Some(prog) = bpf.program_mut(name) {
+        if let Some(prog) = bpf_static.lock().program_mut(name) {
             if let Ok(p) = <&mut KProbe>::try_from(prog) {
                 let _ = p.load();
                 let _ = p.attach(func, 0).or_else(|_| p.attach(&format!("__x64_{}", func), 0));
@@ -117,6 +118,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Attach LSM
     let btf = Btf::from_sys_fs().ok();
     if let Some(btf) = &btf {
+        let mut bpf = bpf_static.lock();
         if let Some(prog) = bpf.program_mut("file_open") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
                 if let Ok(_) = lsm_prog.load("file_open", btf) {
@@ -141,7 +143,13 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Handle Perf Events
-    let mut perf_array = PerfEventArray::try_from(bpf.map_mut("EVENTS").unwrap())?;
+    let mut perf_array = {
+        let mut bpf = bpf_static.lock();
+        let map = bpf.map_mut("EVENTS").unwrap();
+        // Unsafe block to cast map to 'static reference since we leaked the handle
+        let map_static: &'static mut aya::maps::Map = unsafe { std::mem::transmute(map) };
+        PerfEventArray::try_from(map_static)?
+    };
     
     for cpu_id in aya::util::online_cpus()? {
         let mut buf = perf_array.open(cpu_id, None)?;
@@ -185,7 +193,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut stdin = BufReader::new(io::stdin()).lines();
     while let Ok(Some(line)) = stdin.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<SidecarCommand>(&line) {
-            let bpf_ref = unsafe { &mut *bpf_ptr };
+            let mut bpf_ref = bpf_static.lock();
             match cmd.cmd_type.as_str() {
                 "BLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
