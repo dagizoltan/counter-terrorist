@@ -41,7 +41,13 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         privileged: true,
         binaryName: "decoy"
     },
-
+    sentinel: {
+        name: "sentinel",
+        description: "eBPF-powered kernel observability and high-performance XDP firewall.",
+        persistent: true,
+        privileged: true,
+        binaryName: "sentinel"
+    },
     watchfile: {
         name: "watchfile",
         description: "File integrity monitor using fanotify for real-time unauthorized access detection.",

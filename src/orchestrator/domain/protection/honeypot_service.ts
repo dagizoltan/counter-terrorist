@@ -110,7 +110,18 @@ export class HoneypotService {
   }
 
   async start() {
-    await this.sidecarManager.getPersistentSidecar("decoy");
+    const sidecar = await this.sidecarManager.getPersistentSidecar("decoy");
+    if (!sidecar) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:protection:honeypot",
+            message: "Failed to initialize 'decoy' sidecar. Honeypot service remains dormant."
+        });
+        return;
+    }
+
     this.sidecarManager.onEvent("decoy", (event) => this.handleEvent(event));
 
     // Initialize firewall rules and sidecar modules for active modules
