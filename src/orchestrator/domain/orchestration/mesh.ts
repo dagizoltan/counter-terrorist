@@ -299,7 +299,8 @@ export class MeshManager {
    * An mDNS announcement alone is not sufficient — any LAN host can spoof one.
    */
   private async validateAndRegisterNode(node: MeshNode) {
-    // If already known and verified, just update lastSeen
+    // BUG-34: If already known and verified, just update lastSeen.
+    // If it's known but NOT verified, we allow the handshake to proceed.
     const existing = this.nodes.get(node.id);
     if (existing?.verified) {
       existing.lastSeen = Date.now();

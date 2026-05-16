@@ -68,7 +68,7 @@ export function createReportsApi(baseline: BaselineService, protection: Protecti
           const file = await Deno.readFile(filePath);
           c.header("Content-Type", name.endsWith(".pcap") ? "application/vnd.tcpdump.pcap" : "application/octet-stream");
           c.header("Content-Disposition", `attachment; filename="${name}"`);
-          return c.body(file);
+          return c.body(file as any);
       } catch (e) {
           return c.json({ error: "File not found" }, 404);
       }

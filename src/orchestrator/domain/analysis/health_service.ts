@@ -24,10 +24,14 @@ export class HealthService {
         this.sidecarQuotas.set("decoy", { cpu: 2.0, memory: 32 * 1024 * 1024 });
     }
 
-    reportStatus(name: string, status: SubsystemStatus, error?: string) {
+    reportStatus(name: string, status: SubsystemStatus | string, error?: string) {
+        const validStatus = ["BOOTING", "OPERATIONAL", "DEGRADED", "FAILED"].includes(status)
+            ? status as SubsystemStatus
+            : "DEGRADED";
+
         this.states.set(name, {
             name,
-            status,
+            status: validStatus,
             lastUpdate: Date.now(),
             error
         });

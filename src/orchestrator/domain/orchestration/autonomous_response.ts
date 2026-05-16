@@ -96,15 +96,22 @@ export class AutonomousResponseEngine {
 
     private decayScores() {
         for (const [source, score] of this.scores.entries()) {
-            if (score <= 0) {
-                this.scores.delete(source);
-                continue;
-            }
             // Slowly decay score
             const newScore = Math.max(0, score - 1);
+
             if (newScore === 0) {
+                // BUG-33: Fully clear state for sources that have recovered
                 this.scores.delete(source);
                 this.history.delete(source);
+                this.activeRemediations.delete(source);
+
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.ACTIVITY,
+                    severity: LogSeverity.INFO,
+                    caller: "orchestrator:domain:orchestration:autonomous_response",
+                    message: `Threat score for ${source} decayed to zero. Remediation state cleared.`
+                });
             } else {
                 this.scores.set(source, newScore);
             }
@@ -203,8 +210,14 @@ export class AutonomousResponseEngine {
                 break;
 
             case "WATCH":
+                // BUG-36: Implement process-level forensics for WATCH remediation
                 if (source.includes(".")) {
                     this.protection.pcap.startCapture("any", 30, `forensics_${source}.pcap`, `host ${source}`).catch(() => {});
+                } else {
+                    const pid = parseInt(source);
+                    if (!isNaN(pid)) {
+                        (this.protection.firewall as any).dumpProcess?.(pid, `./volume/storage/forensics/dump_${pid}_${Date.now()}`).catch(() => {});
+                    }
                 }
                 break;
                 

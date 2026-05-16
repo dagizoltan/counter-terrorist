@@ -11,6 +11,7 @@ export class WatchdogService {
     private isRunning = false;
     private restartAttempts: Map<string, number> = new Map();
     private readonly MAX_RESTART_ATTEMPTS = 3;
+    private intervalId?: number;
 
     constructor(
         private health: HealthService,
@@ -30,7 +31,15 @@ export class WatchdogService {
             message: "Phoenix Watchdog engaged. Monitoring auxiliary health."
         });
         
-        setInterval(() => this.checkHealth(), 30000); // Check every 30s
+        this.intervalId = setInterval(() => this.checkHealth(), 30000); // Check every 30s
+    }
+
+    shutdown() {
+        this.isRunning = false;
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = undefined;
+        }
     }
 
     private async checkHealth() {

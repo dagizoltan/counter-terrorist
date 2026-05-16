@@ -45,6 +45,9 @@ export class PolicyEngine {
             ...initialPolicy
         };
 
+        // BUG-37: Pre-sort thresholds for performance
+        this.policy.thresholds.sort((a, b) => b.score - a.score);
+
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -73,9 +76,8 @@ export class PolicyEngine {
      * Determines the appropriate remediation action for a given threat score.
      */
     evaluate(score: number): ThresholdRule {
-        const sortedThresholds = [...this.policy.thresholds].sort((a, b) => b.score - a.score);
-        
-        for (const rule of sortedThresholds) {
+        // BUG-37: Use pre-sorted thresholds
+        for (const rule of this.policy.thresholds) {
             if (score >= rule.score) {
                 return rule;
             }
@@ -93,6 +95,8 @@ export class PolicyEngine {
      */
     updatePolicy(newPolicy: Partial<SecurityPolicy>) {
         this.policy = { ...this.policy, ...newPolicy };
+        this.policy.thresholds.sort((a, b) => b.score - a.score);
+
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,

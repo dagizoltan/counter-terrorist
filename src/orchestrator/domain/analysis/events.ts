@@ -88,15 +88,16 @@ export class EventBus implements EventBusPort {
     }).catch(() => {});
 
     // Notify internal subscribers asynchronously to avoid blocking the main execution path (BUG-09)
+    // NOTE: Microtasks keep execution asynchronous but sequential within the tick if needed.
     for (const handler of this.handlers) {
-      queueMicrotask(() => this.safelyExecute(() => handler(event)));
+      this.safelyExecute(() => handler(event));
     }
 
-    // Notify keyed listeners asynchronously
+    // Notify keyed listeners
     const listeners = this.keyedListeners.get(type);
     if (listeners) {
       for (const listener of listeners) {
-        queueMicrotask(() => this.safelyExecute(() => listener(data)));
+        this.safelyExecute(() => listener(data));
       }
     }
 
