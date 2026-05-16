@@ -331,7 +331,7 @@ export class SovereignApp {
         const { command: sm, platformInfo } = this.services;
         const daemons = ["decoy", "watchfile", "netcap", "analyzer", "tunnel"];
 
-        if (platformInfo.name !== "linux") {
+        if (platformInfo.name === "linux") {
             daemons.push("enforcer");
         }
 
@@ -343,16 +343,16 @@ export class SovereignApp {
 
         daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
         
-        // const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
-        // if (ebpf) {
-        //     await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
-        //
-        //     // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
-        //     // Skip events from the orchestrator and its trusted sidecars
-        //     for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
-        //         await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
-        //     }
-        // }
+        const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
+        if (ebpf) {
+            await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
+
+            // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
+            // Skip events from the orchestrator and its trusted sidecars
+            for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
+                await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
+            }
+        }
     }
 
     private async seedForensics() {

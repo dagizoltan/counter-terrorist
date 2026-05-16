@@ -326,14 +326,15 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       const ebpfTypes = [
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
         "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
-        "ENFORCE_PID", "UNENFORCE_PID"
+        "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess"
       ];
       if (!ebpfTypes.includes(req.type)) return false;
       if ((req.type === "BLOCK_IP" || req.type === "UNBLOCK_IP" || req.type === "SHADOW_BAN") && !isValidIP(req.ip || "")) return false;
       if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip || "")) return false;
       if (req.type === "TRUST_COMM" && typeof req.comm !== "string") return false;
-      if ((req.type === "HIDE_PID" || req.type === "ENFORCE_PID" || req.type === "UNENFORCE_PID") && typeof req.pid !== "number") return false;
+      if ((req.type === "HIDE_PID" || req.type === "ENFORCE_PID" || req.type === "UNENFORCE_PID" || req.type === "KillProcess" || req.type === "QuarantineProcess" || req.type === "DumpProcess") && typeof req.pid !== "number") return false;
       if ((req.type === "ALLOW_PORT" || req.type === "DENY_PORT") && typeof req.port !== "number") return false;
+      if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
       return true;
     case "trustroot":
       if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity"].includes(req.type)) return false;
