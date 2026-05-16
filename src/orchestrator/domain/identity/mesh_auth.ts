@@ -56,6 +56,12 @@ export class MeshAuthService {
       });
     }
 
+    // BUG-07: Dual-trust transition. Keep the old CA in a backup key to allow
+    // offline nodes a grace period to rejoin and update.
+    if (entry.value) {
+        await this.kv.set(["mesh", "pki", "prev_root_ca"], entry.value);
+    }
+
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -72,6 +78,21 @@ export class MeshAuthService {
     }
 
     return ca;
+  }
+
+  /**
+   * BUG-07: Returns both current and previous (if any) Root CAs for dual-trust handshakes.
+   */
+  async getTrustedCerts(): Promise<string[]> {
+    const current = await this.getRootCA();
+    const certs = [current.cert];
+
+    const prevEntry = await this.kv.get<EncryptedCertPair>(["mesh", "pki", "prev_root_ca"]);
+    if (prevEntry.value) {
+        certs.push(prevEntry.value.cert);
+    }
+
+    return certs;
   }
 
   /**

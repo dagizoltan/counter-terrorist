@@ -377,10 +377,14 @@ export class SovereignApp {
             });
 
             if (this.services) {
-                const { autopilot, mesh, mediator, logging } = this.services;
+                const { autopilot, mesh, mediator, logging, lifecycle, health, news, behavioral, newsSignal, news: newsSvc, networkDiscovery, news: news2, newsSignal: newsS3 } = this.services;
                 if (autopilot) autopilot.shutdown();
                 if (mesh) mesh.shutdown();
                 if (mediator) (mediator as any).shutdown();
+                if (lifecycle) lifecycle.shutdown();
+                if (health) (health as any).shutdown?.();
+                if (this.services.metrics) (this.services as any).metrics.stop();
+                if (this.services.honeypot) (this.services.honeypot as any).shutdown?.();
                 if (logging) await logging.shutdown();
             }
 

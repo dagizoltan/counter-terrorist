@@ -109,6 +109,8 @@ export class HoneypotService {
     }
   }
 
+  private morphInterval?: number;
+
   async start() {
     const sidecar = await this.sidecarManager.getPersistentSidecar("decoy");
     if (!sidecar) {
@@ -132,7 +134,15 @@ export class HoneypotService {
     }
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
-    setInterval(() => this.morph(), 600000); // Every 10 minutes
+    this.morphInterval = setInterval(() => this.morph(), 600000); // Every 10 minutes
+  }
+
+  shutdown() {
+      if (this.morphInterval) {
+          clearInterval(this.morphInterval);
+          this.morphInterval = undefined;
+      }
+      this.sidecarManager.stopSidecar("decoy").catch(() => {});
   }
 
   private behavioralService?: any; // Injected later or passed in constructor
@@ -291,6 +301,7 @@ export class HoneypotService {
       let newPort: number;
       const protectedPorts = [8000, 8001, 8002]; // Orchestrator ports
       
+      let portAvailable = false;
       do {
         // Preference for common but usually unused ports for better camouflage
         const camouflagePorts = [111, 515, 1024, 2049, 4000, 5000, 9000];
@@ -300,7 +311,15 @@ export class HoneypotService {
         } else {
            newPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
         }
-      } while (protectedPorts.includes(newPort) || Array.from(this.modules.values()).some(m => m.port === newPort));
+
+        if (!protectedPorts.includes(newPort) && !Array.from(this.modules.values()).some(m => m.port === newPort)) {
+            // BUG-04: Verify port is not in use by other system services
+            const res = await this.sidecarManager.getExecutor().execute("ss", ["-Hlnt", `sport = :${newPort}`]);
+            if (res.success && res.stdout.trim() === "") {
+                portAvailable = true;
+            }
+        }
+      } while (!portAvailable);
 
       module.port = newPort;
 

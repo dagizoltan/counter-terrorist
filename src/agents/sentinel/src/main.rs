@@ -143,16 +143,16 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Handle Perf Events
-    let mut perf_array = {
-        let mut bpf = bpf_static.lock();
-        let map = bpf.map_mut("EVENTS").unwrap();
-        // Unsafe block to cast map to 'static reference since we leaked the handle
-        let map_static: &'static mut aya::maps::Map = unsafe { std::mem::transmute(map) };
-        PerfEventArray::try_from(map_static)?
-    };
-    
+    // BUG-20 FIX: Open perf buffers while holding the lock, then move the buffers
+    // into the async tasks. This avoids dangling references to the Bpf instance.
     for cpu_id in aya::util::online_cpus()? {
-        let mut buf = perf_array.open(cpu_id, None)?;
+        let mut buf = {
+            let mut bpf = bpf_static.lock();
+            let map = bpf.map_mut("EVENTS").expect("EVENTS map not found");
+            let mut perf_array = PerfEventArray::try_from(map)?;
+            perf_array.open(cpu_id, None)?
+        };
+
         tokio::spawn(async move {
             let mut buffers = (0..10).map(|_| BytesMut::with_capacity(1024)).collect::<Vec<_>>();
             loop {

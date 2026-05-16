@@ -267,6 +267,29 @@ export class WebAdapter implements WebPort {
     this.app.route("/", createUiRouter(this.services, this.security, statusAggregator));
 
     this.app.get("/api/ws/events", upgradeWebSocket(async (c) => {
+      // BUG-30: CSWSH Protection (Origin & Host Validation)
+      const origin = c.req.header("Origin");
+      const host = c.req.header("Host");
+      if (origin && host) {
+          try {
+              const originUrl = new URL(origin);
+              if (originUrl.host !== host) {
+                  loggingService.log({
+                      timestamp: new Date().toISOString(),
+                      type: LogType.AUDIT,
+                      severity: LogSeverity.ERROR,
+                      caller: "orchestrator:interface:web:api:ws:sec",
+                      message: `CSWSH Blocked: Origin mismatch. Origin: ${origin}, Host: ${host}`
+                  });
+                  return {
+                      onOpen: (_event, ws) => { ws.close(1008, "Security Violation: Origin Mismatch"); }
+                  };
+              }
+          } catch {
+              return { onOpen: (_event, ws) => { ws.close(1008, "Invalid Origin"); } };
+          }
+      }
+
       let role: string | null = null;
       
       const token = c.req.query("token") || c.req.header("Authorization")?.replace("Bearer ", "");

@@ -87,16 +87,16 @@ export class EventBus implements EventBusPort {
         payload: isNoise ? undefined : validatedData
     }).catch(() => {});
 
-    // Notify internal subscribers
+    // Notify internal subscribers asynchronously to avoid blocking the main execution path (BUG-09)
     for (const handler of this.handlers) {
-      this.safelyExecute(() => handler(event));
+      queueMicrotask(() => this.safelyExecute(() => handler(event)));
     }
 
-    // Notify keyed listeners
+    // Notify keyed listeners asynchronously
     const listeners = this.keyedListeners.get(type);
     if (listeners) {
       for (const listener of listeners) {
-        this.safelyExecute(() => listener(data));
+        queueMicrotask(() => this.safelyExecute(() => listener(data)));
       }
     }
 

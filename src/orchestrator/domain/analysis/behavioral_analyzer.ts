@@ -90,9 +90,15 @@ export class BehavioralAnalyzer {
         if (!sequence) return null;
 
         for (const sig of BehavioralAnalyzer.INTENT_SIGNATURES) {
-            // Check if sequence contains the signature (simple subset match)
-            if (sig.sequence.every(s => sequence.includes(s))) {
-                return { intent: sig.name, score: sig.weight };
+            // BUG-24: Use ordered sequence matching instead of simple 'includes' to reduce false positives
+            let sigIdx = 0;
+            for (const syscall of sequence) {
+                if (syscall === sig.sequence[sigIdx]) {
+                    sigIdx++;
+                }
+                if (sigIdx === sig.sequence.length) {
+                    return { intent: sig.name, score: sig.weight };
+                }
             }
         }
         return null;

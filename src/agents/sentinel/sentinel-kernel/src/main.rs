@@ -3,7 +3,7 @@
 
 use aya_ebpf::{
     macros::{kprobe, map, classifier, xdp},
-    maps::{PerfEventArray, HashMap},
+    maps::{PerfEventArray, HashMap, LruHashMap},
     programs::{ProbeContext, TcContext, XdpContext},
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
 };
@@ -27,7 +27,7 @@ static mut SHADOW_BANS: HashMap<u32, ShadowBanInfo> = HashMap::with_max_entries(
 static mut HIDE_CONFIG: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
 
 #[map]
-static mut ACTIVE_SESSIONS: HashMap<SessionKey, SessionValue> = HashMap::with_max_entries(4096, 0);
+static mut ACTIVE_SESSIONS: LruHashMap<SessionKey, SessionValue> = LruHashMap::with_max_entries(4096, 0);
 
 #[map]
 static mut TRUSTED_COMM: HashMap<[u8; 16], u8> = HashMap::with_max_entries(1024, 0);
@@ -198,7 +198,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
 
     let event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
-        comm, // BUG-21: Reuse comm instead of calling bpf_get_current_comm() again
+        comm,
         syscall_id: 101,
         fd: 0,
         port: 0,

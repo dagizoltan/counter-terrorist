@@ -591,7 +591,20 @@ export class SidecarManager implements CommandPort {
     if (!currentHash && !force) return false;
 
     // Authoritative check against Signed Manifest
+    const isProduction = Deno.env.get("ENVIRONMENT") === "production";
     const goldenHash = this.manifest?.sidecars?.[name]?.hash || Deno.env.get(`CTS_HASH_${name.toUpperCase()}`);
+
+    // BUG-05: Make manifest mandatory in production
+    if (isProduction && !this.manifest?.sidecars?.[name]?.hash) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `CRITICAL: No manifest entry for ${name} in production. Failing closed.`
+        });
+        return false;
+    }
     
     if (!force && (!goldenHash || currentHash === goldenHash)) {
         return true; 
