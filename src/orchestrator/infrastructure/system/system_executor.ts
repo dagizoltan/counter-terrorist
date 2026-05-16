@@ -302,13 +302,32 @@ export class SystemExecutor {
           return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseCmd}' (no matching pattern)` };
         }
 
-        // ALWAYS validate for traversal if it looks like a path or contains '..'
-        if (arg.includes("/") || arg.includes("\\") || arg.includes("..") || arg.includes("%")) {
-          const jailPrefixes = (arg.startsWith("./volume/") || arg.startsWith("/var/lib/cts/"))
-              ? ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"]
-              : undefined;
+        // ALWAYS validate for traversal and enforce jail for path-like arguments
+        if (arg.includes("/") || arg.includes("\\") || arg.includes("..") || arg.includes("%") || arg.includes("{")) {
+          // Sensitive commands that handle paths MUST be jailed
+          const pathSensitiveCommands = ["openssl", "mkdir", "cp", "mv", "chmod", "ls", "sha256sum", "sentinel", "ebpf", "analyzer"];
+          const isSensitive = pathSensitiveCommands.includes(baseCmd) || pathSensitiveCommands.includes(cmd);
+
+          const jailPrefixes = ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"];
           
-          if (!validatePath(arg, jailPrefixes)) {
+          if (isSensitive) {
+             // For JSON-based commands (sentinel/ebpf), we need to extract the path if it exists
+             if (arg.startsWith("{")) {
+                try {
+                   const parsed = JSON.parse(arg);
+                   if (parsed.path && !validatePath(parsed.path, jailPrefixes)) {
+                      return { valid: false, reason: `Security Violation: Unauthorized path '${parsed.path}' in JSON payload for sensitive command '${baseCmd}'` };
+                   }
+                } catch { /* if not valid JSON, we still validate the raw string below */ }
+             }
+
+             if (!validatePath(arg, jailPrefixes)) {
+                return { valid: false, reason: `Security Violation: Unauthorized path or traversal detected in argument '${arg}' for sensitive command '${baseCmd}'` };
+             }
+          }
+
+          // Fallback check for all other commands
+          if (!isSensitive && !validatePath(arg)) {
             return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
           }
         }
