@@ -26,6 +26,14 @@ export class WindowsFirewallProvider implements FirewallProvider {
     return await this.sidecar.sendCommand("enforcer", { type: "QuarantineProcess", pid });
   }
 
+  async enforcePid(_pid: number): Promise<CommandResult> {
+    return { success: false, stdout: "", stderr: "LSM Enforcement not supported on Windows." };
+  }
+
+  async unenforcePid(_pid: number): Promise<CommandResult> {
+    return { success: false, stdout: "", stderr: "LSM Enforcement not supported on Windows." };
+  }
+
   async getStatus(): Promise<CommandResult> {
     return await this.sidecar.sendCommand("enforcer-win", { type: "GetStatus" });
   }

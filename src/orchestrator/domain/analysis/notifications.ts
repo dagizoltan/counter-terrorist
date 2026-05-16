@@ -1,6 +1,5 @@
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
-import { validateWebhookUrlAsync } from "@infrastructure/system/validation.ts";
-import { safeFetch } from "@infrastructure/system/safe_fetch.ts";
+import { isValidWebhookUrl } from "@infrastructure/system/validation.ts";
 
 export interface WebhookConfig {
     id: string;
@@ -30,7 +29,7 @@ export class NotificationService {
 
     async addWebhook(webhook: Omit<WebhookConfig, "id">): Promise<WebhookConfig | { error: string }> {
         // Security: Validate webhook URL to prevent SSRF
-        const urlCheck = await validateWebhookUrlAsync(webhook.url);
+        const urlCheck = isValidWebhookUrl(webhook.url);
         if (!urlCheck.valid) {
             this.logging.logLegacy(`[NOTIFICATIONS] Rejected webhook URL: ${urlCheck.reason}`, SyslogSeverity.WARNING);
             return { error: `Invalid webhook URL: ${urlCheck.reason}` };
@@ -79,13 +78,13 @@ export class NotificationService {
                     body = event;
                 }
 
-                await safeFetch(webhook.url, {
+                await fetch(webhook.url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(body),
                 });
             } catch (e) {
-                this.logging.logLegacy(`[NOTIFICATIONS] Failed to trigger webhook ${webhook.name}: ${(e as Error).message}`, SyslogSeverity.ERROR);
+                this.logging.logLegacy(`[NOTIFICATIONS] Failed to trigger webhook ${webhook.name}: ${e}`, SyslogSeverity.ERROR);
             }
         }
     }

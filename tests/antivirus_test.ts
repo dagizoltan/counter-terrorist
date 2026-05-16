@@ -11,18 +11,26 @@ Deno.test("AntivirusManager.scanPath validation", async () => {
   // Test allowed paths
   const result1 = await antivirus.scanPath("/tmp/safe.txt");
   // It might fail because clamscan is not installed, but it should NOT fail due to path validation
-  if (result1.success || !result1.error.message.includes("outside allowed boundaries")) {
+  if (!result1.message.includes("is not in the allowed scan list")) {
       console.log("Allowed /tmp/safe.txt - OK");
   } else {
-      throw new Error("Failed to allow /tmp/safe.txt: " + result1.error.message);
+      throw new Error("Failed to allow /tmp/safe.txt");
   }
 
   // Test bypass attempts
-  const result2 = await antivirus.scanPath("/tmp-malicious/file.txt");
-  assertEquals(!result2.success && result2.error.message.includes("outside allowed boundaries"), true);
-  console.log("Blocked /tmp-malicious/file.txt - OK");
+  try {
+      await antivirus.scanPath("/tmp-malicious/file.txt");
+      throw new Error("Should have thrown error");
+  } catch (e) {
+      assertEquals((e as Error).message.includes("outside allowed boundaries"), true);
+      console.log("Blocked /tmp-malicious/file.txt - OK");
+  }
 
-  const result3 = await antivirus.scanPath("/etc/passwd");
-  assertEquals(!result3.success && result3.error.message.includes("outside allowed boundaries"), true);
-  console.log("Blocked /etc/passwd - OK");
+  try {
+      await antivirus.scanPath("/etc/passwd");
+      throw new Error("Should have thrown error");
+  } catch (e) {
+      assertEquals((e as Error).message.includes("outside allowed boundaries"), true);
+      console.log("Blocked /etc/passwd - OK");
+  }
 });

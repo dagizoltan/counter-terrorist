@@ -28,7 +28,7 @@ export interface SystemMetrics {
         blockedCount: number;
         rules: number;
         blockedIps: string[];
-        suspiciousIps: string[];
+        suspiciousIps: any[];
     };
     mesh: {
         activeNodes: number;
@@ -71,11 +71,6 @@ export interface SystemMetrics {
         interface: string;
         available: boolean;
         mode?: string;
-        exitIp?: string;
-        exitCountry?: string;
-        latency?: string;
-        rotations?: number;
-        currentNode?: any;
     };
     geo: {
         topCountries: string[];
@@ -161,17 +156,16 @@ export class MetricsService {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        // PERF-01: Perform Full Verification Cycle in background to not block boot
-        setTimeout(async () => {
-            try {
-                loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.INFO,
-                    caller: "orchestrator:domain:analysis:metrics",
-                    message: "Starting Full Forensic Integrity Verification of audit ledger (Background)..."
-                });
-                const verification = await this.auditService.verifyFullChain();
+        // Perform Full Verification Cycle on Boot
+        try {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:domain:analysis:metrics",
+                message: "Starting Full Forensic Integrity Verification of audit ledger..."
+            });
+            const verification = await this.auditService.verifyFullChain();
             if (!verification.valid) {
                 loggingService.log({
                     timestamp: new Date().toISOString(),
@@ -194,17 +188,16 @@ export class MetricsService {
                     caller: "orchestrator:domain:analysis:metrics",
                     message: `Full ledger verification successful. ${verification.eventsChecked} links verified.`
                 });
-                }
-            } catch (e) {
-                loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.WARNING,
-                    caller: "orchestrator:domain:analysis:metrics",
-                    message: `Audit chain verification task error: ${e instanceof Error ? e.message : String(e)}`
-                });
             }
-        }, 5000);
+        } catch (e) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:analysis:metrics",
+                message: `Initial audit verification failed: ${(e as Error).message}`
+            });
+        }
         
         while (this.isRunning) {
             try {
@@ -260,7 +253,7 @@ export class MetricsService {
             const fimActive = this.sidecarManager.isRunning("watchfile");
 
             const fwLines = firewallStatus.stdout?.split('\n').filter((l: string) => l.trim()) || [];
-            const blockedIpsSet = new Set(blockedIps as string[]);
+            const rejectCount = (firewallStatus.stdout?.match(/REJECT|DROP|DENY/g) || []).length;
 
             // 3. Staggered Phase (Run less frequently)
             let auditStatus = { valid: true, count: 0 };
@@ -282,9 +275,9 @@ export class MetricsService {
             const mem = Deno.memoryUsage();
             const metrics: SystemMetrics = {
                 firewall: {
-                    blockedCount: blockedIpsSet.size,
+                    blockedCount: rejectCount,
                     rules: fwLines.length,
-                    blockedIps: Array.from(blockedIpsSet).slice(0, 20),
+                    blockedIps: [...new Set(blockedIps as string[])].slice(0, 20),
                     suspiciousIps: this.behavioral.getSuspiciousIps().slice(0, 10),
                 },
                 node: {
@@ -337,24 +330,21 @@ export class MetricsService {
                     available: !!this.scannerAvailable
                 },
                 vpn: {
-                    ...this.anonymization.getTelemetry(),
-                    active: vpnConnected,
+                    active: vpnConnected || (meshNodes.filter(n => n.verified && (Date.now() - n.lastSeen < 600000)).length > 0),
                     interface: vpnConnected ? "wg0" : "Sovereign Mesh (mTLS)",
                     available: !!this.vpnAvailable,
+                    mode: this.anonymization.getMode(),
                 },
-                geo: (() => {
-                    const countries = new Set(Object.values(this.geoIp.getCache()).map(c => c.country));
-                    return {
-                        topCountries: Array.from(countries).slice(0, 5),
-                        totalOrigins: countries.size
-                    };
-                })(),
+                geo: {
+                    topCountries: Array.from(new Set(Object.values(this.geoIp.getCache()).map(c => c.country))).slice(0, 5),
+                    totalOrigins: new Set(Object.values(this.geoIp.getCache()).map(c => c.country)).size
+                },
                 tactical: {
                     recentThreats: await (async () => {
                         const threats = await this.tacticalIntel?.getRecentThreats(10) ?? [];
-                        return threats.slice(0, 10).map((t: {indicator: string; type: string}) => ({
+                        return threats.slice(0, 10).map((t: any) => ({
                             ...t,
-                            blocked: blockedIpsSet.has(t.indicator)
+                            blocked: blockedIps.includes(t.indicator)
                         }));
                     })(),
                     stats: await this.tacticalIntel?.getStats() ?? {}

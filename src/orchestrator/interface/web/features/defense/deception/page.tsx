@@ -6,14 +6,14 @@ import { HoneypotModule } from "@domain/protection/honeypot_service.ts";
  * Honeypots Page
  * Deception infrastructure management.
  */
-export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: string, nonce?: string }) => {
+export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="Honeypot Infrastructure" csrfToken={props.csrfToken} >
+    <Layout title="Honeypot Infrastructure" csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       {/* 1. Unified Page Header */}
       <header class="page-header">
         <div class="title-group">
           <h1>Deception Operations</h1>
-          <span class="subtitle">Trap Network: Active</span>
+          <span class="subtitle">Decoys Deployed // Trap Network: Active</span>
         </div>
         <div class="flex items-center gap-4">
           <div class="flex items-center gap-4 bg-warning/10 border border-warning/30 px-8 py-4 rounded-full">
@@ -51,12 +51,14 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: st
                 
                 <div class="flex gap-6 pt-6 border-t border-white/5">
                   <a href={`/agents/deception/${module.id}`} class="t-btn flex-1 text-center justify-center text-[9px] py-3">Inspect Logs</a>
+                  {(props.userRole === "admin" || props.userRole === "operator") && (
                   <button 
                     onclick={`const t=document.querySelector('meta[name="csrf-token"]')?.content; fetch('/agents/deception/api/${module.id}/toggle', { method: 'POST', body: JSON.stringify({ active: ${!module.active} }), headers: { 'Content-Type': 'application/json', 'X-CT-Token': t || '' } }).then(() => location.reload())`}
                     class={`t-btn flex-1 justify-center text-[9px] py-3 ${module.active ? "danger" : "warning"}`}
                   >
                     {module.active ? "Kill Decoy" : "Deploy Trap"}
                   </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -64,6 +66,7 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: st
       </div>
 
       <div class="grid grid-cols-12 gap-6 mb-12">
+        {(props.userRole === "admin" || props.userRole === "operator") && (
         <div class="col-span-12 lg:col-span-6">
            <div class="t-panel glass-panel border-t-2 border-primary group h-full">
               <header class="flex items-center gap-6 mb-10 pb-6 border-b border-white/10">
@@ -74,10 +77,13 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: st
                  <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Morph Decoy Signatures</button>
                  <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Rotate Trap Keys</button>
                  <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em] bg-warning/5 border-warning/20 text-warning">Inject Network Latency</button>
+                 {props.userRole === "admin" && (
                  <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em] danger">Flush All Decoys</button>
+                 )}
               </div>
            </div>
         </div>
+        )}
         
         <div class="col-span-12 lg:col-span-6">
            <div class="t-panel glass-panel border-t-4 border-warning group h-full">

@@ -93,7 +93,7 @@ class EbpfAgent extends HTMLElement {
       } catch (e) {}
     };
 
-    /* Reconnection handled by SharedWebSocket */
+    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
   }
 
   async fetchStatus() {

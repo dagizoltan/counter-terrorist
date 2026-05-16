@@ -6,7 +6,7 @@
       "persistent": true
     },
     "sentinel": {
-      "path": "/home/dagizoltan/workspace/counter-terrorist/src/agents/target/release/ebpf",
+      "path": "./src/agents/target/release/sentinel",
       "hash": "ae40733560beb5de3c7adbb54a3cbed4103962236d5d7739b363632cc34bd583",
       "persistent": true,
       "capabilities": ["cap_sys_admin", "cap_net_admin", "cap_sys_resource"]
@@ -40,7 +40,7 @@
       "persistent": true
     },
     "watchfile": {
-        "path": "/home/dagizoltan/workspace/counter-terrorist/src/agents/target/release/fim",
+        "path": "./src/agents/target/release/watchfile",
         "hash": "c94a0466c8899ed1eaf46484d1cf8d94590e21bfce5b04844e80467548b2b0ee",
         "persistent": true,
         "capabilities": ["cap_sys_admin"]

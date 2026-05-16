@@ -7,7 +7,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="Firewall Agent // Active Enforcement" islandPaths={[
+    <Layout title="Firewall Agent // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
       '/components/islands/AnonymizerController.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
@@ -15,7 +15,7 @@ export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: s
       <header class="page-header">
         <div class="title-group">
           <h1>Firewall_Agent</h1>
-          <span class="subtitle">Status: Operational</span>
+          <span class="subtitle">Perimeter Defense & Ingress Containment // Status: Operational</span>
         </div>
       </header>
 
@@ -42,6 +42,7 @@ export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: s
                   </div>
                   <div class="flex flex-col gap-2">
                      <h3 class="tactical-title text-2xl tracking-widest">PERIMETER_ENFORCEMENT</h3>
+                     <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Real-time packet filtration & blocklist</p>
                   </div>
                 </div>
                 <div class="flex items-center gap-4">

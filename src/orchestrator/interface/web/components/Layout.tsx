@@ -13,6 +13,7 @@ export const Layout = (props: {
   nonce?: string;
   hostname?: string;
   islandPaths?: string[];
+  userRole?: string;
 }) => {
   return (
     <html lang="en">
@@ -22,12 +23,6 @@ export const Layout = (props: {
         <meta name="csrf-token" content={props.csrfToken} />
         <title>{props.title} | {props.hostname || 'Sovereign Orchestrator'}</title>
         <link rel="stylesheet" href="/style.css" />
-        <script nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
-          window.escapeHTML = function(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-          };
-        ` }} />
       </head>
       <body class="bg-[#050505] text-slate-100 font-sans selection:bg-primary/30 overflow-hidden">
         <div class="noise-overlay pointer-events-none opacity-[0.03]"></div>
@@ -38,7 +33,7 @@ export const Layout = (props: {
           {/* ── 01 Navigation Deck (Left) ─────────────────────────────── */}
           <aside class="shell-sidebar relative">
             <header class="h-[var(--header-height-sm)] px-8 flex items-center border-b border-white/5 bg-black/20 shrink-0">
-               <h1 class="text-lg font-black tracking-[0.2em] uppercase italic leading-none text-white">COUNTER-TERRORIST</h1>
+               <h1 class="text-lg font-black tracking-[0.2em] uppercase italic leading-none text-white">CT ORCH</h1>
             </header>
 
             <nav class="flex-grow overflow-y-auto custom-scrollbar p-4 space-y-1">
@@ -98,6 +93,25 @@ export const Layout = (props: {
                 </a>
               </div>
 
+              {/* 04 FORENSICS (Audit & Ledger) */}
+              <div class="nav-group mb-6">
+                <div class="nav-heading !text-success flex items-center gap-3">
+                   <div class="w-1 h-3 bg-success rounded-full"></div>
+                   04 // FORENSICS
+                </div>
+                <a href="/system/ledger" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/><path d="M10 9H8"/></svg>
+                   Operational Ledger
+                </a>
+                <a href="/forensics" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                   Forensic Analysis
+                </a>
+                <a href="/compliance" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+                   <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                   Compliance Center
+                </a>
+              </div>
 
               {/* 05 SYSTEM (Administration) */}
               <div class="nav-group pt-4 border-t border-white/5 mt-4 mb-8">
@@ -109,10 +123,12 @@ export const Layout = (props: {
                    <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                    Platform Status
                 </a>
+                {props.userRole === "admin" && (
                 <a href="/system/settings" class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
                    <svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2-2v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                    Global Settings
                 </a>
+                )}
               </div>
             </nav>
 
@@ -139,11 +155,9 @@ export const Layout = (props: {
                    </div>
                    <div class="hidden lg:flex items-center gap-3">
                       <span class="text-slate-600 font-bold">/</span>
-                      <a href="/system/ledger" class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Ledger</a>
+                      <span class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Sovereign OS</span>
                       <span class="text-slate-600 font-bold">/</span>
-                      <a href="/forensics" class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Forensics</a>
-                      <span class="text-slate-600 font-bold">/</span>
-                      <a href="/compliance" class="mono-xs font-black text-slate-500 tracking-[0.2em] uppercase transition-colors hover:text-primary cursor-pointer">Compliance</a>
+                      <span class="mono-xs font-black text-white tracking-[0.2em] uppercase">{props.title.split('//')[0].trim()}</span>
                    </div>
                 </div>
                 
@@ -179,10 +193,10 @@ export const Layout = (props: {
                 </div>
 
                 <div id="module-nav-container" class="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
-                   <button id="btn-integrity" data-tab="integrity" class="sidebar-nav-icon" title="System Integrity">
+                   <button id="btn-integrity" onclick="window.switchSidebarTab('integrity')" class="sidebar-nav-icon" title="System Integrity">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                    </button>
-                   <button id="btn-logs" data-tab="logs" class="sidebar-nav-icon active" title="Live Telemetry">
+                   <button id="btn-logs" onclick="window.switchSidebarTab('logs')" class="sidebar-nav-icon active" title="Live Telemetry">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12H3"/><path d="M21 6H3"/><path d="M21 18H3"/><path d="M10 6L10 18"/></svg>
                    </button>
                 </div>
@@ -277,6 +291,11 @@ export const Layout = (props: {
           syncInterface();
           window.addEventListener('popstate', syncInterface);
 
+          // Global Utility: escapeHTML
+          window.escapeHTML = function(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+          };
 
           // Global Tab Switching (Forensics)
           window.switchSidebarTab = function(tab) {
@@ -294,14 +313,6 @@ export const Layout = (props: {
                btnLogs.classList.toggle('active', tab === 'logs');
             }
           };
-
-          // Secure Event Delegation for Sidebar
-          document.getElementById('module-nav-container')?.addEventListener('click', (e) => {
-            const btn = e.target.closest('[data-tab]');
-            if (btn) {
-              window.switchSidebarTab(btn.getAttribute('data-tab'));
-            }
-          });
           
           // Default tab
           window.switchSidebarTab('logs');

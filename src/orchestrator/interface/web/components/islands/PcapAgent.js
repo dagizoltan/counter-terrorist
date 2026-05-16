@@ -76,7 +76,9 @@ class PcapAgent extends HTMLElement {
     };
 
     this._ws.onclose = () => {
-      // Reconnection handled by SharedWebSocket
+      if (this.isConnected) {
+        setTimeout(() => this.connectWS(), 5000);
+      }
     };
   }
 

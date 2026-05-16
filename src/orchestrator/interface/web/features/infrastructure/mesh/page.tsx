@@ -5,23 +5,25 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Mesh Topology Page
  * High-fidelity P2P consensus and node discovery visualization.
  */
-export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
+export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="Mesh Topology // P2P Consensus" islandPaths={[
+    <Layout title="Mesh Topology // P2P Consensus" islandPaths={[
       '/components/islands/MeshGraph.js',
       '/components/islands/MeshHeatmap.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Mesh Topology</h1>
-          <span class="subtitle">Nodes Discovered: {props.status?.mesh?.nodes?.length || "0"}</span>
+          <span class="subtitle">P2P Consensus Reached // Nodes Discovered: {props.status?.mesh?.nodes?.length || "0"}</span>
         </div>
         <div class="flex gap-4">
+          {(props.userRole === "admin" || props.userRole === "operator") && (
           <button class="t-btn px-8 py-4 text-[10px] font-black group" onclick="fetch('/api/mesh/resync', { method: 'POST' })">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
             Broadcast Sync
           </button>
+          )}
         </div>
       </header>
 

@@ -50,7 +50,9 @@ class MetricsHydrator extends HTMLElement {
       } catch (e) {}
     };
 
-    /* Reconnection handled by SharedWebSocket */
+    ws.onclose = () => {
+      this._reconnectTimer = setTimeout(() => this.connect(), 5000);
+    };
   }
 
   disconnectedCallback() {
@@ -63,27 +65,9 @@ class MetricsHydrator extends HTMLElement {
 
   updateMetrics(m) {
     if (m.vpn) {
-      const isBypassed = m.vpn.mode === 'OFF';
-      this.updateStatus('stat-vpn-status', isBypassed ? 'BYPASSED' : 'ENCRYPTED');
+      this.updateStatus('stat-vpn-status', m.vpn.active ? 'ENCRYPTED' : 'OFFLINE');
       this.updateStatus('stat-anon-mode', m.vpn.mode ?? 'OFFLINE');
       this.setText('stat-vpn-ip', m.vpn.exitIp || 'UNCONNECTED');
-
-      // Tactical Big Display
-      const bigLabel = document.getElementById('vpn-big-label');
-      const bigLabelBg = document.getElementById('vpn-big-label-bg');
-      const bigStatus = document.getElementById('vpn-big-status');
-      const vpnBars = document.getElementById('vpn-bars');
-      const latencyEl = document.getElementById('vpn-latency');
-
-      if (bigLabel) bigLabel.textContent = isBypassed ? 'BYPASSED' : 'STEALTH';
-      if (bigLabelBg) bigLabelBg.textContent = isBypassed ? 'BYPASSED' : 'STEALTH';
-      if (bigStatus) bigStatus.textContent = isBypassed ? 'DIRECT_LINK_UNSECURED' : 'IDENTITY_OBFUSCATION_ACTIVE';
-      if (vpnBars) vpnBars.style.opacity = isBypassed ? '0.1' : '1';
-      if (latencyEl) latencyEl.textContent = m.vpn.latency || '0ms';
-
-      const bigLabelColor = isBypassed ? 'var(--danger)' : 'var(--primary)';
-      if (bigLabel) bigLabel.style.color = isBypassed ? 'var(--danger)' : 'white';
-      if (bigLabelBg) bigLabelBg.style.color = bigLabelColor;
     }
     
     if (m.mesh) {

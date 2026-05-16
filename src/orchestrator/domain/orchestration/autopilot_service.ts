@@ -6,7 +6,6 @@ import { AutonomousResponseEngine } from "./autonomous_response.ts";
 import { ProtectionPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { NotificationService } from "../analysis/notifications.ts";
 import { MeshManager } from "./mesh.ts";
-import { CorrelationService } from "../analysis/correlation_service.ts";
 
 import { PolicyEngine } from "./policy_engine.ts";
 
@@ -24,9 +23,7 @@ export class AutopilotService {
     private logging: LoggingPort,
     private processTracker: ProcessTracker,
     private forensics: ForensicService,
-    private kernel: any, // KernelService
-    private correlation: CorrelationService,
-    private reputation?: ReputationService
+    private kernel: any // KernelService
   ) {
     this.policy = new PolicyEngine(logging);
     this.engine = new AutonomousResponseEngine(
@@ -37,8 +34,7 @@ export class AutopilotService {
         notifications,
         auditService,
         forensics,
-        logging,
-        reputation
+        logging
     );
   }
 
@@ -161,38 +157,6 @@ export class AutopilotService {
             });
         }
     }, 60000); 
-
-    // Keyed Listeners for Protocol Anomalies (from eBPF Traffic Dissector)
-    this.eventBus.on("PROTOCOL_ANOMALY", async (data) => {
-        await this.engine.evaluate({
-            source: data.source || "unknown",
-            type: "PROTOCOL_ANOMALY",
-            severity: 7,
-            description: data.message || `Protocol Anomaly: ${data.anomaly_type}`,
-            data
-        });
-
-        // Execute Action Recipe if confidence is high
-        if (data.confidence > 0.9) {
-            await this.executeRemediationRecipe("isolate-on-lateral-movement", data.source);
-        }
-    });
-
-    // Behavioral Correlation Poll (Every 10 seconds)
-    setInterval(async () => {
-        const chains = this.correlation.getKillChains();
-        for (const chain of chains) {
-            if (chain.isConfirmedBreach && chain.overallRisk >= 100) {
-                await this.engine.evaluate({
-                    source: chain.subject,
-                    type: "KILL_CHAIN_VERDICT",
-                    severity: 10,
-                    description: `Confirmed breach pattern detected: ${chain.id}`,
-                    data: { chain }
-                });
-            }
-        }
-    }, 10000);
   }
 
   private async spawnLureProcess() {
@@ -219,53 +183,6 @@ export class AutopilotService {
             caller: "orchestrator:domain:orchestration:autopilot_service:deception",
             message: `Lure deployment failed: ${(e as Error).message}`
         });
-    }
-  }
-
-  /**
-   * Executes a predefined "Action Recipe" for autonomous remediation.
-   */
-  async executeRemediationRecipe(recipeName: string, subject: string) {
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.AUDIT,
-        severity: LogSeverity.WARNING,
-        caller: "orchestrator:domain:orchestration:autopilot:recipes",
-        message: `Executing Remediation Recipe: '${recipeName}' for subject ${subject}`
-    });
-
-    switch (recipeName) {
-        case "isolate-on-lateral-movement":
-            if (subject.includes(".")) {
-                await this.protection.firewall.blockIp(subject);
-                await this.mesh.broadcastBlock(subject);
-            } else {
-                const pid = parseInt(subject);
-                if (!isNaN(pid)) {
-                    await this.protection.firewall.quarantineProcess(pid);
-                }
-            }
-            break;
-        case "rotate-keys-on-leaked-credential":
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.CRITICAL,
-                caller: "autopilot:remediation",
-                message: "CRITICAL: Compromised credential pattern detected. Initiating mesh-wide identity rotation."
-            });
-            await this.mesh.rotateIdentity();
-            // Broadcast the rotation command to all peers via consensus
-            await this.mesh.requestQuorumCommand("ROTATE_MESH_IDENTITY", { reason: "Leaked Credential" });
-            break;
-        default:
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:autopilot",
-                message: `Unknown recipe: ${recipeName}`
-            });
     }
   }
 }

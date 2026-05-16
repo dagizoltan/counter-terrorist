@@ -7,6 +7,7 @@ class ForensicVault extends HTMLElement {
     super();
     this.artifacts = [];
     this.loading = false;
+    this.bundling = false;
   }
 
   connectedCallback() {
@@ -35,6 +36,28 @@ class ForensicVault extends HTMLElement {
     }
   }
 
+  async generateBundle() {
+    if (this.bundling) return;
+    this.bundling = true;
+    this.render();
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const res = await fetch('/api/reports/forensics/bundle', {
+            method: 'POST',
+            headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+        });
+        if (res.ok) {
+            await this.fetchArtifacts();
+        }
+    } catch (e) {
+        console.error('Failed to generate bundle:', e);
+    } finally {
+        this.bundling = false;
+        this.render();
+    }
+  }
+
   render() {
     this.innerHTML = `
       <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden shadow-2xl flex flex-col border-t-2 border-primary/10">
@@ -43,10 +66,16 @@ class ForensicVault extends HTMLElement {
               <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Forensic_Vault</span>
               <span class="mono text-[7px] text-slate-600 uppercase italic">Immutable Evidence Chain // Root-Protected Storage</span>
            </div>
-           <button onclick="this.closest('forensic-vault').fetchArtifacts()" class="t-btn !py-2 !px-6 ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
-              <svg class="${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-              <span class="mono text-[9px] font-black uppercase tracking-widest ml-2">Refresh_Ledger</span>
-           </button>
+           <div class="flex gap-4">
+              <button onclick="this.closest('forensic-vault').generateBundle()" class="t-btn !py-2 !px-6 ${this.bundling ? 'opacity-50 pointer-events-none' : ''}">
+                 <svg class="${this.bundling ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                 <span class="mono text-[9px] font-black uppercase tracking-widest ml-2">Create_Signed_Bundle</span>
+              </button>
+              <button onclick="this.closest('forensic-vault').fetchArtifacts()" class="t-btn !py-2 !px-6 ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
+                 <svg class="${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                 <span class="mono text-[9px] font-black uppercase tracking-widest ml-2">Refresh_Ledger</span>
+              </button>
+           </div>
         </header>
 
         <div class="flex-grow overflow-y-auto custom-scrollbar max-h-[600px]">

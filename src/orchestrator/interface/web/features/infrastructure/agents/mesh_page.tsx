@@ -7,14 +7,14 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="Mesh Agent // Peer Intelligence" islandPaths={[
+    <Layout title="Mesh Agent // Peer Intelligence" islandPaths={[
       '/components/islands/NetworkMap.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">
           <h1>Mesh Agent</h1>
-          <span class="subtitle">Status: Operational</span>
+          <span class="subtitle">Distributed P2P Fabric & Peer Consensus // Status: Operational</span>
         </div>
       </header>
 
@@ -28,6 +28,7 @@ export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: strin
                   </div>
                   <div class="flex flex-col gap-2">
                      <h3 class="tactical-title text-2xl tracking-widest">PEER FABRIC TOPOLOGY</h3>
+                     <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Global mesh distribution and mTLS tunnel health</p>
                   </div>
                 </div>
                 <div class="status-pill active px-8 py-3 font-black tracking-widest">QUORUM OK</div>

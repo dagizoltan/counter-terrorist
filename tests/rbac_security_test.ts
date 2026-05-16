@@ -81,5 +81,6 @@ Deno.test("ApiKeysService - Security and Role Management", async (t) => {
     assertEquals(keys.length, 0);
   });
 
+  await logging.shutdown();
   kv.close();
 });

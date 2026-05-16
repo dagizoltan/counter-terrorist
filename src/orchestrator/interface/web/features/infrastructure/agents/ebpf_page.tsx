@@ -7,14 +7,14 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const EbpfPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="eBPF Agent // Kernel Observability" islandPaths={[
+    <Layout title="eBPF Agent // Kernel Observability" islandPaths={[
       '/components/islands/EbpfAgent.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">
           <h1>eBPF_Agent</h1>
-          <span class="subtitle">Status: Active (Fallback)</span>
+          <span class="subtitle">Kernel-level Security Enforcement & Observability // Status: Active (Fallback)</span>
         </div>
       </header>
 

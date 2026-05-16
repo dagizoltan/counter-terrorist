@@ -7,7 +7,6 @@ export interface NetworkLogEntry {
     action: "ALLOW" | "BLOCK";
     timestamp?: string;
     metadata?: any;
-    botScore?: number;
 }
 
 export interface NetworkLogRepository {

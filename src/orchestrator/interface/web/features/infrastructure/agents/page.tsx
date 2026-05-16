@@ -6,28 +6,32 @@ import { ApplicationStatus } from "@core/ports.ts";
  * Atomic Agents Page
  * Hardened agent management with high-fidelity tactical grid.
  */
-export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: string, nonce?: string }) => {
+export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: string, nonce?: string, userRole?: string }) => {
   const { plugins } = props.status;
 
   return (
-    <Layout nonce={props.nonce} title="Agent Registry // Fleet Command" islandPaths={[
+    <Layout title="Agent Registry // Fleet Command" islandPaths={[
       '/components/islands/AgentCardIsland.js',
       '/components/islands/ProcessTree.js'
-    ]} csrfToken={props.csrfToken}>
+    ]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header">
         <div class="title-group">
           <h1>Agent Fleet</h1>
-          <span class="subtitle">Nodes in Registry: {plugins.length.toString().padStart(2, '0')}</span>
+          <span class="subtitle">Orchestration Synced // Nodes in Registry: {plugins.length.toString().padStart(2, '0')}</span>
         </div>
         <div class="flex gap-4">
+          {(props.userRole === "admin" || props.userRole === "operator") && (
           <button class="t-btn px-6 py-3 text-[9px]">
             Provision Node
           </button>
+          )}
+          {props.userRole === "admin" && (
           <button class="t-btn px-6 py-3 text-[9px] border-danger text-danger">
             Purge Failed
           </button>
+          )}
         </div>
       </header>
 
@@ -144,6 +148,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
               </div>
               <div class="flex flex-col gap-2">
                  <h3 class="tactical-title text-2xl tracking-widest">SUPPLY CHAIN VERIFIED</h3>
+                 <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">All active dependencies cryptographically signed and audited</p>
               </div>
            </div>
            <a href="/system/supply-chain" class="t-btn success px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em]">Inspect Full Provenance</a>

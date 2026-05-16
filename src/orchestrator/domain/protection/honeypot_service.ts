@@ -3,7 +3,6 @@ import { FirewallManager } from "@infrastructure/system/protection/firewall/fire
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { isValidIP } from "@infrastructure/system/validation.ts";
 
 export interface HoneypotModule {
   id: string;
@@ -11,27 +10,12 @@ export interface HoneypotModule {
   port: number;
   description: string;
   active: boolean;
-  hitCount: number;
-  lastInteraction?: string;
-}
-
-export interface HoneypotEvent {
-  type: string;
-  source_ip?: string;
-  port?: string | number;
-  data?: any;
-  route?: string;
-}
-
-export interface IBehavioralService {
-  analyze(ip: string): Promise<string>;
 }
 
 export class HoneypotService {
   private modules: Map<string, HoneypotModule> = new Map();
-  private eventHandlers: ((event: HoneypotEvent) => void)[] = [];
+  private eventHandlers: ((event: any) => void)[] = [];
   private hitCount: number = 0;
-  private morphInterval?: number;
 
   constructor(
     private sidecarManager: SidecarManager,
@@ -47,7 +31,6 @@ export class HoneypotService {
       port: 22,
       description: "Emulates an OpenSSH 8.2 server to capture brute-force attempts.",
       active: true,
-      hitCount: 0,
     });
     this.registerModule({
       id: "redis",
@@ -55,7 +38,6 @@ export class HoneypotService {
       port: 6379,
       description: "Emulates an unauthenticated Redis instance to detect RCE attempts.",
       active: false,
-      hitCount: 0,
     });
     this.registerModule({
       id: "http",
@@ -63,7 +45,6 @@ export class HoneypotService {
       port: 80,
       description: "Fake administration panel to detect web crawlers and exploit attempts.",
       active: true,
-      hitCount: 0,
     });
     this.registerModule({
       id: "postgresql",
@@ -71,7 +52,6 @@ export class HoneypotService {
       port: 5432,
       description: "Emulates an exposed PostgreSQL instance to capture credential brute-force.",
       active: true,
-      hitCount: 0,
     });
     this.registerModule({
       id: "rdp",
@@ -79,7 +59,6 @@ export class HoneypotService {
       port: 3389,
       description: "Fake Remote Desktop service to detect lateral movement attempts.",
       active: true,
-      hitCount: 0,
     });
     this.registerModule({
       id: "vault",
@@ -87,15 +66,14 @@ export class HoneypotService {
       port: 8200,
       description: "Fake Vault API to detect credential and secret theft attempts.",
       active: true,
-      hitCount: 0,
     });
   }
 
-  onEvent(handler: (event: HoneypotEvent) => void) {
+  onEvent(handler: (event: any) => void) {
     this.eventHandlers.push(handler);
   }
 
-  private emitEvent(event: HoneypotEvent) {
+  private emitEvent(event: any) {
     for (const handler of this.eventHandlers) {
       handler(event);
     }
@@ -127,15 +105,7 @@ export class HoneypotService {
         module: id, 
         active, 
         port: module.port
-      }).catch(err => {
-        this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
-          severity: LogSeverity.ERROR,
-          caller: "orchestrator:domain:protection:honeypot:toggle",
-          message: `Failed to toggle decoy module ${id}: ${err instanceof Error ? err.message : String(err)}`
-        }).catch(() => {});
-      });
+      }).catch(() => {});
     }
   }
 
@@ -146,36 +116,21 @@ export class HoneypotService {
     // Initialize firewall rules and sidecar modules for active modules
     for (const module of this.modules.values()) {
         if (module.active) {
-            await this.toggleModule(module.id, true).catch(err => {
-              this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:domain:protection:honeypot:start",
-                message: `Failed to start decoy module ${module.id}: ${err instanceof Error ? err.message : String(err)}`
-              }).catch(() => {});
-            });
+            await this.toggleModule(module.id, true).catch(() => {});
         }
     }
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
-    this.morphInterval = setInterval(() => this.morph(), 600000); // Every 10 minutes
+    setInterval(() => this.morph(), 600000); // Every 10 minutes
   }
 
-  public stop() {
-    if (this.morphInterval) {
-        clearInterval(this.morphInterval);
-        this.morphInterval = undefined;
-    }
-  }
+  private behavioralService?: any; // Injected later or passed in constructor
 
-  private behavioralService?: IBehavioralService; 
-
-  setBehavioralService(service: IBehavioralService) {
+  setBehavioralService(service: any) {
     this.behavioralService = service;
   }
 
-  private async handleEvent(event: { data?: any }) {
+  private async handleEvent(event: any) {
     const payload = event.data;
     if (!payload) return;
 
@@ -184,10 +139,6 @@ export class HoneypotService {
       const port = payload.port || "unknown";
       
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
-      if (module) {
-          module.hitCount++;
-          module.lastInteraction = new Date().toISOString();
-      }
       const callerId = module ? `decoy:${module.id}` : "decoy:unknown";
 
       this.hitCount++;
@@ -229,19 +180,8 @@ export class HoneypotService {
       }
 
       // Automated Forensics: Start capture for the attacker's traffic
-      // SEC-06: Validate IP before injecting into BPF filter to prevent filter injection
-      if (isValidIP(source_ip)) {
-        const safeIp = source_ip.replace(/[\.:]/g, '_');
-        this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:domain:protection:honeypot:pcap",
-                message: `Failed to start PCAP for honeypot hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
-            }).catch(() => {});
-        });
-      }
+      const safeIp = source_ip.replace(/[\.:]/g, '_');
+      this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
@@ -266,11 +206,6 @@ export class HoneypotService {
    */
   async onWebTrigger(route: string, source_ip: string) {
     this.hitCount++;
-    const module = this.getModule("http");
-    if (module) {
-        module.hitCount++;
-        module.lastInteraction = new Date().toISOString();
-    }
     this.emitEvent({ type: "WebAccess", source_ip, route });
 
     this.logging.log({
@@ -294,30 +229,11 @@ export class HoneypotService {
     });
 
     // Immediate blocking for web decoys as they are 100% malicious
-    this.firewall.blockIp(source_ip).catch(err => {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:domain:protection:honeypot:web",
-            message: `Failed to block IP ${source_ip} after web trigger: ${err instanceof Error ? err.message : String(err)}`
-        }).catch(() => {});
-    });
+    this.firewall.blockIp(source_ip).catch(console.error);
 
     // Automated Forensics: Start capture for the attacker's traffic
-    // SEC-06: Validate IP before injecting into BPF filter to prevent filter injection
-    if (isValidIP(source_ip)) {
-      const safeIp = source_ip.replace(/[\.:]/g, '_');
-      this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(err => {
-          this.logging.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.GENERIC,
-              severity: LogSeverity.ERROR,
-              caller: "orchestrator:domain:protection:honeypot:pcap",
-              message: `Failed to start PCAP for web decoy hit on ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
-          }).catch(() => {});
-      });
-    }
+    const safeIp = source_ip.replace(/[\.:]/g, '_');
+    this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
 
     // Active Sabotage: Initiate Breaker protocol on the attacker's session
     this.sabotageSession(source_ip);
@@ -342,15 +258,7 @@ export class HoneypotService {
         type: "Sabotage",
         source_ip, 
         level: "HIGH"
-    }).catch(err => {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:domain:protection:honeypot:breaker",
-            message: `Failed to send sabotage command to sidecar for ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
-        }).catch(() => {});
-    });
+    }).catch(() => {});
   }
 
   /**
@@ -372,7 +280,6 @@ export class HoneypotService {
       let newPort: number;
       const protectedPorts = [8000, 8001, 8002]; // Orchestrator ports
       
-      let morphAttempts = 0;
       do {
         // Preference for common but usually unused ports for better camouflage
         const camouflagePorts = [111, 515, 1024, 2049, 4000, 5000, 9000];
@@ -381,12 +288,6 @@ export class HoneypotService {
            newPort = camouflagePorts[Math.floor(Math.random() * camouflagePorts.length)];
         } else {
            newPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
-        }
-        morphAttempts++;
-        // PERF-05: Prevent infinite loop if all ports are occupied
-        if (morphAttempts > 100) {
-          newPort = oldPort; // Fall back to keeping the existing port
-          break;
         }
       } while (protectedPorts.includes(newPort) || Array.from(this.modules.values()).some(m => m.port === newPort));
 
@@ -400,15 +301,7 @@ export class HoneypotService {
         module: id, 
         oldPort, 
         newPort
-      }).catch(err => {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:domain:protection:honeypot:morph",
-            message: `Failed to update decoy module ${id} port rotation from ${oldPort} to ${newPort}: ${err instanceof Error ? err.message : String(err)}`
-        }).catch(() => {});
-      });
+      }).catch(() => {});
 
       this.logging.log({
           timestamp: new Date().toISOString(),

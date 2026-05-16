@@ -8,7 +8,6 @@ export { ApiKeysService } from "./identity/api_keys.ts";
 export { SessionService } from "./identity/session.ts";
 export { MeshAuthService } from "./identity/mesh_auth.ts";
 export { RateLimitService } from "./identity/rate_limit.ts";
-export { SecretVault } from "./security/secret_vault.ts";
 
 // Protection Domain
 export { HoneypotService } from "./protection/honeypot_service.ts";
@@ -25,7 +24,7 @@ export { AutoBlockService } from "./protection/auto_block_service.ts";
 // Analysis Domain
 export { AuditService, SystemState } from "./analysis/audit.ts";
 export { EventBus } from "./analysis/events.ts";
-export { HealthService, type SubsystemStatus } from "./analysis/health_service.ts";
+export { HealthService } from "./analysis/health_service.ts";
 export { WatchdogService } from "./analysis/watchdog_service.ts";
 export { EventMediator } from "./analysis/event_mediator.ts";
 export { ProcessTracker } from "./analysis/process_tracker.ts";
@@ -45,7 +44,6 @@ export { TacticalIntelIngestor as TacticalIntelService } from "./analysis/tactic
 export { ForensicService } from "./analysis/forensic_service.ts";
 export { LedgerService } from "./analysis/ledger_service.ts";
 export { CorrelationService } from "./analysis/correlation_service.ts";
-export { ReputationService } from "./analysis/reputation_service.ts";
 
 // Engine Domain
 export { MeshManager } from "./orchestration/mesh.ts";

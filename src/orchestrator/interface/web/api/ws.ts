@@ -16,8 +16,6 @@ export interface BroadcastData {
   type: string;
   message?: string;
   data?: any;
-  /** PERF-06: If true, skips audit ledger and notification pipeline to prevent amplification. */
-  silent?: boolean;
   [key: string]: any;
 }
 
@@ -73,8 +71,7 @@ export function broadcast(data: BroadcastData) {
   }
 
   // Trigger Deno KV Audit Event (Escalated to AUDIT type for the ledger)
-  const shouldAudit = !data.silent && data.type !== "AUDIT_EVENT" && data.type !== "METRICS_UPDATE" && data.type !== "DEBUG" && data.type !== "UI_UPDATE" && data.type !== "PING" && data.subType !== "METRICS_UPDATE";
-  if (shouldAudit) {
+  if (data.type !== "METRICS_UPDATE" && data.type !== "DEBUG" && data.type !== "UI_UPDATE" && data.type !== "PING" && data.subType !== "METRICS_UPDATE") {
     // Map internal types to mandated forensic types for the ledger
     let forensicType = LogType.AUDIT;
     if (data.type === "INFO" || data.type === "ACTIVITY") forensicType = LogType.ACTIVITY;

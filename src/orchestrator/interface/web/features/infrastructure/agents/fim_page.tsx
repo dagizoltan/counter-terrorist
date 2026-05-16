@@ -7,14 +7,14 @@ import { Layout } from "@interface/components/Layout.tsx";
  */
 export const FimPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
   return (
-    <Layout nonce={props.nonce} title="FIM Agent // Integrity Audit" islandPaths={[
+    <Layout title="FIM Agent // Integrity Audit" islandPaths={[
       '/components/islands/FimAgent.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce}>
       
       <header class="page-header">
         <div class="title-group">
           <h1>FIM_Agent</h1>
-          <span class="subtitle">Status: Monitoring</span>
+          <span class="subtitle">File Integrity Monitoring & Real-time Auditing // Status: Monitoring</span>
         </div>
       </header>
 

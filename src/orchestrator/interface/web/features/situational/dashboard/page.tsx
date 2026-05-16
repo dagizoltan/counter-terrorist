@@ -6,7 +6,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Primary strategic command interface.
  * Refined for high-readability and zero-underscore policy.
  */
-export const Dashboard = (props: { status: any; csrfToken: string; nonce?: string; hostname?: string }) => {
+export const Dashboard = (props: { status: any; csrfToken: string; nonce?: string; hostname?: string; userRole?: string }) => {
   const { platform } = props.status;
 
   const islandPaths = [
@@ -17,22 +17,24 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
   ];
 
   return (
-    <Layout nonce={props.nonce} title="System Overview // Sovereign Overwatch" islandPaths={islandPaths} csrfToken={props.csrfToken}  hostname={props.hostname}>
+    <Layout title="System Overview // Sovereign Overwatch" islandPaths={islandPaths} csrfToken={props.csrfToken} nonce={props.nonce} hostname={props.hostname} userRole={props.userRole}>
       {/* 01 Unified Page Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
         <div class="title-group">
           <h1 class="tactical-title text-4xl">Operational Overview</h1>
-          <span class="subtitle">Node: {platform?.hostname || "localhost"}</span>
+          <span class="subtitle">Operational State: Active // Node: {platform?.hostname || "localhost"}</span>
         </div>
         <div class="flex gap-6 items-center">
           <a href="/compliance" class="t-btn px-8 py-4 bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 group transition-all">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             Governance
           </a>
+          {props.userRole === "admin" && (
           <button class="t-btn px-8 py-4 group hover:scale-105 transition-transform">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-180 transition-transform duration-500"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             Force Sweep
           </button>
+          )}
         </div>
       </header>
 
@@ -51,6 +53,7 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-audit-score-large">{props.status.audit?.integrityScore || 100}<span class="text-success">%</span></span>
+              <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Trust</span>
             </div>
           </div>
 
@@ -61,6 +64,7 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-cpu-load-large">{props.status.node?.cpu?.load || 0}<span class="text-warning">%</span></span>
+              <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">CPU</span>
             </div>
           </div>
 
@@ -73,6 +77,7 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-threat-hits">{props.status.threats?.totalIngested || 0}</span>
+              <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Indicators</span>
             </div>
           </div>
 
@@ -83,6 +88,7 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-danger tabular-nums" id="stat-fw-blocked">{props.status.firewall?.blockedCount || 42}</span>
+              <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Blocked</span>
             </div>
           </div>
         </div>
@@ -99,7 +105,7 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
                  <div class="p-4 bg-primary/10 border border-primary/20 rounded-2xl text-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
                  </div>
-                 <h3 class="tactical-title text-xl tracking-widest uppercase">Live Activity</h3>
+                 <h3 class="tactical-title text-2xl tracking-widest uppercase">Perimeter Isolation Events</h3>
               </div>
               <a href="/system/ledger" class="t-btn px-6 py-3 text-[10px]">Full Ledger →</a>
            </header>
@@ -137,7 +143,7 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
                    <div class="p-4 bg-success/10 border border-success/20 rounded-2xl text-success shadow-[0_0_15px_rgba(var(--success-rgb),0.2)]">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/><path d="m19 19-3-3"/><path d="m5 5 3 3"/><path d="m16 8 3-3"/><path d="m8 16-3 3"/></svg>
                    </div>
-                   <h3 class="tactical-title text-xl tracking-widest uppercase">Signal Graph</h3>
+                   <h3 class="tactical-title text-2xl tracking-widest uppercase">Neighbor Signal Graph</h3>
                 </div>
              </header>
              <div class="h-[600px] relative bg-black/60 group">

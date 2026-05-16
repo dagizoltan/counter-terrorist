@@ -14,8 +14,6 @@ export interface MeshNode {
   verified: boolean;
 }
 
-import { SecretVault } from "../security/secret_vault.ts";
-
 export class MeshManager {
   private nodes: Map<string, MeshNode> = new Map();
   private discoveryInterval: number | null = null;
@@ -28,8 +26,7 @@ export class MeshManager {
   constructor(
     private meshAuth: MeshAuthService, 
     private logging: LoggingPort,
-    private audit: AuditService,
-    private vault?: SecretVault
+    private audit: AuditService
   ) {
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -44,11 +41,6 @@ export class MeshManager {
   async init() {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.port = Number(Deno.env.get("PORT")) || 8000;
-
-    if (this.vault) {
-        const vSecret = await this.vault.getSecret("MESH_SECRET");
-        if (vSecret) this.meshSecret = vSecret;
-    }
 
     try {
       this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
@@ -127,13 +119,6 @@ export class MeshManager {
         this.discoverSubnet();
         this.scanNetwork();
     }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + (Math.random() * 5000));
-  }
-
-  public stop() {
-    if (this.discoveryInterval) {
-        clearInterval(this.discoveryInterval);
-        this.discoveryInterval = null;
-    }
   }
 
   private async discoverSubnet() {
@@ -370,11 +355,6 @@ export class MeshManager {
     const isNew = !this.nodes.has(node.id);
     this.nodes.set(node.id, { ...node, lastSeen: Date.now() });
 
-    // ENHANCEMENT: Zero-Trust Mesh VPN Integration
-    if (node.verified) {
-        this.provisionVpnPeer(node).catch(() => {});
-    }
-
     if (isNew) {
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -473,7 +453,12 @@ export class MeshManager {
     });
 
     for (const node of verifiedNodes) {
-        this.sendSync(node, { type: "GOSSIP_BLOCK", ip }).catch(err => {
+        this.sendSync(node, {
+            type: "GOSSIP_BLOCK",
+            ip,
+            sourceNode: this.nodeId,
+            timestamp: Date.now()
+        }).catch(err => {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
@@ -501,7 +486,12 @@ export class MeshManager {
     });
 
     for (const node of verifiedNodes) {
-        this.sendSync(node, { type: "GOSSIP_THREAT_HASH", hash, sourceNode }).catch(err => {
+        this.sendSync(node, {
+            type: "GOSSIP_THREAT_HASH",
+            hash,
+            sourceNode,
+            timestamp: Date.now()
+        }).catch(err => {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
@@ -525,7 +515,11 @@ export class MeshManager {
         message: "Gossip: Initiating high-priority EMERGENCY LOCKDOWN broadcast..."
     });
 
-    await this.broadcast({ type: "GOSSIP_LOCKDOWN" }, true);
+    await this.broadcast({
+        type: "GOSSIP_LOCKDOWN",
+        sourceNode: this.nodeId,
+        timestamp: Date.now()
+    }, true);
   }
 
   /**
@@ -639,77 +633,77 @@ export class MeshManager {
   }
 
   /**
-   * Universal BFT-Light Consensus: Three-Phase Commit (3PC).
-   * Ensures critical mesh policy changes are atomic and resilient to transient faults.
+   * Universal Quorum Handshake: Requires P2P consensus for any critical command.
    */
   async requestQuorumCommand(action: string, data: any): Promise<boolean> {
-      if (Deno.env.get("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) return true;
-
-      const txId = crypto.randomUUID().slice(0, 8);
-      const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
-      const threshold = Math.floor((verifiedNodes.length + 1) / 2) + 1;
-
-      // ── PHASE 1: PRE-PROPOSE (CAN_COMMIT?) ────────────────────────────
-      let prepareVotes = 1;
-      const preparePayload = { type: "TX_PREPARE", txId, action, data, requester: this.nodeId, timestamp: Date.now() };
-      const prepareSig = await this.signPayload(preparePayload);
-
-      for (const node of verifiedNodes) {
-          try {
-              const res = await this.sendSync(node, { ...preparePayload, _sig: prepareSig });
-              if ((res as any)?.ready) {
-                  // Verify Peer Signature in Response
-                  if ((res as any)._sig && await this.verifySignature((res as any).payload, (res as any)._sig)) {
-                    prepareVotes++;
-                  } else {
-                    prepareVotes++; // Fallback for simulation, but audit it
-                  }
-              }
-          } catch { /* node down */ }
-          if (prepareVotes >= threshold) break;
-      }
-
-      if (prepareVotes < threshold) {
+      // SINGLE_NODE mode or no peers: Quorum is automatically satisfied if the action is authorized locally
+      if (Deno.env.get("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
-              severity: LogSeverity.WARNING,
-              caller: "mesh:3pc",
-              message: `TX_ABORTED [${txId}]: Failed to reach quorum in PREPARE phase (${prepareVotes}/${threshold})`
+              severity: LogSeverity.INFO,
+              caller: "orchestrator:domain:orchestration:mesh:quorum",
+              message: `SINGLE_NODE mode: Auto-approving quorum for action: ${action}`
           });
-          return false;
-      }
-
-      // ── PHASE 2: PRE-COMMIT ───────────────────────────────────────────
-      let commitVotes = 1;
-      const preCommitPayload = { type: "TX_PRE_COMMIT", txId, timestamp: Date.now() };
-      const preCommitSig = await this.signPayload(preCommitPayload);
-
-      for (const node of verifiedNodes) {
-          try {
-              const res = await this.sendSync(node, { ...preCommitPayload, _sig: preCommitSig });
-              if ((res as any)?.acknowledged) commitVotes++;
-          } catch { /* transient failure */ }
-      }
-
-      // ── PHASE 3: GLOBAL COMMIT ────────────────────────────────────────
-      const success = commitVotes >= threshold;
-      const type = success ? "TX_DO_COMMIT" : "TX_ROLLBACK";
-      const finalPayload = { type, txId, timestamp: Date.now() };
-      const finalSig = await this.signPayload(finalPayload);
-      
-      for (const node of verifiedNodes) {
-          this.sendSync(node, { ...finalPayload, _sig: finalSig }).catch(() => {});
+          return true;
       }
 
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
-          severity: success ? LogSeverity.SUCCESS : LogSeverity.ERROR,
-          caller: "mesh:3pc",
-          message: `TX_FINISHED [${txId}]: Action '${action}' result: ${success ? "COMMITTED" : "ABORTED"} (${commitVotes}/${threshold})`
+          severity: LogSeverity.INFO,
+          caller: "orchestrator:domain:orchestration:mesh:quorum",
+          message: `Requesting mesh consensus for action: ${action}`
       });
 
+      const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+      const threshold = Math.floor((verifiedNodes.length + 1) / 2) + 1;
+
+      if (verifiedNodes.length + 1 < threshold) {
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.ERROR,
+              caller: "orchestrator:domain:orchestration:mesh:quorum",
+              message: `Consensus impossible. Active nodes (${verifiedNodes.length + 1}) < Threshold (${threshold}).`
+          });
+          return false;
+      }
+
+      let approvals = 1; // Self approval
+
+      for (const node of verifiedNodes) {
+          try {
+              const res = await this.sendSync(node, {
+                  type: "CONSENSUS_REQUEST",
+                  action,
+                  data,
+                  requester: this.nodeId
+              });
+              if (res !== undefined && res !== null && (res as any).approved) {
+                  approvals++;
+              }
+          } catch (e) {
+              this.logging.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.GENERIC,
+                  severity: LogSeverity.WARNING,
+                  caller: "orchestrator:domain:orchestration:mesh:quorum",
+                  message: `Node ${node.hostname} denied or timed out.`
+              });
+          }
+
+          if (approvals >= threshold) break;
+      }
+      
+      const success = approvals >= threshold;
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: success ? LogSeverity.INFO : LogSeverity.WARNING,
+          caller: "orchestrator:domain:orchestration:mesh:quorum",
+          message: `Result for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold})`
+      });
       return success;
   }
 
@@ -827,7 +821,6 @@ export class MeshManager {
     if (this.meshSecret) {
       const signature = await this.signPayload(paddedPayload);
       headers["X-Mesh-Signature"] = signature;
-      if (this.vault) await this.vault.setSecret("MESH_SECRET", this.meshSecret);
     }
 
     // TRAFFIC CAMOUFLAGE: Random jitter and truly variable padding
@@ -853,35 +846,6 @@ export class MeshManager {
         caller: "orchestrator:domain:orchestration:mesh",
         message: `Tactical mTLS Sync completed with ${node.address}:${node.port}`
     });
-  }
-
-  /**
-   * Provisions a WireGuard peer derived from the node's mTLS identity.
-   */
-  private async provisionVpnPeer(node: MeshNode) {
-      if (!this.meshAuth) return;
-
-      // In a production implementation, we would extract the WireGuard public key
-      // from the mTLS certificate extensions or a dedicated handshake field.
-      const mockPublicKey = btoa(node.id).slice(0, 32);
-
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.AUDIT,
-          severity: LogSeverity.INFO,
-          caller: "orchestrator:mesh:zt-vpn",
-          message: `Zero-Trust VPN: Provisioning peer ${node.id} (${node.address})`
-      });
-
-      const sidecar = (this.meshAuth as any).sidecar; // Optional linkage
-      if (sidecar) {
-          await sidecar.sendCommand("tunnel", {
-              type: "PROVISION_PEER",
-              public_key: mockPublicKey,
-              endpoint: `${node.address}:51820`,
-              allowed_ips: [`${node.address}/32`]
-          }).catch(() => {});
-      }
   }
 
   /**

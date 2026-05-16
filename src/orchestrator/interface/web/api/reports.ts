@@ -3,7 +3,9 @@ import { BaselineService } from "@domain/index.ts";
 import { ProtectionPort } from "@core/ports.ts";
 import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createReportsApi(baseline: BaselineService, protection: ProtectionPort, security: SecurityMiddleware) {
+import { ForensicService } from "@domain/index.ts";
+
+export function createReportsApi(baseline: BaselineService, protection: ProtectionPort, security: SecurityMiddleware, forensics: ForensicService) {
   const api = new Hono();
 
   api.get("/export", security.requireRole("admin", "operator", "viewer"), async (c) => {
@@ -44,6 +46,11 @@ export function createReportsApi(baseline: BaselineService, protection: Protecti
       }
 
       return c.json(artifacts);
+  });
+
+  api.post("/forensics/bundle", security.requireRole("admin", "operator"), async (c) => {
+      const bundle = await forensics.generateEvidenceBundle();
+      return c.json({ success: true, bundleId: bundle.id });
   });
 
   api.get("/forensics/download/:name", security.requireRole("admin", "operator", "viewer"), async (c) => {

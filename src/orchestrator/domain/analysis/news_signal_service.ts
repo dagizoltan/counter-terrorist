@@ -46,10 +46,6 @@ export class NewsSignalService {
         setInterval(() => this.fetchFeeds(), 30 * 60 * 1000);
     }
 
-    async sync() {
-        return await this.fetchFeeds();
-    }
-
     private analyzeRisk(content: string): { severity: TacticalSeverity; score: number } {
         const keywords = {
             CRITICAL: ['zero-day', '0-day', 'unauthenticated rce', 'active exploitation', 'wild', 'critical vulnerability', 'cvss 10', 'ransomware attack'],
