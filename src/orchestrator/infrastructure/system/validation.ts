@@ -271,6 +271,8 @@ export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
   return diff === 0;
 }
 
+const SCANNER_JAIL = ["/home/", "/var/www/", "./volume/", "/var/lib/cts/", "/tmp/"];
+
 export function validateRequest(sidecar: SidecarName, req: any): boolean {
   if (!req.type) return false;
 
@@ -279,11 +281,11 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"].includes(req.type)) return false;
       if (req.type === "DIR_SCAN" || req.type === "ScanPath" || req.type === "Quarantine") {
         if (req.path) {
-          if (!validatePath(req.path)) return false;
+          if (!validatePath(req.path, SCANNER_JAIL)) return false;
         }
         if (req.paths) {
           if (!Array.isArray(req.paths)) return false;
-          if (!req.paths.every((p: string) => validatePath(p))) return false;
+          if (!req.paths.every((p: string) => validatePath(p, SCANNER_JAIL))) return false;
         }
       }
       return true;

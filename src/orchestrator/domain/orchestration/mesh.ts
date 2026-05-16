@@ -23,6 +23,19 @@ export class MeshManager {
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
 
+  shutdown() {
+      if (this.discoveryInterval) clearInterval(this.discoveryInterval);
+      this.discoveryInterval = null;
+      this.nodes.clear();
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.ACTIVITY,
+          severity: LogSeverity.INFO,
+          caller: "orchestrator:domain:orchestration:mesh",
+          message: "Mesh MeshManager offline."
+      });
+  }
+
   constructor(
     private meshAuth: MeshAuthService, 
     private logging: LoggingPort,
