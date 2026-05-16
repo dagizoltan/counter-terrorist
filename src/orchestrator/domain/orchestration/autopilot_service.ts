@@ -51,6 +51,26 @@ export class AutopilotService {
 
   private isStarted = false;
   private lureProcess: Deno.ChildProcess | null = null;
+  private intervalId: number | null = null;
+  private unsubscribers: (() => void)[] = [];
+
+  shutdown() {
+      this.isStarted = false;
+      if (this.intervalId) clearInterval(this.intervalId);
+      this.unsubscribers.forEach(u => u());
+      this.unsubscribers = [];
+      if (this.lureProcess) {
+          try { this.lureProcess.kill(); } catch {}
+          this.lureProcess = null;
+      }
+      this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "orchestrator:domain:orchestration:autopilot_service",
+          message: "Autonomous Defense Mesh disengaged."
+      });
+  }
 
   async start() {
     if (this.isStarted) return;
@@ -67,7 +87,11 @@ export class AutopilotService {
     await this.spawnLureProcess();
 
     // Keyed Listeners for domain-specific events
-    this.eventBus.on("HONEYPOT", async (data) => {
+    const on = (ev: string, fn: (data: any) => void) => {
+        this.unsubscribers.push(this.eventBus.on(ev, fn));
+    };
+
+    on("HONEYPOT", async (data) => {
         await this.engine.evaluate({
             source: data.source_ip || data.ip || "unknown",
             type: "HONEYPOT_TRIGGER",
@@ -77,7 +101,7 @@ export class AutopilotService {
         });
     });
 
-    this.eventBus.on("THREAT", async (data) => {
+    on("THREAT", async (data) => {
         await this.engine.evaluate({
             source: data.source_ip || data.ip || "local",
             type: "CANARY_TRIGGER",
@@ -87,7 +111,7 @@ export class AutopilotService {
         });
     });
 
-    this.eventBus.on("DRIFT_PROCESS", async (data) => {
+    on("DRIFT_PROCESS", async (data) => {
         await this.engine.evaluate({
             source: "local",
             type: "FILE_TAMPERING",
@@ -97,7 +121,7 @@ export class AutopilotService {
         });
     });
 
-    this.eventBus.on("EBPF_STRAY_SHELL", async (data) => {
+    on("EBPF_STRAY_SHELL", async (data) => {
         await this.engine.evaluate({
             source: data.pid?.toString() || "kernel",
             type: `SUSPICIOUS_SHELL`,
@@ -107,7 +131,7 @@ export class AutopilotService {
         });
     });
 
-    this.eventBus.on("EBPF_CRITICAL", async (data) => {
+    on("EBPF_CRITICAL", async (data) => {
         const { pid, comm, syscall, args } = data;
         
         // 1. Behavioral Assessment
@@ -140,12 +164,12 @@ export class AutopilotService {
     });
 
     // Proactive Artifact Containment Hook
-    this.eventBus.on("ARTIFACT_FOUND", async (data) => {
+    on("ARTIFACT_FOUND", async (data) => {
         await this.playbookService.executeArtifactContainment(data.indicator, data);
     });
 
     // Periodic integrity check using injected authoritative tracker
-    setInterval(async () => {
+    this.intervalId = setInterval(async () => {
         const ghosts = await this.processTracker.scanForGhosts();
         if (ghosts.length > 0) {
             await this.engine.evaluate({

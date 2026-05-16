@@ -650,30 +650,43 @@ export class SidecarManager implements CommandPort {
   }
 
   private handleSidecarExit(name: string, exitCode: number) {
-    if (exitCode === 0) return;
+    if (exitCode === 0 || this.isShuttingDown) return;
     if (this.unsupportedSidecars.has(name)) return;
 
     const now = Date.now();
     const restartInfo = this.restartCounts.get(name) || { count: 0, lastRestart: 0 };
 
-    if (now - restartInfo.lastRestart > 300000) restartInfo.count = 0;
+    // Reset counter if the process was stable for more than 5 minutes
+    if (now - restartInfo.lastRestart > 300000) {
+        restartInfo.count = 0;
+    }
 
-    if (restartInfo.count < 3 && !this.isShuttingDown) {
+    const MAX_RETRY_ATTEMPTS = 5;
+    const COOLOFF_WINDOW = 600000; // 10 minutes
+
+    if (restartInfo.count < MAX_RETRY_ATTEMPTS) {
       restartInfo.count++;
       restartInfo.lastRestart = now;
       this.restartCounts.set(name, restartInfo);
+
+      // Exponential backoff: 1s, 2s, 4s, 8s, 16s...
+      const delay = Math.pow(2, restartInfo.count - 1) * 1000;
+
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.WARNING,
           caller: "orchestrator:infra:runtime:sidecar_manager",
-          message: `Restarting sidecar ${name} (attempt ${restartInfo.count}/3)`
+          message: `Sidecar ${name} crashed (exit code ${exitCode}). Restarting in ${delay}ms (attempt ${restartInfo.count}/${MAX_RETRY_ATTEMPTS})`
       });
+
       setTimeout(() => {
-        this.getPersistentSidecar(name).catch(() => {});
-      }, Math.pow(2, restartInfo.count - 1) * 1000);
+        if (!this.isShuttingDown) {
+            this.getPersistentSidecar(name).catch(() => {});
+        }
+      }, delay);
     } else {
-      const msg = `Sidecar ${name} failed too many times. Giving up.`;
+      const msg = `CRITICAL: Sidecar ${name} entered crash loop. Circuit breaker active for ${COOLOFF_WINDOW / 1000}s.`;
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
@@ -682,6 +695,18 @@ export class SidecarManager implements CommandPort {
           message: msg
       });
       this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
+
+      // Circuit Breaker: Reset after cooloff period
+      setTimeout(() => {
+          this.restartCounts.delete(name);
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.INFO,
+              caller: "orchestrator:infra:runtime:sidecar_manager",
+              message: `Circuit breaker reset for ${name}. Resuming lifecycle monitoring.`
+          });
+      }, COOLOFF_WINDOW);
     }
   }
 }

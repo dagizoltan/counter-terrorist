@@ -279,72 +279,117 @@ export class SystemExecutor {
 
 
 
+  private static readonly PATH_SENSITIVE_COMMANDS = [
+    "openssl", "mkdir", "cp", "mv", "chmod", "ls", "sha256sum",
+    "sentinel", "ebpf", "analyzer", "watchfile", "netcap"
+  ];
+
+  private static readonly SYSTEM_JAILS = [
+    "./volume/",
+    "/var/lib/cts/",
+    "/etc/systemd/system/cts-"
+  ];
+
   private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
     const baseCmd = path.basename(cmd);
     const policy = SystemExecutor.COMMAND_POLICIES[cmd] || SystemExecutor.COMMAND_POLICIES[baseCmd];
     
-    // SECURITY: Deny by default if no policy exists for a whitelisted command
+    // 1. Policy Existence Check
     if (!policy) {
       return { valid: false, reason: `No security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
     }
 
+    // 2. Argument Length Check
     if (policy.maxArgs !== undefined && args.length > policy.maxArgs) {
       return { valid: false, reason: `Too many arguments for '${baseCmd}' (max: ${policy.maxArgs})` };
     }
 
-    if (policy.allowedArgs) {
-      for (let i = 0; i < args.length; i++) {
+    // 3. Command Context
+    const isPathSensitive = SystemExecutor.PATH_SENSITIVE_COMMANDS.includes(baseCmd) ||
+                            SystemExecutor.PATH_SENSITIVE_COMMANDS.includes(cmd);
+
+    // 4. Individual Argument Validation
+    for (let i = 0; i < args.length; i++) {
         const arg = args[i];
-        // SET-BASED VALIDATION: Check if the argument matches ANY of the allowed patterns
-        const matchesAny = policy.allowedArgs.some(pattern => pattern.test(arg));
 
-        if (!matchesAny) {
-          return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseCmd}' (no matching pattern)` };
+        // A. Pattern Matching (Regex Whitelist)
+        if (policy.allowedArgs) {
+            const matchesAny = policy.allowedArgs.some(pattern => pattern.test(arg));
+            if (!matchesAny) {
+                return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseCmd}' (no matching pattern)` };
+            }
         }
 
-        // ALWAYS validate for traversal and enforce jail for path-like arguments
-        if (arg.includes("/") || arg.includes("\\") || arg.includes("..") || arg.includes("%") || arg.includes("{")) {
-          // Sensitive commands that handle paths MUST be jailed
-          const pathSensitiveCommands = ["openssl", "mkdir", "cp", "mv", "chmod", "ls", "sha256sum", "sentinel", "ebpf", "analyzer"];
-          const isSensitive = pathSensitiveCommands.includes(baseCmd) || pathSensitiveCommands.includes(cmd);
-
-          const jailPrefixes = ["./volume/", "/var/lib/cts/", "/etc/systemd/system/cts-"];
-          
-          if (isSensitive) {
-             // For JSON-based commands (sentinel/ebpf), we need to extract the path if it exists
-             if (arg.startsWith("{")) {
-                try {
-                   const parsed = JSON.parse(arg);
-                   if (parsed.path && !validatePath(parsed.path, jailPrefixes)) {
-                      return { valid: false, reason: `Security Violation: Unauthorized path '${parsed.path}' in JSON payload for sensitive command '${baseCmd}'` };
-                   }
-                } catch { /* if not valid JSON, we still validate the raw string below */ }
-             }
-
-             if (!validatePath(arg, jailPrefixes)) {
-                return { valid: false, reason: `Security Violation: Unauthorized path or traversal detected in argument '${arg}' for sensitive command '${baseCmd}'` };
-             }
-          }
-
-          // Fallback check for all other commands
-          if (!isSensitive && !validatePath(arg)) {
-            return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
-          }
+        // B. Structured Content Validation (Jail Enforcement)
+        if (this.isPotentiallyDangerous(arg)) {
+            if (isPathSensitive) {
+                const validation = this.validateSensitiveArgument(arg, baseCmd);
+                if (!validation.valid) return validation;
+            } else {
+                // Fallback traversal check for non-sensitive commands
+                if (!validatePath(arg)) {
+                    return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
+                }
+            }
         }
-      }
-    }
 
-    if (policy.blockedStrings) {
-      for (const arg of args) {
-        for (const blocked of policy.blockedStrings) {
-          if (arg.includes(blocked)) {
-            return { valid: false, reason: `Argument contains blocked sequence: '${blocked}'` };
-          }
+        // C. Blocklist Check
+        if (policy.blockedStrings) {
+            for (const blocked of policy.blockedStrings) {
+                if (arg.includes(blocked)) {
+                    return { valid: false, reason: `Argument contains blocked sequence: '${blocked}'` };
+                }
+            }
         }
-      }
     }
 
     return { valid: true };
+  }
+
+  private isPotentiallyDangerous(arg: string): boolean {
+      return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
+             arg.includes("%") || arg.includes("{") || arg.includes("$");
+  }
+
+  private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
+      // Handle JSON-embedded paths (Sidecar IPC)
+      if (arg.startsWith("{")) {
+          try {
+              const parsed = JSON.parse(arg);
+              // Recursively check for 'path' or 'paths' keys in the JSON structure
+              const paths = this.extractPathsFromJson(parsed);
+              for (const p of paths) {
+                  if (!validatePath(p, SystemExecutor.SYSTEM_JAILS)) {
+                      return { valid: false, reason: `Security Violation: Unauthorized path '${p}' in JSON payload for sensitive command '${baseCmd}'` };
+                  }
+              }
+          } catch {
+              // Not valid JSON, continue to raw string validation
+          }
+      }
+
+      // Raw String Validation
+      if (!validatePath(arg, SystemExecutor.SYSTEM_JAILS)) {
+          return { valid: false, reason: `Security Violation: Unauthorized path or traversal detected in argument '${arg}' for sensitive command '${baseCmd}'` };
+      }
+
+      return { valid: true };
+  }
+
+  private extractPathsFromJson(obj: any): string[] {
+      const paths: string[] = [];
+      if (!obj || typeof obj !== "object") return paths;
+
+      for (const [key, value] of Object.entries(obj)) {
+          if ((key === "path" || key === "target") && typeof value === "string") {
+              paths.push(value);
+          } else if (key === "paths" && Array.isArray(value)) {
+              paths.push(...value.filter(v => typeof v === "string"));
+          } else if (typeof value === "object") {
+              paths.push(...this.extractPathsFromJson(value));
+          }
+      }
+      return paths;
   }
 
   async executeAsync(cmd: string, args: string[] = []): Promise<void> {

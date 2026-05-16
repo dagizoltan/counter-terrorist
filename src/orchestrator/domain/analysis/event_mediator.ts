@@ -12,6 +12,18 @@ import { BroadcastFunction } from "../orchestration/plugins/types.ts";
  */
 export class EventMediator {
     private behavioral: BehavioralAnalyzer;
+    private learningTimeout: number | null = null;
+
+    shutdown() {
+        if (this.learningTimeout) clearTimeout(this.learningTimeout);
+        this.logger.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:domain:analysis:event_mediator",
+            message: "Event Mediator offline."
+        });
+    }
 
     constructor(
         private eventBus: EventBus,
@@ -28,7 +40,8 @@ export class EventMediator {
 
         // SEC: Initialize in Learning Mode for the first 30 seconds to baseline startup syscalls
         this.behavioral.setLearningMode(true);
-        setTimeout(() => {
+        this.learningTimeout = setTimeout(() => {
+            this.learningTimeout = null;
             this.behavioral.setLearningMode(false);
             this.logger.log({
                 timestamp: new Date().toISOString(),

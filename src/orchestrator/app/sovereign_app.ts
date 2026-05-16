@@ -364,6 +364,8 @@ export class SovereignApp {
         await incidents.reportIncident({ severity: "HIGH", title: "Suspicious Vault Access", description: "Tor exit node attempt.", source: "Network", indicators: ["185.220.101.42"] });
     }
 
+    private activeSignalListeners: Map<Deno.Signal, () => Promise<void>> = new Map();
+
     private registerSignalHandlers() {
         const cleanup = async () => {
             await loggingService.log({
@@ -374,6 +376,14 @@ export class SovereignApp {
                 message: "Initiating graceful shutdown..."
             });
 
+            if (this.services) {
+                const { autopilot, mesh, mediator, logging } = this.services;
+                if (autopilot) autopilot.shutdown();
+                if (mesh) mesh.shutdown();
+                if (mediator) (mediator as any).shutdown();
+                if (logging) await logging.shutdown();
+            }
+
             if (this.web) this.web.stop();
             if (this.sidecarManager) await this.sidecarManager.shutdown();
             if (this.kv) this.kv.close();
@@ -381,8 +391,19 @@ export class SovereignApp {
             Deno.exit(0);
         };
         ["SIGINT", "SIGTERM"].forEach(s => {
-            try { Deno.addSignalListener(s as Deno.Signal, cleanup); } catch {}
+            try {
+                const sig = s as Deno.Signal;
+                Deno.addSignalListener(sig, cleanup);
+                this.activeSignalListeners.set(sig, cleanup);
+            } catch {}
         });
+    }
+
+    private unregisterSignalHandlers() {
+        for (const [sig, handler] of this.activeSignalListeners.entries()) {
+            try { Deno.removeSignalListener(sig, handler); } catch {}
+        }
+        this.activeSignalListeners.clear();
     }
 
     private async initServices(
