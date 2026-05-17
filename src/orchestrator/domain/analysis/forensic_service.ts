@@ -149,11 +149,14 @@ export class ForensicService {
   async calculateProcessHash(pid: number): Promise<string | null> {
     try {
         const exePath = await Deno.readLink(`/proc/${pid}/exe`);
-        const data = await Deno.readFile(exePath);
-        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-        return Array.from(new Uint8Array(hashBuffer))
-          .map(b => b.toString(16).padStart(2, "0"))
-          .join("");
+        // BUG-4.12 FIX: Use streaming hash to prevent OOM on large binaries
+        const { computeStreamHash } = await import("../../core/crypto_utils.ts");
+        const file = await Deno.open(exePath, { read: true });
+        try {
+            return await computeStreamHash(file.readable);
+        } finally {
+            try { file.close(); } catch { /* ignore */ }
+        }
     } catch {
         return null;
     }

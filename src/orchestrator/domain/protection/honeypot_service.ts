@@ -294,7 +294,9 @@ export class HoneypotService {
         message: "Engaging Deception Morphing (Port Rotation)..."
     });
 
-    for (const [id, module] of this.modules) {
+    const activeModules = Array.from(this.modules.entries()).filter(([_, m]) => m.active);
+
+    for (const [id, module] of activeModules) {
       if (!module.active) continue;
 
       const oldPort = module.port;
@@ -321,17 +323,29 @@ export class HoneypotService {
         }
       } while (!portAvailable);
 
-      module.port = newPort;
-
-      await this.firewall.denyPort(oldPort, "tcp");
-      await this.firewall.allowPort(newPort, "tcp");
-
-      await this.sidecarManager.sendCommand("decoy", {
+      // BUG-4.1 FIX: Port morphing race condition
+      // Update sidecar BEFORE opening firewall to ensure listener is ready
+      const updateRes = await this.sidecarManager.sendCommand("decoy", {
         type: "UpdateModule",
         module: id, 
-        oldPort, 
-        newPort
-      }).catch(() => {});
+        old_port: oldPort,
+        new_port: newPort
+      }).catch(() => ({ success: false }));
+
+      if (updateRes.success) {
+          module.port = newPort;
+          await this.firewall.denyPort(oldPort, "tcp");
+          await this.firewall.allowPort(newPort, "tcp");
+      } else {
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.ERROR,
+              caller: `decoy:${id}`,
+              message: `DECEPTION MORPH FAILED: Sidecar refused port update from ${oldPort} to ${newPort}`
+          });
+          continue;
+      }
 
       this.logging.log({
           timestamp: new Date().toISOString(),

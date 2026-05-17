@@ -9,8 +9,17 @@ export function createStatsApi(eventBus: EventBusPort, security: SecurityMiddlew
   const honeypotHits: { timestamp: number; count: number }[] = [];
   const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
-  // Subscribe to honeypot events
-  eventBus.on("decoy", (data) => {
+  // BUG-5.11 FIX: Store unsubscribe function and use it if possible
+  // In Hono, we don't have a direct 'destroy' for the router instance easily visible here,
+  // but we can ensure we only subscribe once if this function is called multiple times.
+  let isSubscribed = false;
+
+  const subscribe = () => {
+      if (isSubscribed) return;
+      isSubscribed = true;
+
+      // Subscribe to honeypot events
+      eventBus.on("decoy", (data) => {
     if (data.event?.type === "PortAccess") {
       const now = Date.now();
       const last = honeypotHits[honeypotHits.length - 1];
@@ -25,12 +34,15 @@ export function createStatsApi(eventBus: EventBusPort, security: SecurityMiddlew
         honeypotHits.push({ timestamp: interval, count: 1 });
       }
 
-      // Cleanup old data
-      while (honeypotHits.length > 0 && honeypotHits[0].timestamp < now - WINDOW_MS) {
-        honeypotHits.shift();
-      }
-    }
-  });
+          // Cleanup old data
+          while (honeypotHits.length > 0 && honeypotHits[0].timestamp < now - WINDOW_MS) {
+            honeypotHits.shift();
+          }
+        }
+      });
+  };
+
+  subscribe();
 
   router.get("/honeypot", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
     const now = Date.now();

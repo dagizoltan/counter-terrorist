@@ -59,7 +59,7 @@ async function detectMacosVersion(executor: SystemExecutor): Promise<string> {
   }
 }
 
-async function getMetrics(): Promise<PlatformInfo["metrics"]> {
+async function getMetrics(executor?: SystemExecutor): Promise<PlatformInfo["metrics"]> {
   const isLinux = Deno.build.os === "linux";
   if (!isLinux) return undefined;
 
@@ -76,10 +76,29 @@ async function getMetrics(): Promise<PlatformInfo["metrics"]> {
 
     const hostname = Deno.hostname();
 
+    // BUG-5.3 FIX: Implement real disk metrics
+    let disk = { total: 0, free: 0, used: 0 };
+    if (executor) {
+        const { success, stdout } = await executor.execute("df", ["--block-size=1", "/"]);
+        if (success) {
+            const lines = stdout.split("\n");
+            if (lines.length > 1) {
+                const parts = lines[1].split(/\s+/);
+                if (parts.length >= 4) {
+                    disk = {
+                        total: parseInt(parts[1]),
+                        used: parseInt(parts[2]),
+                        free: parseInt(parts[3])
+                    };
+                }
+            }
+        }
+    }
+
     return {
       memory: { total: totalMem, free: freeMem, used: totalMem - freeMem },
       cpu: { load, cores: navigator.hardwareConcurrency },
-      disk: { total: 0, free: 0, used: 0 },
+      disk,
       uptime,
       hostname,
     };
@@ -96,7 +115,7 @@ async function getMetrics(): Promise<PlatformInfo["metrics"]> {
 }
 
 export async function getPlatformInfo(executor: SystemExecutor): Promise<PlatformInfo> {
-  const metrics = await getMetrics();
+  const metrics = await getMetrics(executor);
   const envOverride = Deno.env.get("CT_PLATFORM_TAG");
   
   let info: PlatformInfo;

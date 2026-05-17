@@ -42,6 +42,8 @@ export class CorrelationService {
         const subjects = this.extractSubjects(event);
         if (subjects.length === 0) return;
 
+        const now = new Date().getTime();
+
         for (const subject of subjects) {
             let node = this.activeNodes.get(subject.value);
             if (!node) {
@@ -59,12 +61,20 @@ export class CorrelationService {
                 this.activeNodes.set(subject.value, node);
             }
 
+            // RISK DECAY: Reduce risk based on elapsed time since last seen
+            const lastSeenTime = new Date(node.lastSeen).getTime();
+            const elapsed = now - lastSeenTime;
+            if (elapsed > 0 && node.riskScore > 0) {
+                const decayFactor = Math.pow(0.5, elapsed / TACTICAL_CONSTANTS.CORRELATION.RISK_DECAY_HALFLIFE_MS);
+                node.riskScore *= decayFactor;
+            }
+
             node.lastSeen = event.timestamp;
             node.events.push(event);
             
             // BEHAVIORAL MULTIPLIER: Increase risk if events are happening in a tight burst
             const timeDiff = new Date(event.timestamp).getTime() - new Date(node.firstSeen).getTime();
-            const burstMultiplier = timeDiff < this.ATTACK_BURST_WINDOW_MS ? 1.5 : 1.0;
+            const burstMultiplier = (timeDiff < this.ATTACK_BURST_WINDOW_MS && timeDiff > 0) ? 1.5 : 1.0;
             
             node.riskScore += (this.calculateRisk(event) * burstMultiplier);
             

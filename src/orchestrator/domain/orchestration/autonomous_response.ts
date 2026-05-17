@@ -24,7 +24,8 @@ export class AutonomousResponseEngine {
     private scores: Map<string, number> = new Map();
     private history: Map<string, ThreatEvent[]> = new Map();
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
-    
+    private pendingKills: Map<string, number> = new Map();
+
     private readonly MAX_HISTORY_PER_SOURCE = 20;
     private readonly MAX_SOURCES = 500; // Prevent memory exhaustion DoS
 
@@ -40,6 +41,18 @@ export class AutonomousResponseEngine {
     ) {
         // Automatically decay scores every 5 minutes to allow recovery
         setInterval(() => this.decayScores(), 300000);
+    }
+
+    shutdown() {
+        // BUG-4.21 FIX: Clean up orphaned remediations (pending kills) on shutdown
+        for (const [pidStr, timerId] of this.pendingKills.entries()) {
+            clearTimeout(timerId);
+            const pid = parseInt(pidStr);
+            if (!isNaN(pid)) {
+                this.protection.firewall.killProcess(pid).catch(() => {});
+            }
+        }
+        this.pendingKills.clear();
     }
 
     /**
@@ -186,7 +199,11 @@ export class AutonomousResponseEngine {
                             }
                         });
 
-                        setTimeout(() => this.protection.firewall.killProcess(pid).catch(() => {}), 5000);
+                        const timerId = setTimeout(() => {
+                            this.pendingKills.delete(source);
+                            this.protection.firewall.killProcess(pid).catch(() => {});
+                        }, 5000);
+                        this.pendingKills.set(source, timerId);
                     }
                 }
                 break;

@@ -26,21 +26,26 @@ export class IntegrityService {
 
     private async checkIntegrity() {
         const isIsolated = this.mesh.getActiveNodeCount() === 0;
-        const recentThreats = (await this.audit.getRecentEvents(10)).filter(e => e.type === "THREAT" || e.type === "CRITICAL");
 
-        if (isIsolated && recentThreats.length > 5) {
+        // BUG-4.17 FIX: Make self-destruct less trigger-happy.
+        // Increase threat window and threshold.
+        const recentThreats = (await this.audit.getRecentEvents(50))
+            .filter(e => e.type === "THREAT" || e.type === "CRITICAL");
+
+        if (isIsolated && recentThreats.length >= 10) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
                 caller: "INTEGRITY",
-                message: "IRRECOVERABLE COMPROMISE DETECTED. Node is isolated and under heavy attack."
+                message: "IRRECOVERABLE COMPROMISE DETECTED. Node is isolated and under heavy attack. Initiating autonomous data shredding."
             });
             await this.initiateSelfDestruct();
         }
     }
 
     private async initiateSelfDestruct() {
+        // ENHANCEMENT: Backup critical state to TPM or non-volatile storage before shredding if possible.
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -50,9 +55,15 @@ export class IntegrityService {
         });
         
         // 1. Shred local secrets
-        // In a real system, this would overwrite the disk blocks where secrets live.
-        await Deno.remove("./.env").catch(() => {});
-        await Deno.remove("./volume/pki", { recursive: true }).catch(() => {});
+        // BUG-4.17 FIX: Move .env instead of deleting to allow manual recovery in non-production.
+        if (Deno.env.get("ENVIRONMENT") === "production") {
+            await Deno.remove("./.env").catch(() => {});
+            await Deno.remove("./volume/pki", { recursive: true }).catch(() => {});
+        } else {
+            const backup = `./volume/pki_backup_${Date.now()}`;
+            await Deno.rename("./volume/pki", backup).catch(() => {});
+            await Deno.rename("./.env", `${backup}/.env`).catch(() => {});
+        }
 
         // 2. Clear TPM state
         // await this.tpm.clearSecrets();

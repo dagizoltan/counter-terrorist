@@ -12,17 +12,21 @@ export class WindowsVpnProvider implements VpnProvider {
     return { success: res.success, message: res.stdout + res.stderr };
   }
 
-  async disconnect(): Promise<VpnResult> {
+  async disconnect(interfaceName: string = "MeshVPN"): Promise<VpnResult> {
     const res = await this.sidecar.sendCommand("tunnel", {
         type: "DISCONNECT",
-        payload: { interface: "MeshVPN" }
+        payload: { interface: interfaceName }
     });
     return { success: res.success, message: res.stdout + res.stderr };
   }
 
-  async isConnected(): Promise<boolean> {
+  async isConnected(interfaceName?: string): Promise<boolean> {
     const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS" });
-    return res.success && res.data?.active === true;
+    if (!res.success) return false;
+    if (interfaceName) {
+        return res.data?.active === true || res.data?.active_interfaces?.includes(interfaceName);
+    }
+    return res.data?.active === true;
   }
 
   async getStatus(): Promise<any> {

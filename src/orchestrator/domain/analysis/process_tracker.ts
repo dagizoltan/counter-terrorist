@@ -21,11 +21,20 @@ export class ProcessTracker {
     private shells = ["bash", "sh", "dash", "zsh", "python", "perl", "php", "ruby"];
     private suspiciousParents = ["nginx", "apache2", "node", "python", "php-fpm", "clamscan"];
 
+    private cleanupInterval?: number;
+
     constructor(
         private logging: LoggingPort, 
         private processProvider: ProcessPort,
         private command?: CommandPort
-    ) {}
+    ) {
+        // BUG-4.6 FIX: Automated tree cleanup to prevent memory leak
+        this.cleanupInterval = setInterval(() => this.cleanup(), 300000); // Every 5 minutes
+    }
+
+    shutdown() {
+        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
+    }
 
     updateProcess(pid: number, ppid: number, comm: string, isGhost: boolean = false) {
         let node = this.tree.get(pid);
@@ -47,7 +56,16 @@ export class ProcessTracker {
     }
 
     async analyzeEvent(pid: number, comm: string): Promise<{ isStrayShell: boolean; reason?: string; ppid?: number }> {
-        const stats = await this.processProvider.getProcessInfo(pid);
+        // BUG-2.2 FIX: Robust parent lookup to handle race conditions where parent exits mid-analysis
+        const [stats, activePids] = await Promise.all([
+            this.processProvider.getProcessInfo(pid),
+            (async () => {
+                const set = new Set<number>();
+                for await (const p of this.processProvider.listProcesses()) set.add(p);
+                return set;
+            })()
+        ]);
+
         const ppid = stats?.ppid || null;
         
         if (ppid) {
@@ -58,10 +76,16 @@ export class ProcessTracker {
             if (ppid) {
                 const parentStats = await this.processProvider.getProcessInfo(ppid);
                 if (parentStats) {
-                    this.updateProcess(ppid, 0, parentStats.comm); 
+                    this.updateProcess(ppid, parentStats.ppid || 0, parentStats.comm);
 
                     if (this.suspiciousParents.some(p => parentStats.comm.includes(p))) {
                         return { isStrayShell: true, reason: `Shell spawned by suspicious parent: ${parentStats.comm}`, ppid };
+                    }
+                } else if (!activePids.has(ppid)) {
+                    // Parent already dead, check our internal tree as fallback
+                    const cachedParent = this.tree.get(ppid);
+                    if (cachedParent && this.suspiciousParents.some(p => cachedParent.comm.includes(p))) {
+                        return { isStrayShell: true, reason: `Shell spawned by suspicious short-lived parent: ${cachedParent.comm}`, ppid };
                     }
                 }
             }

@@ -17,15 +17,15 @@ export class DiagnosticRepository {
     const id = crypto.randomUUID();
     const data = { ...entry, id };
     
+    // BUG-5.8 FIX: Avoid double counter increment by using repo.set or mirroring its logic correctly
     // Use expireIn for automatic pruning of diagnostic noise
-    await this.kv.set(["logs", new Date(entry.timestamp).getTime(), id], data, { 
-      expireIn: this.DEFAULT_TTL 
-    });
-    
-    // Update stats counter
-    await this.kv.atomic()
+    const ts = new Date(entry.timestamp).getTime();
+    const res = await this.kv.atomic()
+      .set(["logs", ts, id], data, { expireIn: this.DEFAULT_TTL })
       .mutate({ type: "sum", key: ["stats", "logs", "count"], value: new Deno.KvU64(1n) })
       .commit();
+
+    if (!res.ok) throw new Error("Failed to persist diagnostic log");
   }
 
   async getRecent(limit: number = 100): Promise<LogEntry[]> {

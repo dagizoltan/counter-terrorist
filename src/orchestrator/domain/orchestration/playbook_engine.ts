@@ -17,8 +17,12 @@ export class PlaybookEngine {
     });
 
     this.eventBus.subscribe(async (event) => {
+      // BUG-4.26 FIX: Use structured threat codes for robust matching
+      const { TacticalThreatCode } = await import("../../core/event_schema.ts");
+      const threatCode = event.data?.code;
+
       // 1. SSH Brute Force Detection
-      if (event.type === "THREAT" && event.message.includes("SSH Brute Force")) {
+      if (event.type === "THREAT" && (threatCode === TacticalThreatCode.SSH_BRUTE_FORCE || event.message.includes("SSH Brute Force"))) {
         const ip = event.data?.src_ip;
         if (ip) {
           this.logging.log({
@@ -33,7 +37,11 @@ export class PlaybookEngine {
       }
 
       // 2. Critical System Intrusion
-      if (event.type === "CRITICAL" && (event.message.includes("Exploit") || event.message.includes("Reverse Shell"))) {
+      if ((event.type === "CRITICAL" || event.type === "THREAT") &&
+          (threatCode === TacticalThreatCode.REVERSE_SHELL ||
+           threatCode === TacticalThreatCode.EXPLOIT_ATTEMPT ||
+           event.message.includes("Exploit") ||
+           event.message.includes("Reverse Shell"))) {
          this.logging.log({
              timestamp: new Date().toISOString(),
              type: LogType.AUDIT,
@@ -45,7 +53,8 @@ export class PlaybookEngine {
       }
 
       // 3. Honeypot Interaction
-      if (event.type === "HONEYPOT" && event.data?.severity === "CRITICAL") {
+      if (event.type === "HONEYPOT" &&
+          (threatCode === TacticalThreatCode.CRITICAL_HONEYPOT_HIT || event.data?.severity === "CRITICAL")) {
         const ip = event.data?.ip;
         if (ip) {
           this.logging.log({

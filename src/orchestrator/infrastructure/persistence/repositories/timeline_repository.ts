@@ -49,7 +49,8 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
       count++;
       batchSize++;
 
-      if (batchSize >= 10) {
+      // BUG-8.3 FIX: Increase batch size for better efficiency during large purges
+      if (batchSize >= 100) {
         await atomic.mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(BigInt(-batchSize)) })
               .commit();
         atomic = this.kv.atomic();
@@ -65,20 +66,29 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
     return count;
   }
   
+  private isCounting = false;
   async count(): Promise<number> {
     const res = await this.kv.get<Deno.KvU64>(["stats", this.prefix, "count"]);
     if (res.value) {
         return Number(res.value.value);
     }
     
-    // Fallback: recount once and initialize (heavy, but self-healing)
-    let count = 0;
-    const iter = this.kv.list({ prefix: [this.prefix] });
-    for await (const _ of iter) {
-      count++;
+    // BUG-4.15 FIX: Prevent concurrent heavy counts
+    if (this.isCounting) return 0;
+    this.isCounting = true;
+
+    try {
+        // Fallback: recount once and initialize (heavy, but self-healing)
+        let count = 0;
+        const iter = this.kv.list({ prefix: [this.prefix] });
+        for await (const _ of iter) {
+          count++;
+        }
+        await this.kv.set(["stats", this.prefix, "count"], new Deno.KvU64(BigInt(count)));
+        return count;
+    } finally {
+        this.isCounting = false;
     }
-    await this.kv.set(["stats", this.prefix, "count"], new Deno.KvU64(BigInt(count)));
-    return count;
   }
 
   async *getStream(limit?: number, reverse?: boolean): AsyncIterable<T> {

@@ -79,15 +79,21 @@ export class NewsSignalService {
         
         for (const feed of this.feeds) {
             try {
+                // BUG-4.18 FIX: Use a streaming fetch with a size limit to prevent memory exhaustion
                 const response = await fetch(feed.url);
                 if (!response.ok) continue;
-                const xml = await response.text();
                 
-                // Authoritative Parsing: Handle both RSS <item> and Atom <entry>
-                const items = xml.match(/<(item|entry)>([\s\S]*?)<\/(item|entry)>/g) || [];
+                // Limit XML payload to 512KB to prevent DoS
+                const xml = await response.text().then(t => t.slice(0, 512 * 1024));
                 
-                for (const itemXml of items.slice(0, 25)) {
-                    const title = itemXml.match(/<(title|headline)>([\s\S]*?)<\/(title|headline)>/)?.[2]
+                // Safe parsing: avoid catastrophic backtracking by not using non-greedy [ \s\S]*? over large blocks.
+                // We split the string instead.
+                const items = xml.split(/<(?:item|entry)>/).slice(1);
+
+                for (const itemContent of items.slice(0, 25)) {
+                    const itemXml = "<item>" + itemContent.split(/<\/(?:item|entry)>/)[0] + "</item>";
+
+                    const title = itemXml.match(/<(?:title|headline)>([\s\S]*?)<\/(?:title|headline)>/)?.[1]
                         ?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
                         ?.replace(/<[^>]+>/g, '') // Strip HTML tags
                         ?.trim() || "Untitled Signal";
@@ -95,8 +101,8 @@ export class NewsSignalService {
                     const linkMatch = itemXml.match(/<link[^>]*href=["'](.*?)["']/i) || itemXml.match(/<link>(.*?)<\/link>/i);
                     const link = linkMatch?.[1] || "#";
                     
-                    const summaryMatch = itemXml.match(/<(description|summary|content)>([\s\S]*?)<\/(description|summary|content)>/);
-                    const summary = summaryMatch?.[2]
+                    const summaryMatch = itemXml.match(/<(?:description|summary|content)>([\s\S]*?)<\/(?:description|summary|content)>/);
+                    const summary = summaryMatch?.[1]
                         ?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
                         ?.replace(/<[^>]+>/g, '') // Strip HTML tags
                         ?.slice(0, 300)

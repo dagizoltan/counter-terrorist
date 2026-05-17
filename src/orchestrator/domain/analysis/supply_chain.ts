@@ -43,24 +43,42 @@ export class SupplyChainService {
             try {
                 const path = `./src/agents/${agent}/Cargo.toml`;
                 const content = await Deno.readTextFile(path);
-                // Extract basic dependencies from Cargo.toml
+                // BUG-5.9 FIX: Improved TOML parsing for dependencies
+                // Use a more robust approach to handle various TOML dependency formats
                 const lines = content.split("\n");
                 let inDeps = false;
                 for (const line of lines) {
-                    if (line.startsWith("[dependencies]")) {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith("[dependencies]") || trimmed.startsWith("[dev-dependencies]") || trimmed.startsWith("[build-dependencies]")) {
                         inDeps = true;
                         continue;
                     }
-                    if (line.startsWith("[") && inDeps) {
+                    if (trimmed.startsWith("[") && inDeps) {
                         inDeps = false;
                         continue;
                     }
-                    if (inDeps && line.includes("=")) {
-                        const [name, verRaw] = line.split("=").map(s => s.trim());
-                        if (name && verRaw) {
+                    if (inDeps && trimmed.includes("=")) {
+                        const parts = trimmed.split("=");
+                        const name = parts[0].trim();
+                        let verRaw = parts.slice(1).join("=").trim();
+
+                        // Handle table format: name = { version = "1.0", features = [...] }
+                        if (verRaw.startsWith("{")) {
+                            const verMatch = verRaw.match(/version\s*=\s*"(.*?)"/);
+                            if (verMatch) {
+                                verRaw = verMatch[1];
+                            } else {
+                                verRaw = "workspace"; // likely workspace inheritance
+                            }
+                        } else {
+                            // Handle string format: name = "1.0"
+                            verRaw = verRaw.replace(/"/g, "");
+                        }
+
+                        if (name) {
                             this.dependencies.push({
                                 name,
-                                version: verRaw.replace(/{|}|"|version|:|,/g, "").trim(),
+                                version: verRaw,
                                 license: "MIT",
                                 status: "SECURE",
                                 feature: agent.toUpperCase() as any

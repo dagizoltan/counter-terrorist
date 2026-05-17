@@ -9,7 +9,8 @@ export const ConfigSchema = z.object({
   API_TOKEN: z.string().min(16, "API_TOKEN must be at least 16 characters for security"),
   MESH_SECRET: z.string().min(16, "MESH_SECRET must be at least 16 characters"),
   // SECURITY: Avoid wildcard '*' in production. Explicitly whitelist tactical dashboard origins.
-  ALLOWED_ORIGINS: z.string().default("*"),
+  // BUG-8.2 FIX: Enforce production safety by defaulting to self if not provided
+  ALLOWED_ORIGINS: z.string().default("self"),
   TLS_CERT_PATH: z.string().optional(),
   TLS_KEY_PATH: z.string().optional(),
   SESSION_TTL_HOURS: z.coerce.number().default(24),

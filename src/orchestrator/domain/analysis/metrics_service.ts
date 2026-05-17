@@ -156,15 +156,38 @@ export class MetricsService {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        // Perform Full Verification Cycle on Boot
+        // BUG-4.2 FIX: Move full verification to background to avoid boot blocking
+        this.performInitialVerification().catch(() => {});
+
+        while (this.isRunning) {
+            try {
+                await this.collectAndBroadcast();
+            } catch (e) {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:domain:analysis:metrics",
+                    message: `Collection cycle failed: ${e instanceof Error ? e.message : String(e)}`
+                });
+            }
+            await new Promise(resolve => setTimeout(resolve, this.COLLECTION_INTERVAL_MS));
+        }
+    }
+
+    private async performInitialVerification() {
         try {
             loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
                 caller: "orchestrator:domain:analysis:metrics",
-                message: "Starting Full Forensic Integrity Verification of audit ledger..."
+                message: "Starting Full Forensic Integrity Verification of audit ledger (Background)..."
             });
+
+            // Allow system to stabilize before heavy audit
+            await new Promise(r => setTimeout(r, 5000));
+
             const verification = await this.auditService.verifyFullChain();
             if (!verification.valid) {
                 loggingService.log({
@@ -197,21 +220,6 @@ export class MetricsService {
                 caller: "orchestrator:domain:analysis:metrics",
                 message: `Initial audit verification failed: ${(e as Error).message}`
             });
-        }
-        
-        while (this.isRunning) {
-            try {
-                await this.collectAndBroadcast();
-            } catch (e) {
-                loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:analysis:metrics",
-                    message: `Collection cycle failed: ${e instanceof Error ? e.message : String(e)}`
-                });
-            }
-            await new Promise(resolve => setTimeout(resolve, this.COLLECTION_INTERVAL_MS));
         }
     }
 

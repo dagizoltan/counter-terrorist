@@ -2,7 +2,7 @@ import { EventBus } from "./events.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { CanaryService } from "../protection/canary_service.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
-import { LoggingPort, LogType, LogSeverity } from "../../core/ports.ts";
+import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
 import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 
 /**
@@ -62,7 +62,7 @@ export class EventMediator {
     /**
      * Connects a sidecar manager to the domain mediator.
      */
-    wireSidecars(commandPort: any) {
+    wireSidecars(commandPort: CommandPort) {
         // 1. Honeypot Integration
         commandPort.onEvent("decoy", (response: any) => {
             const event = response.data || response;

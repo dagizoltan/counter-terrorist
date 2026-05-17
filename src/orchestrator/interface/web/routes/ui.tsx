@@ -28,7 +28,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
     const hostname = Deno.hostname();
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<Dashboard status={status} csrfToken={csrfToken} nonce={nonce} hostname={hostname} userRole={userRole} />);
   });
 
@@ -38,7 +38,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
     const hostname = Deno.hostname();
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<SysInfoPage status={status} csrfToken={csrfToken} nonce={nonce} hostname={hostname} userRole={userRole} />);
   });
 
@@ -48,7 +48,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const { ForensicCenterPage } = await import("../features/forensic/ForensicCenter.tsx");
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<ForensicCenterPage csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -57,7 +57,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<ComplianceCenterPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -66,7 +66,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<MeshTopologyPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -75,7 +75,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<IpIntelPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -84,7 +84,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<ArtifactIntelPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -93,7 +93,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<ThreatMapPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -102,7 +102,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<OperationalNewsPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -113,7 +113,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<ActiveNetworkPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -122,7 +122,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const status = await getStatus();
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<NeighborNetworksPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
   });
 
@@ -145,7 +145,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
     const hostname = Deno.hostname();
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<SystemInfoPage status={status} csrfToken={csrfToken} nonce={nonce} hostname={hostname} userRole={userRole} />);
   });
 
@@ -155,7 +155,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
     const hostname = Deno.hostname();
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<SupplyChainPage status={status} csrfToken={csrfToken} nonce={nonce} hostname={hostname} userRole={userRole} />);
   });
 
@@ -164,7 +164,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
     const hostname = Deno.hostname();
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<AuditPage csrfToken={csrfToken} nonce={nonce} hostname={hostname} userRole={userRole} />);
   });
 
@@ -174,7 +174,7 @@ export function createUiRouter(services: ServiceContainer, security: SecurityMid
     const csrfToken = c.get("csrfToken");
     const nonce = c.get("nonce");
     const hostname = Deno.hostname();
-    const userRole = c.get("user")?.role;
+    const userRole = c.get("role") || c.get("user")?.role;
     return c.html(<NotificationsPage status={status} csrfToken={csrfToken} nonce={nonce} hostname={hostname} userRole={userRole} />);
   });
 

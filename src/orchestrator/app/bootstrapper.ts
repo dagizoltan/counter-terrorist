@@ -40,7 +40,8 @@ export async function checkDependency(executor: SystemExecutor, cmd: string): Pr
 
 export async function bootstrap(): Promise<SystemStatus> {
   const executor = new SystemExecutor();
-  const platformInfo = await getPlatformInfo(executor);
+  // BUG-9.1 FIX: Parallelize bootstrap checks to avoid linear delays
+  const platformPromise = getPlatformInfo(executor);
   const os = Deno.build.os;
   const isRoot = os === "windows" ? true : (Deno.uid?.() === 0); // Simplified for Windows
 
@@ -49,9 +50,19 @@ export async function bootstrap(): Promise<SystemStatus> {
   if (os === "darwin") deps.push("launchctl", "system_profiler");
   if (os === "windows") deps.push("powershell");
 
+  const depPromises = deps.map(async (dep) => ({
+    name: dep,
+    found: await checkDependency(executor, dep)
+  }));
+
+  const [platformInfo, ...checkedDeps] = await Promise.all([
+    platformPromise,
+    ...depPromises
+  ]);
+
   const dependencies: Record<string, boolean> = {};
-  for (const dep of deps) {
-    dependencies[dep] = await checkDependency(executor, dep);
+  for (const cd of checkedDeps) {
+      dependencies[cd.name] = cd.found;
   }
 
   return {

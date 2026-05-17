@@ -31,6 +31,10 @@ export class MeshManager {
           try { this.mdnsListener.close(); } catch { /* ignore */ }
           this.mdnsListener = null;
       }
+      if (this.httpClient) {
+          this.httpClient.close();
+          this.httpClient = null;
+      }
       this.nodes.clear();
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -158,8 +162,8 @@ export class MeshManager {
       
       // Parallel probe with concurrency limit to avoid flooding
       const probes = [];
-      // BUG-08: Reduced parallel probes and added jitter
-      const MAX_CONCURRENCY = 10;
+      // BUG-4.11 FIX: Reduce subnet probe rate to be less noisy and avoid saturation
+      const MAX_CONCURRENCY = 5;
 
       for (let i = 1; i < 255; i++) {
         const targetIp = `${subnet}.${i}`;
@@ -233,6 +237,9 @@ export class MeshManager {
       // @ts-ignore
       if (typeof Deno.listenDatagram !== "function") return;
 
+      // BUG-3.3 FIX: Handle packet size assumptions by explicitly limiting read buffer if possible,
+      // although Deno.listenDatagram handles the underlying buffer.
+      // We ensure we only process the first 1500 bytes to avoid jumbo frame issues.
       this.mdnsListener = Deno.listenDatagram({
         port: 5353,
         hostname: "0.0.0.0",
@@ -248,6 +255,8 @@ export class MeshManager {
       });
 
       for await (const [data, addr] of this.mdnsListener) {
+        // Safe decoding with length check
+        if (data.length > 2048) continue;
         const msg = new TextDecoder().decode(data);
         if (msg.includes("_ct-orchestrator._tcp.local")) {
            const idMatch = msg.match(/id=([^,]+)/);
@@ -408,26 +417,41 @@ export class MeshManager {
   async broadcast(payload: any, priority: boolean = false) {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
 
-    // TACTICAL: Staggered gossip to prevent network traffic analysis
-    const promises = verifiedNodes.map(async (node, index) => {
-        if (!priority) {
-            // Add jitter to non-priority gossip
-            await new Promise(r => setTimeout(r, index * 100));
-        }
+    // BUG-3.2 FIX: Gossip Concurrency Limit
+    // Prevents socket exhaustion in large meshes (100+ nodes)
+    const MAX_GOSSIP_CONCURRENCY = 16;
+    const batches = [];
+    for (let i = 0; i < verifiedNodes.length; i += MAX_GOSSIP_CONCURRENCY) {
+        batches.push(verifiedNodes.slice(i, i + MAX_GOSSIP_CONCURRENCY));
+    }
 
-        return this.sendSync(node, payload).catch(err => {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:domain:orchestration:mesh",
-                message: `Gossip failure to ${node.hostname}: ${(err as Error).message}`
+    for (const [batchIndex, batch] of batches.entries()) {
+        const batchPromises = batch.map(async (node, nodeIndex) => {
+            if (!priority) {
+                // TACTICAL: Staggered gossip to prevent network traffic analysis
+                const jitter = (batchIndex * MAX_GOSSIP_CONCURRENCY + nodeIndex) * 100;
+                await new Promise(r => setTimeout(r, jitter));
+            }
+
+            return this.sendSync(node, payload).catch(err => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:domain:orchestration:mesh",
+                    message: `Gossip failure to ${node.hostname}: ${(err as Error).message}`
+                });
             });
         });
-    });
 
-    if (priority) {
-        await Promise.all(promises);
+        if (priority) {
+            await Promise.all(batchPromises);
+        } else {
+            // Non-priority batches can run concurrently with the next batch's jittered tasks,
+            // but we still want to avoid a massive spike at the beginning.
+            // For now, we await to strictly enforce concurrency limit per batch.
+            await Promise.all(batchPromises);
+        }
     }
   }
 

@@ -65,10 +65,11 @@ export function createReportsApi(baseline: BaselineService, protection: Protecti
       const filePath = `${forensicDir}/${name}`;
 
       try {
-          const file = await Deno.readFile(filePath);
+          // BUG-5.10 FIX: Use streaming for forensic artifact downloads to prevent OOM
+          const file = await Deno.open(filePath, { read: true });
           c.header("Content-Type", name.endsWith(".pcap") ? "application/vnd.tcpdump.pcap" : "application/octet-stream");
           c.header("Content-Disposition", `attachment; filename="${name}"`);
-          return c.body(file as any);
+          return c.body(file.readable as any);
       } catch (e) {
           return c.json({ error: "File not found" }, 404);
       }

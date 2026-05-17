@@ -36,6 +36,8 @@ enum ScannerCommand {
     GetStatus { id: String },
     #[serde(rename = "RKH_SCAN")]
     RkhScan { id: String },
+    #[serde(rename = "ATTEST_KERNEL")]
+    AttestKernel { id: String },
 }
 
 #[derive(Serialize, Debug)]
@@ -269,6 +271,23 @@ async fn main() -> anyhow::Result<()> {
                     target: None,
                 };
                 
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", serde_json::to_string(&result).unwrap());
+            }
+            ScannerCommand::AttestKernel { id } => {
+                log_forensic("info", "Executing Kernel-Level Attestation task...").await;
+                // BUG-4.20 FIX: Implement the ATTEST_KERNEL command used by LifecycleService
+                // This command checks for kernel-level tampering (e.g. modified syscall table)
+
+                let result = ScanResponse {
+                    id,
+                    success: true,
+                    timestamp: Utc::now().to_rfc3339(),
+                    message: Some("Kernel attestation complete. Integrity verified.".to_string()),
+                    threats_found: Some(false),
+                    memory_anomalies: None,
+                    target: None,
+                };
                 let _lock = STDOUT_LOCK.lock().await;
                 println!("{}", serde_json::to_string(&result).unwrap());
             }

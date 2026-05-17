@@ -87,6 +87,10 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
         }
     };
 
+    // BUG-7.2 FIX: Implement global connection limit for this port
+    let active_connections = Arc::new(Mutex::new(0usize));
+    const MAX_CONNECTIONS_PER_PORT: usize = 50;
+
     loop {
         {
             let s = state.lock().await;
@@ -101,6 +105,16 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
             Ok((mut socket, addr)) => {
                 let ip = addr.ip().to_string();
                 let state_clone = Arc::clone(&state);
+                let conn_count = Arc::clone(&active_connections);
+
+                {
+                    let mut count = conn_count.lock().await;
+                    if *count >= MAX_CONNECTIONS_PER_PORT {
+                        // Silently drop if at limit to avoid resource exhaustion
+                        continue;
+                    }
+                    *count += 1;
+                }
                 
                 tokio::spawn(async move {
                     emit_event(SidecarEvent::PortAccess {
@@ -199,6 +213,10 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
 
                     let _ = reader.get_mut().write_all(b"\nAccess Denied. Connection logged.\n").await;
                     let _ = reader.get_mut().shutdown().await;
+
+                    // Release connection slot
+                    let mut count = conn_count.lock().await;
+                    if *count > 0 { *count -= 1; }
                 });
             }
             Err(_) => continue,
@@ -253,9 +271,14 @@ async fn main() {
                             emit_response(id, true, "Toggle success".to_string()).await;
                         }
                         Command::Sabotage { id, source_ip, .. } => {
+                            // BUG-4.8 FIX: Limit sabotage list growth to prevent memory exhaustion
+                            const MAX_SABOTAGE_IPS: usize = 1000;
                             let mut s = state.lock().await;
                             for ls in s.values_mut() {
                                 if !ls.sabotage_ips.contains(&source_ip) {
+                                    if ls.sabotage_ips.len() >= MAX_SABOTAGE_IPS {
+                                        ls.sabotage_ips.remove(0); // Simple FIFO eviction
+                                    }
                                     ls.sabotage_ips.push(source_ip.clone());
                                 }
                             }

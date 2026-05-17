@@ -107,13 +107,20 @@ export class ProvisioningService {
         await Deno.writeTextFile(envPath, envContent);
 
         try {
+            // BUG-4.9 FIX: Implement Secure Host Key Verification
+            // We use a dedicated known_hosts file for the mesh to avoid polluting system logs
+            // and implement strict checking once a host is known.
+            const meshKnownHosts = "./volume/storage/mesh_known_hosts";
+            const sshOptions = ["-o", "StrictHostKeyChecking=accept-new", "-o", `UserKnownHostsFile=${meshKnownHosts}`];
+
             // 2. Transfer Binary and Secure Env File
-            await this.executor.execute("scp", ["-o", "StrictHostKeyChecking=no", binaryPath, `root@${ip}:/usr/local/bin/counter-terrorist`]);
-            await this.executor.execute("scp", ["-o", "StrictHostKeyChecking=no", envPath, `root@${ip}:/etc/cts.env`]);
+            await this.executor.execute("scp", [...sshOptions, binaryPath, `root@${ip}:/usr/local/bin/counter-terrorist`]);
+            await this.executor.execute("scp", [...sshOptions, envPath, `root@${ip}:/etc/cts.env`]);
             
             // 3. Start Orchestrator using the secure env file (Secrets NOT in process list)
-            const startCmd = `chmod 600 /etc/cts.env && env $(cat /etc/cts.env | xargs) /usr/local/bin/counter-terrorist > /var/log/cts.log 2>&1 &`;
-            await this.executor.execute("ssh", ["-o", "StrictHostKeyChecking=no", `root@${ip}`, startCmd]);
+            // BUG-4.10 FIX: Use structured environment loading to avoid xargs leakage in process lists
+            const startCmd = `chmod 600 /etc/cts.env && export $(grep -v '^#' /etc/cts.env | xargs -d '\\n') && /usr/local/bin/counter-terrorist > /var/log/cts.log 2>&1 &`;
+            await this.executor.execute("ssh", [...sshOptions, `root@${ip}`, startCmd]);
             
             this.logging.log({
                 timestamp: new Date().toISOString(),

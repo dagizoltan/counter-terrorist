@@ -162,10 +162,22 @@ async fn main() -> Result<(), anyhow::Error> {
                             let data = &buffers[i];
                             if data.len() >= std::mem::size_of::<SyscallEvent>() {
                                 let event = unsafe { &*(data.as_ptr() as *const SyscallEvent) };
-                                let syscall = match event.syscall_id {
-                                    101 => "ptrace", 9 => "mmap", 59 => "execve",
-                                    42 => "connect", 257 => "openat", _ => "unknown"
+
+                                // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
+                                let syscall = if cfg!(target_arch = "x86_64") {
+                                    match event.syscall_id {
+                                        101 => "ptrace", 9 => "mmap", 59 => "execve",
+                                        42 => "connect", 257 => "openat", _ => "unknown"
+                                    }
+                                } else if cfg!(target_arch = "aarch64") {
+                                    match event.syscall_id {
+                                        117 => "ptrace", 222 => "mmap", 221 => "execve",
+                                        203 => "connect", 56 => "openat", _ => "unknown"
+                                    }
+                                } else {
+                                    "unknown"
                                 };
+
                                 let comm = std::str::from_utf8(&event.comm).unwrap_or("unknown").trim_end_matches('\0');
                                 emit_event(serde_json::json!({
                                     "type": "SYSCALL_EVENT",

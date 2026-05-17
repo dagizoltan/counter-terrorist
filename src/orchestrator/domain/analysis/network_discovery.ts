@@ -35,6 +35,8 @@ export class NetworkDiscoveryService {
         this.mesh = mesh;
     }
 
+    private isScanning = false;
+
     async start() {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -58,6 +60,11 @@ export class NetworkDiscoveryService {
     }
 
     async scan() {
+        // BUG-6.6 FIX: Prevent overlapping scans
+        if (this.isScanning) return;
+        this.isScanning = true;
+
+        try {
         const currentBatch = new Set<string>();
 
         // 1. Mesh Awareness (Self Identification)
@@ -211,6 +218,9 @@ export class NetworkDiscoveryService {
                     }
                 }
             }
+        }
+        } finally {
+            this.isScanning = false;
         }
     }
 

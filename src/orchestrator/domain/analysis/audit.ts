@@ -48,6 +48,8 @@ export class AuditService {
     private logQueue: Promise<void> = Promise.resolve();
     private state: SystemState = SystemState.NORMAL;
 
+    private intervals: number[] = [];
+
     constructor(
         private repo: AuditRepository,
         private logging: LoggingPort,
@@ -62,20 +64,25 @@ export class AuditService {
 
         this.restoreChainHead();
         
-        // Background maintenance
-        setInterval(() => this.purgeExpired(), 60 * 60 * 1000);
-        setInterval(async () => {
+        // BUG-8.4 FIX: Track intervals for clean shutdown
+        this.intervals.push(setInterval(() => this.purgeExpired(), 60 * 60 * 1000));
+        this.intervals.push(setInterval(async () => {
           if (this.mesh) {
             const status = await this.getChainStatus();
             this.mesh.broadcastAuditVerification(status.lastHash, status.count);
           }
-        }, 5 * 60 * 1000);
+        }, 5 * 60 * 1000));
 
-        setInterval(() => this.verifyChainIncremental(), 60 * 1000);
+        this.intervals.push(setInterval(() => this.verifyChainIncremental(), 60 * 1000));
 
         // ENHANCEMENT: Full Ledger Verification on Boot (Background)
         // Disabled for UI stabilization phase
         // setTimeout(() => this.performDeepAudit(), 5000);
+    }
+
+    public shutdown() {
+        for (const id of this.intervals) clearInterval(id);
+        this.intervals = [];
     }
 
     private async performDeepAudit() {
@@ -414,18 +421,30 @@ export class AuditService {
             const boundaryEvent = latest.find(e => new Date(e.timestamp).getTime() < cutoffTimestamp);
 
             if (boundaryEvent) {
+                const id = crypto.randomUUID();
+                const timestamp = new Date().toISOString();
+
                 // 2. Create a hardware-signed Checkpoint to bridge the gap
+                // BUG-4.3 FIX: Checkpoint must have its own unique hash, not just mirror the boundary event
+                const hashInput = {
+                    id, timestamp, type: "CHECKPOINT", severity: LogSeverity.INFO,
+                    caller: "AUDIT:RETENTION", message: `Chain Truncated. Genesis state summarized at ${boundaryEvent.timestamp}`,
+                    data: { purgedEventsCutoff: boundaryEvent.timestamp, boundaryHash: boundaryEvent.hash },
+                    prevHash: "TRUNCATED",
+                };
+                const hash = await this.computeHash(hashInput);
+
                 const checkpoint: AuditEvent = {
-                    id: crypto.randomUUID(),
-                    timestamp: new Date().toISOString(),
+                    id,
+                    timestamp,
                     type: "CHECKPOINT",
                     severity: LogSeverity.INFO,
                     caller: "AUDIT:RETENTION",
                     message: `Chain Truncated. Genesis state summarized at ${boundaryEvent.timestamp}`,
-                    hash: boundaryEvent.hash, // We adopt the hash E3 expects
+                    hash,
                     prevHash: "TRUNCATED",
-                    data: { purgedEventsCutoff: boundaryEvent.timestamp },
-                    hwSignature: this.tpm ? await this.tpm.sign(boundaryEvent.hash) : undefined,
+                    data: { purgedEventsCutoff: boundaryEvent.timestamp, boundaryHash: boundaryEvent.hash },
+                    hwSignature: this.tpm ? await this.tpm.sign(hash) : undefined,
                     formatted: `[CHECKPOINT] [info] [AUDIT:RETENTION] Chain Truncated.`
                 };
                 

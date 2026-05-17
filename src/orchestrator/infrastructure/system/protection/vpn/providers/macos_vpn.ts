@@ -12,17 +12,21 @@ export class MacosVpnProvider implements VpnProvider {
     return { success: res.success, message: res.success ? "VPN Connected" : "VPN Failed", details: res.stderr };
   }
 
-  async disconnect(): Promise<VpnResult> {
+  async disconnect(interfaceName: string = "all"): Promise<VpnResult> {
     const res = await this.sidecar.sendCommand("tunnel", {
         type: "DISCONNECT",
-        payload: { interface: "all" }
+        payload: { interface: interfaceName }
     });
     return { success: res.success, message: res.success ? "VPN Disconnected" : "VPN Failed", details: res.stderr };
   }
 
-  async isConnected(): Promise<boolean> {
+  async isConnected(interfaceName?: string): Promise<boolean> {
     const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS" });
-    return res.success && res.data?.active === true;
+    if (!res.success) return false;
+    if (interfaceName) {
+        return res.data?.active === true || res.data?.active_interfaces?.includes(interfaceName);
+    }
+    return res.data?.active === true;
   }
 
   async getStatus(): Promise<any> {

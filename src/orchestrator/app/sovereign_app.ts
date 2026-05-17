@@ -116,6 +116,8 @@ export class SovereignApp {
         this.startShadowModeTimer();
     }
 
+    private shadowTimer?: number;
+
     private startShadowModeTimer() {
         const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
         loggingService.log({
@@ -126,7 +128,8 @@ export class SovereignApp {
             message: `Shadow Mode active for ${shadowDuration} hours. S-Grade blocks are simulated.`
         });
 
-        setTimeout(() => {
+        // BUG-10.1 FIX: Store timer ID for clean shutdown
+        this.shadowTimer = setTimeout(() => {
             if (this.services.policy.isShadowMode()) {
                 this.services.policy.setShadowMode(false);
                 loggingService.log({
@@ -345,7 +348,20 @@ export class SovereignApp {
             daemons.push("enforcer-win");
         }
 
-        daemons.forEach(s => sm.getPersistentSidecar(s).catch(() => {}));
+        // BUG-5.5 FIX: Handle persistent sidecar failures during boot
+        for (const s of daemons) {
+            try {
+                await sm.getPersistentSidecar(s);
+            } catch (e) {
+                await loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:app:sovereign_app:boot",
+                    message: `CRITICAL: Persistent sidecar '${s}' failed to start: ${(e as Error).message}`
+                });
+            }
+        }
         
         const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
         if (ebpf) {
@@ -385,9 +401,11 @@ export class SovereignApp {
             });
 
             if (this.services) {
-                const { autopilot, mesh, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot } = this.services;
+                const { autopilot, mesh, audit, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot, apiKeys, sessions } = this.services;
+                if (this.shadowTimer) clearTimeout(this.shadowTimer);
                 if (autopilot) autopilot.shutdown();
                 if (mesh) mesh.shutdown();
+                if (audit) audit.shutdown();
                 if (mediator) (mediator as any).shutdown();
                 if (lifecycle) lifecycle.shutdown();
                 if (health) (health as any).shutdown?.();

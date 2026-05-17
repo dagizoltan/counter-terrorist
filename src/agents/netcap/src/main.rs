@@ -137,7 +137,12 @@ async fn main() -> anyhow::Result<()> {
                 let filename = cmd_val["payload"]["filename"].as_str().map(|s| s.to_string());
                 
                 let mut handle = capture_handle.lock().await;
-                if handle.is_some() { continue; }
+                // BUG-7.1 FIX: Check if the handle is still active before rejecting new capture
+                if let Some(h) = handle.as_ref() {
+                    if !h.is_finished() {
+                        continue;
+                    }
+                }
 
                 let interface_clone = interface.clone();
                 let filename_clone = filename.clone();

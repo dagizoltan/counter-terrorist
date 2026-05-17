@@ -82,10 +82,28 @@ export class CanaryService {
             const absProjection = resolve(newToken.projectionPath);
             await Deno.mkdir(dirname(absProjection), { recursive: true }).catch(() => {});
             
+            // BUG-4.25 FIX: Verify if existing file is actually our canary
             try {
-                await Deno.stat(newToken.projectionPath);
+                const stat = await Deno.stat(newToken.projectionPath);
+                const masterStat = await Deno.stat(newToken.masterPath);
+
+                // If inodes match, it's our hardlink. If sizes/mtimes match and it's not a link,
+                // it might be a copy. For simplicity, we check if they are the same file.
+                if (stat.ino === masterStat.ino) {
+                    return;
+                }
+
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:domain:protection:canary",
+                    message: `Conflict: Legitimate file exists at ${newToken.projectionPath}. Skipping canary deployment.`
+                });
                 return;
-            } catch {}
+            } catch {
+                // File doesn't exist, proceed
+            }
 
             await Deno.link(newToken.masterPath, newToken.projectionPath);
             this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch(() => {});
@@ -123,9 +141,17 @@ export class CanaryService {
                 const absProjection = resolve(token.projectionPath);
                 await Deno.mkdir(dirname(absProjection), { recursive: true }).catch(() => {});
 
-                // Safety: Avoid overwriting legitimate files
+                // BUG-4.25 FIX: Verify if existing file is actually our canary
                 try {
-                    await Deno.stat(token.projectionPath);
+                    const stat = await Deno.stat(token.projectionPath);
+                    const masterStat = await Deno.stat(token.masterPath);
+
+                    if (stat.ino === masterStat.ino) {
+                        // Already deployed
+                        this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch(() => {});
+                        continue;
+                    }
+
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
@@ -138,8 +164,25 @@ export class CanaryService {
                     // Safe to link
                 }
 
-                // Create the hardlink (Atomic projection)
-                await Deno.link(token.masterPath, token.projectionPath);
+                // BUG-4.13 FIX: Fallback to copy if hardlink fails (cross-filesystem link)
+                try {
+                    // Create the hardlink (Atomic projection)
+                    await Deno.link(token.masterPath, token.projectionPath);
+                } catch (linkError) {
+                    if (linkError instanceof Deno.errors.NotSupported || (linkError as any).code === "EXDEV") {
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.DEBUG,
+                            severity: LogSeverity.INFO,
+                            caller: "orchestrator:domain:protection:canary",
+                            message: `EXDEV: Hardlink not possible for ${token.projectionPath}. Falling back to copy-projection.`
+                        });
+                        await Deno.copyFile(token.masterPath, token.projectionPath);
+                    } else {
+                        throw linkError;
+                    }
+                }
+
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
