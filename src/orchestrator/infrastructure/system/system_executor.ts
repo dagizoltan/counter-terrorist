@@ -75,10 +75,10 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
-        // BUG-4.14 FIX: Restrict PowerShell policy to mitigate command injection
-        // Removed characters like ; $ ( ) { } [ ] which allow for expression execution and chaining.
-        // Limited to basic parameter passing.
+        // SOV-02 FIX: Strictly disallow shell metacharacters in PowerShell parameters
+        // Prevents chaining (&, |) and redirection (>, <)
         allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"]+$/],
+        blockedStrings: ["&", "|", ";", ">", "<", "`", "$", "(", ")"],
         maxArgs: 2
     },
     "netsh": {
@@ -238,7 +238,15 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ssh": {
-        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*)|chmod 600 \/etc\/cts.env && export \$\(grep -v '\^#' \/etc\/cts.env \| xargs -d '\\n'\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts.log 2>&1 &)$/],
+        // SOV-02 FIX: Disallow complex shell chaining and redirection in SSH commands
+        allowedArgs: [
+            /^-o$/,
+            /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/,
+            /^[a-z0-9/._-]+$/,
+            /^[a-z0-9]+@[a-z0-9.-]+$/,
+            /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/
+        ],
+        blockedStrings: ["&&", "||", "|", ";", ">", "<", "`", "$", "(", ")", "!"],
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {
@@ -340,10 +348,14 @@ export class SystemExecutor {
         }
 
         // C. Blocklist Check
+        // SOV-P3: Explicit enforcement of blocked strings
         if (policy.blockedStrings) {
             for (const blocked of policy.blockedStrings) {
                 if (arg.includes(blocked)) {
-                    return { valid: false, reason: `Argument contains blocked sequence: '${blocked}'` };
+                    return {
+                        valid: false,
+                        reason: `Security Violation: Argument '${arg}' contains blocked sequence: '${blocked}'`
+                    };
                 }
             }
         }

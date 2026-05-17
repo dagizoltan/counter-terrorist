@@ -8,7 +8,7 @@ use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
 };
 
-use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, IpV6Addr};
 use core::mem;
 
 const TC_ACT_OK: i32 = 0;
@@ -21,7 +21,7 @@ const XDP_DROP: u32 = 1;
 static mut EVENTS: PerfEventArray<SyscallEvent> = PerfEventArray::new(0);
 
 #[map]
-static mut SHADOW_BANS: HashMap<u32, ShadowBanInfo> = HashMap::with_max_entries(1024, 0);
+static mut SHADOW_BANS: HashMap<IpV6Addr, ShadowBanInfo> = HashMap::with_max_entries(1024, 0);
 
 #[map]
 static mut HIDE_CONFIG: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
@@ -33,7 +33,7 @@ static mut ACTIVE_SESSIONS: LruHashMap<SessionKey, SessionValue> = LruHashMap::w
 static mut TRUSTED_COMM: HashMap<[u8; 16], u8> = HashMap::with_max_entries(1024, 0);
 
 #[map]
-static mut XDP_BLOCK_LIST: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0);
+static mut XDP_BLOCK_LIST: HashMap<IpV6Addr, u32> = HashMap::with_max_entries(1024, 0);
 
 #[map]
 static mut ALLOWED_PORTS: HashMap<u16, u8> = HashMap::with_max_entries(1024, 0);
@@ -64,22 +64,35 @@ fn load<T>(ctx: &XdpContext, offset: usize) -> Result<T, ()> {
 
 fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
     let eth_proto = u16::from_be(load::<u16>(ctx, 12)?);
-    if eth_proto != 0x0800 { return Ok(XDP_PASS); }
 
-    let src_ip: u32 = load(ctx, 26)?;
-    let dst_ip: u32 = load(ctx, 30)?;
-    let proto: u8 = load(ctx, 23)?;
-
-    let (src_port, dst_port) = if proto == 6 || proto == 17 {
-        (load::<u16>(ctx, 34)?, load::<u16>(ctx, 36)?)
-    } else { (0, 0) };
+    let (src_ip, dst_ip, proto, src_port, dst_port, family) = if eth_proto == 0x0800 { // IPv4
+        let src_v4: [u8; 4] = load(ctx, 26)?;
+        let dst_v4: [u8; 4] = load(ctx, 30)?;
+        let mut src = [0u8; 16];
+        let mut dst = [0u8; 16];
+        src[0..4].copy_from_slice(&src_v4);
+        dst[0..4].copy_from_slice(&dst_v4);
+        let proto: u8 = load(ctx, 23)?;
+        let (sp, dp) = if proto == 6 || proto == 17 {
+            (load::<u16>(ctx, 34)?, load::<u16>(ctx, 36)?)
+        } else { (0, 0) };
+        (src, dst, proto, sp, dp, 4u8)
+    } else if eth_proto == 0x86DD { // IPv6
+        let src: [u8; 16] = load(ctx, 22)?;
+        let dst: [u8; 16] = load(ctx, 38)?;
+        let proto: u8 = load(ctx, 20)?;
+        let (sp, dp) = if proto == 6 || proto == 17 {
+            (load::<u16>(ctx, 54)?, load::<u16>(ctx, 56)?)
+        } else { (0, 0) };
+        (src, dst, proto, sp, dp, 6u8)
+    } else {
+        return Ok(XDP_PASS);
+    };
 
     // 1. GLOBAL LOCKDOWN CHECK
     if let Some(lockdown) = unsafe { FIREWALL_CONFIG.get(&0) } {
         if *lockdown == 1 {
-            // Even in lockdown, we might want to allow some traffic? 
-            // For now, absolute deny unless it's an active session from us.
-            let key = SessionKey { src_ip: dst_ip, dst_ip: src_ip, src_port: dst_port, dst_port: src_port, proto };
+            let key = SessionKey { src_ip: dst_ip, dst_ip: src_ip, src_port: dst_port, dst_port: src_port, proto, family };
             if unsafe { ACTIVE_SESSIONS.get(&key) }.is_some() {
                 return Ok(XDP_PASS);
             }
@@ -88,18 +101,12 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
     }
 
     // 2. EXPLICIT BLOCK LIST CHECK
-    if unsafe { XDP_BLOCK_LIST.get(&src_ip) }.is_some() {
+    if unsafe { XDP_BLOCK_LIST.get(&IpV6Addr { addr: src_ip }) }.is_some() {
         return Ok(XDP_DROP);
     }
 
     // 3. STATEFUL CHECK: Look for reversed tuple
-    let key = SessionKey {
-        src_ip: dst_ip,
-        dst_ip: src_ip,
-        src_port: dst_port,
-        dst_port: src_port,
-        proto,
-    };
+    let key = SessionKey { src_ip: dst_ip, dst_ip: src_ip, src_port: dst_port, dst_port: src_port, proto, family };
 
     if unsafe { ACTIVE_SESSIONS.get(&key) }.is_some() {
         return Ok(XDP_PASS);
@@ -108,7 +115,7 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
     // 4. ALLOWED PORTS CHECK
     let dport_host = u16::from_be(dst_port);
 
-    // BUG-18: Fail-safe management ports to prevent lockout
+    // Fail-safe management ports
     if dport_host == 22 || dport_host == 8000 || dport_host == 8001 {
         return Ok(XDP_PASS);
     }
@@ -138,29 +145,45 @@ fn load_tc<T>(ctx: &TcContext, offset: usize) -> Result<T, ()> {
 
 fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
     let eth_proto = u16::from_be(load_tc::<u16>(ctx, 12)?);
-    if eth_proto != 0x0800 { return Ok(()); }
 
-    let src_ip: u32 = load_tc(ctx, 26)?;
-    let dst_ip: u32 = load_tc(ctx, 30)?;
-    let proto: u8 = load_tc(ctx, 23)?;
-    let total_len: u16 = u16::from_be(load_tc(ctx, 16)?); // IP Total Length
+    let (src_ip, dst_ip, proto, total_len, src_port, dst_port, family) = if eth_proto == 0x0800 {
+        let src_v4: [u8; 4] = load_tc(ctx, 26)?;
+        let dst_v4: [u8; 4] = load_tc(ctx, 30)?;
+        let mut src = [0u8; 16];
+        let mut dst = [0u8; 16];
+        src[0..4].copy_from_slice(&src_v4);
+        dst[0..4].copy_from_slice(&dst_v4);
+        let proto: u8 = load_tc(ctx, 23)?;
+        let total_len: u16 = u16::from_be(load_tc(ctx, 16)?);
+        let (sp, dp) = if proto == 6 || proto == 17 {
+            (load_tc::<u16>(ctx, 34)?, load_tc::<u16>(ctx, 36)?)
+        } else { (0, 0) };
+        (src, dst, proto, total_len as u64, sp, dp, 4u8)
+    } else if eth_proto == 0x86DD {
+        let src: [u8; 16] = load_tc(ctx, 22)?;
+        let dst: [u8; 16] = load_tc(ctx, 38)?;
+        let proto: u8 = load_tc(ctx, 20)?;
+        let payload_len: u16 = u16::from_be(load_tc(ctx, 18)?);
+        let total_len = payload_len as u64 + 40; // IPv6 header is 40 bytes
+        let (sp, dp) = if proto == 6 || proto == 17 {
+            (load_tc::<u16>(ctx, 54)?, load_tc::<u16>(ctx, 56)?)
+        } else { (0, 0) };
+        (src, dst, proto, total_len, sp, dp, 6u8)
+    } else {
+        return Ok(());
+    };
 
-    let (src_port, dst_port) = if proto == 6 || proto == 17 {
-        (load_tc::<u16>(ctx, 34)?, load_tc::<u16>(ctx, 36)?)
-    } else { (0, 0) };
-
-    let key = SessionKey { src_ip, dst_ip, src_port, dst_port, proto };
+    let key = SessionKey { src_ip, dst_ip, src_port, dst_port, proto, family };
     
-    // EXFILTRATION DETECTION: Update volume metrics per session
     if let Some(val) = unsafe { ACTIVE_SESSIONS.get_ptr_mut(&key) } {
         unsafe {
             (*val).last_seen = bpf_ktime_get_ns();
-            (*val).bytes_count += total_len as u64;
+            (*val).bytes_count += total_len;
         }
     } else {
         let val = SessionValue {
             last_seen: unsafe { bpf_ktime_get_ns() },
-            bytes_count: total_len as u64
+            bytes_count: total_len
         };
         let _ = unsafe { ACTIVE_SESSIONS.insert(&key, &val, 0) };
     }
@@ -171,8 +194,6 @@ fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
 #[kprobe]
 pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
-    
-    // In-Kernel Filtering: Skip events from known trusted processes (e.g., orchestrator, sidecars)
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
     }
@@ -183,7 +204,8 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         syscall_id: 59,
         fd: 0,
         port: 0,
-        ip: 0,
+        family: 0,
+        ip: [0; 16],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -202,7 +224,8 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
         syscall_id: 101,
         fd: 0,
         port: 0,
-        ip: 0,
+        family: 0,
+        ip: [0; 16],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -218,7 +241,8 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
             syscall_id: 9,
             fd: 0,
             port: 0,
-            ip: 0,
+            family: 0,
+            ip: [0; 16],
         };
         unsafe { EVENTS.output(&ctx, &event, 0) };
     }
@@ -249,7 +273,8 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
         syscall_id: 42,
         fd: ctx.arg(0).unwrap_or(0),
         port: 0,
-        ip: 0,
+        family: 0,
+        ip: [0; 16],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -268,7 +293,8 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         syscall_id: 257,
         fd: 0,
         port: 0,
-        ip: 0,
+        family: 0,
+        ip: [0; 16],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0

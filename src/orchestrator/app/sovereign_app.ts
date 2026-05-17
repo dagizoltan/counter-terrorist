@@ -6,7 +6,8 @@ import { AuditService } from "@domain/analysis/audit.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
 import { 
     BaselineService, ProcessTracker, SessionService, ApiKeysService, 
-    EventBus, MeshAuthService, ForensicService, MeshManager, 
+    EventBus, MeshAuthService, ForensicService, MeshManager,
+    DecentralizedMetricsService,
     PlaybookService, BehavioralService, MetricsService, 
     ShadowProtocolService, GeoIpService, AnonymizationService, 
     CuratedIntelService, DeceptionGridService, MorphingService, 
@@ -51,6 +52,27 @@ export class SovereignApp {
     private auditService!: AuditService;
 
     async boot() {
+        // SOV-P3: Global Error Handlers
+        globalThis.addEventListener("unhandledrejection", (e) => {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "RUNTIME",
+                message: `Unhandled Promise Rejection: ${e.reason}`
+            }).catch(() => {});
+        });
+
+        globalThis.addEventListener("error", (e) => {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "RUNTIME",
+                message: `Fatal Runtime Error: ${e.message}`
+            }).catch(() => {});
+        });
+
         // ── Phase 1: Core infrastructure ──────────────────────────────────────
         await this.initCore();
 
@@ -160,6 +182,10 @@ export class SovereignApp {
         this.executor = new SystemExecutor();
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
 
+        // Bridge TPM to SidecarManager for Signed Manifest Verification
+        const tpmManager = new TPMManager(this.sidecarManager, loggingService);
+        this.sidecarManager.setTpm(tpmManager);
+
         await bootstrap();
     }
 
@@ -176,28 +202,23 @@ export class SovereignApp {
     private async initOperationalLayer(services: ServiceContainer) {
         this.web = new WebAdapter(services);
         
-        const metricsService = new MetricsService(
-            services.protection.firewall as any, 
-            services.mesh, 
-            services.honeypot, 
-            services.processTracker,
-            services.kernelService, 
-            services.audit, 
-            services.canaryService, 
-            this.sidecarManager, 
-            services.protection.vpn,
-            services.behavioral, 
-            services.anonymization, 
-            services.geoIp, 
-            broadcast, 
-            services.curatedIntel as any, 
-            services.news, 
-            services.networkDiscovery, 
-            services.autopilot, 
-            services.health,
-            services.supplyChain
+        // Phase 2: Decouple Metrics Service
+        const metricsService = new DecentralizedMetricsService(
+            services.eventBus,
+            loggingService,
+            broadcast
         );
-        setMetricsService(metricsService);
+        (setMetricsService as any)(metricsService);
+
+        // Inject EventBus into services for metric emission
+        (services.protection.firewall as any).setEventBus?.(services.eventBus);
+        services.mesh.setEventBus?.(services.eventBus);
+        services.honeypot.setEventBus?.(services.eventBus);
+        services.processTracker.setEventBus?.(services.eventBus);
+        services.kernelService.setEventBus?.(services.eventBus);
+        services.audit.setEventBus?.(services.eventBus);
+        (services.protection.vpn as any).setEventBus?.(services.eventBus);
+        services.behavioral.setEventBus?.(services.eventBus);
 
         this.wireEvents();
         await this.startSubsystems();
@@ -322,7 +343,17 @@ export class SovereignApp {
 
         wrap("Honeypot", honeypot.start());
         wrap("Canary", canaryService.start());
-        wrap("KernelService", kernelService.start());
+        wrap("KernelService", (async () => {
+            await kernelService.start();
+
+            // SOV-P2: Apply AppArmor Lockdown for critical sidecars
+            if (Deno.env.get("ENVIRONMENT") === "production") {
+                const sidecars = ["analyzer", "sentinel", "watchfile"];
+                for (const name of sidecars) {
+                    await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`);
+                }
+            }
+        })());
         wrap("CuratedIntel", curatedIntel.start(this.kv));
         wrap("NewsSignal", news.start(this.kv));
         wrap("NetworkDiscovery", networkDiscovery.start());
@@ -401,7 +432,7 @@ export class SovereignApp {
             });
 
             if (this.services) {
-                const { autopilot, mesh, audit, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot, apiKeys, sessions } = this.services;
+                const { autopilot, mesh, audit, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot, apiKeys, sessions, protection, processTracker, kernelService } = this.services;
                 if (this.shadowTimer) clearTimeout(this.shadowTimer);
                 if (autopilot) autopilot.shutdown();
                 if (mesh) mesh.shutdown();
@@ -411,6 +442,11 @@ export class SovereignApp {
                 if (health) (health as any).shutdown?.();
                 if (metrics) metrics.stop();
                 if (honeypot) honeypot.shutdown?.();
+                if (behavioral) (behavioral as any).shutdown?.();
+                if (processTracker) processTracker.shutdown();
+                if (kernelService) (kernelService as any).shutdown?.();
+                if (protection?.firewall) (protection.firewall as any).shutdown?.();
+                if (protection?.vpn) (protection.vpn as any).shutdown?.();
                 if (logging) await logging.shutdown();
             }
 

@@ -23,6 +23,8 @@ export class SidecarManager implements CommandPort {
   private manifest: any = null;
   private manifestPromise: Promise<void> | null = null;
 
+  private tpm: any | null = null;
+
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
     this.startRotationLoop();
@@ -36,19 +38,52 @@ export class SidecarManager implements CommandPort {
     });
   }
 
+  setTpm(tpm: any) {
+    this.tpm = tpm;
+  }
+
   private async loadManifest() {
     try {
         const manifestUrl = new URL("./sidecars.manifest.json", import.meta.url);
         const content = await Deno.readTextFile(manifestUrl);
-        this.manifest = JSON.parse(content);
-        if (this.logging) {
+        const data = JSON.parse(content);
+
+        const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+
+        // SOV-P1: Implement Signed Manifest Enforcement
+        if (data.signature && this.tpm) {
+            const verified = await this.tpm.verify(data.sidecars, data.signature);
+            if (verified) {
+                this.manifest = data;
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `Authoritative Manifest Loaded & Hardware-Verified. Signed by: ${data.signedBy || "Developer"}`
+                });
+            } else {
+                const msg = "CRITICAL: Sidecar manifest signature verification FAILED!";
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: msg
+                });
+                if (isProduction) throw new Error(msg);
+            }
+        } else {
+            this.manifest = data;
+            const msg = data.signature ? "Manifest has signature but TPM not ready." : "Manifest is UNSIGNED.";
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.INFO,
+                severity: isProduction ? LogSeverity.ERROR : LogSeverity.WARNING,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
+                message: `${msg} Falling back to environment-based integrity.`
             });
+            if (isProduction) throw new Error(`Production Lockdown: Unsigned manifest or missing TPM verification. (${msg})`);
         }
     } catch (e) {
         if (this.logging) {
@@ -57,9 +92,10 @@ export class SidecarManager implements CommandPort {
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Manifest unavailable. Falling back to environment-based integrity: ${(e as Error).message}`
+                message: `Manifest unavailable or invalid: ${(e as Error).message}`
             });
         }
+        if (Deno.env.get("ENVIRONMENT") === "production") throw e;
     }
   }
 
@@ -198,24 +234,30 @@ export class SidecarManager implements CommandPort {
             if (!isDev) {
                 const caps = this.getCapabilities(name) || "";
                 const spawnScript = await this.findScript("secure_spawn.sh");
+                const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+
                 if (spawnScript) {
                     const res = await this.executor.execute(spawnScript, [name, binPath, caps]);
                     if (res.success) {
                         execPath = `/var/lib/cts/bin/${name}`;
+                    } else if (isProduction) {
+                        throw new Error(`Production Lockdown: Failed to secure sidecar '${name}' via secure_spawn.sh`);
                     }
                 } else {
+                    const errorMsg = "CRITICAL: secure_spawn.sh not found. Sidecar deployment blocked for security.";
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
                         severity: LogSeverity.ERROR,
                         caller: "orchestrator:infra:runtime:sidecar_manager",
-                        message: "CRITICAL: secure_spawn.sh not found. Sidecar deployment will be unprivileged and potentially insecure."
+                        message: errorMsg
                     });
+                    if (isProduction) throw new Error(errorMsg);
                 }
             }
 
-            // ENHANCEMENT: Self-Healing Sidecars
-            // Verify integrity AFTER move to secure location (Skip in DEV_MODE to allow debug binaries)
+            // SOV-03 FIX: Verify integrity STRICTLY on the final destination binary
+            // This mitigates TOCTOU by ensuring we verify the file that is now in a root-owned directory.
             if (!isDev) {
               const isHealthy = await this.verifyAndHeal(name, execPath);
               if (!isHealthy) {
@@ -371,16 +413,43 @@ export class SidecarManager implements CommandPort {
     const decoder = new TextDecoder();
     let buffer = "";
 
+    // SOV-P3: Defensive IPC Hardening
+    const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
+
     try {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+
+        // Prevent memory exhaustion from unbounded sidecar output
+        if (buffer.length + value.length > MAX_BUFFER_SIZE) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: `[${name}] CRITICAL: IPC buffer overflow. Dropping data to prevent OOM.`
+            });
+            buffer = "";
+            continue;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
+            if (line.length > MAX_LINE_LENGTH) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] Dropping over-sized IPC line (${line.length} bytes)`
+                });
+                continue;
+            }
           const trimmed = line.trim();
           if (!trimmed) continue;
 
@@ -634,7 +703,9 @@ export class SidecarManager implements CommandPort {
         const goldenStat = await Deno.stat(goldenRepo).catch(() => null);
         
         if (goldenStat?.isFile) {
-            await Deno.copyFile(goldenRepo, binPath);
+            // SOV-03 FIX: Use privileged SystemExecutor to restore the file
+            // Deno.copyFile would fail on root-owned /var/lib/cts/bin files if the orchestrator is unprivileged.
+            await this.executor.execute("cp", [goldenRepo, binPath]);
             const healedHash = await this.calculateHash(binPath);
             
             if (healedHash === goldenHash) {

@@ -30,6 +30,7 @@ export { EventMediator } from "./analysis/event_mediator.ts";
 export { ProcessTracker } from "./analysis/process_tracker.ts";
 export { BaselineService } from "./analysis/baseline.ts";
 export { MetricsService } from "./analysis/metrics_service.ts";
+export { DecentralizedMetricsService } from "./analysis/decentralized_metrics.ts";
 export { SupplyChainService } from "./analysis/supply_chain.ts";
 export { NotificationService } from "./analysis/notifications.ts";
 export { BehavioralService } from "./analysis/behavioral_service.ts";

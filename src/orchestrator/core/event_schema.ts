@@ -43,6 +43,10 @@ export const SystemEventRegistry = {
     ip: z.string().optional(),
     severity: z.string().optional()
   }),
+  "METRIC_UPDATE": z.object({
+    domain: z.string(),
+    data: z.any()
+  }),
 } as const;
 
 /**

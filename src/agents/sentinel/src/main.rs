@@ -8,7 +8,8 @@ use aya::Bpf;
 use aya::maps::PerfEventArray;
 use aya::programs::{KProbe, SchedClassifier, TcAttachType, Lsm};
 use aya::{include_bytes_aligned, Btf};
-use sentinel_common::{SyscallEvent, ShadowBanInfo};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr};
+use zerocopy::FromBytes;
 use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
 
@@ -148,8 +149,14 @@ async fn main() -> Result<(), anyhow::Error> {
     for cpu_id in aya::util::online_cpus()? {
         let mut buf = {
             let mut bpf = bpf_static.lock();
-            let map = bpf.map_mut("EVENTS").expect("EVENTS map not found");
+
+            // SECURITY: Handle lifetimes for Aya 0.12 Maps.
+            // We know that bpf_static is leaked and thus has a 'static lifetime.
+            // Using unsafe to transmute the Bpf reference to be 'static.
+            let bpf_extended: &'static mut Bpf = unsafe { core::mem::transmute(&mut *bpf) };
+            let map = bpf_extended.map_mut("EVENTS").expect("EVENTS map not found");
             let mut perf_array = PerfEventArray::try_from(map)?;
+
             perf_array.open(cpu_id, None)?
         };
 
@@ -160,9 +167,7 @@ async fn main() -> Result<(), anyhow::Error> {
                     Ok(events) => {
                         for i in 0..events.read {
                             let data = &buffers[i];
-                            if data.len() >= std::mem::size_of::<SyscallEvent>() {
-                                let event = unsafe { &*(data.as_ptr() as *const SyscallEvent) };
-
+                            if let Some(event) = SyscallEvent::read_from(&data[..std::mem::size_of::<SyscallEvent>()]) {
                                 // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
                                 let syscall = if cfg!(target_arch = "x86_64") {
                                     match event.syscall_id {
@@ -209,26 +214,56 @@ async fn main() -> Result<(), anyhow::Error> {
             match cmd.cmd_type.as_str() {
                 "BLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
-                            let _ = m.insert(u32::from(ip).to_be(), 1u32, 0);
-                            emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
-                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                            let addr = match ip {
+                                std::net::IpAddr::V4(v4) => {
+                                    let mut a = [0u8; 16];
+                                    a[0..4].copy_from_slice(&v4.octets());
+                                    IpV6Addr { addr: a }
+                                },
+                                std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
+                            };
+                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                let _ = m.insert(addr, 1u32, 0);
+                                emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
+                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
+                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
                     }
                 },
                 "UNBLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap())) {
-                            let _ = m.remove(&u32::from(ip).to_be());
-                            emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
-                        } else { emit_response(cmd.id, false, "Invalid IP or XDP Map Error".to_string()).await; }
+                        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                            let addr = match ip {
+                                std::net::IpAddr::V4(v4) => {
+                                    let mut a = [0u8; 16];
+                                    a[0..4].copy_from_slice(&v4.octets());
+                                    IpV6Addr { addr: a }
+                                },
+                                std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
+                            };
+                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                let _ = m.remove(&addr);
+                                emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
+                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
+                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
                     }
                 },
                 "SHADOW_BAN" => {
                     if let Some(ip_str) = cmd.ip {
-                        if let (Ok(ip), Ok(mut m)) = (ip_str.parse::<std::net::Ipv4Addr>(), aya::maps::HashMap::<_, u32, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap())) {
-                            let _ = m.insert(u32::from(ip).to_be(), ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
-                            emit_response(cmd.id, true, format!("Shadow Ban: {}", ip_str)).await;
-                        } else { emit_response(cmd.id, false, "Invalid IP or Map Error".to_string()).await; }
+                        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                            let addr = match ip {
+                                std::net::IpAddr::V4(v4) => {
+                                    let mut a = [0u8; 16];
+                                    a[0..4].copy_from_slice(&v4.octets());
+                                    IpV6Addr { addr: a }
+                                },
+                                std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
+                            };
+                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap()) {
+                                let _ = m.insert(addr, ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
+                                emit_response(cmd.id, true, format!("Shadow Ban: {}", ip_str)).await;
+                            } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
                     }
                 },
                 "ALLOW_PORT" => {

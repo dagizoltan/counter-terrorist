@@ -126,14 +126,18 @@ export class AnonymizationService {
         });
         
         try {
-            // BUG-4.16 FIX: Implement dynamic provider fetching if available,
-            // otherwise fallback to static pool.
+            // SOV-P4 FIX: Handle empty pool scenarios gracefully
             let selected: AnonymizationNode;
             const dynamicNodes = await this.fetchDynamicNodes().catch(() => []);
 
             const pool = dynamicNodes.length > 0 ? dynamicNodes : this.nodePool;
+            if (pool.length === 0) {
+                throw new Error("Anonymization pool is empty. Identity rotation aborted.");
+            }
+
             const available = pool.filter(n => n.ip !== this.currentNode?.ip);
-            selected = available[Math.floor(Math.random() * available.length)];
+            const targetPool = available.length > 0 ? available : pool;
+            selected = targetPool[Math.floor(Math.random() * targetPool.length)];
             
             switch (this.mode) {
                 case StealthMode.VPNGATE:
