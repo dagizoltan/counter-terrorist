@@ -160,6 +160,10 @@ export class SovereignApp {
         this.executor = new SystemExecutor();
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
 
+        // Bridge TPM to SidecarManager for Signed Manifest Verification
+        const tpmManager = new TPMManager(this.sidecarManager, loggingService);
+        this.sidecarManager.setTpm(tpmManager);
+
         await bootstrap();
     }
 

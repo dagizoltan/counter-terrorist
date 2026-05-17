@@ -23,6 +23,8 @@ export class SidecarManager implements CommandPort {
   private manifest: any = null;
   private manifestPromise: Promise<void> | null = null;
 
+  private tpm: any | null = null;
+
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
     this.startRotationLoop();
@@ -36,19 +38,52 @@ export class SidecarManager implements CommandPort {
     });
   }
 
+  setTpm(tpm: any) {
+    this.tpm = tpm;
+  }
+
   private async loadManifest() {
     try {
         const manifestUrl = new URL("./sidecars.manifest.json", import.meta.url);
         const content = await Deno.readTextFile(manifestUrl);
-        this.manifest = JSON.parse(content);
-        if (this.logging) {
+        const data = JSON.parse(content);
+
+        const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+
+        // SOV-P1: Implement Signed Manifest Enforcement
+        if (data.signature && this.tpm) {
+            const verified = await this.tpm.verify(data.sidecars, data.signature);
+            if (verified) {
+                this.manifest = data;
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `Authoritative Manifest Loaded & Hardware-Verified. Signed by: ${data.signedBy || "Developer"}`
+                });
+            } else {
+                const msg = "CRITICAL: Sidecar manifest signature verification FAILED!";
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: msg
+                });
+                if (isProduction) throw new Error(msg);
+            }
+        } else {
+            this.manifest = data;
+            const msg = data.signature ? "Manifest has signature but TPM not ready." : "Manifest is UNSIGNED.";
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.INFO,
+                severity: isProduction ? LogSeverity.ERROR : LogSeverity.WARNING,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Authoritative Manifest Loaded. Signed by: ${this.manifest.signedBy}`
+                message: `${msg} Falling back to environment-based integrity.`
             });
+            if (isProduction) throw new Error(`Production Lockdown: Unsigned manifest or missing TPM verification. (${msg})`);
         }
     } catch (e) {
         if (this.logging) {
@@ -57,9 +92,10 @@ export class SidecarManager implements CommandPort {
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Manifest unavailable. Falling back to environment-based integrity: ${(e as Error).message}`
+                message: `Manifest unavailable or invalid: ${(e as Error).message}`
             });
         }
+        if (Deno.env.get("ENVIRONMENT") === "production") throw e;
     }
   }
 

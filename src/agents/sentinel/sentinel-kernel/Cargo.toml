@@ -10,6 +10,9 @@ aya-ebpf = "0.1"
 aya-log-ebpf = "0.1"
 sentinel-common = { path = "../common" }
 
+[profile.dev]
+panic = "abort"
+
 [profile.release]
 panic = "abort"
 

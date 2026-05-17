@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+zerocopy = { version = "0.7", default-features = false, features = ["derive"] }
 aya-ebpf = { version = "0.1", optional = true }
 aya-log-ebpf = { version = "0.1", optional = true }
 aya = { version = "0.12", optional = true }
