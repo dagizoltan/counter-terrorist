@@ -287,8 +287,35 @@ export class SidecarManager implements CommandPort {
 
             const env = await this.getSidecarEnv(name);
 
-            const command = new Deno.Command(execPath, {
-                args: [],
+            // Active Safety: Implement Resource Throttling for Pilots
+            // On Linux, we attempt to use systemd-run for CPU/Memory constraints if running as root
+            const isPilot = Deno.env.get("PILOT_MODE") === "true";
+            const isLinux = Deno.build.os === "linux";
+            let finalExec = execPath;
+            let finalArgs: string[] = [];
+
+            if (isPilot && isLinux && Deno.uid() === 0) {
+                // Constraints: 25% CPU, 512MB RAM
+                finalExec = "systemd-run";
+                finalArgs = [
+                    "--scope",
+                    "--quiet",
+                    "-p", "CPUQuota=25%",
+                    "-p", "MemoryMax=512M",
+                    "-p", "MemorySwapMax=0",
+                    execPath
+                ];
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.INFO,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `Resource Throttling active for ${name} (CPU: 25%, MEM: 512MB)`
+                });
+            }
+
+            const command = new Deno.Command(finalExec, {
+                args: finalArgs,
                 stdin: "piped",
                 stdout: "piped",
                 stderr: "piped",

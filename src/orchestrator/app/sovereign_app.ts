@@ -64,6 +64,20 @@ export class SovereignApp {
     async boot() {
         this.logPilotBanner();
 
+        // Active Safety: Crash Loop Detection / Safe Mode
+        const isSafeMode = await this.checkCrashLoop();
+        if (isSafeMode) {
+             Deno.env.set("SHADOW_MODE", "true");
+             Deno.env.set("STRICT_POLICY_ENFORCEMENT", "false");
+             loggingService.log({
+                 timestamp: new Date().toISOString(),
+                 type: LogType.AUDIT,
+                 severity: LogSeverity.CRITICAL,
+                 caller: "orchestrator:app:sovereign_app",
+                 message: "⚠️ SAFE MODE ACTIVATED: Multiple boot failures detected. All enforcement disabled."
+             });
+        }
+
         // SOV-P3: Global Error Handlers
         globalThis.addEventListener("unhandledrejection", (e) => {
             loggingService.log({
@@ -176,6 +190,27 @@ export class SovereignApp {
                 });
             }
         }, shadowDuration * 60 * 60 * 1000);
+    }
+
+    private async checkCrashLoop(): Promise<boolean> {
+        try {
+            const tempKv = await Deno.openKv("./volume/storage/boot_counter.db");
+            const key = ["boot", "last_attempt"];
+            const entry = await tempKv.get<any>(key);
+            const now = Date.now();
+
+            let count = 1;
+            if (entry.value && (now - entry.value.timestamp < 300000)) { // 5 minutes
+                count = (entry.value.count || 0) + 1;
+            }
+
+            await tempKv.set(key, { count, timestamp: now });
+            tempKv.close();
+
+            return count >= 3;
+        } catch {
+            return false;
+        }
     }
 
     private async initCore() {
