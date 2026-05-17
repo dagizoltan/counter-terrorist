@@ -198,24 +198,30 @@ export class SidecarManager implements CommandPort {
             if (!isDev) {
                 const caps = this.getCapabilities(name) || "";
                 const spawnScript = await this.findScript("secure_spawn.sh");
+                const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+
                 if (spawnScript) {
                     const res = await this.executor.execute(spawnScript, [name, binPath, caps]);
                     if (res.success) {
                         execPath = `/var/lib/cts/bin/${name}`;
+                    } else if (isProduction) {
+                        throw new Error(`Production Lockdown: Failed to secure sidecar '${name}' via secure_spawn.sh`);
                     }
                 } else {
+                    const errorMsg = "CRITICAL: secure_spawn.sh not found. Sidecar deployment blocked for security.";
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
                         severity: LogSeverity.ERROR,
                         caller: "orchestrator:infra:runtime:sidecar_manager",
-                        message: "CRITICAL: secure_spawn.sh not found. Sidecar deployment will be unprivileged and potentially insecure."
+                        message: errorMsg
                     });
+                    if (isProduction) throw new Error(errorMsg);
                 }
             }
 
-            // ENHANCEMENT: Self-Healing Sidecars
-            // Verify integrity AFTER move to secure location (Skip in DEV_MODE to allow debug binaries)
+            // SOV-03 FIX: Verify integrity STRICTLY on the final destination binary
+            // This mitigates TOCTOU by ensuring we verify the file that is now in a root-owned directory.
             if (!isDev) {
               const isHealthy = await this.verifyAndHeal(name, execPath);
               if (!isHealthy) {
@@ -634,7 +640,9 @@ export class SidecarManager implements CommandPort {
         const goldenStat = await Deno.stat(goldenRepo).catch(() => null);
         
         if (goldenStat?.isFile) {
-            await Deno.copyFile(goldenRepo, binPath);
+            // SOV-03 FIX: Use privileged SystemExecutor to restore the file
+            // Deno.copyFile would fail on root-owned /var/lib/cts/bin files if the orchestrator is unprivileged.
+            await this.executor.execute("cp", [goldenRepo, binPath]);
             const healedHash = await this.calculateHash(binPath);
             
             if (healedHash === goldenHash) {
