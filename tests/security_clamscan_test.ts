@@ -1,33 +1,23 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { UbuntuAntivirusProvider } from "@infrastructure/system/protection/antivirus/providers/ubuntu_antivirus.ts";
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 
-class MockSystemExecutor extends SystemExecutor {
-  public lastCmd: string = "";
-  public lastArgs: string[] = [];
+class MockSidecarManager {
+  public lastCommand: any = null;
 
-  override async execute(cmd: string, args: string[] = []): Promise<any> {
-    this.lastCmd = cmd;
-    this.lastArgs = args;
-
-    if (cmd === "which" && args[0] === "clamscan") {
-      return { success: true, stdout: "/usr/bin/clamscan", stderr: "" };
-    }
-
-    return { success: true, stdout: "Infected files: 0", stderr: "" };
+  async sendCommand(name: string, cmd: any) {
+    this.lastCommand = { name, cmd };
+    return { success: true, stdout: "Infected files: 0", stderr: "", data: {} };
   }
 }
 
-Deno.test("UbuntuAntivirusProvider.scanPath uses -- separator for clamscan", async () => {
-  const mockExecutor = new MockSystemExecutor();
-  const provider = new UbuntuAntivirusProvider(mockExecutor as any);
+Deno.test("UbuntuAntivirusProvider.scanPath uses sidecar for analysis", async () => {
+  const mockSidecar = new MockSidecarManager();
+  const provider = new UbuntuAntivirusProvider(mockSidecar as any);
 
-  const maliciousPath = "/tmp/--help";
+  const maliciousPath = "/tmp/test-file";
   await provider.scanPath(maliciousPath);
 
-  assertEquals(mockExecutor.lastCmd, "clamscan");
-  // This test is expected to FAIL before the fix
-  const hasSeparator = mockExecutor.lastArgs.includes("--");
-  assertEquals(hasSeparator, true, "Should include -- separator to prevent argument injection");
-  assertEquals(mockExecutor.lastArgs[mockExecutor.lastArgs.length - 1], "/tmp/--help");
+  assertEquals(mockSidecar.lastCommand.name, "analyzer");
+  assertEquals(mockSidecar.lastCommand.cmd.type, "ScanPath");
+  assertEquals(mockSidecar.lastCommand.cmd.path, maliciousPath);
 });
