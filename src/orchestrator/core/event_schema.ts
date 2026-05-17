@@ -33,7 +33,29 @@ export const SystemEventRegistry = {
   "WARN": z.any(),
   "BLOCK": z.any(),
   "CRITICAL": z.any(),
+  "THREAT": z.object({
+    code: z.string().optional(),
+    src_ip: z.string().optional(),
+    message: z.string().optional()
+  }),
+  "HONEYPOT": z.object({
+    code: z.string().optional(),
+    ip: z.string().optional(),
+    severity: z.string().optional()
+  }),
 } as const;
+
+/**
+ * Structured Threat Codes for Playbook Engine
+ * BUG-4.26 FIX: Use structured codes instead of brittle string matching
+ */
+export enum TacticalThreatCode {
+  SSH_BRUTE_FORCE = "SSH_BRUTE_FORCE",
+  REVERSE_SHELL = "REVERSE_SHELL",
+  EXPLOIT_ATTEMPT = "EXPLOIT_ATTEMPT",
+  CRITICAL_HONEYPOT_HIT = "CRITICAL_HONEYPOT_HIT",
+  UNAUTHORIZED_ACCESS = "UNAUTHORIZED_ACCESS"
+}
 
 export type EventRegistry = typeof SystemEventRegistry;
 export type EventName = keyof EventRegistry;

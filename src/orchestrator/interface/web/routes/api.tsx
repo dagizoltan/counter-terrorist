@@ -168,6 +168,37 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
         });
     }
 
+    // BUG-4.21 FIX: Implement missing gossip handlers
+    if (payload.type === "GOSSIP_AUDIT" && payload.events) {
+        await services.audit.syncEvents(payload.events);
+    }
+
+    if (payload.type === "GOSSIP_LOCKDOWN") {
+        await services.mediator.broadcastEvent({
+            type: "MESH_LOCKDOWN",
+            message: `Mesh-wide LOCKDOWN initiated by node ${payload.sourceNode || "unknown"}`,
+            data: payload,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    if (payload.type === "GOSSIP_AUDIT_VERIFY") {
+        const localStatus = await services.audit.getChainStatus();
+        if (localStatus.lastHash !== payload.lastHash || localStatus.count !== payload.count) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:interface:web:api:mesh:audit",
+                message: `Audit Ledger Drift Detected: Local(${localStatus.count}) vs Peer(${payload.count} from ${payload.sourceNode})`
+            });
+            // Trigger resync if we are behind
+            if (localStatus.count < payload.count) {
+                await services.mesh.requestAuditSync(payload.sourceNode);
+            }
+        }
+    }
+
     return c.json({ success: true });
   });
 

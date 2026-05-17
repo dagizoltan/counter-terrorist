@@ -156,15 +156,38 @@ export class MetricsService {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        // Perform Full Verification Cycle on Boot
+        // BUG-4.2 FIX: Move full verification to background to avoid boot blocking
+        this.performInitialVerification().catch(() => {});
+
+        while (this.isRunning) {
+            try {
+                await this.collectAndBroadcast();
+            } catch (e) {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:domain:analysis:metrics",
+                    message: `Collection cycle failed: ${e instanceof Error ? e.message : String(e)}`
+                });
+            }
+            await new Promise(resolve => setTimeout(resolve, this.COLLECTION_INTERVAL_MS));
+        }
+    }
+
+    private async performInitialVerification() {
         try {
             loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
                 caller: "orchestrator:domain:analysis:metrics",
-                message: "Starting Full Forensic Integrity Verification of audit ledger..."
+                message: "Starting Full Forensic Integrity Verification of audit ledger (Background)..."
             });
+
+            // Allow system to stabilize before heavy audit
+            await new Promise(r => setTimeout(r, 5000));
+
             const verification = await this.auditService.verifyFullChain();
             if (!verification.valid) {
                 loggingService.log({
@@ -198,21 +221,6 @@ export class MetricsService {
                 message: `Initial audit verification failed: ${(e as Error).message}`
             });
         }
-        
-        while (this.isRunning) {
-            try {
-                await this.collectAndBroadcast();
-            } catch (e) {
-                loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:analysis:metrics",
-                    message: `Collection cycle failed: ${e instanceof Error ? e.message : String(e)}`
-                });
-            }
-            await new Promise(resolve => setTimeout(resolve, this.COLLECTION_INTERVAL_MS));
-        }
     }
 
     public stop() {
@@ -233,19 +241,26 @@ export class MetricsService {
         this.isCollecting = true;
         this.collectionCount++;
 
+        const timeout = (promise: Promise<any>, ms: number) => {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+            ]);
+        };
+
         try {
             // 1. Detection Phase (Run once)
             if (this.scannerAvailable === null) {
                 this.scannerAvailable = this.sidecarManager.isRunning("analyzer");
-                this.vpnAvailable = this.sidecarManager.isRunning("tunnel") || (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success;
+                this.vpnAvailable = this.sidecarManager.isRunning("tunnel") || (await timeout(this.sidecarManager.getExecutor().execute("which", ["wg"]), 2000).catch(() => ({ success: false }))).success;
             }
 
-            // 2. High-Frequency Phase (Parallelized for Performance)
+            // 2. High-Frequency Phase (Parallelized for Performance with Timeouts)
             const [firewallStatus, meshNodes, blockedIps, vpnConnected] = await Promise.all([
-                this.firewall.getStatus(),
+                timeout(this.firewall.getStatus(), 5000).catch(() => ({ success: false, stdout: "" })),
                 Promise.resolve(this.mesh.getNodes()),
-                (this.firewall as any).getBlockedIps ? (this.firewall as any).getBlockedIps() : Promise.resolve([]),
-                this.vpn.isConnected()
+                (this.firewall as any).getBlockedIps ? timeout((this.firewall as any).getBlockedIps(), 5000).catch(() => []) : Promise.resolve([]),
+                timeout(this.vpn.isConnected(), 5000).catch(() => false)
             ]);
 
             const honeypotModules = this.honeypot.getModules();

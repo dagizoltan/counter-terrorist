@@ -4,6 +4,7 @@ export interface SidecarConfig {
     persistent: boolean;
     privileged: boolean;
     binaryName?: string;
+    capabilities?: string;
 }
 
 export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
@@ -12,20 +13,23 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Encrypted network tunnel management via WireGuard.",
         persistent: true,
         privileged: true,
-        binaryName: "tunnel"
+        binaryName: "tunnel",
+        capabilities: "cap_net_admin+ep"
     },
     enforcer: {
         name: "enforcer",
         description: "Active enforcement agent for process termination, quarantine, and forensic dumping.",
         persistent: true,
         privileged: true,
-        binaryName: "enforcer"
+        binaryName: "enforcer",
+        capabilities: "cap_net_admin,cap_kill+ep"
     },
     mesh: {
         name: "mesh",
         description: "Autonomous peer discovery and mTLS-secured gossip protocol for collective intelligence.",
         persistent: true,
-        privileged: true
+        privileged: true,
+        capabilities: "cap_net_bind_service+ep"
     },
     analyzer: {
         name: "analyzer",
@@ -46,7 +50,8 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "eBPF-powered kernel observability and high-performance XDP firewall.",
         persistent: true,
         privileged: true,
-        binaryName: "sentinel"
+        binaryName: "sentinel",
+        capabilities: "cap_sys_admin,cap_net_admin,cap_sys_resource+ep"
     },
     watchfile: {
         name: "watchfile",
@@ -60,7 +65,8 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Native PCAPng packet capture and deep packet inspection via raw sockets.",
         persistent: true,
         privileged: true,
-        binaryName: "netcap"
+        binaryName: "netcap",
+        capabilities: "cap_net_raw,cap_net_admin+ep"
     },
     trustroot: {
         name: "trustroot",

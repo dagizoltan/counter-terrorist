@@ -75,7 +75,10 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
-        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"\$\(\)\{\}\[\];+]+$/],
+        // BUG-4.14 FIX: Restrict PowerShell policy to mitigate command injection
+        // Removed characters like ; $ ( ) { } [ ] which allow for expression execution and chaining.
+        // Limited to basic parameter passing.
+        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"]+$/],
         maxArgs: 2
     },
     "netsh": {
@@ -231,11 +234,11 @@ export class SystemExecutor {
         maxArgs: 3
     },
     "scp": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+:.*$/],
+        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+:.*$/],
         maxArgs: 10
     },
     "ssh": {
-        allowedArgs: [/^-o$/, /^StrictHostKeyChecking=(yes|no)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/],
+        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+$/, /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*)|chmod 600 \/etc\/cts.env && export \$\(grep -v '\^#' \/etc\/cts.env \| xargs -d '\\n'\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts.log 2>&1 &)$/],
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {
@@ -352,12 +355,22 @@ export class SystemExecutor {
   private isPotentiallyDangerous(arg: string): boolean {
       return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
              arg.includes("%") || arg.includes("{") || arg.includes("$") ||
-             arg.includes("&") || arg.includes("|") || arg.includes(";");
+             arg.includes("&") || arg.includes("|") || arg.includes(";") ||
+             arg.includes(">") || arg.includes("<") || arg.includes("`") ||
+             arg.includes("(") || arg.includes(")");
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
       // Security: Check for path traversal and restricted characters first
       if (this.isPotentiallyDangerous(arg)) {
+          // Explicitly block shell metacharacters in paths
+          if (/[;&|><`$()!]/.test(arg)) {
+              // Allow $ and () in specific JSON structures if it matches sidecar IPC
+              if (!(arg.startsWith("{") && arg.endsWith("}"))) {
+                  return { valid: false, reason: `Security Violation: Shell metacharacters detected in path-sensitive argument for '${baseCmd}'` };
+              }
+          }
+
           if (!validatePath(arg)) {
               return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}' for sensitive command '${baseCmd}'` };
           }

@@ -15,7 +15,8 @@ export class FirewallManager {
 
   async setKv(kv: Deno.Kv) {
     this.kv = kv;
-    const iter = kv.list<any>({ prefix: ["enforcement"] });
+    // BUG-8.1 FIX: Avoid full list operation on start to prevent boot delay
+    const iter = kv.list<any>({ prefix: ["enforcement"] }, { limit: 1000 });
     const ips: string[] = [];
     for await (const res of iter) {
       const ip = res.key[1] as string;

@@ -5,7 +5,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Logs Page
  * Forensic internal log viewer.
  */
-export const LogsPage = () => {
+export const LogsPage = (props: { csrfToken?: string; nonce?: string }) => {
   return (
     <Layout title="System Logs // Forensic Audit" csrfToken={props.csrfToken} nonce={props.nonce}>
       <div style="margin-bottom:3rem;">

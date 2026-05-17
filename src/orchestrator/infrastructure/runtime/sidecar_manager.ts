@@ -17,6 +17,8 @@ export class SidecarManager implements CommandPort {
   private cleanupRegistered: boolean = false;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
+  private rotationInterval?: number;
+  private backoffTimers: Set<number> = new Set();
 
   private manifest: any = null;
   private manifestPromise: Promise<void> | null = null;
@@ -66,7 +68,7 @@ export class SidecarManager implements CommandPort {
    */
   private startRotationLoop() {
     const ROTATION_INTERVAL = 6 * 60 * 60 * 1000; // 6 Hours
-    setInterval(async () => {
+    this.rotationInterval = setInterval(async () => {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
@@ -407,7 +409,7 @@ export class SidecarManager implements CommandPort {
                   type: LogType.AUDIT,
                   severity: LogSeverity.ERROR,
                   caller: "orchestrator:infra:runtime:sidecar_manager",
-                  message: `[${name}] Security violation: Invalid response schema.`
+                  message: `[${name}] Security violation: Invalid response schema. Payload: ${trimmed.substring(0, 200)}${trimmed.length > 200 ? "..." : ""}`
               });
               continue;
             }
@@ -417,6 +419,14 @@ export class SidecarManager implements CommandPort {
               const waiter = waiters.get(data.id);
               if (waiter) {
                 waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data });
+
+                // BUG-4.22 FIX: Also emit to event handlers even if it was a direct response
+                // This ensures Autopilot/Mediator can see results of manual scans/commands
+                const handlers = this.eventHandlers.get(name) || [];
+                for (const handler of handlers) {
+                  handler(data);
+                }
+
                 waiters.delete(data.id);
                 continue;
               }
@@ -441,7 +451,9 @@ export class SidecarManager implements CommandPort {
       });
     } finally {
       reader.releaseLock();
+      // Ensure the process entry is removed and cleanup any pending buffers
       this.persistentProcesses.delete(name);
+      buffer = "";
     }
   }
 
@@ -556,6 +568,11 @@ export class SidecarManager implements CommandPort {
   }
 
   async shutdown(): Promise<void> {
+    this.isShuttingDown = true;
+    if (this.rotationInterval) clearInterval(this.rotationInterval);
+    for (const timer of this.backoffTimers) clearTimeout(timer);
+    this.backoffTimers.clear();
+
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.ACTIVITY,
@@ -575,15 +592,8 @@ export class SidecarManager implements CommandPort {
   }
 
   private getCapabilities(name: string): string | undefined {
-    const caps: Record<string, string> = {
-        "firewall": "cap_net_admin,cap_kill+ep",
-        "enforcer": "cap_net_admin,cap_kill+ep",
-        "sentinel": "cap_sys_admin,cap_net_admin,cap_sys_resource+ep",
-        "netcap": "cap_net_raw,cap_net_admin+ep",
-        "tunnel": "cap_net_admin+ep",
-        "mesh": "cap_net_bind_service+ep"
-    };
-    return caps[name];
+    // BUG-4.5 FIX: Use SIDECAR_REGISTRY for capability mapping to allow new sidecars to work
+    return SIDECAR_REGISTRY[name]?.capabilities;
   }
 
   private async verifyAndHeal(name: string, binPath: string, force: boolean = false): Promise<boolean> {
@@ -725,11 +735,13 @@ export class SidecarManager implements CommandPort {
           message: `Sidecar ${name} crashed (exit code ${exitCode}). Restarting in ${delay}ms (attempt ${restartInfo.count}/${MAX_RETRY_ATTEMPTS})`
       });
 
-      setTimeout(() => {
+      const timer = setTimeout(() => {
+        this.backoffTimers.delete(timer);
         if (!this.isShuttingDown) {
             this.getPersistentSidecar(name).catch(() => {});
         }
       }, delay);
+      this.backoffTimers.add(timer);
     } else {
       const msg = `CRITICAL: Sidecar ${name} entered crash loop. Circuit breaker active for ${COOLOFF_WINDOW / 1000}s.`;
       this.logging.log({

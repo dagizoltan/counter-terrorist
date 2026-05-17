@@ -20,12 +20,19 @@ export class AutonomousAutopilotService {
         setInterval(() => this.evaluateThreats(), 5000);
     }
 
+    private activeCaptures = new Set<string>();
+
     private async evaluateThreats() {
         const chains = this.correlation.getKillChains();
         
         for (const chain of chains) {
             if (chain.isConfirmedBreach && chain.overallRisk >= 100) {
-                await this.executeContainment(chain);
+                // BUG-8.10 FIX: Only execute containment once per unique chain to prevent
+                // overlapping capture requests that 'netcap' would reject.
+                if (!this.activeCaptures.has(chain.id)) {
+                    this.activeCaptures.add(chain.id);
+                    await this.executeContainment(chain);
+                }
             }
         }
     }

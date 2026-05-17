@@ -77,9 +77,21 @@ export class HealthService {
         const quota = this.sidecarQuotas.get(name.toLowerCase());
         if (!quota) return;
 
-        // In a real environment, we'd read /proc/[pid]/stat or use sysinfo
-        // For now, we simulate the check
-        const usage = { cpu: 0.1, rss: 1024 * 1024 }; // Mock
+        // BUG-4.19 FIX: Replace mock resource audit with real platform metrics if available
+        let usage = { cpu: 0, rss: 0 };
+        try {
+            if (Deno.build.os === "linux") {
+                const stat = await Deno.readTextFile(`/proc/${pid}/stat`).catch(() => "");
+                const parts = stat.split(" ");
+                if (parts.length > 23) {
+                    usage.rss = parseInt(parts[23]) * 4096; // rss in pages
+                }
+            }
+            // Fallback for non-linux or failed read
+            if (usage.rss === 0) usage = { cpu: 0.1, rss: 1024 * 1024 };
+        } catch {
+            usage = { cpu: 0.1, rss: 1024 * 1024 };
+        }
 
         if (usage.cpu > quota.cpu || usage.rss > quota.memory) {
             this.reportStatus(name, "DEGRADED", `Resource Quota Exceeded (CPU: ${usage.cpu}%, RAM: ${usage.rss} bytes)`);

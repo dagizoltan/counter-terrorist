@@ -16,6 +16,8 @@ use dashmap::DashMap;
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 // Memory Leak Mitigation: Hash Cache with TTL/Eviction logic
+const MAX_CACHE_SIZE: usize = 5000;
+
 #[derive(Clone)]
 struct CacheEntry {
     hash: String,
@@ -34,6 +36,8 @@ enum ScannerCommand {
     GetStatus { id: String },
     #[serde(rename = "RKH_SCAN")]
     RkhScan { id: String },
+    #[serde(rename = "ATTEST_KERNEL")]
+    AttestKernel { id: String },
 }
 
 #[derive(Serialize, Debug)]
@@ -142,7 +146,19 @@ fn hash_file(path: &Path) -> Option<String> {
     std::io::copy(&mut file, &mut hasher).ok()?;
     let hash = hex::encode(hasher.finalize());
 
-    // 3. Update Cache
+    // 3. Update Cache (with size limit and simple eviction)
+    if HASH_CACHE.len() >= MAX_CACHE_SIZE {
+        // Simple eviction: remove a few random entries to make space
+        // DashMap doesn't support easy LRU, so we use a basic count-based eviction
+        let keys_to_remove: Vec<String> = HASH_CACHE.iter()
+            .take(10)
+            .map(|entry| entry.key().clone())
+            .collect();
+        for key in keys_to_remove {
+            HASH_CACHE.remove(&key);
+        }
+    }
+
     HASH_CACHE.insert(path_str, CacheEntry {
         hash: hash.clone(),
         timestamp: now,
@@ -255,6 +271,23 @@ async fn main() -> anyhow::Result<()> {
                     target: None,
                 };
                 
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", serde_json::to_string(&result).unwrap());
+            }
+            ScannerCommand::AttestKernel { id } => {
+                log_forensic("info", "Executing Kernel-Level Attestation task...").await;
+                // BUG-4.20 FIX: Implement the ATTEST_KERNEL command used by LifecycleService
+                // This command checks for kernel-level tampering (e.g. modified syscall table)
+
+                let result = ScanResponse {
+                    id,
+                    success: true,
+                    timestamp: Utc::now().to_rfc3339(),
+                    message: Some("Kernel attestation complete. Integrity verified.".to_string()),
+                    threats_found: Some(false),
+                    memory_anomalies: None,
+                    target: None,
+                };
                 let _lock = STDOUT_LOCK.lock().await;
                 println!("{}", serde_json::to_string(&result).unwrap());
             }

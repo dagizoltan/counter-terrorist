@@ -120,15 +120,8 @@ export class ApiKeysService {
    * Lists all API keys (masked, metadata only).
    */
   async listApiKeys(): Promise<ApiKeyMetadata[]> {
-    const keys: ApiKeyMetadata[] = [];
-    const hashes = await this.idRepo.list();
-    
-    for (const keyHash of hashes) {
-      const metadata = await this.hashRepo.get(keyHash);
-      if (metadata) keys.push(metadata);
-    }
-    
-    return keys;
+    // BUG-1.2 FIX: Use a more efficient list operation to avoid N+1 KV lookups
+    return await this.hashRepo.list();
   }
 
   /**

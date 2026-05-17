@@ -24,8 +24,8 @@ export interface VpnResult {
 
 export interface VpnProvider {
   connect(interfaceName: string): Promise<VpnResult>;
-  disconnect(): Promise<VpnResult>;
-  isConnected(): Promise<boolean>;
+  disconnect(interfaceName?: string): Promise<VpnResult>;
+  isConnected(interfaceName?: string): Promise<boolean>;
   getStatus(): Promise<any>;
   flushRules(): Promise<VpnResult>;
 }

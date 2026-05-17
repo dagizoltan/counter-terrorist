@@ -24,9 +24,13 @@ export class PluginManager {
   }
 
   async startAll() {
-    for (const plugin of this.plugins.values()) {
+    // BUG-6.5 FIX: Start plugins in parallel with timeouts to avoid boot blocking
+    const startPromises = Array.from(this.plugins.values()).map(async (plugin) => {
       try {
-        await plugin.start();
+        await Promise.race([
+            plugin.start(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Plugin start timeout")), 15000))
+        ]);
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
@@ -42,14 +46,22 @@ export class PluginManager {
             caller: "orchestrator:domain:orchestration:plugin_manager",
             message: `Failed to start plugin ${plugin.name}: ${(e as Error).message}`
         });
+        // BUG-11.3: Start failure is implicitly reflected by the plugin's own status()
+        // since we didn't await successfully.
       }
-    }
+    });
+
+    await Promise.all(startPromises);
   }
 
   async stopAll() {
-    for (const plugin of this.plugins.values()) {
+    // BUG-6.5 FIX: Stop plugins in parallel with timeouts
+    const stopPromises = Array.from(this.plugins.values()).map(async (plugin) => {
       try {
-        await plugin.stop();
+        await Promise.race([
+            plugin.stop(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("Plugin stop timeout")), 5000))
+        ]);
       } catch (e) {
         loggingService.log({
             timestamp: new Date().toISOString(),
@@ -59,7 +71,9 @@ export class PluginManager {
             message: `Error stopping plugin ${plugin.name}: ${(e as Error).message}`
         });
       }
-    }
+    });
+
+    await Promise.all(stopPromises);
   }
 
   getPlugin(name: string): Plugin | undefined {

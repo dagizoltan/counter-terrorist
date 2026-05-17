@@ -162,10 +162,22 @@ async fn main() -> Result<(), anyhow::Error> {
                             let data = &buffers[i];
                             if data.len() >= std::mem::size_of::<SyscallEvent>() {
                                 let event = unsafe { &*(data.as_ptr() as *const SyscallEvent) };
-                                let syscall = match event.syscall_id {
-                                    101 => "ptrace", 9 => "mmap", 59 => "execve",
-                                    42 => "connect", 257 => "openat", _ => "unknown"
+
+                                // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
+                                let syscall = if cfg!(target_arch = "x86_64") {
+                                    match event.syscall_id {
+                                        101 => "ptrace", 9 => "mmap", 59 => "execve",
+                                        42 => "connect", 257 => "openat", _ => "unknown"
+                                    }
+                                } else if cfg!(target_arch = "aarch64") {
+                                    match event.syscall_id {
+                                        117 => "ptrace", 222 => "mmap", 221 => "execve",
+                                        203 => "connect", 56 => "openat", _ => "unknown"
+                                    }
+                                } else {
+                                    "unknown"
                                 };
+
                                 let comm = std::str::from_utf8(&event.comm).unwrap_or("unknown").trim_end_matches('\0');
                                 emit_event(serde_json::json!({
                                     "type": "SYSCALL_EVENT",
@@ -354,9 +366,10 @@ async fn dump_process_task(pid: u32, requested_path: String) -> (bool, String) {
     let safe_path = format!("{}/{}", base_dir, filename);
     let maps_res = std::fs::copy(format!("/proc/{}/maps", pid), format!("{}.maps", safe_path));
     let env_res = std::fs::copy(format!("/proc/{}/environ", pid), format!("{}.environ", safe_path));
-    if maps_res.is_ok() && env_res.is_ok() {
-        (true, format!("Dumped process {} metadata to {}", pid, safe_path))
-    } else { (false, "Failed to access /proc files or write to jail".to_string()) }
+    match (maps_res, env_res) {
+        (Ok(_), Ok(_)) => (true, format!("Dumped process {} metadata to {}", pid, safe_path)),
+        (Err(e), _) | (_, Err(e)) => (false, format!("Forensic dump failed for PID {}: {}", pid, e))
+    }
 }
 
 

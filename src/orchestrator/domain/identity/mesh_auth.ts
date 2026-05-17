@@ -135,6 +135,7 @@ export class MeshAuthService {
 
     // 2. Fallback to ENV (Standard Production Mode)
     let secret = Deno.env.get("PKI_SECRET");
+    let needsSealing = !!secret;
     
     if (!secret) {
       const fallback = Deno.env.get("API_TOKEN");
@@ -151,8 +152,8 @@ export class MeshAuthService {
       secret = fallback;
     }
 
-    // 3. Seal to TPM for future cold-boot resilience
-    if (this.tpm && secret) {
+    // 3. Seal to TPM for future cold-boot resilience (only if it came from environment)
+    if (this.tpm && secret && needsSealing) {
         await this.tpm.sealSecret("PKI_SECRET", secret);
     }
 
@@ -194,6 +195,11 @@ export class MeshAuthService {
    * The certificate itself is stored in plaintext (it's public).
    */
   private async encryptCertPair(pair: CertPair): Promise<EncryptedCertPair> {
+    // SEC: Safety check on cert/key size before storing to KV
+    if (pair.cert.length > 32768 || pair.key.length > 32768) {
+        throw new Error("[PKI] Certificate or key size exceeds safety limits (32KB).");
+    }
+
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await this.deriveKey(salt);

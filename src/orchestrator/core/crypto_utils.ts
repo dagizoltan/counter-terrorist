@@ -50,6 +50,44 @@ export async function signPayload(payload: any, secret: string): Promise<string>
 }
 
 /**
+ * Computes a SHA-256 hash from a ReadableStream without loading it entirely into memory.
+ */
+export async function computeStreamHash(stream: ReadableStream<Uint8Array>): Promise<string> {
+    // Note: crypto.subtle.digest doesn't support streaming.
+    // For production-grade large file hashing, we use a manual chunking approach
+    // while keeping memory usage constant.
+    const reader = stream.getReader();
+
+    // Fallback: In Deno, we can use the 'crypto' module for streaming if available,
+    // or accumulate into a buffer if memory allows.
+    // To truly avoid OOM on multi-GB files, we should use a library like 'hash.js'
+    // or native Deno.Command("sha256sum").
+
+    // Optimal implementation using Deno's native command to avoid JS memory overhead
+    const hasher = new Deno.Command("sha256sum", {
+        stdin: "piped",
+        stdout: "piped",
+    }).spawn();
+
+    const writer = hasher.stdin.getWriter();
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            await writer.write(value);
+        }
+    } finally {
+        writer.releaseLock();
+        await hasher.stdin.close();
+        reader.releaseLock();
+    }
+
+    const { stdout } = await hasher.output();
+    const hashLine = new TextDecoder().decode(stdout);
+    return hashLine.split(" ")[0].trim();
+}
+
+/**
  * Verifies an HMAC-SHA256 signature for a payload.
  */
 export async function verifySignature(payload: any, signature: string, secret: string): Promise<boolean> {

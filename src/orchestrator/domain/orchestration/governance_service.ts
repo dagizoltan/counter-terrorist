@@ -19,12 +19,30 @@ export interface Proposal {
  */
 export class GovernanceService {
     private proposals: Map<string, Proposal> = new Map();
+    private cleanupInterval?: number;
 
     constructor(
         private mesh: MeshManager,
         private protection: any, // ProtectionPort
         private logging: LoggingPort
-    ) {}
+    ) {
+        // BUG-4.24 FIX: Periodically cleanup expired proposals to prevent memory leak
+        this.cleanupInterval = setInterval(() => this.cleanupProposals(), 3600000); // 1 hour
+    }
+
+    shutdown() {
+        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
+    }
+
+    private cleanupProposals() {
+        const now = Date.now();
+        const MAX_AGE = 24 * 3600 * 1000; // 24 hours
+        for (const [id, proposal] of this.proposals.entries()) {
+            if (now - proposal.timestamp > MAX_AGE) {
+                this.proposals.delete(id);
+            }
+        }
+    }
 
     /**
      * Proposes a new high-impact action to the mesh.

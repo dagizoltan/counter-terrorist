@@ -81,9 +81,10 @@ fn verify_actor_hash(pid: i32) -> bool {
     if let Some(path) = target {
         let path_str = path.to_string_lossy();
         // Allow systemd and known orchestrator locations
-        return path_str.contains("/lib/systemd/systemd") ||
-               path_str.contains("/usr/bin/deno") ||
-               path_str.contains("/var/lib/cts/bin/");
+        // BUG-4.4 FIX: Use starts_with to prevent path spoofing via /home/user/var/lib/cts/bin/...
+        return path_str == "/lib/systemd/systemd" ||
+               path_str == "/usr/bin/deno" ||
+               path_str.starts_with("/var/lib/cts/bin/");
     }
     false
 }

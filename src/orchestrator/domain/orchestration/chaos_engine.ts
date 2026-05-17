@@ -24,17 +24,19 @@ export class ChaosEngine {
     });
     
     // Send fake events to the honeypot pipeline (Unified Schema)
-    for (let i = 0; i < 6; i++) {
+    // BUG-4.23 FIX: Reduce noise and handle event storming by deduplicating simulation signals
+    for (let i = 0; i < 3; i++) {
         this.sidecar.emitEvent("decoy", {
             success: true,
             data: {
                 type: "PortAccess",
                 source_ip: ip,
-                port: 22
+                port: 22,
+                simulation: true
             },
             timestamp: new Date().toISOString()
         });
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 500));
     }
 
     await this.auditService.logEvent({

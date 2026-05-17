@@ -32,6 +32,13 @@ export class IncidentService {
         return await this.repo.getLatest(limit);
     }
 
+    /**
+     * Returns the total count of reported incidents (BUG-5.6 FIX)
+     */
+    async count(): Promise<number> {
+        return await this.repo.count();
+    }
+
     async updateStatus(id: string, status: Incident["status"]) {
         const incident = await this.repo.get(id);
         if (incident) {

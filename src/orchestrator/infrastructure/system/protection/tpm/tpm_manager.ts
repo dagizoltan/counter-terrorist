@@ -14,6 +14,18 @@ export class TPMManager {
         private logging: LoggingPort
     ) {}
 
+    /**
+     * Map secret names to unique TPM NVRAM indices to avoid collisions (BUG-8.5 FIX)
+     */
+    private getIndexForSecret(name: string): string {
+        const mapping: Record<string, string> = {
+            "MESH_SECRET": "0x1500001",
+            "PKI_SECRET": "0x1500003",
+            "API_TOKEN": "0x1500004"
+        };
+        return mapping[name] || "0x1500001";
+    }
+
     async sealSecret(secretName: string, data: string) {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -23,7 +35,7 @@ export class TPMManager {
             message: `Sealing mesh secret '${secretName}' into hardware...`
         });
         
-        const index = "0x1500001";
+        const index = this.getIndexForSecret(secretName);
         const res = await this.sidecar.sendCommand("trustroot", { type: "Seal", index, data });
         
         if (!res.success) {
@@ -38,7 +50,7 @@ export class TPMManager {
     }
 
     async unsealSecret(secretName: string): Promise<string | null> {
-        const index = "0x1500001";
+        const index = this.getIndexForSecret(secretName);
         const res = await this.sidecar.sendCommand("trustroot", { type: "Unseal", index });
         
         if (res.success && res.data?.data) {

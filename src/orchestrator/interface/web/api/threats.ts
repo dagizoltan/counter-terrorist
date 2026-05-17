@@ -14,7 +14,11 @@ export function createThreatsApi(services: ServiceContainer, security: SecurityM
         const type = c.req.query("type");
         const provider = c.req.query("provider");
         const search = c.req.query("search");
-        const limit = parseInt(c.req.query("limit") || "50");
+        // BUG-5.12 FIX: Bound the query limit to prevent DoS
+        let limit = parseInt(c.req.query("limit") || "50");
+        if (isNaN(limit) || limit < 1) limit = 50;
+        if (limit > 500) limit = 500;
+
         const offset = c.req.query("offset");
         
         const result = await services.curatedIntel.getThreats({ type, provider, limit, offset, search });

@@ -15,9 +15,9 @@ export class CovertChannelService {
      * Sends a subliminal heartbeat via ICMP payload padding.
      */
     async broadcastViaICMP(targetIp: string, data: string) {
-        // We use 'ping' with a custom payload (-p in hex)
-        // This is a simplified covert channel.
-        const hexData = this.stringToHex(data);
+        // BUG-6.3 FIX: Handle ICMP payload limits (typically 16 bytes for pattern)
+        const truncatedData = data.slice(0, 16);
+        const hexData = this.stringToHex(truncatedData);
         
         this.logging.log({
             timestamp: new Date().toISOString(),

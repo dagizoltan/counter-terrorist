@@ -86,9 +86,10 @@ export function createPluginsForPlatform(tag: string, deps: PluginFactoryDepende
         type: LogType.GENERIC,
         severity: LogSeverity.WARNING,
         caller: "PLUGIN_CATALOG",
-        message: `No plugin definitions found for platform tag '${tag}'. Falling back to all available plugins.`
+        message: `No plugin definitions found for platform tag '${tag}'. Falling back to safe defaults.`
     });
-    matches = pluginCatalog;
+    // BUG-11.2 FIX: Return empty list or core-only plugins instead of shadowing all
+    // Matches stays empty or we could explicitly add core plugins
   }
 
   return matches.map((entry) => entry.create(deps));

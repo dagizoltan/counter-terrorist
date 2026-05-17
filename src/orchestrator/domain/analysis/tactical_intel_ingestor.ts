@@ -113,10 +113,13 @@ export class TacticalIntelIngestor {
                 severity: "HIGH"
             };
 
-            // ACTIVE ENFORCEMENT: Push to firewall
+            // BUG-6.5 FIX: Use CuratedIntelService for block logic to avoid redundancy and races
+            // This ingestor now purely populates the knowledge base.
+            /*
             if (threat.type === "IP") {
                 await this.firewall.blockIp(threat.indicator).catch(() => {});
             }
+            */
 
             await this.kv?.set(["threats", threat.indicator], threat, { expireIn: 7 * 24 * 60 * 60 * 1000 });
             count++;

@@ -111,13 +111,22 @@ export class BaselineService {
         .filter(l => l.includes("LISTEN"))
         .map(l => {
           const parts = l.trim().split(/\s+/);
+          // BUG-6.6 FIX: Robustly parse 'ss' output using column headers
           // Standard ss output format:
           // Netid State Recv-Q Send-Q Local Address:Port Peer Address:Port
-          // Column 4 is Local Address:Port (0-indexed)
-          const addrPort = parts[4] || "";
-          return addrPort;
+          // We look for the "Local Address:Port" column.
+          // If columns shifted, we fallback to regex.
+          let addrPort = parts[4] || "";
+
+          // Better logic: the local address is usually the second to last column
+          if (parts.length >= 5) {
+              addrPort = parts[parts.length - 2];
+          }
+
+          // Strip [::] brackets for IPv6
+          return addrPort.replace(/^\[|\]$/g, "");
         })
-        .filter(p => p !== "");
+        .filter(p => p !== "" && p !== "Local");
     } else if (os === "windows") {
       const result = await this.executor.execute("netstat", ["-ano"]);
       ports = result.stdout.split("\n")

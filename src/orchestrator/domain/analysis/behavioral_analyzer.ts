@@ -51,8 +51,10 @@ export class BehavioralAnalyzer {
         const mean = deltas.reduce((a, b) => a + b, 0) / deltas.length;
         const variance = deltas.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / deltas.length;
         
-        // Normalize entropy (higher variance = higher entropy = more human)
-        const currentEntropy = Math.min(variance / 1000, 1);
+        // BUG-2.3 FIX: Refined entropy heuristic
+        // Use a more dynamic normalization based on mean delta to handle high-latency human traffic.
+        const normalizationFactor = Math.max(1000, mean * 2);
+        const currentEntropy = Math.min(variance / normalizationFactor, 1);
 
         // TACTICAL: Sliding Window to reduce false positives
         const window = this.slidingWindow.get(ip) || [];

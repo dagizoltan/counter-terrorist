@@ -178,16 +178,17 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
               </div>
 
               <div class="t-panel glass-panel border-t-2 border-slate-700 p-8 flex flex-col shadow-2xl">
+                 {/* BUG-5.4 FIX: Use real metrics for intervention force based on active nodes and health */}
                  <div class="flex justify-between items-baseline mb-4">
                     <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Intervention Force</span>
-                    <span class="mono-xs text-white font-black italic tracking-[0.2em] tabular-nums text-lg">{(props.status.audit?.integrityScore || 100) * 0.8 + 10}%</span>
+                    <span class="mono-xs text-white font-black italic tracking-[0.2em] tabular-nums text-lg">{Math.min(100, (props.status.mesh?.activeNodes || 0) * 20 + (props.status.audit?.integrityScore === 100 ? 20 : 0))}%</span>
                  </div>
                  <div class="h-2 bg-white/5 rounded-full overflow-hidden shadow-inner">
-                    <div class="h-full bg-danger shadow-[0_0_15px_rgba(var(--danger-rgb),0.5)]" style={`width: ${(props.status.audit?.integrityScore || 100) * 0.8 + 10}%`}></div>
+                    <div class="h-full bg-danger shadow-[0_0_15px_rgba(var(--danger-rgb),0.5)]" style={`width: ${Math.min(100, (props.status.mesh?.activeNodes || 0) * 20 + (props.status.audit?.integrityScore === 100 ? 20 : 0))}%`}></div>
                  </div>
                  <div class="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
                     <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Strike State</span>
-                    <span class={`status-pill ${props.status.audit?.integrityScore > 90 ? 'success' : 'warning'} !px-3 !py-0.5`}>{props.status.audit?.integrityScore > 90 ? 'ARMED' : 'STANDBY'}</span>
+                    <span class={`status-pill ${props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'success' : 'warning'} !px-3 !py-0.5`}>{props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'ARMED' : 'STANDBY'}</span>
                  </div>
               </div>
            </div>
