@@ -121,21 +121,35 @@ export class ProcessTracker {
         const ghosts: number[] = [];
         const ownPid = this.processProvider.getOwnPid();
 
-        // Simplified range for demo, in production this would be more exhaustive
-        const maxPid = 65535;
+        // Performance Optimization: Use listProcesses() to get the actual process set
+        // and compare it with the internal tree. Probing 65k ranges is inefficient.
+        const activePids = new Set<number>();
+        for await (const pid of this.processProvider.listProcesses()) {
+            activePids.add(pid);
+        }
 
-        for (let pid = 1; pid <= 20000; pid++) { // Reduced range for performance in this turn
-            if (pid === ownPid) continue;
-
-            const existing = this.tree.get(pid);
-            if (existing && !existing.isGhost) continue;
-
-            const info = await this.processProvider.getProcessInfo(pid);
-
-            if (!info) {
+        // 1. Identify missing processes from our tree (cleanup)
+        for (const pid of Array.from(this.tree.keys())) {
+            if (!activePids.has(pid) && pid !== ownPid) {
+                // If it's in our tree but not active, it's either gone or hiding
+                // check isAlive for definitive confirmation
                 if (this.processProvider.isAlive(pid)) {
-                    ghosts.push(pid);
-                    this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
+                    const node = this.tree.get(pid);
+                    if (node && !node.isGhost) {
+                        ghosts.push(pid);
+                        node.isGhost = true;
+                        node.comm = `[[GHOST_PROCESS:${node.comm}]]`;
+                    }
+                }
+            }
+        }
+
+        // 2. Identify active processes not in our tree (new/missed)
+        for (const pid of activePids) {
+            if (!this.tree.has(pid) && pid !== ownPid) {
+                const info = await this.processProvider.getProcessInfo(pid);
+                if (info) {
+                    this.updateProcess(pid, info.ppid, info.comm);
                 }
             }
         }

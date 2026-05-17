@@ -352,12 +352,22 @@ export class SystemExecutor {
   private isPotentiallyDangerous(arg: string): boolean {
       return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
              arg.includes("%") || arg.includes("{") || arg.includes("$") ||
-             arg.includes("&") || arg.includes("|") || arg.includes(";");
+             arg.includes("&") || arg.includes("|") || arg.includes(";") ||
+             arg.includes(">") || arg.includes("<") || arg.includes("`") ||
+             arg.includes("(") || arg.includes(")");
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
       // Security: Check for path traversal and restricted characters first
       if (this.isPotentiallyDangerous(arg)) {
+          // Explicitly block shell metacharacters in paths
+          if (/[;&|><`$()!]/.test(arg)) {
+              // Allow $ and () in specific JSON structures if it matches sidecar IPC
+              if (!(arg.startsWith("{") && arg.endsWith("}"))) {
+                  return { valid: false, reason: `Security Violation: Shell metacharacters detected in path-sensitive argument for '${baseCmd}'` };
+              }
+          }
+
           if (!validatePath(arg)) {
               return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}' for sensitive command '${baseCmd}'` };
           }

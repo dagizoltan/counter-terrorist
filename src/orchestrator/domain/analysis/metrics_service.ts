@@ -233,19 +233,26 @@ export class MetricsService {
         this.isCollecting = true;
         this.collectionCount++;
 
+        const timeout = (promise: Promise<any>, ms: number) => {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+            ]);
+        };
+
         try {
             // 1. Detection Phase (Run once)
             if (this.scannerAvailable === null) {
                 this.scannerAvailable = this.sidecarManager.isRunning("analyzer");
-                this.vpnAvailable = this.sidecarManager.isRunning("tunnel") || (await this.sidecarManager.getExecutor().execute("which", ["wg"])).success;
+                this.vpnAvailable = this.sidecarManager.isRunning("tunnel") || (await timeout(this.sidecarManager.getExecutor().execute("which", ["wg"]), 2000).catch(() => ({ success: false }))).success;
             }
 
-            // 2. High-Frequency Phase (Parallelized for Performance)
+            // 2. High-Frequency Phase (Parallelized for Performance with Timeouts)
             const [firewallStatus, meshNodes, blockedIps, vpnConnected] = await Promise.all([
-                this.firewall.getStatus(),
+                timeout(this.firewall.getStatus(), 5000).catch(() => ({ success: false, stdout: "" })),
                 Promise.resolve(this.mesh.getNodes()),
-                (this.firewall as any).getBlockedIps ? (this.firewall as any).getBlockedIps() : Promise.resolve([]),
-                this.vpn.isConnected()
+                (this.firewall as any).getBlockedIps ? timeout((this.firewall as any).getBlockedIps(), 5000).catch(() => []) : Promise.resolve([]),
+                timeout(this.vpn.isConnected(), 5000).catch(() => false)
             ]);
 
             const honeypotModules = this.honeypot.getModules();
