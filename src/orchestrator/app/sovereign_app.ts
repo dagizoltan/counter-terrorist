@@ -88,6 +88,10 @@ export class SovereignApp {
         // ── Phase 3: Mesh & Network ──────────────────────────────────────────
         const meshManager = await this.initMesh(tpmManager);
 
+        // BUG-83: Sentinel must be active before hardware verification to provide LSM enforcement
+        // in case of immediate lockdown.
+        await this.sidecarManager.getPersistentSidecar("sentinel").catch(() => null);
+
         // ── Phase 4: Hardware Integrity ──────────────────────────────────────
         await this.verifyHardware(tpmManager);
 
@@ -575,9 +579,12 @@ export class SovereignApp {
             status: "QUARANTINED"
         });
 
-        // Disable all network-facing interfaces via eBPF if available
+        // BUG-101: Fix lockdown sequence. Wait for Sentinel then execute.
         try {
-            await this.sidecarManager.sendCommand("sentinel", { type: "LOCKDOWN" });
+            const ebpf = await this.sidecarManager.getPersistentSidecar("sentinel");
+            if (ebpf) {
+                await this.sidecarManager.sendCommand("sentinel", { type: "LOCKDOWN" });
+            }
         } catch {
             // Best effort
         }

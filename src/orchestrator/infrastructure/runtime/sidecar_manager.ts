@@ -235,7 +235,9 @@ export class SidecarManager implements CommandPort {
                 stdin: "piped",
                 stdout: "piped",
                 stderr: "piped",
-                env
+                env,
+                // BUG-57: Environment isolation. Do not leak orchestrator secrets to sidecars.
+                clearEnv: true
             });
 
             const child = command.spawn();
@@ -368,6 +370,7 @@ export class SidecarManager implements CommandPort {
     const reader = child.stdout.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB limit (BUG-58)
 
     try {
       while (true) {
@@ -375,8 +378,27 @@ export class SidecarManager implements CommandPort {
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
+
+        // BUG-58: Prevent memory exhaustion from malicious or runaway sidecar output
+        if (buffer.length > MAX_BUFFER_SIZE) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: `CRITICAL: IPC Buffer overflow from sidecar '${name}'. Terminating process.`
+            });
+            this.stopSidecar(name).catch(() => {});
+            break;
+        }
+
         const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        // BUG-75: Only pop if there's a possibility of a partial line
+        if (buffer.endsWith("\n")) {
+            buffer = "";
+        } else {
+            buffer = lines.pop() || "";
+        }
 
         for (const line of lines) {
           const trimmed = line.trim();
@@ -465,6 +487,13 @@ export class SidecarManager implements CommandPort {
         "RUST_LOG": "info"
     };
 
+        // BUG-91: Preserve critical environment variables when clearEnv is active
+        const path = Deno.env.get("PATH");
+        if (path) env["PATH"] = path;
+
+        const systemRoot = Deno.env.get("SystemRoot");
+        if (systemRoot) env["SystemRoot"] = systemRoot;
+
     if (name === "sentinel" || name === "netcap") {
         if (!this.defaultInterface) {
             const { getDefaultInterface } = await import("../system/network.ts");
@@ -532,6 +561,16 @@ export class SidecarManager implements CommandPort {
   }
 
   async stopSidecar(name: string): Promise<void> {
+    // BUG-46: Prevent race condition if stopping while spawning
+    if (this.spawningPromises.has(name)) {
+        const promise = this.spawningPromises.get(name);
+        this.spawningPromises.delete(name);
+        try {
+            const child = await promise;
+            if (child) child.kill("SIGKILL");
+        } catch { /* ignore */ }
+    }
+
     const process = this.persistentProcesses.get(name);
     if (process) {
       try {

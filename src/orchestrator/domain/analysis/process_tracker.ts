@@ -121,10 +121,9 @@ export class ProcessTracker {
         const ghosts: number[] = [];
         const ownPid = this.processProvider.getOwnPid();
 
-        // Simplified range for demo, in production this would be more exhaustive
-        const maxPid = 65535;
-
-        for (let pid = 1; pid <= 20000; pid++) { // Reduced range for performance in this turn
+        // BUG-53: Optimized chunked scan to avoid blocking the main thread
+        const CHUNK_SIZE = 500;
+        for (let pid = 1; pid <= 20000; pid++) {
             if (pid === ownPid) continue;
 
             const existing = this.tree.get(pid);
@@ -137,6 +136,11 @@ export class ProcessTracker {
                     ghosts.push(pid);
                     this.updateProcess(pid, 0, "[[GHOST_PROCESS]]", true);
                 }
+            }
+
+            // Yield execution after each chunk
+            if (pid % CHUNK_SIZE === 0) {
+                await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
 

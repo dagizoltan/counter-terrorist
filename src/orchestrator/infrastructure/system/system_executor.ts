@@ -350,9 +350,12 @@ export class SystemExecutor {
   }
 
   private isPotentiallyDangerous(arg: string): boolean {
+      // BUG-50: Harden against shell metacharacters and subshell injection
       return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
              arg.includes("%") || arg.includes("{") || arg.includes("$") ||
-             arg.includes("&") || arg.includes("|") || arg.includes(";");
+             arg.includes("&") || arg.includes("|") || arg.includes(";") ||
+             arg.includes("`") || arg.includes(">") || arg.includes("<") ||
+             arg.includes("(") || arg.includes(")");
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
@@ -423,7 +426,11 @@ export class SystemExecutor {
 
   async executeAsync(cmd: string, args: string[] = []): Promise<void> {
     const baseCmd = path.basename(cmd);
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+    // BUG-87: Harden command whitelist. If a path is provided, it must be in the whitelist exactly.
+    const isWhitelisted = SystemExecutor.WHITELISTED_COMMANDS.includes(cmd) ||
+                         (!cmd.includes("/") && !cmd.includes("\\") && SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd));
+
+    if (!isWhitelisted) {
         throw new Error(`Security Violation: Command '${cmd}' is not in the system whitelist.`);
     }
 
@@ -451,8 +458,11 @@ export class SystemExecutor {
 
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
     const baseCmd = path.basename(cmd);
-    // Security: Whitelist validation
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+    // BUG-87: Harden command whitelist.
+    const isWhitelisted = SystemExecutor.WHITELISTED_COMMANDS.includes(cmd) ||
+                         (!cmd.includes("/") && !cmd.includes("\\") && SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd));
+
+    if (!isWhitelisted) {
         return {
             success: false,
             stdout: "",

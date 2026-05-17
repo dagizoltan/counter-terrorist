@@ -10,6 +10,9 @@ export function canonicalStringify(obj: any): string {
   if (obj === null || typeof obj !== "object") {
     return JSON.stringify(obj);
   }
+  if (obj instanceof Date) {
+    return JSON.stringify(obj.toISOString());
+  }
   if (Array.isArray(obj)) {
     return "[" + obj.map(item => canonicalStringify(item)).join(",") + "]";
   }
@@ -33,7 +36,11 @@ export async function computeHash(input: any): Promise<string> {
  */
 export async function signPayload(payload: any, secret: string): Promise<string> {
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(secret);
+
+  // BUG-54: Use a consistently hashed key to ensure proper length regardless of raw secret format
+  const rawKeyData = encoder.encode(secret);
+  const keyData = await crypto.subtle.digest("SHA-256", rawKeyData);
+
   const key = await crypto.subtle.importKey(
     "raw",
     keyData,
@@ -55,7 +62,11 @@ export async function signPayload(payload: any, secret: string): Promise<string>
 export async function verifySignature(payload: any, signature: string, secret: string): Promise<boolean> {
   try {
     const encoder = new TextEncoder();
-    const keyData = encoder.encode(secret);
+
+    // BUG-54: Consistent key derivation
+    const rawKeyData = encoder.encode(secret);
+    const keyData = await crypto.subtle.digest("SHA-256", rawKeyData);
+
     const key = await crypto.subtle.importKey(
       "raw",
       keyData,

@@ -211,7 +211,9 @@ export class MetricsService {
                     message: `Collection cycle failed: ${e instanceof Error ? e.message : String(e)}`
                 });
             }
+            // BUG-90: Delay then re-check isRunning to allow immediate shutdown
             await new Promise(resolve => setTimeout(resolve, this.COLLECTION_INTERVAL_MS));
+            if (!this.isRunning) break;
         }
     }
 

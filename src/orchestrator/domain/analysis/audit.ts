@@ -2,6 +2,7 @@ import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "../orchestration/mesh.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 import { AuditRepository } from "../repositories/audit_repository.ts";
+import { computeHash } from "../../core/crypto_utils.ts";
 
 export interface ActorContext {
     id: string;
@@ -357,7 +358,15 @@ export class AuditService {
             // SECURITY: Hardware-Verified Checkpoint Bypass
             if (event.type === "CHECKPOINT") {
                 if (event.hwSignature && this.tpm) {
-                    const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
+                    // BUG-98: Checkpoints MUST include their data payload in the verification hash
+                    // to prevent payload tampering while keeping a valid hash/signature.
+                    const checkpointInput = {
+                        id: event.id, timestamp: event.timestamp, type: event.type,
+                        hash: event.hash, data: event.data, prevHash: event.prevHash
+                    };
+                    const verificationHash = await this.computeHash(checkpointInput);
+
+                    const isValidCheckpoint = await this.tpm.verify(verificationHash, event.hwSignature);
                     if (!isValidCheckpoint) {
                         return {
                             valid: false,
@@ -415,17 +424,28 @@ export class AuditService {
 
             if (boundaryEvent) {
                 // 2. Create a hardware-signed Checkpoint to bridge the gap
+                const checkpointId = crypto.randomUUID();
+                const checkpointTs = new Date().toISOString();
+                const checkpointData = { purgedEventsCutoff: boundaryEvent.timestamp };
+
+                // BUG-98: Hash the entire checkpoint structure, not just the boundary hash
+                const checkpointInput = {
+                    id: checkpointId, timestamp: checkpointTs, type: "CHECKPOINT",
+                    hash: boundaryEvent.hash, data: checkpointData, prevHash: "TRUNCATED"
+                };
+                const verificationHash = await this.computeHash(checkpointInput);
+
                 const checkpoint: AuditEvent = {
-                    id: crypto.randomUUID(),
-                    timestamp: new Date().toISOString(),
+                    id: checkpointId,
+                    timestamp: checkpointTs,
                     type: "CHECKPOINT",
                     severity: LogSeverity.INFO,
                     caller: "AUDIT:RETENTION",
                     message: `Chain Truncated. Genesis state summarized at ${boundaryEvent.timestamp}`,
-                    hash: boundaryEvent.hash, // We adopt the hash E3 expects
+                    hash: boundaryEvent.hash, // The logic depends on this matching the purged end
                     prevHash: "TRUNCATED",
-                    data: { purgedEventsCutoff: boundaryEvent.timestamp },
-                    hwSignature: this.tpm ? await this.tpm.sign(boundaryEvent.hash) : undefined,
+                    data: checkpointData,
+                    hwSignature: this.tpm ? await this.tpm.sign(verificationHash) : undefined,
                     formatted: `[CHECKPOINT] [info] [AUDIT:RETENTION] Chain Truncated.`
                 };
                 
@@ -454,7 +474,7 @@ export class AuditService {
     }
 
     private async computeHash(input: any): Promise<string> {
-        const { computeHash } = await import("../../core/crypto_utils.ts");
+        // BUG-74: Removed dynamic import for better performance in the critical path
         return await computeHash(input);
     }
 }

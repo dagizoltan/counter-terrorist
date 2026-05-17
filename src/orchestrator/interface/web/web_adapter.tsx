@@ -159,7 +159,10 @@ export class WebAdapter implements WebPort {
     });
 
     this.app.onError((err, c) => {
+      const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
       const errorMsg = (err as Error).message;
+      const displayMsg = isDev ? errorMsg : "Internal System Error";
+
       if (err instanceof AppError) {
         loggingService.log({
           timestamp: new Date().toISOString(),
@@ -200,7 +203,7 @@ export class WebAdapter implements WebPort {
                       A catastrophic failure occurred within the orchestrator runtime sequence.
                    </p>
                    <div class="bg-black/60 p-4 rounded border border-white/5 mb-10 overflow-x-auto text-left">
-                      <span class="mono-xs text-danger font-black">${errorMsg}</span>
+                      <span class="mono-xs text-danger font-black">${displayMsg}</span>
                    </div>
                    <a href="/" class="t-btn block w-full py-4 text-center font-black tracking-widest uppercase">
                       Initiate Recovery Reboot

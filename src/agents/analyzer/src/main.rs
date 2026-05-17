@@ -190,11 +190,19 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
         }
     } else if root.is_dir() {
         if let Ok(entries) = fs::read_dir(root) {
+            // BUG-48: Prevent DoS by limiting directory scan depth/count
+            let mut count = 0;
             for entry in entries.flatten() {
+                if count >= 1000 {
+                    log.push_str("!!! SCAN LIMIT REACHED: Directory too large, truncating results.\n");
+                    break;
+                }
+
                 let path = entry.path();
                 if path.is_file() {
                     if let Some(hash) = hash_file(&path) {
                         log.push_str(&format!("Scanned {}: {}\n", path.display(), hash));
+                        count += 1;
                     }
                 }
             }

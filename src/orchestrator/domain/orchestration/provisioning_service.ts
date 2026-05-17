@@ -99,9 +99,9 @@ export class ProvisioningService {
     private async provisionLinux(ip: string) {
         // 1. Prepare Provisioning Payload
         const binaryPath = "./target/ubuntu_2606/build/counter-terrorist";
-        const envPath = await Deno.makeTempFile();
-        // BUG-35: Secure temporary env file permissions
-        await Deno.chmod(envPath, 0o600);
+
+        // BUG-51: Atomically create secure temp file to prevent race condition permission leaks
+        const envPath = await Deno.makeTempFile({ mode: 0o600 });
 
         const envContent = `ENVIRONMENT=production\nMESH_SECRET=${Deno.env.get("MESH_SECRET")}\nAPI_TOKEN=${Deno.env.get("API_TOKEN")}\n`;
         await Deno.writeTextFile(envPath, envContent);

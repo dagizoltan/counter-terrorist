@@ -18,6 +18,12 @@ import { loggingService, LogSeverity, LogType } from "@infrastructure/system/log
 import { SignatureService } from "@infrastructure/system/protection/signature_service.ts";
 import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
+// BUG-47: Gossip Deduplication Cache to prevent replay attacks
+// BUG-52: Limit cache size to prevent memory-exhaustion DoS
+const GOSSIP_CACHE = new Set<string>();
+const MAX_GOSSIP_CACHE_SIZE = 10000;
+setInterval(() => GOSSIP_CACHE.clear(), 600000); // Clear every 10 mins
+
 /**
  * API Router
  * Handles all JSON/REST endpoints.
@@ -103,6 +109,18 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     // SEC-03: HMAC Verification
     const signature = c.req.header("X-Mesh-Signature");
     if (signature) {
+        // BUG-47: Anti-Replay via Signature Deduplication
+        if (GOSSIP_CACHE.has(signature)) {
+            return c.json({ error: "Replay attempt detected", code: "REPLAY_BLOCKED" }, 401);
+        }
+
+        // BUG-52: FIFO eviction if cache exceeds capacity
+        if (GOSSIP_CACHE.size >= MAX_GOSSIP_CACHE_SIZE) {
+            const first = GOSSIP_CACHE.values().next().value;
+            if (first) GOSSIP_CACHE.delete(first);
+        }
+        GOSSIP_CACHE.add(signature);
+
         const isValid = await services.mesh.verifySignature(payload, signature);
         if (!isValid) {
             loggingService.log({

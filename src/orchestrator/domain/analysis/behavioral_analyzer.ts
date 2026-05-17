@@ -9,6 +9,7 @@ export class BehavioralAnalyzer {
     private slidingWindow: Map<string, number[]> = new Map(); // ip -> window of entropy scores
     private syscallSequences: Map<string, string[]> = new Map(); // pid -> recent syscalls
     private isLearningMode: boolean = false;
+    private readonly MAX_MAP_SIZE = 1000;
     private kv?: Deno.Kv;
 
     // MALICIOUS INTENT PATTERNS
@@ -21,6 +22,12 @@ export class BehavioralAnalyzer {
     ];
 
     track(ip: string) {
+        // BUG-55: Prevent Map exhaustion DoS
+        if (!this.traces.has(ip) && this.traces.size >= this.MAX_MAP_SIZE) {
+            const oldest = this.traces.keys().next().value;
+            if (oldest) this.traces.delete(oldest);
+        }
+
         const now = Date.now();
         const trace = this.traces.get(ip) || [];
         const last = trace[trace.length - 1];
@@ -55,6 +62,12 @@ export class BehavioralAnalyzer {
         const currentEntropy = Math.min(variance / 1000, 1);
 
         // TACTICAL: Sliding Window to reduce false positives
+        // BUG-55: Evict old entropy windows
+        if (!this.slidingWindow.has(ip) && this.slidingWindow.size >= this.MAX_MAP_SIZE) {
+            const oldest = this.slidingWindow.keys().next().value;
+            if (oldest) this.slidingWindow.delete(oldest);
+        }
+
         const window = this.slidingWindow.get(ip) || [];
         window.push(currentEntropy);
         if (window.length > 5) window.shift();
@@ -72,6 +85,11 @@ export class BehavioralAnalyzer {
     trackSyscall(pid: number, comm: string, syscall: string) {
         // 1. Frequency Tracking
         if (!this.syscallFrequencies.has(comm)) {
+            // BUG-55: Limit syscall baselines
+            if (this.syscallFrequencies.size >= this.MAX_MAP_SIZE) {
+                const oldest = this.syscallFrequencies.keys().next().value;
+                if (oldest) this.syscallFrequencies.delete(oldest);
+            }
             this.syscallFrequencies.set(comm, new Map());
         }
         const freqMap = this.syscallFrequencies.get(comm)!;
@@ -79,6 +97,12 @@ export class BehavioralAnalyzer {
 
         // 2. Sequence Tracking (Intent Modeling)
         const pidStr = pid.toString();
+
+        if (!this.syscallSequences.has(pidStr) && this.syscallSequences.size >= this.MAX_MAP_SIZE) {
+            const oldest = this.syscallSequences.keys().next().value;
+            if (oldest) this.syscallSequences.delete(oldest);
+        }
+
         const sequence = this.syscallSequences.get(pidStr) || [];
         sequence.push(syscall);
         if (sequence.length > 5) sequence.shift();

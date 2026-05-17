@@ -22,6 +22,7 @@ export class MeshManager {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
+  private initPromise: Promise<void> | null = null;
 
   shutdown() {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
@@ -52,36 +53,43 @@ export class MeshManager {
   }
 
   async init() {
-    this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
-    this.port = Number(Deno.env.get("PORT")) || 8000;
+    // BUG-88: Initialization Lock to prevent race conditions
+    if (this.initPromise) return this.initPromise;
 
-    try {
-      this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
+    this.initPromise = (async () => {
+        this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
+        this.port = Number(Deno.env.get("PORT")) || 8000;
 
-      // Create mTLS HTTP client
-      // BUG-07: Use all trusted CA certs to support dual-trust transitions
-      this.httpClient = Deno.createHttpClient({
-        cert: this.nodeCert.cert,
-        key: this.nodeCert.key,
-        caCerts: await this.meshAuth.getTrustedCerts(),
-      });
+        try {
+            this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
 
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.AUDIT,
-          severity: LogSeverity.INFO,
-          caller: "orchestrator:domain:orchestration:mesh",
-          message: `mTLS Identity established for ${this.nodeId}`
-      });
-    } catch (e) {
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
-          severity: LogSeverity.WARNING,
-          caller: "orchestrator:domain:orchestration:mesh",
-          message: `Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`
-      });
-    }
+            // Create mTLS HTTP client
+            // BUG-07: Use all trusted CA certs to support dual-trust transitions
+            this.httpClient = Deno.createHttpClient({
+                cert: this.nodeCert.cert,
+                key: this.nodeCert.key,
+                caCerts: await this.meshAuth.getTrustedCerts(),
+            });
+
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:domain:orchestration:mesh",
+                message: `mTLS Identity established for ${this.nodeId}`
+            });
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:orchestration:mesh",
+                message: `Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`
+            });
+        }
+    })();
+
+    return this.initPromise;
   }
 
   getNodeId() {
