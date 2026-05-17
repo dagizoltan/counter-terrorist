@@ -441,7 +441,9 @@ export class SidecarManager implements CommandPort {
       });
     } finally {
       reader.releaseLock();
+      // Ensure the process entry is removed and cleanup any pending buffers
       this.persistentProcesses.delete(name);
+      buffer = "";
     }
   }
 

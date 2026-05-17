@@ -194,6 +194,11 @@ export class MeshAuthService {
    * The certificate itself is stored in plaintext (it's public).
    */
   private async encryptCertPair(pair: CertPair): Promise<EncryptedCertPair> {
+    // SEC: Safety check on cert/key size before storing to KV
+    if (pair.cert.length > 32768 || pair.key.length > 32768) {
+        throw new Error("[PKI] Certificate or key size exceeds safety limits (32KB).");
+    }
+
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const key = await this.deriveKey(salt);

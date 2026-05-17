@@ -17,6 +17,7 @@ export interface MeshNode {
 export class MeshManager {
   private nodes: Map<string, MeshNode> = new Map();
   private discoveryInterval: number | null = null;
+  private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: any = null;
   private nodeId: string = "";
   private port: number = 8000;
@@ -26,6 +27,10 @@ export class MeshManager {
   shutdown() {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
       this.discoveryInterval = null;
+      if (this.mdnsListener) {
+          try { this.mdnsListener.close(); } catch { /* ignore */ }
+          this.mdnsListener = null;
+      }
       this.nodes.clear();
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -228,7 +233,7 @@ export class MeshManager {
       // @ts-ignore
       if (typeof Deno.listenDatagram !== "function") return;
 
-      const listener = Deno.listenDatagram({
+      this.mdnsListener = Deno.listenDatagram({
         port: 5353,
         hostname: "0.0.0.0",
         transport: "udp",
@@ -242,7 +247,7 @@ export class MeshManager {
           message: "Passive mDNS listener active"
       });
 
-      for await (const [data, addr] of listener) {
+      for await (const [data, addr] of this.mdnsListener) {
         const msg = new TextDecoder().decode(data);
         if (msg.includes("_ct-orchestrator._tcp.local")) {
            const idMatch = msg.match(/id=([^,]+)/);
