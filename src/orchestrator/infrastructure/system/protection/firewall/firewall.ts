@@ -12,9 +12,14 @@ export class FirewallManager {
   private kv?: Deno.Kv;
 
   private eventBus?: any;
+  private metricsInterval?: number;
 
   constructor(private provider: FirewallProvider, private networkLogs?: any) {
-      setInterval(() => this.emitMetrics(), 15000);
+      this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
+  }
+
+  shutdown() {
+      if (this.metricsInterval) clearInterval(this.metricsInterval);
   }
 
   setEventBus(eventBus: any) {

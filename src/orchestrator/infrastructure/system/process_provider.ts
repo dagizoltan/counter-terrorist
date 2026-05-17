@@ -48,7 +48,12 @@ export class LinuxProcessProvider implements ProcessPort {
 }
 
 export class MacOSProcessProvider implements ProcessPort {
+    private cache: Map<number, { info: ProcessInfo, ts: number }> = new Map();
+
     async getProcessInfo(pid: number): Promise<ProcessInfo | null> {
+        const cached = this.cache.get(pid);
+        if (cached && (Date.now() - cached.ts) < 2000) return cached.info;
+
         try {
             const command = new Deno.Command("ps", {
                 args: ["-p", pid.toString(), "-o", "ppid,comm"],
@@ -59,11 +64,13 @@ export class MacOSProcessProvider implements ProcessPort {
             if (!output) return null;
 
             const parts = output.trim().split(/\s+/);
-            return {
+            const info = {
                 pid,
                 ppid: parseInt(parts[0]),
                 comm: parts[1]
             };
+            this.cache.set(pid, { info, ts: Date.now() });
+            return info;
         } catch {
             return null;
         }
@@ -97,7 +104,12 @@ export class MacOSProcessProvider implements ProcessPort {
 }
 
 export class WindowsProcessProvider implements ProcessPort {
+    private cache: Map<number, { info: ProcessInfo, ts: number }> = new Map();
+
     async getProcessInfo(pid: number): Promise<ProcessInfo | null> {
+        const cached = this.cache.get(pid);
+        if (cached && (Date.now() - cached.ts) < 2000) return cached.info;
+
         try {
             const command = new Deno.Command("powershell", {
                 args: ["-Command", `Get-Process -Id ${pid} | Select-Object Id, ParentId, ProcessName | ConvertTo-Json`],
@@ -105,11 +117,13 @@ export class WindowsProcessProvider implements ProcessPort {
             });
             const { stdout } = await command.output();
             const data = JSON.parse(new TextDecoder().decode(stdout));
-            return {
+            const info = {
                 pid: data.Id,
                 ppid: data.ParentId || 0,
                 comm: data.ProcessName
             };
+            this.cache.set(pid, { info, ts: Date.now() });
+            return info;
         } catch {
             return null;
         }

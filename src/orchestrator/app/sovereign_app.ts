@@ -432,7 +432,7 @@ export class SovereignApp {
             });
 
             if (this.services) {
-                const { autopilot, mesh, audit, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot, apiKeys, sessions } = this.services;
+                const { autopilot, mesh, audit, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot, apiKeys, sessions, protection, processTracker, kernelService } = this.services;
                 if (this.shadowTimer) clearTimeout(this.shadowTimer);
                 if (autopilot) autopilot.shutdown();
                 if (mesh) mesh.shutdown();
@@ -442,6 +442,11 @@ export class SovereignApp {
                 if (health) (health as any).shutdown?.();
                 if (metrics) metrics.stop();
                 if (honeypot) honeypot.shutdown?.();
+                if (behavioral) (behavioral as any).shutdown?.();
+                if (processTracker) processTracker.shutdown();
+                if (kernelService) (kernelService as any).shutdown?.();
+                if (protection?.firewall) (protection.firewall as any).shutdown?.();
+                if (protection?.vpn) (protection.vpn as any).shutdown?.();
                 if (logging) await logging.shutdown();
             }
 

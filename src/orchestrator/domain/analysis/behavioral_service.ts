@@ -11,11 +11,17 @@ interface IpHistory {
 export class BehavioralService {
   private history: Map<string, IpHistory> = new Map();
   private eventBus?: any;
+  private metricsInterval?: number;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
 
   constructor(private firewall: FirewallManager, private audit?: AuditService) {
-      setInterval(() => this.emitMetrics(), 15000);
+      this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
+  }
+
+  shutdown() {
+      if (this.metricsInterval) clearInterval(this.metricsInterval);
+      this.analyzer.shutdown();
   }
 
   setEventBus(eventBus: any) {

@@ -56,4 +56,12 @@ export class DecentralizedMetricsService {
     getLatest(): SystemMetrics {
         return this.cachedMetrics as SystemMetrics;
     }
+
+    recordScan(time: string, result: string) {
+        if (!this.cachedMetrics.scanner) {
+            this.cachedMetrics.scanner = { lastScanTime: "NEVER", lastScanResult: "PENDING", available: true };
+        }
+        this.cachedMetrics.scanner.lastScanTime = time;
+        this.cachedMetrics.scanner.lastScanResult = result;
+    }
 }

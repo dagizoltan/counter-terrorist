@@ -3,9 +3,14 @@ export type { VpnProvider, VpnResult };
 
 export class VpnManager {
   private eventBus?: any;
+  private metricsInterval?: number;
 
   constructor(private provider: VpnProvider) {
-    setInterval(() => this.emitMetrics(), 30000);
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
+  }
+
+  shutdown() {
+    if (this.metricsInterval) clearInterval(this.metricsInterval);
   }
 
   setEventBus(eventBus: any) {

@@ -18,6 +18,7 @@ export class KernelService {
     private lastHardened: string = "";
     private logging: LoggingPort;
     private eventBus?: any;
+    private metricsInterval?: number;
 
     private tpm?: TPMManager;
 
@@ -27,7 +28,11 @@ export class KernelService {
         private sidecarManager?: SidecarManager
     ) {
         this.logging = auditService.getLogging();
-        setInterval(() => this.emitMetrics(), 60000);
+        this.metricsInterval = setInterval(() => this.emitMetrics(), 60000);
+    }
+
+    shutdown() {
+        if (this.metricsInterval) clearInterval(this.metricsInterval);
     }
 
     setEventBus(eventBus: any) {

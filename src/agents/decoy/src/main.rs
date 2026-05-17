@@ -168,13 +168,23 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         is_vault = true;
                         let _ = socket.write_all(b"{\"initialized\":true,\"sealed\":false,\"version\":\"1.12.0\"}\n").await;
                     } else {
-                        // DECEPTION: Rotating Banners to frustrate OS fingerprinters
-                        let banners = [
-                            "Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ",
-                            "Ubuntu 24.04 LTS - restricted_access_v4\nlogin: ",
-                            "Unauthorized access is a federal crime.\nUser: ",
-                            "Internal Mesh Relay [ID: 0x442A]\nCredentials: "
-                        ];
+                        // DECEPTION: Port-Aware Multi-OS Banners
+                        let banners = match port {
+                            22 => vec![
+                                "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.10\n",
+                                "SSH-2.0-OpenSSH_9.0\n",
+                                "SSH-2.0-PuTTY_Release_0.76\n"
+                            ],
+                            3389 => vec![
+                                "Windows Terminal Server\nlogin: ",
+                                "Microsoft Remote Desktop Protocol\nUser: "
+                            ],
+                            _ => vec![
+                                "Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ",
+                                "Unauthorized access is a federal crime.\nUser: ",
+                                "Internal Mesh Relay [ID: 0x442A]\nCredentials: "
+                            ]
+                        };
                         let banner = banners[rand::thread_rng().gen_range(0..banners.len())];
                         let _ = socket.write_all(banner.as_bytes()).await;
                     }

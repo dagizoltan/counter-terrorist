@@ -22,6 +22,7 @@ export class ProcessTracker {
     private suspiciousParents = ["nginx", "apache2", "node", "python", "php-fpm", "clamscan"];
 
     private cleanupInterval?: number;
+    private metricsInterval?: number;
     private eventBus?: any;
 
     constructor(
@@ -31,7 +32,7 @@ export class ProcessTracker {
     ) {
         // BUG-4.6 FIX: Automated tree cleanup to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanup(), 300000); // Every 5 minutes
-        setInterval(() => this.emitMetrics(), 30000);
+        this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     }
 
     setEventBus(eventBus: any) {
@@ -52,6 +53,7 @@ export class ProcessTracker {
 
     shutdown() {
         if (this.cleanupInterval) clearInterval(this.cleanupInterval);
+        if (this.metricsInterval) clearInterval(this.metricsInterval);
     }
 
     updateProcess(pid: number, ppid: number, comm: string, isGhost: boolean = false) {
