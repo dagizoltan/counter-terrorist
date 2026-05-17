@@ -28,7 +28,15 @@ enum Command {
     UpdateModule { id: String, module: String, old_port: u16, new_port: u16 },
     ToggleModule { id: String, module: String, active: bool, port: u16 },
     RemoveModule { id: String, port: u16 },
-    Sabotage { id: String, source_ip: String, level: String },
+    Sabotage {
+        id: String,
+        source_ip: String,
+        level: String,
+        #[serde(default)]
+        mode: String, // "JITTER", "ERRORS", "DROP", "DYNAMIC"
+        #[serde(default)]
+        latency_ms: u64
+    },
     ClearSabotage { id: String, source_ip: String },
     GetStatus { id: String },
 }
@@ -69,10 +77,17 @@ async fn emit_response(id: String, success: bool, message: String) {
     }
 }
 
+#[derive(Clone)]
+struct SabotageConfig {
+    level: String,
+    mode: String,
+    latency_ms: u64,
+}
+
 struct ListenerState {
     port: u16,
     active: bool,
-    sabotage_ips: Vec<String>,
+    sabotage_ips: HashMap<String, SabotageConfig>,
 }
 
 async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerState>>>) {
@@ -131,14 +146,20 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                     tokio::time::sleep(tokio::time::Duration::from_millis(base_latency)).await;
 
                     // Tarpitting Check
-                    let is_tarpitted = {
+                    let sabotage_cfg = {
                         let s = state_clone.lock().await;
-                        s.get(&port).map(|ls| ls.sabotage_ips.contains(&ip)).unwrap_or(false)
+                        s.get(&port).and_then(|ls| ls.sabotage_ips.get(&ip).cloned())
                     };
 
-                    if is_tarpitted {
-                        // Progressive Tarpitting: Slow down initial handshake
-                        tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+                    if let Some(cfg) = &sabotage_cfg {
+                        // SOV-P2: Dynamic Sabotage - Timing Jitter
+                        let delay = if cfg.mode == "JITTER" || cfg.mode == "DYNAMIC" {
+                            let jitter = rand::thread_rng().gen_range(500..3000);
+                            cfg.latency_ms + jitter
+                        } else {
+                            cfg.latency_ms.max(2000)
+                        };
+                        tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                     }
 
                     // INTERACTIVE ENGAGEMENT: Present a fake prompt and capture session data
@@ -167,9 +188,12 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         if let Ok(n) = reader.read_line(&mut line).await {
                             if n == 0 { break; }
                             
-                            if is_tarpitted {
+                            if let Some(cfg) = &sabotage_cfg {
                                 // Tarpit: Progressively slow down responses
-                                let delay = (i + 1) * 2000;
+                                let mut delay = (i + 1) * 2000;
+                                if cfg.mode == "DYNAMIC" {
+                                    delay += rand::thread_rng().gen_range(0..2000);
+                                }
                                 tokio::time::sleep(tokio::time::Duration::from_millis(delay as u64)).await;
                             } else {
                                 // Randomized Latency for responses
@@ -188,12 +212,19 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                             }).await;
                             
                             if is_vault {
-                                // DECEPTION: Randomized JSON errors for Vault decoy
-                                let errors = [
+                                // SOV-P2: Dynamic Sabotage - Error Variety
+                                let mut errors = vec![
                                     "{\"errors\":[\"permission denied\"]}\n",
                                     "{\"errors\":[\"core: sealed\"]}\n",
                                     "{\"errors\":[\"invalid token\"]}\n"
                                 ];
+                                if let Some(cfg) = &sabotage_cfg {
+                                    if cfg.mode == "ERRORS" || cfg.mode == "DYNAMIC" {
+                                        errors.push("{\"errors\":[\"upstream maintenance mode\"]}\n");
+                                        errors.push("{\"errors\":[\"identity verification required (TPM-MFA)\"]}\n");
+                                        errors.push("{\"errors\":[\"rate limit exceeded: backoff for 300s\"]}\n");
+                                    }
+                                }
                                 let err = errors[rand::thread_rng().gen_range(0..errors.len())];
                                 let _ = reader.get_mut().write_all(err.as_bytes()).await;
                             } else {
@@ -207,7 +238,7 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         }
                     }
                     
-                    if is_tarpitted {
+                    if sabotage_cfg.is_some() {
                         tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                     }
 
@@ -249,7 +280,7 @@ async fn main() {
                                 }
                             }
                             let state_clone = Arc::clone(&state);
-                            state.lock().await.insert(new_port, ListenerState { port: new_port, active: true, sabotage_ips: vec![] });
+                            state.lock().await.insert(new_port, ListenerState { port: new_port, active: true, sabotage_ips: HashMap::new() });
                             tokio::spawn(async move {
                                 start_port_listener(new_port, state_clone).await;
                             });
@@ -258,7 +289,7 @@ async fn main() {
                         Command::ToggleModule { id, active, port, .. } => {
                             if active {
                                 let state_clone = Arc::clone(&state);
-                                state.lock().await.insert(port, ListenerState { port, active: true, sabotage_ips: vec![] });
+                                state.lock().await.insert(port, ListenerState { port, active: true, sabotage_ips: HashMap::new() });
                                 tokio::spawn(async move {
                                     start_port_listener(port, state_clone).await;
                                 });
@@ -270,24 +301,28 @@ async fn main() {
                             }
                             emit_response(id, true, "Toggle success".to_string()).await;
                         }
-                        Command::Sabotage { id, source_ip, .. } => {
-                            // BUG-4.8 FIX: Limit sabotage list growth to prevent memory exhaustion
+                        Command::Sabotage { id, source_ip, level, mode, latency_ms } => {
                             const MAX_SABOTAGE_IPS: usize = 1000;
                             let mut s = state.lock().await;
                             for ls in s.values_mut() {
-                                if !ls.sabotage_ips.contains(&source_ip) {
-                                    if ls.sabotage_ips.len() >= MAX_SABOTAGE_IPS {
-                                        ls.sabotage_ips.remove(0); // Simple FIFO eviction
+                                if ls.sabotage_ips.len() >= MAX_SABOTAGE_IPS && !ls.sabotage_ips.contains_key(&source_ip) {
+                                    // FIFO eviction (approximate)
+                                    if let Some(first_key) = ls.sabotage_ips.keys().next().cloned() {
+                                        ls.sabotage_ips.remove(&first_key);
                                     }
-                                    ls.sabotage_ips.push(source_ip.clone());
                                 }
+                                ls.sabotage_ips.insert(source_ip.clone(), SabotageConfig {
+                                    level: level.clone(),
+                                    mode: mode.clone(),
+                                    latency_ms,
+                                });
                             }
-                            emit_response(id, true, "Sabotage engaged".to_string()).await;
+                            emit_response(id, true, format!("Dynamic Sabotage ({}) engaged for {}", mode, source_ip)).await;
                         }
                         Command::ClearSabotage { id, source_ip } => {
                             let mut s = state.lock().await;
                             for ls in s.values_mut() {
-                                ls.sabotage_ips.retain(|x| x != &source_ip);
+                                ls.sabotage_ips.remove(&source_ip);
                             }
                             emit_response(id, true, "Sabotage cleared".to_string()).await;
                         }

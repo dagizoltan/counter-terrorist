@@ -16,6 +16,7 @@ export class HoneypotService {
   private modules: Map<string, HoneypotModule> = new Map();
   private eventHandlers: ((event: any) => void)[] = [];
   private hitCount: number = 0;
+  private eventBus?: any;
 
   constructor(
     private sidecarManager: SidecarManager,
@@ -135,6 +136,22 @@ export class HoneypotService {
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
     this.morphInterval = setInterval(() => this.morph(), 600000); // Every 10 minutes
+    setInterval(() => this.emitMetrics(), 30000);
+  }
+
+  setEventBus(eventBus: any) {
+    this.eventBus = eventBus;
+  }
+
+  private emitMetrics() {
+    if (!this.eventBus) return;
+    this.eventBus.emit("METRIC_UPDATE", {
+      domain: "honeypot",
+      data: {
+        activeDecoys: Array.from(this.modules.values()).filter(m => m.active).length,
+        totalHits: this.hitCount
+      }
+    });
   }
 
   shutdown() {
@@ -264,21 +281,34 @@ export class HoneypotService {
    * Initiates the 'Breaker' protocol to sabotage an attacker's session.
    * Injects latency, jitter, and fake errors to frustrate the adversary.
    */
-  async sabotageSession(source_ip: string) {
+  async sabotageSession(source_ip: string, level: string = "HIGH") {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
         caller: "orchestrator:domain:protection:honeypot:breaker",
-        message: `Initiating Breaker Protocol against ${source_ip}`
+        message: `Initiating Breaker Protocol against ${source_ip} (Level: ${level})`
     });
+
+    // SOV-P2: Adaptive Sabotage Strategies
+    let mode = "JITTER";
+    let latency_ms = 2000;
+
+    if (level === "CRITICAL") {
+        mode = "DYNAMIC";
+        latency_ms = 5000;
+    } else if (Math.random() > 0.5) {
+        mode = "ERRORS";
+    }
     
     // We send a Sabotage command to the honeypot sidecar
     // The sidecar will then inject jitter and errors for this specific IP
     await this.sidecarManager.sendCommand("decoy", {
         type: "Sabotage",
         source_ip, 
-        level: "HIGH"
+        level,
+        mode,
+        latency_ms
     }).catch(() => {});
   }
 

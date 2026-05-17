@@ -16,6 +16,7 @@ export interface MeshNode {
 
 export class MeshManager {
   private nodes: Map<string, MeshNode> = new Map();
+  private eventBus?: any;
   private discoveryInterval: number | null = null;
   private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: any = null;
@@ -50,6 +51,7 @@ export class MeshManager {
     private logging: LoggingPort,
     private audit: AuditService
   ) {
+    setInterval(() => this.emitMetrics(), 30000);
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -58,6 +60,22 @@ export class MeshManager {
         message: "Initializing Sovereign Mesh Infrastructure..."
     });
     this.meshSecret = Deno.env.get("MESH_SECRET");
+  }
+
+  setEventBus(eventBus: any) {
+    this.eventBus = eventBus;
+  }
+
+  private emitMetrics() {
+    if (!this.eventBus) return;
+    this.eventBus.emit("METRIC_UPDATE", {
+      domain: "mesh",
+      data: {
+        activeNodes: Array.from(this.nodes.values()).filter(n => (Date.now() - n.lastSeen) < 60000).length,
+        totalNodes: this.nodes.size,
+        selfId: this.nodeId
+      }
+    });
   }
 
   async init() {

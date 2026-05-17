@@ -6,7 +6,8 @@ import { AuditService } from "@domain/analysis/audit.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
 import { 
     BaselineService, ProcessTracker, SessionService, ApiKeysService, 
-    EventBus, MeshAuthService, ForensicService, MeshManager, 
+    EventBus, MeshAuthService, ForensicService, MeshManager,
+    DecentralizedMetricsService,
     PlaybookService, BehavioralService, MetricsService, 
     ShadowProtocolService, GeoIpService, AnonymizationService, 
     CuratedIntelService, DeceptionGridService, MorphingService, 
@@ -180,28 +181,23 @@ export class SovereignApp {
     private async initOperationalLayer(services: ServiceContainer) {
         this.web = new WebAdapter(services);
         
-        const metricsService = new MetricsService(
-            services.protection.firewall as any, 
-            services.mesh, 
-            services.honeypot, 
-            services.processTracker,
-            services.kernelService, 
-            services.audit, 
-            services.canaryService, 
-            this.sidecarManager, 
-            services.protection.vpn,
-            services.behavioral, 
-            services.anonymization, 
-            services.geoIp, 
-            broadcast, 
-            services.curatedIntel as any, 
-            services.news, 
-            services.networkDiscovery, 
-            services.autopilot, 
-            services.health,
-            services.supplyChain
+        // Phase 2: Decouple Metrics Service
+        const metricsService = new DecentralizedMetricsService(
+            services.eventBus,
+            loggingService,
+            broadcast
         );
-        setMetricsService(metricsService);
+        (setMetricsService as any)(metricsService);
+
+        // Inject EventBus into services for metric emission
+        (services.protection.firewall as any).setEventBus?.(services.eventBus);
+        services.mesh.setEventBus?.(services.eventBus);
+        services.honeypot.setEventBus?.(services.eventBus);
+        services.processTracker.setEventBus?.(services.eventBus);
+        services.kernelService.setEventBus?.(services.eventBus);
+        services.audit.setEventBus?.(services.eventBus);
+        (services.protection.vpn as any).setEventBus?.(services.eventBus);
+        services.behavioral.setEventBus?.(services.eventBus);
 
         this.wireEvents();
         await this.startSubsystems();
@@ -326,7 +322,17 @@ export class SovereignApp {
 
         wrap("Honeypot", honeypot.start());
         wrap("Canary", canaryService.start());
-        wrap("KernelService", kernelService.start());
+        wrap("KernelService", (async () => {
+            await kernelService.start();
+
+            // SOV-P2: Apply AppArmor Lockdown for critical sidecars
+            if (Deno.env.get("ENVIRONMENT") === "production") {
+                const sidecars = ["analyzer", "sentinel", "watchfile"];
+                for (const name of sidecars) {
+                    await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`);
+                }
+            }
+        })());
         wrap("CuratedIntel", curatedIntel.start(this.kv));
         wrap("NewsSignal", news.start(this.kv));
         wrap("NetworkDiscovery", networkDiscovery.start());

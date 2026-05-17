@@ -11,7 +11,34 @@ export class FirewallManager {
   private blockedIps: Set<string> = new Set();
   private kv?: Deno.Kv;
 
-  constructor(private provider: FirewallProvider, private networkLogs?: any) {}
+  private eventBus?: any;
+
+  constructor(private provider: FirewallProvider, private networkLogs?: any) {
+      setInterval(() => this.emitMetrics(), 15000);
+  }
+
+  setEventBus(eventBus: any) {
+      this.eventBus = eventBus;
+  }
+
+  private async emitMetrics() {
+      if (!this.eventBus) return;
+
+      const status = await this.getStatus();
+      const blockedIps = await this.getBlockedIps();
+      const rules = status.stdout?.split('\n').filter((l: string) => l.trim()) || [];
+      const rejectCount = (status.stdout?.match(/REJECT|DROP|DENY/g) || []).length;
+
+      this.eventBus.emit("METRIC_UPDATE", {
+          domain: "firewall",
+          data: {
+              blockedCount: rejectCount,
+              rules: rules.length,
+              blockedIps: blockedIps.slice(0, 20),
+              // Note: behavioral metrics should be emitted by BehavioralService
+          }
+      });
+  }
 
   async setKv(kv: Deno.Kv) {
     this.kv = kv;

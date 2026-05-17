@@ -2,7 +2,27 @@ import { VpnProvider, VpnResult } from "../interfaces.ts";
 export type { VpnProvider, VpnResult };
 
 export class VpnManager {
-  constructor(private provider: VpnProvider) {}
+  private eventBus?: any;
+
+  constructor(private provider: VpnProvider) {
+    setInterval(() => this.emitMetrics(), 30000);
+  }
+
+  setEventBus(eventBus: any) {
+    this.eventBus = eventBus;
+  }
+
+  private async emitMetrics() {
+    if (!this.eventBus) return;
+    this.eventBus.emit("METRIC_UPDATE", {
+      domain: "vpn",
+      data: {
+        active: await this.isConnected(),
+        interface: "wg0", // simplified
+        available: true
+      }
+    });
+  }
 
   async connect(interfaceName: string = "wg0"): Promise<VpnResult> {
     return await this.provider.connect(interfaceName);

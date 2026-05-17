@@ -10,10 +10,27 @@ interface IpHistory {
 
 export class BehavioralService {
   private history: Map<string, IpHistory> = new Map();
+  private eventBus?: any;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
 
-  constructor(private firewall: FirewallManager, private audit?: AuditService) {}
+  constructor(private firewall: FirewallManager, private audit?: AuditService) {
+      setInterval(() => this.emitMetrics(), 15000);
+  }
+
+  setEventBus(eventBus: any) {
+      this.eventBus = eventBus;
+  }
+
+  private emitMetrics() {
+      if (!this.eventBus) return;
+      this.eventBus.emit("METRIC_UPDATE", {
+          domain: "firewall_behavioral",
+          data: {
+              suspiciousIps: this.getSuspiciousIps().slice(0, 10)
+          }
+      });
+  }
   
   getSuspiciousIps() {
     return Array.from(this.history.entries()).map(([ip, stats]) => ({
