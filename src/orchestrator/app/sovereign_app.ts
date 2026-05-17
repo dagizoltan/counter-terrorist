@@ -51,7 +51,19 @@ export class SovereignApp {
     private executor!: SystemExecutor;
     private auditService!: AuditService;
 
+    private logPilotBanner() {
+        console.log(`
+  ▗▄▄▖ ▗▄▖ ▗▖ ▗▖▗▖  ▗▖▗▄▄▄▖▗▄▄▄▖▗▄▄▖
+  ▐▌   ▐▌ ▐▌▐▌ ▐▌▐▛▚▞▜▌▐▌     █  ▐▌ ▐▌
+  ▐▝▚▄▖▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌▐▛▀▀▖  █  ▐▛▀▚▖
+  ▝▚▄▄▖▝▙▄▘▝▙▄▄▘▐▌  ▐▌▐▙▄▄▖  █  ▐▌ ▐▌
+  SOVEREIGN CYBERSECURITY - PILOT V5.2
+        `);
+    }
+
     async boot() {
+        this.logPilotBanner();
+
         // SOV-P3: Global Error Handlers
         globalThis.addEventListener("unhandledrejection", (e) => {
             loggingService.log({
@@ -124,6 +136,7 @@ export class SovereignApp {
 
         // ── Phase 7: Finalize ───────────────────────────────────────────────
         const port = configProvider.getNumber("PORT", 8000);
+        this.checkPilotSafety(configProvider);
         this.registerSignalHandlers();
         this.startWatchdog(healthService);
 
@@ -613,6 +626,19 @@ export class SovereignApp {
                         return Promise.resolve({ success: false, error: `Service ${name} is unavailable` });
                     };
                 }
+            });
+        }
+    }
+
+    private checkPilotSafety(config: EnvConfigProvider) {
+        const isPilot = config.get("PILOT_MODE") === "true";
+        if (isPilot) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:app:sovereign_app",
+                message: "🛡️ PILOT SAFETY CHECK: System is running in Pilot Mode. Ensure 'scripts/emergency_off.sh' is accessible."
             });
         }
     }
