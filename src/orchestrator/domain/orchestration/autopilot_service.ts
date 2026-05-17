@@ -23,7 +23,8 @@ export class AutopilotService {
     private logging: LoggingPort,
     private processTracker: ProcessTracker,
     private forensics: ForensicService,
-    private kernel: any // KernelService
+    private kernel: any, // KernelService
+    private health?: any // HealthService
   ) {
     this.policy = new PolicyEngine(logging);
     this.engine = new AutonomousResponseEngine(
@@ -88,6 +89,29 @@ export class AutopilotService {
     }); 
     
     await this.spawnLureProcess();
+
+    // BUG-32: Periodic health check for the lure process
+    const healthCheckInterval = setInterval(async () => {
+        if (!this.isStarted) {
+            clearInterval(healthCheckInterval);
+            return;
+        }
+
+        if (this.lureProcess) {
+            try {
+                const status = await this.lureProcess.status;
+                // If status resolved, the process exited
+                if (this.health) this.health.reportStatus("Lure", "FAILED", `Lure process exited with code ${status.code}`);
+                this.lureProcess = null;
+            } catch {
+                // Process is still running
+                if (this.health) this.health.reportStatus("Lure", "OPERATIONAL");
+            }
+        } else {
+            if (this.health) this.health.reportStatus("Lure", "FAILED", "Lure process is not running");
+        }
+    }, 30000);
+    this.unsubscribers.push(() => clearInterval(healthCheckInterval));
 
     // Keyed Listeners for domain-specific events
     const on = (ev: string, fn: (data: any) => void) => {

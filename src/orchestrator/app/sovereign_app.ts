@@ -228,6 +228,10 @@ export class SovereignApp {
                     await this.services.honeypot.start();
                     return true;
                 }
+                if (name === "Lure") {
+                    await (this.services.autopilot as any).spawnLureProcess();
+                    return true;
+                }
 
                 return false;
             } catch (e) {
@@ -331,7 +335,7 @@ export class SovereignApp {
         const { command: sm, platformInfo } = this.services;
         const daemons = ["decoy", "watchfile", "netcap", "analyzer", "tunnel"];
 
-        if (platformInfo.name === "linux") {
+        if ((platformInfo.name as string) === "linux" || platformInfo.name === "ubuntu") {
             daemons.push("enforcer");
         }
 
@@ -377,10 +381,14 @@ export class SovereignApp {
             });
 
             if (this.services) {
-                const { autopilot, mesh, mediator, logging } = this.services;
+                const { autopilot, mesh, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot } = this.services;
                 if (autopilot) autopilot.shutdown();
                 if (mesh) mesh.shutdown();
                 if (mediator) (mediator as any).shutdown();
+                if (lifecycle) lifecycle.shutdown();
+                if (health) (health as any).shutdown?.();
+                if (metrics) metrics.stop();
+                if (honeypot) honeypot.shutdown?.();
                 if (logging) await logging.shutdown();
             }
 
@@ -450,6 +458,7 @@ export class SovereignApp {
 
         const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
         const { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
+        (autopilot as any).health = health;
 
         return {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
@@ -464,6 +473,7 @@ export class SovereignApp {
             incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,
+            metrics: (setMetricsService as any)._instance, // Accessing singleton instance set in initOperationalLayer
             mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService, this.kv),
             behavioral, geoIp, rateLimit, policy, correlation
         };

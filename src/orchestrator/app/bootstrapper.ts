@@ -16,8 +16,26 @@ export interface SystemStatus {
 
 export async function checkDependency(executor: SystemExecutor, cmd: string): Promise<boolean> {
   const checkCmd = Deno.build.os === "windows" ? "where" : "which";
-  const result = await executor.execute(checkCmd, [cmd]);
-  return result.success;
+  try {
+      const result = await executor.execute(checkCmd, [cmd]);
+      if (result.success) return true;
+
+      // Secondary check for non-windows systems if 'which' failed
+      if (Deno.build.os !== "windows" && checkCmd === "which") {
+          const res2 = await executor.execute("where", [cmd]);
+          return res2.success;
+      }
+      return false;
+  } catch {
+      // If first check throws, try the fallback
+      if (Deno.build.os !== "windows" && checkCmd === "which") {
+          try {
+              const res2 = await executor.execute("where", [cmd]);
+              return res2.success;
+          } catch { return false; }
+      }
+      return false;
+  }
 }
 
 export async function bootstrap(): Promise<SystemStatus> {

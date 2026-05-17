@@ -87,7 +87,8 @@ export class EventBus implements EventBusPort {
         payload: isNoise ? undefined : validatedData
     }).catch(() => {});
 
-    // Notify internal subscribers
+    // Notify internal subscribers asynchronously to avoid blocking the main execution path (BUG-09)
+    // NOTE: Microtasks keep execution asynchronous but sequential within the tick if needed.
     for (const handler of this.handlers) {
       this.safelyExecute(() => handler(event));
     }

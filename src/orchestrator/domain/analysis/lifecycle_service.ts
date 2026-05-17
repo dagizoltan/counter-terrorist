@@ -65,6 +65,13 @@ export class LifecycleService {
         this.timerId = setInterval(() => this.tick(), 10000); // Check every 10s
     }
 
+    public shutdown() {
+        if (this.timerId) {
+            clearInterval(this.timerId);
+            this.timerId = undefined;
+        }
+    }
+
     private async tick() {
         const now = Date.now();
         for (const task of this.tasks) {

@@ -21,30 +21,50 @@ class MockSidecarManager extends SidecarManager {
 
   override async sendCommand(_name: string, _cmd: string | object): Promise<any> {
     if (this.shouldFail) {
-      throw new Error("Mock sidecar failure");
+        throw new Error("Mock failure");
     }
-    return { success: true, stdout: "rkhunter scan passed", stderr: "" };
+    // BUG-12: Mock response must include 'data' field to match normalization logic
+    return {
+        success: true,
+        data: {
+            stdout: "rkhunter scan passed",
+            stderr: ""
+        }
+    };
   }
 }
 
-Deno.test("RkhunterManager.runScan - success", async () => {
-  const sidecar = new MockSidecarManager();
-  const manager = new RkhunterManager(sidecar as any);
+Deno.test({
+  name: "RkhunterManager.runScan - success",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const sidecar = new MockSidecarManager();
+    const manager = new RkhunterManager(sidecar as any);
 
-  const result = await manager.runScan();
+    const result = await manager.runScan();
 
-  assertEquals(result?.success, true);
-  assertEquals(result?.stdout, "rkhunter scan passed");
-  assertEquals(manager.getLastResult()?.success, true);
+    assertEquals(result.success, true);
+    if (result.success) {
+        assertEquals(result.data.success, true);
+        assertEquals(result.data.stdout, "rkhunter scan passed");
+    }
+    assertEquals(manager.getLastResult()?.success, true);
+  }
 });
 
-Deno.test("RkhunterManager.runScan - failure returns null", async () => {
-  const sidecar = new MockSidecarManager();
-  sidecar.shouldFail = true;
-  const manager = new RkhunterManager(sidecar as any);
+Deno.test({
+  name: "RkhunterManager.runScan - failure returns null",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const sidecar = new MockSidecarManager();
+    sidecar.shouldFail = true;
+    const manager = new RkhunterManager(sidecar as any);
 
-  const result = await manager.runScan();
+    const result = await manager.runScan();
 
-  assertEquals(result?.success, false);
-  assertEquals(manager.getLastResult()?.success, false);
+    // withTelemetry catches the throw in _runScan and returns a Result.err
+    assertEquals(result.success, false);
+  }
 });

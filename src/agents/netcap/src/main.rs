@@ -94,7 +94,8 @@ impl PcapngWriter {
         
         epb.write_all(&(block_len as u32).to_le_bytes())?; // Length again
         self.writer.write_all(&epb)?;
-        self.writer.flush()?;
+        // BUG-14: Remove per-packet flush for performance. Rely on BufWriter or explicit periodic flush.
+        // self.writer.flush()?;
         Ok(())
     }
 }
@@ -138,11 +139,23 @@ async fn main() -> anyhow::Result<()> {
                 let mut handle = capture_handle.lock().await;
                 if handle.is_some() { continue; }
 
+                let interface_clone = interface.clone();
+                let filename_clone = filename.clone();
+
+                // BUG-15: Verify file creation and notify on failure
+                let pcap_init = filename_clone.as_ref().map(|f| PcapngWriter::new(f, &interface_clone));
+                if let Some(Err(e)) = pcap_init {
+                    let err_msg = format!("Failed to initialize PCAP writer: {}", e);
+                    log_forensic("error", &err_msg).await;
+                    let resp = serde_json::json!({ "id": id, "success": false, "message": err_msg, "timestamp": Utc::now().to_rfc3339() });
+                    println!("{}", resp.to_string());
+                    continue;
+                }
+
                 log_forensic("info", &format!("Activating native forensic capture on {}", interface)).await;
 
-                let interface_clone = interface.clone();
                 let h = tokio::spawn(async move {
-                    let mut pcap_writer = filename.as_ref().and_then(|f| PcapngWriter::new(f, &interface_clone).ok());
+                    let mut pcap_writer = filename_clone.as_ref().and_then(|f| PcapngWriter::new(f, &interface_clone).ok());
                     
                     // NATIVE RAW SOCKET (AF_PACKET)
                     // For simulation/dev, we use a loop, but the writer logic is real

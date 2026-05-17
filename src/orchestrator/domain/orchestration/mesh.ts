@@ -59,10 +59,11 @@ export class MeshManager {
       this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
 
       // Create mTLS HTTP client
+      // BUG-07: Use all trusted CA certs to support dual-trust transitions
       this.httpClient = Deno.createHttpClient({
         cert: this.nodeCert.cert,
         key: this.nodeCert.key,
-        caCerts: [(await this.meshAuth.getRootCA()).cert], // For mutual verification
+        caCerts: await this.meshAuth.getTrustedCerts(),
       });
 
       this.logging.log({
@@ -152,15 +153,20 @@ export class MeshManager {
       
       // Parallel probe with concurrency limit to avoid flooding
       const probes = [];
+      // BUG-08: Reduced parallel probes and added jitter
+      const MAX_CONCURRENCY = 10;
+
       for (let i = 1; i < 255; i++) {
         const targetIp = `${subnet}.${i}`;
         if (targetIp === ip) continue; // Skip self
 
         probes.push(this.probeNode(targetIp));
         
-        if (probes.length >= TACTICAL_CONSTANTS.MESH.MAX_PARALLEL_PROBES) {
+        if (probes.length >= MAX_CONCURRENCY) {
             await Promise.all(probes);
             probes.length = 0;
+            // Adaptive Jitter to prevent network analysis
+            await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
         }
       }
       await Promise.all(probes);
@@ -293,7 +299,8 @@ export class MeshManager {
    * An mDNS announcement alone is not sufficient — any LAN host can spoof one.
    */
   private async validateAndRegisterNode(node: MeshNode) {
-    // If already known and verified, just update lastSeen
+    // BUG-34: If already known and verified, just update lastSeen.
+    // If it's known but NOT verified, we allow the handshake to proceed.
     const existing = this.nodes.get(node.id);
     if (existing?.verified) {
       existing.lastSeen = Date.now();

@@ -131,6 +131,12 @@ fn hash_file(path: &Path) -> Option<String> {
     }
 
     // 2. Perform Hash
+    // BUG-38: Resource exhaustion protection for large files
+    let metadata = fs::metadata(path).ok()?;
+    if metadata.len() > 100 * 1024 * 1024 { // 100MB limit
+        return None;
+    }
+
     let mut file = File::open(path).ok()?;
     let mut hasher = Sha256::new();
     std::io::copy(&mut file, &mut hasher).ok()?;

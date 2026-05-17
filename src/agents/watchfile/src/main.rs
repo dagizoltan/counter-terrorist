@@ -73,6 +73,21 @@ fn get_comm(pid: i32) -> String {
         .to_string()
 }
 
+// BUG-16: More robust verification than comm name
+fn verify_actor_hash(pid: i32) -> bool {
+    let exe_path = format!("/proc/{}/exe", pid);
+    let target = fs::read_link(exe_path).ok();
+
+    if let Some(path) = target {
+        let path_str = path.to_string_lossy();
+        // Allow systemd and known orchestrator locations
+        return path_str.contains("/lib/systemd/systemd") ||
+               path_str.contains("/usr/bin/deno") ||
+               path_str.contains("/var/lib/cts/bin/");
+    }
+    false
+}
+
 fn get_path(fd: RawFd) -> String {
     let path = format!("/proc/self/fd/{}", fd);
     fs::read_link(path)
@@ -139,7 +154,8 @@ async fn main() -> anyhow::Result<()> {
 
                 // CRITICAL PROTECTION: Deny any modification to /etc/shadow or /bin from unauthorized processes
                 if (path.contains("/etc/shadow") || path.contains("/bin/")) && metadata.mask & libc::FAN_OPEN_PERM != 0 {
-                    if comm != "fim" && comm != "deno" && comm != "systemd" {
+                    // BUG-16: Use binary path verification instead of fragile comm names
+                    if !verify_actor_hash(pid) {
                         action = "DENIED";
                         response = libc::FAN_DENY;
                     }

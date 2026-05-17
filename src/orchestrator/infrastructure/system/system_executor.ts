@@ -55,7 +55,7 @@ export class SystemExecutor {
         maxArgs: 2
     },
     "spctl": {
-        allowedArgs: [/^--assess$/, /.*/],
+        allowedArgs: [/^--assess$/, /^[a-zA-Z0-9.\/_ \-]+$/],
         maxArgs: 2
     },
     "ps": {
@@ -159,7 +159,7 @@ export class SystemExecutor {
         maxArgs: 3
     },
     "tpm2_nvwrite": {
-        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-i$/, /.*/],
+        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-i$/, /^[a-zA-Z0-9.\/_=+\-]+$/],
         maxArgs: 3
     },
     "tpm2_nvread": {
@@ -239,11 +239,11 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {
-      allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /.*/],
+      allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /^[a-zA-Z0-9.\/_ \-]+$/],
       maxArgs: 2
     },
     "/var/lib/cts/scripts/update_crontab.sh": {
-      allowedArgs: [/.*/],
+      allowedArgs: [/^[a-zA-Z0-9.\/_ \-\*]+$/],
       maxArgs: 1
     },
     "/var/lib/cts/scripts/update_comm.sh": {

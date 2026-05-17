@@ -186,9 +186,30 @@ export class AuditService {
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         );
 
+        let currentHead = this.lastHash;
+        const recentEvents = await this.repo.getLatest(100);
+        const recentHashes = new Set(recentEvents.map(e => e.hash));
+
         for (const event of sorted) {
             try {
-                // 2. Structural & Integrity Validation
+                // 2. BUG-27: Validate hash continuity to prevent floating chains.
+                if (recentHashes.has(event.hash)) {
+                    currentHead = event.hash;
+                    continue;
+                }
+
+                if (event.prevHash !== currentHead) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.WARNING,
+                        caller: "AUDIT:SYNC",
+                        message: `REJECTED: Chain discontinuity at ${event.id.slice(0, 8)}. Expected prev ${currentHead.slice(0, 8)}, got ${event.prevHash.slice(0, 8)}`
+                    });
+                    break; // Stop processing this disconnected batch
+                }
+
+                // 3. Structural & Integrity Validation
                 const hashInput = {
                     id: event.id, timestamp: event.timestamp, type: event.type, severity: event.severity,
                     caller: event.caller, message: event.message,
@@ -205,10 +226,12 @@ export class AuditService {
                         caller: "AUDIT:SYNC",
                         message: `REJECTED: Hash mismatch in mesh event ${event.id}. Malicious sync attempt?`
                     });
-                    continue;
+                    break;
                 }
 
                 await this.repo.save(event);
+                currentHead = event.hash;
+                recentHashes.add(event.hash);
             } catch (e) {
                 // Ignore duplicates or errors during sync
             }

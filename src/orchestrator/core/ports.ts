@@ -131,6 +131,8 @@ export interface LoggingPort {
   getRecentLogs(limit?: number): Promise<LogEntry[]>;
   // Legacy support
   logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: any): Promise<void>;
+  setKv(kv: Deno.Kv): void;
+  shutdown(): Promise<void>;
 }
 
 export interface BaselinePort {

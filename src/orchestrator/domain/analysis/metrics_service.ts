@@ -393,6 +393,7 @@ let _metricsInstance: MetricsService | null = null;
 
 export function setMetricsService(instance: MetricsService) {
     _metricsInstance = instance;
+    (setMetricsService as any)._instance = instance;
 }
 
 export function getMetricsSnapshot(): SystemMetrics | null {
