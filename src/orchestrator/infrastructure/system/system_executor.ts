@@ -348,10 +348,14 @@ export class SystemExecutor {
         }
 
         // C. Blocklist Check
+        // SOV-P3: Explicit enforcement of blocked strings
         if (policy.blockedStrings) {
             for (const blocked of policy.blockedStrings) {
                 if (arg.includes(blocked)) {
-                    return { valid: false, reason: `Argument contains blocked sequence: '${blocked}'` };
+                    return {
+                        valid: false,
+                        reason: `Security Violation: Argument '${arg}' contains blocked sequence: '${blocked}'`
+                    };
                 }
             }
         }

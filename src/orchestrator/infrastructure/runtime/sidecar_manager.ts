@@ -413,16 +413,43 @@ export class SidecarManager implements CommandPort {
     const decoder = new TextDecoder();
     let buffer = "";
 
+    // SOV-P3: Defensive IPC Hardening
+    const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
+    const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
+
     try {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+
+        // Prevent memory exhaustion from unbounded sidecar output
+        if (buffer.length + value.length > MAX_BUFFER_SIZE) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: `[${name}] CRITICAL: IPC buffer overflow. Dropping data to prevent OOM.`
+            });
+            buffer = "";
+            continue;
+        }
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
+            if (line.length > MAX_LINE_LENGTH) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] Dropping over-sized IPC line (${line.length} bytes)`
+                });
+                continue;
+            }
           const trimmed = line.trim();
           if (!trimmed) continue;
 

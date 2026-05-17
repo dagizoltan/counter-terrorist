@@ -147,15 +147,27 @@ fn hash_file(path: &Path) -> Option<String> {
     let hash = hex::encode(hasher.finalize());
 
     // 3. Update Cache (with size limit and simple eviction)
+    // SOV-P3: Optimized Cache Eviction
+    // Instead of random eviction, we clear a larger batch if we hit the limit
+    // to reduce frequency of eviction cycles under heavy load.
     if HASH_CACHE.len() >= MAX_CACHE_SIZE {
-        // Simple eviction: remove a few random entries to make space
-        // DashMap doesn't support easy LRU, so we use a basic count-based eviction
-        let keys_to_remove: Vec<String> = HASH_CACHE.iter()
-            .take(10)
-            .map(|entry| entry.key().clone())
-            .collect();
-        for key in keys_to_remove {
-            HASH_CACHE.remove(&key);
+        let now_s = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+
+        // Strategy: First try to evict expired entries
+        HASH_CACHE.retain(|_, v| now_s - v.timestamp < 3600);
+
+        // If still too large, perform bulk eviction of the oldest 20%
+        if HASH_CACHE.len() >= MAX_CACHE_SIZE {
+            let mut entries: Vec<(String, u64)> = HASH_CACHE.iter()
+                .map(|e| (e.key().clone(), e.value().timestamp))
+                .collect();
+
+            entries.sort_by_key(|e| e.1);
+            let to_remove = entries.len() / 5; // 20%
+
+            for i in 0..to_remove {
+                HASH_CACHE.remove(&entries[i].0);
+            }
         }
     }
 

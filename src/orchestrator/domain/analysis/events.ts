@@ -75,28 +75,37 @@ export class EventBus implements EventBusPort {
         payload: isNoise ? undefined : validatedData
     }).catch(() => {});
 
-    // Notify internal subscribers asynchronously to avoid blocking the main execution path (BUG-09)
-    // NOTE: Microtasks keep execution asynchronous but sequential within the tick if needed.
-    for (const handler of this.handlers) {
-      this.safelyExecute(() => handler(event));
-    }
+    // SOV-P3: Parallelized and Time-Limited Execution
+    // Prevents a single slow subscriber from stalling the entire bus.
+    const allHandlers = [...this.handlers];
+    const typeHandlers = this.keyedListeners.get(type) || [];
 
-    // Notify keyed listeners
-    const listeners = this.keyedListeners.get(type);
-    if (listeners) {
-      for (const listener of listeners) {
-        this.safelyExecute(() => listener(data));
-      }
-    }
+    // Combine all relevant handlers
+    const tasks = [
+        ...allHandlers.map(h => () => h(event)),
+        ...typeHandlers.map(h => () => h(data))
+    ];
+
+    // Execute in parallel with 2s timeout
+    Promise.allSettled(tasks.map(t => this.safelyExecute(t, 2000))).catch(() => {});
   }
 
-  private async safelyExecute(fn: () => void | Promise<void>) {
+  private async safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000) {
+    let timeoutId: any;
     try {
-      const res = fn();
-      if (res instanceof Promise) {
-        await res;
-      }
+      const executePromise = (async () => {
+          const res = fn();
+          if (res instanceof Promise) await res;
+      })();
+
+      const timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error(`Handler timeout after ${timeoutMs}ms`)), timeoutMs);
+      });
+
+      await Promise.race([executePromise, timeoutPromise]);
+      if (timeoutId) clearTimeout(timeoutId);
     } catch (e) {
+      if (timeoutId) clearTimeout(timeoutId);
       const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
       this.logging.log({
           timestamp: new Date().toISOString(),

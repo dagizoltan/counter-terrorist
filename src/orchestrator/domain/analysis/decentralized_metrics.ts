@@ -1,4 +1,4 @@
-import { SystemMetrics } from "./metrics_service.ts";
+import { SystemMetrics, setMetricsService } from "./metrics_service.ts";
 import { LogSeverity, LogType, LoggingPort } from "@core/ports.ts";
 import { EventBus } from "./events.ts";
 
@@ -18,6 +18,7 @@ export class DecentralizedMetricsService {
     ) {
         this.wireEvents();
         this.start();
+        setMetricsService(this as any);
     }
 
     private wireEvents() {

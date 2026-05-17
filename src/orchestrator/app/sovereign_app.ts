@@ -52,6 +52,27 @@ export class SovereignApp {
     private auditService!: AuditService;
 
     async boot() {
+        // SOV-P3: Global Error Handlers
+        globalThis.addEventListener("unhandledrejection", (e) => {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "RUNTIME",
+                message: `Unhandled Promise Rejection: ${e.reason}`
+            }).catch(() => {});
+        });
+
+        globalThis.addEventListener("error", (e) => {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "RUNTIME",
+                message: `Fatal Runtime Error: ${e.message}`
+            }).catch(() => {});
+        });
+
         // ── Phase 1: Core infrastructure ──────────────────────────────────────
         await this.initCore();
 
