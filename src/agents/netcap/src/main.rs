@@ -12,7 +12,12 @@ static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", content = "payload")]
 enum PcapCommand {
-    StartCapture { interface: String, filename: Option<String> },
+    StartCapture {
+        interface: String,
+        filename: Option<String>,
+        #[serde(default)]
+        duration: u64 // seconds
+    },
     StopCapture,
     GetStatus,
 }
@@ -135,6 +140,7 @@ async fn main() -> anyhow::Result<()> {
             "StartCapture" => {
                 let interface = cmd_val["payload"]["interface"].as_str().unwrap_or("eth0").to_string();
                 let filename = cmd_val["payload"]["filename"].as_str().map(|s| s.to_string());
+                let duration = cmd_val["payload"]["duration"].as_u64().unwrap_or(0);
                 
                 let mut handle = capture_handle.lock().await;
                 // BUG-7.1 FIX: Check if the handle is still active before rejecting new capture
@@ -157,14 +163,20 @@ async fn main() -> anyhow::Result<()> {
                     continue;
                 }
 
-                log_forensic("info", &format!("Activating native forensic capture on {}", interface)).await;
+                log_forensic("info", &format!("Activating native forensic capture on {} (Duration: {}s)", interface, duration)).await;
 
                 let h = tokio::spawn(async move {
                     let mut pcap_writer = filename_clone.as_ref().and_then(|f| PcapngWriter::new(f, &interface_clone).ok());
-                    
+                    let start_time = Utc::now();
+
                     // NATIVE RAW SOCKET (AF_PACKET)
                     // For simulation/dev, we use a loop, but the writer logic is real
                     loop {
+                        if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
+                            let _ = log_forensic("info", "Forensic capture auto-terminated by duration limit.").await;
+                            break;
+                        }
+
                         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         if let Some(ref mut writer) = pcap_writer {
                             let dummy_packet = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x45\x00\x00\x3c\x12\x34\x40\x00\x40\x06\xb1\xe6\x7f\x00\x00\x01\x7f\x00\x00\x01";

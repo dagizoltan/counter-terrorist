@@ -508,66 +508,40 @@ export class MeshManager {
    * Broadcasts a block command to all verified nodes in the mesh.
    */
   async broadcastBlock(ip: string) {
-    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
-    if (verifiedNodes.length === 0) return;
-
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
         caller: "orchestrator:domain:orchestration:mesh",
-        message: `Gossip: Broadcasting block for ${ip} to ${verifiedNodes.length} verified nodes...`
+        message: `Gossip: Broadcasting block for ${ip}`
     });
 
-    for (const node of verifiedNodes) {
-        this.sendSync(node, {
-            type: "GOSSIP_BLOCK",
-            ip,
-            sourceNode: this.nodeId,
-            timestamp: Date.now()
-        }).catch(err => {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:domain:orchestration:mesh",
-                message: `Failed to gossip with ${node.hostname}: ${(err as Error).message}`
-            });
-        });
-    }
+    await this.broadcast({
+        type: "GOSSIP_BLOCK",
+        ip,
+        sourceNode: this.nodeId,
+        timestamp: Date.now()
+    });
   }
 
   /**
    * Broadcasts a malicious binary hash to the mesh.
    */
   async broadcastThreatHash(hash: string, sourceNode: string) {
-    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
-    if (verifiedNodes.length === 0) return;
-
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.INFO,
         caller: "orchestrator:domain:orchestration:mesh",
-        message: `Gossip: Broadcasting threat hash ${hash.slice(0, 8)} to ${verifiedNodes.length} nodes...`
+        message: `Gossip: Broadcasting threat hash ${hash.slice(0, 8)}`
     });
 
-    for (const node of verifiedNodes) {
-        this.sendSync(node, {
-            type: "GOSSIP_THREAT_HASH",
-            hash,
-            sourceNode,
-            timestamp: Date.now()
-        }).catch(err => {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:domain:orchestration:mesh",
-                message: `Failed to gossip threat to ${node.hostname}: ${(err as Error).message}`
-            });
-        });
-    }
+    await this.broadcast({
+        type: "GOSSIP_THREAT_HASH",
+        hash,
+        sourceNode,
+        timestamp: Date.now()
+    });
   }
 
   /**
@@ -593,45 +567,19 @@ export class MeshManager {
    * Broadcasts a critical audit event to the mesh.
    */
   async broadcastAuditEvent(event: any) {
-    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
-    if (verifiedNodes.length === 0) return;
-
-    for (const node of verifiedNodes) {
-        this.sendSync(node, { type: "GOSSIP_AUDIT", event }).catch(err => {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:domain:orchestration:mesh",
-                message: `Failed to gossip audit with ${node.hostname}: ${(err as Error).message}`
-            });
-        });
-    }
+    await this.broadcast({ type: "GOSSIP_AUDIT", event });
   }
 
   /**
    * Broadcasts the current audit chain head for cross-node verification.
    */
   async broadcastAuditVerification(lastHash: string, eventCount: number) {
-    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
-    if (verifiedNodes.length === 0) return;
-
-    for (const node of verifiedNodes) {
-        this.sendSync(node, { 
-            type: "GOSSIP_AUDIT_VERIFY", 
-            lastHash, 
-            eventCount,
-            node: this.nodeId 
-        }).catch(err => {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:domain:orchestration:mesh",
-                message: `Failed to send audit verification to ${node.hostname}: ${(err as Error).message}`
-            });
-        });
-    }
+    await this.broadcast({
+        type: "GOSSIP_AUDIT_VERIFY",
+        lastHash,
+        eventCount,
+        node: this.nodeId
+    });
   }
 
   async reconcile() {

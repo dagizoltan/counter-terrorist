@@ -14,7 +14,8 @@ export class UbuntuPcapProvider implements PcapProvider {
     return await this.sidecar.sendCommand("netcap", {
       type: "StartCapture",
       interface: interfaceName,
-      filename
+      filename,
+      duration // Passing duration to prevent disk exhaustion (SOV-P4 FIX)
     });
   }
 
