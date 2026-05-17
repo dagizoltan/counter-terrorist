@@ -135,6 +135,7 @@ export class MeshAuthService {
 
     // 2. Fallback to ENV (Standard Production Mode)
     let secret = Deno.env.get("PKI_SECRET");
+    let needsSealing = !!secret;
     
     if (!secret) {
       const fallback = Deno.env.get("API_TOKEN");
@@ -151,8 +152,8 @@ export class MeshAuthService {
       secret = fallback;
     }
 
-    // 3. Seal to TPM for future cold-boot resilience
-    if (this.tpm && secret) {
+    // 3. Seal to TPM for future cold-boot resilience (only if it came from environment)
+    if (this.tpm && secret && needsSealing) {
         await this.tpm.sealSecret("PKI_SECRET", secret);
     }
 

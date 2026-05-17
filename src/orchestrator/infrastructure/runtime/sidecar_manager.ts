@@ -407,7 +407,7 @@ export class SidecarManager implements CommandPort {
                   type: LogType.AUDIT,
                   severity: LogSeverity.ERROR,
                   caller: "orchestrator:infra:runtime:sidecar_manager",
-                  message: `[${name}] Security violation: Invalid response schema.`
+                  message: `[${name}] Security violation: Invalid response schema. Payload: ${trimmed.substring(0, 200)}${trimmed.length > 200 ? "..." : ""}`
               });
               continue;
             }

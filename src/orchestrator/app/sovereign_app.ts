@@ -369,9 +369,13 @@ export class SovereignApp {
     }
 
     private activeSignalListeners: Map<Deno.Signal, () => Promise<void>> = new Map();
+    private isShuttingDown = false;
 
     private registerSignalHandlers() {
         const cleanup = async () => {
+            if (this.isShuttingDown) return;
+            this.isShuttingDown = true;
+
             await loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.ACTIVITY,

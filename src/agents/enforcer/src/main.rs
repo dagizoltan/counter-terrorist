@@ -152,9 +152,10 @@ async fn dump_process_task(pid: u32, requested_path: String) -> (bool, String) {
     let maps_res = std::fs::copy(format!("/proc/{}/maps", pid), format!("{}.maps", safe_path));
     let env_res = std::fs::copy(format!("/proc/{}/environ", pid), format!("{}.environ", safe_path));
     
-    if maps_res.is_ok() && env_res.is_ok() {
-        (true, format!("Dumped process {} metadata to {}", pid, safe_path))
-    } else {
-        (false, "Failed to access /proc files or write to jail".to_string())
+    match (maps_res, env_res) {
+        (Ok(_), Ok(_)) => (true, format!("Dumped process {} metadata to {}", pid, safe_path)),
+        (Err(e), _) | (_, Err(e)) => {
+            (false, format!("Forensic dump failed for PID {}: {}", pid, e))
+        }
     }
 }
