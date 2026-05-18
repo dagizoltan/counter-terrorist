@@ -1,6 +1,7 @@
 import { CommandResult } from "@core/ports.ts";
 import * as path from "@std/path";
 import { validatePath } from "./validation.ts";
+import { z } from "zod";
 
 /**
  * Security Policy for whitelisted commands.
@@ -10,6 +11,7 @@ interface CommandPolicy {
   allowedArgs?: RegExp[];
   maxArgs?: number;
   blockedStrings?: string[];
+  schema?: z.ZodSchema<string[]>;
 }
 
 /**
@@ -41,6 +43,97 @@ export class SystemExecutor {
     "pfctl", "launchctl", "sw_vers", "spctl", "ifconfig", "killall", "ps",
     "netsh", "taskkill", "pktmon", "powershell", "security"
   ];
+
+  private static readonly SSH_SCHEMA = z.array(z.string()).max(10).superRefine((args, ctx) => {
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        if (arg === "-o") {
+            const next = args[i+1];
+            if (!next || !/^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/.test(next)) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid -o value for ssh" });
+            }
+            i++;
+            continue;
+        }
+        if (/^[a-zA-Z0-9/._-]+$/.test(arg)) continue;
+        if (/^[a-zA-Z0-9]+@[a-zA-Z0-9.-]+$/.test(arg)) continue;
+        if (/^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/.test(arg)) continue;
+
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized argument: ${arg}` });
+    }
+  });
+
+  private static readonly UFW_SCHEMA = z.array(z.string().regex(/^[0-9a-zA-Z./-]+$/)).max(5).superRefine((args, ctx) => {
+      if (args.length > 0 && !/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/.test(args[0])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid ufw command" });
+      }
+  });
+
+  private static readonly SENTINEL_SCHEMA = z.array(z.string()).max(1).superRefine((args, ctx) => {
+      if (args.length === 0) return;
+      try {
+          const payload = JSON.parse(args[0]);
+          const validTypes = [
+            "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS",
+            "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
+            "BLOCK_SYSCALL", "LSM_POLICY", "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess"
+          ];
+          if (!validTypes.includes(payload.type)) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Invalid sentinel command type: ${payload.type}` });
+          }
+          if (payload.pid && typeof payload.pid !== "number") {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "PID must be numeric" });
+          }
+      } catch {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid sentinel JSON payload" });
+      }
+  });
+
+  private static readonly POWERSHELL_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
+      if (args.length === 0) return;
+      if (args[0] === "-Command") {
+          const cmd = args[1] || "";
+          const blocked = ["&", "|", ";", ">", "<", "`", "$", "(", ")"];
+          for (const b of blocked) {
+              if (cmd.includes(b)) {
+                  ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Security Violation: PowerShell command contains blocked character: ${b}` });
+              }
+          }
+      } else if (args[0] === "-EncodedCommand") {
+          if (args.length < 2 || !/^[a-zA-Z0-9+/=]+$/.test(args[1])) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid Base64 for EncodedCommand" });
+          }
+      } else {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Only -Command or -EncodedCommand allowed for PowerShell" });
+      }
+  });
+
+  private static readonly SYSTEMCTL_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
+      if (args.length === 0) return;
+      const actions = ["start", "stop", "restart", "status", "is-active", "enable", "disable"];
+      if (!actions.includes(args[0])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Invalid systemctl action: ${args[0]}` });
+      }
+      if (args.length > 1 && !/^(cts-.*|ufw|wireguard.*|clamav.*|systemd-resolved|network-manager)$/.test(args[1])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized service: ${args[1]}` });
+      }
+  });
+
+  private static readonly ANALYZER_SCHEMA = z.array(z.string()).max(5).superRefine((args, ctx) => {
+      if (args.length === 0) return;
+      try {
+          const payload = JSON.parse(args[0]);
+          const validTypes = ["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"];
+          if (!validTypes.includes(payload.type)) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid analyzer command type" });
+          }
+      } catch {
+          // Allow non-JSON if it's a simple flag
+          if (!args[0].startsWith("-")) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Analyzer requires JSON payload or standard flag" });
+          }
+      }
+  });
 
   /**
    * Granular policies for sensitive commands.
@@ -75,9 +168,10 @@ export class SystemExecutor {
         maxArgs: 4
     },
     "powershell": {
+        schema: SystemExecutor.POWERSHELL_SCHEMA,
         // SOV-02 FIX: Strictly disallow shell metacharacters in PowerShell parameters
         // Prevents chaining (&, |) and redirection (>, <)
-        allowedArgs: [/^-Command$/, /^[a-zA-Z0-9\s\-\.\/_=:'"]+$/],
+        allowedArgs: [/^(-Command|-EncodedCommand)$/, /^[a-zA-Z0-9\s\-\.\/_=:'"]+$/],
         blockedStrings: ["&", "|", ";", ">", "<", "`", "$", "(", ")"],
         maxArgs: 2
     },
@@ -90,10 +184,12 @@ export class SystemExecutor {
         maxArgs: 3
     },
     "systemctl": {
+      schema: SystemExecutor.SYSTEMCTL_SCHEMA,
       allowedArgs: [/^(start|stop|restart|status|is-active)$/, /^(cts-.*|ufw|wireguard.*|clamav.*)$/],
       maxArgs: 2
     },
     "ufw": {
+      schema: SystemExecutor.UFW_SCHEMA,
       allowedArgs: [/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/, /^[0-9a-zA-Z./]+$/],
       maxArgs: 5
     },
@@ -238,6 +334,7 @@ export class SystemExecutor {
         maxArgs: 10
     },
     "ssh": {
+        schema: SystemExecutor.SSH_SCHEMA,
         // SOV-02 FIX: Disallow complex shell chaining and redirection in SSH commands
         allowedArgs: [
             /^-o$/,
@@ -269,7 +366,10 @@ export class SystemExecutor {
       allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+(\.(bin|pem|crt|key|csr|pub|sig))?$/],
       maxArgs: 10
     },
-    "analyzer": { maxArgs: 10 },
+    "analyzer": {
+        schema: SystemExecutor.ANALYZER_SCHEMA,
+        maxArgs: 10
+    },
     "enforcer": { maxArgs: 10 },
     "decoy": { maxArgs: 10 },
     "netcap": { maxArgs: 10 },
@@ -278,6 +378,7 @@ export class SystemExecutor {
       maxArgs: 1
     },
     "sentinel": { 
+      schema: SystemExecutor.SENTINEL_SCHEMA,
       allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID|KillProcess|QuarantineProcess|DumpProcess)".*\}$/],
       maxArgs: 1 
     },
@@ -313,16 +414,27 @@ export class SystemExecutor {
       return { valid: false, reason: `No security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
     }
 
-    // 2. Argument Length Check
+    // 2. Structured Schema Validation (Priority)
+    if (policy.schema) {
+        const result = policy.schema.safeParse(args);
+        if (!result.success) {
+            return {
+                valid: false,
+                reason: `Structured validation failed for '${baseCmd}': ${result.error.issues.map(e => e.message).join(", ")}`
+            };
+        }
+    }
+
+    // 3. Argument Length Check
     if (policy.maxArgs !== undefined && args.length > policy.maxArgs) {
       return { valid: false, reason: `Too many arguments for '${baseCmd}' (max: ${policy.maxArgs})` };
     }
 
-    // 3. Command Context
+    // 4. Command Context
     const isPathSensitive = SystemExecutor.PATH_SENSITIVE_COMMANDS.includes(baseCmd) ||
                             SystemExecutor.PATH_SENSITIVE_COMMANDS.includes(cmd);
 
-    // 4. Individual Argument Validation
+    // 5. Individual Argument Validation
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
 

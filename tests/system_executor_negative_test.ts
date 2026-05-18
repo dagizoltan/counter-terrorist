@@ -26,7 +26,7 @@ Deno.test("SystemExecutor - Argument policy violation", async () => {
     // Trying to start a non-cts service should fail
     const result = await executor.execute("systemctl", ["start", "nginx"]);
     assertEquals(result.success, false);
-    assertEquals(result.stderr.includes("Security Violation: Argument 'nginx' at index 1 is not allowed for 'systemctl'"), true);
+    assertEquals(result.stderr.includes("Structured validation failed for 'systemctl'"), true);
 });
 
 Deno.test("SystemExecutor - Path traversal detection", async () => {

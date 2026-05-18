@@ -336,6 +336,8 @@ export class WebAdapter implements WebPort {
     return {
       ...baseStatus,
       ...metrics,
+      safeMode: Deno.env.get("SHADOW_MODE") === "true" && Deno.env.get("STRICT_POLICY_ENFORCEMENT") === "false",
+      trippedSidecars: (this.services.command as any).getTrippedSidecars?.() || [],
       audit: {
         ...metrics.audit,
         hardwareVerified: metrics.audit?.hardwareVerified || false,

@@ -10,6 +10,7 @@ export type { FirewallProvider };
 export class FirewallManager {
   private blockedIps: Set<string> = new Set();
   private kv?: Deno.Kv;
+  private connectivityCheckInProgress = false;
 
   private eventBus?: any;
   private metricsInterval?: number;
@@ -52,8 +53,20 @@ export class FirewallManager {
     const ips: string[] = [];
     for await (const res of iter) {
       const ip = res.key[1] as string;
-      this.blockedIps.add(ip);
-      ips.push(ip);
+
+      // H-01: Explicitly validate IP from KV during hydration to prevent poisoned state
+      if (isValidIP(ip)) {
+        this.blockedIps.add(ip);
+        ips.push(ip);
+      } else {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.ERROR,
+              caller: "orchestrator:infra:system:protection:firewall",
+              message: `CRITICAL: Invalid enforcement record found in KV: '${ip}'. Dropping to maintain integrity.`
+          });
+      }
     }
 
     if (ips.length > 0) {
@@ -129,7 +142,81 @@ export class FirewallManager {
         });
     }
 
-    return await this.provider.blockIp(ip);
+    const res = await this.provider.blockIp(ip);
+    if (res.success) {
+        this.verifyConnectivity().catch(() => {});
+    }
+    return res;
+  }
+
+  private async verifyConnectivity() {
+      if (this.connectivityCheckInProgress) return;
+      this.connectivityCheckInProgress = true;
+
+      const checkInIp = Deno.env.get("PILOT_CHECKIN_IP") || "8.8.8.8";
+      const isPilot = Deno.env.get("PILOT_MODE") === "true";
+
+      if (!isPilot) {
+          this.connectivityCheckInProgress = false;
+          return;
+      }
+
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.ACTIVITY,
+          severity: LogSeverity.INFO,
+          caller: "firewall:connectivity_guard",
+          message: `Connectivity Guard: Verifying system access via ${checkInIp}...`
+      });
+
+      // Allow some time for rule to settle and connectivity to be tested
+      await new Promise(r => setTimeout(r, 5000));
+
+      try {
+          const command = new Deno.Command("ping", {
+              args: ["-c", "1", "-W", "2", checkInIp],
+              stdout: "null",
+              stderr: "null"
+          });
+          const { success } = await command.output();
+
+          if (!success) {
+              loggingService.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.AUDIT,
+                  severity: LogSeverity.ERROR,
+                  caller: "firewall:connectivity_guard",
+                  message: "🚨 CONNECTIVITY LOST after firewall change! Initiating automatic rollback..."
+              });
+
+              await this.flushRules();
+
+              // Trigger Mesh Re-discovery to ensure node identity is re-verified after connectivity restore
+              if (meshManager) {
+                  meshManager.resyncNodes?.().catch(() => {});
+              }
+
+              loggingService.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.AUDIT,
+                  severity: LogSeverity.SUCCESS,
+                  caller: "firewall:connectivity_guard",
+                  message: "✅ Rollback complete. Management access restored."
+              });
+          } else {
+              loggingService.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.ACTIVITY,
+                  severity: LogSeverity.SUCCESS,
+                  caller: "firewall:connectivity_guard",
+                  message: "Connectivity verified. Changes committed."
+              });
+          }
+      } catch (e) {
+          console.error(`Connectivity guard error: ${e}`);
+      } finally {
+          this.connectivityCheckInProgress = false;
+      }
   }
 
   async shadowBanIp(ip: string) {
@@ -170,7 +257,11 @@ export class FirewallManager {
       });
     }
 
-    return await this.provider.shadowBanIp(ip);
+    const res = await this.provider.shadowBanIp(ip);
+    if (res.success) {
+        this.verifyConnectivity().catch(() => {});
+    }
+    return res;
   }
 
   async unblockIp(ip: string) {
