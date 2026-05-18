@@ -5,18 +5,20 @@ import { z } from "npm:zod";
  * This ensures data integrity across the mesh.
  */
 export const HoneypotHitSchema = z.object({
-  sidecar: z.string(),
+  sidecar: z.string().optional(),
   event: z.object({
     type: z.string(),
     src_ip: z.string().optional(),
     dest_port: z.number().optional(),
-  }),
+  }).optional(),
 });
 
 export const DriftDetectedSchema = z.object({
-  resource: z.string(),
-  expected: z.any(),
-  actual: z.any(),
+  resource: z.string().optional(),
+  expected: z.any().optional(),
+  actual: z.any().optional(),
+  path: z.string().optional(),
+  action: z.string().optional()
 });
 
 export const ChaosEventSchema = z.object({
@@ -36,7 +38,9 @@ export const SystemEventRegistry = {
   "THREAT": z.object({
     code: z.string().optional(),
     src_ip: z.string().optional(),
-    message: z.string().optional()
+    message: z.string().optional(),
+    severity: z.string().optional(),
+    path: z.string().optional()
   }),
   "HONEYPOT": z.object({
     type: z.string(),
@@ -49,6 +53,19 @@ export const SystemEventRegistry = {
     domain: z.string(),
     data: z.any()
   }),
+  "AUDIT_EVENT": z.any(),
+  "UI_BROADCAST": z.object({
+    type: z.string(),
+    data: z.any()
+  }),
+  "EBPF_SYSCALL": z.any(),
+  "EBPF_CRITICAL": z.any(),
+  "EBPF_STRAY_SHELL": z.any(),
+  "DRIFT_PROCESS": z.any(),
+  "NETWORK_LOG": z.any(),
+  "EXFIL_ALERT": z.any(),
+  "PACKET": z.any(),
+  "ALERT": z.any()
 } as const;
 
 /**
@@ -70,7 +87,7 @@ export type EventName = keyof EventRegistry;
  * Validates an event payload against its registered schema.
  */
 export function validateEvent<T extends EventName>(type: T, data: any) {
-  const schema = SystemEventRegistry[type];
+  const schema = (SystemEventRegistry as any)[type];
   if (!schema) return data; // Default to allow if no schema defined yet
   return schema.parse(data);
 }

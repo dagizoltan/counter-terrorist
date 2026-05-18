@@ -1,3 +1,4 @@
+import { BaseService } from "@core/base_service.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
@@ -12,7 +13,7 @@ export interface HoneypotModule {
   active: boolean;
 }
 
-export class HoneypotService {
+export class HoneypotService extends BaseService {
   private modules: Map<string, HoneypotModule> = new Map();
   private eventHandlers: ((event: any) => void)[] = [];
   private hitCount: number = 0;
@@ -22,10 +23,10 @@ export class HoneypotService {
     private sidecarManager: SidecarManager,
     private firewall: FirewallManager,
     private pcap: PcapManager,
-    private broadcast: BroadcastFunction,
     private logging: LoggingPort
   ) {
     // Register default modules
+    super();
     this.registerModule({
       id: "ssh",
       name: "SSH Decoy",
@@ -185,7 +186,7 @@ export class HoneypotService {
           payload: { source_ip, port, hitCount: this.hitCount, module: module?.name }
       });
 
-      this.broadcast({
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "TACTICAL_TRIGGER",
         data: {
           type: "HONEYPOT_HIT",
@@ -248,7 +249,7 @@ export class HoneypotService {
         payload: { source_ip, route, hitCount: this.hitCount }
     });
 
-    this.broadcast({
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
       type: "TACTICAL_TRIGGER",
       data: {
         type: "WEB_DECOY_HIT",
@@ -378,7 +379,7 @@ export class HoneypotService {
           message: `DECEPTION MORPH: ${module.name} port rotation from ${oldPort} to ${newPort}`
       });
 
-      this.broadcast({
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
           type: LogType.AUDIT,

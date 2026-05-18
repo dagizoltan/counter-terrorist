@@ -36,8 +36,7 @@ export class SubsystemFactory {
         private logging: LoggingPort,
         private executor: SystemExecutor,
         private sidecarManager: SidecarManager,
-        private auditService: AuditService,
-        private broadcast: (msg: any) => void
+        private auditService: AuditService
     ) {}
 
     initIdentity(config: EnvConfigProvider) {
@@ -63,7 +62,7 @@ export class SubsystemFactory {
         anonymization.setFirewall(protection.firewall);
         const shadowProtocol = new ShadowProtocolService(mesh, anonymization, this.logging);
         const behavioral = new BehavioralService(protection.firewall as any, this.auditService);
-        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, this.broadcast, this.logging);
+        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, this.logging);
 
         const canaryService = this.createService(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging));
         const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
@@ -74,7 +73,7 @@ export class SubsystemFactory {
     initIntelligence(protection: any, processTracker: any, health: any, config: any, mesh: any) {
         const geoIp = this.createService(health, "GeoIP", () => new GeoIpService(this.logging));
         const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, (mesh as any).authService));
-        const curatedIntel = this.createService(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, this.broadcast, geoIp));
+        const curatedIntel = this.createService(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, geoIp));
         const news = this.createService(health, "News", () => new NewsSignalService(this.logging));
         const networkDiscovery = this.createService(health, "NetworkDiscovery", () => {
             const svc = new NetworkDiscoveryService(this.logging, this.executor);

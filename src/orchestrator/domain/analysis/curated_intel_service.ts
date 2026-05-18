@@ -1,3 +1,4 @@
+import { BaseService } from "@core/base_service.ts";
 import { ConfigurationPort, LoggingPort, LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
 import { GeoIpService } from "./geoip_service.ts";
 
@@ -38,7 +39,7 @@ const SOURCE_WEIGHTS: Record<string, number> = {
  * CuratedIntelService
  * Orchestrates multi-source intelligence ingestion with weighted reputation scoring.
  */
-export class CuratedIntelService {
+export class CuratedIntelService extends BaseService {
     private kv?: Deno.Kv;
     private sources = [
         { name: "Abuse.ch", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
@@ -61,9 +62,9 @@ export class CuratedIntelService {
         private logging: LoggingPort, 
         private firewall: FirewallPort, 
         private config: ConfigurationPort,
-        private broadcast: (data: any) => void,
         private geoip?: GeoIpService
     ) {
+        super();
         const list = config.getEnv("INTEL_ALLOWLIST") || "";
         this.allowlist = list.split(",").map(i => i.trim()).filter(Boolean);
     }
@@ -174,7 +175,7 @@ export class CuratedIntelService {
                         message: `Tactical isolation revoked for ${ip}: TTL expired and indicator re-verified as CLEAN.`
                     };
                     this.logging.log(auditLog);
-                    this.broadcast(auditLog);
+                    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", auditLog);
                 }
             }
         }
@@ -223,7 +224,7 @@ export class CuratedIntelService {
             payload: { ip, reason, ttlHours }
         };
         this.logging.log(log);
-        this.broadcast(log);
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", log);
     }
 
     async sync(providerName?: string) {
@@ -235,7 +236,7 @@ export class CuratedIntelService {
             message: providerName ? `Initiating targeted sync for provider: ${providerName}` : "Fetching forensic threat intelligence from external databases"
         };
         this.logging.log(logData);
-        this.broadcast(logData);
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", logData);
         
         let newThreatsFound = 0;
         
@@ -278,7 +279,7 @@ export class CuratedIntelService {
                 message: providerName ? `Targeted sync for ${providerName} complete. No new indicators.` : "Intelligence synchronization complete. No new malicious indicators discovered."
             };
             this.logging.log(successLog);
-            this.broadcast(successLog);
+            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", successLog);
         } else {
             const completeLog = {
                 timestamp: new Date().toISOString(),
@@ -288,7 +289,7 @@ export class CuratedIntelService {
                 message: providerName ? `Targeted sync for ${providerName} complete. Found ${newThreatsFound} new threats.` : `Intelligence synchronization complete. Identified and blocked ${newThreatsFound} new malicious threats.`
             };
             this.logging.log(completeLog);
-            this.broadcast(completeLog);
+            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", completeLog);
         }
     }
 
@@ -399,7 +400,7 @@ export class CuratedIntelService {
                         payload: { indicator: curated.indicator, source: source.name }
                     };
                     this.logging.log(foundLog);
-                    this.broadcast(foundLog);
+                    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", foundLog);
                 }
 
                 // AUTO-ISOLATION POLICY: 
@@ -418,14 +419,14 @@ export class CuratedIntelService {
                             message: `Autonomous Isolation engaged for ${curated.indicator} (Critical Threat Score: ${curated.score})`
                         };
                         this.logging.log(autoLog);
-                        this.broadcast(autoLog);
+                        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", autoLog);
                     }
                 }
             }
 
             // PROACTIVE ARTIFACT QUARANTINE
             if (curated.score >= 95 && curated.type === "HASH" && isNewToDatabase) {
-                this.broadcast({
+                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
                     type: "ARTIFACT_FOUND",
                     data: curated
                 });
@@ -446,7 +447,7 @@ export class CuratedIntelService {
                     message: `Ingestion in progress: ${ingestCount} indicators parsed...`
                 };
                 this.logging.log(progressLog);
-                this.broadcast(progressLog);
+                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", progressLog);
             }
 
             if (ingestCount > 100000) break;
@@ -461,7 +462,7 @@ export class CuratedIntelService {
         });
         
         // Broadcast the final summary for this source
-        this.broadcast({
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
             timestamp: new Date().toISOString(),
             type: "AUDIT",
             severity: "SUCCESS",

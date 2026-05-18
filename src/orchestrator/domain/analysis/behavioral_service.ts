@@ -1,5 +1,6 @@
+import { BaseService } from "@core/base_service.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
-import { broadcast } from "@api/ws.ts";
+
 import { AuditService } from "./audit.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 
@@ -8,7 +9,7 @@ interface IpHistory {
   intervals: number[];
 }
 
-export class BehavioralService {
+export class BehavioralService extends BaseService {
   private history: Map<string, IpHistory> = new Map();
   private eventBus?: any;
   private metricsInterval?: number;
@@ -89,7 +90,7 @@ export class BehavioralService {
         });
       }
 
-      broadcast({
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
           type: "activity",
@@ -147,7 +148,7 @@ export class BehavioralService {
          });
        }
 
-       broadcast({
+       if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
           type: "AUDIT_EVENT",
           data: {
             type: "security",
@@ -175,7 +176,7 @@ export class BehavioralService {
             });
           }
 
-          broadcast({
+          if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
             type: "AUDIT_EVENT",
             data: {
               type: "forensic",

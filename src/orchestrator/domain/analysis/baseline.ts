@@ -1,6 +1,7 @@
+import { BaseService } from "@core/base_service.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
-import { broadcast } from "@api/ws.ts";
+
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 export interface ProcessSnapshot {
@@ -28,7 +29,7 @@ export interface SystemSnapshot {
 
 const CRITICAL_FILES_REGEX = /\/etc\/shadow|\/etc\/sudoers|authorized_keys/;
 
-export class BaselineService {
+export class BaselineService extends BaseService {
   private currentBaseline: SystemSnapshot | null = null;
   private isInitialized = false;
   private previousProcessSet = new Set<string>();
@@ -44,6 +45,7 @@ export class BaselineService {
     private executor: SystemExecutor,
     private logging: LoggingPort
   ) {
+      super();
     this.restoreBaseline();
   }
 
@@ -205,7 +207,7 @@ export class BaselineService {
         caller: "orchestrator:domain:analysis:baseline",
         message: "New system baseline established."
     });
-    broadcast({
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
       type: "AUDIT_EVENT",
       data: {
           type: LogType.ACTIVITY,
@@ -272,7 +274,7 @@ export class BaselineService {
           caller: "orchestrator:domain:analysis:baseline",
           message: `Port drift detected: ${newPorts.join(", ")}`
       });
-      broadcast({
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "DRIFT_PORT",
         message: `Drift Detected: ${newPorts.length} new listening ports!`,
         data: newPorts
@@ -288,7 +290,7 @@ export class BaselineService {
             message: `Process drift: ${p.name} (PID: ${p.pid}, Path: ${p.exe_path}, Hash: ${p.hash})`
         });
       });
-      broadcast({
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "DRIFT_PROCESS",
         message: `Drift Detected: ${newProcs.length} new/modified processes found.`,
         data: newProcs.map(p => ({ name: p.name, pid: p.pid, path: p.exe_path }))
@@ -305,7 +307,7 @@ export class BaselineService {
                 caller: "orchestrator:domain:analysis:baseline",
                 message: `CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`
             });
-            broadcast({
+            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
                 type: "AUDIT_EVENT",
                 data: {
                     type: LogType.AUDIT,
@@ -323,7 +325,7 @@ export class BaselineService {
                 caller: "orchestrator:domain:analysis:baseline",
                 message: `Filesystem drift: ${changedFiles.length} files modified.`
             });
-            broadcast({
+            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
                 type: "DRIFT_FILE",
                 message: `Drift Detected: ${changedFiles.length} files modified in sensitive directories.`,
                 data: changedFiles.slice(0, 10)

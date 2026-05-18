@@ -3,7 +3,6 @@ import { ProcessTracker } from "./process_tracker.ts";
 import { CanaryService } from "../protection/canary_service.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
-import { BroadcastFunction } from "../orchestration/plugins/types.ts";
 
 /**
  * EventMediator
@@ -35,7 +34,7 @@ export class EventMediator {
         private eventBus: EventBus,
         private processTracker: ProcessTracker,
         private canaryService: CanaryService,
-        private broadcast: BroadcastFunction,
+        private broadcast: (msg: any) => void,
         private logger: LoggingPort,
         private kv?: Deno.Kv
     ) {
@@ -57,6 +56,11 @@ export class EventMediator {
                 message: "Neural Defense Learning Phase Complete. Transitioning to Active Enforcement."
             });
         }, 30000);
+
+        // Bridge Domain UI_BROADCAST events to the actual broadcast function
+        this.eventBus.on("UI_BROADCAST", (msg: any) => {
+            this.broadcast(msg);
+        });
     }
 
     /**
@@ -80,7 +84,7 @@ export class EventMediator {
         commandPort.onEvent("sentinel", async (response: any) => {
             const event = response.data || response;
             if (event.type === "SYSCALL_EVENT") {
-                let type = "EBPF_SYSCALL";
+                let type: any = "EBPF_SYSCALL";
                 let severity = LogSeverity.INFO;
 
                 // Neural Defense: Track and score syscall frequency & sequence

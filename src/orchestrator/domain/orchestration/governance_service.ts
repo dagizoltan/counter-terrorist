@@ -1,6 +1,7 @@
+import { BaseService } from "@core/base_service.ts";
 import { MeshManager } from "./mesh.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { broadcast } from "@api/ws.ts";
+
 
 export interface Proposal {
     id: string;
@@ -17,7 +18,7 @@ export interface Proposal {
  * GovernanceService
  * Orchestrates mesh-wide consensus (Quorum) for high-impact security actions.
  */
-export class GovernanceService {
+export class GovernanceService extends BaseService {
     private proposals: Map<string, Proposal> = new Map();
     private cleanupInterval?: number;
 
@@ -26,6 +27,7 @@ export class GovernanceService {
         private protection: any, // ProtectionPort
         private logging: LoggingPort
     ) {
+        super();
         // BUG-4.24 FIX: Periodically cleanup expired proposals to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanupProposals(), 3600000); // 1 hour
     }
@@ -72,9 +74,9 @@ export class GovernanceService {
             message: `New Proposal ${id.slice(0,8)}: ${type} targeting ${target}`
         });
 
-        this.mesh.broadcast({
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
             type: "GOV_PROPOSAL",
-            payload: {
+            data: {
                 id,
                 type,
                 target,
@@ -116,9 +118,9 @@ export class GovernanceService {
             message: `Received Proposal ${payload.id.slice(0,8)} from ${payload.proposer}. Policy Decision: ${approved ? 'APPROVED' : 'REJECTED'}`
         });
 
-        this.mesh.broadcast({
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
             type: "GOV_VOTE",
-            payload: {
+            data: {
                 id: payload.id,
                 voter: this.mesh.getNodeId(),
                 approved
@@ -217,7 +219,7 @@ export class GovernanceService {
                 });
                 // Apply strict firewall rules immediately
                 await this.protection.firewall.lockdown().catch(() => {});
-                broadcast({ 
+                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
                     type: "AUDIT_EVENT", 
                     data: { 
                         type: LogType.AUDIT, 
@@ -237,7 +239,7 @@ export class GovernanceService {
                     message: `Executing ACTIVE_SABOTAGE against target: ${proposal.target}`
                 });
                 await this.protection.firewall.blockIp(proposal.target);
-                broadcast({ 
+                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
                     type: "AUDIT_EVENT", 
                     data: { 
                         type: LogType.AUDIT, 
