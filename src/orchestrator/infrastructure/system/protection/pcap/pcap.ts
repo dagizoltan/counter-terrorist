@@ -1,7 +1,8 @@
 import { PcapProvider } from "../interfaces.ts";
+import { PcapPort } from "@core/ports.ts";
 export type { PcapProvider };
 
-export class PcapManager {
+export class PcapManager implements PcapPort {
   constructor(private provider: PcapProvider) {}
 
   async startCapture(interface_name: string = "any", duration: number = 60, filename: string = `capture_${Date.now()}.pcap`, filter?: string) {

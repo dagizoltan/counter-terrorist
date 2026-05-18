@@ -1,5 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 import { ConfigurationPort, LoggingPort, LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 import { GeoIpService } from "./geoip_service.ts";
 
 export interface IntelIndicator {
@@ -77,7 +78,7 @@ export class CuratedIntelService extends BaseService {
      * Starts the intelligence pipeline.
      * Refactored to be non-blocking to allow the web console to start immediately.
      */
-    async start(kv?: Deno.Kv) {
+    async start(kv?: Deno.Kv): Promise<Result<void>> {
         this.kv = kv || await Deno.openKv();
         
         // 1. Recover existing blacklist from persistent storage
@@ -126,6 +127,7 @@ export class CuratedIntelService extends BaseService {
 
         // 4. Lifecycle Management Loop
         setInterval(() => this.processLifecycle(), 15 * 60 * 1000);
+        return ok(undefined);
     }
 
     /**

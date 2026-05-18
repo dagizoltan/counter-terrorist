@@ -44,7 +44,8 @@ export class SubsystemFactory {
         const sessions = new SessionService(sessionRepo, this.logging, config.getNumber("SESSION_TTL_HOURS", 24));
         const apiKeys = new ApiKeysService(this.kv, this.logging);
         const rateLimit = new RateLimitService(this.kv);
-        return { sessions, apiKeys, rateLimit };
+        const meshAuth = new MeshAuthService(this.kv, this.logging, config, this.sidecarManager.getTpm());
+        return { sessions, apiKeys, rateLimit, meshAuth };
     }
 
     async initProtection(platformInfo: PlatformInfo, config: EnvConfigProvider) {
@@ -57,7 +58,7 @@ export class SubsystemFactory {
         return { protection, networkLog };
     }
 
-    initSecurity(protection: any, mesh: any, tpm: TPMManager, health: any) {
+    initSecurity(protection: any, mesh: any, config: any, health: any) {
         const anonymization = new AnonymizationService(protection.vpn, this.logging);
         anonymization.setFirewall(protection.firewall);
         const shadowProtocol = new ShadowProtocolService(mesh, anonymization, this.logging);
@@ -65,14 +66,14 @@ export class SubsystemFactory {
         const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, this.logging);
 
         const canaryService = this.createService(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging));
-        const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
+        const kernelService = new KernelService(this.executor, this.auditService, config, this.sidecarManager, this.sidecarManager.getTpm());
 
         return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
     }
 
-    initIntelligence(protection: any, processTracker: any, health: any, config: any, mesh: any) {
+    initIntelligence(protection: any, processTracker: any, health: any, config: any, mesh: any, meshAuth: MeshAuthPort) {
         const geoIp = this.createService(health, "GeoIP", () => new GeoIpService(this.logging));
-        const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, (mesh as any).authService));
+        const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, meshAuth));
         const curatedIntel = this.createService(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, geoIp));
         const news = this.createService(health, "News", () => new NewsSignalService(this.logging));
         const networkDiscovery = this.createService(health, "NetworkDiscovery", () => {

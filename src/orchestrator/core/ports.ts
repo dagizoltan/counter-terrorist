@@ -35,6 +35,7 @@ export interface CommandPort {
   restartSidecar(sidecar: string): Promise<void>;
   stopSidecar(sidecar: string): Promise<void>;
   getPID(sidecar: string): number | null;
+  getTpm(): TpmPort | null;
 }
 
 export interface FirewallPort {
@@ -50,6 +51,9 @@ export interface FirewallPort {
   getStatus(): Promise<CommandResult>;
   flushRules(): Promise<CommandResult>;
   getBlockedIps(): Promise<string[]>;
+  allowPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
+  denyPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
+  setKv(kv: Deno.Kv): Promise<void>;
 }
 
 export interface VpnPort {
@@ -72,7 +76,7 @@ export interface PersistencePort {
 
 export interface PcapPort {
   startCapture(interface_name?: string, duration?: number, filename?: string, filter?: string): Promise<CommandResult>;
-  stopCapture(): Promise<CommandResult>;
+  stopCapture(filename: string): Promise<CommandResult>;
 }
 
 export interface RkhunterPort {
@@ -145,9 +149,10 @@ export interface MeshPort {
 }
 
 export interface MeshAuthPort {
-  getRootCACert(): Promise<{ cert: string; timestamp: number }>;
-  generateNodeCert(nodeId: string): Promise<{ cert: string; key: string; timestamp: number }>;
-  rotateCert(nodeId: string): Promise<{ cert: string; key: string; timestamp: number }>;
+  getRootCA(): Promise<any>; // Returns CertPair
+  getTrustedCerts(): Promise<string[]>;
+  generateNodeCert(nodeId: string): Promise<any>;
+  rotateCert(nodeId: string): Promise<any>;
 }
 
 export interface ConfigurationPort {
@@ -174,6 +179,18 @@ export interface AuditPort {
   logEvent(event: AuditEvent): Promise<void>;
 }
 
+export interface TpmPort {
+  sealSecret(secretName: string, data: string): Promise<void>;
+  unsealSecret(secretName: string): Promise<string | null>;
+  getPcrs(indices?: number[]): Promise<Record<number, string>>;
+  verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean>;
+  isHardwareVerified(): boolean;
+  sign(data: string): Promise<string>;
+  verify(data: string, signature: string): Promise<boolean>;
+  generateSelfSignedCA(commonName: string): Promise<CommandResult>;
+  issueNodeCert(nodeId: string, caCert: string, caKey: string): Promise<CommandResult>;
+}
+
 export interface NotificationPayload {
   type: string;
   message: string;
@@ -190,6 +207,11 @@ export interface EventBusPort {
   subscribe(handler: (event: { type: string; message: string; timestamp: string; data?: any }) => void): () => void;
   unsubscribe(handler: (event: any) => void): void;
   on(event: string, callback: (data: any) => void): () => void;
+}
+
+export interface ExecutorPort {
+  execute(cmd: string, args?: string[], timeoutMs?: number): Promise<CommandResult>;
+  executeAsync(cmd: string, args?: string[]): Promise<void>;
 }
 
 export interface ApplicationStatus {

@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort } from "@core/ports.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 /**
@@ -6,7 +6,7 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
  * Binds mesh secrets and identity to the hardware Root of Trust.
  * Achieves Full Dependency Hermeticity via native sidecar.
  */
-export class TPMManager {
+export class TPMManager implements TpmPort {
     private hardwareVerified: boolean = false;
 
     constructor(

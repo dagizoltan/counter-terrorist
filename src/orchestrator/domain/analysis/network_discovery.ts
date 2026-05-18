@@ -1,4 +1,5 @@
-import { LoggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
+import { LoggingPort as LoggingService, LogSeverity, LogType, ExecutorPort, MeshPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface NetworkDevice {
     id: string;
@@ -25,19 +26,19 @@ export class NetworkDiscoveryService {
     private devices: Map<string, NetworkDevice> = new Map();
     private discovery: any;
     private selfId: string = "LOCAL_NODE";
-    private mesh?: any;
+    private mesh?: MeshPort;
 
-    constructor(private logging: LoggingService, private executor: any) {
+    constructor(private logging: LoggingService, private executor: ExecutorPort) {
         this.selfId = "LOCAL_NODE";
     }
 
-    setMesh(mesh: any) {
+    setMesh(mesh: MeshPort) {
         this.mesh = mesh;
     }
 
     private isScanning = false;
 
-    async start() {
+    async start(): Promise<Result<void>> {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
@@ -57,6 +58,7 @@ export class NetworkDiscoveryService {
         });
         // Frequent sweeps for security visibility (every 20s)
         setInterval(() => this.scan(), 20000); 
+        return ok(undefined);
     }
 
     async scan() {

@@ -1,5 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
-import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
+import { FirewallPort } from "@core/ports.ts";
+import { Result, ok } from "@core/result.ts";
 
 import { AuditService } from "./audit.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
@@ -16,8 +17,9 @@ export class BehavioralService extends BaseService {
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
 
-  constructor(private firewall: FirewallManager, private audit?: AuditService) {
-      this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
+  constructor(private firewall: FirewallPort, private audit?: AuditService) {
+    super();
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
   }
 
   shutdown() {
@@ -52,7 +54,7 @@ export class BehavioralService extends BaseService {
     }));
   }
 
-  async analyze(ip: string) {
+  async analyze(ip: string): Promise<Result<string>> {
     const now = Date.now();
     let stats = this.history.get(ip);
 
@@ -103,17 +105,17 @@ export class BehavioralService extends BaseService {
 
       if (entropy < 1.0) {
         await this.firewall.blockIp(ip);
-        return "BLOCK";
+        return ok("BLOCK");
       } else {
         await this.firewall.shadowBanIp(ip);
-        return "SHADOW_BAN";
+        return ok("SHADOW_BAN");
       }
     }
 
-    return "PENDING";
+    return ok("PENDING");
   }
 
-  async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]) {
+  async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]): Promise<Result<string>> {
     // 1. Neural Analysis (Syscall Frequency Anomaly)
     this.analyzer.trackSyscall(pid, comm, syscall);
     const anomalyScore = this.analyzer.getSyscallAnomalyScore(comm, syscall);
@@ -129,7 +131,7 @@ export class BehavioralService extends BaseService {
                data: { pid, comm, syscall, score: anomalyScore }
             });
         }
-        return "ALERT";
+        return ok("ALERT");
     }
 
     const suspiciousCommands = ["curl", "wget", "chmod", "chown", "nc", "netcat"];
@@ -158,7 +160,7 @@ export class BehavioralService extends BaseService {
             data: { pid, comm, syscall, args }
           }
        });
-       return "ALERT";
+       return ok("ALERT");
     }
 
     if (syscall === "openat" || syscall === "open") {
@@ -186,11 +188,11 @@ export class BehavioralService extends BaseService {
               data: { pid, comm, path }
             }
           });
-          return "BLOCK_SYSCALL";
+          return ok("BLOCK_SYSCALL");
        }
     }
 
-    return "PASS";
+    return ok("PASS");
   }
 
   private calculateEntropy(intervals: number[]): number {

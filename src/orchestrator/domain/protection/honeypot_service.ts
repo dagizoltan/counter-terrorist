@@ -1,9 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
-import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
-import { BroadcastFunction } from "../orchestration/plugins/types.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort, FirewallPort, PcapPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface HoneypotModule {
   id: string;
@@ -20,9 +17,9 @@ export class HoneypotService extends BaseService {
   private eventBus?: any;
 
   constructor(
-    private sidecarManager: SidecarManager,
-    private firewall: FirewallManager,
-    private pcap: PcapManager,
+    private sidecarManager: CommandPort,
+    private firewall: FirewallPort,
+    private pcap: PcapPort,
     private logging: LoggingPort
   ) {
     // Register default modules
@@ -93,7 +90,7 @@ export class HoneypotService extends BaseService {
     return this.modules.get(id);
   }
 
-  async toggleModule(id: string, active: boolean) {
+  async toggleModule(id: string, active: boolean): Promise<Result<void>> {
     const module = this.modules.get(id);
     if (module) {
       module.active = active;
@@ -102,28 +99,32 @@ export class HoneypotService extends BaseService {
       } else {
         await this.firewall.denyPort(module.port, "tcp");
       }
-      await this.sidecarManager.sendCommand("decoy", {
+      const res = await this.sidecarManager.sendCommand("decoy", {
         type: "ToggleModule",
         module: id, 
         active, 
         port: module.port
-      }).catch(() => {});
+      });
+      if (!res.success) return err(new Error(`Failed to toggle decoy module: ${res.stderr}`));
+      return ok(undefined);
     }
+    return err(new Error(`Module ${id} not found`));
   }
 
   private morphInterval?: number;
 
-  async start() {
+  async start(): Promise<Result<void>> {
     const sidecar = await this.sidecarManager.getPersistentSidecar("decoy");
     if (!sidecar) {
+        const msg = "Failed to initialize 'decoy' sidecar. Honeypot service remains dormant.";
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
             caller: "orchestrator:domain:protection:honeypot",
-            message: "Failed to initialize 'decoy' sidecar. Honeypot service remains dormant."
+            message: msg
         });
-        return;
+        return err(new Error(msg));
     }
 
     this.sidecarManager.onEvent("decoy", (event) => this.handleEvent(event));
@@ -131,13 +132,14 @@ export class HoneypotService extends BaseService {
     // Initialize firewall rules and sidecar modules for active modules
     for (const module of this.modules.values()) {
         if (module.active) {
-            await this.toggleModule(module.id, true).catch(() => {});
+            await this.toggleModule(module.id, true);
         }
     }
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
     this.morphInterval = setInterval(() => this.morph(), 600000); // Every 10 minutes
     setInterval(() => this.emitMetrics(), 30000);
+    return ok(undefined);
   }
 
   setEventBus(eventBus: any) {
@@ -236,7 +238,7 @@ export class HoneypotService extends BaseService {
   /**
    * High-confidence trigger from the Web Ingress decoy routes.
    */
-  async onWebTrigger(route: string, source_ip: string) {
+  async onWebTrigger(route: string, source_ip: string): Promise<Result<void>> {
     this.hitCount++;
     this.emitEvent({ type: "WebAccess", source_ip, route });
 
@@ -261,21 +263,21 @@ export class HoneypotService extends BaseService {
     });
 
     // Immediate blocking for web decoys as they are 100% malicious
-    this.firewall.blockIp(source_ip).catch(console.error);
+    await this.firewall.blockIp(source_ip);
 
     // Automated Forensics: Start capture for the attacker's traffic
     const safeIp = source_ip.replace(/[\.:]/g, '_');
-    this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
+    await this.pcap.startCapture("any", 300, `web_decoy_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`);
 
     // Active Sabotage: Initiate Breaker protocol on the attacker's session
-    this.sabotageSession(source_ip);
+    return await this.sabotageSession(source_ip);
   }
 
   /**
    * Initiates the 'Breaker' protocol to sabotage an attacker's session.
    * Injects latency, jitter, and fake errors to frustrate the adversary.
    */
-  async sabotageSession(source_ip: string, level: string = "HIGH") {
+  async sabotageSession(source_ip: string, level: string = "HIGH"): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -297,19 +299,21 @@ export class HoneypotService extends BaseService {
     
     // We send a Sabotage command to the honeypot sidecar
     // The sidecar will then inject jitter and errors for this specific IP
-    await this.sidecarManager.sendCommand("decoy", {
+    const res = await this.sidecarManager.sendCommand("decoy", {
         type: "Sabotage",
         source_ip, 
         level,
         mode,
         latency_ms
-    }).catch(() => {});
+    });
+    if (!res.success) return err(new Error(`Sabotage command failed: ${res.stderr}`));
+    return ok(undefined);
   }
 
   /**
    * Randomly rotates the ports of all active modules to confuse attackers.
    */
-  async morph() {
+  async morph(): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -354,7 +358,7 @@ export class HoneypotService extends BaseService {
         module: id, 
         old_port: oldPort,
         new_port: newPort
-      }).catch(() => ({ success: false }));
+      });
 
       if (updateRes.success) {
           module.port = newPort;
@@ -398,6 +402,7 @@ export class HoneypotService extends BaseService {
         caller: "orchestrator:domain:protection:honeypot:system",
         message: "Deception Morphing cycle completed successfully."
     });
+    return ok(undefined);
   }
 
   getDecoyRoutes() {

@@ -1,8 +1,6 @@
-import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "../analysis/audit.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
+import { LoggingPort, LogSeverity, LogType, ExecutorPort, CommandPort, TpmPort, ConfigurationPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface KernelHardeningStatus {
     aslr: string;
@@ -19,14 +17,13 @@ export class KernelService {
     private logging: LoggingPort;
     private eventBus?: any;
     private metricsInterval?: number;
-    private config?: any;
-
-    private tpm?: TPMManager;
 
     constructor(
-        private executor: SystemExecutor, 
+        private executor: ExecutorPort,
         private auditService: AuditService,
-        private sidecarManager?: SidecarManager
+        private config: ConfigurationPort,
+        private sidecarManager?: CommandPort,
+        private tpm?: TpmPort
     ) {
         this.logging = auditService.getLogging();
         this.metricsInterval = setInterval(() => this.emitMetrics(), 60000);
@@ -40,28 +37,21 @@ export class KernelService {
         this.eventBus = eventBus;
     }
 
-    setConfig(config: any) {
-        this.config = config;
-    }
-
     private async emitMetrics() {
         if (!this.eventBus) return;
-        const status = await this.getStatus();
+        const statusRes = await this.getStatus();
+        const status = statusRes.success ? statusRes.data : {};
         this.eventBus.emit("METRIC_UPDATE", {
             domain: "kernel",
             data: status
         });
     }
 
-    setTpmManager(tpm: TPMManager) {
-        this.tpm = tpm;
-    }
-
-    getTpmManager(): TPMManager | undefined {
+    getTpmManager(): TpmPort | undefined {
         return this.tpm;
     }
 
-    async start() {
+    async start(): Promise<Result<void>> {
         const params = [
             "net.ipv4.conf.all.rp_filter=1",
             "net.ipv4.conf.default.rp_filter=1",
@@ -73,15 +63,14 @@ export class KernelService {
         ];
 
         for (const param of params) {
-            try {
-                await this.executor.execute("sysctl", ["-w", param]);
-            } catch (e) {
+            const res = await this.executor.execute("sysctl", ["-w", param]);
+            if (!res.success) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
                     caller: "orchestrator:domain:protection:kernel",
-                    message: `Failed to apply ${param}: ${(e as Error).message}`
+                    message: `Failed to apply ${param}: ${res.stderr}`
                 });
             }
         }
@@ -95,13 +84,13 @@ export class KernelService {
             data: { params }
         });
 
-        await this.camouflage();
+        return await this.camouflage();
     }
 
     /**
      * Disguises the orchestrator process as a kernel worker thread.
      */
-    async camouflage() {
+    async camouflage(): Promise<Result<void>> {
         const enabled = this.config?.getBoolean("STEALTH_ENABLED", true);
         if (!enabled) {
             this.logging.log({
@@ -126,22 +115,11 @@ export class KernelService {
         try {
             const selfPid = Deno.pid;
             const targetName = "[kworker/u64:1]";
-            await this.executor.execute("/var/lib/cts/scripts/update_comm.sh", [targetName, selfPid.toString()]);
+            const res = await this.executor.execute("/var/lib/cts/scripts/update_comm.sh", [targetName, selfPid.toString()]);
             
-            /* Deep Stealth: Register with eBPF Kernel filter
-            if (this.sidecarManager) {
-                await this.sidecarManager.sendCommand("sentinel", {
-                    type: "HIDE_PID",
-                    pid: selfPid
-                }).catch(err => this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.WARNING,
-                    caller: "orchestrator:domain:protection:kernel",
-                    message: `eBPF PID hiding failed: ${err.message}`
-                }));
+            if (!res.success) {
+                return err(new Error(`Camouflage update_comm failed: ${res.stderr}`));
             }
-            */
 
             this.logging.log({
                 timestamp: new Date().toISOString(),
@@ -150,14 +128,17 @@ export class KernelService {
                 caller: "orchestrator:domain:protection:kernel",
                 message: `Process ${selfPid} successfully camouflaged as '${targetName}'`
             });
+            return ok(undefined);
         } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
                 caller: "orchestrator:domain:protection:kernel",
-                message: `Camouflage failed: ${(e as Error).message}`
+                message: `Camouflage failed: ${error.message}`
             });
+            return err(error);
         }
     }
 
@@ -173,8 +154,8 @@ export class KernelService {
     /**
      * Enforces a process-level restriction via Ring 0 hooks (LSM/Auth/WFP).
      */
-    async enforceEnforcement(pid: number, policy: number = 1) {
-        if (!this.sidecarManager) return;
+    async enforceEnforcement(pid: number, policy: number = 1): Promise<Result<void>> {
+        if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
 
         const os = Deno.build.os;
         this.logging.log({
@@ -185,28 +166,34 @@ export class KernelService {
             message: `Ring 0 Enforcement: Engaging policy ${policy} for PID ${pid}`
         });
 
+        let res;
         if (os === "linux") {
-            await this.sidecarManager.sendCommand("sentinel", { type: "ENFORCE_PID", pid, policy });
+            res = await this.sidecarManager.sendCommand("sentinel", { type: "ENFORCE_PID", pid, policy });
         } else if (os === "darwin") {
             // macOS ESF Auth enforcement
-            await this.sidecarManager.sendCommand("sentinel-darwin", { type: "UpdatePolicy", blocked_paths: [`/proc/${pid}/`] });
+            res = await this.sidecarManager.sendCommand("sentinel-darwin", { type: "UpdatePolicy", blocked_paths: [`/proc/${pid}/`] });
         } else if (os === "windows") {
             // Windows WFP enforcement
-            await this.sidecarManager.sendCommand("enforcer-win", { type: "AddBlockRule", ip: "0.0.0.0/0", pid });
+            res = await this.sidecarManager.sendCommand("enforcer-win", { type: "AddBlockRule", ip: "0.0.0.0/0", pid });
+        } else {
+            return err(new Error(`Unsupported OS for enforcement: ${os}`));
         }
+
+        if (!res.success) return err(new Error(`Enforcement failed: ${res.stderr}`));
 
         this.auditService.logEvent({
             type: "ENFORCEMENT",
             message: `Ring 0 Enforcement active for PID ${pid}`,
             data: { pid, policy, os }
         });
+        return ok(undefined);
     }
 
     /**
      * Enforces a syscall block via eBPF Kernel hooks.
      */
-    async blockSyscall(pid: number, syscall: string) {
-        if (!this.sidecarManager) return;
+    async blockSyscall(pid: number, syscall: string): Promise<Result<void>> {
+        if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
         
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -215,17 +202,22 @@ export class KernelService {
             caller: "KERNEL:LSM",
             message: `LSM Enforcement: Blocking syscall '${syscall}' for PID ${pid}`
         });
-        await this.sidecarManager.sendCommand("sentinel", {
+        const res = await this.sidecarManager.sendCommand("sentinel", {
             type: "BLOCK_SYSCALL",
             pid,
             syscall
-        }).catch(err => this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.WARNING,
-            caller: "orchestrator:domain:protection:kernel",
-            message: `eBPF syscall block failed: ${err.message}`
-        }));
+        });
+
+        if (!res.success) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:protection:kernel",
+                message: `eBPF syscall block failed: ${res.stderr}`
+            });
+            return err(new Error(`eBPF syscall block failed: ${res.stderr}`));
+        }
         
         this.auditService.logEvent({
             type: LogType.AUDIT,
@@ -234,13 +226,14 @@ export class KernelService {
             message: `LSM Enforcement: Blocked syscall '${syscall}' for process ${pid}`,
             data: { pid, syscall }
         });
+        return ok(undefined);
     }
 
     /**
      * Deploys a global LSM policy to the eBPF agent.
      */
-    async enforceLsmPolicy(policy: { blockedSyscalls: string[], restrictedPids: number[] }) {
-        if (!this.sidecarManager) return;
+    async enforceLsmPolicy(policy: { blockedSyscalls: string[], restrictedPids: number[] }): Promise<Result<void>> {
+        if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
         
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -249,23 +242,29 @@ export class KernelService {
             caller: "KERNEL:LSM",
             message: "Deploying Deep LSM Policy..."
         });
-        await this.sidecarManager.sendCommand("sentinel", {
+        const res = await this.sidecarManager.sendCommand("sentinel", {
             type: "LSM_POLICY",
             policy
-        }).catch(err => this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.WARNING,
-            caller: "orchestrator:domain:protection:kernel",
-            message: `eBPF LSM policy deployment failed: ${err.message}`
-        }));
+        });
+
+        if (!res.success) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:protection:kernel",
+                message: `eBPF LSM policy deployment failed: ${res.stderr}`
+            });
+            return err(new Error(`eBPF LSM policy deployment failed: ${res.stderr}`));
+        }
+        return ok(undefined);
     }
 
     /**
      * SOV-P2: Kernel Lockdown - AppArmor Profile Generation
      * Generates a minimal, hardened AppArmor profile for a sidecar.
      */
-    async deployAppArmorProfile(name: string, binaryPath: string) {
+    async deployAppArmorProfile(name: string, binaryPath: string): Promise<Result<void>> {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -311,8 +310,11 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
 
         try {
             // Deploy profile via privileged SystemExecutor
-            await this.executor.execute("cp", [tempFile, `/etc/apparmor.d/${profileName}`]);
-            await this.executor.execute("systemctl", ["reload", "apparmor"]);
+            const cpRes = await this.executor.execute("cp", [tempFile, `/etc/apparmor.d/${profileName}`]);
+            if (!cpRes.success) return err(new Error(`Failed to copy AppArmor profile: ${cpRes.stderr}`));
+
+            const reloadRes = await this.executor.execute("systemctl", ["reload", "apparmor"]);
+            if (!reloadRes.success) return err(new Error(`Failed to reload AppArmor: ${reloadRes.stderr}`));
 
             this.logging.log({
                 timestamp: new Date().toISOString(),
@@ -321,18 +323,21 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
                 caller: "KERNEL:APPARMOR",
                 message: `AppArmor profile '${profileName}' successfully deployed and enforced.`
             });
+            return ok(undefined);
         } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "KERNEL:APPARMOR",
-                message: `Failed to deploy AppArmor profile: ${(e as Error).message}`
+                message: `Failed to deploy AppArmor profile: ${error.message}`
             });
+            return err(error);
         }
     }
 
-    async getStatus(): Promise<KernelHardeningStatus> {
+    async getStatus(): Promise<Result<KernelHardeningStatus>> {
         const [aslrVal, syncookiesVal, rpFilterVal, timestampsVal, srcRouteVal, icmpBroadVal] = await Promise.all([
             this.readSysctl("kernel.randomize_va_space"),
             this.readSysctl("net.ipv4.tcp_syncookies"),
@@ -342,7 +347,7 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
             this.readSysctl("net.ipv4.icmp_echo_ignore_broadcasts"),
         ]);
 
-        return {
+        return ok({
             aslr: aslrVal === "2" ? "STRICT" : aslrVal === "1" ? "PARTIAL" : aslrVal === "0" ? "DISABLED" : "UNKNOWN",
             syncookies: syncookiesVal === "1" ? "ENABLED" : syncookiesVal === "0" ? "DISABLED" : "UNKNOWN",
             rp_filter: rpFilterVal === "1" ? "STRICT" : rpFilterVal === "2" ? "LOOSE" : rpFilterVal === "0" ? "DISABLED" : "UNKNOWN",
@@ -350,6 +355,6 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
             accept_source_route: srcRouteVal === "0" ? "BLOCKED" : "ALLOWED",
             icmp_echo_ignore_broadcasts: icmpBroadVal === "1" ? "BLOCKED" : "ALLOWED",
             lastHardened: this.lastHardened || "NEVER",
-        };
+        });
     }
 }

@@ -1,7 +1,8 @@
 import { BaseService } from "@core/base_service.ts";
 
 import { MeshAuthService } from "../index.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 import { AuditService } from "../analysis/audit.ts";
 
@@ -25,7 +26,6 @@ export class MeshManager extends BaseService {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
-  private config?: any;
 
   shutdown() {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
@@ -49,9 +49,10 @@ export class MeshManager extends BaseService {
   }
 
   constructor(
-    private meshAuth: MeshAuthService, 
+    private meshAuth: MeshAuthPort,
     private logging: LoggingPort,
-    private audit: AuditService
+    private audit: AuditService,
+    private config: ConfigurationPort
   ) {
     super();
     setInterval(() => this.emitMetrics(), 30000);
@@ -68,11 +69,6 @@ export class MeshManager extends BaseService {
     this.eventBus = eventBus;
   }
 
-  setConfig(config: any) {
-    this.config = config;
-    this.meshSecret = config.getEnv("MESH_SECRET");
-  }
-
   private emitMetrics() {
     if (!this.eventBus) return;
     this.eventBus.emit("METRIC_UPDATE", {
@@ -85,12 +81,15 @@ export class MeshManager extends BaseService {
     });
   }
 
-  async init() {
+  async init(): Promise<Result<void>> {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
-    this.port = this.config?.getNumber("PORT", 8000) || 8000;
+    this.port = this.config.getNumber("PORT", 8000);
+    this.meshSecret = this.config.getEnv("MESH_SECRET");
 
     try {
-      this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
+      const res = await this.meshAuth.generateNodeCert(this.nodeId);
+      if (!res.success) throw new Error(`MeshAuth generateNodeCert failed: ${res.error.message}`);
+      this.nodeCert = res.data;
 
       // Create mTLS HTTP client
       // BUG-07: Use all trusted CA certs to support dual-trust transitions
@@ -107,14 +106,17 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `mTLS Identity established for ${this.nodeId}`
       });
+      return ok(undefined);
     } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.WARNING,
           caller: "orchestrator:domain:orchestration:mesh",
-          message: `Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`
+          message: `Failed to initialize mTLS: ${error.message}. Continuing with limited mesh functionality.`
       });
+      return err(error);
     }
   }
 
@@ -439,7 +441,7 @@ export class MeshManager extends BaseService {
    * Generic mesh broadcast (Gossip).
    * Supports 'priority' for critical events like lockdown.
    */
-  async broadcast(payload: any, priority: boolean = false) {
+  async broadcast(payload: any, priority: boolean = false): Promise<Result<void>> {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
 
     // BUG-3.2 FIX: Gossip Concurrency Limit
@@ -478,6 +480,7 @@ export class MeshManager extends BaseService {
             await Promise.all(batchPromises);
         }
     }
+    return ok(undefined);
   }
 
   getNodes(): MeshNode[] {
@@ -487,7 +490,7 @@ export class MeshManager extends BaseService {
   /**
    * Revokes trust from a node and removes it from the mesh.
    */
-  isolateNode(nodeId: string) {
+  isolateNode(nodeId: string): Result<void> {
     const node = this.nodes.get(nodeId);
     if (node) {
       this.nodes.delete(nodeId);
@@ -509,12 +512,13 @@ export class MeshManager extends BaseService {
         }
       });
     }
+    return ok(undefined);
   }
 
   /**
    * Broadcasts a block command to all verified nodes in the mesh.
    */
-  async broadcastBlock(ip: string) {
+  async broadcastBlock(ip: string): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -529,12 +533,13 @@ export class MeshManager extends BaseService {
         sourceNode: this.nodeId,
         timestamp: Date.now()
     });
+    return ok(undefined);
   }
 
   /**
    * Broadcasts a malicious binary hash to the mesh.
    */
-  async broadcastThreatHash(hash: string, sourceNode: string) {
+  async broadcastThreatHash(hash: string, sourceNode: string): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -549,12 +554,13 @@ export class MeshManager extends BaseService {
         sourceNode,
         timestamp: Date.now()
     });
+    return ok(undefined);
   }
 
   /**
    * Broadcasts a lockdown command to all verified nodes in the mesh.
    */
-  async broadcastLockdown() {
+  async broadcastLockdown(): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -568,6 +574,7 @@ export class MeshManager extends BaseService {
         sourceNode: this.nodeId,
         timestamp: Date.now()
     }, true);
+    return ok(undefined);
   }
 
   /**
@@ -589,7 +596,7 @@ export class MeshManager extends BaseService {
     });
   }
 
-  async reconcile() {
+  async reconcile(): Promise<Result<void>> {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
     for (const node of verifiedNodes) {
         try {
@@ -632,6 +639,7 @@ export class MeshManager extends BaseService {
             });
         }
     }
+    return ok(undefined);
   }
 
   /**
@@ -874,7 +882,7 @@ export class MeshManager extends BaseService {
    * Rotates the node's cryptographic identity and Node ID.
    * This is an ultra-hardening measure to prevent long-term mesh persistence by an adversary.
    */
-  async rotateIdentity() {
+  async rotateIdentity(): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -906,6 +914,7 @@ export class MeshManager extends BaseService {
         message: "Security Mesh Identity Phased",
         data: { oldId, newId: this.nodeId }
     });
+    return ok(undefined);
   }
 
   /**
