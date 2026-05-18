@@ -1,3 +1,5 @@
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "@core/result.ts";
 import { AuditService, AuditEvent } from "./audit.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 
@@ -21,12 +23,18 @@ export interface ComplianceReport {
  * ComplianceService
  * Aggregates audit data into auditor-ready reports and snapshots.
  */
-export class ComplianceService {
+export class ComplianceService extends BaseService {
     constructor(
         private audit: AuditService, 
         private kv: Deno.Kv,
         private processTracker: ProcessTracker
-    ) {}
+    ) {
+        super();
+    }
+
+    async shutdown(): Promise<Result<void>> {
+        return ok(undefined);
+    }
 
     /**
      * Generates a high-fidelity compliance snapshot of the current node.

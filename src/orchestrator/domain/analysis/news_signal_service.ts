@@ -28,7 +28,9 @@ export class NewsSignalService {
         { name: "CERT-UA", url: "https://cert.gov.ua/rss" }
     ];
 
-    constructor(private logging: LoggingPort) {}
+    constructor(private logging: LoggingPort) {
+        super();
+    }
 
     async start(kv?: Deno.Kv): Promise<Result<void>> {
         this.kv = kv || await Deno.openKv();
@@ -136,6 +138,10 @@ export class NewsSignalService {
                 });
             }
         }
+    }
+
+    async shutdown(): Promise<Result<void>> {
+        return ok(undefined);
     }
 
     async getLatestSignals(limit = 10): Promise<NewsItem[]> {

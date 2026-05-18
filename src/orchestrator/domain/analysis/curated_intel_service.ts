@@ -2,7 +2,31 @@ import { BaseService } from "@core/base_service.ts";
 import { ConfigurationPort, LoggingPort, LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { GeoIpService } from "./geoip_service.ts";
+import { z } from "zod";
 
+export const IntelIndicatorSchema = z.object({
+    indicator: z.string(),
+    type: z.enum(["IP", "URL", "DOMAIN", "HASH"]),
+    provider: z.string(),
+    confidence: z.number().min(0).max(100),
+    threatType: z.string(),
+    firstSeen: z.string(),
+    lastSeen: z.string(),
+    score: z.number().min(0).max(100),
+    ttl: z.number(),
+    geo: z.object({
+        country: z.string(),
+        isp: z.string(),
+        asn: z.string(),
+        isBulletproof: z.boolean(),
+        lat: z.number().optional(),
+        lon: z.number().optional()
+    }).optional()
+});
+
+export type IntelIndicator = z.infer<typeof IntelIndicatorSchema>;
+
+/*
 export interface IntelIndicator {
     indicator: string;
     type: "IP" | "URL" | "DOMAIN" | "HASH";
@@ -22,6 +46,7 @@ export interface IntelIndicator {
         lon?: number;
     };
 }
+*/
 
 const SOURCE_WEIGHTS: Record<string, number> = {
     "Abuse.ch": 95,
@@ -74,6 +99,10 @@ export class CuratedIntelService extends BaseService {
         return this.blacklist;
     }
 
+    async shutdown(): Promise<Result<void>> {
+        return ok(undefined);
+    }
+
     /**
      * Starts the intelligence pipeline.
      * Refactored to be non-blocking to allow the web console to start immediately.
@@ -84,6 +113,17 @@ export class CuratedIntelService extends BaseService {
         // 1. Recover existing blacklist from persistent storage
         const iter = this.kv.list<IntelIndicator>({ prefix: ["curated_threats"] });
         for await (const res of iter) {
+            const validation = IntelIndicatorSchema.safeParse(res.value);
+            if (!validation.success) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "INTEL:RECOVERY",
+                    message: `Invalid indicator in KV: ${res.key}. Errors: ${validation.error.message}`
+                });
+                continue;
+            }
             if (res.value.score >= 85 && res.value.type === "IP") {
                 this.blacklist.add(res.value.indicator);
             }
@@ -434,8 +474,12 @@ export class CuratedIntelService extends BaseService {
                 });
             }
 
-            await this.kv?.set(["curated_threats", indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
-            await this.kv?.set(["curated_threats_by_type", curated.type, indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 });
+            if (this.kv) {
+                await this.kv.atomic()
+                    .set(["curated_threats", indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 })
+                    .set(["curated_threats_by_type", curated.type, indicator], curated, { expireIn: curated.ttl * 60 * 60 * 1000 })
+                    .commit();
+            }
             this.stats[source.name] = (this.stats[source.name] || 0) + 1;
             ingestCount++;
             

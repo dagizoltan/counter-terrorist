@@ -157,12 +157,13 @@ export class HoneypotService extends BaseService {
     });
   }
 
-  shutdown() {
+  async shutdown(): Promise<Result<void>> {
       if (this.morphInterval) {
           clearInterval(this.morphInterval);
           this.morphInterval = undefined;
       }
-      this.sidecarManager.stopSidecar("decoy").catch(() => {});
+      await this.sidecarManager.stopSidecar("decoy");
+      return ok(undefined);
   }
 
   private async handleEvent(event: any) {

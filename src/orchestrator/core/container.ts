@@ -1,3 +1,4 @@
+import { Result } from "./result.ts";
 import { 
   AuditService, 
   NotificationService, 
@@ -39,8 +40,7 @@ import {
   CorrelationService,
   ViewModelService
 } from "@domain/index.ts";
-import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
-import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
+import { ConfigurationPort, ProtectionPort, CommandPort, MeshAuthPort, TpmPort } from "./ports.ts";
 
 import { PlatformName } from "@infrastructure/system/platform.ts";
 import { LoggingPort } from "./ports.ts";
@@ -77,7 +77,7 @@ export interface ServiceContainer {
   chaos: ChaosEngine;
   supplyChain: SupplyChainService;
   mesh: MeshManager;
-  meshAuth: MeshAuthService;
+  meshAuth: MeshAuthPort;
   threatIntel: ThreatIntelService;
   compliance: ComplianceService;
   anonymization: AnonymizationService;
@@ -94,7 +94,7 @@ export interface ServiceContainer {
   shadow: ShadowService;
   covert: CovertChannelService;
   ledger: LedgerService;
-  tpm: TPMManager;
+  tpm: TpmPort;
   policy: PolicyEngine;
   health: HealthService;
   metrics: MetricsService;

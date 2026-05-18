@@ -1,3 +1,4 @@
+import { BaseService } from "@core/base_service.ts";
 import { LoggingPort as LoggingService, LogSeverity, LogType, ExecutorPort, MeshPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 
@@ -22,13 +23,14 @@ export interface NetworkDevice {
  * Aggregates multi-vector signal intelligence from the local environment.
  * Authoritative: Uses RealDiscovery for kernel-level telemetry.
  */
-export class NetworkDiscoveryService {
+export class NetworkDiscoveryService extends BaseService {
     private devices: Map<string, NetworkDevice> = new Map();
     private discovery: any;
     private selfId: string = "LOCAL_NODE";
     private mesh?: MeshPort;
 
     constructor(private logging: LoggingService, private executor: ExecutorPort) {
+        super();
         this.selfId = "LOCAL_NODE";
     }
 
@@ -228,6 +230,10 @@ export class NetworkDiscoveryService {
 
     getDevices(): NetworkDevice[] {
         return Array.from(this.devices.values());
+    }
+
+    async shutdown(): Promise<Result<void>> {
+        return ok(undefined);
     }
 
     private async getPrimaryInterface() {

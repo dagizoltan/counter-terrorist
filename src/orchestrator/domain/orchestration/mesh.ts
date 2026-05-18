@@ -5,16 +5,29 @@ import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } fr
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 import { AuditService } from "../analysis/audit.ts";
+import { z } from "zod";
 
+export const MeshNodeSchema = z.object({
+  id: z.string(),
+  hostname: z.string(),
+  address: z.string(),
+  port: z.number(),
+  lastSeen: z.number(),
+  verified: z.boolean()
+});
+
+export type MeshNode = z.infer<typeof MeshNodeSchema>;
+
+/*
 export interface MeshNode {
   id: string;
   hostname: string;
   address: string;
   port: number;
   lastSeen: number;
-  /** Whether this node has been validated via mTLS handshake. */
   verified: boolean;
 }
+*/
 
 export class MeshManager extends BaseService {
   private nodes: Map<string, MeshNode> = new Map();
@@ -27,7 +40,7 @@ export class MeshManager extends BaseService {
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
 
-  shutdown() {
+  async shutdown(): Promise<Result<void>> {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
       this.discoveryInterval = null;
       if (this.mdnsListener) {
@@ -46,6 +59,7 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: "Mesh MeshManager offline."
       });
+      return ok(undefined);
   }
 
   constructor(
@@ -413,6 +427,18 @@ export class MeshManager extends BaseService {
   }
 
   registerNode(node: MeshNode) {
+    const validation = MeshNodeSchema.safeParse(node);
+    if (!validation.success) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "MESH:REGISTER",
+            message: `Node registration failed validation: ${validation.error.message}`
+        });
+        return;
+    }
+
     const isNew = !this.nodes.has(node.id);
     this.nodes.set(node.id, { ...node, lastSeen: Date.now() });
 
