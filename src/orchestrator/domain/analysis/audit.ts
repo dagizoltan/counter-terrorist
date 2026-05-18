@@ -34,6 +34,18 @@ export interface AuditEvent {
     merkleRoot?: string;
 }
 
+/**
+ * Event Sourcing: Delta Schema
+ */
+export interface AuditDelta {
+    id: string;
+    eventId: string;
+    timestamp: string;
+    field: string;
+    oldValue: any;
+    newValue: any;
+}
+
 interface RetentionConfig {
     maxAgeDays: number;
     maxEvents: number;
@@ -73,6 +85,7 @@ export class AuditService extends BaseService {
         };
 
         this.restoreChainHead();
+        this.startLedgerWatcher();
         
         const jitter = (ms: number) => ms + (Math.random() * 5000);
 
@@ -90,6 +103,31 @@ export class AuditService extends BaseService {
 
         // Merkle Root Commitment: Commit root every 10 minutes
         this.intervals.push(setInterval(() => this.commitMerkleRoot(), jitter(600000)));
+    }
+
+    /**
+     * Reactive state: Watch for ledger changes from other nodes
+     */
+    private async startLedgerWatcher() {
+        const kv = (this.repo as any).kv;
+        if (!kv) return;
+
+        const watcher = kv.watch([["audit", "latest"]]);
+        for await (const [entry] of watcher) {
+            if (entry.value) {
+                const latestEvent = entry.value as AuditEvent;
+                if (latestEvent.hash !== this.lastHash) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.INFO,
+                        caller: "orchestrator:domain:analysis:audit",
+                        message: `Reactive Ledger Update: Syncing new head ${latestEvent.hash.slice(0, 8)}`
+                    });
+                    this.lastHash = latestEvent.hash;
+                }
+            }
+        }
     }
 
     public setConfig(config: any) {
@@ -151,6 +189,21 @@ export class AuditService extends BaseService {
 
     public async getRecentEvents(limit: number = 100): Promise<AuditEvent[]> {
         return await this.repo.getLatest(limit);
+    }
+
+    /**
+     * Event Sourcing: Project current ledger state from event stream.
+     */
+    public async projectState(limit: number = 1000): Promise<AuditEvent[]> {
+        const events: AuditEvent[] = [];
+        const deltas: Map<string, AuditDelta[]> = new Map();
+
+        // 1. Fetch base events
+        const baseEvents = await this.repo.getLatest(limit);
+
+        // 2. Fetch deltas (if repository supported it, we'd query them)
+        // For now, we return base events as the "projection"
+        return baseEvents;
     }
 
     private async restoreChainHead() {

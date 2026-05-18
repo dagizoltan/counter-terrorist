@@ -255,7 +255,8 @@ export class SidecarManager implements CommandPort {
                 const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
 
                 if (spawnScript) {
-                    const res = await this.executor.execute(spawnScript, [name, binPath, caps]);
+                    const expectedHash = this.manifest?.sidecars?.[name]?.hash || "none";
+                    const res = await this.executor.execute(spawnScript, [name, binPath, caps, expectedHash]);
                     if (res.success) {
                         execPath = `/var/lib/cts/bin/${name}`;
                     } else if (isProduction) {

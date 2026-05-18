@@ -11,6 +11,58 @@ export interface Plugin {
 
 export class PluginManager {
   private plugins: Map<string, Plugin> = new Map();
+  private workers: Map<string, Worker> = new Map();
+
+  /**
+   * Securely loads a plugin into a restricted Deno.Worker sandbox.
+   */
+  async loadPlugin(name: string, scriptUrl: string) {
+      loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.INFO,
+          caller: "orchestrator:domain:orchestration:plugin_manager",
+          message: `Shielding community plugin in secure worker: ${name}`
+      });
+
+      // Establish restricted permissions for the sandbox
+      const worker = new Worker(scriptUrl, {
+          type: "module",
+          name,
+          deno: {
+              permissions: {
+                  net: false,
+                  read: false,
+                  write: false,
+                  run: false,
+                  env: false,
+                  sys: false,
+              }
+          }
+      } as any);
+
+      this.workers.set(name, worker);
+
+      worker.onmessage = (e) => {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.ACTIVITY,
+              severity: LogSeverity.INFO,
+              caller: `plugin:${name}`,
+              message: `IPC Message: ${JSON.stringify(e.data)}`
+          });
+      };
+
+      worker.onerror = (e) => {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: `plugin:${name}`,
+              message: `Worker Exception: ${e.message}`
+          });
+      };
+  }
 
   register(plugin: Plugin) {
     this.plugins.set(plugin.name, plugin);
@@ -55,6 +107,21 @@ export class PluginManager {
   }
 
   async stopAll() {
+    // Terminate all sandboxed workers
+    for (const [name, worker] of this.workers.entries()) {
+        try {
+            worker.terminate();
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:domain:orchestration:plugin_manager",
+                message: `Terminated sandboxed plugin: ${name}`
+            });
+        } catch (e) { /* ignore */ }
+    }
+    this.workers.clear();
+
     // BUG-6.5 FIX: Stop plugins in parallel with timeouts
     const stopPromises = Array.from(this.plugins.values()).map(async (plugin) => {
       try {
