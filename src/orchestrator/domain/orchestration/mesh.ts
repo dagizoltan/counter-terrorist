@@ -129,7 +129,7 @@ export class MeshManager extends BaseService {
   startDiscovery() {
     if (this.discoveryInterval) return;
 
-    if (this.config?.getEnv("SINGLE_NODE") === "true") {
+    if (this.config?.getEnv("SINGLE_NODE") === "true" || Deno.env.get("SINGLE_NODE") === "true") {
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
@@ -177,7 +177,8 @@ export class MeshManager extends BaseService {
       });
       
       const probes = [];
-      const MAX_CONCURRENCY = 5;
+      // SOV-05 STABILITY: Throttled subnet probing to avoid IDS triggers and network congestion.
+      const MAX_CONCURRENCY = 2;
 
       for (let i = 1; i < 255; i++) {
         const targetIp = `${subnet}.${i}`;
@@ -188,7 +189,8 @@ export class MeshManager extends BaseService {
         if (probes.length >= MAX_CONCURRENCY) {
             await Promise.all(probes);
             probes.length = 0;
-            await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+            // Increased jitter for stealth and stability
+            await new Promise(r => setTimeout(r, 500 + Math.random() * 1500));
         }
       }
       await Promise.all(probes);

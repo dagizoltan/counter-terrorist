@@ -152,14 +152,18 @@ export class AuditService extends BaseService {
     }
 
     public override async shutdown(): Promise<Result<void>> {
+        // SOV-05 STABILITY: Ensure all intervals and timers are cleared to prevent hanging
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
 
         await this.commitMerkleRoot();
 
-        while (this.logQueue.length > 0 || this.isProcessingQueue) {
+        // Graceful queue drain with timeout
+        const start = Date.now();
+        while ((this.logQueue.length > 0 || this.isProcessingQueue) && (Date.now() - start < 5000)) {
             await new Promise(r => setTimeout(r, 100));
         }
+
         await this.flushBuffer();
         return ok(undefined);
     }
