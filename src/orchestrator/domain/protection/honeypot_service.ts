@@ -142,7 +142,7 @@ export class HoneypotService extends BaseService {
     return ok(undefined);
   }
 
-  setEventBus(eventBus: any) {
+  override setEventBus(eventBus: any) {
     this.eventBus = eventBus;
   }
 
@@ -157,7 +157,7 @@ export class HoneypotService extends BaseService {
     });
   }
 
-  async shutdown(): Promise<Result<void>> {
+  override async shutdown(): Promise<Result<void>> {
       if (this.morphInterval) {
           clearInterval(this.morphInterval);
           this.morphInterval = undefined;

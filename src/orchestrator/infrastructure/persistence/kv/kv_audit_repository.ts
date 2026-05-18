@@ -11,7 +11,7 @@ export class KvAuditRepository extends TimelineRepository<AuditEvent> implements
         await this.set(event.id, event);
     }
 
-    override async saveMany(events: AuditEvent[]): Promise<void> {
+    async saveMany(events: AuditEvent[]): Promise<void> {
         await this.setMany(events.map(e => ({ id: e.id, data: e })));
     }
 

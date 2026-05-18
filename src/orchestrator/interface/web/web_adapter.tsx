@@ -433,7 +433,11 @@ export class WebAdapter implements WebPort {
     const useHttps = this.meshAuth && Deno.env.get("DISABLE_HTTPS") !== "true";
 
     if (useHttps && this.meshAuth) {
-      const nodeCert = await this.meshAuth.generateNodeCert(Deno.hostname());
+      const result = await this.meshAuth.generateNodeCert(Deno.hostname());
+      if (!result.success) {
+          throw new Error(`Failed to generate node certificate: ${result.error.message}`);
+      }
+      const nodeCert = result.data;
       loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,

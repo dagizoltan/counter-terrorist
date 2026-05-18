@@ -49,7 +49,7 @@ export function broadcast(data: BroadcastData) {
 
   // Publish to central event bus (Phase 3: Trigger Forensic Automation)
   if (data.type) {
-    eventBus.publish(data.type, data.message || "", data.data);
+    eventBus.publish(data.type as any, data.message || "", data.data);
   }
   const message = JSON.stringify(eventToBroadcast);
 

@@ -29,7 +29,7 @@ export class AutopilotService extends BaseService {
     this.policy = new PolicyEngine(loggingService);
   }
 
-  public init(services: AutopilotDependencies) {
+  public override async init(services: AutopilotDependencies): Promise<Result<void>> {
     this.services = services;
     const saga = new ThreatResponseSaga({
         firewall: this.services.protection.firewall,
@@ -64,7 +64,7 @@ export class AutopilotService extends BaseService {
   private intervalId: number | null = null;
   private unsubscribers: (() => void)[] = [];
 
-  async shutdown(): Promise<Result<void>> {
+  override async shutdown(): Promise<Result<void>> {
       if (!this.services) return ok(undefined);
       this.isStarted = false;
       if (this.intervalId) {

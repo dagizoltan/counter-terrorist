@@ -1,6 +1,7 @@
 import { LogSeverity, LogType } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export interface PlaybookDependencies {
   eventBus: any;
@@ -20,7 +21,7 @@ export class PlaybookService extends BaseService {
     super();
   }
 
-  public init(services: PlaybookDependencies) {
+  public override async init(services: PlaybookDependencies): Promise<Result<void>> {
     this.services = services;
 
     loggingService.log({
@@ -181,6 +182,12 @@ export class PlaybookService extends BaseService {
             this.updateThreatScore("local", 2);
         }
     });
+     return ok(undefined);
+  }
+
+  override async shutdown(): Promise<Result<void>> {
+    this.services = undefined;
+    return ok(undefined);
   }
 
   /**

@@ -32,8 +32,9 @@ export class GovernanceService extends BaseService {
         this.cleanupInterval = setInterval(() => this.cleanupProposals(), 3600000); // 1 hour
     }
 
-    shutdown() {
+    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
         if (this.cleanupInterval) clearInterval(this.cleanupInterval);
+        return { success: true, data: undefined };
     }
 
     private cleanupProposals() {

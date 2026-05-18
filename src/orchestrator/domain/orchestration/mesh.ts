@@ -31,7 +31,6 @@ export interface MeshNode {
 
 export class MeshManager extends BaseService {
   private nodes: Map<string, MeshNode> = new Map();
-  private eventBus?: any;
   private discoveryInterval: number | null = null;
   private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: any = null;
@@ -40,7 +39,7 @@ export class MeshManager extends BaseService {
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
 
-  async shutdown(): Promise<Result<void>> {
+  override async shutdown(): Promise<Result<void>> {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
       this.discoveryInterval = null;
       if (this.mdnsListener) {
@@ -79,7 +78,7 @@ export class MeshManager extends BaseService {
     });
   }
 
-  setEventBus(eventBus: any) {
+  override setEventBus(eventBus: any) {
     this.eventBus = eventBus;
   }
 
@@ -95,7 +94,7 @@ export class MeshManager extends BaseService {
     });
   }
 
-  async init(): Promise<Result<void>> {
+  override async init(): Promise<Result<void>> {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.startStateWatcher();
     this.port = this.config.getNumber("PORT", 8000);
@@ -986,6 +985,16 @@ export class MeshManager extends BaseService {
         node.verified = false;
         await this.validateAndRegisterNode(node);
     }
+  }
+
+  /**
+   * Request a specific node to synchronize its audit ledger with us.
+   */
+  async requestAuditSync(nodeId: string) {
+      const node = this.nodes.get(nodeId);
+      if (node && node.verified) {
+          await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
+      }
   }
 }
 
