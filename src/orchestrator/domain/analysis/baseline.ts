@@ -1,8 +1,7 @@
 import { BaseService } from "@core/base_service.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 
 export interface ProcessSnapshot {
   pid: number;
@@ -41,7 +40,7 @@ export class BaselineService extends BaseService {
 
   constructor(
     private kv: Deno.Kv,
-    private sidecar: SidecarManager,
+    private sidecar: CommandPort,
     private executor: SystemExecutor,
     private logging: LoggingPort
   ) {

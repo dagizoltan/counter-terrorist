@@ -174,6 +174,22 @@ export interface AuditPort {
   logEvent(event: AuditEvent): Promise<void>;
 }
 
+export interface TpmPort {
+  sealSecret(secretName: string, data: string): Promise<void>;
+  unsealSecret(secretName: string): Promise<string | null>;
+  getPcrs(indices?: number[]): Promise<Record<number, string>>;
+  verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean>;
+  isHardwareVerified(): boolean;
+  sign(data: string): Promise<string>;
+  verify(data: string, signature: string): Promise<boolean>;
+  nvDefine(index: string, size: number): Promise<any>;
+  nvWrite(index: string, data: string): Promise<any>;
+  nvRead(index: string): Promise<string | null>;
+  generateSelfSignedCA(commonName: string): Promise<any>;
+  issueNodeCert(nodeId: string, caCert: string, caKey: string): Promise<any>;
+  provisionGoldenPcrs(indices?: number[]): Promise<boolean>;
+}
+
 export interface NotificationPayload {
   type: string;
   message: string;

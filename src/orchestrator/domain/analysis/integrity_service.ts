@@ -1,7 +1,6 @@
 import { MeshManager } from "../orchestration/mesh.ts";
 import { AuditService } from "./audit.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort } from "@core/ports.ts";
 
 /**
  * IntegrityService
@@ -13,7 +12,7 @@ export class IntegrityService {
     constructor(
         private mesh: MeshManager,
         private audit: AuditService,
-        private tpm: TPMManager,
+        private tpm: TpmPort,
         private logging: LoggingPort
     ) {}
 

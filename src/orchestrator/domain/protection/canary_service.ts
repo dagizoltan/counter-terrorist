@@ -1,7 +1,6 @@
 import { AuditService } from "../analysis/audit.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 
 export interface CanaryToken {
     id: string;
@@ -23,7 +22,7 @@ export class CanaryService {
 
     constructor(
         private auditService: AuditService, 
-        private sidecar: SidecarManager,
+        private sidecar: CommandPort,
         private logging: LoggingPort
     ) {
         const baitFiles = [

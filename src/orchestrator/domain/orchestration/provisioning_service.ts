@@ -1,5 +1,4 @@
-import { SidecarManager } from "../../infrastructure/runtime/sidecar_manager.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { MeshManager } from "./mesh.ts";
 import { SystemExecutor } from "../../infrastructure/system/system_executor.ts";
 
@@ -17,7 +16,7 @@ export class ProvisioningService {
     private targets: Map<string, ProvisioningTarget> = new Map();
 
     constructor(
-        private sidecar: SidecarManager,
+        private sidecar: CommandPort,
         private mesh: MeshManager,
         private executor: SystemExecutor,
         private logging: LoggingPort

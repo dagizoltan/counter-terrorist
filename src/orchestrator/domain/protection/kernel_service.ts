@@ -1,8 +1,7 @@
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "../analysis/audit.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort, CommandPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface KernelHardeningStatus {
     aslr: string;
@@ -21,12 +20,12 @@ export class KernelService {
     private metricsInterval?: number;
     private config?: any;
 
-    private tpm?: TPMManager;
+    private tpm?: TpmPort;
 
     constructor(
         private executor: SystemExecutor, 
         private auditService: AuditService,
-        private sidecarManager?: SidecarManager
+        private sidecarManager?: CommandPort
     ) {
         this.logging = auditService.getLogging();
         this.metricsInterval = setInterval(() => this.emitMetrics(), 60000);
@@ -53,11 +52,11 @@ export class KernelService {
         });
     }
 
-    setTpmManager(tpm: TPMManager) {
+    setTpmManager(tpm: TpmPort) {
         this.tpm = tpm;
     }
 
-    getTpmManager(): TPMManager | undefined {
+    getTpmManager(): TpmPort | undefined {
         return this.tpm;
     }
 
@@ -173,8 +172,8 @@ export class KernelService {
     /**
      * Enforces a process-level restriction via Ring 0 hooks (LSM/Auth/WFP).
      */
-    async enforceEnforcement(pid: number, policy: number = 1) {
-        if (!this.sidecarManager) return;
+    async enforceEnforcement(pid: number, policy: number = 1): Promise<Result<void>> {
+        if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
 
         const os = Deno.build.os;
         this.logging.log({
@@ -200,13 +199,15 @@ export class KernelService {
             message: `Ring 0 Enforcement active for PID ${pid}`,
             data: { pid, policy, os }
         });
+
+        return ok(undefined);
     }
 
     /**
      * Enforces a syscall block via eBPF Kernel hooks.
      */
-    async blockSyscall(pid: number, syscall: string) {
-        if (!this.sidecarManager) return;
+    async blockSyscall(pid: number, syscall: string): Promise<Result<void>> {
+        if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
         
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -215,17 +216,24 @@ export class KernelService {
             caller: "KERNEL:LSM",
             message: `LSM Enforcement: Blocking syscall '${syscall}' for PID ${pid}`
         });
-        await this.sidecarManager.sendCommand("sentinel", {
-            type: "BLOCK_SYSCALL",
-            pid,
-            syscall
-        }).catch(err => this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.WARNING,
-            caller: "orchestrator:domain:protection:kernel",
-            message: `eBPF syscall block failed: ${err.message}`
-        }));
+
+        try {
+            await this.sidecarManager.sendCommand("sentinel", {
+                type: "BLOCK_SYSCALL",
+                pid,
+                syscall
+            });
+        } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:protection:kernel",
+                message: `eBPF syscall block failed: ${error.message}`
+            });
+            return err(error);
+        }
         
         this.auditService.logEvent({
             type: LogType.AUDIT,
@@ -234,13 +242,15 @@ export class KernelService {
             message: `LSM Enforcement: Blocked syscall '${syscall}' for process ${pid}`,
             data: { pid, syscall }
         });
+
+        return ok(undefined);
     }
 
     /**
      * Deploys a global LSM policy to the eBPF agent.
      */
-    async enforceLsmPolicy(policy: { blockedSyscalls: string[], restrictedPids: number[] }) {
-        if (!this.sidecarManager) return;
+    async enforceLsmPolicy(policy: { blockedSyscalls: string[], restrictedPids: number[] }): Promise<Result<void>> {
+        if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
         
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -249,23 +259,32 @@ export class KernelService {
             caller: "KERNEL:LSM",
             message: "Deploying Deep LSM Policy..."
         });
-        await this.sidecarManager.sendCommand("sentinel", {
-            type: "LSM_POLICY",
-            policy
-        }).catch(err => this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.GENERIC,
-            severity: LogSeverity.WARNING,
-            caller: "orchestrator:domain:protection:kernel",
-            message: `eBPF LSM policy deployment failed: ${err.message}`
-        }));
+
+        try {
+            await this.sidecarManager.sendCommand("sentinel", {
+                type: "LSM_POLICY",
+                policy
+            });
+        } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:protection:kernel",
+                message: `eBPF LSM policy deployment failed: ${error.message}`
+            });
+            return err(error);
+        }
+
+        return ok(undefined);
     }
 
     /**
      * SOV-P2: Kernel Lockdown - AppArmor Profile Generation
      * Generates a minimal, hardened AppArmor profile for a sidecar.
      */
-    async deployAppArmorProfile(name: string, binaryPath: string) {
+    async deployAppArmorProfile(name: string, binaryPath: string): Promise<Result<void>> {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -321,14 +340,17 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
                 caller: "KERNEL:APPARMOR",
                 message: `AppArmor profile '${profileName}' successfully deployed and enforced.`
             });
+            return ok(undefined);
         } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "KERNEL:APPARMOR",
-                message: `Failed to deploy AppArmor profile: ${(e as Error).message}`
+                message: `Failed to deploy AppArmor profile: ${error.message}`
             });
+            return err(error);
         }
     }
 

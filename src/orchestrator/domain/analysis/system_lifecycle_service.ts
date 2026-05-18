@@ -1,5 +1,4 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort } from "@core/ports.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { BaseService } from "@core/base_service.ts";
@@ -15,7 +14,7 @@ export class SystemLifecycleService extends BaseService {
 
     constructor(
         private logging: LoggingPort,
-        private tpm: TPMManager,
+        private tpm: TpmPort,
         private kv: Deno.Kv
     ) {
         super();
