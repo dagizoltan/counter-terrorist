@@ -1,7 +1,7 @@
 import { AuditService } from "../analysis/audit.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface CanaryToken {
     id: string;
@@ -23,7 +23,7 @@ export class CanaryService {
 
     constructor(
         private auditService: AuditService, 
-        private sidecar: SidecarManager,
+        private sidecar: CommandPort,
         private logging: LoggingPort
     ) {
         const baitFiles = [
@@ -113,7 +113,7 @@ export class CanaryService {
     /**
      * Deploys deception artifacts by creating master files and hardlinking them.
      */
-    async start() {
+    async start(): Promise<Result<void>> {
         // Ensure master directory exists and is clean
         try {
             await Deno.remove(this.MASTER_DIR, { recursive: true });
@@ -205,6 +205,7 @@ export class CanaryService {
         }
         
         this.startAging();
+        return ok(undefined);
     }
 
     private lastInternalOp: Map<string, number> = new Map();

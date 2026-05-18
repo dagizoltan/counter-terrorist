@@ -1,6 +1,7 @@
 import { PolicyEngine, RemediationAction } from "./policy_engine.ts";
-import { LogType, LogSeverity } from "@core/ports.ts";
-import { ServiceContainer } from "@core/container.ts";
+import { LogType, LogSeverity, LoggingPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
+import { ThreatResponseSaga } from "./sagas/threat_response_saga.ts";
 
 export type RemediationTier = RemediationAction;
 
@@ -21,35 +22,27 @@ export class AutonomousResponseEngine {
     private scores: Map<string, number> = new Map();
     private history: Map<string, ThreatEvent[]> = new Map();
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
-    private pendingKills: Map<string, number> = new Map();
 
     private readonly MAX_HISTORY_PER_SOURCE = 20;
     private readonly MAX_SOURCES = 500; // Prevent memory exhaustion DoS
 
     constructor(
-        private services: ServiceContainer,
-        private policy: PolicyEngine
+        private saga: ThreatResponseSaga,
+        private policy: PolicyEngine,
+        private logging: LoggingPort
     ) {
         // Automatically decay scores every 5 minutes to allow recovery
         setInterval(() => this.decayScores(), 300000);
     }
 
     shutdown() {
-        // BUG-4.21 FIX: Clean up orphaned remediations (pending kills) on shutdown
-        for (const [pidStr, timerId] of this.pendingKills.entries()) {
-            clearTimeout(timerId);
-            const pid = parseInt(pidStr);
-            if (!isNaN(pid)) {
-                this.services.protection.firewall.killProcess(pid).catch(() => {});
-            }
-        }
-        this.pendingKills.clear();
+        // Saga handles lifecycle of its own coordination
     }
 
     /**
      * Ingests a threat event and determines the required remediation tier.
      */
-    async evaluate(event: ThreatEvent) {
+    async evaluate(event: ThreatEvent): Promise<Result<void>> {
         const key = event.source;
         const currentScore = (this.scores.get(key) || 0) + event.severity;
         
@@ -73,7 +66,7 @@ export class AutonomousResponseEngine {
         }
         this.history.set(key, events);
 
-        await this.services.logging.log({
+        await this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.DEBUG,
             severity: LogSeverity.INFO,
@@ -84,7 +77,7 @@ export class AutonomousResponseEngine {
         const decision = this.policy.evaluate(currentScore);
 
         if (this.policy.isShadowMode() && (decision.action === "BLOCK" || decision.action === "ISOLATE" || decision.action === "LOCKDOWN")) {
-            await this.services.logging.log({
+            await this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.INFO,
@@ -92,9 +85,9 @@ export class AutonomousResponseEngine {
                 message: `[SHADOW MODE] Simulation: Would have executed '${decision.action}' for ${key}. Reason: ${event.description}`
             });
             // Downgrade to WATCH for forensics capture only
-            await this.executeRemediation(key, "WATCH", event);
+            return await this.executeRemediation(key, "WATCH", event);
         } else {
-            await this.executeRemediation(key, decision.action, event);
+            return await this.executeRemediation(key, decision.action, event);
         }
     }
 
@@ -122,17 +115,10 @@ export class AutonomousResponseEngine {
         }
     }
 
-    private async executeRemediation(source: string, tier: RemediationTier, trigger: ThreatEvent) {
+    private async executeRemediation(source: string, tier: RemediationTier, trigger: ThreatEvent): Promise<Result<void>> {
         // Avoid redundant remediation for the same tier if already active
         const existing = this.activeRemediations.get(source);
-        if (existing && existing.tier === tier) return;
-
-        const auditMsg = `Remediation Tier [${tier}] engaged for ${source}. Reason: ${trigger.type}`;
-        await this.services.audit.logEvent({
-            type: LogType.AUDIT,
-            message: auditMsg,
-            data: { source, tier, trigger, totalScore: this.scores.get(source) }
-        });
+        if (existing && existing.tier === tier) return ok(undefined);
 
         this.activeRemediations.set(source, {
             tier,
@@ -140,99 +126,8 @@ export class AutonomousResponseEngine {
             reason: trigger.description
         });
 
-        switch (tier) {
-            case "LOCKDOWN":
-                await this.services.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:orchestration:autonomous_response",
-                    message: `GLOBAL LOCKDOWN for ${source}`
-                });
-                await this.services.protection.firewall.lockdown();
-                break;
-
-            case "ISOLATE":
-                await this.services.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:orchestration:autonomous_response",
-                    message: `NODE ISOLATION for ${source}`
-                });
-                if (source.includes(".")) {
-                    await this.services.protection.firewall.blockIp(source);
-                } else {
-                    await this.services.mesh.isolateNode("local");
-                }
-                break;
-
-            case "BLOCK":
-                await this.services.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:orchestration:autonomous_response",
-                    message: `ENFORCED BLOCK for ${source}`
-                });
-                if (source.includes(".")) {
-                    await this.services.protection.firewall.blockIp(source);
-                } else {
-                    const pid = parseInt(source);
-                    if (!isNaN(pid)) {
-                        // Tactical Shift: Quarantine first for forensic dump, then kill
-                        await this.services.protection.firewall.quarantineProcess(pid);
-                        
-                        // Extract and Gossip binary hash for fleet-wide blocking
-                        this.services.forensicService.calculateProcessHash(pid).then(hash => {
-                            if (hash) {
-                                this.services.mesh.broadcastThreatHash(hash, Deno.hostname());
-                            }
-                        });
-
-                        const timerId = setTimeout(() => {
-                            this.pendingKills.delete(source);
-                            this.services.protection.firewall.killProcess(pid).catch(() => {});
-                        }, 5000);
-                        this.pendingKills.set(source, timerId);
-                    }
-                }
-                break;
-
-            case "SHADOW":
-                await this.services.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.WARNING,
-                    caller: "orchestrator:domain:orchestration:autonomous_response",
-                    message: `SHADOW REDIRECTION for ${source}`
-                });
-                if (source.includes(".")) {
-                    await this.services.protection.firewall.shadowBanIp(source);
-                } else {
-                    const pid = parseInt(source);
-                    if (!isNaN(pid)) {
-                        await this.services.kernelService.blockSyscall(pid, "execve");
-                    }
-                }
-                break;
-
-            case "WATCH":
-                // BUG-36: Implement process-level forensics for WATCH remediation
-                if (source.includes(".")) {
-                    this.services.protection.pcap.startCapture("any", 30, `forensics_${source}.pcap`, `host ${source}`).catch(() => {});
-                } else {
-                    const pid = parseInt(source);
-                    if (!isNaN(pid)) {
-                        (this.services.protection.firewall as any).dumpProcess?.(pid, `./volume/storage/forensics/dump_${pid}_${Date.now()}`).catch(() => {});
-                    }
-                }
-                break;
-                
-            case "LOG":
-            default:
-                break;
-        }
+        const score = this.scores.get(source) || 0;
+        return await this.saga.execute(source, tier, trigger, score);
     }
 
     /**

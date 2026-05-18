@@ -150,6 +150,16 @@ export class SovereignApp {
 
         // ── Phase 3: Mesh & Network ──────────────────────────────────────────
         const meshManager = await this.initMesh(tpmManager, configProvider);
+        const meshInitRes = await meshManager.init();
+        if (!meshInitRes.success) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:app:sovereign_app",
+                message: `Mesh initialization non-critical failure: ${meshInitRes.error.message}`
+            });
+        }
 
         // ── Phase 4: Hardware Integrity ──────────────────────────────────────
         const isHardwareSecure = await this.lifecycleService.verifyHardware(configProvider);
@@ -234,13 +244,10 @@ export class SovereignApp {
     }
 
     private async initMesh(tpm: TPMManager, config: any): Promise<MeshManager> {
-        const meshAuthService = new MeshAuthService(this.kv, loggingService, tpm);
-        meshAuthService.setConfig(config);
-        const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService);
-        meshManager.setConfig(config);
+        const meshAuthService = new MeshAuthService(this.kv, loggingService, config, tpm);
+        const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, config);
         
         setMeshManager(meshManager);
-        await meshManager.init();
         meshManager.startDiscovery();
         return meshManager;
     }
@@ -269,7 +276,6 @@ export class SovereignApp {
         services.processTracker.setEventBus?.(bus);
         services.kernelService.setEventBus?.(bus);
         services.audit.setEventBus?.(bus);
-        services.kernelService.setConfig?.(services.config);
         (services.protection.vpn as any).setEventBus?.(bus);
         services.behavioral.setEventBus?.(bus);
         services.viewModel.setEventBus?.(bus);
@@ -346,29 +352,46 @@ export class SovereignApp {
         report("DeceptionGrid", "OPERATIONAL");
         report("ProcessTracker", "OPERATIONAL");
         
-        const wrap = (name: string, promise: Promise<any>) => {
+        const wrap = (name: string, promise: Promise<Result<any>>) => {
             report(name, "BOOTING");
-            promise.then(() => report(name, "OPERATIONAL"))
-                   .catch(e => report(name, "FAILED", e.message));
+            promise.then((res) => {
+                if (res.success) {
+                    report(name, "OPERATIONAL");
+                } else {
+                    report(name, "FAILED", res.error.message);
+                }
+            })
+            .catch(e => report(name, "FAILED", e.message));
         };
 
-        wrap("Autopilot", autopilot.start());
-        wrap("Honeypot", honeypot.start());
-        wrap("Canary", canaryService.start());
+        wrap("Autopilot", autopilot.start() as any);
+        wrap("Honeypot", honeypot.start() as any);
+        wrap("Canary", canaryService.start() as any);
         wrap("KernelService", (async () => {
-            await kernelService.start();
+            const res = await kernelService.start();
+            if (!res.success) return res;
 
             // SOV-P2: Apply AppArmor Lockdown for critical sidecars
             if (this.services.config.getEnv("ENVIRONMENT") === "production") {
                 const sidecars = ["analyzer", "sentinel", "watchfile"];
                 for (const name of sidecars) {
-                    await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`);
+                    const aaRes = await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`);
+                    if (!aaRes.success) {
+                        loggingService.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.AUDIT,
+                            severity: LogSeverity.ERROR,
+                            caller: "orchestrator:app:sovereign_app",
+                            message: `AppArmor deployment failed for ${name}: ${aaRes.error.message}`
+                        });
+                    }
                 }
             }
+            return ok(undefined);
         })());
-        wrap("CuratedIntel", curatedIntel.start(this.kv));
-        wrap("NewsSignal", news.start(this.kv));
-        wrap("NetworkDiscovery", networkDiscovery.start());
+        wrap("CuratedIntel", curatedIntel.start(this.kv) as any);
+        wrap("NewsSignal", news.start(this.kv) as any);
+        wrap("NetworkDiscovery", networkDiscovery.start() as any);
         
         this.services.baseline.startMonitor();
         lifecycle.start();
@@ -444,10 +467,9 @@ export class SovereignApp {
         const correlation = new CorrelationService(this.auditService, loggingService);
         this.auditService.setCorrelation(correlation);
 
-        const security = factory.initSecurity(protection, mesh, tpm, health);
-        security.kernelService.setTpmManager(tpm);
+        const security = factory.initSecurity(protection, mesh, configProvider, health);
 
-        const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh);
+        const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth);
 
         const playbook = new PlaybookService();
         const { autopilot, autonomousAutopilot, lifecycle, policy } = await factory.initEngine(correlation);
@@ -467,7 +489,7 @@ export class SovereignApp {
             honeypot: security.honeypot, canaryService: security.canaryService, kernelService: security.kernelService, forensicService: intelligence.forensicService,
             autopilot, autonomousAutopilot, lifecycle, logging: loggingService,
             playbook, morphing, chaos,
-            supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: intelligence.curatedIntel as any,
+            supplyChain, mesh, meshAuth: identity.meshAuth, threatIntel: intelligence.curatedIntel as any,
             compliance: intelligence.compliance, anonymization: security.anonymization, shadowProtocol: security.shadowProtocol, deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
             curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
             incidents: intelligence.incidents, platformInfo, shadow, covert,

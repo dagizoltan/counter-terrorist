@@ -1,7 +1,6 @@
 import { AuditService } from "./audit.ts";
-import { LoggingPort, LogSeverity, LogType } from "../../core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, MeshAuthPort } from "../../core/ports.ts";
 import { ProcessTracker } from "./process_tracker.ts";
-import { MeshAuthService } from "../identity/mesh_auth.ts";
 
 /**
  * ForensicService
@@ -13,7 +12,7 @@ export class ForensicService {
     private logging: LoggingPort,
     private kv: Deno.Kv,
     private processTracker: ProcessTracker,
-    private meshAuth: MeshAuthService
+    private meshAuth: MeshAuthPort
   ) {}
 
   /**
@@ -50,7 +49,9 @@ export class ForensicService {
     // 4. Cryptographic Signing
     let signature = null;
     try {
-        const ca = await this.meshAuth.getRootCA();
+        const caRes = await this.meshAuth.getRootCA();
+        if (!caRes.success) throw new Error(`MeshAuth getRootCA failed: ${caRes.error.message}`);
+        const ca = caRes.data;
         const encoder = new TextEncoder();
         const data = encoder.encode(JSON.stringify(bundleData));
 

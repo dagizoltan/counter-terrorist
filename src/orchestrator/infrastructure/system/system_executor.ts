@@ -1,4 +1,4 @@
-import { CommandResult } from "@core/ports.ts";
+import { CommandResult, ExecutorPort } from "@core/ports.ts";
 import * as path from "@std/path";
 import { validatePath } from "./validation.ts";
 import { z } from "zod";
@@ -17,7 +17,7 @@ interface CommandPolicy {
 /**
  * Executes one-off system commands with strict security validation.
  */
-export class SystemExecutor {
+export class SystemExecutor implements ExecutorPort {
   private static readonly WHITELISTED_COMMANDS = [
     "mkdir", "mv", "chmod", "ls", "sha256sum", "systemctl",
     "crontab", "which", "where", "netsh", "taskkill", "tc", "kill",

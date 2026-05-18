@@ -1,4 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export type TacticalSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -29,7 +30,7 @@ export class NewsSignalService {
 
     constructor(private logging: LoggingPort) {}
 
-    async start(kv?: Deno.Kv) {
+    async start(kv?: Deno.Kv): Promise<Result<void>> {
         this.kv = kv || await Deno.openKv();
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -44,6 +45,7 @@ export class NewsSignalService {
 
         // Refresh every 30 minutes
         setInterval(() => this.fetchFeeds(), 30 * 60 * 1000);
+        return ok(undefined);
     }
 
     private analyzeRisk(content: string): { severity: TacticalSeverity; score: number } {

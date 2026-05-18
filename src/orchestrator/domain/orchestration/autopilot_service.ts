@@ -1,9 +1,9 @@
 import { AutonomousResponseEngine } from "./autonomous_response.ts";
-import { LogSeverity, LogType } from "@core/ports.ts";
-import { ServiceContainer } from "@core/container.ts";
+import { LogSeverity, LogType, MeshPort } from "@core/ports.ts";
 import { PolicyEngine } from "./policy_engine.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
+import { ThreatResponseSaga } from "./sagas/threat_response_saga.ts";
 
 export interface AutopilotDependencies {
   eventBus: any;
@@ -15,7 +15,7 @@ export interface AutopilotDependencies {
   protection: any;
   audit: any;
   forensicService: any;
-  mesh: any;
+  mesh: MeshPort;
   notifications: any;
 }
 
@@ -31,9 +31,20 @@ export class AutopilotService extends BaseService {
 
   public init(services: AutopilotDependencies) {
     this.services = services;
+    const saga = new ThreatResponseSaga({
+        firewall: this.services.protection.firewall,
+        mesh: this.services.mesh,
+        kernel: this.services.kernelService,
+        pcap: this.services.protection.pcap,
+        audit: this.services.audit,
+        forensics: this.services.forensicService,
+        logging: this.services.logging
+    });
+
     this.engine = new AutonomousResponseEngine(
-        this.services as any,
-        this.policy
+        saga,
+        this.policy,
+        this.services.logging
     );
   }
 

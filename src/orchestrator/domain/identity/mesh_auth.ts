@@ -1,5 +1,5 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 /**
  * Mesh Authentication Service: Manages the internal PKI for mTLS communication.
@@ -27,70 +27,73 @@ interface EncryptedCertPair {
   timestamp: number;
 }
 
-export class MeshAuthService {
+export class MeshAuthService implements MeshAuthPort {
   private readonly CA_KEY = ["mesh", "pki", "root_ca_v5"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v3"];
-  private config?: any;
 
   constructor(
     private kv: Deno.Kv,
     private logging: LoggingPort,
-    private tpm?: TPMManager
+    private config: ConfigurationPort,
+    private tpm?: TpmPort
   ) {}
-
-  setConfig(config: any) {
-    this.config = config;
-  }
 
   /**
    * Generates or retrieves the root CA for the mesh.
    */
-  async getRootCA(): Promise<CertPair> {
-    const entry = await this.kv.get<EncryptedCertPair>(this.CA_KEY);
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  async getRootCA(): Promise<Result<CertPair>> {
+    try {
+        const entry = await this.kv.get<EncryptedCertPair>(this.CA_KEY);
+        const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
-    if (entry.value && entry.value.timestamp > thirtyDaysAgo) {
-      const decrypted = await this.decryptCertPair(entry.value);
-      if (decrypted) return decrypted;
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
-          severity: LogSeverity.WARNING,
-          caller: "PKI",
-          message: "Existing Root CA decryption failed. Secret may have rotated. Regenerating..."
-      });
+        if (entry.value && entry.value.timestamp > thirtyDaysAgo) {
+          const decrypted = await this.decryptCertPair(entry.value);
+          if (decrypted) return ok(decrypted);
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.WARNING,
+              caller: "PKI",
+              message: "Existing Root CA decryption failed. Secret may have rotated. Regenerating..."
+          });
+        }
+
+        // BUG-07: Dual-trust transition. Keep the old CA in a backup key to allow
+        // offline nodes a grace period to rejoin and update.
+        if (entry.value) {
+            await this.kv.set(["mesh", "pki", "prev_root_ca"], entry.value);
+        }
+
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "PKI",
+            message: "CA is missing or older than 30 days. Generating/Regenerating Root CA..."
+        });
+        const caResult = await this.generateSelfSignedCA();
+        if (!caResult.success) return caResult;
+        const ca = caResult.data;
+
+        await this.kv!.set(this.CA_KEY, await this.encryptCertPair(ca));
+
+        // If we regenerated the CA, we MUST regenerate all node certs
+        if (entry.value) {
+          await this.rotateAllNodeCerts();
+        }
+
+        return ok(ca);
+    } catch (e) {
+        return err(e instanceof Error ? e : new Error(String(e)));
     }
-
-    // BUG-07: Dual-trust transition. Keep the old CA in a backup key to allow
-    // offline nodes a grace period to rejoin and update.
-    if (entry.value) {
-        await this.kv.set(["mesh", "pki", "prev_root_ca"], entry.value);
-    }
-
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.AUDIT,
-        severity: LogSeverity.INFO,
-        caller: "PKI",
-        message: "CA is missing or older than 30 days. Generating/Regenerating Root CA..."
-    });
-    const ca = await this.generateSelfSignedCA();
-    await this.kv!.set(this.CA_KEY, await this.encryptCertPair(ca));
-
-    // If we regenerated the CA, we MUST regenerate all node certs
-    if (entry.value) {
-      await this.rotateAllNodeCerts();
-    }
-
-    return ca;
   }
 
   /**
    * BUG-07: Returns both current and previous (if any) Root CAs for dual-trust handshakes.
    */
   async getTrustedCerts(): Promise<string[]> {
-    const current = await this.getRootCA();
-    const certs = [current.cert];
+    const res = await this.getRootCA();
+    const certs = res.success ? [res.data.cert] : [];
 
     const prevEntry = await this.kv.get<EncryptedCertPair>(["mesh", "pki", "prev_root_ca"]);
     if (prevEntry.value) {
@@ -103,27 +106,41 @@ export class MeshAuthService {
   /**
    * Generates a signed certificate for a node.
    */
-  async generateNodeCert(nodeId: string): Promise<CertPair> {
-    const nodeKey = [...this.NODES_PREFIX, nodeId];
-    const entry = await this.kv.get<EncryptedCertPair>(nodeKey);
+  async generateNodeCert(nodeId: string): Promise<Result<CertPair>> {
+    try {
+        const nodeKey = [...this.NODES_PREFIX, nodeId];
+        const entry = await this.kv.get<EncryptedCertPair>(nodeKey);
 
-    if (entry.value) {
-      const decrypted = await this.decryptCertPair(entry.value);
-      if (decrypted) return decrypted;
+        if (entry.value) {
+          const decrypted = await this.decryptCertPair(entry.value);
+          if (decrypted) return ok(decrypted);
+        }
+
+        const certPairResult = await this.issueNodeCert(nodeId);
+        if (!certPairResult.success) return certPairResult;
+
+        const certPair = certPairResult.data;
+        await this.kv!.set(nodeKey, await this.encryptCertPair(certPair));
+        return ok(certPair);
+    } catch (e) {
+        return err(e instanceof Error ? e : new Error(String(e)));
     }
-
-    const certPair = await this.issueNodeCert(nodeId);
-    await this.kv!.set(nodeKey, await this.encryptCertPair(certPair));
-    return certPair;
   }
 
   /**
    * Rotates a specific node certificate.
    */
-  async rotateCert(nodeId: string): Promise<CertPair> {
-    const certPair = await this.issueNodeCert(nodeId);
-    await this.kv.set([...this.NODES_PREFIX, nodeId], await this.encryptCertPair(certPair));
-    return certPair;
+  async rotateCert(nodeId: string): Promise<Result<CertPair>> {
+    try {
+        const certPairResult = await this.issueNodeCert(nodeId);
+        if (!certPairResult.success) return certPairResult;
+
+        const certPair = certPairResult.data;
+        await this.kv.set([...this.NODES_PREFIX, nodeId], await this.encryptCertPair(certPair));
+        return ok(certPair);
+    } catch (e) {
+        return err(e instanceof Error ? e : new Error(String(e)));
+    }
   }
 
   // --- Encryption helpers ---
@@ -293,39 +310,41 @@ export class MeshAuthService {
     }
   }
 
-  private async issueNodeCert(nodeId: string): Promise<CertPair> {
+  private async issueNodeCert(nodeId: string): Promise<Result<CertPair>> {
     // SECURITY: Sanitize nodeId to prevent configuration injection
     const safeNodeId = nodeId.replace(/[^a-zA-Z0-9\.\-]/g, "");
-    const ca = await this.getRootCA();
+    const caRes = await this.getRootCA();
+    if (!caRes.success) return caRes;
+    const ca = caRes.data;
 
     if (this.tpm) {
         const res = await this.tpm.issueNodeCert(safeNodeId, ca.cert, ca.key);
         if (res.success && res.data?.cert && res.data?.key) {
-            return {
+            return ok({
                 cert: res.data.cert,
                 key: res.data.key,
                 timestamp: Date.now()
-            };
+            });
         }
-        throw new Error(`TPM Node Cert Issuance failed: ${res.stderr || "Unknown Error"}`);
+        return err(new Error(`TPM Node Cert Issuance failed: ${res.stderr || "Unknown Error"}`));
     }
 
-    throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native cert issuance.");
+    return err(new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native cert issuance."));
   }
 
-  private async generateSelfSignedCA(): Promise<CertPair> {
+  private async generateSelfSignedCA(): Promise<Result<CertPair>> {
     if (this.tpm) {
         const res = await this.tpm.generateSelfSignedCA("MeshRootCA");
         if (res.success && res.data?.cert && res.data?.key) {
-            return {
+            return ok({
                 cert: res.data.cert,
                 key: res.data.key,
                 timestamp: Date.now()
-            };
+            });
         }
-        throw new Error(`TPM CA Generation failed: ${res.stderr || "Unknown Error"}`);
+        return err(new Error(`TPM CA Generation failed: ${res.stderr || "Unknown Error"}`));
     }
 
-    throw new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native CA generation.");
+    return err(new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native CA generation."));
   }
 }

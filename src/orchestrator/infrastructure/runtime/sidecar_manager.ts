@@ -45,6 +45,10 @@ export class SidecarManager implements CommandPort {
     this.tpm = tpm;
   }
 
+  getTpm() {
+      return this.tpm;
+  }
+
   private async loadManifest() {
     try {
         const manifestUrl = new URL("./sidecars.manifest.json", import.meta.url);

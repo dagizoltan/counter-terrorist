@@ -3,11 +3,11 @@ import { meshManager } from "@domain/orchestration/mesh.ts";
 import { isValidIP } from "../../validation.ts";
 import { FirewallProvider } from "../interfaces.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
-import { LogSeverity, LogType } from "@core/ports.ts";
+import { LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
 
 export type { FirewallProvider };
 
-export class FirewallManager {
+export class FirewallManager implements FirewallPort {
   private blockedIps: Set<string> = new Set();
   private kv?: Deno.Kv;
   private connectivityCheckInProgress = false;

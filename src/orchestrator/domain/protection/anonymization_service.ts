@@ -1,5 +1,5 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { VpnPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, FirewallPort, VpnPort } from "@core/ports.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface AnonymizationNode {
     country: string;
@@ -27,18 +27,18 @@ export class AnonymizationService {
     private rotationInterval?: number;
 
     private killSwitchInterval?: number;
-    private firewall?: any;
+    private firewall?: FirewallPort;
 
     constructor(
         private vpn: VpnPort,
         private logging: LoggingPort
     ) {}
 
-    setFirewall(firewall: any) {
+    setFirewall(firewall: FirewallPort) {
         this.firewall = firewall;
     }
 
-    async start(initialMode: StealthMode = StealthMode.VPNGATE) {
+    async start(initialMode: StealthMode = StealthMode.VPNGATE): Promise<Result<void>> {
         this.mode = initialMode;
         if (this.mode === StealthMode.OFF) return;
 
@@ -57,6 +57,7 @@ export class AnonymizationService {
         this.rotationInterval = setInterval(() => this.rotate(), intervalMs);
 
         this.startKillSwitch();
+        return ok(undefined);
     }
 
     private startKillSwitch() {
@@ -82,8 +83,8 @@ export class AnonymizationService {
         }, 5000); // Check every 5 seconds
     }
 
-    async setMode(newMode: StealthMode) {
-        if (this.mode === newMode) return;
+    async setMode(newMode: StealthMode): Promise<Result<void>> {
+        if (this.mode === newMode) return ok(undefined);
         
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -103,6 +104,7 @@ export class AnonymizationService {
         } else {
             await this.vpn.disconnect();
         }
+        return ok(undefined);
     }
 
     private nodePool: AnonymizationNode[] = [
@@ -116,7 +118,7 @@ export class AnonymizationService {
 
     private currentNode?: AnonymizationNode;
 
-    async rotate() {
+    async rotate(): Promise<Result<void>> {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -164,14 +166,17 @@ export class AnonymizationService {
                 caller: "orchestrator:domain:protection:anonymization",
                 message: "identity rotation complete"
             });
+            return ok(undefined);
         } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "ANONYMIZER",
-                message: `Rotation failed for ${this.mode}: ${(e as Error).message}`
+                message: `Rotation failed for ${this.mode}: ${error.message}`
             });
+            return err(error);
         }
     }
 
