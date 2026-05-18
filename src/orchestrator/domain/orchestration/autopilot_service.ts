@@ -3,6 +3,7 @@ import { LogSeverity, LogType } from "@core/ports.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { PolicyEngine } from "./policy_engine.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface AutopilotDependencies {
   eventBus: any;
@@ -18,12 +19,13 @@ export interface AutopilotDependencies {
   notifications: any;
 }
 
-export class AutopilotService {
+export class AutopilotService extends BaseService {
   private services?: AutopilotDependencies;
   private engine!: AutonomousResponseEngine;
   private policy: PolicyEngine;
 
   constructor() {
+    super();
     // PolicyEngine must be available immediately for getPolicy()
     this.policy = new PolicyEngine(loggingService);
   }

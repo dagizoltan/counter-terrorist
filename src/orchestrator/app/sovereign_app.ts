@@ -30,6 +30,7 @@ import { setMeshManager } from "@domain/orchestration/mesh.ts";
 import { setMetricsService } from "@domain/analysis/metrics_service.ts";
 
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
+import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
 
 // Infrastructure Providers
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
@@ -44,6 +45,7 @@ export class SovereignApp {
     private sidecarManager!: SidecarManager;
     private executor!: SystemExecutor;
     private auditService!: AuditService;
+    private lifecycleService!: SystemLifecycleService;
 
     private logPilotBanner() {
         console.log(`
@@ -57,9 +59,29 @@ export class SovereignApp {
 
     async boot() {
         this.logPilotBanner();
+        await this.initCore();
+
+        const config = loadConfig();
+        const configProvider = new EnvConfigProvider(config);
+
+        loggingService.setConfig({
+            host: config.SYSLOG_HOST,
+            port: config.SYSLOG_PORT,
+            transport: config.SYSLOG_TRANSPORT,
+            caPath: config.SYSLOG_CA_PATH
+        });
+
+        // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
+        this.sidecarManager.setConfig(configProvider);
+        const tpmManager = new TPMManager(this.sidecarManager, loggingService);
+        this.sidecarManager.setTpm(tpmManager);
+        this.sidecarManager.init();
+
+        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, broadcast);
+        this.lifecycleService = factory.initSystemLifecycle(tpmManager);
 
         // Active Safety: Crash Loop Detection / Safe Mode
-        const isSafeMode = await this.checkCrashLoop();
+        const isSafeMode = await this.lifecycleService.checkCrashLoop();
         if (isSafeMode) {
              Deno.env.set("SHADOW_MODE", "true");
              Deno.env.set("STRICT_POLICY_ENFORCEMENT", "false");
@@ -72,7 +94,7 @@ export class SovereignApp {
              });
 
              if (Deno.env.get("AUTO_RESTORE_LKG") === "true") {
-                 await this.tryRestoreLkg();
+                 await this.lifecycleService.tryRestoreLkg();
              }
         }
 
@@ -97,9 +119,6 @@ export class SovereignApp {
             }).catch(() => {});
         });
 
-        // ── Phase 1: Core infrastructure ──────────────────────────────────────
-        await this.initCore();
-
         // ── Phase 1.1: Security Lockdown Check ───────────────────────────────
         const lockdown = await this.kv.get(["system", "lockdown"]);
         if (lockdown.value) {
@@ -116,25 +135,8 @@ export class SovereignApp {
             console.error("Run 'deno run -A scripts/recover.ts' with a valid recovery token to restore access.");
             Deno.exit(1);
         }
-        
-        const config = loadConfig();
-        const configProvider = new EnvConfigProvider(config);
-
-        // Phase 1.2: Configure Logging from validated schema
-        loggingService.setConfig({
-            host: config.SYSLOG_HOST,
-            port: config.SYSLOG_PORT,
-            transport: config.SYSLOG_TRANSPORT,
-            caPath: config.SYSLOG_CA_PATH
-        });
 
         const platformInfo = await getPlatformInfo(this.executor);
-        
-        // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
-        this.sidecarManager.setConfig(configProvider);
-        const tpmManager = new TPMManager(this.sidecarManager, loggingService);
-        this.sidecarManager.setTpm(tpmManager);
-        this.sidecarManager.init();
 
         await bootstrap();
         const notificationService = new NotificationService(this.kv, loggingService);
@@ -150,7 +152,10 @@ export class SovereignApp {
         const meshManager = await this.initMesh(tpmManager, configProvider);
 
         // ── Phase 4: Hardware Integrity ──────────────────────────────────────
-        await this.verifyHardware(tpmManager, configProvider);
+        const isHardwareSecure = await this.lifecycleService.verifyHardware(configProvider);
+        if (!isHardwareSecure) {
+            await this.emergencyLockdown("Hardware Integrity Violation");
+        }
 
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
@@ -164,7 +169,11 @@ export class SovereignApp {
         // ── Phase 7: Finalize ───────────────────────────────────────────────
         const port = configProvider.getNumber("PORT", 8000);
         this.checkPilotSafety(configProvider);
-        this.registerSignalHandlers();
+
+        this.lifecycleService.registerSignalHandlers(async () => {
+            await this.gracefulShutdown();
+        });
+
         this.startWatchdog(healthService);
 
         await loggingService.log({
@@ -182,51 +191,28 @@ export class SovereignApp {
         this.services.lifecycle.scheduleLkgSnapshot();
     }
 
-    private async checkCrashLoop(): Promise<boolean> {
-        try {
-            const tempKv = await Deno.openKv("./volume/storage/boot_counter.db");
-            const key = ["boot", "last_attempt"];
-            const entry = await tempKv.get<any>(key);
-            const now = Date.now();
-
-            let count = 1;
-            if (entry.value && (now - entry.value.timestamp < 300000)) { // 5 minutes
-                count = (entry.value.count || 0) + 1;
-            }
-
-            await tempKv.set(key, { count, timestamp: now });
-            tempKv.close();
-
-            return count >= 3;
-        } catch {
-            return false;
+    private async gracefulShutdown() {
+        if (this.services) {
+            const { autopilot, mesh, audit, mediator, logging, lifecycle, health, metrics, honeypot, behavioral, processTracker, kernelService, protection } = this.services;
+            if (autopilot) autopilot.shutdown();
+            if (mesh) mesh.shutdown();
+            if (audit) await audit.shutdown();
+            if (mediator) (mediator as any).shutdown();
+            if (lifecycle) lifecycle.shutdown();
+            if (health) (health as any).shutdown?.();
+            if (metrics) metrics.stop();
+            if (honeypot) honeypot.shutdown?.();
+            if (behavioral) (behavioral as any).shutdown?.();
+            if (processTracker) processTracker.shutdown();
+            if (kernelService) (kernelService as any).shutdown?.();
+            if (protection?.firewall) (protection.firewall as any).shutdown?.();
+            if (protection?.vpn) (protection.vpn as any).shutdown?.();
+            if (logging) await logging.shutdown();
         }
-    }
 
-    private async tryRestoreLkg() {
-        try {
-            const tempKv = await Deno.openKv("./volume/storage/orchestrator.db");
-            const iter = tempKv.list({ prefix: ["lkg"] });
-            let restoredCount = 0;
-            for await (const entry of iter) {
-                const targetKey = entry.key.slice(1); // Remove "lkg" prefix
-                await tempKv.set(targetKey, entry.value);
-                restoredCount++;
-            }
-            tempKv.close();
-
-            if (restoredCount > 0) {
-                await loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.SUCCESS,
-                    caller: "orchestrator:app:lkg",
-                    message: `✅ AUTO-RESTORE: Successfully restored ${restoredCount} records from Last Known Good snapshot.`
-                });
-            }
-        } catch (e) {
-            console.error(`LKG Restore failed: ${e}`);
-        }
+        if (this.web) this.web.stop();
+        if (this.sidecarManager) await this.sidecarManager.shutdown();
+        if (this.kv) this.kv.close();
     }
 
     private async initCore() {
@@ -336,51 +322,12 @@ export class SovereignApp {
         watchdog.start();
     }
 
-    private async verifyHardware(tpm: TPMManager, config: EnvConfigProvider) {
-        const goldenPcrs: Record<number, string> = {};
-        for (const [key, value] of Object.entries(Deno.env.toObject())) {
-            if (key.startsWith("TPM_GOLDEN_PCR_")) {
-                const index = parseInt(key.replace("TPM_GOLDEN_PCR_", ""));
-                if (!isNaN(index)) goldenPcrs[index] = value;
-            }
-        }
-
-        const isHardwareSecure = await tpm.verifyIntegrity(goldenPcrs);
-        const bypassToken = config.getEnv("SECURE_ENVIRONMENT_TOKEN");
-        const secureBypass = config.getEnv("SECURE_BYPASS_TOKEN");
-
-        const isValidBypass = secureBypass &&
-                             secureBypass.length >= 32 &&
-                             (await secureCompare(bypassToken, secureBypass)) &&
-                             config.getEnv("ENVIRONMENT") !== "production";
-
-        if (!isHardwareSecure && !isValidBypass) {
-            await loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:app:sovereign_app:security",
-                message: "CRITICAL: HARDWARE INTEGRITY FAILURE. Access denied. No valid/secure bypass token provided."
-            });
-            // ENFORCEMENT: Trigger Emergency Lockdown if integrity fails and no secure bypass is active
-            await this.emergencyLockdown("Hardware Integrity Violation");
-        } else if (!isHardwareSecure && isValidBypass) {
-            await loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:app:sovereign_app:security",
-                message: "WARNING: RUNNING IN UNSAFE BYPASS MODE. System integrity is NOT hardware-verified. Environment: " + Deno.env.get("ENVIRONMENT")
-            });
-        }
-    }
-
     private wireEvents() {
         this.services.mediator.wireSidecars(this.services.command);
     }
 
     private async startSubsystems() {
-        const { playbook, autopilot, autonomousAutopilot, lifecycle, morphing, anonymization, deceptionGrid, processTracker, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, health } = this.services;
+        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -390,7 +337,7 @@ export class SovereignApp {
             message: "Activating autonomous subsystems..."
         });
 
-        const report = (name: string, status: string) => health.reportStatus(name, status);
+        const report = (name: string, status: string) => this.services.health.reportStatus(name, status);
 
         report("Playbook", "OPERATIONAL");
         report("Autopilot", "OPERATIONAL");
@@ -405,6 +352,7 @@ export class SovereignApp {
                    .catch(e => report(name, "FAILED", e.message));
         };
 
+        wrap("Autopilot", autopilot.start());
         wrap("Honeypot", honeypot.start());
         wrap("Canary", canaryService.start());
         wrap("KernelService", (async () => {
@@ -479,62 +427,6 @@ export class SovereignApp {
         await incidents.reportIncident({ severity: "HIGH", title: "Suspicious Vault Access", description: "Tor exit node attempt.", source: "Network", indicators: ["185.220.101.42"] });
     }
 
-    private activeSignalListeners: Map<Deno.Signal, () => Promise<void>> = new Map();
-    private isShuttingDown = false;
-
-    private registerSignalHandlers() {
-        const cleanup = async () => {
-            if (this.isShuttingDown) return;
-            this.isShuttingDown = true;
-
-            await loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.ACTIVITY,
-                severity: LogSeverity.INFO,
-                caller: "orchestrator:app:sovereign_app:system",
-                message: "Initiating graceful shutdown..."
-            });
-
-            if (this.services) {
-                const { autopilot, mesh, audit, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot, apiKeys, sessions, protection, processTracker, kernelService } = this.services;
-                if (autopilot) autopilot.shutdown();
-                if (mesh) mesh.shutdown();
-                if (audit) audit.shutdown();
-                if (mediator) (mediator as any).shutdown();
-                if (lifecycle) lifecycle.shutdown();
-                if (health) (health as any).shutdown?.();
-                if (metrics) metrics.stop();
-                if (honeypot) honeypot.shutdown?.();
-                if (behavioral) (behavioral as any).shutdown?.();
-                if (processTracker) processTracker.shutdown();
-                if (kernelService) (kernelService as any).shutdown?.();
-                if (protection?.firewall) (protection.firewall as any).shutdown?.();
-                if (protection?.vpn) (protection.vpn as any).shutdown?.();
-                if (logging) await logging.shutdown();
-            }
-
-            if (this.web) this.web.stop();
-            if (this.sidecarManager) await this.sidecarManager.shutdown();
-            if (this.kv) this.kv.close();
-
-            Deno.exit(0);
-        };
-        ["SIGINT", "SIGTERM"].forEach(s => {
-            try {
-                const sig = s as Deno.Signal;
-                Deno.addSignalListener(sig, cleanup);
-                this.activeSignalListeners.set(sig, cleanup);
-            } catch {}
-        });
-    }
-
-    private unregisterSignalHandlers() {
-        for (const [sig, handler] of this.activeSignalListeners.entries()) {
-            try { Deno.removeSignalListener(sig, handler); } catch {}
-        }
-        this.activeSignalListeners.clear();
-    }
-
     private async initServices(
         configProvider: EnvConfigProvider, platformInfo: PlatformInfo, notifications: NotificationService,
         eventBus: EventBus, mesh: MeshManager, 
@@ -542,7 +434,7 @@ export class SovereignApp {
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
-        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService);
+        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, broadcast);
 
         const identity = factory.initIdentity(configProvider);
         const { protection, networkLog } = await factory.initProtection(platformInfo, configProvider);
@@ -560,12 +452,12 @@ export class SovereignApp {
         const playbook = new PlaybookService();
         const { autopilot, autonomousAutopilot, lifecycle, policy } = await factory.initEngine(correlation);
 
-        const morphing = factory["safeInit"](health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
-        const chaos = factory["safeInit"](health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
-        const supplyChain = factory["safeInit"](health, "SupplyChain", () => new SupplyChainService());
+        const morphing = factory.createService(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
+        const chaos = factory.createService(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
+        const supplyChain = factory.createService(health, "SupplyChain", () => new SupplyChainService());
         await supplyChain.init();
-        const shadow = factory["safeInit"](health, "Shadow", () => new ShadowService(this.executor, loggingService));
-        const covert = factory["safeInit"](health, "Covert", () => new CovertChannelService(this.executor, loggingService));
+        const shadow = factory.createService(health, "Shadow", () => new ShadowService(this.executor, loggingService));
+        const covert = factory.createService(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
 
         const services: ServiceContainer = {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
@@ -580,7 +472,7 @@ export class SovereignApp {
             incidents: intelligence.incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,
-            metrics: (setMetricsService as any)._instance, // Accessing singleton instance set in initOperationalLayer
+            metrics: (setMetricsService as any)._instance,
             mediator: new EventMediator(eventBus, processTracker, security.canaryService, broadcast, loggingService, this.kv),
             behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy, correlation
         };
@@ -589,5 +481,40 @@ export class SovereignApp {
         autopilot.init(services);
 
         return services;
+    }
+
+    private checkPilotSafety(config: EnvConfigProvider) {
+        const isPilot = config.get("PILOT_MODE") === "true";
+        if (isPilot) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:app:sovereign_app",
+                message: "🛡️ PILOT SAFETY CHECK: System is running in Pilot Mode. Ensure 'scripts/emergency_off.sh' is accessible."
+            });
+        }
+    }
+
+    private async emergencyLockdown(reason: string = "Hardware Integrity Failure") {
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:app:sovereign_app",
+            message: `CRITICAL: EMERGENCY LOCKDOWN ACTIVATED (${reason}). System quarantined. Forensic state preserved. Physical/MFA recovery required.`
+        });
+
+        await this.kv.set(["system", "lockdown"], {
+            reason,
+            timestamp: new Date().toISOString(),
+            status: "QUARANTINED"
+        });
+
+        try {
+            await this.sidecarManager.sendCommand("sentinel", { type: "LOCKDOWN" });
+        } catch {}
+
+        Deno.exit(1);
     }
 }

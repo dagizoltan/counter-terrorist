@@ -27,6 +27,8 @@ import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilo
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
+import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
+import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 
 export class SubsystemFactory {
     constructor(
@@ -34,7 +36,8 @@ export class SubsystemFactory {
         private logging: LoggingPort,
         private executor: SystemExecutor,
         private sidecarManager: SidecarManager,
-        private auditService: AuditService
+        private auditService: AuditService,
+        private broadcast: (msg: any) => void
     ) {}
 
     initIdentity(config: EnvConfigProvider) {
@@ -55,31 +58,31 @@ export class SubsystemFactory {
         return { protection, networkLog };
     }
 
-    initSecurity(protection: any, mesh: any, tpm: any, health: any) {
+    initSecurity(protection: any, mesh: any, tpm: TPMManager, health: any) {
         const anonymization = new AnonymizationService(protection.vpn, this.logging);
         anonymization.setFirewall(protection.firewall);
         const shadowProtocol = new ShadowProtocolService(mesh, anonymization, this.logging);
         const behavioral = new BehavioralService(protection.firewall as any, this.auditService);
-        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, (msg: any) => {}, this.logging);
+        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, this.broadcast, this.logging);
 
-        const canaryService = this.safeInit(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging));
+        const canaryService = this.createService(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging));
         const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
 
         return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
     }
 
     initIntelligence(protection: any, processTracker: any, health: any, config: any, mesh: any) {
-        const geoIp = this.safeInit(health, "GeoIP", () => new GeoIpService(this.logging));
-        const forensicService = this.safeInit(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, (mesh as any).authService));
-        const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, (msg: any) => {}, geoIp));
-        const news = this.safeInit(health, "News", () => new NewsSignalService(this.logging));
-        const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => {
+        const geoIp = this.createService(health, "GeoIP", () => new GeoIpService(this.logging));
+        const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, (mesh as any).authService));
+        const curatedIntel = this.createService(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, this.broadcast, geoIp));
+        const news = this.createService(health, "News", () => new NewsSignalService(this.logging));
+        const networkDiscovery = this.createService(health, "NetworkDiscovery", () => {
             const svc = new NetworkDiscoveryService(this.logging, this.executor);
             svc.setMesh(mesh);
             return svc;
         });
-        const incidents = this.safeInit(health, "Incidents", () => new IncidentService(this.kv, this.logging));
-        const compliance = this.safeInit(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
+        const incidents = this.createService(health, "Incidents", () => new IncidentService(this.kv, this.logging));
+        const compliance = this.createService(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
 
         return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
     }
@@ -104,7 +107,11 @@ export class SubsystemFactory {
         return new ProcessTracker(this.logging, processProvider, this.sidecarManager);
     }
 
-    private safeInit<T extends object>(health: HealthService, name: string, factory: () => T): T {
+    initSystemLifecycle(tpm: TPMManager): SystemLifecycleService {
+        return new SystemLifecycleService(this.logging, tpm, this.kv);
+    }
+
+    public createService<T extends object>(health: HealthService, name: string, factory: () => T): T {
         try {
             const service = factory();
             health.reportStatus(name, "OPERATIONAL");
