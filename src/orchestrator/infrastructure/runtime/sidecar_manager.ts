@@ -497,12 +497,20 @@ export class SidecarManager implements CommandPort {
           if (trimmed.startsWith("[LOG] ")) {
             try {
                 const logData = JSON.parse(trimmed.substring(6));
+
+                // H-04: Limit message length from sidecars to prevent log-based DoS
+                const MAX_LOG_MSG_LENGTH = 16384; // 16KB
+                const rawMsg = String(logData.message || "");
+                const sanitizedMsg = rawMsg.length > MAX_LOG_MSG_LENGTH
+                    ? rawMsg.substring(0, MAX_LOG_MSG_LENGTH) + "... [TRUNCATED]"
+                    : rawMsg;
+
                 this.logging.log({
                     timestamp: logData.timestamp || new Date().toISOString(),
                     type: logData.log_type || LogType.ACTIVITY,
                     severity: logData.severity || LogSeverity.INFO,
                     caller: logData.caller || `${name}:main`,
-                    message: logData.message
+                    message: sanitizedMsg
                 });
                 // Note: We continue here if it's a pure log, but tactical events use standard JSON
                 continue; 
@@ -545,8 +553,18 @@ export class SidecarManager implements CommandPort {
             for (const handler of handlers) {
               handler(data);
             }
-          } catch {
-            // Not JSON or parse failed
+          } catch (e) {
+            // H-08: Log malformed IPC output for forensic analysis in pilots
+            if (trimmed.length > 0) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.DEBUG,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] Malformed IPC JSON detected: ${trimmed.substring(0, 100)}${trimmed.length > 100 ? "..." : ""}`,
+                    payload: { error: (e as Error).message }
+                });
+            }
           }
         }
       }
@@ -876,7 +894,8 @@ export class SidecarManager implements CommandPort {
       });
       this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
 
-      // Circuit Breaker: Reset after cooloff period
+      // Circuit Breaker: Reset after cooloff period with jitter (H-06)
+      const jitter = Math.floor(Math.random() * 30000); // 30s jitter
       const resetTimer = setTimeout(() => {
           this.trippedSidecars.delete(name);
           this.restartCounts.delete(name);
@@ -888,7 +907,7 @@ export class SidecarManager implements CommandPort {
               caller: "orchestrator:infra:runtime:sidecar_manager",
               message: `Circuit breaker reset for ${name}. Resuming lifecycle monitoring.`
           });
-      }, COOLOFF_WINDOW);
+      }, COOLOFF_WINDOW + jitter);
       this.backoffTimers.add(resetTimer);
     }
   }

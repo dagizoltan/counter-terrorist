@@ -89,9 +89,16 @@ export function isPrivateIp(ip: string): boolean {
     return true;
   }
 
-  // IPv6 Unique Local Address (fc00::/7) and Link-Local (fe80::/10)
-  if (ip.toLowerCase().startsWith("fc") || ip.toLowerCase().startsWith("fd") || ip.toLowerCase().startsWith("fe80")) {
+  // H-02: Enhanced SSRF protection for IPv6 and IPv4-mapped addresses
+  const lowerIp = ip.toLowerCase();
+  if (lowerIp === "::" || lowerIp === "::1" || lowerIp.startsWith("fe8") || lowerIp.startsWith("fc") || lowerIp.startsWith("fd")) {
     return true;
+  }
+
+  // Handle IPv4-mapped IPv6 (::ffff:192.168.1.1)
+  if (lowerIp.startsWith("::ffff:")) {
+      const ipv4Part = lowerIp.substring(7);
+      return isPrivateIp(ipv4Part);
   }
 
   const ipv4Match = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
