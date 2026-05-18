@@ -22,9 +22,10 @@ export class BehavioralService extends BaseService {
     this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
   }
 
-  shutdown() {
+  async shutdown(): Promise<Result<void>> {
       if (this.metricsInterval) clearInterval(this.metricsInterval);
       this.analyzer.shutdown();
+      return ok(undefined);
   }
 
   setEventBus(eventBus: any) {

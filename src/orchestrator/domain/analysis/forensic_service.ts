@@ -1,19 +1,23 @@
 import { AuditService } from "./audit.ts";
+import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType, MeshAuthPort } from "../../core/ports.ts";
+import { Result, ok } from "../../core/result.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 
 /**
  * ForensicService
  * Handles the aggregation and packaging of security evidence for post-mortem analysis.
  */
-export class ForensicService {
+export class ForensicService extends BaseService {
   constructor(
     private audit: AuditService,
     private logging: LoggingPort,
     private kv: Deno.Kv,
     private processTracker: ProcessTracker,
     private meshAuth: MeshAuthPort
-  ) {}
+  ) {
+    super();
+  }
 
   /**
    * Generates a cryptographically signed bundle of all security events and system snapshots.
@@ -161,6 +165,10 @@ export class ForensicService {
     } catch {
         return null;
     }
+  }
+
+  async shutdown(): Promise<Result<void>> {
+    return ok(undefined);
   }
 
   async isolateSource(source: string, reason: string): Promise<any> {

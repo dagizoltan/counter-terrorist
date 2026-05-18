@@ -64,8 +64,8 @@ export class AutopilotService extends BaseService {
   private intervalId: number | null = null;
   private unsubscribers: (() => void)[] = [];
 
-  shutdown() {
-      if (!this.services) return;
+  async shutdown(): Promise<Result<void>> {
+      if (!this.services) return ok(undefined);
       this.isStarted = false;
       if (this.intervalId) {
           clearInterval(this.intervalId);
@@ -84,6 +84,7 @@ export class AutopilotService extends BaseService {
           caller: "orchestrator:domain:orchestration:autopilot_service",
           message: "Autonomous Defense Mesh disengaged."
       });
+      return ok(undefined);
   }
 
   async start() {

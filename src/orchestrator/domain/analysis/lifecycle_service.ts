@@ -1,4 +1,6 @@
+import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
+import { Result, ok } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 
 export interface ScheduledTask {
@@ -16,7 +18,7 @@ export interface ScheduledTask {
  * Manages the periodic execution of defensive tasks across the agent mesh.
  * Replaces host-level cron/systemd-timers for a truly distro-less posture.
  */
-export class LifecycleService {
+export class LifecycleService extends BaseService {
     private tasks: ScheduledTask[] = [];
     private timerId?: number;
     private kv?: Deno.Kv;
@@ -27,6 +29,7 @@ export class LifecycleService {
         private commands: CommandPort,
         private logging: LoggingPort
     ) {
+        super();
         this.initializeDefaultTasks();
     }
 
@@ -76,7 +79,7 @@ export class LifecycleService {
         this.timerId = setInterval(() => this.tick(), 10000); // Check every 10s
     }
 
-    public shutdown() {
+    public async shutdown(): Promise<Result<void>> {
         if (this.timerId) {
             clearInterval(this.timerId);
             this.timerId = undefined;
@@ -85,6 +88,7 @@ export class LifecycleService {
             clearTimeout(this.shadowTimer);
             this.shadowTimer = undefined;
         }
+        return ok(undefined);
     }
 
     private async tick() {
