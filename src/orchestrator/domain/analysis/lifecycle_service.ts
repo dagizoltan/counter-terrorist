@@ -19,6 +19,9 @@ export interface ScheduledTask {
 export class LifecycleService {
     private tasks: ScheduledTask[] = [];
     private timerId?: number;
+    private kv?: Deno.Kv;
+    private shadowTimer?: number;
+    private policyEngine?: any;
 
     constructor(
         private commands: CommandPort,
@@ -51,6 +54,14 @@ export class LifecycleService {
         });
     }
 
+    public setKv(kv: Deno.Kv) {
+        this.kv = kv;
+    }
+
+    public setPolicyEngine(policyEngine: any) {
+        this.policyEngine = policyEngine;
+    }
+
     public start() {
         if (this.timerId) return;
         
@@ -69,6 +80,10 @@ export class LifecycleService {
         if (this.timerId) {
             clearInterval(this.timerId);
             this.timerId = undefined;
+        }
+        if (this.shadowTimer) {
+            clearTimeout(this.shadowTimer);
+            this.shadowTimer = undefined;
         }
     }
 
@@ -109,6 +124,58 @@ export class LifecycleService {
                 message: `Task execution failed: ${task.id} - ${error}`
             });
         }
+    }
+
+    public scheduleLkgSnapshot() {
+        if (!this.kv) return;
+
+        // Take a "Last Known Good" snapshot after 10 minutes of stability
+        setTimeout(async () => {
+            try {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.ACTIVITY,
+                    severity: LogSeverity.INFO,
+                    caller: "LIFECYCLE:LKG",
+                    message: "System stable for 10m. Committing Last Known Good (LKG) snapshot..."
+                });
+
+                const criticalPrefixes = [["enforcement"], ["system", "config"], ["mesh", "identity"]];
+                for (const prefix of criticalPrefixes) {
+                    const iter = this.kv!.list({ prefix });
+                    for await (const entry of iter) {
+                        const lkgKey = ["lkg", ...entry.key];
+                        await this.kv!.set(lkgKey, entry.value);
+                    }
+                }
+            } catch (e) {
+                console.error(`LKG Snapshot failed: ${e}`);
+            }
+        }, 600000); // 10 minutes
+    }
+
+    public startShadowModeTimer() {
+        const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "LIFECYCLE:SHADOW",
+            message: `Shadow Mode active for ${shadowDuration} hours. S-Grade blocks are simulated.`
+        });
+
+        this.shadowTimer = setTimeout(() => {
+            if (this.policyEngine && this.policyEngine.isShadowMode()) {
+                this.policyEngine.setShadowMode(false);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "LIFECYCLE:SHADOW",
+                    message: "Shadow Mode expired. System is now ARMED and enforcing S-Grade blocks."
+                });
+            }
+        }, shadowDuration * 60 * 60 * 1000);
     }
 
     /**

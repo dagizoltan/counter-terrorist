@@ -166,62 +166,11 @@ export class SovereignApp {
             message: `Sovereign Orchestrator fully engaged on port ${port}`
         });
         await this.web.start(port);
-        this.startShadowModeTimer();
-        this.scheduleLkgSnapshot();
-    }
 
-    private shadowTimer?: number;
-
-    private scheduleLkgSnapshot() {
-        // Take a "Last Known Good" snapshot after 10 minutes of stability
-        setTimeout(async () => {
-            if (this.isShuttingDown) return;
-            try {
-                await loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.ACTIVITY,
-                    severity: LogSeverity.INFO,
-                    caller: "orchestrator:app:lkg",
-                    message: "System stable for 10m. Committing Last Known Good (LKG) snapshot..."
-                });
-
-                const criticalPrefixes = [["enforcement"], ["system", "config"], ["mesh", "identity"]];
-                for (const prefix of criticalPrefixes) {
-                    const iter = this.kv.list({ prefix });
-                    for await (const entry of iter) {
-                        const lkgKey = ["lkg", ...entry.key];
-                        await this.kv.set(lkgKey, entry.value);
-                    }
-                }
-            } catch (e) {
-                console.error(`LKG Snapshot failed: ${e}`);
-            }
-        }, 600000); // 10 minutes
-    }
-
-    private startShadowModeTimer() {
-        const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
-        loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.INFO,
-            caller: "orchestrator:app:sovereign_app:shadow",
-            message: `Shadow Mode active for ${shadowDuration} hours. S-Grade blocks are simulated.`
-        });
-
-        // BUG-10.1 FIX: Store timer ID for clean shutdown
-        this.shadowTimer = setTimeout(() => {
-            if (this.services.policy.isShadowMode()) {
-                this.services.policy.setShadowMode(false);
-                loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.SUCCESS,
-                    caller: "orchestrator:app:sovereign_app:shadow",
-                    message: "Shadow Mode expired. System is now ARMED and enforcing S-Grade blocks."
-                });
-            }
-        }, shadowDuration * 60 * 60 * 1000);
+        this.services.lifecycle.setKv(this.kv);
+        this.services.lifecycle.setPolicyEngine(this.services.policy);
+        this.services.lifecycle.startShadowModeTimer();
+        this.services.lifecycle.scheduleLkgSnapshot();
     }
 
     private async checkCrashLoop(): Promise<boolean> {
@@ -316,19 +265,22 @@ export class SovereignApp {
         );
         (setMetricsService as any)(metricsService);
 
-        // Inject EventBus into services for metric emission
-        (services.protection.firewall as any).setEventBus?.(services.eventBus);
-        services.mesh.setEventBus?.(services.eventBus);
-        services.honeypot.setEventBus?.(services.eventBus);
-        services.processTracker.setEventBus?.(services.eventBus);
-        services.kernelService.setEventBus?.(services.eventBus);
-        services.audit.setEventBus?.(services.eventBus);
-        (services.protection.vpn as any).setEventBus?.(services.eventBus);
-        services.behavioral.setEventBus?.(services.eventBus);
-
+        this.injectEventBus(services);
         this.wireEvents();
         await this.startSubsystems();
         await this.seedForensics();
+    }
+
+    private injectEventBus(services: ServiceContainer) {
+        const bus = services.eventBus;
+        (services.protection.firewall as any).setEventBus?.(bus);
+        services.mesh.setEventBus?.(bus);
+        services.honeypot.setEventBus?.(bus);
+        services.processTracker.setEventBus?.(bus);
+        services.kernelService.setEventBus?.(bus);
+        services.audit.setEventBus?.(bus);
+        (services.protection.vpn as any).setEventBus?.(bus);
+        services.behavioral.setEventBus?.(bus);
     }
 
     private startWatchdog(health: HealthService) {
@@ -539,7 +491,6 @@ export class SovereignApp {
 
             if (this.services) {
                 const { autopilot, mesh, audit, mediator, logging, lifecycle, health, news, behavioral, networkDiscovery, metrics, honeypot, apiKeys, sessions, protection, processTracker, kernelService } = this.services;
-                if (this.shadowTimer) clearTimeout(this.shadowTimer);
                 if (autopilot) autopilot.shutdown();
                 if (mesh) mesh.shutdown();
                 if (audit) audit.shutdown();
@@ -585,17 +536,60 @@ export class SovereignApp {
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
-        // REPOSITORY INJECTION
+        const identity = this.initIdentitySubsystem(configProvider);
+        const { protection, networkLog } = await this.initProtectionSubsystem(platformInfo);
+        
+        const processTracker = this.initProcessTracker(platformInfo);
+        
+        const correlation = new CorrelationService(this.auditService, loggingService);
+        this.auditService.setCorrelation(correlation);
+
+        const security = this.initSecuritySubsystem(protection, mesh, tpm, health);
+        security.kernelService.setTpmManager(tpm);
+
+        const intelligence = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider, mesh);
+
+        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, security.shadowProtocol, eventBus);
+        const engine = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, security.shadowProtocol, this.sidecarManager, protection, intelligence.forensicService, security.kernelService, processTracker, security.honeypot, security.canaryService, health);
+        (engine.autopilot as any).health = health;
+
+        return {
+            config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
+            notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService),
+            processTracker, sessions: identity.sessions, apiKeys: identity.apiKeys, eventBus,
+            honeypot: security.honeypot, canaryService: security.canaryService, kernelService: security.kernelService, forensicService: intelligence.forensicService,
+            autopilot: engine.autopilot, autonomousAutopilot: engine.autonomousAutopilot, lifecycle: engine.lifecycle, logging: loggingService,
+            playbook, morphing: engine.morphing, chaos: engine.chaos,
+            supplyChain: engine.supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: intelligence.curatedIntel as any,
+            compliance: intelligence.compliance, anonymization: security.anonymization, shadowProtocol: security.shadowProtocol, deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
+            curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
+            incidents: intelligence.incidents, platformInfo, shadow: engine.shadow, covert: engine.covert,
+            ledger: new LedgerService(mesh, loggingService),
+            tpm, health,
+            metrics: (setMetricsService as any)._instance, // Accessing singleton instance set in initOperationalLayer
+            mediator: new EventMediator(eventBus, processTracker, security.canaryService, broadcast, loggingService, this.kv),
+            behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy: engine.policy, correlation
+        };
+    }
+
+    private initIdentitySubsystem(configProvider: EnvConfigProvider) {
+        const sessionRepo = new KvSessionRepository(this.kv);
+        const sessions = new SessionService(sessionRepo, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
+        const apiKeys = new ApiKeysService(this.kv, loggingService);
+        const rateLimit = new RateLimitService(this.kv);
+        return { sessions, apiKeys, rateLimit };
+    }
+
+    private async initProtectionSubsystem(platformInfo: any) {
         const networkLogRepo = new KvNetworkLogRepository(this.kv);
         const networkLog = new NetworkLogService(networkLogRepo, loggingService);
-        
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         await rawProtection.firewall.setKv(this.kv);
         const protection = new ProtectionAdapter(rawProtection);
+        return { protection, networkLog };
+    }
 
-        // ── Autonomous Defense ──────────────────────────────────────────────
-        const autoBlock = new AutoBlockService(eventBus, rawProtection.firewall, loggingService);
-        
+    private initProcessTracker(platformInfo: any) {
         let processProvider;
         if (platformInfo.name === "macos") {
             processProvider = new MacOSProcessProvider();
@@ -604,43 +598,7 @@ export class SovereignApp {
         } else {
             processProvider = new LinuxProcessProvider();
         }
-
-        const processTracker = new ProcessTracker(loggingService, processProvider, this.sidecarManager);
-        
-        const sessionRepo = new KvSessionRepository(this.kv);
-        const sessions = new SessionService(sessionRepo, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
-        
-        const apiKeys = new ApiKeysService(this.kv, loggingService);
-        const rateLimit = new RateLimitService(this.kv);
-        
-        const correlation = new CorrelationService(this.auditService, loggingService);
-        this.auditService.setCorrelation(correlation);
-
-        const { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService } = this.initSecuritySubsystem(protection, mesh, tpm, health);
-        kernelService.setTpmManager(tpm);
-        const { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance } = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider, mesh);
-
-        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, shadowProtocol, eventBus);
-        const { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy } = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, shadowProtocol, this.sidecarManager, protection, forensicService, kernelService, processTracker, honeypot, canaryService, health);
-        (autopilot as any).health = health;
-
-        return {
-            config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
-            notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService),
-            processTracker, sessions, apiKeys, eventBus,
-            honeypot, canaryService, kernelService, forensicService,
-            autopilot, autonomousAutopilot, lifecycle, logging: loggingService,
-            playbook, morphing, chaos,
-            supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: curatedIntel as any,
-            compliance, anonymization, shadowProtocol, deceptionGrid: new DeceptionGridService(honeypot, canaryService, loggingService),
-            curatedIntel, news, networkDiscovery, networkLogs: networkLog,
-            incidents, platformInfo, shadow, covert,
-            ledger: new LedgerService(mesh, loggingService),
-            tpm, health,
-            metrics: (setMetricsService as any)._instance, // Accessing singleton instance set in initOperationalLayer
-            mediator: new EventMediator(eventBus, processTracker, canaryService, broadcast, loggingService, this.kv),
-            behavioral, geoIp, rateLimit, policy, correlation
-        };
+        return new ProcessTracker(loggingService, processProvider, this.sidecarManager);
     }
 
     private initSecuritySubsystem(protection: any, mesh: any, tpm: any, health: any) {
