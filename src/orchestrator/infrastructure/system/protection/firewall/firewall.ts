@@ -179,6 +179,11 @@ export class FirewallManager {
 
               await this.flushRules();
 
+              // Trigger Mesh Re-discovery to ensure node identity is re-verified after connectivity restore
+              if (meshManager) {
+                  meshManager.resyncNodes?.().catch(() => {});
+              }
+
               loggingService.log({
                   timestamp: new Date().toISOString(),
                   type: LogType.AUDIT,

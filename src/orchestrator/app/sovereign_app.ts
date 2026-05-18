@@ -76,6 +76,10 @@ export class SovereignApp {
                  caller: "orchestrator:app:sovereign_app",
                  message: "⚠️ SAFE MODE ACTIVATED: Multiple boot failures detected. All enforcement disabled."
              });
+
+             if (Deno.env.get("AUTO_RESTORE_LKG") === "true") {
+                 await this.tryRestoreLkg();
+             }
         }
 
         // SOV-P3: Global Error Handlers
@@ -163,9 +167,37 @@ export class SovereignApp {
         });
         await this.web.start(port);
         this.startShadowModeTimer();
+        this.scheduleLkgSnapshot();
     }
 
     private shadowTimer?: number;
+
+    private scheduleLkgSnapshot() {
+        // Take a "Last Known Good" snapshot after 10 minutes of stability
+        setTimeout(async () => {
+            if (this.isShuttingDown) return;
+            try {
+                await loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.ACTIVITY,
+                    severity: LogSeverity.INFO,
+                    caller: "orchestrator:app:lkg",
+                    message: "System stable for 10m. Committing Last Known Good (LKG) snapshot..."
+                });
+
+                const criticalPrefixes = [["enforcement"], ["system", "config"], ["mesh", "identity"]];
+                for (const prefix of criticalPrefixes) {
+                    const iter = this.kv.list({ prefix });
+                    for await (const entry of iter) {
+                        const lkgKey = ["lkg", ...entry.key];
+                        await this.kv.set(lkgKey, entry.value);
+                    }
+                }
+            } catch (e) {
+                console.error(`LKG Snapshot failed: ${e}`);
+            }
+        }, 600000); // 10 minutes
+    }
 
     private startShadowModeTimer() {
         const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
@@ -210,6 +242,32 @@ export class SovereignApp {
             return count >= 3;
         } catch {
             return false;
+        }
+    }
+
+    private async tryRestoreLkg() {
+        try {
+            const tempKv = await Deno.openKv("./volume/storage/orchestrator.db");
+            const iter = tempKv.list({ prefix: ["lkg"] });
+            let restoredCount = 0;
+            for await (const entry of iter) {
+                const targetKey = entry.key.slice(1); // Remove "lkg" prefix
+                await tempKv.set(targetKey, entry.value);
+                restoredCount++;
+            }
+            tempKv.close();
+
+            if (restoredCount > 0) {
+                await loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.SUCCESS,
+                    caller: "orchestrator:app:lkg",
+                    message: `✅ AUTO-RESTORE: Successfully restored ${restoredCount} records from Last Known Good snapshot.`
+                });
+            }
+        } catch (e) {
+            console.error(`LKG Restore failed: ${e}`);
         }
     }
 

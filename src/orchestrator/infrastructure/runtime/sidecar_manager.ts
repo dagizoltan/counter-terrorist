@@ -704,6 +704,10 @@ export class SidecarManager implements CommandPort {
     return process ? process.pid : null;
   }
 
+  getTrippedSidecars(): string[] {
+      return Array.from(this.trippedSidecars);
+  }
+
   private getCapabilities(name: string): string | undefined {
     // BUG-4.5 FIX: Use SIDECAR_REGISTRY for capability mapping to allow new sidecars to work
     return SIDECAR_REGISTRY[name]?.capabilities;

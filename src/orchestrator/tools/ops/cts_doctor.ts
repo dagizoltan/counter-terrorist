@@ -17,7 +17,8 @@ async function runDoctor() {
         checkPermissions,
         checkTpm,
         checkDependencies,
-        checkDeno
+        checkDeno,
+        checkEmergencyRestoration
     ];
 
     let allPassed = true;
@@ -128,6 +129,42 @@ async function checkDependencies(executor: SystemExecutor): Promise<boolean> {
         }
     }
     return passed;
+}
+
+async function checkEmergencyRestoration(executor: SystemExecutor): Promise<boolean> {
+    console.log("🚑 Checking Emergency Restoration Path...");
+    const scriptPath = "./scripts/emergency_off.sh";
+
+    try {
+        const stat = await Deno.stat(scriptPath).catch(() => null);
+        if (!stat) {
+            console.log(`   ❌ Emergency Script Missing: ${scriptPath}`);
+            return false;
+        }
+
+        const isExecutable = (stat.mode || 0) & 0o111;
+        if (isExecutable) {
+            console.log(`   ✅ Emergency Script Found: ${scriptPath}`);
+        } else {
+            console.log(`   ❌ Emergency Script Not Executable: ${scriptPath}`);
+            return false;
+        }
+
+        // Check for script dependencies
+        const deps = ["pkill", "awk", "ip", "ufw", "wg"];
+        let allDeps = true;
+        for (const dep of deps) {
+            const res = await executor.execute("which", [dep]);
+            if (!res.success) {
+                console.log(`   ⚠️  Missing script dependency: ${dep}`);
+                allDeps = false;
+            }
+        }
+        return allDeps;
+    } catch (e) {
+        console.log(`   ❌ Emergency check failed: ${(e as Error).message}`);
+        return false;
+    }
 }
 
 async function checkDeno(_executor: SystemExecutor): Promise<boolean> {
