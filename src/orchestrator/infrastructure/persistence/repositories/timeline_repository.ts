@@ -17,6 +17,24 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
     if (!res.ok) throw new Error(`Failed to set timeline entry for ${id}`);
   }
 
+  async setMany(items: { id: string, data: T }[]): Promise<void> {
+    if (items.length === 0) return;
+
+    let atomic = this.kv.atomic();
+    let count = 0;
+    for (const item of items) {
+        const ts = typeof item.data.timestamp === "string" ? new Date(item.data.timestamp).getTime() : item.data.timestamp;
+        atomic = atomic.set([this.prefix, ts, item.id], item.data);
+        count++;
+    }
+
+    const res = await atomic
+        .mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(BigInt(count)) })
+        .commit();
+
+    if (!res.ok) throw new Error(`Failed to set batch of ${items.length} timeline entries`);
+  }
+
   async getLatest(limit: number = 1): Promise<T[]> {
     const iter = this.kv.list<T>({ prefix: [this.prefix] }, { reverse: true, limit });
     const items: T[] = [];

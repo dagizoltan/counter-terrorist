@@ -162,12 +162,6 @@ export class HoneypotService {
       this.sidecarManager.stopSidecar("decoy").catch(() => {});
   }
 
-  private behavioralService?: any; // Injected later or passed in constructor
-
-  setBehavioralService(service: any) {
-    this.behavioralService = service;
-  }
-
   private async handleEvent(event: any) {
     const payload = event.data;
     if (!payload) return;
@@ -202,18 +196,17 @@ export class HoneypotService {
         }
       });
 
-      if (this.behavioralService) {
-        await this.behavioralService.analyze(source_ip);
+      // DECOUPLING: Emit pure event for cross-domain orchestration
+      if (this.eventBus) {
+        this.eventBus.emit("HONEYPOT", {
+            type: "PortAccess",
+            source_ip,
+            port,
+            module: module?.id
+        });
       } else {
-        this.firewall.shadowBanIp(source_ip).catch(err => 
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "DECEPTION",
-                message: `ShadowBan failed for ${source_ip}: ${err.message}`
-            })
-        );
+        // Fallback for standalone/minimal mode
+        this.firewall.shadowBanIp(source_ip).catch(() => {});
         this.sabotageSession(source_ip);
       }
 

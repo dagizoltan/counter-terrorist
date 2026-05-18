@@ -47,8 +47,7 @@ export class EventBus implements EventBusPort {
   }
 
   emit(event: string, data: any) {
-    const validatedData = validateEvent(event as EventName, data);
-    this.publish(event, `Emitted event: ${event}`, validatedData);
+    this.publish(event, `Emitted event: ${event}`, data);
   }
 
   publish(type: string, message: string, data?: any) {
@@ -63,7 +62,7 @@ export class EventBus implements EventBusPort {
 
     // Forward to centralized logging (Suppress massive payloads for periodic noise)
     const severity = this.mapTypeToSeverity(type);
-    const isNoise = type === "DEBUG" || type === "METRICS_UPDATE";
+    const isNoise = type === "DEBUG" || type === "METRIC_UPDATE";
     const logType = isNoise ? LogType.DEBUG : LogType.AUDIT;
 
     this.logging.log({
@@ -76,36 +75,48 @@ export class EventBus implements EventBusPort {
     }).catch(() => {});
 
     // SOV-P3: Parallelized and Time-Limited Execution
-    // Prevents a single slow subscriber from stalling the entire bus.
-    const allHandlers = [...this.handlers];
+    const allHandlers = this.handlers;
     const typeHandlers = this.keyedListeners.get(type) || [];
 
-    // Combine all relevant handlers
-    const tasks = [
-        ...allHandlers.map(h => () => h(event)),
-        ...typeHandlers.map(h => () => h(data))
-    ];
+    if (allHandlers.length === 0 && typeHandlers.length === 0) return;
 
     // Execute in parallel with 2s timeout
-    Promise.allSettled(tasks.map(t => this.safelyExecute(t, 2000))).catch(() => {});
+    for (const h of allHandlers) {
+        this.safelyExecute(() => h(event), 2000);
+    }
+    for (const h of typeHandlers) {
+        this.safelyExecute(() => h(validatedData), 2000);
+    }
   }
 
-  private async safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000) {
-    let timeoutId: any;
+  private safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000) {
     try {
-      const executePromise = (async () => {
-          const res = fn();
-          if (res instanceof Promise) await res;
+      const res = fn();
+      if (!(res instanceof Promise)) return;
+
+      // Only handle async if it's actually a promise
+      (async () => {
+        let timeoutId: any;
+        try {
+          const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(`Handler timeout after ${timeoutMs}ms`)), timeoutMs);
+          });
+
+          await Promise.race([res, timeoutPromise]);
+        } catch (e) {
+          const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
+          this.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: "EVENTBUS",
+              message: `Async Handler error: ${errorMsg}`
+          }).catch(() => {});
+        } finally {
+          if (timeoutId) clearTimeout(timeoutId);
+        }
       })();
-
-      const timeoutPromise = new Promise((_, reject) => {
-          timeoutId = setTimeout(() => reject(new Error(`Handler timeout after ${timeoutMs}ms`)), timeoutMs);
-      });
-
-      await Promise.race([executePromise, timeoutPromise]);
-      if (timeoutId) clearTimeout(timeoutId);
     } catch (e) {
-      if (timeoutId) clearTimeout(timeoutId);
       const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
       this.logging.log({
           timestamp: new Date().toISOString(),

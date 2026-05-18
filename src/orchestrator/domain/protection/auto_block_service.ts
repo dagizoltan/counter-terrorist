@@ -27,12 +27,10 @@ export class AutoBlockService {
 
     this.eventBus.subscribe(async (event) => {
       // Listen for high-confidence honeypot triggers
-      if (event.type === "AUDIT_EVENT" && event.data?.caller?.startsWith("decoy:")) {
-        const payload = event.data?.payload;
-        const ip = payload?.source_ip || payload?.ip;
-
+      if (event.type === "HONEYPOT") {
+        const ip = event.data?.source_ip || event.data?.ip;
         if (ip && typeof ip === "string") {
-            await this.executeBlock(ip, event.data.caller);
+            await this.executeBlock(ip, `honeypot:${event.data.type}`);
         }
       }
 

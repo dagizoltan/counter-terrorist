@@ -19,6 +19,7 @@ export class KernelService {
     private logging: LoggingPort;
     private eventBus?: any;
     private metricsInterval?: number;
+    private config?: any;
 
     private tpm?: TPMManager;
 
@@ -37,6 +38,10 @@ export class KernelService {
 
     setEventBus(eventBus: any) {
         this.eventBus = eventBus;
+    }
+
+    setConfig(config: any) {
+        this.config = config;
     }
 
     private async emitMetrics() {
@@ -97,7 +102,7 @@ export class KernelService {
      * Disguises the orchestrator process as a kernel worker thread.
      */
     async camouflage() {
-        const enabled = Deno.env.get("STEALTH_ENABLED") !== "false"; // Default to true if not specified
+        const enabled = this.config?.getBoolean("STEALTH_ENABLED", true);
         if (!enabled) {
             this.logging.log({
                 timestamp: new Date().toISOString(),

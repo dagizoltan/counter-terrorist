@@ -39,8 +39,10 @@ export const SystemEventRegistry = {
     message: z.string().optional()
   }),
   "HONEYPOT": z.object({
-    code: z.string().optional(),
-    ip: z.string().optional(),
+    type: z.string(),
+    source_ip: z.string(),
+    port: z.union([z.number(), z.string()]).optional(),
+    module: z.string().optional(),
     severity: z.string().optional()
   }),
   "METRIC_UPDATE": z.object({

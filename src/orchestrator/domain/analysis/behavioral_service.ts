@@ -26,6 +26,11 @@ export class BehavioralService {
 
   setEventBus(eventBus: any) {
       this.eventBus = eventBus;
+      this.eventBus.on("HONEYPOT", (event: any) => {
+          if (event && event.source_ip) {
+              this.analyze(event.source_ip).catch(() => {});
+          }
+      });
   }
 
   private emitMetrics() {

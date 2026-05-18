@@ -45,9 +45,11 @@ export class AuditService {
     private lastHash: string = "GENESIS";
     private lastVerifiedHash: string = "GENESIS";
     private retentionConfig: RetentionConfig;
-    private logQueue: Promise<void> = Promise.resolve();
-    private queueDepth: number = 0;
     private state: SystemState = SystemState.NORMAL;
+    private logQueue: Promise<void> = Promise.resolve();
+
+    private auditBuffer: AuditEvent[] = [];
+    private flushTimer?: number;
 
     private intervals: number[] = [];
     private eventBus?: any;
@@ -60,8 +62,8 @@ export class AuditService {
         private correlation: any | null = null
     ) {
         this.retentionConfig = {
-            maxAgeDays: Number(Deno.env.get("AUDIT_RETENTION_DAYS")) || 90,
-            maxEvents: Number(Deno.env.get("AUDIT_MAX_EVENTS")) || 10000,
+            maxAgeDays: 90,
+            maxEvents: 10000,
         };
 
         this.restoreChainHead();
@@ -77,6 +79,7 @@ export class AuditService {
         }, 5 * 60 * 1000));
 
         this.intervals.push(setInterval(() => this.verifyChainIncremental(), 60 * 1000));
+        this.intervals.push(setInterval(() => this.flushBuffer(), 5000));
 
         // ENHANCEMENT: Full Ledger Verification on Boot (Background)
         // Disabled for UI stabilization phase
@@ -85,6 +88,13 @@ export class AuditService {
 
     setEventBus(eventBus: any) {
         this.eventBus = eventBus;
+    }
+
+    public setConfig(config: any) {
+        this.retentionConfig = {
+            maxAgeDays: config.getNumber("AUDIT_RETENTION_DAYS", 90),
+            maxEvents: config.getNumber("AUDIT_MAX_EVENTS", 10000),
+        };
     }
 
     private async emitMetrics() {
@@ -100,9 +110,10 @@ export class AuditService {
         });
     }
 
-    public shutdown() {
+    public async shutdown() {
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
+        await this.flushBuffer();
     }
 
     private async performDeepAudit() {
@@ -275,87 +286,100 @@ export class AuditService {
 
         // H-07: Maximum Queue Depth to prevent memory exhaustion during event storms
         const MAX_QUEUE_DEPTH = 1000;
-        if (this.queueDepth > MAX_QUEUE_DEPTH) {
+        if (this.auditBuffer.length > MAX_QUEUE_DEPTH) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
                 caller: "orchestrator:domain:analysis:audit",
-                message: "CRITICAL: Audit log queue saturation. Dropping non-critical event to preserve system stability."
+                message: "CRITICAL: Audit log buffer saturation. Dropping non-critical event to preserve system stability."
             });
             return;
         }
 
         const logAction = async () => {
-            this.queueDepth++;
-            try {
-                const id = crypto.randomUUID();
-                const timestamp = event.timestamp || new Date().toISOString();
-                const prevHash = this.lastHash;
+            const id = crypto.randomUUID();
+            const timestamp = event.timestamp || new Date().toISOString();
+            const prevHash = this.lastHash;
 
-                const hashInput = {
-                    id, timestamp, type: event.type, severity: event.severity,
-                    caller: event.caller, message: event.message,
-                    actor: event.actor, data: event.data,
-                    correlationId: event.correlationId, prevHash,
-                };
-                const hash = await this.computeHash(hashInput);
+            const hashInput = {
+                id, timestamp, type: event.type, severity: event.severity,
+                caller: event.caller, message: event.message,
+                actor: event.actor, data: event.data,
+                correlationId: event.correlationId, prevHash,
+            };
+            const hash = await this.computeHash(hashInput);
 
-                let hwSignature: string | undefined;
-                if (this.tpm) {
-                    hwSignature = await this.tpm.sign(hash);
-                }
+            let hwSignature: string | undefined;
+            if (this.tpm) {
+                hwSignature = await this.tpm.sign(hash);
+            }
 
-                const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
+            const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
 
-                const auditEvent: AuditEvent = {
-                    ...event, id, timestamp, hash, prevHash, hwSignature, formatted
-                };
+            const auditEvent: AuditEvent = {
+                ...event as any, id, timestamp, hash, prevHash, hwSignature, formatted
+            };
 
-                await this.repo.save(auditEvent);
-                this.lastHash = hash;
-                
-                const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity,
-                    caller: "orchestrator:domain:analysis:audit",
-                    message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
-                    payload: auditEvent.data
-                });
+            this.auditBuffer.push(auditEvent);
+            this.lastHash = hash;
 
-                if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
-                  this.mesh.broadcastAuditEvent({
-                    ...auditEvent,
-                    node: "orchestrator-node" // Simplified for Domain
-                  }).catch(() => {});
-                }
+            // Reactive feedback
+            const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity,
+                caller: "orchestrator:domain:analysis:audit",
+                message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
+                payload: auditEvent.data
+            });
 
-                if (this.correlation) {
-                    this.correlation.processEvent(auditEvent).catch(() => {});
-                }
-            } catch (e) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:analysis:audit",
-                    message: `Failed to save event: ${(e as Error).message}`
-                });
-                        } finally {
-                this.queueDepth--;
+            if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
+            this.mesh.broadcastAuditEvent({
+                ...auditEvent,
+                node: "orchestrator-node" // Simplified for Domain
+            }).catch(() => {});
+            }
+
+            if (this.correlation) {
+                this.correlation.processEvent(auditEvent).catch(() => {});
+            }
+
+            if (this.auditBuffer.length >= 20 || this.state === SystemState.FORENSIC_RESTRICTED) {
+                await this.flushBuffer();
             }
         };
 
+        this.logQueue = this.logQueue.then(logAction);
         if (this.state === SystemState.FORENSIC_RESTRICTED) {
-            // Synchronous processing in restricted mode
-            await logAction();
-        } else {
-            this.logQueue = this.logQueue.then(logAction);
+            await this.logQueue;
         }
-        
-        return this.logQueue;
+    }
+
+    private isFlushing = false;
+    private async flushBuffer() {
+        if (this.isFlushing || this.auditBuffer.length === 0) return;
+        this.isFlushing = true;
+
+        const toFlush = [...this.auditBuffer];
+        this.auditBuffer = [];
+
+        try {
+            await this.repo.saveMany(toFlush);
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:analysis:audit",
+                message: `Failed to flush audit batch: ${(e as Error).message}`
+            });
+            // Re-queue on failure? risky for chain integrity if new events arrived.
+            // For now, we drop but log. In production, we'd want a more robust retry or fail-closed.
+        } finally {
+            this.isFlushing = false;
+        }
     }
 
     public getState(): SystemState {

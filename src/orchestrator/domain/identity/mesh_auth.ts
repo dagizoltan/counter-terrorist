@@ -30,12 +30,17 @@ interface EncryptedCertPair {
 export class MeshAuthService {
   private readonly CA_KEY = ["mesh", "pki", "root_ca_v5"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v3"];
+  private config?: any;
 
   constructor(
     private kv: Deno.Kv,
     private logging: LoggingPort,
     private tpm?: TPMManager
   ) {}
+
+  setConfig(config: any) {
+    this.config = config;
+  }
 
   /**
    * Generates or retrieves the root CA for the mesh.
@@ -134,11 +139,11 @@ export class MeshAuthService {
     }
 
     // 2. Fallback to ENV (Standard Production Mode)
-    let secret = Deno.env.get("PKI_SECRET");
+    let secret = this.config?.getEnv("PKI_SECRET");
     let needsSealing = !!secret;
     
     if (!secret) {
-      const fallback = Deno.env.get("API_TOKEN");
+      const fallback = this.config?.getEnv("API_TOKEN");
       if (!fallback) {
         throw new Error("[PKI] CRITICAL: Neither PKI_SECRET nor API_TOKEN are set. PKI operations aborted for security.");
       }

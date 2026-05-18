@@ -13,6 +13,10 @@ export class KvAuditRepository implements AuditRepository {
         await this.repo.set(event.id, event);
     }
 
+    async saveMany(events: AuditEvent[]): Promise<void> {
+        await this.repo.setMany(events.map(e => ({ id: e.id, data: e })));
+    }
+
     async getLatest(limit: number): Promise<AuditEvent[]> {
         return await this.repo.getLatest(limit);
     }
