@@ -4,6 +4,7 @@ import { MeshAuthService } from "../index.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 import { AuditService } from "../analysis/audit.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface MeshNode {
   id: string;
@@ -85,7 +86,7 @@ export class MeshManager extends BaseService {
     });
   }
 
-  async init() {
+  async init(): Promise<Result<void>> {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.port = this.config?.getNumber("PORT", 8000) || 8000;
 
@@ -107,14 +108,17 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `mTLS Identity established for ${this.nodeId}`
       });
+      return ok(undefined);
     } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.WARNING,
           caller: "orchestrator:domain:orchestration:mesh",
-          message: `Failed to initialize mTLS: ${e instanceof Error ? e.message : String(e)}. Continuing with limited mesh functionality.`
+          message: `Failed to initialize mTLS: ${error.message}. Continuing with limited mesh functionality.`
       });
+      return err(error);
     }
   }
 
@@ -514,7 +518,7 @@ export class MeshManager extends BaseService {
   /**
    * Broadcasts a block command to all verified nodes in the mesh.
    */
-  async broadcastBlock(ip: string) {
+  async broadcastBlock(ip: string): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -523,12 +527,16 @@ export class MeshManager extends BaseService {
         message: `Gossip: Broadcasting block for ${ip}`
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
-        type: "GOSSIP_BLOCK",
-        ip,
-        sourceNode: this.nodeId,
-        timestamp: Date.now()
-    });
+    if (this.eventBus) {
+        this.eventBus.emit("UI_BROADCAST", {
+            type: "GOSSIP_BLOCK",
+            ip,
+            sourceNode: this.nodeId,
+            timestamp: Date.now()
+        });
+        return ok(undefined);
+    }
+    return err(new Error("EventBus not initialized"));
   }
 
   /**
@@ -554,7 +562,7 @@ export class MeshManager extends BaseService {
   /**
    * Broadcasts a lockdown command to all verified nodes in the mesh.
    */
-  async broadcastLockdown() {
+  async broadcastLockdown(): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -563,11 +571,15 @@ export class MeshManager extends BaseService {
         message: "Gossip: Initiating high-priority EMERGENCY LOCKDOWN broadcast..."
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
-        type: "GOSSIP_LOCKDOWN",
-        sourceNode: this.nodeId,
-        timestamp: Date.now()
-    }, true);
+    if (this.eventBus) {
+        this.eventBus.emit("UI_BROADCAST", {
+            type: "GOSSIP_LOCKDOWN",
+            sourceNode: this.nodeId,
+            timestamp: Date.now()
+        }, true);
+        return ok(undefined);
+    }
+    return err(new Error("EventBus not initialized"));
   }
 
   /**

@@ -6,9 +6,8 @@ import { KernelService } from "../protection/kernel_service.ts";
 import { AuditService } from "./audit.ts";
 import { CanaryService, CanaryToken } from "../protection/canary_service.ts";
 import { BroadcastFunction } from "../orchestration/plugins/types.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { MeshNode } from "../orchestration/mesh.ts";
-import { VpnPort, LogSeverity, LogType } from "@core/ports.ts";
+import { VpnPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { BehavioralService } from "./behavioral_service.ts";
 import { GeoIpService } from "./geoip_service.ts";
 import { TACTICAL_CONSTANTS } from "../../core/constants.ts";
@@ -133,7 +132,7 @@ export class MetricsService {
         private kernelService: KernelService,
         private auditService: AuditService,
         private canaryService: CanaryService,
-        private sidecarManager: SidecarManager,
+        private sidecarManager: CommandPort,
         private vpn: VpnPort,
         private behavioral: BehavioralService,
         private anonymization: AnonymizationService,

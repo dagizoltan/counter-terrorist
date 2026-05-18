@@ -1,5 +1,4 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort } from "@core/ports.ts";
 
 /**
  * Mesh Authentication Service: Manages the internal PKI for mTLS communication.
@@ -35,7 +34,7 @@ export class MeshAuthService {
   constructor(
     private kv: Deno.Kv,
     private logging: LoggingPort,
-    private tpm?: TPMManager
+    private tpm?: TpmPort
   ) {}
 
   setConfig(config: any) {

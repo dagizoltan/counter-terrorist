@@ -1,9 +1,8 @@
 import { BaseService } from "@core/base_service.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { BroadcastFunction } from "../orchestration/plugins/types.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 
 export interface HoneypotModule {
   id: string;
@@ -20,7 +19,7 @@ export class HoneypotService extends BaseService {
   private eventBus?: any;
 
   constructor(
-    private sidecarManager: SidecarManager,
+    private sidecarManager: CommandPort,
     private firewall: FirewallManager,
     private pcap: PcapManager,
     private logging: LoggingPort

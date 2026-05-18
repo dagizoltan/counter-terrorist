@@ -1,6 +1,8 @@
 import { PolicyEngine, RemediationAction } from "./policy_engine.ts";
 import { LogType, LogSeverity } from "@core/ports.ts";
 import { ServiceContainer } from "@core/container.ts";
+import { Result, ok, err } from "@core/result.ts";
+import { ThreatResponseSaga } from "./sagas/threat_response_saga.ts";
 
 export type RemediationTier = RemediationAction;
 
@@ -22,6 +24,7 @@ export class AutonomousResponseEngine {
     private history: Map<string, ThreatEvent[]> = new Map();
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
     private pendingKills: Map<string, number> = new Map();
+    private saga?: ThreatResponseSaga;
 
     private readonly MAX_HISTORY_PER_SOURCE = 20;
     private readonly MAX_SOURCES = 500; // Prevent memory exhaustion DoS
@@ -32,6 +35,10 @@ export class AutonomousResponseEngine {
     ) {
         // Automatically decay scores every 5 minutes to allow recovery
         setInterval(() => this.decayScores(), 300000);
+    }
+
+    setSaga(saga: ThreatResponseSaga) {
+        this.saga = saga;
     }
 
     shutdown() {
@@ -49,7 +56,7 @@ export class AutonomousResponseEngine {
     /**
      * Ingests a threat event and determines the required remediation tier.
      */
-    async evaluate(event: ThreatEvent) {
+    async evaluate(event: ThreatEvent): Promise<Result<RemediationTier>> {
         const key = event.source;
         const currentScore = (this.scores.get(key) || 0) + event.severity;
         
@@ -83,6 +90,12 @@ export class AutonomousResponseEngine {
 
         const decision = this.policy.evaluate(currentScore);
 
+        // Delegation to Saga for complex coordination if available
+        if (this.saga && (decision.action === "BLOCK" || decision.action === "ISOLATE" || decision.action === "LOCKDOWN")) {
+            await this.saga.executeCoordinatedResponse(event);
+            return ok(decision.action as RemediationTier);
+        }
+
         if (this.policy.isShadowMode() && (decision.action === "BLOCK" || decision.action === "ISOLATE" || decision.action === "LOCKDOWN")) {
             await this.services.logging.log({
                 timestamp: new Date().toISOString(),
@@ -93,8 +106,10 @@ export class AutonomousResponseEngine {
             });
             // Downgrade to WATCH for forensics capture only
             await this.executeRemediation(key, "WATCH", event);
+            return ok("WATCH" as RemediationTier);
         } else {
             await this.executeRemediation(key, decision.action, event);
+            return ok(decision.action as RemediationTier);
         }
     }
 
@@ -122,7 +137,7 @@ export class AutonomousResponseEngine {
         }
     }
 
-    private async executeRemediation(source: string, tier: RemediationTier, trigger: ThreatEvent) {
+    private async executeRemediation(source: string, tier: RemediationTier, trigger: ThreatEvent): Promise<Result<void>> {
         // Avoid redundant remediation for the same tier if already active
         const existing = this.activeRemediations.get(source);
         if (existing && existing.tier === tier) return;
@@ -140,7 +155,8 @@ export class AutonomousResponseEngine {
             reason: trigger.description
         });
 
-        switch (tier) {
+        try {
+            switch (tier) {
             case "LOCKDOWN":
                 await this.services.logging.log({
                     timestamp: new Date().toISOString(),
@@ -183,13 +199,6 @@ export class AutonomousResponseEngine {
                         // Tactical Shift: Quarantine first for forensic dump, then kill
                         await this.services.protection.firewall.quarantineProcess(pid);
                         
-                        // Extract and Gossip binary hash for fleet-wide blocking
-                        this.services.forensicService.calculateProcessHash(pid).then(hash => {
-                            if (hash) {
-                                this.services.mesh.broadcastThreatHash(hash, Deno.hostname());
-                            }
-                        });
-
                         const timerId = setTimeout(() => {
                             this.pendingKills.delete(source);
                             this.services.protection.firewall.killProcess(pid).catch(() => {});
@@ -229,9 +238,14 @@ export class AutonomousResponseEngine {
                 }
                 break;
                 
-            case "LOG":
-            default:
-                break;
+                case "LOG":
+                default:
+                    break;
+            }
+            return ok(undefined);
+        } catch (e) {
+            const error = e instanceof Error ? e : new Error(String(e));
+            return err(error);
         }
     }
 

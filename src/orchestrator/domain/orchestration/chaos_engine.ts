@@ -1,7 +1,6 @@
 import { EventBus } from "@domain/index.ts";
 import { AuditService } from "../analysis/audit.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 
 export class ChaosEngine {
   private logging: LoggingPort;
@@ -9,7 +8,7 @@ export class ChaosEngine {
   constructor(
     private eventBus: EventBus,
     private auditService: AuditService,
-    private sidecar: SidecarManager
+    private sidecar: CommandPort
   ) {
     this.logging = auditService.getLogging();
   }

@@ -1,5 +1,5 @@
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { CommandPort } from "@core/ports.ts";
 import { PlatformInfo } from "../platform.ts";
 import { AntivirusManager } from "./antivirus/antivirus.ts";
 import { FirewallManager } from "./firewall/firewall.ts";
@@ -22,7 +22,7 @@ import { MacosPersistenceProvider } from "./persistence/providers/macos_persiste
 import { MacosPcapProvider } from "./pcap/providers/macos_pcap.ts";
 import { MacosAntivirusProvider } from "./antivirus/providers/macos_antivirus.ts";
 
-export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo, networkLogs: any): FirewallManager {
+export function createFirewallManager(sidecar: CommandPort, executor: SystemExecutor, platform: PlatformInfo, networkLogs: any): FirewallManager {
   if (platform.name === "windows") {
     return new FirewallManager(new WindowsFirewallProvider(sidecar), networkLogs);
   }
@@ -32,7 +32,7 @@ export function createFirewallManager(sidecar: SidecarManager, executor: SystemE
   return new FirewallManager(new UbuntuFirewallProvider(sidecar, executor), networkLogs);
 }
 
-export function createVpnManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): VpnManager {
+export function createVpnManager(sidecar: CommandPort, executor: SystemExecutor, platform: PlatformInfo): VpnManager {
   let provider;
   if (platform.name === "windows") {
     provider = new WindowsVpnProvider(sidecar);
@@ -44,7 +44,7 @@ export function createVpnManager(sidecar: SidecarManager, executor: SystemExecut
   return new VpnManager(provider);
 }
 
-export function createAntivirusManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): AntivirusManager {
+export function createAntivirusManager(sidecar: CommandPort, executor: SystemExecutor, platform: PlatformInfo): AntivirusManager {
   if (platform.name === "macos") {
     return new AntivirusManager(new MacosAntivirusProvider(executor));
   }
@@ -54,7 +54,7 @@ export function createAntivirusManager(sidecar: SidecarManager, executor: System
   return new AntivirusManager(new UbuntuAntivirusProvider(sidecar));
 }
 
-export function createPersistenceManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): PersistenceManager {
+export function createPersistenceManager(sidecar: CommandPort, executor: SystemExecutor, platform: PlatformInfo): PersistenceManager {
   if (platform.name === "windows") {
     return new PersistenceManager(new WindowsPersistenceProvider(executor));
   }
@@ -64,7 +64,7 @@ export function createPersistenceManager(sidecar: SidecarManager, executor: Syst
   return new PersistenceManager(new UbuntuPersistenceProvider(executor));
 }
 
-export function createPcapManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo): PcapManager {
+export function createPcapManager(sidecar: CommandPort, executor: SystemExecutor, platform: PlatformInfo): PcapManager {
   if (platform.name === "macos") {
     return new PcapManager(new MacosPcapProvider(sidecar));
   }
