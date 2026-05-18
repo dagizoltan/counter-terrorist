@@ -608,7 +608,6 @@ export class SovereignApp {
         const behavioral = new BehavioralService(protection.firewall as any, this.auditService);
         
         const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
-        if (honeypot) honeypot.setBehavioralService(behavioral);
 
         const canaryService = this.safeInit(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, loggingService));
         const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
