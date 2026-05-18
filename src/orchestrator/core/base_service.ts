@@ -21,7 +21,7 @@ export abstract class BaseService implements Service {
         this.eventBus = eventBus;
     }
 
-    async init(): Promise<Result<void>> {
+    async init(..._args: any[]): Promise<Result<void>> {
         return ok(undefined);
     }
 

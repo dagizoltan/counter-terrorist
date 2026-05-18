@@ -4,6 +4,7 @@ import { PolicyEngine } from "./policy_engine.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
 import { ThreatResponseSaga } from "./sagas/threat_response_saga.ts";
+import { Result, ok } from "@core/result.ts";
 
 export interface AutopilotDependencies {
   eventBus: any;
@@ -29,8 +30,13 @@ export class AutopilotService extends BaseService {
     this.policy = new PolicyEngine(loggingService);
   }
 
-  public override async init(services: AutopilotDependencies): Promise<Result<void>> {
+  public setServices(services: AutopilotDependencies) {
     this.services = services;
+  }
+
+  public override async init(..._args: any[]): Promise<Result<void>> {
+    if (!this.services) return ok(undefined);
+
     const saga = new ThreatResponseSaga({
         firewall: this.services.protection.firewall,
         mesh: this.services.mesh,
@@ -46,6 +52,7 @@ export class AutopilotService extends BaseService {
         this.policy,
         this.services.logging
     );
+    return ok(undefined);
   }
 
   getPolicy() {
@@ -189,7 +196,7 @@ export class AutopilotService extends BaseService {
         });
 
         // Demand Scan: Critical syscalls might indicate rootkit injection attempts
-        this.services!.processTracker.scanForGhosts().then(ghosts => {
+        this.services!.processTracker.scanForGhosts().then((ghosts: any[]) => {
             if (ghosts.length > 0) {
                 this.engine.evaluate({
                     source: "local",

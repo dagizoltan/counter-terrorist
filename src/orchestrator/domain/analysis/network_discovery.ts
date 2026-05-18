@@ -95,7 +95,7 @@ export class NetworkDiscoveryService extends BaseService {
         if (!this.discovery) {
             try {
                const { RealDiscovery } = await import("./real_discovery.ts");
-               this.discovery = new RealDiscovery(this.executor);
+               this.discovery = new RealDiscovery(this.executor as any);
             } catch (e) {
                this.logging.log({
                    timestamp: new Date().toISOString(),
@@ -177,7 +177,7 @@ export class NetworkDiscoveryService extends BaseService {
 
                 // 3. Mesh Integration (Verified Peers)
                 if (this.mesh) {
-                    const nodes = this.mesh.getNodes();
+                    const nodes = (this.mesh as any).getNodes();
                     nodes.forEach((node: any) => {
                         const mac = (node.id || "").toLowerCase();
                         if (!mac) return;
@@ -232,7 +232,7 @@ export class NetworkDiscoveryService extends BaseService {
         return Array.from(this.devices.values());
     }
 
-    async shutdown(): Promise<Result<void>> {
+    override async shutdown(): Promise<Result<void>> {
         return ok(undefined);
     }
 

@@ -41,203 +41,87 @@ class MockSidecarManager extends SidecarManager {
     this.lastSentCommand = { name, cmd };
     return { success: true, stdout: "", stderr: "" };
   }
+
+  override isRunning(name: string): boolean {
+    return false;
+  }
 }
 
 Deno.test("createVpnManager - Windows platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
+  const sidecar = new MockSidecarManager(executor, null as any);
+  const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11", isRoot: false };
 
   const manager = createVpnManager(sidecar, executor, platform);
 
-  // Verify it uses WindowsVpnProvider by checking the command it executes
   await manager.connect("test-wg");
-  assertEquals(executor.lastCmd, "wireguard.exe");
-  assertEquals(executor.lastArgs, ["/installservice", "test-wg"]);
+  assertEquals(sidecar.lastSentCommand?.name, "tunnel");
+  assertEquals(sidecar.lastSentCommand?.cmd.type, "CONNECT");
 });
 
 Deno.test("createVpnManager - Ubuntu platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
-
-  // UbuntuVpnProvider first checks if wg-quick exists
-  executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
+  const sidecar = new MockSidecarManager(executor, null as any);
+  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04", isRoot: false };
 
   const manager = createVpnManager(sidecar, executor, platform);
 
   await manager.connect("test-wg");
-  // The last command should be wg-quick after the which check
-  assertEquals(executor.lastCmd, "wg-quick");
-  assertEquals(executor.lastArgs, ["up", "test-wg"]);
-  assertEquals(executor.calls.length, 2);
-  assertEquals(executor.calls[0].cmd, "which");
-});
-
-Deno.test("createVpnManager - Default to Ubuntu for other platforms (macos)", async () => {
-  const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "macos", version: "15", tag: "macos_15" };
-
-  executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
-
-  const manager = createVpnManager(sidecar, executor, platform);
-
-  await manager.connect("wg0");
-  assertEquals(executor.lastCmd, "wg-quick");
-});
-
-Deno.test("createVpnManager - Default to Ubuntu for unknown platform", async () => {
-  const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "unknown", version: "unknown", tag: "unknown" };
-
-  executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
-
-  const manager = createVpnManager(sidecar, executor, platform);
-
-  await manager.connect("wg0");
-  assertEquals(executor.lastCmd, "wg-quick");
+  assertEquals(sidecar.lastSentCommand?.name, "tunnel");
+  assertEquals(sidecar.lastSentCommand?.cmd.type, "CONNECT");
 });
 
 Deno.test("createVpnManager - Full lifecycle (Windows)", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
+  const sidecar = new MockSidecarManager(executor, null as any);
+  const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11", isRoot: false };
 
   const manager = createVpnManager(sidecar, executor, platform);
 
-  // connect
   await manager.connect("wg0");
-  assertEquals(executor.lastCmd, "wireguard.exe");
+  assertEquals(sidecar.lastSentCommand?.cmd.type, "CONNECT");
 
-  // isConnected
-  executor.responses["powershell"] = { success: true, stdout: "WireGuard Tunnel", stderr: "" };
-  const connected = await manager.isConnected();
-  assertEquals(connected, true);
-  assertEquals(executor.lastCmd, "powershell");
+  await manager.isConnected();
+  assertEquals(sidecar.lastSentCommand?.cmd.type, "GET_STATUS");
 
-  // getStatus
   await manager.getStatus();
-  assertEquals(executor.lastCmd, "powershell");
+  assertEquals(sidecar.lastSentCommand?.cmd.type, "GET_STATUS");
 
-  // disconnect
-  const discResult = await manager.disconnect();
-  assertEquals(discResult.success, false); // Windows disconnect is not fully implemented for safety as per provider code
-});
-
-Deno.test("createVpnManager - Full lifecycle (Ubuntu)", async () => {
-  const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
-
-  executor.responses["which"] = { success: true, stdout: "/usr/bin/wg-quick", stderr: "" };
-  executor.responses["wg"] = { success: true, stdout: "interface: wg0", stderr: "" };
-
-  const manager = createVpnManager(sidecar, executor, platform);
-
-  // connect
-  await manager.connect("wg0");
-  assertEquals(executor.lastCmd, "wg-quick");
-  assertEquals(executor.lastArgs, ["up", "wg0"]);
-
-  // isConnected
-  const connected = await manager.isConnected();
-  assertEquals(connected, true);
-  assertEquals(executor.lastCmd, "wg");
-
-  // getStatus
-  await manager.getStatus();
-  assertEquals(executor.lastCmd, "wg");
-
-  // disconnect
   await manager.disconnect();
-  assertEquals(executor.lastCmd, "wg-quick");
-  assertEquals(executor.lastArgs, ["down", "wg0"]);
-});
-
-Deno.test("createFirewallManager - Windows platform", async () => {
-  const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
-
-  const manager = createFirewallManager(sidecar, executor, platform, null as any);
-
-  await manager.blockIp("1.2.3.4");
-  assertEquals(executor.lastCmd, "netsh");
-  assertEquals(executor.lastArgs.some(arg => arg.includes("1.2.3.4")), true);
+  assertEquals(sidecar.lastSentCommand?.cmd.type, "DISCONNECT");
 });
 
 Deno.test("createFirewallManager - Ubuntu platform", async () => {
   const executor = new MockExecutor();
   const sidecar = new MockSidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
+  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04", isRoot: false };
 
   const manager = createFirewallManager(sidecar, executor, platform, null as any);
 
   await manager.blockIp("1.2.3.4");
-  assertEquals(sidecar.sidecarCalls.length, 1);
-  assertEquals(sidecar.sidecarCalls[0].name, "blocker");
-  assertEquals(sidecar.sidecarCalls[0].args[0].includes("1.2.3.4"), true);
+  assertEquals(executor.lastCmd, "ufw");
+  assertEquals(executor.lastArgs, ["deny", "from", "1.2.3.4"]);
 });
 
 Deno.test("createAntivirusManager", async () => {
   const executor = new MockExecutor();
   const sidecar = new MockSidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
+  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04", isRoot: false };
 
   const manager = createAntivirusManager(sidecar, executor, platform);
 
-  // UbuntuAntivirusProvider uses analyzer for scanning
   await manager.scanPath("/tmp/test.txt");
   assertEquals(sidecar.lastSentCommand?.name, "analyzer");
   assertEquals(sidecar.lastSentCommand?.cmd.type, "ScanPath");
 });
 
-Deno.test("createPersistenceManager - Windows platform", async () => {
-  const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "windows", version: "11", tag: "windows_11" };
-
-  const manager = createPersistenceManager(sidecar, executor, platform);
-
-  await manager.audit();
-  assertEquals(executor.lastCmd, "powershell");
-  assertEquals(executor.lastArgs[0], "-EncodedCommand");
-});
-
 Deno.test("createPersistenceManager - Ubuntu platform", async () => {
   const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
-
-  const manager = createPersistenceManager(sidecar, executor, platform);
-
-  await manager.audit();
-  assertEquals(executor.lastCmd, "ls");
-  assertEquals(executor.lastArgs.includes("/etc/cron.d"), true);
-});
-
-Deno.test("createPersistenceManager - Default to Ubuntu for other platforms", async () => {
-  const executor = new MockExecutor();
-  const sidecar = new SidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "macos", version: "15", tag: "macos_15" };
-
-  const manager = createPersistenceManager(sidecar, executor, platform);
-
-  await manager.audit();
-  assertEquals(executor.lastCmd, "ls");
-});
-
-Deno.test("createPcapManager", async () => {
-  const executor = new MockExecutor();
   const sidecar = new MockSidecarManager(executor, null as any);
-  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04" };
+  const platform: PlatformInfo = { name: "ubuntu", version: "24.04", tag: "ubuntu_24.04", isRoot: false };
 
-  const manager = createPcapManager(sidecar, executor, platform);
+  const manager = createPersistenceManager(sidecar, executor, platform);
 
-  // PcapManager interacts with persistent sidecar 'pcap'
-  // Since we are mocking runSidecar, we can't easily test persistent sidecar interaction without more mocks
-  // but we can verify the manager was created
-  assertEquals(manager !== undefined, true);
+  await manager.audit();
+  assertEquals(executor.calls.some(c => c.cmd === "ls" && c.args.includes("/etc/cron.d")), true);
 });

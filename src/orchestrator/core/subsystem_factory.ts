@@ -1,4 +1,5 @@
 import { ServiceContainer, PlatformInfo } from "./container.ts";
+import { ConfigurationPort, ProtectionPort } from "./ports.ts";
 import {
     BaselineService, ProcessTracker, SessionService, ApiKeysService,
     EventBus, MeshAuthService, ForensicService, MeshManager,
@@ -54,15 +55,17 @@ export class SubsystemFactory {
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         await rawProtection.firewall.setKv(this.kv);
         const protection = new ProtectionAdapter(rawProtection);
-        (rawProtection.firewall as any).setConfig?.(config);
+        if ("setConfig" in rawProtection.firewall && typeof rawProtection.firewall.setConfig === "function") {
+            rawProtection.firewall.setConfig(config);
+        }
         return { protection, networkLog };
     }
 
-    initSecurity(protection: any, mesh: any, config: any, health: any) {
+    initSecurity(protection: ProtectionPort, mesh: MeshManager, config: ConfigurationPort, health: HealthService) {
         const anonymization = new AnonymizationService(protection.vpn, this.logging);
         anonymization.setFirewall(protection.firewall);
         const shadowProtocol = new ShadowProtocolService(mesh, anonymization, this.logging);
-        const behavioral = new BehavioralService(protection.firewall as any, this.auditService);
+        const behavioral = new BehavioralService(protection.firewall, this.auditService);
         const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, this.logging);
 
         const canaryService = this.createService(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging));
@@ -71,7 +74,7 @@ export class SubsystemFactory {
         return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
     }
 
-    initIntelligence(protection: any, processTracker: any, health: any, config: any, mesh: any, meshAuth: MeshAuthPort) {
+    initIntelligence(protection: ProtectionPort, processTracker: ProcessTracker, health: HealthService, config: ConfigurationPort, mesh: MeshManager, meshAuth: MeshAuthService) {
         const geoIp = this.createService(health, "GeoIP", () => new GeoIpService(this.logging));
         const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, meshAuth));
         const curatedIntel = this.createService(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, geoIp));

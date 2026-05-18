@@ -38,11 +38,14 @@ export function createAgentsRouter(getStatus: () => Promise<ApplicationStatus>) 
 
     if (!agent) return c.notFound();
 
-    const { FirewallPage, ScannerPage, EbpfPage, FimPage, PcapPage, HoneypotPage, MeshPage } = await import("./subpages/core.tsx");
+    const { FirewallPage, EbpfPage, FimPage, PcapPage, HoneypotPage, MeshPage } = await import("./subpages/core.tsx");
     
     if (name === "firewall" || name === "sentinel" || name === "vpn" || name === "tunnel") return c.html(<FirewallPage csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
     if (name === "mesh") return c.html(<MeshPage status={status} csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
-    if (name === "scanner" || name === "analyzer") return c.html(<ScannerPage csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
+    if (name === "scanner" || name === "analyzer") {
+      const { ScannerPage } = await import("./scanner_page.tsx");
+      return c.html(<ScannerPage status={status} csrfToken={csrfToken} nonce={nonce} />);
+    }
     if (name === "ebpf") return c.html(<EbpfPage csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
     if (name === "fim" || name === "watchfile") return c.html(<FimPage csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);
     if (name === "pcap" || name === "netcap") return c.html(<PcapPage csrfToken={csrfToken} nonce={nonce} userRole={userRole} />);

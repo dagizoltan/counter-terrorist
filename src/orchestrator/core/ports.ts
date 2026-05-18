@@ -36,6 +36,7 @@ export interface CommandPort {
   stopSidecar(sidecar: string): Promise<void>;
   getPID(sidecar: string): number | null;
   getTpm(): TpmPort | null;
+  getExecutor(): ExecutorPort;
 }
 
 export interface FirewallPort {
@@ -98,7 +99,8 @@ export enum LogSeverity {
   INFO = "info",
   SUCCESS = "success",
   WARNING = "warning",
-  ERROR = "error"
+  ERROR = "error",
+  DEBUG = "debug"
 }
 
 export enum SyslogSeverity {
@@ -144,8 +146,17 @@ export interface BaselinePort {
 }
 
 export interface MeshPort {
-  init(): Promise<void>;
+  init(): Promise<import("./result.ts").Result<void>>;
+  shutdown(): Promise<import("./result.ts").Result<void>>;
   startDiscovery(): void;
+  getNodeId(): string;
+  getActiveNodeCount(): number;
+  getNodes(): any[];
+  isolateNode(nodeId: string): import("./result.ts").Result<void>;
+  broadcastThreatHash(hash: string, sourceNode: string): Promise<import("./result.ts").Result<void>>;
+  broadcastAuditEvent(event: any): Promise<void>;
+  broadcastAuditVerification(lastHash: string, eventCount: number): Promise<void>;
+  requestAuditSync(nodeId: string): Promise<void>;
 }
 
 export interface MeshAuthPort {

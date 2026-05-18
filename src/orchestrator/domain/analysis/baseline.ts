@@ -276,8 +276,10 @@ export class BaselineService extends BaseService {
       });
       if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "DRIFT_PORT",
-        message: `Drift Detected: ${newPorts.length} new listening ports!`,
-        data: newPorts
+        data: {
+          message: `Drift Detected: ${newPorts.length} new listening ports!`,
+          ports: newPorts
+        }
       });
     }
     if (newProcs.length > 0) {
@@ -292,8 +294,10 @@ export class BaselineService extends BaseService {
       });
       if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "DRIFT_PROCESS",
-        message: `Drift Detected: ${newProcs.length} new/modified processes found.`,
-        data: newProcs.map(p => ({ name: p.name, pid: p.pid, path: p.exe_path }))
+        data: {
+          message: `Drift Detected: ${newProcs.length} new/modified processes found.`,
+          processes: newProcs.map(p => ({ name: p.name, pid: p.pid, path: p.exe_path }))
+        }
       });
     }
     if (changedFiles.length > 0) {
@@ -327,8 +331,10 @@ export class BaselineService extends BaseService {
             });
             if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
                 type: "DRIFT_FILE",
-                message: `Drift Detected: ${changedFiles.length} files modified in sensitive directories.`,
-                data: changedFiles.slice(0, 10)
+                data: {
+                  message: `Drift Detected: ${changedFiles.length} files modified in sensitive directories.`,
+                  files: changedFiles.slice(0, 10)
+                }
             });
         }
     }

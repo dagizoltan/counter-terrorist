@@ -29,7 +29,6 @@ export class NewsSignalService {
     ];
 
     constructor(private logging: LoggingPort) {
-        super();
     }
 
     async start(kv?: Deno.Kv): Promise<Result<void>> {

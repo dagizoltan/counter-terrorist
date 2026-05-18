@@ -188,7 +188,7 @@ export class MetricsService {
             // Allow system to stabilize before heavy audit
             await new Promise(r => setTimeout(r, 5000));
 
-            const verification = await this.auditService.verifyFullChain();
+            const verification = await (this.auditService as any).verifyFullChain();
             if (!verification.valid) {
                 loggingService.log({
                     timestamp: new Date().toISOString(),

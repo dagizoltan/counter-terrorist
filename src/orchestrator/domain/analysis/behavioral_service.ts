@@ -12,7 +12,6 @@ interface IpHistory {
 
 export class BehavioralService extends BaseService {
   private history: Map<string, IpHistory> = new Map();
-  private eventBus?: any;
   private metricsInterval?: number;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
@@ -22,15 +21,15 @@ export class BehavioralService extends BaseService {
     this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
   }
 
-  async shutdown(): Promise<Result<void>> {
+  override async shutdown(): Promise<Result<void>> {
       if (this.metricsInterval) clearInterval(this.metricsInterval);
       this.analyzer.shutdown();
       return ok(undefined);
   }
 
-  setEventBus(eventBus: any) {
+  override setEventBus(eventBus: any) {
       this.eventBus = eventBus;
-      this.eventBus.on("HONEYPOT", (event: any) => {
+      if (this.eventBus) this.eventBus.on("HONEYPOT", (event: any) => {
           if (event && event.source_ip) {
               this.analyze(event.source_ip).catch(() => {});
           }

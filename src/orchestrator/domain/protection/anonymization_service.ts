@@ -40,7 +40,7 @@ export class AnonymizationService {
 
     async start(initialMode: StealthMode = StealthMode.VPNGATE): Promise<Result<void>> {
         this.mode = initialMode;
-        if (this.mode === StealthMode.OFF) return;
+        if (this.mode === StealthMode.OFF) return ok(undefined);
 
         this.logging.log({
             timestamp: new Date().toISOString(),

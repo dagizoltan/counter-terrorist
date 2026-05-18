@@ -4,6 +4,7 @@ import { AuditRepository } from "../repositories/audit_repository.ts";
 import { computeHash } from "@core/crypto_utils.ts";
 import { BaseService } from "@core/base_service.ts";
 import { MerkleTree } from "@core/merkle.ts";
+import { Result, ok } from "@core/result.ts";
 
 export interface ActorContext {
     id: string;
@@ -150,7 +151,7 @@ export class AuditService extends BaseService {
         });
     }
 
-    public override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    public override async shutdown(): Promise<Result<void>> {
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
 
@@ -160,7 +161,7 @@ export class AuditService extends BaseService {
             await new Promise(r => setTimeout(r, 100));
         }
         await this.flushBuffer();
-        return { success: true, data: undefined };
+        return ok(undefined);
     }
 
     private async commitMerkleRoot() {

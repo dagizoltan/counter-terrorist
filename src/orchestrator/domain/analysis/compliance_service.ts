@@ -32,7 +32,7 @@ export class ComplianceService extends BaseService {
         super();
     }
 
-    async shutdown(): Promise<Result<void>> {
+    override async shutdown(): Promise<Result<void>> {
         return ok(undefined);
     }
 

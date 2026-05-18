@@ -1,6 +1,5 @@
 import { BaseService } from "@core/base_service.ts";
 
-import { MeshAuthService } from "../index.ts";
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
@@ -17,17 +16,6 @@ export const MeshNodeSchema = z.object({
 });
 
 export type MeshNode = z.infer<typeof MeshNodeSchema>;
-
-/*
-export interface MeshNode {
-  id: string;
-  hostname: string;
-  address: string;
-  port: number;
-  lastSeen: number;
-  verified: boolean;
-}
-*/
 
 export class MeshManager extends BaseService {
   private nodes: Map<string, MeshNode> = new Map();
@@ -78,10 +66,6 @@ export class MeshManager extends BaseService {
     });
   }
 
-  override setEventBus(eventBus: any) {
-    this.eventBus = eventBus;
-  }
-
   private emitMetrics() {
     if (!this.eventBus) return;
     this.eventBus.emit("METRIC_UPDATE", {
@@ -106,7 +90,6 @@ export class MeshManager extends BaseService {
       this.nodeCert = res.data;
 
       // Create mTLS HTTP client
-      // SOV-P3: Mesh Connection Pooling with HTTP/2
       this.httpClient = Deno.createHttpClient({
         cert: this.nodeCert.cert,
         key: this.nodeCert.key,
@@ -143,14 +126,9 @@ export class MeshManager extends BaseService {
     return Array.from(this.nodes.values()).filter(n => (Date.now() - n.lastSeen) < 600000).length;
   }
 
-  /**
-   * Starts node discovery.
-   * Zero-config: Attempts mDNS first, then falls back to Subnet Scanning.
-   */
   startDiscovery() {
     if (this.discoveryInterval) return;
 
-    // SINGLE_NODE mode bypasses all external discovery to run in isolation
     if (this.config?.getEnv("SINGLE_NODE") === "true") {
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -170,16 +148,12 @@ export class MeshManager extends BaseService {
         message: "Starting zero-config node discovery..."
     });
 
-    // 1. Passive Discovery: Start listening first to capture incoming announcements
     this.listenForDiscovery();
 
-    // 2. Initial Subnet Scan: BUG FIX - Staggered start to avoid mDNS race conditions
-    // Delaying the aggressive active scan to allow the network stack to stabilize passive listeners
     setTimeout(() => {
         this.discoverSubnet().catch(() => {});
     }, 2000 + Math.random() * 3000);
     
-    // 3. Schedule regular scans with jitter
     this.discoveryInterval = setInterval(() => {
         this.discoverSubnet();
         this.scanNetwork();
@@ -202,9 +176,7 @@ export class MeshManager extends BaseService {
           message: `Probing subnet ${subnet}.0/24...`
       });
       
-      // Parallel probe with concurrency limit to avoid flooding
       const probes = [];
-      // BUG-4.11 FIX: Reduce subnet probe rate to be less noisy and avoid saturation
       const MAX_CONCURRENCY = 5;
 
       for (let i = 1; i < 255; i++) {
@@ -216,7 +188,6 @@ export class MeshManager extends BaseService {
         if (probes.length >= MAX_CONCURRENCY) {
             await Promise.all(probes);
             probes.length = 0;
-            // Adaptive Jitter to prevent network analysis
             await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
         }
       }
@@ -227,12 +198,10 @@ export class MeshManager extends BaseService {
   private async probeNode(address: string) {
     if (!this.httpClient) return;
 
-    // SECURITY: Validate address to prevent SSRF or malformed requests during discovery
     const { isValidIP } = await import("@infrastructure/system/validation.ts");
     if (!isValidIP(address)) return;
 
     try {
-      // SECURE DISCOVERY: Always use HTTPS and mTLS client
       const url = `https://${address}:${this.port}/api/mesh/ping`;
       const res = await fetch(url, { 
         client: this.httpClient,
@@ -255,12 +224,11 @@ export class MeshManager extends BaseService {
             address,
             port: this.port,
             lastSeen: Date.now(),
-            verified: true, // If HTTPS+mTLS fetch succeeded, it's verified
+            verified: true,
           });
         }
       }
     } catch (e) {
-      // Log only if it's not a common timeout/connection refused to avoid log spam
       const msg = (e as Error).message;
       if (!msg.includes("timeout") && !msg.includes("refused") && !msg.includes("reset")) {
         this.logging.log({
@@ -279,9 +247,6 @@ export class MeshManager extends BaseService {
       // @ts-ignore
       if (typeof Deno.listenDatagram !== "function") return;
 
-      // BUG-3.3 FIX: Handle packet size assumptions by explicitly limiting read buffer if possible,
-      // although Deno.listenDatagram handles the underlying buffer.
-      // We ensure we only process the first 1500 bytes to avoid jumbo frame issues.
       this.mdnsListener = Deno.listenDatagram({
         port: 5353,
         hostname: "0.0.0.0",
@@ -297,7 +262,6 @@ export class MeshManager extends BaseService {
       });
 
       for await (const [data, addr] of this.mdnsListener) {
-        // Safe decoding with length check
         if (data.length > 2048) continue;
         const msg = new TextDecoder().decode(data);
         if (msg.includes("_ct-orchestrator._tcp.local")) {
@@ -350,13 +314,7 @@ export class MeshManager extends BaseService {
     }
   }
 
-  /**
-   * Validates a discovered node via mTLS handshake before trusting it.
-   * An mDNS announcement alone is not sufficient — any LAN host can spoof one.
-   */
   private async validateAndRegisterNode(node: MeshNode) {
-    // BUG-34: If already known and verified, just update lastSeen.
-    // If it's known but NOT verified, we allow the handshake to proceed.
     const existing = this.nodes.get(node.id);
     if (existing?.verified) {
       existing.lastSeen = Date.now();
@@ -375,7 +333,6 @@ export class MeshManager extends BaseService {
     }
 
     try {
-      // Attempt mTLS handshake by hitting the node's /api/mesh/ping endpoint
       const url = `https://${node.address}:${node.port}/api/mesh/ping`;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (this.meshSecret) {
@@ -395,7 +352,6 @@ export class MeshManager extends BaseService {
 
       const body = await res.json();
       
-      // Verify signature if meshSecret is configured
       if (this.meshSecret) {
           const sig = res.headers.get("X-Mesh-Signature");
           if (!sig || !(await this.verifySignature(body, sig))) {
@@ -403,7 +359,6 @@ export class MeshManager extends BaseService {
           }
       }
       if (body.success && body.nodeId) {
-        // Verified — the node presented a valid mTLS certificate signed by our CA
         node.verified = true;
         this.registerNode(node);
         this.logging.log({
@@ -464,15 +419,9 @@ export class MeshManager extends BaseService {
     }
   }
 
-  /**
-   * Generic mesh broadcast (Gossip).
-   * Supports 'priority' for critical events like lockdown.
-   */
   async broadcast(payload: any, priority: boolean = false): Promise<Result<void>> {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
 
-    // BUG-3.2 FIX: Gossip Concurrency Limit
-    // Prevents socket exhaustion in large meshes (100+ nodes)
     const MAX_GOSSIP_CONCURRENCY = 16;
     const batches = [];
     for (let i = 0; i < verifiedNodes.length; i += MAX_GOSSIP_CONCURRENCY) {
@@ -482,7 +431,6 @@ export class MeshManager extends BaseService {
     for (const [batchIndex, batch] of batches.entries()) {
         const batchPromises = batch.map(async (node, nodeIndex) => {
             if (!priority) {
-                // TACTICAL: Staggered gossip to prevent network traffic analysis
                 const jitter = (batchIndex * MAX_GOSSIP_CONCURRENCY + nodeIndex) * 100;
                 await new Promise(r => setTimeout(r, jitter));
             }
@@ -498,14 +446,7 @@ export class MeshManager extends BaseService {
             });
         });
 
-        if (priority) {
-            await Promise.all(batchPromises);
-        } else {
-            // Non-priority batches can run concurrently with the next batch's jittered tasks,
-            // but we still want to avoid a massive spike at the beginning.
-            // For now, we await to strictly enforce concurrency limit per batch.
-            await Promise.all(batchPromises);
-        }
+        await Promise.all(batchPromises);
     }
     return ok(undefined);
   }
@@ -514,9 +455,6 @@ export class MeshManager extends BaseService {
     return Array.from(this.nodes.values());
   }
 
-  /**
-   * Revokes trust from a node and removes it from the mesh.
-   */
   isolateNode(nodeId: string): Result<void> {
     const node = this.nodes.get(nodeId);
     if (node) {
@@ -542,9 +480,6 @@ export class MeshManager extends BaseService {
     return ok(undefined);
   }
 
-  /**
-   * Broadcasts a block command to all verified nodes in the mesh.
-   */
   async broadcastBlock(ip: string): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -556,16 +491,15 @@ export class MeshManager extends BaseService {
 
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_BLOCK",
-        ip,
-        sourceNode: this.nodeId,
-        timestamp: Date.now()
+        data: {
+            ip,
+            sourceNode: this.nodeId,
+            timestamp: Date.now()
+        }
     });
     return ok(undefined);
   }
 
-  /**
-   * Broadcasts a malicious binary hash to the mesh.
-   */
   async broadcastThreatHash(hash: string, sourceNode: string): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -577,16 +511,15 @@ export class MeshManager extends BaseService {
 
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_THREAT_HASH",
-        hash,
-        sourceNode,
-        timestamp: Date.now()
+        data: {
+            hash,
+            sourceNode,
+            timestamp: Date.now()
+        }
     });
     return ok(undefined);
   }
 
-  /**
-   * Broadcasts a lockdown command to all verified nodes in the mesh.
-   */
   async broadcastLockdown(): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -598,28 +531,26 @@ export class MeshManager extends BaseService {
 
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_LOCKDOWN",
-        sourceNode: this.nodeId,
-        timestamp: Date.now()
-    }, true);
+        data: {
+            sourceNode: this.nodeId,
+            timestamp: Date.now()
+        }
+    });
     return ok(undefined);
   }
 
-  /**
-   * Broadcasts a critical audit event to the mesh.
-   */
   async broadcastAuditEvent(event: any) {
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "GOSSIP_AUDIT", event });
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "GOSSIP_AUDIT", data: event });
   }
 
-  /**
-   * Broadcasts the current audit chain head for cross-node verification.
-   */
   async broadcastAuditVerification(lastHash: string, eventCount: number) {
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_AUDIT_VERIFY",
-        lastHash,
-        eventCount,
-        node: this.nodeId
+        data: {
+            lastHash,
+            eventCount,
+            node: this.nodeId
+        }
     });
   }
 
@@ -636,7 +567,6 @@ export class MeshManager extends BaseService {
             });
             const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
             
-            // Phase 3: Differential state synchronization
             if (res !== undefined && res !== null && (res as any).kv_snapshot && Array.isArray((res as any).kv_snapshot)) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
@@ -645,7 +575,7 @@ export class MeshManager extends BaseService {
                     caller: "orchestrator:domain:orchestration:mesh",
                     message: `Received state snapshot from ${node.hostname}. Synchronizing...`
                 });
-                await this.audit.syncEvents((res as any).kv_snapshot);
+                await (this.audit as any).syncEvents((res as any).kv_snapshot);
             }
             
             this.logging.log({
@@ -669,9 +599,6 @@ export class MeshManager extends BaseService {
     return ok(undefined);
   }
 
-  /**
-   * Generates a snapshot of the local security state for a peer.
-   */
   async getLocalStateSnapshot(): Promise<any> {
       const recentEvents = await this.audit.getRecentEvents(100);
       return {
@@ -681,19 +608,11 @@ export class MeshManager extends BaseService {
       };
   }
 
-  /**
-   * High-Sovereignty Protocol: Consensus-Based Secret Unlocking.
-   * Master secrets are only unlocked if a quorum of peer approvals is received.
-   */
   async requestQuorumUnlock(secretType: "PKI" | "MESH"): Promise<boolean> {
       return await this.requestQuorumCommand(`UNLOCK_${secretType}`, { secretType });
   }
 
-  /**
-   * Universal Quorum Handshake: Requires P2P consensus for any critical command.
-   */
   async requestQuorumCommand(action: string, data: any): Promise<boolean> {
-      // SINGLE_NODE mode or no peers: Quorum is automatically satisfied if the action is authorized locally
       if (this.config?.getEnv("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
           this.logging.log({
               timestamp: new Date().toISOString(),
@@ -764,28 +683,18 @@ export class MeshManager extends BaseService {
       return success;
   }
 
-  /**
-   * Generates a HMAC-SHA256 signature for a payload using the MESH_SECRET.
-   */
   async signPayload(payload: any): Promise<string> {
     if (!this.meshSecret) return "unsigned";
     const { signPayload } = await import("../../core/crypto_utils.ts");
     return await signPayload(payload, this.meshSecret);
   }
 
-  /**
-   * Verifies an HMAC-SHA256 signature.
-   */
   async verifySignature(payload: any, signature: string): Promise<boolean> {
     if (!this.meshSecret) return false;
     const { verifySignature } = await import("../../core/crypto_utils.ts");
     return await verifySignature(payload, signature, this.meshSecret);
   }
 
-  /**
-   * Requests approval from peers for a critical action.
-   * Uses P2P signatures to ensure identity.
-   */
   async requestApproval(action: string, data: any, threshold?: number): Promise<boolean> {
     const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
     const totalNodes = verifiedNodes.length + 1; // Include self
@@ -814,7 +723,6 @@ export class MeshManager extends BaseService {
                 signature 
             });
             if ((res as any).approved) {
-                // Verify peer signature if provided
                 if ((res as any).signature) {
                     const isValid = await this.verifySignature((res as any).payload, (res as any).signature);
                     if (isValid) approvals++;
@@ -847,13 +755,11 @@ export class MeshManager extends BaseService {
   private async sendSync(node: MeshNode, payload: any) {
     if (!this.httpClient) await this.init();
 
-    // PERFORMANCE: Ensure we use the pooled httpClient
     const client = this.httpClient!;
 
     const url = `https://${node.address}:${node.port}/api/mesh/sync`;
     const headers: Record<string, string> = { 
         "Content-Type": "application/json",
-        // TACTICAL MIMICRY: Disguise as legitimate Cloudflare/Akamai traffic
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
         "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -869,7 +775,6 @@ export class MeshManager extends BaseService {
         "Upgrade-Insecure-Requests": "1"
     };
 
-    // Improved padding: Random length and random content to avoid divisibility/repeat fingerprinting
     const paddingLength = Math.floor(Math.random() * 256);
     const padding = Array.from({ length: paddingLength }, () => Math.random().toString(36)[2]).join('');
 
@@ -883,7 +788,6 @@ export class MeshManager extends BaseService {
       headers["X-Mesh-Signature"] = signature;
     }
 
-    // TRAFFIC CAMOUFLAGE: Random jitter and truly variable padding
     const jitter = Math.floor(Math.random() * 800); 
     await new Promise(r => setTimeout(r, jitter));
 
@@ -908,13 +812,6 @@ export class MeshManager extends BaseService {
     });
   }
 
-  /**
-   * Rotates the node's cryptographic identity and Node ID.
-   * This is an ultra-hardening measure to prevent long-term mesh persistence by an adversary.
-   */
-  /**
-   * Watcher for reactive state updates from other nodes.
-   */
   private async startStateWatcher() {
     const kv = (this.config as any).kv;
     if (!kv) return;
@@ -941,14 +838,11 @@ export class MeshManager extends BaseService {
         message: `Initiating Identity Rotation for ${this.nodeId}...`
     });
     
-    // 1. Wipe existing mTLS client
     this.httpClient = null;
     
-    // 2. Generate a fresh Node ID (to evade fingerprinting)
     const oldId = this.nodeId;
     this.nodeId = Deno.hostname() + "-" + crypto.randomUUID().slice(0, 8);
     
-    // 3. Re-initialize mTLS identity
     await this.init();
     
     this.logging.log({
@@ -960,16 +854,16 @@ export class MeshManager extends BaseService {
     });
     
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
-        type: "INFO",
-        message: "Security Mesh Identity Phased",
-        data: { oldId, newId: this.nodeId }
+        type: "UI_MESSAGE",
+        data: {
+            message: "Security Mesh Identity Phased",
+            oldId,
+            newId: this.nodeId
+        }
     });
     return ok(undefined);
   }
 
-  /**
-   * Cryptographically re-verifies all known nodes in the mesh.
-   */
   async resyncNodes() {
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -981,15 +875,11 @@ export class MeshManager extends BaseService {
 
     const allNodes = Array.from(this.nodes.values());
     for (const node of allNodes) {
-        // Mark as unverified first to force a fresh handshake
         node.verified = false;
         await this.validateAndRegisterNode(node);
     }
   }
 
-  /**
-   * Request a specific node to synchronize its audit ledger with us.
-   */
   async requestAuditSync(nodeId: string) {
       const node = this.nodes.get(nodeId);
       if (node && node.verified) {

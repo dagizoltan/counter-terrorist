@@ -213,43 +213,6 @@ export const EbpfPage = (props: { csrfToken?: string, nonce?: string, userRole?:
     </Layout>
   );
 
-  export const ScannerPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
-    <Layout title="Scanner Agent // Tactical Assessment" islandPaths={['/components/islands/ScannerAgent.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
-      <header class="page-header mb-12">
-        <div class="title-group">
-          <div class="flex items-center gap-4 mb-2">
-            <div class="w-10 h-0.5 bg-primary rounded-full"></div>
-            <span class="mono-xs font-black text-primary uppercase tracking-[0.4em]">Autonomous_Forensic_Audit</span>
-          </div>
-          <h1 class="text-6xl font-black italic tracking-tighter uppercase leading-none text-white">
-            Scanner <span class="text-primary">Agent</span>
-          </h1>
-        </div>
-        <div class="flex items-center gap-6">
-           <div class="flex flex-col items-end">
-              <span class="mono-xs text-slate-600 font-black uppercase tracking-widest">Database_Status</span>
-              <span class="text-2xl font-black text-success italic uppercase">Synced</span>
-           </div>
-        </div>
-      </header>
-
-      <div class="grid grid-cols-12 gap-6 mb-8">
-        <div class="col-span-12 lg:col-span-7 t-panel glass-panel p-8 border-t-2 border-primary/30 bg-black/40">
-          <scanner-agent></scanner-agent>
-        </div>
-
-        <div class="col-span-12 lg:col-span-5 t-panel p-0 overflow-hidden border-t-2 border-danger/30 bg-black/40">
-           <header class="p-8 border-b border-white/5 bg-black/20 flex justify-between items-center">
-              <h3 class="tactical-title" style="font-size:1rem;">ACTIVE_ARTIFACT_LEDGER</h3>
-              <div class="px-3 py-1 bg-danger/10 border border-danger/30 text-danger text-[9px] font-black tracking-widest uppercase">Quarantine_Ready</div>
-           </header>
-           <div id="scanner-ledger" class="p-8 space-y-4 h-[400px] overflow-y-auto bg-black/40 custom-scrollbar">
-              <div class="mono text-[10px] text-slate-600 uppercase p-8 text-center animate-pulse italic">Synchronizing_Forensic_Baseline...</div>
-           </div>
-        </div>
-      </div>
-    </Layout>
-  );
 
   export const FimPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
     <Layout title="File Integrity Monitor" islandPaths={['/components/islands/FimAgent.js']} csrfToken={props.csrfToken} userRole={props.userRole}>

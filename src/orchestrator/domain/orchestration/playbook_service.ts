@@ -1,7 +1,6 @@
 import { LogSeverity, LogType } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
-import { Result, ok } from "../../core/result.ts";
 
 export interface PlaybookDependencies {
   eventBus: any;
@@ -21,8 +20,13 @@ export class PlaybookService extends BaseService {
     super();
   }
 
-  public override async init(services: PlaybookDependencies): Promise<Result<void>> {
+  public setServices(services: PlaybookDependencies) {
     this.services = services;
+  }
+
+  public override async init(..._args: any[]): Promise<import("@core/result.ts").Result<void>> {
+    const { ok } = await import("@core/result.ts");
+    if (!this.services) return ok(undefined);
 
     loggingService.log({
         timestamp: new Date().toISOString(),
@@ -182,11 +186,6 @@ export class PlaybookService extends BaseService {
             this.updateThreatScore("local", 2);
         }
     });
-     return ok(undefined);
-  }
-
-  override async shutdown(): Promise<Result<void>> {
-    this.services = undefined;
     return ok(undefined);
   }
 
@@ -292,5 +291,11 @@ export class PlaybookService extends BaseService {
       // Reset after isolation
       this.threatScores.set(nodeId, 0);
     }
+  }
+
+  override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+    const { ok } = await import("@core/result.ts");
+    this.services = undefined;
+    return ok(undefined);
   }
 }

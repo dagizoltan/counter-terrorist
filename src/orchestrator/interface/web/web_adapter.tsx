@@ -21,7 +21,7 @@ import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 export class WebAdapter implements WebPort {
   private app: Hono;
   private security: SecurityMiddleware;
-  private meshAuth?: MeshAuthService;
+  private meshAuth?: any;
   private server?: Deno.HttpServer;
 
   constructor(private services: ServiceContainer) {

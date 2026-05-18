@@ -79,7 +79,7 @@ export class LifecycleService extends BaseService {
         this.timerId = setInterval(() => this.tick(), 10000); // Check every 10s
     }
 
-    public async shutdown(): Promise<Result<void>> {
+    public override async shutdown(): Promise<Result<void>> {
         if (this.timerId) {
             clearInterval(this.timerId);
             this.timerId = undefined;

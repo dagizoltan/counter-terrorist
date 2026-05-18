@@ -8,10 +8,11 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
     firewall: {
       blockIp: async (ip: string) => {
         blockedIp = ip;
+        return { success: true, stdout: "", stderr: "" };
       }
     },
     pcap: {
-      startCapture: async () => {}
+      startCapture: async () => ({ success: true, stdout: "", stderr: "" })
     }
   } as any;
 
@@ -43,7 +44,8 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
   } as any;
 
   const playbook = new PlaybookService();
-  playbook.init(services);
+  playbook.setServices(services);
+  await playbook.init(services);
 
   // Simulate honeypot access
   const event = {
@@ -55,7 +57,7 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
   mockEventBus.emit("HONEYPOT", event);
 
   // Wait a bit for async handler
-  await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 200));
 
   assertEquals(blockedIp, "10.0.0.5", "IP should be automatically blocked by playbook");
 });
