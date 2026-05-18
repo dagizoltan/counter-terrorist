@@ -53,8 +53,20 @@ export class FirewallManager {
     const ips: string[] = [];
     for await (const res of iter) {
       const ip = res.key[1] as string;
-      this.blockedIps.add(ip);
-      ips.push(ip);
+
+      // H-01: Explicitly validate IP from KV during hydration to prevent poisoned state
+      if (isValidIP(ip)) {
+        this.blockedIps.add(ip);
+        ips.push(ip);
+      } else {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.ERROR,
+              caller: "orchestrator:infra:system:protection:firewall",
+              message: `CRITICAL: Invalid enforcement record found in KV: '${ip}'. Dropping to maintain integrity.`
+          });
+      }
     }
 
     if (ips.length > 0) {

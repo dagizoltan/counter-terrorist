@@ -497,12 +497,20 @@ export class SidecarManager implements CommandPort {
           if (trimmed.startsWith("[LOG] ")) {
             try {
                 const logData = JSON.parse(trimmed.substring(6));
+
+                // H-04: Limit message length from sidecars to prevent log-based DoS
+                const MAX_LOG_MSG_LENGTH = 16384; // 16KB
+                const rawMsg = String(logData.message || "");
+                const sanitizedMsg = rawMsg.length > MAX_LOG_MSG_LENGTH
+                    ? rawMsg.substring(0, MAX_LOG_MSG_LENGTH) + "... [TRUNCATED]"
+                    : rawMsg;
+
                 this.logging.log({
                     timestamp: logData.timestamp || new Date().toISOString(),
                     type: logData.log_type || LogType.ACTIVITY,
                     severity: logData.severity || LogSeverity.INFO,
                     caller: logData.caller || `${name}:main`,
-                    message: logData.message
+                    message: sanitizedMsg
                 });
                 // Note: We continue here if it's a pure log, but tactical events use standard JSON
                 continue; 
