@@ -3,6 +3,7 @@ import { MeshManager } from "../orchestration/mesh.ts";
 import { AuditRepository } from "../repositories/audit_repository.ts";
 import { computeHash } from "@core/crypto_utils.ts";
 import { BaseService } from "@core/base_service.ts";
+import { MerkleTree } from "@core/merkle.ts";
 
 export interface ActorContext {
     id: string;
@@ -30,6 +31,7 @@ export interface AuditEvent {
     hwSignature?: string; 
     correlationId?: string;
     formatted?: string;
+    merkleRoot?: string;
 }
 
 interface RetentionConfig {
@@ -48,12 +50,14 @@ export class AuditService extends BaseService {
     private retentionConfig: RetentionConfig;
     private state: SystemState = SystemState.NORMAL;
 
-    // Performance: Async log queue with worker loop
     private logQueue: Array<Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }> = [];
     private isProcessingQueue = false;
 
     private auditBuffer: AuditEvent[] = [];
     private intervals: number[] = [];
+
+    // Merkle Integration
+    private currentSessionHashes: string[] = [];
 
     constructor(
         private repo: AuditRepository,
@@ -70,7 +74,6 @@ export class AuditService extends BaseService {
 
         this.restoreChainHead();
         
-        // Jittered intervals to prevent thundering herd
         const jitter = (ms: number) => ms + (Math.random() * 5000);
 
         this.intervals.push(setInterval(() => this.purgeExpired(), jitter(60 * 60 * 1000)));
@@ -84,6 +87,9 @@ export class AuditService extends BaseService {
 
         this.intervals.push(setInterval(() => this.verifyChainIncremental(), jitter(60 * 1000)));
         this.intervals.push(setInterval(() => this.flushBuffer(), 5000));
+
+        // Merkle Root Commitment: Commit root every 10 minutes
+        this.intervals.push(setInterval(() => this.commitMerkleRoot(), jitter(600000)));
     }
 
     public setConfig(config: any) {
@@ -110,11 +116,29 @@ export class AuditService extends BaseService {
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
 
-        // Wait for final queue processing before flushing
+        await this.commitMerkleRoot();
+
         while (this.logQueue.length > 0 || this.isProcessingQueue) {
             await new Promise(r => setTimeout(r, 100));
         }
         await this.flushBuffer();
+    }
+
+    private async commitMerkleRoot() {
+        if (this.currentSessionHashes.length === 0) return;
+
+        const tree = new MerkleTree(this.currentSessionHashes);
+        const root = tree.getRoot();
+
+        await this.logEvent({
+            type: "MERKLE_COMMIT",
+            severity: "info",
+            caller: "AUDIT:MERKLE",
+            message: `Merkle Root committed for ${this.currentSessionHashes.length} events: ${root.slice(0, 12)}`,
+            data: { root, eventCount: this.currentSessionHashes.length }
+        });
+
+        this.currentSessionHashes = [];
     }
 
     public setCorrelation(correlation: any) {
@@ -168,7 +192,7 @@ export class AuditService extends BaseService {
 
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }) {
         if (this.state === SystemState.FORENSIC_RESTRICTED &&
-            event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS") {
+            event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS" && event.type !== "MERKLE_COMMIT") {
             return;
         }
 
@@ -196,7 +220,7 @@ export class AuditService extends BaseService {
 
         while (this.logQueue.length > 0) {
             const currentQueue = this.logQueue;
-            this.logQueue = []; // Swap for O(1) queue clearing
+            this.logQueue = [];
 
             for (const event of currentQueue) {
                 const id = crypto.randomUUID();
@@ -224,6 +248,11 @@ export class AuditService extends BaseService {
 
                 this.auditBuffer.push(auditEvent);
                 this.lastHash = hash;
+
+                // Track for Merkle calculation (Exclude commit events themselves to prevent recursion)
+                if (event.type !== "MERKLE_COMMIT") {
+                    this.currentSessionHashes.push(hash);
+                }
 
                 const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
                 this.logging.log({

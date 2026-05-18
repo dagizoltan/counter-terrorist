@@ -36,7 +36,8 @@ import {
   ShadowService,
   PolicyEngine,
   RateLimitService,
-  CorrelationService
+  CorrelationService,
+  ViewModelService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort } from "./ports.ts";
 import { TPMManager } from "../infrastructure/system/protection/tpm/tpm_manager.ts";
@@ -103,4 +104,5 @@ export interface ServiceContainer {
   correlation: CorrelationService;
   rateLimit: RateLimitService;
   platformInfo: PlatformInfo;
+  viewModel: ViewModelService;
 }

@@ -6,7 +6,7 @@ import { NotificationService } from "@domain/analysis/notifications.ts";
 import { 
     BaselineService, ProcessTracker, EventBus, MeshAuthService, MeshManager,
     DecentralizedMetricsService,
-    PlaybookService, BehavioralService, MorphingService,
+    PlaybookService, MorphingService,
     ChaosEngine, SupplyChainService, HoneypotService, 
     CanaryService, AutopilotService, KernelService, 
     ShadowService, CovertChannelService,
@@ -14,7 +14,7 @@ import {
     IncidentService, NewsSignalService,
     LedgerService, HealthService, EventMediator,
     WatchdogService, TacticalIntelService,
-    CorrelationService, PolicyEngine
+    CorrelationService, PolicyEngine, ViewModelService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
@@ -251,8 +251,7 @@ export class SovereignApp {
         // Phase 2: Decouple Metrics Service
         const metricsService = new DecentralizedMetricsService(
             services.eventBus,
-            loggingService,
-            broadcast
+            loggingService
         );
         (setMetricsService as any)(metricsService);
 
@@ -273,6 +272,7 @@ export class SovereignApp {
         services.kernelService.setConfig?.(services.config);
         (services.protection.vpn as any).setEventBus?.(bus);
         services.behavioral.setEventBus?.(bus);
+        services.viewModel.setEventBus?.(bus);
     }
 
     private startWatchdog(health: HealthService) {
@@ -458,6 +458,7 @@ export class SovereignApp {
         await supplyChain.init();
         const shadow = factory.createService(health, "Shadow", () => new ShadowService(this.executor, loggingService));
         const covert = factory.createService(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
+        const viewModel = new ViewModelService();
 
         const services: ServiceContainer = {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
@@ -474,7 +475,8 @@ export class SovereignApp {
             tpm, health,
             metrics: (setMetricsService as any)._instance,
             mediator: new EventMediator(eventBus, processTracker, security.canaryService, broadcast, loggingService, this.kv),
-            behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy, correlation
+            behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy, correlation,
+            viewModel
         };
 
         playbook.init(services);

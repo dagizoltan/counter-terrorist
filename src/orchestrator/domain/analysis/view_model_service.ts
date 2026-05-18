@@ -1,0 +1,81 @@
+import { BaseService } from "@core/base_service.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+
+export interface DashboardMetrics {
+    totalEvents: number;
+    activeNodes: number;
+    threatsDetected: number;
+    lastAuditTimestamp: string;
+    honeypotHits: number;
+    systemHealth: "OPERATIONAL" | "WARNING" | "CRITICAL";
+}
+
+/**
+ * ViewModelService
+ * Maintains a high-performance, in-memory cache of the system state for UI consumption.
+ * Updates reactively via the EventBus to eliminate redundant KV scans.
+ */
+export class ViewModelService extends BaseService {
+    private metrics: DashboardMetrics = {
+        totalEvents: 0,
+        activeNodes: 1,
+        threatsDetected: 0,
+        lastAuditTimestamp: new Date().toISOString(),
+        honeypotHits: 0,
+        systemHealth: "OPERATIONAL"
+    };
+
+    private recentAlerts: any[] = [];
+    private readonly MAX_ALERTS = 50;
+
+    constructor() {
+        super();
+    }
+
+    override setEventBus(eventBus: any) {
+        super.setEventBus(eventBus);
+
+        this.eventBus!.on("METRIC_UPDATE", (event: any) => {
+            if (event.domain === "audit") {
+                this.metrics.totalEvents = event.data.totalEvents;
+                this.metrics.lastAuditTimestamp = new Date().toISOString();
+            } else if (event.domain === "honeypot") {
+                this.metrics.honeypotHits = event.data.totalHits;
+            } else if (event.domain === "mesh") {
+                this.metrics.activeNodes = event.data.activeNodes;
+            }
+        });
+
+        this.eventBus!.on("THREAT", (event: any) => {
+            this.metrics.threatsDetected++;
+            this.addAlert("THREAT", event);
+        });
+
+        this.eventBus!.on("UI_BROADCAST", (msg: any) => {
+            if (msg.type === "TACTICAL_TRIGGER") {
+                this.addAlert("TRIGGER", msg.data);
+            }
+        });
+    }
+
+    private addAlert(type: string, data: any) {
+        const alert = {
+            id: crypto.randomUUID(),
+            timestamp: new Date().toISOString(),
+            type,
+            data
+        };
+        this.recentAlerts.unshift(alert);
+        if (this.recentAlerts.length > this.MAX_ALERTS) {
+            this.recentAlerts.pop();
+        }
+    }
+
+    public getDashboardMetrics(): DashboardMetrics {
+        return { ...this.metrics };
+    }
+
+    public getRecentAlerts() {
+        return [...this.recentAlerts];
+    }
+}
