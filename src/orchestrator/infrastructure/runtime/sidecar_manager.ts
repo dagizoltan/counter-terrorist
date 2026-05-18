@@ -14,6 +14,8 @@ export class SidecarManager implements CommandPort {
   private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
   private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
   private unsupportedSidecars: Set<string> = new Set();
+  private trippedSidecars: Set<string> = new Set();
+  private expectedExits: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
@@ -203,6 +205,17 @@ export class SidecarManager implements CommandPort {
     await this.manifestPromise;
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
     if (this.unsupportedSidecars.has(name)) return null;
+
+    if (this.trippedSidecars.has(name)) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Execution blocked for ${name}: Circuit breaker is active.`
+        });
+        return null;
+    }
     
     // If already running, return it
     if (this.persistentProcesses.has(name)) return this.persistentProcesses.get(name)!;
@@ -274,8 +287,35 @@ export class SidecarManager implements CommandPort {
 
             const env = await this.getSidecarEnv(name);
 
-            const command = new Deno.Command(execPath, {
-                args: [],
+            // Active Safety: Implement Resource Throttling for Pilots
+            // On Linux, we attempt to use systemd-run for CPU/Memory constraints if running as root
+            const isPilot = Deno.env.get("PILOT_MODE") === "true";
+            const isLinux = Deno.build.os === "linux";
+            let finalExec = execPath;
+            let finalArgs: string[] = [];
+
+            if (isPilot && isLinux && Deno.uid() === 0) {
+                // Constraints: 25% CPU, 512MB RAM
+                finalExec = "systemd-run";
+                finalArgs = [
+                    "--scope",
+                    "--quiet",
+                    "-p", "CPUQuota=25%",
+                    "-p", "MemoryMax=512M",
+                    "-p", "MemorySwapMax=0",
+                    execPath
+                ];
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.INFO,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `Resource Throttling active for ${name} (CPU: 25%, MEM: 512MB)`
+                });
+            }
+
+            const command = new Deno.Command(finalExec, {
+                args: finalArgs,
                 stdin: "piped",
                 stdout: "piped",
                 stderr: "piped",
@@ -615,6 +655,7 @@ export class SidecarManager implements CommandPort {
   async stopSidecar(name: string): Promise<void> {
     const process = this.persistentProcesses.get(name);
     if (process) {
+      this.expectedExits.add(name);
       try {
         process.kill("SIGTERM");
         
@@ -631,8 +672,11 @@ export class SidecarManager implements CommandPort {
         } catch {
            // Process already dead
         }
+      } finally {
+        this.persistentProcesses.delete(name);
+        // We keep it in expectedExits for a short moment to let the event loop catch up
+        setTimeout(() => this.expectedExits.delete(name), 100);
       }
-      this.persistentProcesses.delete(name);
     }
   }
 
@@ -658,6 +702,10 @@ export class SidecarManager implements CommandPort {
   getPID(name: string): number | null {
     const process = this.persistentProcesses.get(name);
     return process ? process.pid : null;
+  }
+
+  getTrippedSidecars(): string[] {
+      return Array.from(this.trippedSidecars);
   }
 
   private getCapabilities(name: string): string | undefined {
@@ -776,7 +824,10 @@ export class SidecarManager implements CommandPort {
   }
 
   private handleSidecarExit(name: string, exitCode: number) {
-    if (exitCode === 0 || this.isShuttingDown) return;
+    if (exitCode === 0 || this.isShuttingDown || this.expectedExits.has(name)) {
+        this.expectedExits.delete(name);
+        return;
+    }
     if (this.unsupportedSidecars.has(name)) return;
 
     const now = Date.now();
@@ -814,6 +865,7 @@ export class SidecarManager implements CommandPort {
       }, delay);
       this.backoffTimers.add(timer);
     } else {
+      this.trippedSidecars.add(name);
       const msg = `CRITICAL: Sidecar ${name} entered crash loop. Circuit breaker active for ${COOLOFF_WINDOW / 1000}s.`;
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -825,8 +877,10 @@ export class SidecarManager implements CommandPort {
       this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
 
       // Circuit Breaker: Reset after cooloff period
-      setTimeout(() => {
+      const resetTimer = setTimeout(() => {
+          this.trippedSidecars.delete(name);
           this.restartCounts.delete(name);
+          this.backoffTimers.delete(resetTimer);
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
@@ -835,6 +889,7 @@ export class SidecarManager implements CommandPort {
               message: `Circuit breaker reset for ${name}. Resuming lifecycle monitoring.`
           });
       }, COOLOFF_WINDOW);
+      this.backoffTimers.add(resetTimer);
     }
   }
 }

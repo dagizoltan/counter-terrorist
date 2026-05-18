@@ -27,6 +27,20 @@ class StatusIndicator extends HTMLElement {
       });
       if (res.ok) {
         const data = await res.json();
+          if (data.safeMode) {
+              return this.render(name, 'SAFE MODE', 'var(--warning)');
+          }
+          if (data.trippedSidecars?.length > 0) {
+              const mapping = {
+                  "Active Blocker": "blocker",
+                  "Network Sensor": "sentinel",
+                  "Persistence Monitor": "watchfile"
+              };
+              if (data.trippedSidecars.includes(mapping[name])) {
+                  return this.render(name, 'TRIPPED', 'var(--warning)');
+              }
+          }
+
         if (name === "Active Blocker") isOnline = data.firewall?.active;
         else if (name === "Network Sensor") isOnline = data.ebpf?.active;
         else if (name === "Persistence Monitor") isOnline = data.fim?.active;
