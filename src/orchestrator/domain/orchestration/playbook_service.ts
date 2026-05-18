@@ -2,14 +2,23 @@ import { LogSeverity, LogType } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { ServiceContainer } from "@core/container.ts";
 
+export interface PlaybookDependencies {
+  eventBus: any;
+  protection: any;
+  notifications: any;
+  mesh: any;
+  shadowProtocol: any;
+  behavioral?: any;
+}
+
 export class PlaybookService {
-  private services?: ServiceContainer;
+  private services?: PlaybookDependencies;
   private threatScores: Map<string, number> = new Map();
   private readonly ISOLATION_THRESHOLD = 5;
 
   constructor() {}
 
-  public init(services: ServiceContainer) {
+  public init(services: PlaybookDependencies) {
     this.services = services;
 
     loggingService.log({

@@ -4,8 +4,22 @@ import { ServiceContainer } from "@core/container.ts";
 import { PolicyEngine } from "./policy_engine.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 
+export interface AutopilotDependencies {
+  eventBus: any;
+  logging: any;
+  health: any;
+  playbook: any;
+  kernelService: any;
+  processTracker: any;
+  protection: any;
+  audit: any;
+  forensicService: any;
+  mesh: any;
+  notifications: any;
+}
+
 export class AutopilotService {
-  private services?: ServiceContainer;
+  private services?: AutopilotDependencies;
   private engine!: AutonomousResponseEngine;
   private policy: PolicyEngine;
 
@@ -14,11 +28,11 @@ export class AutopilotService {
     this.policy = new PolicyEngine(loggingService);
   }
 
-  public init(services: ServiceContainer) {
+  public init(services: AutopilotDependencies) {
     this.services = services;
     // Engine depends on the full services container
     this.engine = new AutonomousResponseEngine(
-        this.services,
+        this.services as any,
         this.policy
     );
   }

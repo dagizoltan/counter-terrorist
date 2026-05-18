@@ -1,31 +1,26 @@
 import { WebAdapter } from "@orchestrator/interface/web/web_adapter.tsx";
-import { ProtectionAdapter } from "@infrastructure/system/protection/protection_adapter.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
 import { 
-    BaselineService, ProcessTracker, SessionService, ApiKeysService, 
-    EventBus, MeshAuthService, ForensicService, MeshManager,
+    BaselineService, ProcessTracker, EventBus, MeshAuthService, MeshManager,
     DecentralizedMetricsService,
-    PlaybookService, BehavioralService, MetricsService, 
-    ShadowProtocolService, GeoIpService, AnonymizationService, 
-    CuratedIntelService, DeceptionGridService, MorphingService, 
+    PlaybookService, BehavioralService, MorphingService,
     ChaosEngine, SupplyChainService, HoneypotService, 
     CanaryService, AutopilotService, KernelService, 
-    GovernanceService, ShadowService, CovertChannelService, 
-    ProvisioningService, NetworkDiscoveryService, NetworkLogService, 
-    IncidentService, ComplianceService, NewsSignalService, 
+    ShadowService, CovertChannelService,
+    NetworkDiscoveryService, NetworkLogService,
+    IncidentService, NewsSignalService,
     LedgerService, HealthService, EventMediator,
-    WatchdogService, RateLimitService, TacticalIntelService,
-    CorrelationService, PolicyEngine, AutoBlockService
+    WatchdogService, TacticalIntelService,
+    CorrelationService, PolicyEngine
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
 import { ServiceContainer, PlatformInfo } from "@core/container.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { broadcast, initBroadcaster } from "@api/ws.ts";
-import { createProtection } from "@infrastructure/system/protection/index.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
 import { bootstrap, camouflage } from "./bootstrapper.ts";
@@ -34,11 +29,10 @@ import { loadConfig } from "@core/config_schema.ts";
 import { setMeshManager } from "@domain/orchestration/mesh.ts";
 import { setMetricsService } from "@domain/analysis/metrics_service.ts";
 
+import { SubsystemFactory } from "@core/subsystem_factory.ts";
+
 // Infrastructure Providers
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
-import { KvSessionRepository } from "@infrastructure/persistence/kv/kv_session_repository.ts";
-import { KvNetworkLogRepository } from "@infrastructure/persistence/kv/kv_network_log_repository.ts";
-import { LinuxProcessProvider, MacOSProcessProvider, WindowsProcessProvider } from "@infrastructure/system/process_provider.ts";
 
 import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
 import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
@@ -548,28 +542,30 @@ export class SovereignApp {
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
-        const identity = this.initIdentitySubsystem(configProvider);
-        const { protection, networkLog } = await this.initProtectionSubsystem(platformInfo, configProvider);
+        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService);
+
+        const identity = factory.initIdentity(configProvider);
+        const { protection, networkLog } = await factory.initProtection(platformInfo, configProvider);
         
-        const processTracker = this.initProcessTracker(platformInfo);
+        const processTracker = factory.initProcessTracker(platformInfo);
         
         const correlation = new CorrelationService(this.auditService, loggingService);
         this.auditService.setCorrelation(correlation);
 
-        const security = this.initSecuritySubsystem(protection, mesh, tpm, health);
+        const security = factory.initSecurity(protection, mesh, tpm, health);
         security.kernelService.setTpmManager(tpm);
 
-        const intelligence = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider, mesh);
+        const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh);
 
         const playbook = new PlaybookService();
-        const { autopilot, autonomousAutopilot, lifecycle, policy } = await this.initEngineSubsystem(correlation, this.sidecarManager);
+        const { autopilot, autonomousAutopilot, lifecycle, policy } = await factory.initEngine(correlation);
 
-        const morphing = this.safeInit(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
-        const chaos = this.safeInit(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
-        const supplyChain = this.safeInit(health, "SupplyChain", () => new SupplyChainService());
+        const morphing = factory["safeInit"](health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
+        const chaos = factory["safeInit"](health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
+        const supplyChain = factory["safeInit"](health, "SupplyChain", () => new SupplyChainService());
         await supplyChain.init();
-        const shadow = this.safeInit(health, "Shadow", () => new ShadowService(this.executor, loggingService));
-        const covert = this.safeInit(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
+        const shadow = factory["safeInit"](health, "Shadow", () => new ShadowService(this.executor, loggingService));
+        const covert = factory["safeInit"](health, "Covert", () => new CovertChannelService(this.executor, loggingService));
 
         const services: ServiceContainer = {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
@@ -593,147 +589,5 @@ export class SovereignApp {
         autopilot.init(services);
 
         return services;
-    }
-
-    private initIdentitySubsystem(configProvider: EnvConfigProvider) {
-        const sessionRepo = new KvSessionRepository(this.kv);
-        const sessions = new SessionService(sessionRepo, loggingService, configProvider.getNumber("SESSION_TTL_HOURS", 24));
-        const apiKeys = new ApiKeysService(this.kv, loggingService);
-        const rateLimit = new RateLimitService(this.kv);
-        return { sessions, apiKeys, rateLimit };
-    }
-
-    private async initProtectionSubsystem(platformInfo: any, configProvider: EnvConfigProvider) {
-        const networkLogRepo = new KvNetworkLogRepository(this.kv);
-        const networkLog = new NetworkLogService(networkLogRepo, loggingService);
-        const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
-        await rawProtection.firewall.setKv(this.kv);
-        const protection = new ProtectionAdapter(rawProtection);
-        (rawProtection.firewall as any).setConfig?.(configProvider);
-        return { protection, networkLog };
-    }
-
-    private initProcessTracker(platformInfo: any) {
-        let processProvider;
-        if (platformInfo.name === "macos") {
-            processProvider = new MacOSProcessProvider();
-        } else if (platformInfo.name === "windows") {
-            processProvider = new WindowsProcessProvider();
-        } else {
-            processProvider = new LinuxProcessProvider();
-        }
-        return new ProcessTracker(loggingService, processProvider, this.sidecarManager);
-    }
-
-    private initSecuritySubsystem(protection: any, mesh: any, tpm: any, health: any) {
-        const anonymization = new AnonymizationService(protection.vpn, loggingService);
-        anonymization.setFirewall(protection.firewall);
-        const shadowProtocol = new ShadowProtocolService(mesh, anonymization, loggingService);
-        const behavioral = new BehavioralService(protection.firewall as any, this.auditService);
-        
-        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, broadcast, loggingService);
-
-        const canaryService = this.safeInit(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, loggingService));
-        const kernelService = new KernelService(this.executor, this.auditService, this.sidecarManager);
-
-        return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
-    }
-
-    private initIntelligenceSubsystem(protection: any, processTracker: any, health: any, configProvider: any, mesh: any) {
-        const geoIp = this.safeInit(health, "GeoIP", () => new GeoIpService(loggingService));
-        const forensicService = this.safeInit(health, "Forensics", () => new ForensicService(this.auditService, loggingService, this.kv, processTracker, (mesh as any).authService));
-        const curatedIntel = this.safeInit(health, "CuratedIntel", () => new CuratedIntelService(loggingService, protection.firewall, configProvider, broadcast, geoIp));
-        const news = this.safeInit(health, "News", () => new NewsSignalService(loggingService));
-        const networkDiscovery = this.safeInit(health, "NetworkDiscovery", () => {
-            const svc = new NetworkDiscoveryService(loggingService, this.executor);
-            svc.setMesh(mesh);
-            return svc;
-        });
-        const incidents = this.safeInit(health, "Incidents", () => new IncidentService(this.kv, loggingService));
-        const compliance = this.safeInit(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
-
-        return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
-    }
-
-    private async initEngineSubsystem(correlation: CorrelationService, sidecarManager: any) {
-        const autopilot = new AutopilotService();
-        const autonomousAutopilot = new AutonomousAutopilotService(correlation, sidecarManager, loggingService);
-        const lifecycle = new LifecycleService(sidecarManager, loggingService);
-
-        return { autopilot, autonomousAutopilot, lifecycle, policy: autopilot.getPolicy(), correlation };
-    }
-
-    private safeInit<T extends object>(health: HealthService, name: string, factory: () => T): T {
-        try {
-            const service = factory();
-            health.reportStatus(name, "OPERATIONAL");
-            return service;
-        } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e);
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:app:sovereign_app:boot",
-                message: `CRITICAL: Service '${name}' failed to initialize: ${msg}. Deploying Emergency Placeholder.`
-            }).catch(() => {});
-            health.reportStatus(name, "FAILED", msg);
-            
-            return new Proxy({} as T, {
-                get: (_, prop) => {
-                    return (...args: any[]) => {
-                        const msg = `[EMERGENCY] Call to '${String(prop)}' on failed service '${name}' blocked.`;
-                        loggingService.log({
-                            timestamp: new Date().toISOString(),
-                            type: LogType.AUDIT,
-                            severity: LogSeverity.ERROR,
-                            caller: "orchestrator:app:sovereign_app:emergency_proxy",
-                            message: msg
-                        });
-                        return Promise.resolve({ success: false, error: `Service ${name} is unavailable` });
-                    };
-                }
-            });
-        }
-    }
-
-    private checkPilotSafety(config: EnvConfigProvider) {
-        const isPilot = config.get("PILOT_MODE") === "true";
-        if (isPilot) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.INFO,
-                caller: "orchestrator:app:sovereign_app",
-                message: "🛡️ PILOT SAFETY CHECK: System is running in Pilot Mode. Ensure 'scripts/emergency_off.sh' is accessible."
-            });
-        }
-    }
-
-    private async emergencyLockdown(reason: string = "Hardware Integrity Failure") {
-        await loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:app:sovereign_app",
-            message: `CRITICAL: EMERGENCY LOCKDOWN ACTIVATED (${reason}). System quarantined. Forensic state preserved. Physical/MFA recovery required.`
-        });
-
-        // Persist lockdown state to prevent simple restart bypass
-        await this.kv.set(["system", "lockdown"], {
-            reason,
-            timestamp: new Date().toISOString(),
-            status: "QUARANTINED"
-        });
-
-        // Disable all network-facing interfaces via eBPF if available
-        try {
-            await this.sidecarManager.sendCommand("sentinel", { type: "LOCKDOWN" });
-        } catch {
-            // Best effort
-        }
-
-        // Halt execution to prevent further compromise
-        Deno.exit(1);
     }
 }
