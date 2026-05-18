@@ -55,8 +55,8 @@ export class SystemExecutor {
             i++;
             continue;
         }
-        if (/^[a-z0-9/._-]+$/.test(arg)) continue;
-        if (/^[a-z0-9]+@[a-z0-9.-]+$/.test(arg)) continue;
+        if (/^[a-zA-Z0-9/._-]+$/.test(arg)) continue;
+        if (/^[a-zA-Z0-9]+@[a-zA-Z0-9.-]+$/.test(arg)) continue;
         if (/^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/.test(arg)) continue;
 
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized argument: ${arg}` });
