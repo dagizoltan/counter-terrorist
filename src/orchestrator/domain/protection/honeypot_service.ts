@@ -353,6 +353,7 @@ export class HoneypotService extends BaseService {
 
       // BUG-4.1 FIX: Port morphing race condition
       // Update sidecar BEFORE opening firewall to ensure listener is ready
+      // We explicitly AWAIT the successful binding in the sidecar before modifying infrastructure
       const updateRes = await this.sidecarManager.sendCommand("decoy", {
         type: "UpdateModule",
         module: id, 
@@ -361,9 +362,29 @@ export class HoneypotService extends BaseService {
       });
 
       if (updateRes.success) {
-          module.port = newPort;
-          await this.firewall.denyPort(oldPort, "tcp");
-          await this.firewall.allowPort(newPort, "tcp");
+          // ENSURE ATOMICITY: Apply new firewall rule before removing old one to prevent connection drops,
+          // but only after the decoy sidecar has confirmed it is listening.
+          const allowRes = await this.firewall.allowPort(newPort, "tcp");
+          if (allowRes.success) {
+              module.port = newPort;
+              await this.firewall.denyPort(oldPort, "tcp");
+          } else {
+              this.logging.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.AUDIT,
+                  severity: LogSeverity.ERROR,
+                  caller: `decoy:${id}`,
+                  message: `DECEPTION MORPH FAILED: Firewall refused to open new port ${newPort}`
+              });
+              // Attempt to rollback sidecar to old port if possible
+              await this.sidecarManager.sendCommand("decoy", {
+                type: "UpdateModule",
+                module: id,
+                old_port: newPort,
+                new_port: oldPort
+              });
+              continue;
+          }
       } else {
           this.logging.log({
               timestamp: new Date().toISOString(),
