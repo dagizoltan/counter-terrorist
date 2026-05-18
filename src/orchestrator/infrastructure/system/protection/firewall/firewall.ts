@@ -11,6 +11,7 @@ export class FirewallManager {
   private blockedIps: Set<string> = new Set();
   private kv?: Deno.Kv;
   private connectivityCheckInProgress = false;
+  private config?: any;
 
   private eventBus?: any;
   private metricsInterval?: number;
@@ -25,6 +26,10 @@ export class FirewallManager {
 
   setEventBus(eventBus: any) {
       this.eventBus = eventBus;
+  }
+
+  setConfig(config: any) {
+      this.config = config;
   }
 
   private async emitMetrics() {
@@ -153,8 +158,8 @@ export class FirewallManager {
       if (this.connectivityCheckInProgress) return;
       this.connectivityCheckInProgress = true;
 
-      const checkInIp = Deno.env.get("PILOT_CHECKIN_IP") || "8.8.8.8";
-      const isPilot = Deno.env.get("PILOT_MODE") === "true";
+      const checkInIp = this.config?.getEnv("PILOT_CHECKIN_IP") || "8.8.8.8";
+      const isPilot = this.config?.getBoolean("PILOT_MODE", false);
 
       if (!isPilot) {
           this.connectivityCheckInProgress = false;

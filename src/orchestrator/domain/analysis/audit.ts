@@ -62,8 +62,8 @@ export class AuditService {
         private correlation: any | null = null
     ) {
         this.retentionConfig = {
-            maxAgeDays: Number(Deno.env.get("AUDIT_RETENTION_DAYS")) || 90,
-            maxEvents: Number(Deno.env.get("AUDIT_MAX_EVENTS")) || 10000,
+            maxAgeDays: 90,
+            maxEvents: 10000,
         };
 
         this.restoreChainHead();
@@ -88,6 +88,13 @@ export class AuditService {
 
     setEventBus(eventBus: any) {
         this.eventBus = eventBus;
+    }
+
+    public setConfig(config: any) {
+        this.retentionConfig = {
+            maxAgeDays: config.getNumber("AUDIT_RETENTION_DAYS", 90),
+            maxEvents: config.getNumber("AUDIT_MAX_EVENTS", 10000),
+        };
     }
 
     private async emitMetrics() {

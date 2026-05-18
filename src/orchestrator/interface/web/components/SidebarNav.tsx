@@ -1,9 +1,17 @@
 import { jsx } from "hono/jsx";
 
+const colorMap: Record<string, { text: string, bg: string }> = {
+  primary: { text: "!text-primary", bg: "bg-primary" },
+  warning: { text: "!text-warning", bg: "bg-warning" },
+  danger: { text: "!text-danger", bg: "bg-danger" },
+  success: { text: "!text-success", bg: "bg-success" },
+  slate: { text: "!text-slate-500", bg: "bg-slate-700" }
+};
+
 export const SidebarNavGroup = ({ title, color, children }: { title: string, color: string, children: any }) => (
   <div class="nav-group mb-6">
-    <div class={`nav-heading !text-${color} flex items-center gap-3`}>
-       <div class={`w-1 h-3 bg-${color} rounded-full`}></div>
+    <div class={`nav-heading ${colorMap[color]?.text || ""} flex items-center gap-3`}>
+       <div class={`w-1 h-3 ${colorMap[color]?.bg || ""} rounded-full`}></div>
        {title}
     </div>
     {children}
@@ -93,7 +101,7 @@ export const SidebarNav = ({ userRole }: { userRole?: string }) => {
 
       {/* 05 SYSTEM (Administration) */}
       <div class="nav-group pt-4 border-t border-white/5 mt-4 mb-8">
-        <div class="nav-heading !text-slate-500 flex items-center gap-3 mb-2">
+        <div class="nav-heading !text-slate-500 flex items-center gap-3 mb-2 px-4">
            <div class="w-1 h-3 bg-slate-700 rounded-full"></div>
            05 // SYSTEM
         </div>

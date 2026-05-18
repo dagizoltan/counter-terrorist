@@ -125,10 +125,24 @@ export class SovereignApp {
         
         const config = loadConfig();
         const configProvider = new EnvConfigProvider(config);
+
+        // Phase 1.2: Configure Logging from validated schema
+        loggingService.setConfig({
+            host: config.SYSLOG_HOST,
+            port: config.SYSLOG_PORT,
+            transport: config.SYSLOG_TRANSPORT,
+            caPath: config.SYSLOG_CA_PATH
+        });
+
         const platformInfo = await getPlatformInfo(this.executor);
         
         // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
+        this.sidecarManager.setConfig(configProvider);
         const tpmManager = new TPMManager(this.sidecarManager, loggingService);
+        this.sidecarManager.setTpm(tpmManager);
+        this.sidecarManager.init();
+
+        await bootstrap();
         const notificationService = new NotificationService(this.kv, loggingService);
         const eventBus = new EventBus(loggingService);
         const healthService = new HealthService(loggingService);
@@ -136,12 +150,13 @@ export class SovereignApp {
         // REPOSITORY INJECTION
         const auditRepo = new KvAuditRepository(this.kv);
         this.auditService = new AuditService(auditRepo, loggingService, tpmManager);
+        this.auditService.setConfig(configProvider);
 
         // ── Phase 3: Mesh & Network ──────────────────────────────────────────
-        const meshManager = await this.initMesh(tpmManager);
+        const meshManager = await this.initMesh(tpmManager, configProvider);
 
         // ── Phase 4: Hardware Integrity ──────────────────────────────────────
-        await this.verifyHardware(tpmManager);
+        await this.verifyHardware(tpmManager, configProvider);
 
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
@@ -169,7 +184,7 @@ export class SovereignApp {
 
         this.services.lifecycle.setKv(this.kv);
         this.services.lifecycle.setPolicyEngine(this.services.policy);
-        this.services.lifecycle.startShadowModeTimer();
+        this.services.lifecycle.startShadowModeTimer(configProvider);
         this.services.lifecycle.scheduleLkgSnapshot();
     }
 
@@ -236,17 +251,13 @@ export class SovereignApp {
         loggingService.setKv(this.kv);
         this.executor = new SystemExecutor();
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
-
-        // Bridge TPM to SidecarManager for Signed Manifest Verification
-        const tpmManager = new TPMManager(this.sidecarManager, loggingService);
-        this.sidecarManager.setTpm(tpmManager);
-
-        await bootstrap();
     }
 
-    private async initMesh(tpm: TPMManager): Promise<MeshManager> {
+    private async initMesh(tpm: TPMManager, config: any): Promise<MeshManager> {
         const meshAuthService = new MeshAuthService(this.kv, loggingService, tpm);
+        meshAuthService.setConfig(config);
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService);
+        meshManager.setConfig(config);
         
         setMeshManager(meshManager);
         await meshManager.init();
@@ -279,6 +290,7 @@ export class SovereignApp {
         services.processTracker.setEventBus?.(bus);
         services.kernelService.setEventBus?.(bus);
         services.audit.setEventBus?.(bus);
+        services.kernelService.setConfig?.(services.config);
         (services.protection.vpn as any).setEventBus?.(bus);
         services.behavioral.setEventBus?.(bus);
     }
@@ -330,7 +342,7 @@ export class SovereignApp {
         watchdog.start();
     }
 
-    private async verifyHardware(tpm: TPMManager) {
+    private async verifyHardware(tpm: TPMManager, config: EnvConfigProvider) {
         const goldenPcrs: Record<number, string> = {};
         for (const [key, value] of Object.entries(Deno.env.toObject())) {
             if (key.startsWith("TPM_GOLDEN_PCR_")) {
@@ -340,13 +352,13 @@ export class SovereignApp {
         }
 
         const isHardwareSecure = await tpm.verifyIntegrity(goldenPcrs);
-        const bypassToken = Deno.env.get("SECURE_ENVIRONMENT_TOKEN");
-        const secureBypass = Deno.env.get("SECURE_BYPASS_TOKEN");
+        const bypassToken = config.getEnv("SECURE_ENVIRONMENT_TOKEN");
+        const secureBypass = config.getEnv("SECURE_BYPASS_TOKEN");
 
         const isValidBypass = secureBypass &&
                              secureBypass.length >= 32 &&
                              (await secureCompare(bypassToken, secureBypass)) &&
-                             Deno.env.get("ENVIRONMENT") !== "production";
+                             config.getEnv("ENVIRONMENT") !== "production";
 
         if (!isHardwareSecure && !isValidBypass) {
             await loggingService.log({
@@ -405,7 +417,7 @@ export class SovereignApp {
             await kernelService.start();
 
             // SOV-P2: Apply AppArmor Lockdown for critical sidecars
-            if (Deno.env.get("ENVIRONMENT") === "production") {
+            if (this.services.config.getEnv("ENVIRONMENT") === "production") {
                 const sidecars = ["analyzer", "sentinel", "watchfile"];
                 for (const name of sidecars) {
                     await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`);
@@ -537,7 +549,7 @@ export class SovereignApp {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
         const identity = this.initIdentitySubsystem(configProvider);
-        const { protection, networkLog } = await this.initProtectionSubsystem(platformInfo);
+        const { protection, networkLog } = await this.initProtectionSubsystem(platformInfo, configProvider);
         
         const processTracker = this.initProcessTracker(platformInfo);
         
@@ -580,12 +592,13 @@ export class SovereignApp {
         return { sessions, apiKeys, rateLimit };
     }
 
-    private async initProtectionSubsystem(platformInfo: any) {
+    private async initProtectionSubsystem(platformInfo: any, configProvider: EnvConfigProvider) {
         const networkLogRepo = new KvNetworkLogRepository(this.kv);
         const networkLog = new NetworkLogService(networkLogRepo, loggingService);
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         await rawProtection.firewall.setKv(this.kv);
         const protection = new ProtectionAdapter(rawProtection);
+        (rawProtection.firewall as any).setConfig?.(configProvider);
         return { protection, networkLog };
     }
 

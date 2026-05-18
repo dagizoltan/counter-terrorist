@@ -9,6 +9,7 @@ import { CommandPort } from "@core/ports.ts";
  * Manages persistent Rust sidecars.
  */
 export class SidecarManager implements CommandPort {
+  private config?: any;
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
   private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
@@ -29,15 +30,15 @@ export class SidecarManager implements CommandPort {
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
+  }
+
+  public init() {
     this.startRotationLoop();
-    // Manifest load is async and uses logging, so we don't block constructor
-    // but ensure it's called after logging service is ready.
-    this.manifestPromise = new Promise(resolve => {
-        setTimeout(async () => {
-            await this.loadManifest();
-            resolve();
-        }, 0);
-    });
+    this.manifestPromise = this.loadManifest();
+  }
+
+  setConfig(config: any) {
+    this.config = config;
   }
 
   setTpm(tpm: any) {
@@ -50,7 +51,7 @@ export class SidecarManager implements CommandPort {
         const content = await Deno.readTextFile(manifestUrl);
         const data = JSON.parse(content);
 
-        const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+        const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
 
         // SOV-P1: Implement Signed Manifest Enforcement
         if (data.signature && this.tpm) {
@@ -97,7 +98,7 @@ export class SidecarManager implements CommandPort {
                 message: `Manifest unavailable or invalid: ${(e as Error).message}`
             });
         }
-        if (Deno.env.get("ENVIRONMENT") === "production") throw e;
+        if (this.config?.getEnv("ENVIRONMENT") === "production") throw e;
     }
   }
 
@@ -236,7 +237,7 @@ export class SidecarManager implements CommandPort {
                 return null;
             }
 
-            const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
+            const isDev = this.config?.getBoolean("CTS_DEV_MODE", false);
             
             // ENHANCEMENT: Transition to Linux Capabilities (setcap)
             // Removes dependency on sudo -n for sidecar execution
@@ -247,7 +248,7 @@ export class SidecarManager implements CommandPort {
             if (!isDev) {
                 const caps = this.getCapabilities(name) || "";
                 const spawnScript = await this.findScript("secure_spawn.sh");
-                const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+                const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
 
                 if (spawnScript) {
                     const res = await this.executor.execute(spawnScript, [name, binPath, caps]);
@@ -289,7 +290,7 @@ export class SidecarManager implements CommandPort {
 
             // Active Safety: Implement Resource Throttling for Pilots
             // On Linux, we attempt to use systemd-run for CPU/Memory constraints if running as root
-            const isPilot = Deno.env.get("PILOT_MODE") === "true";
+            const isPilot = this.config?.getBoolean("PILOT_MODE", false);
             const isLinux = Deno.build.os === "linux";
             let finalExec = execPath;
             let finalArgs: string[] = [];
@@ -401,9 +402,9 @@ export class SidecarManager implements CommandPort {
     const extension = isWindows ? ".exe" : "";
     
     // Support environment variable overrides for custom binary locations
-    const envPath = Deno.env.get(`CTS_BINARY_${name.toUpperCase()}`);
+    const envPath = this.config?.getEnv(`CTS_BINARY_${name.toUpperCase()}`);
     
-    const isDev = Deno.env.get("CTS_DEV_MODE") === "true";
+    const isDev = this.config?.getBoolean("CTS_DEV_MODE", false);
     const paths = [
       envPath,
       `/opt/cts/bin/${name}${extension}`,
@@ -736,8 +737,8 @@ export class SidecarManager implements CommandPort {
     if (!currentHash && !force) return false;
 
     // Authoritative check against Signed Manifest
-    const isProduction = Deno.env.get("ENVIRONMENT") === "production";
-    const goldenHash = this.manifest?.sidecars?.[name]?.hash || Deno.env.get(`CTS_HASH_${name.toUpperCase()}`);
+    const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
+    const goldenHash = this.manifest?.sidecars?.[name]?.hash || this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
 
     // BUG-05: Make manifest mandatory in production
     if (isProduction && !this.manifest?.sidecars?.[name]?.hash) {

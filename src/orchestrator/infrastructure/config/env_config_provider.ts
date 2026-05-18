@@ -16,20 +16,19 @@ export class EnvConfigProvider implements ConfigurationPort {
   }
 
   getEnv(key: string): string | undefined {
-    // Fallback to direct Deno.env for keys not in the schema, 
-    // but preferred to add them to schema.
-    return (this.config as any)[key] || Deno.env.get(key);
+    const val = (this.config as any)[key];
+    return val !== undefined ? String(val) : undefined;
   }
 
   getNumber(key: string, defaultValue: number): number {
     const val = (this.config as any)[key];
     if (val === undefined) return defaultValue;
-    return typeof val === "number" ? val : defaultValue;
+    return typeof val === "number" ? val : Number(val);
   }
 
   getBoolean(key: string, defaultValue: boolean): boolean {
     const val = (this.config as any)[key];
     if (val === undefined) return defaultValue;
-    return val === true || val === "true";
+    return val === true || val === "true" || val === 1;
   }
 }

@@ -26,12 +26,15 @@ export class LoggingService implements LoggingPort {
         if (kv) {
             this.diagnosticRepo = new DiagnosticRepository(kv);
         }
-        this.remoteHost = Deno.env.get("SYSLOG_HOST") || null;
-        this.remotePort = Number(Deno.env.get("SYSLOG_PORT")) || 514;
-        this.transport = (Deno.env.get("SYSLOG_TRANSPORT") as SyslogTransport) || "udp";
-        this.tlsCaCertPath = Deno.env.get("SYSLOG_CA_PATH") || null;
+    }
 
-        if (this.remoteHost) {  
+    public setConfig(config: { host?: string, port?: number, transport?: string, caPath?: string }) {
+        this.remoteHost = config.host || null;
+        this.remotePort = config.port || 514;
+        this.transport = (config.transport as SyslogTransport) || "udp";
+        this.tlsCaCertPath = config.caPath || null;
+
+        if (this.remoteHost) {
             this.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,

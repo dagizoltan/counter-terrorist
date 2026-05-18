@@ -154,8 +154,8 @@ export class LifecycleService {
         }, 600000); // 10 minutes
     }
 
-    public startShadowModeTimer() {
-        const shadowDuration = Number(Deno.env.get("SHADOW_MODE_DURATION_HOURS")) || 24;
+    public startShadowModeTimer(config: any) {
+        const shadowDuration = config.getNumber("SHADOW_MODE_DURATION_HOURS", 24);
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,

@@ -24,6 +24,7 @@ export class MeshManager {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
+  private config?: any;
 
   shutdown() {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
@@ -59,11 +60,15 @@ export class MeshManager {
         caller: "orchestrator:domain:orchestration:mesh",
         message: "Initializing Sovereign Mesh Infrastructure..."
     });
-    this.meshSecret = Deno.env.get("MESH_SECRET");
   }
 
   setEventBus(eventBus: any) {
     this.eventBus = eventBus;
+  }
+
+  setConfig(config: any) {
+    this.config = config;
+    this.meshSecret = config.getEnv("MESH_SECRET");
   }
 
   private emitMetrics() {
@@ -80,7 +85,7 @@ export class MeshManager {
 
   async init() {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
-    this.port = Number(Deno.env.get("PORT")) || 8000;
+    this.port = this.config?.getNumber("PORT", 8000) || 8000;
 
     try {
       this.nodeCert = await this.meshAuth.generateNodeCert(this.nodeId);
@@ -127,7 +132,7 @@ export class MeshManager {
     if (this.discoveryInterval) return;
 
     // SINGLE_NODE mode bypasses all external discovery to run in isolation
-    if (Deno.env.get("SINGLE_NODE") === "true") {
+    if (this.config?.getEnv("SINGLE_NODE") === "true") {
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
@@ -652,7 +657,7 @@ export class MeshManager {
    */
   async requestQuorumCommand(action: string, data: any): Promise<boolean> {
       // SINGLE_NODE mode or no peers: Quorum is automatically satisfied if the action is authorized locally
-      if (Deno.env.get("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
+      if (this.config?.getEnv("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
