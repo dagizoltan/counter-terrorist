@@ -1,28 +1,24 @@
 import { SessionRepository } from "@domain/repositories/session_repository.ts";
 import { Session } from "@domain/identity/session.ts";
+import { KvRepository } from "../repositories/kv_repository.ts";
 
-export class KvSessionRepository implements SessionRepository {
-    private prefix = "session";
-
-    constructor(private kv: Deno.Kv) {}
+export class KvSessionRepository extends KvRepository<Session> implements SessionRepository {
+    constructor(kv: Deno.Kv) {
+        super(kv, "session");
+    }
 
     async save(session: Session): Promise<void> {
-        await this.kv.set([this.prefix, session.id], session);
+        await this.set(session.id, session);
     }
 
     async getById(id: string): Promise<Session | null> {
-        const res = await this.kv.get<Session>([this.prefix, id]);
-        return res.value;
-    }
-
-    async delete(id: string): Promise<void> {
-        await this.kv.delete([this.prefix, id]);
+        return await this.get(id);
     }
 
     async *listAll(): AsyncIterable<Session> {
-        const iter = this.kv.list<Session>({ prefix: [this.prefix] });
-        for await (const entry of iter) {
-            yield entry.value;
+        const items = await this.list();
+        for (const item of items) {
+            yield item;
         }
     }
 }

@@ -1,7 +1,8 @@
 import { LoggingPort, LogSeverity, LogType, EventBusPort } from "@core/ports.ts";
-import { validateEvent, EventName } from "@core/event_schema.ts";
+import { validateEvent, EventName, EventRegistry } from "@core/event_schema.ts";
+import { z } from "npm:zod";
 
-export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT";
+export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT" | "METRIC_UPDATE";
 
 export interface SystemEvent {
   type: EventType;
@@ -9,6 +10,8 @@ export interface SystemEvent {
   timestamp: string;
   data?: any;
 }
+
+export type Handler<T extends EventName> = (data: z.infer<EventRegistry[T]>) => void | Promise<void>;
 
 export class EventBus implements EventBusPort {
   private handlers: ((event: SystemEvent) => void | Promise<void>)[] = [];
@@ -38,7 +41,7 @@ export class EventBus implements EventBusPort {
     }
   }
 
-  on(event: string, callback: (data: any) => void | Promise<void>): () => void {
+  on<T extends EventName>(event: T, callback: Handler<T>): () => void {
     if (!this.keyedListeners.has(event)) {
       this.keyedListeners.set(event, []);
     }
@@ -46,12 +49,12 @@ export class EventBus implements EventBusPort {
     return () => this.unsubscribe(callback);
   }
 
-  emit(event: string, data: any) {
+  emit<T extends EventName>(event: T, data: z.infer<EventRegistry[T]>) {
     this.publish(event, `Emitted event: ${event}`, data);
   }
 
-  publish(type: string, message: string, data?: any) {
-    const validatedData = validateEvent(type as EventName, data);
+  publish<T extends EventName>(type: T, message: string, data?: z.infer<EventRegistry[T]>) {
+    const validatedData = validateEvent(type, data);
     
     const event: SystemEvent = {
         type: type as EventType,
@@ -62,7 +65,7 @@ export class EventBus implements EventBusPort {
 
     // Forward to centralized logging (Suppress massive payloads for periodic noise)
     const severity = this.mapTypeToSeverity(type);
-    const isNoise = type === "DEBUG" || type === "METRIC_UPDATE";
+    const isNoise = type === "DEBUG" || type === "METRIC_UPDATE" || (type as string) === "INFO";
     const logType = isNoise ? LogType.DEBUG : LogType.AUDIT;
 
     this.logging.log({
@@ -92,7 +95,7 @@ export class EventBus implements EventBusPort {
   private safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000) {
     try {
       const res = fn();
-      if (!(res instanceof Promise)) return;
+      if (!(res instanceof Promise)) return; // PERFORMANCE: Avoid microtask overhead for sync handlers
 
       // Only handle async if it's actually a promise
       (async () => {

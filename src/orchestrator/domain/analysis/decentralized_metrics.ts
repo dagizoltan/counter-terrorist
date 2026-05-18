@@ -1,67 +1,44 @@
-import { SystemMetrics, setMetricsService } from "./metrics_service.ts";
-import { LogSeverity, LogType, LoggingPort } from "@core/ports.ts";
 import { EventBus } from "./events.ts";
+import { LogSeverity, LogType } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
 
-/**
- * Decentralized Metrics Service
- * No longer a "God Object". Listens to METRIC_UPDATE events from individual domains.
- */
-export class DecentralizedMetricsService {
-    private cachedMetrics: Partial<SystemMetrics> = {};
-    private isRunning = false;
+export class DecentralizedMetricsService extends BaseService {
+    private metrics: Map<string, any> = new Map();
     private interval?: number;
 
     constructor(
-        private eventBus: EventBus,
-        private logging: LoggingPort,
-        private broadcast: (data: any) => void
+        eventBus: EventBus,
+        private logging: any
     ) {
-        this.wireEvents();
-        this.start();
-        setMetricsService(this as any);
-    }
+        super();
+        this.setEventBus(eventBus);
 
-    private wireEvents() {
-        this.eventBus.on("METRIC_UPDATE", (payload: { domain: string, data: any }) => {
-            const { domain, data } = payload;
-            (this.cachedMetrics as any)[domain] = data;
-
-            // Real-time broadcast for high-frequency updates if needed
-            if (domain === "firewall" || domain === "node") {
+        this.eventBus!.on("METRIC_UPDATE", (event: any) => {
+            if (event && event.domain) {
+                this.metrics.set(event.domain, event.data);
                 this.broadcastMetrics();
             }
         });
+
+        this.interval = setInterval(() => this.broadcastMetrics(), 5000 + (Math.random() * 500));
     }
 
-    private start() {
-        this.isRunning = true;
-        this.interval = setInterval(() => this.broadcastMetrics(), 5000);
-    }
-
-    public stop() {
-        this.isRunning = false;
+    override stop() {
         if (this.interval) clearInterval(this.interval);
     }
 
     private broadcastMetrics() {
-        if (!this.isRunning) return;
-
-        this.broadcast({
-            type: "DEBUG",
-            subType: "METRICS_UPDATE",
-            data: this.cachedMetrics
+        if (!this.eventBus) return;
+        this.eventBus.emit("UI_BROADCAST", {
+            type: "METRICS_SUMMARY",
+            data: Object.fromEntries(this.metrics.entries())
         });
     }
 
-    getLatest(): SystemMetrics {
-        return this.cachedMetrics as SystemMetrics;
-    }
-
-    recordScan(time: string, result: string) {
-        if (!this.cachedMetrics.scanner) {
-            this.cachedMetrics.scanner = { lastScanTime: "NEVER", lastScanResult: "PENDING", available: true };
-        }
-        this.cachedMetrics.scanner.lastScanTime = time;
-        this.cachedMetrics.scanner.lastScanResult = result;
+    public recordScan(results: any) {
+        this.eventBus!.emit("METRIC_UPDATE", {
+            domain: "scans",
+            data: results
+        });
     }
 }

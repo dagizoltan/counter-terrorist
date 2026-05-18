@@ -1,4 +1,5 @@
-import { broadcast } from "@api/ws.ts";
+import { BaseService } from "@core/base_service.ts";
+
 import { MeshAuthService } from "../index.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
@@ -14,7 +15,7 @@ export interface MeshNode {
   verified: boolean;
 }
 
-export class MeshManager {
+export class MeshManager extends BaseService {
   private nodes: Map<string, MeshNode> = new Map();
   private eventBus?: any;
   private discoveryInterval: number | null = null;
@@ -52,6 +53,7 @@ export class MeshManager {
     private logging: LoggingPort,
     private audit: AuditService
   ) {
+    super();
     setInterval(() => this.emitMetrics(), 30000);
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -420,7 +422,7 @@ export class MeshManager {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `New node registered: ${node.hostname} (${node.address}:${node.port}) [verified=${node.verified}]`
       });
-      broadcast({
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
             type: LogType.AUDIT,
@@ -496,7 +498,7 @@ export class MeshManager {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `ISOLATED NODE: ${node.hostname} (${nodeId}) revoked from mesh due to security policy.`
       });
-      broadcast({
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
             type: LogType.AUDIT,
@@ -521,7 +523,7 @@ export class MeshManager {
         message: `Gossip: Broadcasting block for ${ip}`
     });
 
-    await this.broadcast({
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_BLOCK",
         ip,
         sourceNode: this.nodeId,
@@ -541,7 +543,7 @@ export class MeshManager {
         message: `Gossip: Broadcasting threat hash ${hash.slice(0, 8)}`
     });
 
-    await this.broadcast({
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_THREAT_HASH",
         hash,
         sourceNode,
@@ -561,7 +563,7 @@ export class MeshManager {
         message: "Gossip: Initiating high-priority EMERGENCY LOCKDOWN broadcast..."
     });
 
-    await this.broadcast({
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_LOCKDOWN",
         sourceNode: this.nodeId,
         timestamp: Date.now()
@@ -572,14 +574,14 @@ export class MeshManager {
    * Broadcasts a critical audit event to the mesh.
    */
   async broadcastAuditEvent(event: any) {
-    await this.broadcast({ type: "GOSSIP_AUDIT", event });
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "GOSSIP_AUDIT", event });
   }
 
   /**
    * Broadcasts the current audit chain head for cross-node verification.
    */
   async broadcastAuditVerification(lastHash: string, eventCount: number) {
-    await this.broadcast({
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "GOSSIP_AUDIT_VERIFY",
         lastHash,
         eventCount,
@@ -899,7 +901,7 @@ export class MeshManager {
         message: `Identity Rotation Complete: ${oldId} -> ${this.nodeId}`
     });
     
-    broadcast({
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "INFO",
         message: "Security Mesh Identity Phased",
         data: { oldId, newId: this.nodeId }

@@ -1,41 +1,41 @@
-import { EventBus, ProcessTracker, ForensicService } from "@domain/index.ts";
-import { PlaybookService } from "./playbook_service.ts";
-import { broadcast } from "@api/ws.ts";
-import { AuditService } from "../analysis/audit.ts";
 import { AutonomousResponseEngine } from "./autonomous_response.ts";
-import { ProtectionPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { NotificationService } from "../analysis/notifications.ts";
-import { MeshManager } from "./mesh.ts";
-
+import { LogSeverity, LogType } from "@core/ports.ts";
+import { ServiceContainer } from "@core/container.ts";
 import { PolicyEngine } from "./policy_engine.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
+import { BaseService } from "@core/base_service.ts";
 
-export class AutopilotService {
-  private engine: AutonomousResponseEngine;
+export interface AutopilotDependencies {
+  eventBus: any;
+  logging: any;
+  health: any;
+  playbook: any;
+  kernelService: any;
+  processTracker: any;
+  protection: any;
+  audit: any;
+  forensicService: any;
+  mesh: any;
+  notifications: any;
+}
+
+export class AutopilotService extends BaseService {
+  private services?: AutopilotDependencies;
+  private engine!: AutonomousResponseEngine;
   private policy: PolicyEngine;
 
-  constructor(
-    private eventBus: EventBus,
-    private playbookService: PlaybookService,
-    private auditService: AuditService,
-    private protection: ProtectionPort,
-    private mesh: MeshManager,
-    private notifications: NotificationService,
-    private logging: LoggingPort,
-    private processTracker: ProcessTracker,
-    private forensics: ForensicService,
-    private kernel: any, // KernelService
-    private health?: any // HealthService
-  ) {
-    this.policy = new PolicyEngine(logging);
+  constructor() {
+    super();
+    // PolicyEngine must be available immediately for getPolicy()
+    this.policy = new PolicyEngine(loggingService);
+  }
+
+  public init(services: AutopilotDependencies) {
+    this.services = services;
+    // Engine depends on the full services container
     this.engine = new AutonomousResponseEngine(
-        this.policy,
-        protection,
-        kernel,
-        mesh,
-        notifications,
-        auditService,
-        forensics,
-        logging
+        this.services as any,
+        this.policy
     );
   }
 
@@ -56,6 +56,7 @@ export class AutopilotService {
   private unsubscribers: (() => void)[] = [];
 
   shutdown() {
+      if (!this.services) return;
       this.isStarted = false;
       if (this.intervalId) {
           clearInterval(this.intervalId);
@@ -67,7 +68,7 @@ export class AutopilotService {
           try { this.lureProcess.kill(); } catch {}
           this.lureProcess = null;
       }
-      this.logging.log({
+      this.services.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
           severity: LogSeverity.INFO,
@@ -77,10 +78,11 @@ export class AutopilotService {
   }
 
   async start() {
+    if (!this.services) return;
     if (this.isStarted) return;
     this.isStarted = true;
 
-    this.logging.log({
+    this.services.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
@@ -92,7 +94,7 @@ export class AutopilotService {
 
     // BUG-32: Periodic health check for the lure process
     const healthCheckInterval = setInterval(async () => {
-        if (!this.isStarted) {
+        if (!this.isStarted || !this.services) {
             clearInterval(healthCheckInterval);
             return;
         }
@@ -101,21 +103,21 @@ export class AutopilotService {
             try {
                 const status = await this.lureProcess.status;
                 // If status resolved, the process exited
-                if (this.health) this.health.reportStatus("Lure", "FAILED", `Lure process exited with code ${status.code}`);
+                if (this.services.health) this.services.health.reportStatus("Lure", "FAILED", `Lure process exited with code ${status.code}`);
                 this.lureProcess = null;
             } catch {
                 // Process is still running
-                if (this.health) this.health.reportStatus("Lure", "OPERATIONAL");
+                if (this.services.health) this.services.health.reportStatus("Lure", "OPERATIONAL");
             }
         } else {
-            if (this.health) this.health.reportStatus("Lure", "FAILED", "Lure process is not running");
+            if (this.services.health) this.services.health.reportStatus("Lure", "FAILED", "Lure process is not running");
         }
     }, 30000);
     this.unsubscribers.push(() => clearInterval(healthCheckInterval));
 
     // Keyed Listeners for domain-specific events
     const on = (ev: string, fn: (data: any) => void) => {
-        this.unsubscribers.push(this.eventBus.on(ev, fn));
+        this.unsubscribers.push(this.services!.eventBus.on(ev, fn));
     };
 
     on("HONEYPOT", async (data) => {
@@ -162,10 +164,10 @@ export class AutopilotService {
         const { pid, comm, syscall, args } = data;
         
         // 1. Behavioral Assessment
-        const anomalyResult = await this.playbookService.executeBehavioralAudit(pid, comm, syscall, args);
+        const anomalyResult = await this.services!.playbook.executeBehavioralAudit(pid, comm, syscall, args);
         
         if (anomalyResult === "BLOCK_SYSCALL") {
-            await this.kernel.blockSyscall(pid, syscall);
+            await this.services!.kernelService.blockSyscall(pid, syscall);
         }
 
         await this.engine.evaluate({
@@ -177,7 +179,7 @@ export class AutopilotService {
         });
 
         // Demand Scan: Critical syscalls might indicate rootkit injection attempts
-        this.processTracker.scanForGhosts().then(ghosts => {
+        this.services!.processTracker.scanForGhosts().then(ghosts => {
             if (ghosts.length > 0) {
                 this.engine.evaluate({
                     source: "local",
@@ -192,12 +194,12 @@ export class AutopilotService {
 
     // Proactive Artifact Containment Hook
     on("ARTIFACT_FOUND", async (data) => {
-        await this.playbookService.executeArtifactContainment(data.indicator, data);
+        await this.services!.playbook.executeArtifactContainment(data.indicator, data);
     });
 
     // Periodic integrity check using injected authoritative tracker
     this.intervalId = setInterval(async () => {
-        const ghosts = await this.processTracker.scanForGhosts();
+        const ghosts = await this.services!.processTracker.scanForGhosts();
         if (ghosts.length > 0) {
             await this.engine.evaluate({
                 source: "local",
@@ -210,7 +212,8 @@ export class AutopilotService {
     }, 60000); 
   }
 
-  private async spawnLureProcess() {
+  public async spawnLureProcess() {
+    if (!this.services) return;
     try {
         const scriptPath = new URL("../../tools/lure.ts", import.meta.url).pathname;
         const command = new Deno.Command(Deno.execPath(), {
@@ -219,7 +222,7 @@ export class AutopilotService {
             stderr: "null",
         });
         this.lureProcess = command.spawn();
-        this.logging.log({
+        this.services.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
@@ -227,7 +230,7 @@ export class AutopilotService {
             message: "Deception lure deployed: hashicorp-vault-proxy"
         });
     } catch (e) {
-        this.logging.log({
+        this.services.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.WARNING,

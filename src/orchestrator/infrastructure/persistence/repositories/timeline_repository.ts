@@ -6,6 +6,7 @@ import { KvRepository } from "./kv_repository.ts";
  */
 export class TimelineRepository<T extends { id: string; timestamp: string | number }> extends KvRepository<T> {
   override async set(id: string, data: T): Promise<void> {
+    this.checkWritePermission();
     const ts = typeof data.timestamp === "string" ? new Date(data.timestamp).getTime() : data.timestamp;
     
     // Atomic set + counter increment
@@ -19,6 +20,7 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
 
   async setMany(items: { id: string, data: T }[]): Promise<void> {
     if (items.length === 0) return;
+    this.checkWritePermission();
 
     let atomic = this.kv.atomic();
     let count = 0;
@@ -57,6 +59,7 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
   }
 
   async deleteBefore(timestamp: number): Promise<number> {
+    this.checkWritePermission();
     const iter = this.kv.list<T>({ prefix: [this.prefix], end: [this.prefix, timestamp] });
     let count = 0;
     let atomic = this.kv.atomic();
@@ -67,7 +70,6 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
       count++;
       batchSize++;
 
-      // BUG-8.3 FIX: Increase batch size for better efficiency during large purges
       if (batchSize >= 100) {
         await atomic.mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(BigInt(-batchSize)) })
               .commit();
@@ -91,12 +93,10 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
         return Number(res.value.value);
     }
     
-    // BUG-4.15 FIX: Prevent concurrent heavy counts
     if (this.isCounting) return 0;
     this.isCounting = true;
 
     try {
-        // Fallback: recount once and initialize (heavy, but self-healing)
         let count = 0;
         const iter = this.kv.list({ prefix: [this.prefix] });
         for await (const _ of iter) {
