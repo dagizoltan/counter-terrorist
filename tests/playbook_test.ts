@@ -1,8 +1,5 @@
 import { assert, assertEquals } from "https://deno.land/std/testing/asserts.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { PlaybookService } from "@domain/orchestration/playbook_service.ts";
-import { NotificationService } from "@domain/analysis/notifications.ts";
-import { loggingService } from "@infrastructure/system/logging.ts";
 
 Deno.test("PlaybookService - Honeypot auto-block", async () => {
   // Mock dependencies
@@ -26,18 +23,6 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
     isolateNode: () => {}
   } as any;
 
-  const mockSidecarManager = {
-    handlers: new Map<string, ((data: any) => void)[]>(),
-    onEvent(name: string, handler: (data: any) => void) {
-      if (!this.handlers.has(name)) this.handlers.set(name, []);
-      this.handlers.get(name)!.push(handler);
-    },
-    emit(name: string, data: any) {
-      const h = this.handlers.get(name) || [];
-      h.forEach((fn: (d: any) => void) => fn(data));
-    }
-  } as any;
-
   const eventHandlers: Record<string, (data: any) => void> = {};
   const mockEventBus = {
     on: (name: string, handler: (data: any) => void) => {
@@ -48,8 +33,17 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
     }
   };
 
-  const playbook = new PlaybookService(mockSidecarManager, mockProtection, mockNotifications, mockMeshManager, {} as any, mockEventBus as any);
-  await playbook.init();
+  const services = {
+    protection: mockProtection,
+    notifications: mockNotifications,
+    mesh: mockMeshManager,
+    eventBus: mockEventBus,
+    shadowProtocol: {} as any,
+    logging: { log: async () => {} }
+  } as any;
+
+  const playbook = new PlaybookService();
+  playbook.init(services);
 
   // Simulate honeypot access
   const event = {

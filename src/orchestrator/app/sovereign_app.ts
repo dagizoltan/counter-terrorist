@@ -22,7 +22,7 @@ import {
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
-import { ServiceContainer } from "@core/container.ts";
+import { ServiceContainer, PlatformInfo } from "@core/container.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { broadcast, initBroadcaster } from "@api/ws.ts";
 import { createProtection } from "@infrastructure/system/protection/index.ts";
@@ -542,7 +542,7 @@ export class SovereignApp {
     }
 
     private async initServices(
-        configProvider: EnvConfigProvider, platformInfo: any, notifications: NotificationService, 
+        configProvider: EnvConfigProvider, platformInfo: PlatformInfo, notifications: NotificationService,
         eventBus: EventBus, mesh: MeshManager, 
         tpm: TPMManager, health: HealthService
     ): Promise<ServiceContainer> {
@@ -561,27 +561,38 @@ export class SovereignApp {
 
         const intelligence = this.initIntelligenceSubsystem(protection, processTracker, health, configProvider, mesh);
 
-        const playbook = new PlaybookService(this.sidecarManager, protection, notifications, mesh, security.shadowProtocol, eventBus);
-        const engine = await this.initEngineSubsystem(correlation, eventBus, playbook, notifications, mesh, security.shadowProtocol, this.sidecarManager, protection, intelligence.forensicService, security.kernelService, processTracker, security.honeypot, security.canaryService, health);
-        (engine.autopilot as any).health = health;
+        const playbook = new PlaybookService();
+        const { autopilot, autonomousAutopilot, lifecycle, policy } = await this.initEngineSubsystem(correlation, this.sidecarManager);
 
-        return {
+        const morphing = this.safeInit(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
+        const chaos = this.safeInit(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
+        const supplyChain = this.safeInit(health, "SupplyChain", () => new SupplyChainService());
+        await supplyChain.init();
+        const shadow = this.safeInit(health, "Shadow", () => new ShadowService(this.executor, loggingService));
+        const covert = this.safeInit(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
+
+        const services: ServiceContainer = {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
             notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService),
             processTracker, sessions: identity.sessions, apiKeys: identity.apiKeys, eventBus,
             honeypot: security.honeypot, canaryService: security.canaryService, kernelService: security.kernelService, forensicService: intelligence.forensicService,
-            autopilot: engine.autopilot, autonomousAutopilot: engine.autonomousAutopilot, lifecycle: engine.lifecycle, logging: loggingService,
-            playbook, morphing: engine.morphing, chaos: engine.chaos,
-            supplyChain: engine.supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: intelligence.curatedIntel as any,
+            autopilot, autonomousAutopilot, lifecycle, logging: loggingService,
+            playbook, morphing, chaos,
+            supplyChain, mesh, meshAuth: (mesh as any).authService, threatIntel: intelligence.curatedIntel as any,
             compliance: intelligence.compliance, anonymization: security.anonymization, shadowProtocol: security.shadowProtocol, deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
             curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
-            incidents: intelligence.incidents, platformInfo, shadow: engine.shadow, covert: engine.covert,
+            incidents: intelligence.incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,
             metrics: (setMetricsService as any)._instance, // Accessing singleton instance set in initOperationalLayer
             mediator: new EventMediator(eventBus, processTracker, security.canaryService, broadcast, loggingService, this.kv),
-            behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy: engine.policy, correlation
+            behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy, correlation
         };
+
+        playbook.init(services);
+        autopilot.init(services);
+
+        return services;
     }
 
     private initIdentitySubsystem(configProvider: EnvConfigProvider) {
@@ -644,19 +655,12 @@ export class SovereignApp {
         return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
     }
 
-    private async initEngineSubsystem(correlation: CorrelationService, eventBus: any, playbook: any, notifications: any, mesh: any, shadowProtocol: any, sidecarManager: any, protection: any, forensicService: any, kernelService: any, processTracker: any, honeypot: any, canaryService: any, health: any) {
-        const autopilot = new AutopilotService(eventBus, playbook, this.auditService, protection, mesh, notifications, loggingService, processTracker, forensicService, kernelService);
+    private async initEngineSubsystem(correlation: CorrelationService, sidecarManager: any) {
+        const autopilot = new AutopilotService();
         const autonomousAutopilot = new AutonomousAutopilotService(correlation, sidecarManager, loggingService);
         const lifecycle = new LifecycleService(sidecarManager, loggingService);
 
-        const morphing = this.safeInit(health, "Morphing", () => new MorphingService(honeypot, canaryService, this.auditService, mesh));
-        const chaos = this.safeInit(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
-        const supplyChain = this.safeInit(health, "SupplyChain", () => new SupplyChainService());
-        await supplyChain.init();
-        const shadow = this.safeInit(health, "Shadow", () => new ShadowService(this.executor, loggingService));
-        const covert = this.safeInit(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
-
-        return { autopilot, autonomousAutopilot, lifecycle, morphing, chaos, supplyChain, shadow, covert, policy: autopilot.getPolicy(), correlation };
+        return { autopilot, autonomousAutopilot, lifecycle, policy: autopilot.getPolicy(), correlation };
     }
 
     private safeInit<T extends object>(health: HealthService, name: string, factory: () => T): T {
