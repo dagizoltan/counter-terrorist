@@ -378,8 +378,33 @@ export class AuditService extends BaseService {
     async verifyChainIncremental() {
         if (this.lastHash === this.lastVerifiedHash) return;
         const res = await this.verifyChain(100);
+
         if (res.valid) {
             this.lastVerifiedHash = this.lastHash;
+        } else {
+            // AUTOMATED INTEGRITY RESPONSE
+            const brokenAt = res.brokenAt;
+            const message = `AUDIT LEDGER TAMPERING DETECTED: ${brokenAt?.type} at event ${brokenAt?.eventId.slice(0, 8)}. System state compromised.`;
+
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:analysis:audit",
+                message
+            });
+
+            if (this.eventBus) {
+                this.eventBus.emit("CRITICAL", {
+                    message,
+                    source: "AuditService",
+                    type: "LEDGER_TAMPER",
+                    data: res.brokenAt
+                });
+            }
+
+            // In a high-assurance production environment, we should consider forcing an emergency lockdown
+            // However, we emit the CRITICAL event first to let the PolicyEngine/Autopilot decide on the specific remediation.
         }
     }
 

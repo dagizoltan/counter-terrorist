@@ -352,6 +352,26 @@ export class SovereignApp {
 
     private wireEvents() {
         this.services.mediator.wireSidecars(this.services.command);
+
+        // Fail-Closed Lifecycle: Monitor critical sidecar health
+        this.sidecarManager.onEvent("SYSTEM_ERROR", (payload) => {
+            if (payload.type === "SIDECAR_CRASH_LOOP" && payload.critical) {
+                this.loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:app:sovereign_app:fail_closed",
+                    message: `FATAL: Critical sidecar '${payload.sidecar}' entered crash loop. Initiating emergency lockdown.`
+                }).catch(() => {});
+
+                this.emergencyLockdown(`Critical Sidecar Failure: ${payload.sidecar}`);
+            }
+        });
+    }
+
+    // Accessor for internal logging
+    private get loggingService() {
+        return (this as any).services?.logging || loggingService;
     }
 
     private async startSubsystems() {
@@ -437,17 +457,27 @@ export class SovereignApp {
         }
 
         // BUG-5.5 FIX: Handle persistent sidecar failures during boot
+        const { SIDECAR_REGISTRY } = await import("@infrastructure/runtime/sidecar_registry.ts");
+
         for (const s of daemons) {
             try {
-                await sm.getPersistentSidecar(s);
+                const child = await sm.getPersistentSidecar(s);
+                if (!child && SIDECAR_REGISTRY[s]?.critical) {
+                    throw new Error(`Critical sidecar '${s}' failed to spawn.`);
+                }
             } catch (e) {
+                const isCritical = SIDECAR_REGISTRY[s]?.critical;
                 await loggingService.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
                     caller: "orchestrator:app:sovereign_app:boot",
-                    message: `CRITICAL: Persistent sidecar '${s}' failed to start: ${(e as Error).message}`
+                    message: `${isCritical ? "FATAL" : "CRITICAL"}: Persistent sidecar '${s}' failed to start: ${(e as Error).message}`
                 });
+
+                if (isCritical) {
+                    await this.emergencyLockdown(`Boot Failure: Critical agent '${s}' offline.`);
+                }
             }
         }
         
