@@ -168,21 +168,32 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         is_vault = true;
                         let _ = socket.write_all(b"{\"initialized\":true,\"sealed\":false,\"version\":\"1.12.0\"}\n").await;
                     } else {
-                        // DECEPTION: Port-Aware Multi-OS Banners
+                        // DECEPTION: Port-Aware Multi-OS Banners (H-09)
                         let banners = match port {
                             22 => vec![
                                 "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.10\n",
-                                "SSH-2.0-OpenSSH_9.0\n",
-                                "SSH-2.0-PuTTY_Release_0.76\n"
+                                "SSH-2.0-OpenSSH_9.1\n",
+                                "SSH-2.0-OpenSSH_7.6p1 Ubuntu-4ubuntu0.3\n",
+                                "SSH-2.0-dropbear_2020.81\n"
                             ],
                             3389 => vec![
                                 "Windows Terminal Server\nlogin: ",
-                                "Microsoft Remote Desktop Protocol\nUser: "
+                                "Microsoft Remote Desktop Protocol\nUser: ",
+                                "Remote Desktop Service (v10.0.19041)\n"
+                            ],
+                            80 | 8080 => vec![
+                                "HTTP/1.1 200 OK\r\nServer: nginx/1.18.0 (Ubuntu)\r\nContent-Type: text/html\r\n\r\n",
+                                "HTTP/1.1 401 Unauthorized\r\nServer: Apache/2.4.41 (Unix)\r\nWWW-Authenticate: Basic realm=\"Restricted\"\r\n\r\n"
+                            ],
+                            6379 => vec![
+                                "+OK\r\n",
+                                "-NOAUTH Authentication required.\r\n"
                             ],
                             _ => vec![
                                 "Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ",
                                 "Unauthorized access is a federal crime.\nUser: ",
-                                "Internal Mesh Relay [ID: 0x442A]\nCredentials: "
+                                "Internal Mesh Relay [ID: 0x442A]\nCredentials: ",
+                                "Access Restricted to Sovereign Control Plane Agents\nID: "
                             ]
                         };
                         let banner = banners[rand::thread_rng().gen_range(0..banners.len())];

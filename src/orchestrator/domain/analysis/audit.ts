@@ -46,6 +46,7 @@ export class AuditService {
     private lastVerifiedHash: string = "GENESIS";
     private retentionConfig: RetentionConfig;
     private logQueue: Promise<void> = Promise.resolve();
+    private queueDepth: number = 0;
     private state: SystemState = SystemState.NORMAL;
 
     private intervals: number[] = [];
@@ -272,31 +273,45 @@ export class AuditService {
             return;
         }
 
+        // H-07: Maximum Queue Depth to prevent memory exhaustion during event storms
+        const MAX_QUEUE_DEPTH = 1000;
+        if (this.queueDepth > MAX_QUEUE_DEPTH) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:analysis:audit",
+                message: "CRITICAL: Audit log queue saturation. Dropping non-critical event to preserve system stability."
+            });
+            return;
+        }
+
         const logAction = async () => {
-            const id = crypto.randomUUID();
-            const timestamp = event.timestamp || new Date().toISOString();
-            const prevHash = this.lastHash;
-
-            const hashInput = {
-                id, timestamp, type: event.type, severity: event.severity,
-                caller: event.caller, message: event.message,
-                actor: event.actor, data: event.data,
-                correlationId: event.correlationId, prevHash,
-            };
-            const hash = await this.computeHash(hashInput);
-            
-            let hwSignature: string | undefined;
-            if (this.tpm) {
-                hwSignature = await this.tpm.sign(hash);
-            }
-
-            const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
-
-            const auditEvent: AuditEvent = {
-                ...event, id, timestamp, hash, prevHash, hwSignature, formatted
-            };
-
+            this.queueDepth++;
             try {
+                const id = crypto.randomUUID();
+                const timestamp = event.timestamp || new Date().toISOString();
+                const prevHash = this.lastHash;
+
+                const hashInput = {
+                    id, timestamp, type: event.type, severity: event.severity,
+                    caller: event.caller, message: event.message,
+                    actor: event.actor, data: event.data,
+                    correlationId: event.correlationId, prevHash,
+                };
+                const hash = await this.computeHash(hashInput);
+
+                let hwSignature: string | undefined;
+                if (this.tpm) {
+                    hwSignature = await this.tpm.sign(hash);
+                }
+
+                const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
+
+                const auditEvent: AuditEvent = {
+                    ...event, id, timestamp, hash, prevHash, hwSignature, formatted
+                };
+
                 await this.repo.save(auditEvent);
                 this.lastHash = hash;
                 
@@ -328,6 +343,8 @@ export class AuditService {
                     caller: "orchestrator:domain:analysis:audit",
                     message: `Failed to save event: ${(e as Error).message}`
                 });
+                        } finally {
+                this.queueDepth--;
             }
         };
 

@@ -553,8 +553,18 @@ export class SidecarManager implements CommandPort {
             for (const handler of handlers) {
               handler(data);
             }
-          } catch {
-            // Not JSON or parse failed
+          } catch (e) {
+            // H-08: Log malformed IPC output for forensic analysis in pilots
+            if (trimmed.length > 0) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.DEBUG,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] Malformed IPC JSON detected: ${trimmed.substring(0, 100)}${trimmed.length > 100 ? "..." : ""}`,
+                    payload: { error: (e as Error).message }
+                });
+            }
           }
         }
       }
@@ -884,7 +894,8 @@ export class SidecarManager implements CommandPort {
       });
       this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
 
-      // Circuit Breaker: Reset after cooloff period
+      // Circuit Breaker: Reset after cooloff period with jitter (H-06)
+      const jitter = Math.floor(Math.random() * 30000); // 30s jitter
       const resetTimer = setTimeout(() => {
           this.trippedSidecars.delete(name);
           this.restartCounts.delete(name);
@@ -896,7 +907,7 @@ export class SidecarManager implements CommandPort {
               caller: "orchestrator:infra:runtime:sidecar_manager",
               message: `Circuit breaker reset for ${name}. Resuming lifecycle monitoring.`
           });
-      }, COOLOFF_WINDOW);
+      }, COOLOFF_WINDOW + jitter);
       this.backoffTimers.add(resetTimer);
     }
   }
