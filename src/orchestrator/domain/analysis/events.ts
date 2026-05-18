@@ -13,11 +13,18 @@ export interface SystemEvent {
 
 export type Handler<T extends EventName> = (data: z.infer<EventRegistry[T]>) => void | Promise<void>;
 
+export type Middleware = (event: SystemEvent, next: () => void | Promise<void>) => void | Promise<void>;
+
 export class EventBus implements EventBusPort {
   private handlers: ((event: SystemEvent) => void | Promise<void>)[] = [];
   private keyedListeners: Map<string, ((data: any) => void | Promise<void>)[]> = new Map();
+  private middleware: Middleware[] = [];
 
   constructor(private logging: LoggingPort) {}
+
+  use(mw: Middleware) {
+    this.middleware.push(mw);
+  }
 
   subscribe(handler: (event: SystemEvent) => void | Promise<void>): () => void {
     this.handlers.push(handler);
@@ -63,6 +70,28 @@ export class EventBus implements EventBusPort {
         data: validatedData
     };
 
+    // SOV-P2: Execute Middleware Chain
+    if (this.middleware.length > 0) {
+        this.runMiddleware(0, event).catch(() => {});
+        return;
+    }
+
+    this.finalizePublish(event, validatedData);
+  }
+
+  private async runMiddleware(index: number, event: SystemEvent) {
+    if (index >= this.middleware.length) {
+        this.finalizePublish(event, event.data);
+        return;
+    }
+
+    await this.middleware[index](event, () => this.runMiddleware(index + 1, event));
+  }
+
+  private finalizePublish(event: SystemEvent, validatedData: any) {
+    const type = event.type as string;
+    const message = event.message;
+
     // Forward to centralized logging (Suppress massive payloads for periodic noise)
     const severity = this.mapTypeToSeverity(type);
     const isNoise = type === "DEBUG" || type === "METRIC_UPDATE" || (type as string) === "INFO";
@@ -79,7 +108,7 @@ export class EventBus implements EventBusPort {
 
     // SOV-P3: Parallelized and Time-Limited Execution
     const allHandlers = this.handlers;
-    const typeHandlers = this.keyedListeners.get(type) || [];
+    const typeHandlers = this.keyedListeners.get(type as EventName) || [];
 
     if (allHandlers.length === 0 && typeHandlers.length === 0) return;
 

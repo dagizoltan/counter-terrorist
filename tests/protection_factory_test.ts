@@ -188,9 +188,9 @@ Deno.test("createAntivirusManager", async () => {
 
   const manager = createAntivirusManager(sidecar, executor, platform);
 
-  // UbuntuAntivirusProvider uses clamscan for scanning
+  // UbuntuAntivirusProvider uses analyzer for scanning
   await manager.scanPath("/tmp/test.txt");
-  assertEquals(sidecar.lastSentCommand?.name, "scanner");
+  assertEquals(sidecar.lastSentCommand?.name, "analyzer");
   assertEquals(sidecar.lastSentCommand?.cmd.type, "ScanPath");
 });
 

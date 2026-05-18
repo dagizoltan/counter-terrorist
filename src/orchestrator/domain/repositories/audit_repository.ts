@@ -1,4 +1,4 @@
-import { AuditEvent } from "../analysis/audit.ts";
+import { AuditEvent, AuditDelta } from "../analysis/audit.ts";
 
 export interface AuditRepository {
     save(event: AuditEvent): Promise<void>;
@@ -7,4 +7,8 @@ export interface AuditRepository {
     deleteBefore(timestamp: number): Promise<number>;
     count(): Promise<number>;
     getStream(limit: number, reverse: boolean): AsyncIterable<AuditEvent>;
+
+    // Event Sourcing Support
+    appendDelta(delta: AuditDelta): Promise<void>;
+    getDeltas(eventId: string): Promise<AuditDelta[]>;
 }

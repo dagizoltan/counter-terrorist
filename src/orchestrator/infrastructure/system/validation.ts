@@ -2,8 +2,17 @@
  * Centralized validation logic for security orchestrator.
  */
 import { normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { BloomFilter } from "../../core/cache.ts";
 
 export const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
+
+// PERFORMANCE: Hot-path caching for critical infrastructure lookups
+const infrastructureCache = new BloomFilter(1024, 3);
+const CRITICAL_IPS = [
+  "1.1.1.1", "8.8.8.8", "8.8.4.4", // DNS
+  "127.0.0.1", "::1",              // Loopback
+];
+CRITICAL_IPS.forEach(ip => infrastructureCache.add(ip));
 
 export function isValidIP(ip: string): boolean {
   return IP_REGEX.test(ip);
@@ -13,9 +22,17 @@ export function isValidIP(ip: string): boolean {
  * Checks if an IP is part of the critical infrastructure that should NEVER be blocked.
  */
 export function isCriticalInfrastructure(ip: string): boolean {
+  // 1. Fast Bloom Filter check (probabilistic)
+  if (!infrastructureCache.has(ip)) {
+      // Dynamic check for Gateway IP which might change
+      const gateway = Deno.env.get("GATEWAY_IP");
+      if (gateway && ip === gateway) return true;
+      return false;
+  }
+
+  // 2. Slow path for confirmed matches (deterministic)
   const whitelist = [
-    "1.1.1.1", "8.8.8.8", "8.8.4.4", // DNS
-    "127.0.0.1", "::1",              // Loopback
+    ...CRITICAL_IPS,
     Deno.env.get("GATEWAY_IP") || "", // Gateway
   ].filter(i => i !== "");
 

@@ -97,6 +97,7 @@ export class MeshManager extends BaseService {
 
   async init(): Promise<Result<void>> {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
+    this.startStateWatcher();
     this.port = this.config.getNumber("PORT", 8000);
     this.meshSecret = this.config.getEnv("MESH_SECRET");
 
@@ -106,11 +107,12 @@ export class MeshManager extends BaseService {
       this.nodeCert = res.data;
 
       // Create mTLS HTTP client
-      // BUG-07: Use all trusted CA certs to support dual-trust transitions
+      // SOV-P3: Mesh Connection Pooling with HTTP/2
       this.httpClient = Deno.createHttpClient({
         cert: this.nodeCert.cert,
         key: this.nodeCert.key,
         caCerts: await this.meshAuth.getTrustedCerts(),
+        http2: true,
       });
 
       this.logging.log({
@@ -846,6 +848,9 @@ export class MeshManager extends BaseService {
   private async sendSync(node: MeshNode, payload: any) {
     if (!this.httpClient) await this.init();
 
+    // PERFORMANCE: Ensure we use the pooled httpClient
+    const client = this.httpClient!;
+
     const url = `https://${node.address}:${node.port}/api/mesh/sync`;
     const headers: Record<string, string> = { 
         "Content-Type": "application/json",
@@ -887,7 +892,7 @@ export class MeshManager extends BaseService {
         method: "POST",
         headers,
         body: JSON.stringify(paddedPayload),
-        client: this.httpClient!,
+        client,
         signal: AbortSignal.timeout(15000)
     });
 
@@ -908,6 +913,26 @@ export class MeshManager extends BaseService {
    * Rotates the node's cryptographic identity and Node ID.
    * This is an ultra-hardening measure to prevent long-term mesh persistence by an adversary.
    */
+  /**
+   * Watcher for reactive state updates from other nodes.
+   */
+  private async startStateWatcher() {
+    const kv = (this.config as any).kv;
+    if (!kv) return;
+
+    const watcher = kv.watch([["mesh", "nodes"]]);
+    for await (const [entries] of watcher) {
+        const nodeData = entries.value as MeshNode[];
+        if (nodeData && Array.isArray(nodeData)) {
+            for (const node of nodeData) {
+                if (node.id !== this.nodeId) {
+                    this.registerNode(node);
+                }
+            }
+        }
+    }
+  }
+
   async rotateIdentity(): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),

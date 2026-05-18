@@ -118,6 +118,17 @@ fn scan_process_memory(pid: u32) -> Vec<MemoryAnomaly> {
                     reason: "Anonymous executable memory detected (Potential shellcode injection)".to_string(),
                 });
             }
+
+            // SOV-P3: Deep Fileless Malware Detection
+            // Identify regions that have BOTH Executable and Writable permissions WITHOUT file backing
+            if perms.contains('x') && perms.contains('w') && parts.len() < 6 {
+                anomalies.push(MemoryAnomaly {
+                    pid,
+                    address_range: range.to_string(),
+                    perms: perms.to_string(),
+                    reason: "CRITICAL: Fileless RWX anonymous memory detected (Highly suspicious)".to_string(),
+                });
+            }
         }
     }
     anomalies

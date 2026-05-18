@@ -8,12 +8,24 @@ set -e
 NAME=$1
 SRC_BIN=$2
 CAPS=$3
+EXPECTED_HASH=$4
 DEST_DIR="/var/lib/cts/bin"
 DEST_BIN="$DEST_DIR/$NAME"
 
 if [ -z "$NAME" ] || [ -z "$SRC_BIN" ]; then
-    echo "Usage: $0 <name> <src_bin> [caps]"
+    echo "Usage: $0 <name> <src_bin> [caps] [expected_hash]"
     exit 1
+fi
+
+# 0. TOCTOU Hardening: Verify source hash before any operation
+if [ -n "$EXPECTED_HASH" ] && [ "$EXPECTED_HASH" != "none" ]; then
+    ACTUAL_HASH=$(sha256sum "$SRC_BIN" | awk '{ print $1 }')
+    if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
+        echo "CRITICAL: Integrity mismatch for source script/binary $NAME!"
+        echo "Expected: $EXPECTED_HASH"
+        echo "Actual:   $ACTUAL_HASH"
+        exit 101
+    fi
 fi
 
 # 1. Create secure jail if missing
