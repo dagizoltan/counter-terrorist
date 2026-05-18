@@ -20,8 +20,13 @@ export class PlaybookService extends BaseService {
     super();
   }
 
-  public init(services: PlaybookDependencies) {
+  public setServices(services: PlaybookDependencies) {
     this.services = services;
+  }
+
+  public override async init(..._args: any[]): Promise<import("@core/result.ts").Result<void>> {
+    const { ok } = await import("@core/result.ts");
+    if (!this.services) return ok(undefined);
 
     loggingService.log({
         timestamp: new Date().toISOString(),
@@ -181,6 +186,7 @@ export class PlaybookService extends BaseService {
             this.updateThreatScore("local", 2);
         }
     });
+    return ok(undefined);
   }
 
   /**
@@ -285,5 +291,11 @@ export class PlaybookService extends BaseService {
       // Reset after isolation
       this.threatScores.set(nodeId, 0);
     }
+  }
+
+  override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+    const { ok } = await import("@core/result.ts");
+    this.services = undefined;
+    return ok(undefined);
   }
 }

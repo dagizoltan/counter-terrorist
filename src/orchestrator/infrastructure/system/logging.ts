@@ -162,7 +162,8 @@ export class LoggingService implements LoggingPort {
             [LogSeverity.INFO]: 6,
             [LogSeverity.SUCCESS]: 5,
             [LogSeverity.WARNING]: 4,
-            [LogSeverity.ERROR]: 3
+            [LogSeverity.ERROR]: 3,
+            [LogSeverity.DEBUG]: 7
         };
 
         const pri = (1 * 8) + (severityMap[severity] || 6);
@@ -175,7 +176,8 @@ export class LoggingService implements LoggingPort {
                 [LogSeverity.INFO]: "\x1b[36m",    
                 [LogSeverity.SUCCESS]: "\x1b[32m", 
                 [LogSeverity.WARNING]: "\x1b[33m", 
-                [LogSeverity.ERROR]: "\x1b[31m"
+                [LogSeverity.ERROR]: "\x1b[31m",
+                [LogSeverity.DEBUG]: "\x1b[90m"
             };
             const c = colors[severity] || "\x1b[0m";
             const reset = "\x1b[0m";

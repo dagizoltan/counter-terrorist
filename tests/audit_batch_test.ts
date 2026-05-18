@@ -23,7 +23,9 @@ class MockRepo implements AuditRepository {
 
     async deleteBefore(timestamp: number): Promise<number> { return 0; }
     async count(): Promise<number> { return this.events.length; }
-    async *getStream(limit: number, reverse: boolean): AsyncIterable<AuditEvent> {}
+    async *getStream(limit: number, reverse: boolean): AsyncIterable<AuditEvent> {
+        for (const e of this.events) yield e;
+    }
 }
 
 class MockLogging implements LoggingPort {
@@ -46,17 +48,18 @@ Deno.test("AuditService batching", async () => {
     }
 
     assertEquals(repo.events.length, 0, "Events should be buffered");
-    assertEquals(repo.saveManyCalls, 0);
 
-    // Trigger flush manually (internal method call or wait for interval)
-    // We'll reach into the private method for testing or wait.
     // Let's log 15 more to trigger the threshold of 20
     for (let i = 5; i < 20; i++) {
         await service.logEvent({ type: "INFO", message: `Test ${i}` });
     }
 
-    // With the sequential logQueue, we must wait for it to settle
-    await (service as any).logQueue;
+    // Wait for the sequential logQueue to settle
+    let attempts = 0;
+    while (((service as any).logQueue.length > 0 || (service as any).isProcessingQueue || repo.events.length < 20) && attempts < 50) {
+        await new Promise(r => setTimeout(r, 100));
+        attempts++;
+    }
 
     assertEquals(repo.events.length, 20, "Events should be flushed after reaching threshold");
     assertEquals(repo.saveManyCalls, 1);

@@ -283,4 +283,11 @@ export class EventMediator {
             message: "Event Mediator: Sidecar routing established"
         });
     }
+
+    /**
+     * Broadcasts a manual event to all connected UI clients.
+     */
+    broadcastEvent(event: any) {
+        this.broadcast(event);
+    }
 }

@@ -92,6 +92,7 @@ export function loadConfig(): AppConfig {
   const result = ConfigSchema.safeParse(rawConfig);
 
   if (!result.success) {
+    console.error("INVALID CONFIGURATION DETECTED:", JSON.stringify(result.error.format(), null, 2));
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,

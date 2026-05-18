@@ -18,7 +18,10 @@ export interface ThreatEvent {
  * AutonomousResponseEngine
  * Tiered automated defense logic that escalates based on behavioral scoring.
  */
+import { SubsystemFactory } from "@core/subsystem_factory.ts";
+
 export class AutonomousResponseEngine {
+    private services: any = {};
     private scores: Map<string, number> = new Map();
     private history: Map<string, ThreatEvent[]> = new Map();
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
@@ -31,6 +34,7 @@ export class AutonomousResponseEngine {
         private policy: PolicyEngine,
         private logging: LoggingPort
     ) {
+        this.services.logging = logging;
         // Automatically decay scores every 5 minutes to allow recovery
         setInterval(() => this.decayScores(), 300000);
     }

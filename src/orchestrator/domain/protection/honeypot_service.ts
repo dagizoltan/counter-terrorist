@@ -14,7 +14,6 @@ export class HoneypotService extends BaseService {
   private modules: Map<string, HoneypotModule> = new Map();
   private eventHandlers: ((event: any) => void)[] = [];
   private hitCount: number = 0;
-  private eventBus?: any;
 
   constructor(
     private sidecarManager: CommandPort,
@@ -142,7 +141,7 @@ export class HoneypotService extends BaseService {
     return ok(undefined);
   }
 
-  setEventBus(eventBus: any) {
+  override setEventBus(eventBus: any) {
     this.eventBus = eventBus;
   }
 
@@ -157,7 +156,7 @@ export class HoneypotService extends BaseService {
     });
   }
 
-  async shutdown(): Promise<Result<void>> {
+  override async shutdown(): Promise<Result<void>> {
       if (this.morphInterval) {
           clearInterval(this.morphInterval);
           this.morphInterval = undefined;
@@ -189,7 +188,7 @@ export class HoneypotService extends BaseService {
           payload: { source_ip, port, hitCount: this.hitCount, module: module?.name }
       });
 
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) (this.eventBus as any).emit("UI_BROADCAST", {
         type: "TACTICAL_TRIGGER",
         data: {
           type: "HONEYPOT_HIT",
@@ -252,7 +251,7 @@ export class HoneypotService extends BaseService {
         payload: { source_ip, route, hitCount: this.hitCount }
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    if (this.eventBus) (this.eventBus as any).emit("UI_BROADCAST", {
       type: "TACTICAL_TRIGGER",
       data: {
         type: "WEB_DECOY_HIT",
@@ -384,7 +383,7 @@ export class HoneypotService extends BaseService {
           message: `DECEPTION MORPH: ${module.name} port rotation from ${oldPort} to ${newPort}`
       });
 
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) (this.eventBus as any).emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
           type: LogType.AUDIT,

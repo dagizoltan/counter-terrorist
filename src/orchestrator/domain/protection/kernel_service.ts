@@ -100,7 +100,7 @@ export class KernelService {
                 caller: "orchestrator:domain:protection:kernel",
                 message: "Stealth Mode disabled. Skipping process camouflage."
             });
-            return;
+            return ok(undefined);
         }
         this.logging.log({
             timestamp: new Date().toISOString(),

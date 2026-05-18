@@ -1,6 +1,7 @@
 import { EventBus } from "./events.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "@core/result.ts";
 
 export class DecentralizedMetricsService extends BaseService {
     private metrics: Map<string, any> = new Map();
@@ -23,8 +24,9 @@ export class DecentralizedMetricsService extends BaseService {
         this.interval = setInterval(() => this.broadcastMetrics(), 5000 + (Math.random() * 500));
     }
 
-    override stop() {
+    override async shutdown(): Promise<Result<void>> {
         if (this.interval) clearInterval(this.interval);
+        return ok(undefined);
     }
 
     private broadcastMetrics() {

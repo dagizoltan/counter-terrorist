@@ -14,11 +14,12 @@ import {
     IncidentService, NewsSignalService,
     LedgerService, HealthService, EventMediator,
     WatchdogService, TacticalIntelService,
-    CorrelationService, PolicyEngine, ViewModelService
+    CorrelationService, PolicyEngine, ViewModelService,
+    DeceptionGridService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
-import { ServiceContainer, PlatformInfo } from "@core/container.ts";
+import { ServiceContainer, PlatformInfo as ContainerPlatformInfo } from "@core/container.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { broadcast, initBroadcaster } from "@api/ws.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
@@ -37,6 +38,7 @@ import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repos
 
 import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
 import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export class SovereignApp {
     private services!: ServiceContainer;
@@ -52,7 +54,7 @@ export class SovereignApp {
   ▗▄▄▖ ▗▄▖ ▗▖ ▗▖▗▖  ▗▖▗▄▄▄▖▗▄▄▄▖▗▄▄▖
   ▐▌   ▐▌ ▐▌▐▌ ▐▌▐▛▚▞▜▌▐▌     █  ▐▌ ▐▌
   ▐▝▚▄▖▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌▐▛▀▀▖  █  ▐▛▀▚▖
-  ▝▚▄▄▖▝▙▄▘▝▙▄▄▘▐▌  ▐▌▐▙▄▄▖  █  ▐▌ ▐▌
+  ▝▚▄▄▖▝▙▄☘▝▙▄▄☘▐▌  ▐▌▐▙▄▄▖  █  ▐▌ ▐▌
   SOVEREIGN CYBERSECURITY - PILOT V5.2
         `);
     }
@@ -77,7 +79,7 @@ export class SovereignApp {
         this.sidecarManager.setTpm(tpmManager);
         this.sidecarManager.init();
 
-        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, broadcast);
+        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService);
         this.lifecycleService = factory.initSystemLifecycle(tpmManager);
 
         // Active Safety: Crash Loop Detection / Safe Mode
@@ -88,7 +90,7 @@ export class SovereignApp {
              loggingService.log({
                  timestamp: new Date().toISOString(),
                  type: LogType.AUDIT,
-                 severity: LogSeverity.CRITICAL,
+                 severity: LogSeverity.ERROR,
                  caller: "orchestrator:app:sovereign_app",
                  message: "⚠️ SAFE MODE ACTIVATED: Multiple boot failures detected. All enforcement disabled."
              });
@@ -169,7 +171,7 @@ export class SovereignApp {
 
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
-            configProvider, platformInfo, notificationService,
+            configProvider, platformInfo as any, notificationService,
             eventBus, meshManager, tpmManager, healthService
         );
 
@@ -204,19 +206,35 @@ export class SovereignApp {
     private async gracefulShutdown() {
         if (this.services) {
             const { autopilot, mesh, audit, mediator, logging, lifecycle, health, metrics, honeypot, behavioral, processTracker, kernelService, protection } = this.services;
-            if (autopilot) autopilot.shutdown();
-            if (mesh) mesh.shutdown();
+            if (autopilot) await autopilot.shutdown();
+            if (mesh) await mesh.shutdown();
             if (audit) await audit.shutdown();
-            if (mediator) (mediator as any).shutdown();
-            if (lifecycle) lifecycle.shutdown();
-            if (health) (health as any).shutdown?.();
-            if (metrics) metrics.stop();
-            if (honeypot) honeypot.shutdown?.();
-            if (behavioral) (behavioral as any).shutdown?.();
-            if (processTracker) processTracker.shutdown();
-            if (kernelService) (kernelService as any).shutdown?.();
-            if (protection?.firewall) (protection.firewall as any).shutdown?.();
-            if (protection?.vpn) (protection.vpn as any).shutdown?.();
+            if (mediator && "shutdown" in mediator && typeof mediator.shutdown === "function") {
+                await mediator.shutdown();
+            }
+            if (lifecycle) await lifecycle.shutdown();
+            if (health && "shutdown" in health && typeof health.shutdown === "function") {
+                await (health as any).shutdown();
+            }
+            if (metrics && "stop" in metrics && typeof metrics.stop === "function") {
+                metrics.stop();
+            }
+            if (honeypot && "shutdown" in honeypot && typeof honeypot.shutdown === "function") {
+                await (honeypot as any).shutdown();
+            }
+            if (behavioral && "shutdown" in behavioral && typeof behavioral.shutdown === "function") {
+                await (behavioral as any).shutdown();
+            }
+            if (processTracker) await processTracker.shutdown();
+            if (kernelService && "shutdown" in kernelService && typeof kernelService.shutdown === "function") {
+                await (kernelService as any).shutdown();
+            }
+            if (protection?.firewall && "shutdown" in protection.firewall && typeof (protection.firewall as any).shutdown === "function") {
+                await (protection.firewall as any).shutdown();
+            }
+            if (protection?.vpn && "shutdown" in protection.vpn && typeof (protection.vpn as any).shutdown === "function") {
+                await (protection.vpn as any).shutdown();
+            }
             if (logging) await logging.shutdown();
         }
 
@@ -260,7 +278,7 @@ export class SovereignApp {
             services.eventBus,
             loggingService
         );
-        (setMetricsService as any)(metricsService);
+        setMetricsService(metricsService as any);
 
         this.injectEventBus(services);
         this.wireEvents();
@@ -270,15 +288,19 @@ export class SovereignApp {
 
     private injectEventBus(services: ServiceContainer) {
         const bus = services.eventBus;
-        (services.protection.firewall as any).setEventBus?.(bus);
-        services.mesh.setEventBus?.(bus);
-        services.honeypot.setEventBus?.(bus);
-        services.processTracker.setEventBus?.(bus);
-        services.kernelService.setEventBus?.(bus);
-        services.audit.setEventBus?.(bus);
-        (services.protection.vpn as any).setEventBus?.(bus);
-        services.behavioral.setEventBus?.(bus);
-        services.viewModel.setEventBus?.(bus);
+        if ("setEventBus" in services.protection.firewall && typeof (services.protection.firewall as any).setEventBus === "function") {
+            (services.protection.firewall as any).setEventBus(bus);
+        }
+        services.mesh.setEventBus(bus);
+        services.honeypot.setEventBus(bus);
+        services.processTracker.setEventBus(bus);
+        services.kernelService.setEventBus(bus);
+        services.audit.setEventBus(bus);
+        if ("setEventBus" in services.protection.vpn && typeof (services.protection.vpn as any).setEventBus === "function") {
+            (services.protection.vpn as any).setEventBus(bus);
+        }
+        services.behavioral.setEventBus(bus);
+        services.viewModel.setEventBus(bus);
     }
 
     private startWatchdog(health: HealthService) {
@@ -309,7 +331,7 @@ export class SovereignApp {
                     return true;
                 }
                 if (name === "Lure") {
-                    await (this.services.autopilot as any).spawnLureProcess();
+                    await this.services.autopilot.spawnLureProcess();
                     return true;
                 }
 
@@ -343,7 +365,7 @@ export class SovereignApp {
             message: "Activating autonomous subsystems..."
         });
 
-        const report = (name: string, status: string) => this.services.health.reportStatus(name, status);
+        const report = (name: string, status: string, message?: string) => this.services.health.reportStatus(name, status, message);
 
         report("Playbook", "OPERATIONAL");
         report("Autopilot", "OPERATIONAL");
@@ -352,23 +374,23 @@ export class SovereignApp {
         report("DeceptionGrid", "OPERATIONAL");
         report("ProcessTracker", "OPERATIONAL");
         
-        const wrap = (name: string, promise: Promise<Result<any>>) => {
+        const wrap = (name: string, promise: Promise<Result<any, Error> | void>) => {
             report(name, "BOOTING");
             promise.then((res) => {
-                if (res.success) {
+                if (!res || res.success) {
                     report(name, "OPERATIONAL");
-                } else {
+                } else if (res && !res.success) {
                     report(name, "FAILED", res.error.message);
                 }
             })
             .catch(e => report(name, "FAILED", e.message));
         };
 
-        wrap("Autopilot", autopilot.start() as any);
-        wrap("Honeypot", honeypot.start() as any);
-        wrap("Canary", canaryService.start() as any);
+        wrap("Autopilot", autopilot.start());
+        wrap("Honeypot", honeypot.start());
+        wrap("Canary", canaryService.start());
         wrap("KernelService", (async () => {
-            const res = await kernelService.start();
+            const res = await (kernelService as any).start();
             if (!res.success) return res;
 
             // SOV-P2: Apply AppArmor Lockdown for critical sidecars
@@ -389,9 +411,9 @@ export class SovereignApp {
             }
             return ok(undefined);
         })());
-        wrap("CuratedIntel", curatedIntel.start(this.kv) as any);
-        wrap("NewsSignal", news.start(this.kv) as any);
-        wrap("NetworkDiscovery", networkDiscovery.start() as any);
+        wrap("CuratedIntel", curatedIntel.start(this.kv));
+        wrap("NewsSignal", news.start(this.kv));
+        wrap("NetworkDiscovery", networkDiscovery.start());
         
         this.services.baseline.startMonitor();
         lifecycle.start();
@@ -451,13 +473,13 @@ export class SovereignApp {
     }
 
     private async initServices(
-        configProvider: EnvConfigProvider, platformInfo: PlatformInfo, notifications: NotificationService,
+        configProvider: EnvConfigProvider, platformInfo: any, notifications: NotificationService,
         eventBus: EventBus, mesh: MeshManager, 
         tpm: TPMManager, health: HealthService
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
-        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, broadcast);
+        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService);
 
         const identity = factory.initIdentity(configProvider);
         const { protection, networkLog } = await factory.initProtection(platformInfo, configProvider);
@@ -501,14 +523,14 @@ export class SovereignApp {
             viewModel
         };
 
-        playbook.init(services);
-        autopilot.init(services);
+        playbook.setServices(services);
+        autopilot.setServices(services);
 
         return services;
     }
 
     private checkPilotSafety(config: EnvConfigProvider) {
-        const isPilot = config.get("PILOT_MODE") === "true";
+        const isPilot = config.getEnv("PILOT_MODE") === "true";
         if (isPilot) {
             loggingService.log({
                 timestamp: new Date().toISOString(),

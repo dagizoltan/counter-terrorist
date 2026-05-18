@@ -97,7 +97,7 @@ export interface ServiceContainer {
   tpm: TpmPort;
   policy: PolicyEngine;
   health: HealthService;
-  metrics: MetricsService;
+  metrics: any;
   mediator: EventMediator;
   behavioral: BehavioralService;
   geoIp: GeoIpService;

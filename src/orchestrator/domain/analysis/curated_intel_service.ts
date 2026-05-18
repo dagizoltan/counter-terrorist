@@ -99,7 +99,7 @@ export class CuratedIntelService extends BaseService {
         return this.blacklist;
     }
 
-    async shutdown(): Promise<Result<void>> {
+    override async shutdown(): Promise<Result<void>> {
         return ok(undefined);
     }
 
@@ -217,7 +217,7 @@ export class CuratedIntelService extends BaseService {
                         message: `Tactical isolation revoked for ${ip}: TTL expired and indicator re-verified as CLEAN.`
                     };
                     this.logging.log(auditLog);
-                    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", auditLog);
+                    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "AUDIT_LOG", data: auditLog });
                 }
             }
         }
@@ -266,7 +266,7 @@ export class CuratedIntelService extends BaseService {
             payload: { ip, reason, ttlHours }
         };
         this.logging.log(log);
-        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", log);
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "LOG", data: log });
     }
 
     async sync(providerName?: string) {
@@ -278,7 +278,7 @@ export class CuratedIntelService extends BaseService {
             message: providerName ? `Initiating targeted sync for provider: ${providerName}` : "Fetching forensic threat intelligence from external databases"
         };
         this.logging.log(logData);
-        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", logData);
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "UI_MESSAGE", data: logData });
         
         let newThreatsFound = 0;
         
@@ -321,7 +321,7 @@ export class CuratedIntelService extends BaseService {
                 message: providerName ? `Targeted sync for ${providerName} complete. No new indicators.` : "Intelligence synchronization complete. No new malicious indicators discovered."
             };
             this.logging.log(successLog);
-            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", successLog);
+            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "UI_MESSAGE", data: successLog });
         } else {
             const completeLog = {
                 timestamp: new Date().toISOString(),
@@ -331,7 +331,7 @@ export class CuratedIntelService extends BaseService {
                 message: providerName ? `Targeted sync for ${providerName} complete. Found ${newThreatsFound} new threats.` : `Intelligence synchronization complete. Identified and blocked ${newThreatsFound} new malicious threats.`
             };
             this.logging.log(completeLog);
-            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", completeLog);
+            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "UI_MESSAGE", data: completeLog });
         }
     }
 
@@ -442,7 +442,7 @@ export class CuratedIntelService extends BaseService {
                         payload: { indicator: curated.indicator, source: source.name }
                     };
                     this.logging.log(foundLog);
-                    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", foundLog);
+                    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "AUDIT_LOG", data: foundLog });
                 }
 
                 // AUTO-ISOLATION POLICY: 
@@ -461,7 +461,7 @@ export class CuratedIntelService extends BaseService {
                             message: `Autonomous Isolation engaged for ${curated.indicator} (Critical Threat Score: ${curated.score})`
                         };
                         this.logging.log(autoLog);
-                        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", autoLog);
+                        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "AUDIT_LOG", data: autoLog });
                     }
                 }
             }
@@ -493,7 +493,7 @@ export class CuratedIntelService extends BaseService {
                     message: `Ingestion in progress: ${ingestCount} indicators parsed...`
                 };
                 this.logging.log(progressLog);
-                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", progressLog);
+                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "UI_MESSAGE", data: progressLog });
             }
 
             if (ingestCount > 100000) break;
@@ -509,11 +509,14 @@ export class CuratedIntelService extends BaseService {
         
         // Broadcast the final summary for this source
         if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
-            timestamp: new Date().toISOString(),
-            type: "AUDIT",
-            severity: "SUCCESS",
-            caller: `intel:${source.name.toLowerCase()}`,
-            message: `Ingestion cycle finished. DB_COUNT: ${ingestCount}`
+            type: "INGESTION_FINISH",
+            data: {
+                timestamp: new Date().toISOString(),
+                type: "AUDIT",
+                severity: "SUCCESS",
+                caller: `intel:${source.name.toLowerCase()}`,
+                message: `Ingestion cycle finished. DB_COUNT: ${ingestCount}`
+            }
         });
 
         return newIPsBlocked;

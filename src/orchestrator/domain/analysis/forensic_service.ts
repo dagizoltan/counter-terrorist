@@ -3,6 +3,7 @@ import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType, MeshAuthPort } from "../../core/ports.ts";
 import { Result, ok } from "../../core/result.ts";
 import { ProcessTracker } from "./process_tracker.ts";
+import { computeStreamHash } from "../../core/crypto_utils.ts";
 
 /**
  * ForensicService
@@ -155,7 +156,6 @@ export class ForensicService extends BaseService {
     try {
         const exePath = await Deno.readLink(`/proc/${pid}/exe`);
         // BUG-4.12 FIX: Use streaming hash to prevent OOM on large binaries
-        const { computeStreamHash } = await import("../../core/crypto_utils.ts");
         const file = await Deno.open(exePath, { read: true });
         try {
             return await computeStreamHash(file.readable);
@@ -167,7 +167,7 @@ export class ForensicService extends BaseService {
     }
   }
 
-  async shutdown(): Promise<Result<void>> {
+  override async shutdown(): Promise<Result<void>> {
     return ok(undefined);
   }
 

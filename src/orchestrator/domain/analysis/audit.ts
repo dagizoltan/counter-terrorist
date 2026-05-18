@@ -4,6 +4,7 @@ import { AuditRepository } from "../repositories/audit_repository.ts";
 import { computeHash } from "@core/crypto_utils.ts";
 import { BaseService } from "@core/base_service.ts";
 import { MerkleTree } from "@core/merkle.ts";
+import { Result, ok } from "@core/result.ts";
 
 export interface ActorContext {
     id: string;
@@ -150,7 +151,7 @@ export class AuditService extends BaseService {
         });
     }
 
-    public async shutdown() {
+    public override async shutdown(): Promise<Result<void>> {
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
 
@@ -160,6 +161,7 @@ export class AuditService extends BaseService {
             await new Promise(r => setTimeout(r, 100));
         }
         await this.flushBuffer();
+        return ok(undefined);
     }
 
     private async commitMerkleRoot() {
@@ -240,6 +242,15 @@ export class AuditService extends BaseService {
                 caller: "orchestrator:domain:analysis:audit",
                 message: `Failed to restore chain head: ${e instanceof Error ? e.message : String(e)}`
             });
+        }
+    }
+
+    public async syncEvents(events: AuditEvent[]) {
+        for (const event of events) {
+            if (event.hash !== this.lastHash) {
+                await this.repo.save(event);
+                this.lastHash = event.hash;
+            }
         }
     }
 
