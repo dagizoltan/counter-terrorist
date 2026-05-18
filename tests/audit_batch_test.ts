@@ -45,6 +45,11 @@ Deno.test("AuditService batching", async () => {
         await service.logEvent({ type: "INFO", message: `Test ${i}` });
     }
 
+    // Wait for queue processing to complete and events to be moved to auditBuffer
+    while ((service as any).isProcessingQueue) {
+        await new Promise(r => setTimeout(r, 10));
+    }
+
     assertEquals(repo.events.length, 0, "Events should be buffered");
     assertEquals(repo.saveManyCalls, 0);
 
@@ -55,8 +60,10 @@ Deno.test("AuditService batching", async () => {
         await service.logEvent({ type: "INFO", message: `Test ${i}` });
     }
 
-    // With the sequential logQueue, we must wait for it to settle
-    await (service as any).logQueue;
+    // Wait for queue processing to complete and flush to trigger
+    while ((service as any).isProcessingQueue || (service as any).isFlushing || (service as any).auditBuffer.length > 0) {
+        await new Promise(r => setTimeout(r, 10));
+    }
 
     assertEquals(repo.events.length, 20, "Events should be flushed after reaching threshold");
     assertEquals(repo.saveManyCalls, 1);
