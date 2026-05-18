@@ -13,10 +13,19 @@ export class EventMediator {
     private behavioral: BehavioralAnalyzer;
     private learningTimeout: number | null = null;
 
+    // Performance: High-volume event batching
+    private syscallBatch: any[] = [];
+    private networkBatch: any[] = [];
+    private readonly BATCH_THRESHOLD = 50;
+    private batchTimer?: number;
+
     shutdown() {
         if (this.learningTimeout) {
             clearTimeout(this.learningTimeout);
             this.learningTimeout = null;
+        }
+        if (this.batchTimer) {
+            clearInterval(this.batchTimer);
         }
         if (this.behavioral) {
             this.behavioral.shutdown();
@@ -43,7 +52,6 @@ export class EventMediator {
             this.behavioral.setKv(kv).catch(() => {});
         }
 
-        // SEC: Initialize in Learning Mode for the first 30 seconds to baseline startup syscalls
         this.behavioral.setLearningMode(true);
         this.learningTimeout = setTimeout(() => {
             this.learningTimeout = null;
@@ -57,10 +65,23 @@ export class EventMediator {
             });
         }, 30000);
 
-        // Bridge Domain UI_BROADCAST events to the actual broadcast function
         this.eventBus.on("UI_BROADCAST", (msg: any) => {
             this.broadcast(msg);
         });
+
+        // Periodic batch flush
+        this.batchTimer = setInterval(() => this.flushBatches(), 1000);
+    }
+
+    private flushBatches() {
+        if (this.syscallBatch.length > 0) {
+            this.eventBus.emit("EBPF_SYSCALL_BATCH" as any, [...this.syscallBatch]);
+            this.syscallBatch = [];
+        }
+        if (this.networkBatch.length > 0) {
+            this.eventBus.emit("NETWORK_LOG_BATCH" as any, [...this.networkBatch]);
+            this.networkBatch = [];
+        }
     }
 
     /**
@@ -84,14 +105,17 @@ export class EventMediator {
         commandPort.onEvent("sentinel", async (response: any) => {
             const event = response.data || response;
             if (event.type === "SYSCALL_EVENT") {
+                this.syscallBatch.push(event);
+                if (this.syscallBatch.length >= this.BATCH_THRESHOLD) {
+                    this.flushBatches();
+                }
+
                 let type: any = "EBPF_SYSCALL";
                 let severity = LogSeverity.INFO;
 
-                // Neural Defense: Track and score syscall frequency & sequence
                 this.behavioral.trackSyscall(event.pid, event.comm, event.syscall);
                 const anomalyScore = this.behavioral.getSyscallAnomalyScore(event.comm, event.syscall);
 
-                // Intent Modeling: Check for malicious sequences
                 const intent = this.behavioral.getIntentVerdict(event.pid);
                 if (intent) {
                     type = "EBPF_CRITICAL";
@@ -110,13 +134,16 @@ export class EventMediator {
                     severity = LogSeverity.WARNING;
                 }
 
-                this.broadcast({
-                    type,
-                    severity,
-                    message: `eBPF Alert: ${event.comm} called ${event.syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
-                    data: { ...event, anomalyScore }
-                });
-                this.eventBus.emit(type, event);
+                // Still broadcast critical/stray shell alerts individually for real-time visibility
+                if (type !== "EBPF_SYSCALL") {
+                    this.broadcast({
+                        type,
+                        severity,
+                        message: `eBPF Alert: ${event.comm} called ${event.syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
+                        data: { ...event, anomalyScore }
+                    });
+                    this.eventBus.emit(type, event);
+                }
 
                 if (type === "EBPF_STRAY_SHELL") {
                     this.logger.log({
@@ -130,7 +157,7 @@ export class EventMediator {
             }
         });
 
-        // 3. FIM (File Integrity) Integration
+        // 3. FIM Integration
         commandPort.onEvent("watchfile", async (response: any) => {
             const event = response.data || response;
             const payload = event.data || event;
@@ -139,7 +166,6 @@ export class EventMediator {
                 const actor = comm || "system:internal";
                 const isCanary = await this.canaryService.handleFileAccess(path, actor);
 
-                // If it's a metadata modification (aging or IDE indexing), skip to avoid feedback loops
                 if (isCanary && action.includes("Metadata")) {
                     return;
                 }
@@ -173,12 +199,17 @@ export class EventMediator {
             const event = response.data || response;
             const data = event.data || event;
 
-            // Bridge sidecar packet events to the UI
             if (event.type === "PACKET" || event.type === "NETWORK_LOG" || event.type === "EXFIL_ALERT") {
+                if (event.type === "NETWORK_LOG") {
+                    this.networkBatch.push(data);
+                    if (this.networkBatch.length >= this.BATCH_THRESHOLD) {
+                        this.flushBatches();
+                    }
+                }
+
                 let severity = event.type === "EXFIL_ALERT" ? LogSeverity.ERROR : LogSeverity.INFO;
                 const type = event.type === "EXFIL_ALERT" ? LogType.AUDIT : LogType.ACTIVITY;
 
-                // Behavioral: Bot Detection on Network Logs
                 let botScore = 0;
                 if (event.type === "NETWORK_LOG" && data.source) {
                     this.behavioral.track(data.source);
@@ -207,8 +238,7 @@ export class EventMediator {
                     data: { ...data, botScore }
                 });
 
-                // EXFILTRATION ALERTING: Detect high-volume exfiltration from eBPF metrics
-                if (event.type === "NETWORK_LOG" && data.bytes_count && data.bytes_count > 1024 * 1024 * 10) { // 10MB Threshold
+                if (event.type === "NETWORK_LOG" && data.bytes_count && data.bytes_count > 1024 * 1024 * 10) {
                     const msg = `EXFIL_DETECTION: High volume data transfer detected from ${data.source} (${(data.bytes_count / 1024 / 1024).toFixed(2)} MB)`;
                     this.logger.log({
                         timestamp: new Date().toISOString(),

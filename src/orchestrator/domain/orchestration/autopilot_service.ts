@@ -26,13 +26,11 @@ export class AutopilotService extends BaseService {
 
   constructor() {
     super();
-    // PolicyEngine must be available immediately for getPolicy()
     this.policy = new PolicyEngine(loggingService);
   }
 
   public init(services: AutopilotDependencies) {
     this.services = services;
-    // Engine depends on the full services container
     this.engine = new AutonomousResponseEngine(
         this.services as any,
         this.policy
