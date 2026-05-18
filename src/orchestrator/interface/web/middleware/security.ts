@@ -130,17 +130,26 @@ export class SecurityMiddleware {
           
           if (["POST", "DELETE", "PUT", "PATCH"].includes(c.req.method)) {
             const csrfHeader = c.req.header("X-CT-Token");
+            const contentType = c.req.header("Content-Type") || "";
             let csrfBody: string | undefined;
             
-            // Try to extract from body if header is missing
+            // SOV-04 HARDENING: Strict CSRF enforcement.
+            // For JSON/API requests, we REQUIRE the X-CT-Token header.
+            // Form-based fallback is ONLY allowed for strictly defined form-encoded types.
             if (!csrfHeader) {
-              const contentType = c.req.header("Content-Type");
-              if (contentType?.includes("application/x-www-form-urlencoded")) {
+              if (contentType.includes("application/x-www-form-urlencoded") || contentType.includes("multipart/form-data")) {
                 const body = await c.req.parseBody().catch(() => ({} as Record<string, string>));
                 csrfBody = (body as Record<string, string>).csrfToken as string;
+              } else {
+                 loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:interface:web:middleware:security",
+                    message: `[SECURITY] REJECTED: Missing X-CT-Token for non-form request to ${path}`
+                  });
+                  return c.json({ error: "Missing Security Token (X-CT-Token required for APIs)", code: "CSRF_MISSING" }, 403);
               }
-              // Note: We avoid reading the JSON body here to prevent draining the request stream.
-              // Clients should use the X-CT-Token header for application/json requests.
             }
 
             const providedToken = csrfHeader || csrfBody;

@@ -55,6 +55,12 @@ export class SystemExecutor implements ExecutorPort {
             i++;
             continue;
         }
+        // Block all other flags starting with - (e.g. -F, -E, -S) to prevent config bypass or log hijacking
+        if (arg.startsWith("-")) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized flag: ${arg}` });
+            continue;
+        }
+
         if (/^[a-z0-9/._-]+$/.test(arg)) continue;
         if (/^[a-z0-9]+@[a-z0-9.-]+$/.test(arg)) continue;
         if (/^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/.test(arg)) continue;
@@ -93,11 +99,15 @@ export class SystemExecutor implements ExecutorPort {
       if (args.length === 0) return;
       if (args[0] === "-Command") {
           const cmd = args[1] || "";
-          const blocked = ["&", "|", ";", ">", "<", "`", "$", "(", ")"];
+          // SOV-02 HARDENING: Expanded blocklist for PowerShell sub-expression and script block injection
+          const blocked = ["&", "|", ";", ">", "<", "`", "$", "(", ")", "{", "}", "[", "]"];
           for (const b of blocked) {
               if (cmd.includes(b)) {
                   ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Security Violation: PowerShell command contains blocked character: ${b}` });
               }
+          }
+          if (cmd.includes("$(") || cmd.includes("@(")) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Security Violation: PowerShell sub-expressions are forbidden" });
           }
       } else if (args[0] === "-EncodedCommand") {
           if (args.length < 2 || !/^[a-zA-Z0-9+/=]+$/.test(args[1])) {
@@ -172,7 +182,7 @@ export class SystemExecutor implements ExecutorPort {
         // SOV-02 FIX: Strictly disallow shell metacharacters in PowerShell parameters
         // Prevents chaining (&, |) and redirection (>, <)
         allowedArgs: [/^(-Command|-EncodedCommand)$/, /^[a-zA-Z0-9\s\-\.\/_=:'"]+$/],
-        blockedStrings: ["&", "|", ";", ">", "<", "`", "$", "(", ")"],
+        blockedStrings: ["&", "|", ";", ">", "<", "`", "$", "(", ")", "{", "}", "[", "]", "$("],
         maxArgs: 2
     },
     "netsh": {
@@ -339,11 +349,11 @@ export class SystemExecutor implements ExecutorPort {
         allowedArgs: [
             /^-o$/,
             /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/,
-            /^[a-z0-9/._-]+$/,
+            /^[a-z0-9/._]+$/, // Tightened: removed '-' to ensure any arg starting with '-' must be explicitly matched (like -o)
             /^[a-z0-9]+@[a-z0-9.-]+$/,
             /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/
         ],
-        blockedStrings: ["&&", "||", "|", ";", ">", "<", "`", "$", "(", ")", "!"],
+        blockedStrings: ["&&", "||", "|", ";", ">", "<", "`", "$", "(", ")", "!", "-F", "-E", "-S", "-i"],
         maxArgs: 10
     },
     "/var/lib/cts/scripts/install_service.sh": {
@@ -540,19 +550,24 @@ export class SystemExecutor implements ExecutorPort {
       return { valid: true };
   }
 
-  private extractPathsFromJson(obj: any): string[] {
+  private extractPathsFromJson(obj: any, inPathContext: boolean = false): string[] {
       const paths: string[] = [];
-      if (!obj || typeof obj !== "object") return paths;
+      if (!obj || typeof obj !== "object" || obj === null) return paths;
 
-      const pathKeys = ["path", "target", "exe_path", "log_path", "source", "destination", "output"];
+      const pathKeys = ["path", "target", "exe_path", "log_path", "source", "destination", "output", "file", "paths"];
 
+      // SOV-03 HARDENING: Hybrid key-based and content-aware path extraction.
+      // We inspect all string values and recurse into objects/arrays.
       for (const [key, value] of Object.entries(obj)) {
-          if (pathKeys.includes(key) && typeof value === "string") {
-              paths.push(value);
-          } else if (key === "paths" && Array.isArray(value)) {
-              paths.push(...value.filter(v => typeof v === "string"));
-          } else if (typeof value === "object") {
-              paths.push(...this.extractPathsFromJson(value));
+          const isPathKey = pathKeys.includes(key);
+          if (typeof value === "string") {
+              // Extract if it's a known path key, if we're inside a path-related structure,
+              // or if the content looks like a path (contains separators).
+              if (inPathContext || isPathKey || value.includes("/") || value.includes("\\")) {
+                  paths.push(value);
+              }
+          } else if (typeof value === "object" && value !== null) {
+              paths.push(...this.extractPathsFromJson(value, inPathContext || isPathKey));
           }
       }
       return paths;
