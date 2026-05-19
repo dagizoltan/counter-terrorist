@@ -1,6 +1,8 @@
 import { LogSeverity, LogType } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "@core/result.ts";
+import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
 export interface PlaybookDependencies {
   eventBus: any;
@@ -14,9 +16,10 @@ export interface PlaybookDependencies {
 export class PlaybookService extends BaseService {
   private services?: PlaybookDependencies;
   private threatScores: Map<string, number> = new Map();
+  private unsubscribers: (() => void)[] = [];
   private readonly ISOLATION_THRESHOLD = 5;
 
-  constructor() {
+  constructor(private logging: LoggingPort = loggingService) {
     super();
   }
 
@@ -24,11 +27,10 @@ export class PlaybookService extends BaseService {
     this.services = services;
   }
 
-  public override async init(..._args: any[]): Promise<import("@core/result.ts").Result<void>> {
-    const { ok } = await import("@core/result.ts");
+  public override async init(..._args: any[]): Promise<Result<void>> {
     if (!this.services) return ok(undefined);
 
-    loggingService.log({
+    this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
@@ -39,13 +41,12 @@ export class PlaybookService extends BaseService {
     const eventBus = this.services.eventBus;
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
-    eventBus.on("HONEYPOT", async (data: any) => {
+    this.unsubscribers.push(eventBus.on("HONEYPOT", async (data: any) => {
       if (data && data.type === "PortAccess") {
         const { port, source_ip } = data;
         
-        const { isValidIP, isCriticalInfrastructure } = await import("@infrastructure/system/validation.ts");
         if (!isValidIP(source_ip) || isCriticalInfrastructure(source_ip)) {
-          loggingService.log({
+          this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.INFO,
@@ -55,7 +56,7 @@ export class PlaybookService extends BaseService {
           return;
         }
 
-        loggingService.log({
+        this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
@@ -65,23 +66,29 @@ export class PlaybookService extends BaseService {
         
         this.updateThreatScore("local", 1);
         
-        loggingService.log({
+        this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
             caller: "orchestrator:domain:orchestration:playbook_service",
             message: `Starting forensic capture for IP: ${source_ip}`
         });
-        this.services?.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(() => {});
+        if (this.services?.protection.pcap) {
+            await this.services.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(() => {});
+        }
 
         try {
-          await this.services?.protection.firewall.blockIp(source_ip);
-          await this.services?.notifications.notify({
-            type: "audit",
-            message: `IP ${source_ip} automatically blocked after honeypot access on port ${port}`
-          });
+          if (this.services?.protection?.firewall) {
+              await this.services.protection.firewall.blockIp(source_ip);
+          }
+          if (this.services?.notifications) {
+              await this.services.notifications.notify({
+                type: "audit",
+                message: `IP ${source_ip} automatically blocked after honeypot access on port ${port}`
+              });
+          }
         } catch (err: any) {
-          loggingService.log({
+          this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.ERROR,
@@ -90,12 +97,12 @@ export class PlaybookService extends BaseService {
           });
         }
       }
-    });
+    }));
 
     // FIM Playbook: High-priority notification on critical file change
-    eventBus.on("DRIFT_PROCESS", async (data: any) => {
+    this.unsubscribers.push(eventBus.on("DRIFT_PROCESS", async (data: any) => {
       const { path, action } = data;
-      loggingService.log({
+      this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
@@ -109,14 +116,14 @@ export class PlaybookService extends BaseService {
       });
 
       this.updateThreatScore("local", 2);
-    });
+    }));
 
     // eBPF Playbook: Monitor suspicious syscalls and quarantine
-    eventBus.on("EBPF_CRITICAL", async (data: any) => {
+    this.unsubscribers.push(eventBus.on("EBPF_CRITICAL", async (data: any) => {
       const { pid, comm, syscall } = data;
       
       if (syscall === "ptrace") {
-        loggingService.log({
+        this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
@@ -125,14 +132,20 @@ export class PlaybookService extends BaseService {
         });
         
         try {
-          await this.services?.protection.firewall.killProcess(pid);
-          await this.services?.shadowProtocol.activate(); // ENGAGE SHADOW MODE
-          await this.services?.notifications.notify({
-            type: "audit",
-            message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
-          });
+          if (this.services?.protection?.firewall) {
+              await this.services.protection.firewall.killProcess(pid);
+          }
+          if (this.services?.shadowProtocol) {
+              await this.services.shadowProtocol.activate(); // ENGAGE SHADOW MODE
+          }
+          if (this.services?.notifications) {
+              await this.services.notifications.notify({
+                type: "audit",
+                message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
+              });
+          }
         } catch (err: any) {
-          loggingService.log({
+          this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.GENERIC,
               severity: LogSeverity.ERROR,
@@ -143,26 +156,26 @@ export class PlaybookService extends BaseService {
         
         this.updateThreatScore("local", 3);
       }
-    });
+    }));
 
     // Mesh Playbook: Monitor node threat levels
-    eventBus.on("THREAT", async (data: any) => {
+    this.unsubscribers.push(eventBus.on("THREAT", async (data: any) => {
       const { nodeId, severity, path } = data;
       if (severity === "HIGH" || severity === "CRITICAL" || path) {
          this.updateThreatScore(nodeId || "local", 1);
       }
-    });
+    }));
 
     // Artifact Playbook: Proactive Quarantine & Containment
-    eventBus.on("ARTIFACT_FOUND", async (data: any) => {
+    this.unsubscribers.push(eventBus.on("ARTIFACT_FOUND", async (data: any) => {
        await this.executeArtifactContainment(data.indicator, data);
-    });
+    }));
 
     // Cross-Platform Playbook Hooks
-    eventBus.on("ES_EXEC", async (data: any) => {
+    this.unsubscribers.push(eventBus.on("ES_EXEC", async (data: any) => {
         const { path, pid, signing_id } = data;
         if (path.includes("curl") || path.includes("wget")) {
-            loggingService.log({
+            this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
@@ -171,12 +184,12 @@ export class PlaybookService extends BaseService {
             });
             this.updateThreatScore("local", 1);
         }
-    });
+    }));
 
-    eventBus.on("ETW_PROCESS", async (data: any) => {
+    this.unsubscribers.push(eventBus.on("ETW_PROCESS", async (data: any) => {
         const { process_name, command_line } = data;
         if (command_line.includes("powershell -enc")) {
-            loggingService.log({
+            this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
@@ -185,7 +198,7 @@ export class PlaybookService extends BaseService {
             });
             this.updateThreatScore("local", 2);
         }
-    });
+    }));
     return ok(undefined);
   }
 
@@ -196,7 +209,7 @@ export class PlaybookService extends BaseService {
   public async executeArtifactContainment(artifact: string, metadata: any) {
       if (!this.services) return;
 
-      loggingService.log({
+      this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
@@ -236,7 +249,7 @@ export class PlaybookService extends BaseService {
   public async runPlaybook(name: string) {
     if (!this.services) return;
 
-    loggingService.log({
+    this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
         severity: LogSeverity.WARNING,
@@ -246,7 +259,7 @@ export class PlaybookService extends BaseService {
     
     switch (name) {
       case "Emergency Isolation":
-        loggingService.log({
+        this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
@@ -265,7 +278,7 @@ export class PlaybookService extends BaseService {
         break;
 
       default:
-        loggingService.log({
+        this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
@@ -280,7 +293,7 @@ export class PlaybookService extends BaseService {
     this.threatScores.set(nodeId, score);
     
     if (score >= this.ISOLATION_THRESHOLD) {
-      loggingService.log({
+      this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
           severity: LogSeverity.ERROR,
@@ -293,8 +306,9 @@ export class PlaybookService extends BaseService {
     }
   }
 
-  override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
-    const { ok } = await import("@core/result.ts");
+  override async shutdown(): Promise<Result<void>> {
+    this.unsubscribers.forEach(u => u());
+    this.unsubscribers = [];
     this.services = undefined;
     return ok(undefined);
   }

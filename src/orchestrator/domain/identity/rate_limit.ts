@@ -1,4 +1,5 @@
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface RateLimitStatus {
   allowed: boolean;
@@ -11,10 +12,12 @@ export interface RateLimitStatus {
  * RateLimitService: Persists rate limit state in Deno KV.
  * Supports distributed rate limiting across mesh nodes.
  */
-export class RateLimitService {
+export class RateLimitService extends BaseService {
   private readonly PREFIX = ["security", "ratelimit"];
 
-  constructor(private kv: Deno.Kv) {}
+  constructor(private kv: Deno.Kv) {
+      super();
+  }
 
   /**
    * Increments and checks the rate limit for a given key (e.g., IP).

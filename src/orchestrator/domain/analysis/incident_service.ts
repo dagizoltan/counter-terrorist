@@ -1,5 +1,6 @@
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
 import { TimelineRepository } from "@infrastructure/persistence/repositories/timeline_repository.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface Incident {
     id: string;
@@ -12,10 +13,11 @@ export interface Incident {
     indicators: string[];
 }
 
-export class IncidentService {
+export class IncidentService extends BaseService {
     private repo: TimelineRepository<Incident>;
 
     constructor(private kv: Deno.Kv, private logging: LoggingPort) {
+        super();
         this.repo = new TimelineRepository<Incident>(kv, "incidents");
     }
 
@@ -40,7 +42,9 @@ export class IncidentService {
     }
 
     async updateStatus(id: string, status: Incident["status"]) {
-        const incident = await this.repo.get(id);
+        const incidents = await this.repo.getLatest(1000);
+        const incident = incidents.find(i => i.id === id);
+
         if (incident) {
             incident.status = status;
             await this.repo.set(id, incident);

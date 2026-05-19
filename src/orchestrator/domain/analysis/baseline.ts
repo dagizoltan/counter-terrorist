@@ -38,6 +38,7 @@ export class BaselineService extends BaseService {
   private baselineFileMap = new Map<string, string>();
   private baselinePortSet = new Set<string>();
   private baselineProcessSet = new Set<string>();
+  private monitorInterval?: number;
 
   constructor(
     private kv: Deno.Kv,
@@ -353,7 +354,8 @@ export class BaselineService extends BaseService {
         caller: "orchestrator:domain:analysis:baseline",
         message: `Starting background monitoring loop (Interval: ${intervalMs}ms)`
     });
-    setInterval(async () => {
+    if (this.monitorInterval) clearInterval(this.monitorInterval);
+    this.monitorInterval = setInterval(async () => {
       try {
         await this.checkDrift();
       } catch (e) {
@@ -366,5 +368,13 @@ export class BaselineService extends BaseService {
         });
       }
     }, intervalMs);
+  }
+
+  override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+      if (this.monitorInterval) {
+          clearInterval(this.monitorInterval);
+          this.monitorInterval = undefined;
+      }
+      return super.shutdown();
   }
 }

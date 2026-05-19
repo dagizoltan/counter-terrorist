@@ -25,6 +25,7 @@ export class AutonomousResponseEngine {
     private scores: Map<string, number> = new Map();
     private history: Map<string, ThreatEvent[]> = new Map();
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
+    private decayInterval?: number;
 
     private readonly MAX_HISTORY_PER_SOURCE = 20;
     private readonly MAX_SOURCES = 500; // Prevent memory exhaustion DoS
@@ -36,10 +37,14 @@ export class AutonomousResponseEngine {
     ) {
         this.services.logging = logging;
         // Automatically decay scores every 5 minutes to allow recovery
-        setInterval(() => this.decayScores(), 300000);
+        this.decayInterval = setInterval(() => this.decayScores(), 300000);
     }
 
     shutdown() {
+        if (this.decayInterval) {
+            clearInterval(this.decayInterval);
+            this.decayInterval = undefined;
+        }
         // Saga handles lifecycle of its own coordination
     }
 

@@ -115,7 +115,9 @@ export class HealthService {
                         const timeDeltaMs = now - prev.lastTs;
                         // Utilization = (ticks / ms) * 100
                         // 1 tick is usually 10ms (USER_HZ=100)
-                        usage.cpu = (tickDelta * 10) / timeDeltaMs * 100;
+                        if (timeDeltaMs > 0) {
+                            usage.cpu = (tickDelta * 10) / timeDeltaMs * 100;
+                        }
                     }
 
                     this.sidecarStats.set(name, { lastTicks: totalTicks, lastTs: now });

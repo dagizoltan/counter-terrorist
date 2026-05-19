@@ -18,6 +18,7 @@ export class SidecarManager implements CommandPort {
   private trippedSidecars: Set<string> = new Set();
   private expectedExits: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
+  private cleanupHandler: (() => Promise<void>) | null = null;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
   private rotationInterval?: number;
@@ -155,7 +156,7 @@ export class SidecarManager implements CommandPort {
   private registerCleanup() {
     if (this.cleanupRegistered) return;
 
-    const cleanup = async () => {
+    this.cleanupHandler = async () => {
       this.isShuttingDown = true;
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -170,8 +171,8 @@ export class SidecarManager implements CommandPort {
       // Deno.exit(0); // Removing explicit exit as it might interfere with Deno's own cleanup
     };
 
-    Deno.addSignalListener("SIGINT", cleanup);
-    Deno.addSignalListener("SIGTERM", cleanup);
+    Deno.addSignalListener("SIGINT", this.cleanupHandler);
+    Deno.addSignalListener("SIGTERM", this.cleanupHandler);
     this.cleanupRegistered = true;
   }
 
@@ -709,6 +710,13 @@ export class SidecarManager implements CommandPort {
     if (this.rotationInterval) clearInterval(this.rotationInterval);
     for (const timer of this.backoffTimers) clearTimeout(timer);
     this.backoffTimers.clear();
+
+    if (this.cleanupHandler) {
+        Deno.removeSignalListener("SIGINT", this.cleanupHandler);
+        Deno.removeSignalListener("SIGTERM", this.cleanupHandler);
+        this.cleanupHandler = null;
+        this.cleanupRegistered = false;
+    }
 
     this.logging.log({
         timestamp: new Date().toISOString(),

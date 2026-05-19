@@ -1,5 +1,6 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export type TacticalSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -14,8 +15,9 @@ export interface NewsItem {
     riskScore: number;
 }
 
-export class NewsSignalService {
+export class NewsSignalService extends BaseService {
     private kv?: Deno.Kv;
+    private refreshInterval?: number;
     private feeds = [
         { name: "Krebs on Security", url: "https://krebsonsecurity.com/feed/" },
         { name: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews" },
@@ -29,6 +31,7 @@ export class NewsSignalService {
     ];
 
     constructor(private logging: LoggingPort) {
+        super();
     }
 
     async start(kv?: Deno.Kv): Promise<Result<void>> {
@@ -45,7 +48,7 @@ export class NewsSignalService {
         this.fetchFeeds().catch(() => {});
 
         // Refresh every 30 minutes
-        setInterval(() => this.fetchFeeds(), 30 * 60 * 1000);
+        this.refreshInterval = setInterval(() => this.fetchFeeds(), 30 * 60 * 1000);
         return ok(undefined);
     }
 
@@ -140,6 +143,10 @@ export class NewsSignalService {
     }
 
     async shutdown(): Promise<Result<void>> {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = undefined;
+        }
         return ok(undefined);
     }
 

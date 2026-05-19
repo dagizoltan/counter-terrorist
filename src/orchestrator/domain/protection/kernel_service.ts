@@ -1,6 +1,7 @@
 import { AuditService } from "../analysis/audit.ts";
 import { LoggingPort, LogSeverity, LogType, ExecutorPort, CommandPort, TpmPort, ConfigurationPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface KernelHardeningStatus {
     aslr: string;
@@ -12,10 +13,9 @@ export interface KernelHardeningStatus {
     lastHardened: string;
 }
 
-export class KernelService {
+export class KernelService extends BaseService {
     private lastHardened: string = "";
     private logging: LoggingPort;
-    private eventBus?: any;
     private metricsInterval?: number;
 
     constructor(
@@ -25,16 +25,21 @@ export class KernelService {
         private sidecarManager?: CommandPort,
         private tpm?: TpmPort
     ) {
+        super();
         this.logging = auditService.getLogging();
+    }
+
+    override async init(): Promise<Result<void>> {
         this.metricsInterval = setInterval(() => this.emitMetrics(), 60000);
+        return ok(undefined);
     }
 
-    shutdown() {
-        if (this.metricsInterval) clearInterval(this.metricsInterval);
-    }
-
-    setEventBus(eventBus: any) {
-        this.eventBus = eventBus;
+    override async shutdown(): Promise<Result<void>> {
+        if (this.metricsInterval) {
+            clearInterval(this.metricsInterval);
+            this.metricsInterval = undefined;
+        }
+        return ok(undefined);
     }
 
     private async emitMetrics() {

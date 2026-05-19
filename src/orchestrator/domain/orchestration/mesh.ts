@@ -20,6 +20,7 @@ export type MeshNode = z.infer<typeof MeshNodeSchema>;
 export class MeshManager extends BaseService {
   private nodes: Map<string, MeshNode> = new Map();
   private discoveryInterval: number | null = null;
+  private metricsInterval: number | null = null;
   private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: any = null;
   private nodeId: string = "";
@@ -30,6 +31,8 @@ export class MeshManager extends BaseService {
   override async shutdown(): Promise<Result<void>> {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
       this.discoveryInterval = null;
+      if (this.metricsInterval) clearInterval(this.metricsInterval);
+      this.metricsInterval = null;
       if (this.mdnsListener) {
           try { this.mdnsListener.close(); } catch { /* ignore */ }
           this.mdnsListener = null;
@@ -56,7 +59,7 @@ export class MeshManager extends BaseService {
     private config: ConfigurationPort
   ) {
     super();
-    setInterval(() => this.emitMetrics(), 30000);
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,

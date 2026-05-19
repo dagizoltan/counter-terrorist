@@ -1,4 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface TacticalIntel {
     ip: string;
@@ -13,10 +14,11 @@ export interface TacticalIntel {
     tags: string[];
 }
 
-export class GeoIpService {
+export class GeoIpService extends BaseService {
     private cache: Map<string, TacticalIntel> = new Map();
 
     constructor(private logging: LoggingPort) {
+        super();
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,

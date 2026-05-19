@@ -1,7 +1,9 @@
+import { BaseService } from "@core/base_service.ts";
 import { SidecarManager } from "../../infrastructure/runtime/sidecar_manager.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "./mesh.ts";
 import { SystemExecutor } from "../../infrastructure/system/system_executor.ts";
+import { Result } from "../../core/result.ts";
 
 export interface ProvisioningTarget {
     address: string;
@@ -13,15 +15,48 @@ export interface ProvisioningTarget {
  * ProvisioningService
  * Orchestrates lateral movement and autonomous mesh expansion.
  */
-export class ProvisioningService {
+export class ProvisioningService extends BaseService {
     private targets: Map<string, ProvisioningTarget> = new Map();
+    private isRunning = false;
+    private scanTimeout?: number;
 
     constructor(
         private sidecar: SidecarManager,
         private mesh: MeshManager,
         private executor: SystemExecutor,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.isRunning = false;
+        if (this.scanTimeout) {
+            clearTimeout(this.scanTimeout);
+            this.scanTimeout = undefined;
+        }
+        return { success: true, data: undefined };
+    }
+
+    private async sleep(ms: number): Promise<void> {
+        return new Promise(resolve => {
+            const timeout = setTimeout(() => {
+                clearInterval(checkInterval);
+                resolve();
+            }, ms);
+
+            // Check every 100ms if we should stop
+            const checkInterval = setInterval(() => {
+                if (!this.isRunning) {
+                    clearTimeout(timeout);
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 100);
+
+            this.scanTimeout = timeout as unknown as number;
+        });
+    }
 
     /**
      * Scans the network for provisionable targets.
@@ -156,6 +191,9 @@ export class ProvisioningService {
     }
 
     async run() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+
         const enabled = Deno.env.get("PROVISIONING_ENABLED") === "true";
         if (!enabled) {
             this.logging.log({
@@ -165,20 +203,23 @@ export class ProvisioningService {
                 caller: "orchestrator:domain:orchestration:provisioning_service",
                 message: "Mesh expansion disabled via PROVISIONING_ENABLED=false."
             });
+            this.isRunning = false;
             return;
         }
 
         // Continuous expansion loop
-        while (true) {
+        while (this.isRunning) {
             await this.discoverTargets();
             const discovered = Array.from(this.targets.values()).filter(t => t.status === "DISCOVERED");
             
             for (const target of discovered) {
+                if (!this.isRunning) break;
                 await this.provisionTarget(target.address);
-                await new Promise(r => setTimeout(r, 5000)); // Throttling
+                await this.sleep(5000); // Throttling
             }
             
-            await new Promise(r => setTimeout(r, 3600000)); // Re-scan every hour
+            if (!this.isRunning) break;
+            await this.sleep(3600000); // Re-scan every hour
         }
     }
 }

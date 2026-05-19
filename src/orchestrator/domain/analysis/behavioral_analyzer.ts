@@ -1,9 +1,11 @@
+import { BaseService } from "@core/base_service.ts";
+
 export interface ConnectionTrace {
     timestamp: number;
     delta: number;
 }
 
-export class BehavioralAnalyzer {
+export class BehavioralAnalyzer extends BaseService {
     private traces: Map<string, ConnectionTrace[]> = new Map();
     private syscallFrequencies: Map<string, Map<string, number>> = new Map(); // comm -> syscall -> frequency
     private slidingWindow: Map<string, number[]> = new Map(); // ip -> window of entropy scores
@@ -20,6 +22,10 @@ export class BehavioralAnalyzer {
         { name: "PERSISTENCE_SETUP", sequence: ["openat", "write", "chmod"], weight: 0.6 }
     ];
 
+    constructor() {
+        super();
+    }
+
     track(ip: string) {
         const now = Date.now();
         const trace = this.traces.get(ip) || [];
@@ -32,14 +38,16 @@ export class BehavioralAnalyzer {
         this.traces.set(ip, trace);
     }
 
-    shutdown() {
+    override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+        const { ok } = await import("@core/result.ts");
         if (this.kv) {
-            this.persistBaselines().catch(() => {});
+            await this.persistBaselines().catch(() => {});
         }
         this.traces.clear();
         this.syscallFrequencies.clear();
         this.slidingWindow.clear();
         this.syscallSequences.clear();
+        return ok(undefined);
     }
 
     analyze(ip: string): { botProbability: number, entropy: number } {
@@ -53,8 +61,9 @@ export class BehavioralAnalyzer {
         
         // BUG-2.3 FIX: Refined entropy heuristic
         // Use a more dynamic normalization based on mean delta to handle high-latency human traffic.
+        // Guard against zero variance for perfect regular traffic
         const normalizationFactor = Math.max(1000, mean * 2);
-        const currentEntropy = Math.min(variance / normalizationFactor, 1);
+        const currentEntropy = variance === 0 ? 0 : Math.min(variance / normalizationFactor, 1);
 
         // TACTICAL: Sliding Window to reduce false positives
         const window = this.slidingWindow.get(ip) || [];

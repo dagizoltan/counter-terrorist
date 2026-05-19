@@ -1,11 +1,10 @@
-import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * Neighbor Networks Page
  * Ambient signals, WiFi APs, and Bluetooth discovery.
  */
-export const NeighborNetworksPage = (props: { status: any, csrfToken?: string, nonce?: string, userRole?: string }) => {
+export const NeighborNetworksPage = (props: { status: Record<string, unknown>, csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
     <Layout title="Neighbor Signals // Environmental Intelligence" islandPaths={[
       '/components/islands/EnvironmentalSignals.js'

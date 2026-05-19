@@ -1,9 +1,10 @@
+import { BaseService } from "@core/base_service.ts";
 import { EventBus } from "@domain/index.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
-export class ChaosEngine {
+export class ChaosEngine extends BaseService {
   private logging: LoggingPort;
 
   constructor(
@@ -11,6 +12,7 @@ export class ChaosEngine {
     private auditService: AuditService,
     private sidecar: SidecarManager
   ) {
+    super();
     this.logging = auditService.getLogging();
   }
 

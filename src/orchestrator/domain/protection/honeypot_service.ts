@@ -111,6 +111,7 @@ export class HoneypotService extends BaseService {
   }
 
   private morphInterval?: number;
+  private metricsInterval?: number;
 
   async start(): Promise<Result<void>> {
     const sidecar = await this.sidecarManager.getPersistentSidecar("decoy");
@@ -137,7 +138,7 @@ export class HoneypotService extends BaseService {
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
     this.morphInterval = setInterval(() => this.morph(), 600000); // Every 10 minutes
-    setInterval(() => this.emitMetrics(), 30000);
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     return ok(undefined);
   }
 
@@ -160,6 +161,10 @@ export class HoneypotService extends BaseService {
       if (this.morphInterval) {
           clearInterval(this.morphInterval);
           this.morphInterval = undefined;
+      }
+      if (this.metricsInterval) {
+          clearInterval(this.metricsInterval);
+          this.metricsInterval = undefined;
       }
       await this.sidecarManager.stopSidecar("decoy");
       return ok(undefined);
