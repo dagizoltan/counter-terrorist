@@ -3,6 +3,7 @@ export interface SidecarConfig {
     description: string;
     persistent: boolean;
     privileged: boolean;
+    critical?: boolean;
     binaryName?: string;
     capabilities?: string;
 }
@@ -21,6 +22,7 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Active enforcement agent for process termination, quarantine, and forensic dumping.",
         persistent: true,
         privileged: true,
+        critical: true,
         binaryName: "enforcer",
         capabilities: "cap_net_admin,cap_kill+ep"
     },
@@ -50,6 +52,7 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "eBPF-powered kernel observability and high-performance XDP firewall.",
         persistent: true,
         privileged: true,
+        critical: true,
         binaryName: "sentinel",
         capabilities: "cap_sys_admin,cap_net_admin,cap_sys_resource+ep"
     },
@@ -58,6 +61,7 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "File integrity monitor using fanotify for real-time unauthorized access detection.",
         persistent: true,
         privileged: true,
+        critical: true,
         binaryName: "watchfile"
     },
     netcap: {
@@ -73,6 +77,7 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Hardware Root of Trust manager for TPM seal/unseal, signing, PCR attestation, and NVRAM secrets.",
         persistent: true,
         privileged: true,
+        critical: true,
         binaryName: "trustroot"
     },
     "sentinel-darwin": {

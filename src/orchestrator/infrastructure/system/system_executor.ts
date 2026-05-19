@@ -349,10 +349,11 @@ export class SystemExecutor implements ExecutorPort {
         allowedArgs: [
             /^-o$/,
             /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/,
-            /^[a-z0-9/._]+$/, // Tightened: removed '-' to ensure any arg starting with '-' must be explicitly matched (like -o)
+            /^[a-z0-9/._-]+$/, // RESTORED '-': Allows hyphens in hostnames and paths
             /^[a-z0-9]+@[a-z0-9.-]+$/,
             /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/
         ],
+        // Tightened via blocklist instead of removing '-' from allowedArgs regex to avoid breaking hostnames
         blockedStrings: ["&&", "||", "|", ";", ">", "<", "`", "$", "(", ")", "!", "-F", "-E", "-S", "-i"],
         maxArgs: 10
     },

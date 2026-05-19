@@ -890,7 +890,9 @@ export class SidecarManager implements CommandPort {
       this.backoffTimers.add(timer);
     } else {
       this.trippedSidecars.add(name);
-      const msg = `CRITICAL: Sidecar ${name} entered crash loop. Circuit breaker active for ${COOLOFF_WINDOW / 1000}s.`;
+      const isCritical = SIDECAR_REGISTRY[name]?.critical || false;
+      const msg = `${isCritical ? "FATAL" : "CRITICAL"}: Sidecar ${name} entered crash loop. Circuit breaker active for ${COOLOFF_WINDOW / 1000}s.`;
+
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
@@ -898,7 +900,12 @@ export class SidecarManager implements CommandPort {
           caller: "orchestrator:infra:runtime:sidecar_manager",
           message: msg
       });
-      this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_CRASH_LOOP", sidecar: name, message: msg });
+      this.emitEvent("SYSTEM_ERROR", {
+          type: "SIDECAR_CRASH_LOOP",
+          sidecar: name,
+          message: msg,
+          critical: isCritical
+      });
 
       // Circuit Breaker: Reset after cooloff period with jitter (H-06)
       const jitter = Math.floor(Math.random() * 30000); // 30s jitter

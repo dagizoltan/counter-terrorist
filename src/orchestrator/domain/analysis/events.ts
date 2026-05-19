@@ -22,6 +22,13 @@ export class EventBus implements EventBusPort {
 
   constructor(private logging: LoggingPort) {}
 
+  public shutdown() {
+      // SOV-05 STABILITY: Clear all handlers to prevent memory leaks during re-initialization
+      this.handlers = [];
+      this.keyedListeners.clear();
+      this.middleware = [];
+  }
+
   use(mw: Middleware) {
     this.middleware.push(mw);
   }

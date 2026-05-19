@@ -367,7 +367,16 @@ export class HoneypotService extends BaseService {
           const allowRes = await this.firewall.allowPort(newPort, "tcp");
           if (allowRes.success) {
               module.port = newPort;
-              await this.firewall.denyPort(oldPort, "tcp");
+              const denyRes = await this.firewall.denyPort(oldPort, "tcp");
+              if (!denyRes.success) {
+                  this.logging.log({
+                      timestamp: new Date().toISOString(),
+                      type: LogType.AUDIT,
+                      severity: LogSeverity.WARNING,
+                      caller: `decoy:${id}`,
+                      message: `DECEPTION MORPH WARNING: Failed to close old port ${oldPort} after rotation.`
+                  });
+              }
           } else {
               this.logging.log({
                   timestamp: new Date().toISOString(),
