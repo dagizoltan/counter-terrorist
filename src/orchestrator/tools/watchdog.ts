@@ -35,6 +35,17 @@ async function resurrect() {
   cmd.spawn();
 }
 
+// SOV-05 STABILITY: Signal handling for clean exit
+Deno.addSignalListener("SIGINT", () => {
+    console.log("[WATCHDOG] SIGINT received. Exiting...");
+    Deno.exit(0);
+});
+
+Deno.addSignalListener("SIGTERM", () => {
+    console.log("[WATCHDOG] SIGTERM received. Exiting...");
+    Deno.exit(0);
+});
+
 // Polling loop
 setInterval(() => {
   if (!isProcessRunning(targetPid)) {

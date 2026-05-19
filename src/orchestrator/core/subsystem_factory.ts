@@ -90,12 +90,13 @@ export class SubsystemFactory {
         return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
     }
 
-    async initEngine(correlation: CorrelationService) {
+    async initEngine(correlation: CorrelationService, mesh: MeshManager) {
         const autopilot = new AutopilotService();
         const autonomousAutopilot = new AutonomousAutopilotService(correlation, this.sidecarManager, this.logging);
         const lifecycle = new LifecycleService(this.sidecarManager, this.logging);
+        const provisioning = new ProvisioningService(this.sidecarManager, mesh, this.executor, this.logging);
 
-        return { autopilot, autonomousAutopilot, lifecycle, policy: autopilot.getPolicy(), correlation };
+        return { autopilot, autonomousAutopilot, lifecycle, policy: autopilot.getPolicy(), correlation, provisioning };
     }
 
     initProcessTracker(platformInfo: PlatformInfo) {

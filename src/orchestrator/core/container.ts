@@ -87,6 +87,7 @@ export interface ServiceContainer {
   news: NewsSignalService;
   networkDiscovery: NetworkDiscoveryService;
   networkLogs: NetworkLogService;
+  provisioning: ProvisioningService;
   incidents: IncidentService;
   canaryService: CanaryService;
   kernelService: KernelService;

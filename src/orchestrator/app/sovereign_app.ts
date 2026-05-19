@@ -209,8 +209,9 @@ export class SovereignApp {
 
     private async gracefulShutdown() {
         if (this.services) {
-            const { autopilot, mesh, audit, mediator, logging, lifecycle, health, metrics, honeypot, behavioral, processTracker, kernelService, protection } = this.services;
+            const { autopilot, mesh, audit, mediator, logging, lifecycle, health, metrics, honeypot, behavioral, processTracker, kernelService, protection, provisioning } = this.services;
             if (autopilot) await autopilot.shutdown();
+            if (provisioning) await provisioning.shutdown();
             if (mesh) await mesh.shutdown();
             if (audit) await audit.shutdown();
             if (mediator && "shutdown" in mediator && typeof mediator.shutdown === "function") {
@@ -379,7 +380,7 @@ export class SovereignApp {
     }
 
     private async startSubsystems() {
-        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot } = this.services;
+        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -438,6 +439,7 @@ export class SovereignApp {
         wrap("CuratedIntel", curatedIntel.start(this.kv));
         wrap("NewsSignal", news.start(this.kv));
         wrap("NetworkDiscovery", networkDiscovery.start());
+        wrap("Provisioning", provisioning.run());
         
         this.services.baseline.startMonitor();
         lifecycle.start();
@@ -528,7 +530,7 @@ export class SovereignApp {
         const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth);
 
         const playbook = new PlaybookService();
-        const { autopilot, autonomousAutopilot, lifecycle, policy } = await factory.initEngine(correlation);
+        const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await factory.initEngine(correlation, mesh);
 
         const morphing = factory.createService(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
         const chaos = factory.createService(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
@@ -548,6 +550,7 @@ export class SovereignApp {
             supplyChain, mesh, meshAuth: identity.meshAuth, threatIntel: intelligence.curatedIntel as any,
             compliance: intelligence.compliance, anonymization: security.anonymization, shadowProtocol: security.shadowProtocol, deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
             curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
+            provisioning,
             incidents: intelligence.incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,

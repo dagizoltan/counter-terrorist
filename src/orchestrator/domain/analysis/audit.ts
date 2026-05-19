@@ -461,6 +461,17 @@ export class AuditService extends BaseService {
         }
     }
 
+    /**
+     * Comprehensive forensic verification of the entire audit ledger.
+     */
+    public async verifyFullChain(): Promise<{
+        valid: boolean;
+        eventsChecked: number;
+        brokenAt?: { eventId: string; expected: string; actual: string; type: string };
+    }> {
+        return await this.verifyChain(-1);
+    }
+
     async verifyChain(limit: number = 1000): Promise<{
         valid: boolean;
         eventsChecked: number;
