@@ -577,14 +577,18 @@ export class SystemExecutor implements ExecutorPort {
       return { valid: true };
   }
 
-  private extractPathsFromJson(obj: any, inPathContext: boolean = false): string[] {
+  private extractPathsFromJson(obj: any, inPathContext: boolean = false, depth: number = 0): string[] {
       const paths: string[] = [];
       if (!obj || obj === null) return paths;
+
+      // SOV-P2: Recursion depth limit to prevent stack overflow attacks
+      const MAX_DEPTH = 10;
+      if (depth > MAX_DEPTH) return paths;
 
       // SOV-03 HARDENING: Hybrid key-based and content-aware path extraction.
       if (Array.isArray(obj)) {
           for (const item of obj) {
-              paths.push(...this.extractPathsFromJson(item, inPathContext));
+              paths.push(...this.extractPathsFromJson(item, inPathContext, depth + 1));
           }
           return paths;
       }
@@ -603,7 +607,7 @@ export class SystemExecutor implements ExecutorPort {
                   paths.push(value);
               }
           } else if (typeof value === "object" && value !== null) {
-              paths.push(...this.extractPathsFromJson(value, inPathContext || isPathKey));
+              paths.push(...this.extractPathsFromJson(value, inPathContext || isPathKey, depth + 1));
           }
       }
       return paths;
