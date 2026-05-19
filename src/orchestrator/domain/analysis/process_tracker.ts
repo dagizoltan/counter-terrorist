@@ -59,6 +59,13 @@ export class ProcessTracker {
     updateProcess(pid: number, ppid: number, comm: string, isGhost: boolean = false) {
         let node = this.tree.get(pid);
         if (node) {
+            // BUG FIX: Remove from old parent if PPID changed to prevent memory leak
+            if (node.ppid !== ppid && node.ppid > 0) {
+                const oldParent = this.tree.get(node.ppid);
+                if (oldParent) {
+                    oldParent.children = oldParent.children.filter(id => id !== pid);
+                }
+            }
             node.ppid = ppid;
             node.comm = comm;
             node.isGhost = isGhost || node.isGhost;

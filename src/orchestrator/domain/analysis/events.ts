@@ -157,8 +157,9 @@ export class EventBus implements EventBusPort {
     }).catch(() => {});
 
     // SOV-P3: Parallelized and Time-Limited Execution
-    const allHandlers = this.handlers;
-    const typeHandlers = this.keyedListeners.get(type as EventName) || [];
+    // BUG FIX: Use snapshots of handlers to prevent race conditions during concurrent mutations (unsubscribes)
+    const allHandlers = [...this.handlers];
+    const typeHandlers = [...(this.keyedListeners.get(type as EventName) || [])];
 
     if (allHandlers.length === 0 && typeHandlers.length === 0) return;
 

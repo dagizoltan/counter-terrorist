@@ -153,11 +153,15 @@ async fn main() {
                     emit_response(id, true, format!("Read from NV index {}", index), Some(serde_json::json!({ "data": data }))).await;
                 },
                 TpmCommand::GenerateSelfSignedCA { id, common_name } => {
-                    let res = generate_ca_task(common_name).await;
+                    let res = tokio::task::spawn_blocking(move || {
+                        generate_ca_task_sync(common_name)
+                    }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
                     emit_response(id, res.0, res.1, res.2).await;
                 },
                 TpmCommand::IssueNodeCert { id, node_id, ca_cert, ca_key } => {
-                    let res = issue_node_cert_task(node_id, ca_cert, ca_key).await;
+                    let res = tokio::task::spawn_blocking(move || {
+                        issue_node_cert_task_sync(node_id, ca_cert, ca_key)
+                    }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
                     emit_response(id, res.0, res.1, res.2).await;
                 }
             }
@@ -165,7 +169,7 @@ async fn main() {
     }
 }
 
-async fn generate_ca_task(common_name: String) -> (bool, String, Option<serde_json::Value>) {
+fn generate_ca_task_sync(common_name: String) -> (bool, String, Option<serde_json::Value>) {
     use rcgen::{Certificate, CertificateParams, IsCa, KeyPair, DistinguishedName};
     
     let mut params = CertificateParams::default();
@@ -194,7 +198,7 @@ async fn generate_ca_task(common_name: String) -> (bool, String, Option<serde_js
     })))
 }
 
-async fn issue_node_cert_task(node_id: String, ca_cert_pem: String, ca_key_pem: String) -> (bool, String, Option<serde_json::Value>) {
+fn issue_node_cert_task_sync(node_id: String, ca_cert_pem: String, ca_key_pem: String) -> (bool, String, Option<serde_json::Value>) {
     use rcgen::{Certificate, CertificateParams, KeyPair, DistinguishedName};
 
     // 1. Generate Node Key Pair

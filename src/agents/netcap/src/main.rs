@@ -225,19 +225,56 @@ async fn main() -> anyhow::Result<()> {
                                     };
 
                                     // SOV-06 HARDENING: Robust Packet Parsing for Loopback Filtering
-                                    // Offset 12: EtherType (0x0800 for IPv4).
-                                    // Offset 14: IP Version & Header Length.
-                                    if n > 34 && initialized_buf[12] == 0x08 && initialized_buf[13] == 0x00 {
-                                        // IPv4 packet detected. Source IP starts at byte 26.
-                                        if &initialized_buf[26..30] == [127, 0, 0, 1] && &initialized_buf[30..34] == [127, 0, 0, 1] {
-                                            continue;
+                                    if n < 14 {
+                                        continue;
+                                    }
+                                    let mut ethertype = u16::from_be_bytes([initialized_buf[12], initialized_buf[13]]);
+                                    let mut payload_offset = 14;
+
+                                    // Handle 802.1Q VLAN Tags
+                                    if ethertype == 0x8100 && n > 18 {
+                                        ethertype = u16::from_be_bytes([initialized_buf[16], initialized_buf[17]]);
+                                        payload_offset = 18;
+                                    }
+
+                                    let mut is_loopback = false;
+                                    if ethertype == 0x0800 && n >= payload_offset + 20 { // IPv4
+                                        let src_ip = &initialized_buf[payload_offset + 12..payload_offset + 16];
+                                        let dst_ip = &initialized_buf[payload_offset + 16..payload_offset + 20];
+                                        if src_ip == [127, 0, 0, 1] || dst_ip == [127, 0, 0, 1] {
+                                            is_loopback = true;
+                                        }
+                                    } else if ethertype == 0x86DD && n >= payload_offset + 40 { // IPv6
+                                        let src_ip = &initialized_buf[payload_offset + 8..payload_offset + 24];
+                                        let dst_ip = &initialized_buf[payload_offset + 24..payload_offset + 40];
+                                        let loopback_addr = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+                                        if src_ip == loopback_addr || dst_ip == loopback_addr {
+                                            is_loopback = true;
                                         }
                                     }
 
-                                    if let Some(ref mut writer) = pcap_writer {
-                                        if let Err(e) = writer.write_packet(initialized_buf, Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64) {
-                                            let _ = log_forensic("error", &format!("PCAP Write Failed: {}", e)).await;
-                                            break;
+                                    if is_loopback {
+                                        continue;
+                                    }
+
+                                    if let Some(mut writer) = pcap_writer.take() {
+                                        let buf_to_write = initialized_buf.to_vec();
+                                        let timestamp = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+
+                                        match tokio::task::spawn_blocking(move || {
+                                            writer.write_packet(&buf_to_write, timestamp).map(|_| writer)
+                                        }).await {
+                                            Ok(Ok(updated_writer)) => {
+                                                pcap_writer = Some(updated_writer);
+                                            }
+                                            Ok(Err(e)) => {
+                                                let _ = log_forensic("error", &format!("PCAP Write Failed: {}", e)).await;
+                                                break;
+                                            }
+                                            Err(e) => {
+                                                let _ = log_forensic("error", &format!("Blocking task failed: {}", e)).await;
+                                                break;
+                                            }
                                         }
                                     }
                                 }
