@@ -2,6 +2,7 @@ import { AuditService } from "../analysis/audit.ts";
 import { resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface CanaryToken {
     id: string;
@@ -16,7 +17,7 @@ export interface CanaryToken {
  * Master files live in ./volume (ignored by Git) and are projected into 
  * the filesystem to look like real, high-value targets.
  */
-export class CanaryService {
+export class CanaryService extends BaseService {
     private tokens: CanaryToken[] = [];
     private readonly MASTER_DIR = "./volume/deception/bait";
     private agingIntervalId?: number;
@@ -26,6 +27,7 @@ export class CanaryService {
         private sidecar: CommandPort,
         private logging: LoggingPort
     ) {
+        super();
         const baitFiles = [
             { id: "fin_01", path: "./vault_credentials.xlsx", desc: "Fake financial credentials" },
             { id: "aws_01", path: "./.aws/config", desc: "Fake cloud infrastructure config" },
@@ -307,5 +309,23 @@ export class CanaryService {
 
     getTokens() {
         return this.tokens;
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        if (this.agingIntervalId) {
+            clearInterval(this.agingIntervalId);
+            this.agingIntervalId = undefined;
+        }
+
+        // Cleanup projections to avoid leaving bait files on the host
+        for (const token of this.tokens) {
+            try {
+                if (this.isProduction()) {
+                    await Deno.remove(token.projectionPath).catch(() => {});
+                }
+                await Deno.remove(token.masterPath).catch(() => {});
+            } catch { /* ignore */ }
+        }
+        return ok(undefined);
     }
 }

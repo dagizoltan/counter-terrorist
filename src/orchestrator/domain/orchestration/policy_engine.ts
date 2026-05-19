@@ -1,4 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export type RemediationAction = "LOG" | "WATCH" | "SHADOW" | "BLOCK" | "ISOLATE" | "LOCKDOWN";
 
@@ -22,13 +23,14 @@ export interface SecurityPolicy {
  * Evaluates behavioral threat scores against the Sovereign Governance Policy.
  * Implements "Policy-as-Code" for automated remediation.
  */
-export class PolicyEngine {
+export class PolicyEngine extends BaseService {
     private policy: SecurityPolicy;
 
     constructor(
         private logging: LoggingPort,
         initialPolicy?: Partial<SecurityPolicy>
     ) {
+        super();
         // Default Sovereign Policy
         this.policy = {
             version: "1.2.0",

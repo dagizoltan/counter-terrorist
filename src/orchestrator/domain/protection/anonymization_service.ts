@@ -1,5 +1,6 @@
 import { LoggingPort, LogSeverity, LogType, FirewallPort, VpnPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface AnonymizationNode {
     country: string;
@@ -20,7 +21,7 @@ export enum StealthMode {
  * AnonymizationService
  * Provides multi-tier exit-node rotation and stealth.
  */
-export class AnonymizationService {
+export class AnonymizationService extends BaseService {
     private rotationCount: number = 0;
     private lastRotationTime: string = "NEVER";
     private mode: StealthMode = StealthMode.OFF;
@@ -32,7 +33,9 @@ export class AnonymizationService {
     constructor(
         private vpn: VpnPort,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
 
     setFirewall(firewall: FirewallPort) {
         this.firewall = firewall;
@@ -246,9 +249,10 @@ export class AnonymizationService {
         };
     }
 
-    stop() {
+    override async shutdown(): Promise<Result<void>> {
         if (this.rotationInterval) clearInterval(this.rotationInterval);
         if (this.killSwitchInterval) clearInterval(this.killSwitchInterval);
         this.mode = StealthMode.OFF;
+        return ok(undefined);
     }
 }

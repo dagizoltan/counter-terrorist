@@ -1,19 +1,22 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { MeshManager } from "../orchestration/mesh.ts";
 import { AnonymizationService } from "./anonymization_service.ts";
+import { BaseService } from "@core/base_service.ts";
 
 /**
  * ShadowProtocolService
  * Orchestrates the "Shadow Mode" response when the system is under targeted attack.
  */
-export class ShadowProtocolService {
+export class ShadowProtocolService extends BaseService {
     private shadowModeActive = false;
 
     constructor(
         private mesh: MeshManager,
         private anonymization: AnonymizationService,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
 
     /**
      * Activates the Shadow Protocol.
