@@ -178,7 +178,13 @@ export class ProvisioningService extends BaseService {
 
     private async provisionWindows(ip: string) {
         // Placeholder for WinRM/SMB-based lateral movement
-        throw new Error("Autonomous Windows provisioning not yet implemented.");
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:domain:orchestration:provisioning_service",
+            message: `Autonomous Windows provisioning not yet implemented. Target ${ip} skipped.`
+        });
     }
 
     private runPromise: Promise<void> | null = null;

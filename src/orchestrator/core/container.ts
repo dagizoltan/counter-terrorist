@@ -92,6 +92,7 @@ export interface ServiceContainer {
   canaryService: CanaryService;
   kernelService: KernelService;
   forensicService: ForensicService;
+  integrity: IntegrityService;
   shadow: ShadowService;
   covert: CovertChannelService;
   ledger: LedgerService;
