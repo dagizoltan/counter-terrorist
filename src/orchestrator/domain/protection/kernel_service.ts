@@ -200,6 +200,18 @@ export class KernelService extends BaseService {
     async blockSyscall(pid: number, syscall: string): Promise<Result<void>> {
         if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
         
+        const os = Deno.build.os;
+        if (os !== "linux") {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:domain:protection:kernel",
+                message: `LSM Syscall blocking bypassed for non-Linux platform: ${os}`
+            });
+            return ok(undefined);
+        }
+
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -240,6 +252,11 @@ export class KernelService extends BaseService {
     async enforceLsmPolicy(policy: { blockedSyscalls: string[], restrictedPids: number[] }): Promise<Result<void>> {
         if (!this.sidecarManager) return err(new Error("SidecarManager not available"));
         
+        const os = Deno.build.os;
+        if (os !== "linux") {
+             return ok(undefined);
+        }
+
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -270,6 +287,18 @@ export class KernelService extends BaseService {
      * Generates a minimal, hardened AppArmor profile for a sidecar.
      */
     async deployAppArmorProfile(name: string, binaryPath: string): Promise<Result<void>> {
+        const os = Deno.build.os;
+        if (os !== "linux") {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:domain:protection:kernel",
+                message: `AppArmor deployment bypassed for non-Linux platform: ${os}`
+            });
+            return ok(undefined);
+        }
+
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,

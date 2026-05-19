@@ -17,8 +17,7 @@ export class DiagnosticRepository {
     const id = crypto.randomUUID();
     const data = { ...entry, id };
     
-    // BUG-5.8 FIX: Avoid double counter increment by using repo.set or mirroring its logic correctly
-    // Use expireIn for automatic pruning of diagnostic noise
+    // BUG-5.8 FIX: Atomically set data and increment counter in a single transaction
     const ts = new Date(entry.timestamp).getTime();
     const res = await this.kv.atomic()
       .set(["logs", ts, id], data, { expireIn: this.DEFAULT_TTL })

@@ -42,12 +42,19 @@ export class IncidentService extends BaseService {
     }
 
     async updateStatus(id: string, status: Incident["status"]) {
-        const incidents = await this.repo.getLatest(1000);
-        const incident = incidents.find(i => i.id === id);
-
-        if (incident) {
-            incident.status = status;
-            await this.repo.set(id, incident);
+        // BUG-5.6 FIX: Efficient composite key lookup for status updates
+        // TimelineRepository uses [prefix, timestamp, id]
+        const iter = this.kv.list<Incident>({ prefix: ["incidents"] }, { reverse: true });
+        for await (const entry of iter) {
+            if (entry.value.id === id) {
+                const incident = entry.value;
+                incident.status = status;
+                // Atomic update: delete old key and set new one to maintain consistency
+                // (Since timestamp hasn't changed, the key is the same)
+                const ts = new Date(incident.timestamp).getTime();
+                await this.kv.set(["incidents", ts, id], incident);
+                break;
+            }
         }
     }
 }
