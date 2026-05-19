@@ -200,8 +200,12 @@ export class MeshManager extends BaseService {
   private async probeNode(address: string) {
     if (!this.httpClient) return;
 
+    // SOV-06 HARDENING: Explicitly block loopback and cloud-metadata addresses from active probing
     const { isValidIP } = await import("@infrastructure/system/validation.ts");
-    if (!isValidIP(address)) return;
+    const isLoopback = address === "127.0.0.1" || address === "::1" || address.startsWith("127.");
+    const isMetadata = address === "169.254.169.254" || address.startsWith("169.254.");
+
+    if (!isValidIP(address) || isLoopback || isMetadata) return;
 
     try {
       const url = `https://${address}:${this.port}/api/mesh/ping`;
@@ -560,7 +564,12 @@ export class MeshManager extends BaseService {
   }
 
   async broadcastAuditEvent(event: any) {
-    const payload = { type: "GOSSIP_AUDIT", data: event };
+    // SOV-06: Propagate recursion guards during gossip
+    const payload = {
+        type: "GOSSIP_AUDIT",
+        data: event,
+        fromAudit: event.fromAudit
+    };
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
     await this.broadcast(payload);
   }

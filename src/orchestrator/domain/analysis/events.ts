@@ -70,12 +70,16 @@ export class EventBus implements EventBusPort {
   publish<T extends EventName>(type: T, message: string, data?: z.infer<EventRegistry[T]>) {
     const validatedData = validateEvent(type, data);
     
+    // SOV-06: Preserve recursion guard flags during publication
+    const fromAudit = (data as any)?.fromAudit;
+
     const event: SystemEvent = {
         type: type as EventType,
         message,
         timestamp: new Date().toISOString(),
-        data: validatedData
-    };
+        data: validatedData,
+        fromAudit
+    } as any;
 
     // SOV-P2: Execute Middleware Chain
     if (this.middleware.length > 0) {
@@ -98,6 +102,11 @@ export class EventBus implements EventBusPort {
   private finalizePublish(event: SystemEvent, validatedData: any) {
     const type = event.type as string;
     const message = event.message;
+
+    // SOV-05 STABILITY: Standardize metadata for recursion detection
+    if (validatedData && typeof validatedData === "object") {
+        validatedData.fromEventBus = true;
+    }
 
     // Forward to centralized logging (Suppress massive payloads for periodic noise)
     const severity = this.mapTypeToSeverity(type);

@@ -47,8 +47,12 @@ export function broadcast(data: BroadcastData) {
     timestamp
   };
 
+  // SOV-05 STABILITY: Detect and prevent "Mirror Room" recursion.
+  // We only publish to the EventBus if the broadcast didn't originate from it.
+  const fromEventBus = data.caller === "EVENTBUS" || data.fromEventBus;
+
   // Publish to central event bus (Phase 3: Trigger Forensic Automation)
-  if (data.type) {
+  if (data.type && !fromEventBus) {
     eventBus.publish(data.type as any, data.message || "", data.data);
   }
   const message = JSON.stringify(eventToBroadcast);

@@ -64,6 +64,7 @@ export class LoggingService implements LoggingPort {
     }
 
     private isIntercepting = false;
+    private isLogging = false; // Re-entrancy guard
     private originalLog = console.log;
     private originalWarn = console.warn;
     private originalError = console.error;
@@ -129,7 +130,15 @@ export class LoggingService implements LoggingPort {
         if (!entry || typeof entry !== "object") return;
         if (!entry.message) return;
 
-        // Sanitize core fields
+        // SOV-05 STABILITY: Re-entrancy guard to prevent stack overflow from recursive logging
+        if (this.isLogging) {
+            this.originalLog(`[LOG_RECURSION_DROPPED] ${entry.message}`);
+            return;
+        }
+        this.isLogging = true;
+
+        try {
+            // Sanitize core fields
         entry.message = this.sanitize(entry.message);
         if (entry.caller) entry.caller = this.sanitize(entry.caller);
         
@@ -186,11 +195,14 @@ export class LoggingService implements LoggingPort {
             this.originalLog(`${timestamp} ${c}[${type.toUpperCase()}] [${severity.toLowerCase()}] [${caller}]${reset} ${message}`);
         }
 
-        // 4. Real-time Broadcast: Sink to connected UI consoles
-        broadcast({
-            type: "AUDIT_EVENT",
-            data: entry
-        });
+            // 4. Real-time Broadcast: Sink to connected UI consoles
+            broadcast({
+                type: "AUDIT_EVENT",
+                data: entry
+            });
+        } finally {
+            this.isLogging = false;
+        }
     }
 
     async logLegacy(message: string, severity: LogSeverity | SyslogSeverity = LogSeverity.INFO, source: string = "SYSTEM", payload?: any) {

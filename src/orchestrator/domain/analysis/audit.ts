@@ -232,10 +232,19 @@ export class AuditService extends BaseService {
                         type: LogType.AUDIT,
                         severity: LogSeverity.ERROR,
                         caller: "orchestrator:domain:analysis:audit",
-                        message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED. FORCING RESTRICTED MODE.`
+                        message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED. FORCING EMERGENCY LOCKDOWN.`
                     });
-                    // SOV-06: Transition to Restricted Mode immediately if chain is broken
+                    // SOV-06: Immediate transition to restricted mode AND system lockdown if tampering is detected on boot.
                     this.state = SystemState.FORENSIC_RESTRICTED;
+
+                    if (this.eventBus) {
+                        this.eventBus.emit("CRITICAL", {
+                            message: "Audit Chain Integrity Violation during boot sequence.",
+                            source: "AuditService:boot",
+                            type: "LEDGER_TAMPER",
+                            data: { reason: "RESTORE_CHAIN_HEAD_FAILURE" }
+                        });
+                    }
                 } else {
                     this.lastVerifiedHash = this.lastHash;
                 }
@@ -260,7 +269,10 @@ export class AuditService extends BaseService {
         }
     }
 
-    async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }) {
+    async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string, fromAudit?: boolean }) {
+        // SOV-05 STABILITY: Immediate drop if event is from audit itself to prevent recursion
+        if ((event as any).fromAudit) return;
+
         if (this.state === SystemState.FORENSIC_RESTRICTED &&
             event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS" && event.type !== "MERKLE_COMMIT") {
             return;
@@ -288,7 +300,8 @@ export class AuditService extends BaseService {
         if (this.isProcessingQueue) return;
         this.isProcessingQueue = true;
 
-        while (this.logQueue.length > 0) {
+        try {
+            while (this.logQueue.length > 0) {
             const currentQueue = this.logQueue;
             this.logQueue = [];
 
@@ -325,14 +338,17 @@ export class AuditService extends BaseService {
                 }
 
                 const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
+                // SOV-05 STABILITY: Ensure audit logging doesn't cause recursion loop
+                // We use original console or direct logging for audit trace to avoid re-entering logEvent.
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity,
                     caller: "orchestrator:domain:analysis:audit",
                     message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
-                    payload: auditEvent.data
-                });
+                    payload: auditEvent.data,
+                    fromAudit: true // Flag to signal no further re-entry into audit
+                }).catch(() => {});
 
                 if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
                     this.mesh.broadcastAuditEvent({
@@ -350,7 +366,9 @@ export class AuditService extends BaseService {
                 }
             }
         }
-        this.isProcessingQueue = false;
+        } finally {
+            this.isProcessingQueue = false;
+        }
     }
 
     private isFlushing = false;
