@@ -422,19 +422,6 @@ export class SidecarManager implements CommandPort {
       ] : [])
     ].filter(Boolean) as string[];
 
-    let agentsDir: string;
-    try {
-      const localAgents = await Deno.stat("./agents").catch(() => null);
-      if (localAgents?.isDirectory) {
-        agentsDir = await Deno.realPath("./agents");
-      } else {
-        agentsDir = await Deno.realPath("./src/agents");
-      }
-      if (!agentsDir.endsWith("/")) agentsDir += "/";
-    } catch {
-      agentsDir = "";
-    }
-
     for (const p of paths) {
       if (!p) continue;
       try {
@@ -835,9 +822,27 @@ export class SidecarManager implements CommandPort {
   }
 
   private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
-      // SOV-03 FIX: Avoid collecting all chunks into memory to prevent OOM
-      // Since standard Web Crypto lacks incremental support, we process in chunks
-      // if possible, but for hash calculation of a whole file we must be careful.
+      // SOV-03 FIX: Use truly streaming OS-level hashing where possible to prevent OOM.
+      // This addresses the pseudo-streaming issue identified in the audit.
+      try {
+          const hasher = new Deno.Command("sha256sum", {
+              stdin: "piped",
+              stdout: "piped",
+              stderr: "null",
+          }).spawn();
+
+          const pipePromise = stream.pipeTo(hasher.stdin);
+          const [output] = await Promise.all([hasher.output(), pipePromise.catch(() => {})]);
+
+          if (output.success) {
+              const hashHex = new TextDecoder().decode(output.stdout).split(" ")[0].trim();
+              const bytes = new Uint8Array(hashHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+              return bytes.buffer as ArrayBuffer;
+          }
+      } catch {
+          // Fallback to in-memory only if OS command fails
+      }
+
       const reader = stream.getReader();
       let totalLength = 0;
       const chunks: Uint8Array[] = [];

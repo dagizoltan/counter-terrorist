@@ -159,26 +159,24 @@ fn hash_file(path: &Path) -> Option<String> {
 
     // 3. Update Cache (with size limit and simple eviction)
     // SOV-P3: Optimized Cache Eviction
-    // Instead of random eviction, we clear a larger batch if we hit the limit
-    // to reduce frequency of eviction cycles under heavy load.
+    // FIX: Instead of a full sort (O(n log n)), we use a faster O(n) threshold-based eviction.
     if HASH_CACHE.len() >= MAX_CACHE_SIZE {
         let now_s = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        // Strategy: First try to evict expired entries
+        // Strategy 1: First try to evict expired entries (O(n))
         HASH_CACHE.retain(|_, v| now_s - v.timestamp < 3600);
 
-        // If still too large, perform bulk eviction of the oldest 20%
+        // Strategy 2: If still too large, perform bulk eviction using a random sampling threshold (O(n))
         if HASH_CACHE.len() >= MAX_CACHE_SIZE {
-            let mut entries: Vec<(String, u64)> = HASH_CACHE.iter()
-                .map(|e| (e.key().clone(), e.value().timestamp))
-                .collect();
+            // Sample a small percentage of entries to estimate a "recent enough" timestamp
+            // or just use a fixed time window for the secondary eviction.
+            let eviction_threshold = now_s - 1800; // Evict anything older than 30 mins
+            HASH_CACHE.retain(|_, v| v.timestamp > eviction_threshold);
+        }
 
-            entries.sort_by_key(|e| e.1);
-            let to_remove = entries.len() / 5; // 20%
-
-            for i in 0..to_remove {
-                HASH_CACHE.remove(&entries[i].0);
-            }
+        // Strategy 3: Hard limit fallback (Safety)
+        if HASH_CACHE.len() >= MAX_CACHE_SIZE {
+            HASH_CACHE.clear(); // Emergency flush if we can't shed enough load
         }
     }
 

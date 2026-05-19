@@ -339,7 +339,8 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
 }
 `.trim();
 
-        const tempFile = `/tmp/${profileName}.profile`;
+        // SOV-06 FIX: Use secure, root-owned directory for temporary profile to prevent TOCTOU
+        const tempFile = `/var/lib/cts/${profileName}.profile`;
         await Deno.writeTextFile(tempFile, profile);
 
         try {

@@ -363,6 +363,13 @@ export class AuditService extends BaseService {
                 // Track for Merkle calculation (Exclude commit events themselves to prevent recursion)
                 if (event.type !== "MERKLE_COMMIT") {
                     this.currentSessionHashes.push(hash);
+
+                    // SOV-06 FIX: Memory Protection - Force Merkle commitment if buffer is too large
+                    // This prevents unbounded growth of the hashes array in memory.
+                    const MAX_MERKLE_BUFFER = 1000;
+                    if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
+                        this.commitMerkleRoot().catch(() => {});
+                    }
                 }
 
                 const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
