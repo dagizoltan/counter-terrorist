@@ -505,15 +505,11 @@ export class SystemExecutor implements ExecutorPort {
     return { valid: true };
   }
 
+  private static readonly DANGEROUS_CHARS_REGEX = /[\\\/%{}&|;><`()!\[\]\n\r\$]|\.\./;
+
   private isPotentiallyDangerous(arg: string): boolean {
-      // SOV-06 HARDENING: Comprehensive shell metacharacter and escape detection
-      return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
-             arg.includes("%") || arg.includes("{") || arg.includes("}") ||
-             arg.includes("$") || arg.includes("&") || arg.includes("|") ||
-             arg.includes(";") || arg.includes(">") || arg.includes("<") ||
-             arg.includes("`") || arg.includes("(") || arg.includes(")") ||
-             arg.includes("!") || arg.includes("[") || arg.includes("]") ||
-             arg.includes("\n") || arg.includes("\r");
+      // SOV-06 HARDENING: Optimized shell metacharacter and escape detection using Regex
+      return SystemExecutor.DANGEROUS_CHARS_REGEX.test(arg);
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {

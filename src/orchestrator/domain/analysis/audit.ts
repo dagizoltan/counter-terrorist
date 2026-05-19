@@ -194,20 +194,21 @@ export class AuditService extends BaseService {
     }
 
     private async commitMerkleRoot() {
-        if (this.currentSessionHashes.length === 0) return;
+        // SOV-06 PERFORMANCE: Use queue-swap pattern to prevent data loss and improve memory safety
+        const hashesToCommit = this.currentSessionHashes;
+        if (hashesToCommit.length === 0) return;
+        this.currentSessionHashes = [];
 
-        const tree = new MerkleTree(this.currentSessionHashes);
+        const tree = new MerkleTree(hashesToCommit);
         const root = await tree.getRoot();
 
         await this.logEvent({
             type: "MERKLE_COMMIT",
             severity: "info",
             caller: "AUDIT:MERKLE",
-            message: `Merkle Root committed for ${this.currentSessionHashes.length} events: ${root.slice(0, 12)}`,
-            data: { root, eventCount: this.currentSessionHashes.length }
+            message: `Merkle Root committed for ${hashesToCommit.length} events: ${root.slice(0, 12)}`,
+            data: { root, eventCount: hashesToCommit.length }
         });
-
-        this.currentSessionHashes = [];
     }
 
     public setCorrelation(correlation: any) {

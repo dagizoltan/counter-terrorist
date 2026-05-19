@@ -862,12 +862,14 @@ export class SidecarManager implements CommandPort {
           reader.releaseLock();
       }
 
+      // SOV-06 PERFORMANCE: Single-allocation merge for digest fallback
       const combined = new Uint8Array(totalLength);
       let pos = 0;
       for (const chunk of chunks) {
           combined.set(chunk, pos);
           pos += chunk.length;
       }
+      chunks = []; // Clear references for GC
       return await crypto.subtle.digest(algorithm, combined);
   }
 

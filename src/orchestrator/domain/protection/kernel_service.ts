@@ -353,7 +353,7 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
         // SOV-06 HARDENING: Use random, non-predictable temporary file with restrictive permissions to prevent TOCTOU
         let tempFile = "";
         try {
-            tempFile = await Deno.makeTempFile({ prefix: `cts-profile-${name}-`, suffix: ".profile" });
+            tempFile = await Deno.makeTempFile({ prefix: `cts-profile-${profileName}-`, suffix: ".profile" });
             // Set restrictive permissions (0600) immediately after creation
             await Deno.chmod(tempFile, 0o600);
             await Deno.writeTextFile(tempFile, profile);
