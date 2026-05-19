@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize};
 use chrono::Utc;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
+use std::error::Error;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use once_cell::sync::Lazy;
@@ -84,7 +85,16 @@ async fn main() -> Result<(), anyhow::Error> {
     let bpf_instance = match Bpf::load(bpf_bytes) {
         Ok(b) => b,
         Err(e) => {
-            emit_response(None, false, format!("Failed to load BPF: {}", e)).await;
+            // SOV-06 FIX: Provide detailed diagnostic on BPF load failure
+            let mut reason = format!("Failed to load BPF: {}", e);
+            if let Some(os_err) = e.source().and_then(|s: &(dyn Error + 'static)| s.downcast_ref::<std::io::Error>()) {
+                if os_err.kind() == std::io::ErrorKind::PermissionDenied {
+                    reason = "Permission Denied: Ensure CAP_SYS_ADMIN and CAP_BPF are set.".to_string();
+                }
+            } else if e.to_string().contains("BTF") {
+                reason = "BTF Error: Kernel lacks BTF support or /sys/kernel/btf/vmlinux is missing.".to_string();
+            }
+            emit_response(None, false, reason).await;
             return run_dummy_mode().await;
         }
     };

@@ -361,7 +361,7 @@ export class SystemExecutor implements ExecutorPort {
             /^-o$/,
             /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/,
             /^[a-z0-9/._-]+$/, // RESTORED '-': Allows hyphens in hostnames and paths
-            /^[a-z0-9]+@[a-z0-9.-]+$/,
+            /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])$/, // SOV-06 FIX: Support bracketed IPv6 in allowedArgs
             /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/,
             SystemExecutor.PROVISIONING_REGEX
         ],
@@ -518,7 +518,11 @@ export class SystemExecutor implements ExecutorPort {
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
       // SOV-06: Remote path bypass for SCP/SSH to avoid jail enforcement on remote addresses
+      // FIX: Apply shell metacharacter protection even to remote paths to prevent injection
       if ((baseCmd === "scp" || baseCmd === "ssh") && /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\]):.*$/.test(arg)) {
+          if (/[;&|><`$()!]/.test(arg)) {
+              return { valid: false, reason: `Security Violation: Shell metacharacters detected in remote path for '${baseCmd}'` };
+          }
           return { valid: true };
       }
 

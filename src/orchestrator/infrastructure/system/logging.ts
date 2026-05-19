@@ -263,6 +263,13 @@ export class LoggingService implements LoggingPort {
         }
         await this.flushLogs();
         this.closePersistentConn();
+
+        // Restore original console if intercepted
+        if (this.isIntercepting || this.isLogging) {
+            console.log = this.originalLog;
+            console.warn = this.originalWarn;
+            console.error = this.originalError;
+        }
     }
 
     private async flushLogs() {

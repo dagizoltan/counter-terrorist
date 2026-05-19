@@ -1,8 +1,9 @@
 import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import { BehavioralAnalyzer } from "../src/orchestrator/domain/analysis/behavioral_analyzer.ts";
 
-Deno.test("BehavioralAnalyzer - BUG-24: Ordered Sequence Matching", () => {
+Deno.test("BehavioralAnalyzer - BUG-24: Ordered Sequence Matching", async () => {
     const analyzer = new BehavioralAnalyzer();
+    try {
     const pid = 1234;
 
     // Pattern: ["mmap", "mprotect", "ptrace"]
@@ -34,4 +35,7 @@ Deno.test("BehavioralAnalyzer - BUG-24: Ordered Sequence Matching", () => {
 
     verdict = analyzer.getIntentVerdict(pid3);
     assertEquals(verdict?.intent, "SHELLCODE_INJECT", "Should match correct order with noise");
+    } finally {
+        await analyzer.shutdown();
+    }
 });

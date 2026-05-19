@@ -668,6 +668,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 
 [[package]]
+name = "memoffset"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "mio"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -684,6 +693,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "libc",
+ "nix",
  "once_cell",
  "parking_lot",
  "serde",
@@ -701,6 +712,7 @@ dependencies = [
  "bitflags 2.11.1",
  "cfg-if",
  "libc",
+ "memoffset",
 ]
 
 [[package]]
@@ -1395,12 +1407,14 @@ name = "trustroot"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "hex",
  "once_cell",
  "pkcs8",
  "rcgen",
  "rsa",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
 ]
 

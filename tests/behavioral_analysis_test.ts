@@ -1,8 +1,9 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { BehavioralAnalyzer } from "@domain/analysis/behavioral_analyzer.ts";
 
-Deno.test("BehavioralAnalyzer - Bot probability and entropy", () => {
+Deno.test("BehavioralAnalyzer - Bot probability and entropy", async () => {
     const analyzer = new BehavioralAnalyzer();
+    try {
     const ip = "1.1.1.1";
 
     // 1. Setup regular traffic (Low variance -> Bot)
@@ -33,10 +34,14 @@ Deno.test("BehavioralAnalyzer - Bot probability and entropy", () => {
     const result2 = analyzer.analyze(ip2);
     assertEquals(result2.botProbability < 0.5, true);
     assertEquals(result2.entropy > 0.5, true);
+    } finally {
+        await analyzer.shutdown();
+    }
 });
 
-Deno.test("BehavioralAnalyzer - Syscall Intent Modeling", () => {
+Deno.test("BehavioralAnalyzer - Syscall Intent Modeling", async () => {
     const analyzer = new BehavioralAnalyzer();
+    try {
     const pid = 1234;
 
     // Sequence for SHELLCODE_INJECT: ["mmap", "mprotect", "ptrace"]
@@ -48,10 +53,14 @@ Deno.test("BehavioralAnalyzer - Syscall Intent Modeling", () => {
     assertExists(verdict);
     assertEquals(verdict.intent, "SHELLCODE_INJECT");
     assertEquals(verdict.score, 1.0);
+    } finally {
+        await analyzer.shutdown();
+    }
 });
 
-Deno.test("BehavioralAnalyzer - Bayesian Anomaly Scoring", () => {
+Deno.test("BehavioralAnalyzer - Bayesian Anomaly Scoring", async () => {
     const analyzer = new BehavioralAnalyzer();
+    try {
     const comm = "nginx";
 
     // Train with normal syscalls
@@ -67,4 +76,7 @@ Deno.test("BehavioralAnalyzer - Bayesian Anomaly Scoring", () => {
     // High score for rare/unseen syscall
     const scoreRare = analyzer.getSyscallAnomalyScore(comm, "ptrace");
     assertEquals(scoreRare > 0.8, true);
+    } finally {
+        await analyzer.shutdown();
+    }
 });

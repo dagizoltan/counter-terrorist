@@ -12,3 +12,5 @@ once_cell = { workspace = true }
 rcgen = "0.11"
 rsa = "0.9"
 pkcs8 = { version = "0.10", features = ["std", "pem"] }
+sha2 = { workspace = true }
+hex = { workspace = true }

@@ -23,6 +23,8 @@ mkdir -p "$DEST_DIR"
 # 2. Provision to unique temporary location for hardening
 # This mitigates TOCTOU, ensures atomicity, and prevents naming collisions.
 TMP_BIN=$(mktemp "$DEST_BIN.XXXXXX")
+# SOV-06 FIX: Set restrictive permissions immediately to prevent leakage or tampering before chown
+chmod 700 "$TMP_BIN"
 cp "$SRC_BIN" "$TMP_BIN"
 
 # 0. TOCTOU Hardening: Verify hash on the PROTECTED temporary file

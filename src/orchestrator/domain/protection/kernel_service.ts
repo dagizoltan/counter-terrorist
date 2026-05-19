@@ -39,6 +39,17 @@ export class KernelService extends BaseService {
             clearInterval(this.metricsInterval);
             this.metricsInterval = undefined;
         }
+
+        // Restore process name on shutdown if camouflaged
+        const stealth = this.config?.getBoolean("STEALTH_ENABLED", true);
+        if (stealth && Deno.build.os === "linux") {
+            try {
+                await this.executor.execute("/var/lib/cts/scripts/update_comm.sh", ["deno", Deno.pid.toString()]);
+            } catch {
+                // Ignore restoration failures during shutdown
+            }
+        }
+
         return ok(undefined);
     }
 
@@ -339,7 +350,8 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
 }
 `.trim();
 
-        const tempFile = `/tmp/${profileName}.profile`;
+        // SOV-06 FIX: Use secure, root-owned directory for temporary profile to prevent TOCTOU
+        const tempFile = `/var/lib/cts/${profileName}.profile`;
         await Deno.writeTextFile(tempFile, profile);
 
         try {

@@ -19,14 +19,25 @@ export class EventBus implements EventBusPort {
   private handlers: ((event: SystemEvent) => void | Promise<void>)[] = [];
   private keyedListeners: Map<string, ((data: any) => void | Promise<void>)[]> = new Map();
   private middleware: Middleware[] = [];
+  private pendingHandlers: Set<Promise<void>> = new Set();
 
   constructor(private logging: LoggingPort) {}
 
-  public shutdown() {
-      // SOV-05 STABILITY: Clear all handlers to prevent memory leaks during re-initialization
+  public async shutdown() {
+      // SOV-05 STABILITY: Wait for pending handlers to complete (with timeout)
+      const start = Date.now();
+      while (this.pendingHandlers.size > 0 && (Date.now() - start < 3000)) {
+          await Promise.race([
+              Promise.all(Array.from(this.pendingHandlers)),
+              new Promise(r => setTimeout(r, 100))
+          ]);
+      }
+
+      // Clear all handlers to prevent memory leaks during re-initialization
       this.handlers = [];
       this.keyedListeners.clear();
       this.middleware = [];
+      this.pendingHandlers.clear();
   }
 
   use(mw: Middleware) {
@@ -166,7 +177,7 @@ export class EventBus implements EventBusPort {
       if (!(res instanceof Promise)) return; // PERFORMANCE: Avoid microtask overhead for sync handlers
 
       // Only handle async if it's actually a promise
-      (async () => {
+      const wrappedPromise = (async () => {
         let timeoutId: any;
         try {
           const timeoutPromise = new Promise((_, reject) => {
@@ -185,8 +196,10 @@ export class EventBus implements EventBusPort {
           }).catch(() => {});
         } finally {
           if (timeoutId) clearTimeout(timeoutId);
+          this.pendingHandlers.delete(wrappedPromise);
         }
       })();
+      this.pendingHandlers.add(wrappedPromise);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
       this.logging.log({

@@ -169,18 +169,98 @@ async fn main() -> anyhow::Result<()> {
                     let mut pcap_writer = filename_clone.as_ref().and_then(|f| PcapngWriter::new(f, &interface_clone).ok());
                     let start_time = Utc::now();
 
-                    // NATIVE RAW SOCKET (AF_PACKET)
-                    // For simulation/dev, we use a loop, but the writer logic is real
-                    loop {
-                        if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
-                            let _ = log_forensic("info", "Forensic capture auto-terminated by duration limit.").await;
-                            break;
+                    #[cfg(target_os = "linux")]
+                    {
+                        use socket2::{Socket, Domain, Type, Protocol};
+                        // SOV-06 FIX: Implement real AF_PACKET raw socket for Linux
+                        let socket = match Socket::new(Domain::PACKET, Type::RAW, Some(Protocol::from(0x0003u16.to_be() as i32))) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                let _ = log_forensic("error", &format!("Failed to open raw socket: {}. Ensure CAP_NET_RAW is set.", e)).await;
+                                return;
+                            }
+                        };
+
+                        // Bind to interface
+                        if let Ok(idx) = nix::net::if_::if_nametoindex(interface_clone.as_str()) {
+                            // Using libc directly for sockaddr_ll construction if socket2 doesn't expose .packet() helper in this version
+                            use libc::{sockaddr_ll, AF_PACKET, ETH_P_ALL};
+                            let mut address: sockaddr_ll = unsafe { std::mem::zeroed() };
+                            address.sll_family = AF_PACKET as u16;
+                            address.sll_protocol = (ETH_P_ALL as u16).to_be();
+                            address.sll_ifindex = idx as i32;
+
+                            let addr = unsafe {
+                                let mut storage: libc::sockaddr_storage = std::mem::zeroed();
+                                std::ptr::copy_nonoverlapping(
+                                    &address as *const _ as *const u8,
+                                    &mut storage as *mut _ as *mut u8,
+                                    std::mem::size_of::<sockaddr_ll>(),
+                                );
+                                socket2::SockAddr::new(
+                                    storage,
+                                    std::mem::size_of::<sockaddr_ll>() as u32,
+                                )
+                            };
+
+                            if let Err(e) = socket.bind(&addr) {
+                                let _ = log_forensic("error", &format!("Failed to bind to interface {}: {}", interface_clone, e)).await;
+                                return;
+                            }
                         }
 
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                        if let Some(ref mut writer) = pcap_writer {
-                            let dummy_packet = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x45\x00\x00\x3c\x12\x34\x40\x00\x40\x06\xb1\xe6\x7f\x00\x00\x01\x7f\x00\x00\x01";
-                            let _ = writer.write_packet(dummy_packet, Utc::now().timestamp_nanos() as u64);
+                        let mut buf = [std::mem::MaybeUninit::new(0u8); 65535];
+                        loop {
+                            if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
+                                let _ = log_forensic("info", "Forensic capture auto-terminated by duration limit.").await;
+                                break;
+                            }
+
+                            socket.set_read_timeout(Some(std::time::Duration::from_millis(100))).ok();
+                            match socket.recv(&mut buf) {
+                                Ok(n) if n > 0 => {
+                                    // SAFETY: recv returned n bytes, so we can initialize them
+                                    let initialized_buf = unsafe {
+                                        std::slice::from_raw_parts(buf.as_ptr() as *const u8, n)
+                                    };
+
+                                    // SOV-06 HARDENING: Robust Packet Parsing for Loopback Filtering
+                                    // Offset 12: EtherType (0x0800 for IPv4).
+                                    // Offset 14: IP Version & Header Length.
+                                    if n > 34 && initialized_buf[12] == 0x08 && initialized_buf[13] == 0x00 {
+                                        // IPv4 packet detected. Source IP starts at byte 26.
+                                        if &initialized_buf[26..30] == [127, 0, 0, 1] && &initialized_buf[30..34] == [127, 0, 0, 1] {
+                                            continue;
+                                        }
+                                    }
+
+                                    if let Some(ref mut writer) = pcap_writer {
+                                        if let Err(e) = writer.write_packet(initialized_buf, Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64) {
+                                            let _ = log_forensic("error", &format!("PCAP Write Failed: {}", e)).await;
+                                            break;
+                                        }
+                                    }
+                                }
+                                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                    tokio::task::yield_now().await;
+                                }
+                                Err(e) => {
+                                    let _ = log_forensic("error", &format!("Raw socket error: {}", e)).await;
+                                    break;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+
+                    #[cfg(not(target_os = "linux"))]
+                    {
+                        // Fallback/Simulated loop for non-Linux platforms
+                        loop {
+                            if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
+                                break;
+                            }
+                            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                         }
                     }
                 });
