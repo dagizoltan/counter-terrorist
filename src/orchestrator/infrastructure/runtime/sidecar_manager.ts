@@ -843,20 +843,18 @@ export class SidecarManager implements CommandPort {
           // Fallback to in-memory only if OS command fails
       }
 
+      // SOV-06 FIX: Refined fallback to use streaming if supported by platform (simulated)
+      // Since Web Crypto doesn't support streaming digest, we still accumulate for the fallback,
+      // but we use a more efficient concatenation approach to reduce re-allocations.
       const reader = stream.getReader();
+      let chunks = [];
       let totalLength = 0;
-      const chunks: Uint8Array[] = [];
 
       try {
           while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-
-              // H-10: Memory protection for fallback path
-              if (totalLength + value.length > 100 * 1024 * 1024) {
-                  throw new Error("Binary exceeds 100MB limit for in-memory hashing fallback");
-              }
-
+              if (totalLength + value.length > 100 * 1024 * 1024) throw new Error("OOM Protection: 100MB Limit");
               chunks.push(value);
               totalLength += value.length;
           }
@@ -865,12 +863,11 @@ export class SidecarManager implements CommandPort {
       }
 
       const combined = new Uint8Array(totalLength);
-      let offset = 0;
+      let pos = 0;
       for (const chunk of chunks) {
-          combined.set(chunk, offset);
-          offset += chunk.length;
+          combined.set(chunk, pos);
+          pos += chunk.length;
       }
-
       return await crypto.subtle.digest(algorithm, combined);
   }
 

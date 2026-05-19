@@ -224,10 +224,14 @@ async fn main() -> anyhow::Result<()> {
                                         std::slice::from_raw_parts(buf.as_ptr() as *const u8, n)
                                     };
 
-                                    // SOV-06: Basic Filter - Skip if loopback traffic (optimization)
-                                    // Simple check for localhost src/dst (approximate)
-                                    if n > 34 && &initialized_buf[26..30] == [127, 0, 0, 1] && &initialized_buf[30..34] == [127, 0, 0, 1] {
-                                        continue;
+                                    // SOV-06 HARDENING: Robust Packet Parsing for Loopback Filtering
+                                    // Offset 12: EtherType (0x0800 for IPv4).
+                                    // Offset 14: IP Version & Header Length.
+                                    if n > 34 && initialized_buf[12] == 0x08 && initialized_buf[13] == 0x00 {
+                                        // IPv4 packet detected. Source IP starts at byte 26.
+                                        if &initialized_buf[26..30] == [127, 0, 0, 1] && &initialized_buf[30..34] == [127, 0, 0, 1] {
+                                            continue;
+                                        }
                                     }
 
                                     if let Some(ref mut writer) = pcap_writer {

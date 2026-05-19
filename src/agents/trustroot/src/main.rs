@@ -59,14 +59,15 @@ async fn main() {
 
     // SOV-06 FIX: Implement persistent Virtual TPM state for fallback
     let state_path = "./volume/storage/trustroot/vtpm_state.json";
-    std::fs::create_dir_all("./volume/storage/trustroot").ok();
+    tokio::fs::create_dir_all("./volume/storage/trustroot").await.ok();
 
     while let Ok(Some(line)) = reader.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<TpmCommand>(line.trim()) {
             match cmd {
                 TpmCommand::Seal { id, index, data } => {
                     // Virtual Sealing: Store encrypted data in state file
-                    let mut state: serde_json::Value = std::fs::read_to_string(state_path)
+                    let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                        .await
                         .ok()
                         .and_then(|s| serde_json::from_str(&s).ok())
                         .unwrap_or(serde_json::json!({}));
@@ -77,14 +78,15 @@ async fn main() {
                         "timestamp": Utc::now().to_rfc3339()
                     });
 
-                    if std::fs::write(state_path, state.to_string()).is_ok() {
+                    if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
                         emit_response(id, true, format!("Data sealed to virtual hardware index {}", index), None).await;
                     } else {
                         emit_response(id, false, "Failed to persist virtual TPM state".to_string(), None).await;
                     }
                 },
                 TpmCommand::Unseal { id, index } => {
-                    let state: serde_json::Value = std::fs::read_to_string(state_path)
+                    let state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                        .await
                         .ok()
                         .and_then(|s| serde_json::from_str(&s).ok())
                         .unwrap_or(serde_json::json!({}));
@@ -97,7 +99,7 @@ async fn main() {
                 },
                 TpmCommand::QuoteIdentity { id, nonce } => {
                     // Virtual Identity Quote: Signed by local machine key
-                    let machine_id = std::fs::read_to_string("/etc/machine-id").unwrap_or_else(|_| "unknown".to_string()).trim().to_string();
+                    let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "unknown".to_string()).trim().to_string();
                     let pcr_state = format!("PCR0:{}", machine_id);
                     let data = serde_json::json!({
                         "quote": "VIRTUAL_SIG",
@@ -117,9 +119,9 @@ async fn main() {
                 TpmCommand::GetPcrs { id, indices } => {
                     let mut pcrs = serde_json::Map::new();
                     // SOV-06 FIX: Derive Virtual PCRs from real system state
-                    let machine_id = std::fs::read_to_string("/etc/machine-id").unwrap_or_else(|_| "unknown".to_string());
-                    let kernel_version = std::fs::read_to_string("/proc/version").unwrap_or_else(|_| "unknown".to_string());
-                    let hostname = std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap_or_else(|_| "unknown".to_string());
+                    let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "unknown".to_string());
+                    let kernel_version = tokio::fs::read_to_string("/proc/version").await.unwrap_or_else(|_| "unknown".to_string());
+                    let hostname = tokio::fs::read_to_string("/proc/sys/kernel/hostname").await.unwrap_or_else(|_| "unknown".to_string());
 
                     for idx in indices {
                         let seed = match idx {
