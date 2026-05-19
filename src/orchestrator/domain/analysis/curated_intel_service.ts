@@ -67,6 +67,8 @@ const SOURCE_WEIGHTS: Record<string, number> = {
  */
 export class CuratedIntelService extends BaseService {
     private kv?: Deno.Kv;
+    private syncInterval?: number;
+    private lifecycleInterval?: number;
     private sources = [
         { name: "Abuse.ch", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
         { name: "MalwareBazaar", url: "https://bazaar.abuse.ch/export/csv/recent/", type: "HASH" },
@@ -100,6 +102,14 @@ export class CuratedIntelService extends BaseService {
     }
 
     override async shutdown(): Promise<Result<void>> {
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = undefined;
+        }
+        if (this.lifecycleInterval) {
+            clearInterval(this.lifecycleInterval);
+            this.lifecycleInterval = undefined;
+        }
         return ok(undefined);
     }
 
@@ -163,10 +173,10 @@ export class CuratedIntelService extends BaseService {
 
         // 3. Periodic sync
         const intervalHours = this.config.getNumber("INTEL_SYNC_INTERVAL_HOURS", 1);
-        setInterval(() => this.sync(), intervalHours * 60 * 60 * 1000); 
+        this.syncInterval = setInterval(() => this.sync(), intervalHours * 60 * 60 * 1000);
 
         // 4. Lifecycle Management Loop
-        setInterval(() => this.processLifecycle(), 15 * 60 * 1000);
+        this.lifecycleInterval = setInterval(() => this.processLifecycle(), 15 * 60 * 1000);
         return ok(undefined);
     }
 

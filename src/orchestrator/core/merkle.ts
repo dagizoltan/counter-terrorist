@@ -5,10 +5,15 @@
 export class MerkleTree {
     private leaves: string[] = [];
     private tree: string[][] = [];
+    private initPromise: Promise<void>;
 
     constructor(leaves: string[]) {
         this.leaves = leaves;
-        this.buildTree();
+        this.initPromise = this.buildTree();
+    }
+
+    public async waitReady(): Promise<void> {
+        await this.initPromise;
     }
 
     private async buildTree() {
@@ -39,14 +44,16 @@ export class MerkleTree {
         return Array.from(hashArray).map(b => b.toString(16).padStart(2, "0")).join("");
     }
 
-    public getRoot(): string {
+    public async getRoot(): Promise<string> {
+        await this.initPromise;
         return this.tree[this.tree.length - 1][0] || "EMPTY";
     }
 
     /**
      * Generates a proof of inclusion for a given leaf index.
      */
-    public getProof(index: number): string[] {
+    public async getProof(index: number): Promise<string[]> {
+        await this.initPromise;
         const proof: string[] = [];
         let currentIndex = index;
 

@@ -55,8 +55,8 @@ export class SystemExecutor implements ExecutorPort {
             i++;
             continue;
         }
-        // Block all other flags starting with - (e.g. -F, -E, -S) to prevent config bypass or log hijacking
-        if (arg.startsWith("-")) {
+        // Block all other flags starting with - (e.g. -F, -E, -S, -i) to prevent config bypass or log hijacking
+        if (arg.startsWith("-") && arg !== "-o") {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized flag: ${arg}` });
             continue;
         }

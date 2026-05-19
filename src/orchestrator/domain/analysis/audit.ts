@@ -190,7 +190,7 @@ export class AuditService extends BaseService {
         if (this.currentSessionHashes.length === 0) return;
 
         const tree = new MerkleTree(this.currentSessionHashes);
-        const root = tree.getRoot();
+        const root = await tree.getRoot();
 
         await this.logEvent({
             type: "MERKLE_COMMIT",
