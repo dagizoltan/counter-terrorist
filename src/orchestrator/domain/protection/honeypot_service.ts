@@ -332,7 +332,11 @@ export class HoneypotService extends BaseService {
       const protectedPorts = [8000, 8001, 8002]; // Orchestrator ports
       
       let portAvailable = false;
+      let attempts = 0;
+      const MAX_PORT_SELECTION_ATTEMPTS = 50;
+
       do {
+        attempts++;
         // Preference for common but usually unused ports for better camouflage
         const camouflagePorts = [111, 515, 1024, 2049, 4000, 5000, 9000];
         const useCamouflage = Math.random() > 0.5;
@@ -349,7 +353,20 @@ export class HoneypotService extends BaseService {
                 portAvailable = true;
             }
         }
+
+        if (attempts >= MAX_PORT_SELECTION_ATTEMPTS) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:honeypot:morph",
+                message: `MORPHING STABILITY ALERT: Failed to find an available port for module ${id} after ${attempts} attempts. Skipping rotation.`
+            });
+            break;
+        }
       } while (!portAvailable);
+
+      if (!portAvailable) continue;
 
       // BUG-4.1 FIX: Port morphing race condition
       // Update sidecar BEFORE opening firewall to ensure listener is ready

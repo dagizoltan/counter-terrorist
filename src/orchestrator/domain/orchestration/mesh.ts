@@ -323,6 +323,29 @@ export class MeshManager extends BaseService {
       return;
     }
 
+    // SOV-06: Remediate SSRF in mesh discovery
+    // We only handshake with valid IPs. We allow private IPs for local mesh
+    // but strictly block loopback and cloud-metadata to prevent SSRF.
+    const { isValidIP } = await import("@infrastructure/system/validation.ts");
+    const isLoopback = node.address === "127.0.0.1" || node.address === "::1" || node.address.startsWith("127.");
+    const isMetadata = node.address === "169.254.169.254" || node.address.startsWith("169.254.");
+
+    if (!isValidIP(node.address) || isLoopback || isMetadata) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:domain:orchestration:mesh",
+            message: `REJECTED node ${node.id} — Illegal or prohibited IP address: ${node.address}`
+        });
+        return;
+    }
+
+    // Strict port validation for mesh peers
+    if (node.port < 1024 || node.port > 65535 || (node.port !== this.port && node.port !== 8000)) {
+        return;
+    }
+
     if (!this.httpClient) {
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -491,15 +514,13 @@ export class MeshManager extends BaseService {
         message: `Gossip: Broadcasting block for ${ip}`
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_BLOCK",
-        data: {
-            ip,
-            sourceNode: this.nodeId,
-            timestamp: Date.now()
-        }
-    });
-    return ok(undefined);
+        data: { ip, sourceNode: this.nodeId, timestamp: Date.now() }
+    };
+
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    return await this.broadcast(payload, true);
   }
 
   async broadcastThreatHash(hash: string, sourceNode: string): Promise<Result<void>> {
@@ -511,15 +532,13 @@ export class MeshManager extends BaseService {
         message: `Gossip: Broadcasting threat hash ${hash.slice(0, 8)}`
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_THREAT_HASH",
-        data: {
-            hash,
-            sourceNode,
-            timestamp: Date.now()
-        }
-    });
-    return ok(undefined);
+        data: { hash, sourceNode, timestamp: Date.now() }
+    };
+
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    return await this.broadcast(payload);
   }
 
   async broadcastLockdown(): Promise<Result<void>> {
@@ -531,29 +550,28 @@ export class MeshManager extends BaseService {
         message: "Gossip: Initiating high-priority EMERGENCY LOCKDOWN broadcast..."
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_LOCKDOWN",
-        data: {
-            sourceNode: this.nodeId,
-            timestamp: Date.now()
-        }
-    });
-    return ok(undefined);
+        data: { sourceNode: this.nodeId, timestamp: Date.now() }
+    };
+
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    return await this.broadcast(payload, true);
   }
 
   async broadcastAuditEvent(event: any) {
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "GOSSIP_AUDIT", data: event });
+    const payload = { type: "GOSSIP_AUDIT", data: event };
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    await this.broadcast(payload);
   }
 
   async broadcastAuditVerification(lastHash: string, eventCount: number) {
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_AUDIT_VERIFY",
-        data: {
-            lastHash,
-            eventCount,
-            node: this.nodeId
-        }
-    });
+        data: { lastHash, eventCount, node: this.nodeId }
+    };
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    await this.broadcast(payload);
   }
 
   async reconcile(): Promise<Result<void>> {
@@ -812,6 +830,12 @@ export class MeshManager extends BaseService {
         caller: "orchestrator:domain:orchestration:mesh",
         message: `Tactical mTLS Sync completed with ${node.address}:${node.port}`
     });
+
+    try {
+        return await res.json();
+    } catch {
+        return { success: true };
+    }
   }
 
   private async startStateWatcher() {
@@ -840,12 +864,18 @@ export class MeshManager extends BaseService {
         message: `Initiating Identity Rotation for ${this.nodeId}...`
     });
     
-    this.httpClient = null;
-    
+    // SOV-05 STABILITY: Transactional Identity Rotation
+    // Save old state to allow rollback or continued operation if new mTLS setup fails
+    const oldClient = this.httpClient;
     const oldId = this.nodeId;
-    this.nodeId = Deno.hostname() + "-" + crypto.randomUUID().slice(0, 8);
-    
-    await this.init();
+    const oldCert = this.nodeCert;
+
+    try {
+        this.nodeId = Deno.hostname() + "-" + crypto.randomUUID().slice(0, 8);
+        this.httpClient = null; // Forces new client creation in init()
+
+        const res = await this.init();
+        if (!res.success) throw res.error;
     
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -855,15 +885,34 @@ export class MeshManager extends BaseService {
         message: `Identity Rotation Complete: ${oldId} -> ${this.nodeId}`
     });
     
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
-        type: "UI_MESSAGE",
-        data: {
-            message: "Security Mesh Identity Phased",
-            oldId,
-            newId: this.nodeId
-        }
-    });
-    return ok(undefined);
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+            type: "UI_MESSAGE",
+            data: {
+                message: "Security Mesh Identity Phased",
+                oldId,
+                newId: this.nodeId
+            }
+        });
+
+        if (oldClient) oldClient.close();
+        return ok(undefined);
+
+    } catch (e) {
+        // ROLLBACK: Restore previous identity and client
+        this.nodeId = oldId;
+        this.httpClient = oldClient;
+        this.nodeCert = oldCert;
+
+        const msg = `Identity Rotation Failed: ${(e as Error).message}. Rolled back to previous state.`;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:orchestration:mesh",
+            message: msg
+        });
+        return err(e instanceof Error ? e : new Error(String(e)));
+    }
   }
 
   async resyncNodes() {

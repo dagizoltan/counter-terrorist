@@ -17,17 +17,6 @@ if [ -z "$NAME" ] || [ -z "$SRC_BIN" ]; then
     exit 1
 fi
 
-# 0. TOCTOU Hardening: Verify source hash before any operation
-if [ -n "$EXPECTED_HASH" ] && [ "$EXPECTED_HASH" != "none" ]; then
-    ACTUAL_HASH=$(sha256sum "$SRC_BIN" | awk '{ print $1 }')
-    if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
-        echo "CRITICAL: Integrity mismatch for source script/binary $NAME!"
-        echo "Expected: $EXPECTED_HASH"
-        echo "Actual:   $ACTUAL_HASH"
-        exit 101
-    fi
-fi
-
 # 1. Create secure jail if missing
 mkdir -p "$DEST_DIR"
 
@@ -35,6 +24,19 @@ mkdir -p "$DEST_DIR"
 # This mitigates TOCTOU, ensures atomicity, and prevents naming collisions.
 TMP_BIN=$(mktemp "$DEST_BIN.XXXXXX")
 cp "$SRC_BIN" "$TMP_BIN"
+
+# 0. TOCTOU Hardening: Verify hash on the PROTECTED temporary file
+# Verification MUST happen after the copy to ensure the binary cannot be changed during the process.
+if [ -n "$EXPECTED_HASH" ] && [ "$EXPECTED_HASH" != "none" ]; then
+    ACTUAL_HASH=$(sha256sum "$TMP_BIN" | awk '{ print $1 }')
+    if [ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]; then
+        echo "CRITICAL: Integrity mismatch for $NAME!"
+        echo "Expected: $EXPECTED_HASH"
+        echo "Actual:   $ACTUAL_HASH"
+        rm -f "$TMP_BIN"
+        exit 101
+    fi
+fi
 
 # 3. Lockdown Permissions & Capabilities on the temporary file
 chown root:root "$TMP_BIN"

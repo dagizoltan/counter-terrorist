@@ -156,22 +156,12 @@ export class MeshAuthService implements MeshAuthPort {
     }
 
     // 2. Fallback to ENV (Standard Production Mode)
-    let secret = this.config?.getEnv("PKI_SECRET");
-    let needsSealing = !!secret;
+    // SOV-06 HARDENING: Removed fallback to API_TOKEN for PKI secrets to ensure strictly isolated credential domains.
+    const secret = this.config?.getEnv("PKI_SECRET");
+    const needsSealing = !!secret;
     
     if (!secret) {
-      const fallback = this.config?.getEnv("API_TOKEN");
-      if (!fallback) {
-        throw new Error("[PKI] CRITICAL: Neither PKI_SECRET nor API_TOKEN are set. PKI operations aborted for security.");
-      }
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
-          severity: LogSeverity.WARNING,
-          caller: "PKI",
-          message: "PKI_SECRET is not set. Falling back to API_TOKEN for key encryption."
-      });
-      secret = fallback;
+        throw new Error("[PKI] CRITICAL: PKI_SECRET is not set. Mesh authentication remains dormant for security.");
     }
 
     // 3. Seal to TPM for future cold-boot resilience (only if it came from environment)

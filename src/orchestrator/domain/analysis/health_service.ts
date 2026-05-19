@@ -16,6 +16,7 @@ export interface SubsystemHealth {
 export class HealthService {
     private states: Map<string, SubsystemHealth> = new Map();
     private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
+    private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
     private intervals: number[] = [];
 
     public shutdown() {
@@ -100,13 +101,24 @@ export class HealthService {
                     usage.rss = parseInt(rssMatch[1]) * 1024;
                 }
 
-                // CPU Calculation: (utime + stime) / uptime
-                // This is a simplified approximation for delta-based CPU monitoring
+                // CPU Calculation: Delta-based utilization
                 const parts = stat.split(" ");
                 if (parts.length > 14) {
                     const utime = parseInt(parts[13]);
                     const stime = parseInt(parts[14]);
-                    usage.cpu = (utime + stime) / 100; // Very rough % over life of process
+                    const totalTicks = utime + stime;
+                    const now = Date.now();
+
+                    const prev = this.sidecarStats.get(name);
+                    if (prev) {
+                        const tickDelta = totalTicks - prev.lastTicks;
+                        const timeDeltaMs = now - prev.lastTs;
+                        // Utilization = (ticks / ms) * 100
+                        // 1 tick is usually 10ms (USER_HZ=100)
+                        usage.cpu = (tickDelta * 10) / timeDeltaMs * 100;
+                    }
+
+                    this.sidecarStats.set(name, { lastTicks: totalTicks, lastTs: now });
                 }
             } else if (Deno.build.os === "darwin" || Deno.build.os === "windows") {
                 // Fallback to 'ps' or 'tasklist' via standard system tools if procfs is unavailable

@@ -162,6 +162,7 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 2
     },
     "ps": {
+        // SOV-06: Strictly allow only targeted process status queries and safe output columns
         allowedArgs: [/^(-p|-ax|-o)$/, /^[0-9,a-z]+$/],
         maxArgs: 4
     },
@@ -292,7 +293,8 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 5
     },
     "ss": {
-        allowedArgs: [/^-?[tulnpa]+$/],
+        // SOV-06: Limit ss to socket monitoring and local port verification
+        allowedArgs: [/^(-?[tulnpaH]+|sport = :[0-9]+)$/],
         maxArgs: 2
     },
     "unshare": {
@@ -488,11 +490,14 @@ export class SystemExecutor implements ExecutorPort {
   }
 
   private isPotentiallyDangerous(arg: string): boolean {
+      // SOV-06 HARDENING: Comprehensive shell metacharacter and escape detection
       return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
-             arg.includes("%") || arg.includes("{") || arg.includes("$") ||
-             arg.includes("&") || arg.includes("|") || arg.includes(";") ||
-             arg.includes(">") || arg.includes("<") || arg.includes("`") ||
-             arg.includes("(") || arg.includes(")");
+             arg.includes("%") || arg.includes("{") || arg.includes("}") ||
+             arg.includes("$") || arg.includes("&") || arg.includes("|") ||
+             arg.includes(";") || arg.includes(">") || arg.includes("<") ||
+             arg.includes("`") || arg.includes("(") || arg.includes(")") ||
+             arg.includes("!") || arg.includes("[") || arg.includes("]") ||
+             arg.includes("\n") || arg.includes("\r");
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
