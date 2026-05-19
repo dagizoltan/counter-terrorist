@@ -61,6 +61,22 @@ export class ProvisioningService {
         const target = this.targets.get(ip);
         if (!target || target.status === "ACTIVE") return;
 
+        // SOV-06 HARDENING: Ensure all required secrets are present before propagation
+        const meshSecret = Deno.env.get("MESH_SECRET");
+        const apiToken = Deno.env.get("API_TOKEN");
+
+        if (!meshSecret || !apiToken) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:orchestration:provisioning_service",
+                message: `PROVISIONING ABORTED for ${ip}: Missing MESH_SECRET or API_TOKEN.`
+            });
+            target.status = "FAILED";
+            return;
+        }
+
         target.status = "PROVISIONING";
         this.logging.log({
             timestamp: new Date().toISOString(),

@@ -61,9 +61,16 @@ export class SystemExecutor implements ExecutorPort {
             continue;
         }
 
+        // Support standard hostnames, IPv4, and IPv6 (bracketed)
         if (/^[a-z0-9/._-]+$/.test(arg)) continue;
-        if (/^[a-z0-9]+@[a-z0-9.-]+$/.test(arg)) continue;
+        if (/^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])$/.test(arg)) continue;
         if (/^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/.test(arg)) continue;
+
+        // SOV-06: Permit ProvisioningService lateral movement command sequence
+        // Fix: Use a more robust regex for the literal \n match in xargs
+        if (arg.includes("chmod 600 /etc/cts.env") && arg.includes("counter-terrorist") && arg.includes("xargs")) {
+            if (/^(chmod 600 \/etc\/cts\.env && export \$\(grep -v '\^#' \/etc\/cts\.env \| xargs -d (['"])\\n\1\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts\.log 2>&1 &)$/.test(arg)) continue;
+        }
 
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized argument: ${arg}` });
     }
@@ -342,7 +349,8 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 3
     },
     "scp": {
-        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@[a-z0-9.-]+:.*$/],
+        // SOV-06: Support IPv6 and remote paths in SCP
+        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\]):.*$/],
         maxArgs: 10
     },
     "ssh": {
@@ -406,7 +414,8 @@ export class SystemExecutor implements ExecutorPort {
 
   private static readonly PATH_SENSITIVE_COMMANDS = [
     "openssl", "mkdir", "cp", "mv", "chmod", "ls", "sha256sum",
-    "sentinel", "ebpf", "analyzer", "watchfile", "netcap"
+    "sentinel", "ebpf", "analyzer", "watchfile", "netcap",
+    "ssh", "scp"
   ];
 
   private static readonly SYSTEM_JAILS = [
@@ -465,7 +474,11 @@ export class SystemExecutor implements ExecutorPort {
             if (!validation.valid) return validation;
         }
 
-        if (this.isPotentiallyDangerous(arg)) {
+        // SOV-06: If a command uses structured schema validation (SSH, SENTINEL, POWERSHELL, etc),
+        // we skip the generic 'dangerous' check for whitelisted arguments to allow complex legitimate commands.
+        const isPatternWhitelisted = policy.allowedArgs && policy.allowedArgs.some(p => p.test(arg));
+
+        if (!isPatternWhitelisted && this.isPotentiallyDangerous(arg)) {
             // Fallback traversal check for all commands (even non-sensitive ones)
             if (!validatePath(arg)) {
                 return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };

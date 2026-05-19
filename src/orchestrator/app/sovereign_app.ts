@@ -100,15 +100,17 @@ export class SovereignApp {
              }
         }
 
-        // SOV-P3: Global Error Handlers
+        // SOV-P3: Global Error Handlers (Fail-Closed Hardening)
         globalThis.addEventListener("unhandledrejection", (e) => {
             loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "RUNTIME",
-                message: `Unhandled Promise Rejection: ${e.reason}`
+                message: `Unhandled Promise Rejection: ${e.reason}. Initiating fail-closed sequence.`
             }).catch(() => {});
+
+            this.emergencyLockdown(`Unhandled Promise Rejection: ${e.reason}`);
         });
 
         globalThis.addEventListener("error", (e) => {
@@ -117,8 +119,10 @@ export class SovereignApp {
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "RUNTIME",
-                message: `Fatal Runtime Error: ${e.message}`
+                message: `Fatal Runtime Error: ${e.message}. Initiating fail-closed sequence.`
             }).catch(() => {});
+
+            this.emergencyLockdown(`Fatal Runtime Error: ${e.message}`);
         });
 
         // ── Phase 1.1: Security Lockdown Check ───────────────────────────────
