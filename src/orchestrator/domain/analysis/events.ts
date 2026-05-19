@@ -83,7 +83,15 @@ export class EventBus implements EventBusPort {
 
     // SOV-P2: Execute Middleware Chain
     if (this.middleware.length > 0) {
-        this.runMiddleware(0, event).catch(() => {});
+        this.runMiddleware(0, event).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "EVENTBUS:MIDDLEWARE",
+                message: `Middleware chain failed: ${e instanceof Error ? e.message : String(e)}`
+            });
+        });
         return;
     }
 
@@ -96,7 +104,22 @@ export class EventBus implements EventBusPort {
         return;
     }
 
-    await this.middleware[index](event, () => this.runMiddleware(index + 1, event));
+    // SOV-05 STABILITY: Added timeout for middleware to prevent chain deadlocks
+    let timeoutId: any;
+    const timeoutMs = 5000;
+
+    try {
+        const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error(`Middleware ${index} timed out after ${timeoutMs}ms`)), timeoutMs);
+        });
+
+        await Promise.race([
+            this.middleware[index](event, () => this.runMiddleware(index + 1, event)),
+            timeoutPromise
+        ]);
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+    }
   }
 
   private finalizePublish(event: SystemEvent, validatedData: any) {

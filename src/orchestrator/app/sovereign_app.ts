@@ -145,8 +145,8 @@ export class SovereignApp {
         const platformInfo = await getPlatformInfo(this.executor);
 
         await bootstrap();
-        const notificationService = new NotificationService(this.kv, loggingService);
         const eventBus = new EventBus(loggingService);
+        const notificationService = new NotificationService(this.kv, loggingService);
         const healthService = new HealthService(loggingService);
         
         // REPOSITORY INJECTION

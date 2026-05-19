@@ -21,7 +21,17 @@ export class IntegrityService {
      * Starts the integrity monitoring loop.
      */
     start() {
+        if (this.checkIntervalId) return;
         this.checkIntervalId = setInterval(() => this.checkIntegrity(), 60000); // Once per minute
+    }
+
+    public async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+        const { ok } = await import("@core/result.ts");
+        if (this.checkIntervalId) {
+            clearInterval(this.checkIntervalId);
+            this.checkIntervalId = undefined;
+        }
+        return ok(undefined);
     }
 
     private async checkIntegrity() {

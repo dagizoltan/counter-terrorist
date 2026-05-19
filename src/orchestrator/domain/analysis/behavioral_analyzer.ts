@@ -63,7 +63,12 @@ export class BehavioralAnalyzer extends BaseService {
         // Use a more dynamic normalization based on mean delta to handle high-latency human traffic.
         // Guard against zero variance for perfect regular traffic
         const normalizationFactor = Math.max(1000, mean * 2);
-        const currentEntropy = variance === 0 ? 0 : Math.min(variance / normalizationFactor, 1);
+        let currentEntropy = variance === 0 ? 0 : Math.min(variance / normalizationFactor, 1);
+
+        // SOV-05 STABILITY: Guard against NaN/Infinity in calculations
+        if (isNaN(currentEntropy) || !isFinite(currentEntropy)) {
+            currentEntropy = 1.0; // Assume normal/high entropy on calculation failure
+        }
 
         // TACTICAL: Sliding Window to reduce false positives
         const window = this.slidingWindow.get(ip) || [];
@@ -72,7 +77,7 @@ export class BehavioralAnalyzer extends BaseService {
         this.slidingWindow.set(ip, window);
 
         const avgEntropy = window.reduce((a, b) => a + b, 0) / window.length;
-        const botProbability = 1 - avgEntropy;
+        const botProbability = Math.max(0, Math.min(1, 1 - avgEntropy));
 
         return { botProbability, entropy: avgEntropy };
     }
@@ -163,6 +168,9 @@ export class BehavioralAnalyzer extends BaseService {
         const total = Array.from(freqMap.values()).reduce((a, b) => a + b, 0);
         const count = freqMap.get(syscall) || 0;
 
+        // SOV-05 STABILITY: Guard against division by zero
+        if (total === 0) return 0;
+
         // Apply Laplacian smoothing (Add-one smoothing) for small samples
         const smoothedProbability = (count + 1) / (total + 10); // Assume 10 possible syscall types in small window
 
@@ -171,6 +179,7 @@ export class BehavioralAnalyzer extends BaseService {
         // Rare or unseen syscalls in this context (e.g. ptrace by 'deno') will score high.
         const anomalyScore = Math.max(0, 1 - (smoothedProbability * 5)); // Scaled impact
 
-        return Math.min(anomalyScore, 1.0);
+        const finalScore = Math.min(anomalyScore, 1.0);
+        return isNaN(finalScore) ? 0 : finalScore;
     }
 }

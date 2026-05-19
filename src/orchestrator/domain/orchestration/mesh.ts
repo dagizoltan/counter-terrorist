@@ -27,6 +27,7 @@ export class MeshManager extends BaseService {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
+  private watcherAbortController: AbortController | null = null;
 
   override async shutdown(): Promise<Result<void>> {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
@@ -40,6 +41,10 @@ export class MeshManager extends BaseService {
       if (this.httpClient) {
           this.httpClient.close();
           this.httpClient = null;
+      }
+      if (this.watcherAbortController) {
+          this.watcherAbortController.abort();
+          this.watcherAbortController = null;
       }
       this.nodes.clear();
       this.logging.log({
@@ -467,15 +472,31 @@ export class MeshManager extends BaseService {
                 await new Promise(r => setTimeout(r, jitter));
             }
 
-            return this.sendSync(node, payload).catch(err => {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.WARNING,
-                    caller: "orchestrator:domain:orchestration:mesh",
-                    message: `Gossip failure to ${node.hostname}: ${(err as Error).message}`
-                });
-            });
+            // SOV-05 STABILITY: Retry logic for gossip to improve reliability in jittery networks
+            let attempts = 0;
+            const maxAttempts = priority ? 3 : 1;
+
+            const trySend = async (): Promise<void> => {
+                try {
+                    await this.sendSync(node, payload);
+                } catch (err) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        const backoff = Math.pow(2, attempts) * 100;
+                        await new Promise(r => setTimeout(r, backoff));
+                        return trySend();
+                    }
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.WARNING,
+                        caller: "orchestrator:domain:orchestration:mesh",
+                        message: `Gossip failure to ${node.hostname} after ${attempts} attempts: ${(err as Error).message}`
+                    });
+                }
+            };
+
+            return trySend();
         });
 
         await Promise.all(batchPromises);
@@ -854,15 +875,22 @@ export class MeshManager extends BaseService {
     const kv = (this.config as any).kv;
     if (!kv) return;
 
-    const watcher = kv.watch([["mesh", "nodes"]]);
-    for await (const [entries] of watcher) {
-        const nodeData = entries.value as MeshNode[];
-        if (nodeData && Array.isArray(nodeData)) {
-            for (const node of nodeData) {
-                if (node.id !== this.nodeId) {
-                    this.registerNode(node);
+    this.watcherAbortController = new AbortController();
+    const watcher = kv.watch([["mesh", "nodes"]], { signal: this.watcherAbortController.signal });
+    try {
+        for await (const [entries] of watcher) {
+            const nodeData = entries.value as MeshNode[];
+            if (nodeData && Array.isArray(nodeData)) {
+                for (const node of nodeData) {
+                    if (node.id !== this.nodeId) {
+                        this.registerNode(node);
+                    }
                 }
             }
+        }
+    } catch (e) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+            throw e;
         }
     }
   }

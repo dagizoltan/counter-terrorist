@@ -97,7 +97,16 @@ export class MorphingService {
         }
     }
 
+    public async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+        const { ok } = await import("@core/result.ts");
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = undefined;
+        }
+        return ok(undefined);
+    }
+
     stop() {
-        if (this.intervalId) clearInterval(this.intervalId);
+        this.shutdown();
     }
 }

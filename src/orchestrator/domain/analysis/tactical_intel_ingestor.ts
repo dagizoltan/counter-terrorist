@@ -26,6 +26,8 @@ export class TacticalIntelIngestor {
 
     constructor(private logging: LoggingPort, private firewall: any) {}
 
+    private intervalId: number | null = null;
+
     async start() {
         this.kv = await Deno.openKv();
         this.logging.log({
@@ -40,7 +42,21 @@ export class TacticalIntelIngestor {
         await this.sync();
 
         // High-frequency sync (every 6 hours)
-        setInterval(() => this.sync(), 6 * 60 * 60 * 1000);
+        if (this.intervalId) clearInterval(this.intervalId);
+        this.intervalId = setInterval(() => this.sync(), 6 * 60 * 60 * 1000);
+    }
+
+    async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+        const { ok } = await import("@core/result.ts");
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        if (this.kv) {
+            this.kv.close();
+            this.kv = null;
+        }
+        return ok(undefined);
     }
 
     async sync() {
