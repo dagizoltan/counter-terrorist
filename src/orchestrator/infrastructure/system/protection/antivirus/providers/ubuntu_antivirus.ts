@@ -27,6 +27,15 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
   }
 
   async quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }> {
+    try {
+      const stats = await Deno.stat(path);
+      if (!stats.isFile) {
+        return { success: false, message: "Target is not a regular file." };
+      }
+    } catch (e) {
+      return { success: false, message: `Failed to access target: ${(e as Error).message}` };
+    }
+
     const res = await this.sidecar.sendCommand("analyzer", { type: "Quarantine", path });
     return { success: res.success, message: res.stdout || res.stderr || "", target: res.data?.target };
   }

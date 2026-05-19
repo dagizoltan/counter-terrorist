@@ -1,4 +1,4 @@
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { EventBus, SystemEvent } from "@domain/analysis/events.ts";
 import { LoggingPort, LogEntry, LogSeverity, LogType, SyslogSeverity } from "@core/ports.ts";
 
@@ -7,19 +7,20 @@ class MockLogging implements LoggingPort {
 
   enableGlobalIntercept(): void {}
 
-  async log(entry: LogEntry): Promise<void> {
+  log(entry: LogEntry): Promise<void> {
     this.logs.push(entry);
+    return Promise.resolve();
   }
 
-  async getRecentLogs(limit?: number): Promise<LogEntry[]> {
-    return this.logs.slice(-(limit || 10));
+  getRecentLogs(limit?: number): Promise<LogEntry[]> {
+    return Promise.resolve(this.logs.slice(-(limit || 10)));
   }
 
-  async logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: any): Promise<void> {
+  logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: unknown): Promise<void> {
     this.logs.push({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
-        severity: (severity as any) || LogSeverity.INFO,
+        severity: (severity as LogSeverity) || LogSeverity.INFO,
         caller: source || "LEGACY",
         message,
         payload
@@ -49,7 +50,7 @@ Deno.test("EventBus.subscribe and publish", () => {
 Deno.test("EventBus.on (keyed subscription)", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
-  const receivedData: any[] = [];
+  const receivedData: unknown[] = [];
 
   eventBus.on("INFO", (data) => {
     receivedData.push(data);
@@ -59,7 +60,7 @@ Deno.test("EventBus.on (keyed subscription)", () => {
   eventBus.publish("WARN", "Warn msg", { skip: "me" });
 
   assertEquals(receivedData.length, 1);
-  assertEquals(receivedData[0], { foo: "bar" });
+  assertEquals(receivedData[0], { foo: "bar", fromEventBus: true });
 });
 
 Deno.test("EventBus.unsubscribe (general)", () => {
@@ -116,11 +117,11 @@ Deno.test("EventBus.unsubscribe should remove from all registrations", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   let count = 0;
-  const handler = () => { count++; };
+  const handler = (_event: unknown) => { count++; };
 
   eventBus.on("INFO", handler);
   eventBus.on("WARN", handler);
-  eventBus.subscribe(handler as any);
+  eventBus.subscribe(handler);
 
   eventBus.publish("INFO", "msg 1"); // +2 (on INFO and subscribe)
   eventBus.publish("WARN", "msg 2"); // +2 (on WARN and subscribe)
@@ -135,14 +136,14 @@ Deno.test("EventBus.unsubscribe should remove from all registrations", () => {
 Deno.test("EventBus.emit alias", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
-  let received: any = null;
+  let received: unknown = null;
 
-  eventBus.on("CUSTOM", (data) => {
+  eventBus.on("ALERT" as "INFO", (data) => {
     received = data;
   });
 
-  eventBus.emit("CUSTOM", { hello: "world" });
-  assertEquals(received, { hello: "world" });
+  eventBus.emit("ALERT" as "INFO", { hello: "world" });
+  assertEquals(received, { hello: "world", fromEventBus: true });
 });
 
 Deno.test("EventBus severity mapping", () => {
