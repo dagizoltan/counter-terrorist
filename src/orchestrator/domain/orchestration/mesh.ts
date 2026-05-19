@@ -840,12 +840,18 @@ export class MeshManager extends BaseService {
         message: `Initiating Identity Rotation for ${this.nodeId}...`
     });
     
-    this.httpClient = null;
-    
+    // SOV-05 STABILITY: Transactional Identity Rotation
+    // Save old state to allow rollback or continued operation if new mTLS setup fails
+    const oldClient = this.httpClient;
     const oldId = this.nodeId;
-    this.nodeId = Deno.hostname() + "-" + crypto.randomUUID().slice(0, 8);
-    
-    await this.init();
+    const oldCert = this.nodeCert;
+
+    try {
+        this.nodeId = Deno.hostname() + "-" + crypto.randomUUID().slice(0, 8);
+        this.httpClient = null; // Forces new client creation in init()
+
+        const res = await this.init();
+        if (!res.success) throw res.error;
     
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -855,15 +861,34 @@ export class MeshManager extends BaseService {
         message: `Identity Rotation Complete: ${oldId} -> ${this.nodeId}`
     });
     
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
-        type: "UI_MESSAGE",
-        data: {
-            message: "Security Mesh Identity Phased",
-            oldId,
-            newId: this.nodeId
-        }
-    });
-    return ok(undefined);
+        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+            type: "UI_MESSAGE",
+            data: {
+                message: "Security Mesh Identity Phased",
+                oldId,
+                newId: this.nodeId
+            }
+        });
+
+        if (oldClient) oldClient.close();
+        return ok(undefined);
+
+    } catch (e) {
+        // ROLLBACK: Restore previous identity and client
+        this.nodeId = oldId;
+        this.httpClient = oldClient;
+        this.nodeCert = oldCert;
+
+        const msg = `Identity Rotation Failed: ${(e as Error).message}. Rolled back to previous state.`;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:orchestration:mesh",
+            message: msg
+        });
+        return err(e instanceof Error ? e : new Error(String(e)));
+    }
   }
 
   async resyncNodes() {
