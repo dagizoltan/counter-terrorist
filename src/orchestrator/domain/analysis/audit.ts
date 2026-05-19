@@ -4,7 +4,7 @@ import { AuditRepository } from "../repositories/audit_repository.ts";
 import { computeHash } from "@core/crypto_utils.ts";
 import { BaseService } from "@core/base_service.ts";
 import { MerkleTree } from "@core/merkle.ts";
-import { Result, ok } from "@core/result.ts";
+import { Result, ok, err } from "@core/result.ts";
 
 export interface ActorContext {
     id: string;
@@ -26,7 +26,7 @@ export interface AuditEvent {
     caller?: string;
     message: string;
     actor?: ActorContext;
-    data?: any;
+    data?: Record<string, unknown>;
     hash: string;
     prevHash: string;
     hwSignature?: string; 
@@ -43,8 +43,8 @@ export interface AuditDelta {
     eventId: string;
     timestamp: string;
     field: string;
-    oldValue: any;
-    newValue: any;
+    oldValue: unknown;
+    newValue: unknown;
 }
 
 interface RetentionConfig {
@@ -86,9 +86,6 @@ export class AuditService extends BaseService {
             maxEvents: 10000,
         };
 
-        this.restoreChainHead();
-        this.startLedgerWatcher();
-        
         const jitter = (ms: number) => ms + (Math.random() * 5000);
 
         this.intervals.push(setInterval(() => this.purgeExpired(), jitter(60 * 60 * 1000)));
@@ -105,6 +102,16 @@ export class AuditService extends BaseService {
 
         // Merkle Root Commitment: Commit root every 10 minutes
         this.intervals.push(setInterval(() => this.commitMerkleRoot(), jitter(600000)));
+    }
+
+    public override async init(): Promise<Result<void>> {
+        const restoreRes = await this.restoreChainHead();
+        if (!restoreRes.success) {
+            return restoreRes;
+        }
+
+        this.startLedgerWatcher();
+        return ok(undefined);
     }
 
     /**
@@ -219,9 +226,6 @@ export class AuditService extends BaseService {
      * Event Sourcing: Project current ledger state from event stream.
      */
     public async projectState(limit: number = 1000): Promise<AuditEvent[]> {
-        const events: AuditEvent[] = [];
-        const deltas: Map<string, AuditDelta[]> = new Map();
-
         // 1. Fetch base events
         const baseEvents = await this.repo.getLatest(limit);
 
@@ -230,7 +234,7 @@ export class AuditService extends BaseService {
         return baseEvents;
     }
 
-    private async restoreChainHead() {
+    private async restoreChainHead(): Promise<Result<void>> {
         try {
             const latest = await this.repo.getLatest(1);
             if (latest.length > 0 && latest[0].hash) {
@@ -245,12 +249,13 @@ export class AuditService extends BaseService {
 
                 const verification = await this.verifyChain(50);
                 if (!verification.valid) {
+                    const errorMsg = "CHAIN INTEGRITY FAILURE. TAMPERING DETECTED. FORCING EMERGENCY LOCKDOWN.";
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.AUDIT,
                         severity: LogSeverity.ERROR,
                         caller: "orchestrator:domain:analysis:audit",
-                        message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED. FORCING EMERGENCY LOCKDOWN.`
+                        message: errorMsg
                     });
                     // SOV-06: Immediate transition to restricted mode AND system lockdown if tampering is detected on boot.
                     this.state = SystemState.FORENSIC_RESTRICTED;
@@ -262,30 +267,24 @@ export class AuditService extends BaseService {
                             type: "LEDGER_TAMPER",
                             data: { ...verification.brokenAt, reason: "RESTORE_CHAIN_HEAD_FAILURE" }
                         });
-                    } else {
-                        // SOV-P3: If EventBus not yet ready, we must still ensure lockdown.
-                        // We log a critical error that SovereignApp's bootstrapper will catch if possible,
-                        // but since boot() is async, we emit a global event as a fallback.
-                        this.logging.log({
-                            timestamp: new Date().toISOString(),
-                            type: LogType.AUDIT,
-                            severity: LogSeverity.ERROR,
-                            caller: "orchestrator:domain:analysis:audit",
-                            message: "FATAL: Audit tampering detected before EventBus initialization."
-                        });
                     }
+
+                    return err(new Error(errorMsg));
                 } else {
                     this.lastVerifiedHash = this.lastHash;
                 }
             }
+            return ok(undefined);
         } catch (e) {
+            const msg = `Failed to restore chain head: ${e instanceof Error ? e.message : String(e)}`;
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,
                 caller: "orchestrator:domain:analysis:audit",
-                message: `Failed to restore chain head: ${e instanceof Error ? e.message : String(e)}`
+                message: msg
             });
+            return err(new Error(msg));
         }
     }
 

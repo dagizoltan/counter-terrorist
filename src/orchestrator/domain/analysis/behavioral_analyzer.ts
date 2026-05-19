@@ -97,7 +97,7 @@ export class BehavioralAnalyzer extends BaseService {
         const pidStr = pid.toString();
         const sequence = this.syscallSequences.get(pidStr) || [];
         sequence.push(syscall);
-        if (sequence.length > 5) sequence.shift();
+        if (sequence.length > 10) sequence.shift();
         this.syscallSequences.set(pidStr, sequence);
     }
 
@@ -105,13 +105,28 @@ export class BehavioralAnalyzer extends BaseService {
         const sequence = this.syscallSequences.get(pid.toString());
         if (!sequence) return null;
 
+        const MAX_NOISE = 2;
+
         for (const sig of BehavioralAnalyzer.INTENT_SIGNATURES) {
-            // BUG-24: Use ordered sequence matching instead of simple 'includes' to reduce false positives
+            // MATCHING WITH NOISE TOLERANCE
             let sigIdx = 0;
+            let noiseCount = 0;
+
             for (const syscall of sequence) {
                 if (syscall === sig.sequence[sigIdx]) {
                     sigIdx++;
+                    // Reset noise count on match? Or keep it global?
+                    // Let's keep it global for the whole sequence to prevent loose matches.
+                } else if (sigIdx > 0) {
+                    noiseCount++;
                 }
+
+                if (noiseCount > MAX_NOISE) {
+                    // Too much noise, reset match attempt for this signature
+                    sigIdx = 0;
+                    noiseCount = 0;
+                }
+
                 if (sigIdx === sig.sequence.length) {
                     return { intent: sig.name, score: sig.weight };
                 }

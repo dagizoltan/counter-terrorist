@@ -3,6 +3,7 @@
  * Enables O(log n) verification of audit ledger segments.
  */
 export class MerkleTree {
+    private static encoder = new TextEncoder();
     private leaves: string[] = [];
     private tree: string[][] = [];
     private initPromise: Promise<void>;
@@ -30,15 +31,15 @@ export class MerkleTree {
             for (let i = 0; i < currentLevel.length; i += 2) {
                 const left = currentLevel[i];
                 const right = i + 1 < currentLevel.length ? currentLevel[i + 1] : left;
-                nextLevel.push(await this.hashPair(left, right));
+                nextLevel.push(await MerkleTree.hashPair(left, right));
             }
             currentLevel = nextLevel;
             this.tree.push(currentLevel);
         }
     }
 
-    private async hashPair(a: string, b: string): Promise<string> {
-        const data = new TextEncoder().encode(a + b);
+    public static async hashPair(a: string, b: string): Promise<string> {
+        const data = MerkleTree.encoder.encode(a + b);
         const hashBuffer = await crypto.subtle.digest("SHA-256", data);
         const hashArray = new Uint8Array(hashBuffer);
         return Array.from(hashArray).map(b => b.toString(16).padStart(2, "0")).join("");
@@ -84,9 +85,9 @@ export class MerkleTree {
         for (const siblingHash of proof) {
             const isRight = currentIndex % 2 === 1;
             if (isRight) {
-                currentHash = await new MerkleTree([]).hashPair(siblingHash, currentHash);
+                currentHash = await MerkleTree.hashPair(siblingHash, currentHash);
             } else {
-                currentHash = await new MerkleTree([]).hashPair(currentHash, siblingHash);
+                currentHash = await MerkleTree.hashPair(currentHash, siblingHash);
             }
             currentIndex = Math.floor(currentIndex / 2);
         }

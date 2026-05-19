@@ -154,6 +154,10 @@ export class SovereignApp {
         const auditRepo = new KvAuditRepository(this.kv);
         this.auditService = new AuditService(auditRepo, loggingService, tpmManager);
         this.auditService.setConfig(configProvider);
+        const auditInitRes = await this.auditService.init();
+        if (!auditInitRes.success) {
+            await this.emergencyLockdown(`Audit Integrity Violation: ${auditInitRes.error.message}`);
+        }
 
         // ── Phase 3: Mesh & Network ──────────────────────────────────────────
         const meshManager = await this.initMesh(tpmManager, configProvider);
