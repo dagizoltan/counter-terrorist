@@ -82,7 +82,16 @@ export class ThreatIntelService {
     });
   }
 
+  async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+    const { ok } = await import("@core/result.ts");
+    if (this.updateInterval) {
+        clearInterval(this.updateInterval);
+        this.updateInterval = undefined;
+    }
+    return ok(undefined);
+  }
+
   stop() {
-    if (this.updateInterval) clearInterval(this.updateInterval);
+    this.shutdown();
   }
 }

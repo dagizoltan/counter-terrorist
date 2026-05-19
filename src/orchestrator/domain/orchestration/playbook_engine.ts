@@ -40,6 +40,7 @@ export class PlaybookEngine {
       if ((event.type === "CRITICAL" || event.type === "THREAT") &&
           (threatCode === TacticalThreatCode.REVERSE_SHELL ||
            threatCode === TacticalThreatCode.EXPLOIT_ATTEMPT ||
+           event.type === "LEDGER_TAMPER" ||
            event.message.includes("Exploit") ||
            event.message.includes("Reverse Shell"))) {
          this.logging.log({

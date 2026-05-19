@@ -35,27 +35,18 @@ export class ProvisioningService extends BaseService {
             clearTimeout(this.scanTimeout);
             this.scanTimeout = undefined;
         }
+        if (this.runPromise) {
+            await this.runPromise;
+            this.runPromise = null;
+        }
         return { success: true, data: undefined };
     }
 
     private async sleep(ms: number): Promise<void> {
-        return new Promise(resolve => {
-            const timeout = setTimeout(() => {
-                clearInterval(checkInterval);
-                resolve();
-            }, ms);
-
-            // Check every 100ms if we should stop
-            const checkInterval = setInterval(() => {
-                if (!this.isRunning) {
-                    clearTimeout(timeout);
-                    clearInterval(checkInterval);
-                    resolve();
-                }
-            }, 100);
-
-            this.scanTimeout = timeout as unknown as number;
-        });
+        const start = Date.now();
+        while (this.isRunning && (Date.now() - start < ms)) {
+            await new Promise(r => setTimeout(r, 100));
+        }
     }
 
     /**
@@ -190,6 +181,8 @@ export class ProvisioningService extends BaseService {
         throw new Error("Autonomous Windows provisioning not yet implemented.");
     }
 
+    private runPromise: Promise<void> | null = null;
+
     async run() {
         if (this.isRunning) return;
         this.isRunning = true;
@@ -207,19 +200,31 @@ export class ProvisioningService extends BaseService {
             return;
         }
 
-        // Continuous expansion loop
-        while (this.isRunning) {
-            await this.discoverTargets();
-            const discovered = Array.from(this.targets.values()).filter(t => t.status === "DISCOVERED");
-            
-            for (const target of discovered) {
+        // Continuous expansion loop - executed in background to avoid blocking boot
+        this.runPromise = (async () => {
+            while (this.isRunning) {
+                try {
+                    await this.discoverTargets();
+                    const discovered = Array.from(this.targets.values()).filter(t => t.status === "DISCOVERED");
+
+                    for (const target of discovered) {
+                        if (!this.isRunning) break;
+                        await this.provisionTarget(target.address);
+                        await this.sleep(5000); // Throttling
+                    }
+                } catch (e) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:domain:orchestration:provisioning_service",
+                        message: `Provisioning loop error: ${(e as Error).message}`
+                    });
+                }
+
                 if (!this.isRunning) break;
-                await this.provisionTarget(target.address);
-                await this.sleep(5000); // Throttling
+                await this.sleep(3600000); // Re-scan every hour
             }
-            
-            if (!this.isRunning) break;
-            await this.sleep(3600000); // Re-scan every hour
-        }
+        })();
     }
 }

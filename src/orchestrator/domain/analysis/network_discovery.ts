@@ -28,6 +28,8 @@ export class NetworkDiscoveryService extends BaseService {
     private discovery: any;
     private selfId: string = "LOCAL_NODE";
     private mesh?: MeshPort;
+    private intervalId: number | null = null;
+    private isScanning = false;
 
     constructor(private logging: LoggingService, private executor: ExecutorPort) {
         super();
@@ -37,8 +39,6 @@ export class NetworkDiscoveryService extends BaseService {
     setMesh(mesh: MeshPort) {
         this.mesh = mesh;
     }
-
-    private isScanning = false;
 
     async start(): Promise<Result<void>> {
         this.logging.log({
@@ -59,7 +59,8 @@ export class NetworkDiscoveryService extends BaseService {
             });
         });
         // Frequent sweeps for security visibility (every 20s)
-        setInterval(() => this.scan(), 20000); 
+        if (this.intervalId) clearInterval(this.intervalId);
+        this.intervalId = setInterval(() => this.scan(), 20000);
         return ok(undefined);
     }
 
@@ -233,6 +234,10 @@ export class NetworkDiscoveryService extends BaseService {
     }
 
     override async shutdown(): Promise<Result<void>> {
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
         return ok(undefined);
     }
 

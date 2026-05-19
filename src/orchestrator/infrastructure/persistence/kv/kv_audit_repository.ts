@@ -16,7 +16,10 @@ export class KvAuditRepository extends TimelineRepository<AuditEvent> implements
     }
 
     async appendDelta(delta: AuditDelta): Promise<void> {
-        await this.kv.set(["audit", "deltas", delta.eventId, delta.timestamp, delta.id], delta);
+        // H-12: Implement expiration for audit deltas to prevent unbounded KV growth
+        // Deltas are kept for 30 days.
+        const expireIn = 30 * 24 * 60 * 60 * 1000;
+        await this.kv.set(["audit", "deltas", delta.eventId, delta.timestamp, delta.id], delta, { expireIn });
     }
 
     async getDeltas(eventId: string): Promise<AuditDelta[]> {

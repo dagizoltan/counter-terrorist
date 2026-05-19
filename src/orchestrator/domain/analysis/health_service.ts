@@ -117,6 +117,10 @@ export class HealthService {
                         // 1 tick is usually 10ms (USER_HZ=100)
                         if (timeDeltaMs > 0) {
                             usage.cpu = (tickDelta * 10) / timeDeltaMs * 100;
+
+                            // SOV-05 STABILITY: Guard against anomalies or counter resets
+                            if (isNaN(usage.cpu) || usage.cpu < 0) usage.cpu = 0;
+                            if (usage.cpu > 100) usage.cpu = 100;
                         }
                     }
 

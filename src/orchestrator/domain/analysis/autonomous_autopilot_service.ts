@@ -13,11 +13,23 @@ export class AutonomousAutopilotService {
         private logging: LoggingPort
     ) {}
 
+    private intervalId: number | null = null;
+
     /**
      * Continuously monitors the correlation engine for breaches.
      */
     public start() {
-        setInterval(() => this.evaluateThreats(), 5000);
+        if (this.intervalId) return;
+        this.intervalId = setInterval(() => this.evaluateThreats(), 5000);
+    }
+
+    public async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+        const { ok } = await import("@core/result.ts");
+        if (this.intervalId) {
+            clearInterval(this.intervalId);
+            this.intervalId = null;
+        }
+        return ok(undefined);
     }
 
     private activeCaptures = new Set<string>();

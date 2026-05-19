@@ -9,6 +9,13 @@ export class KvNetworkLogRepository extends TimelineRepository<NetworkLogEntry &
     async save(entry: NetworkLogEntry): Promise<void> {
         const id = crypto.randomUUID();
         const timestamp = entry.timestamp || new Date().toISOString();
-        await this.set(id, { ...entry, id, timestamp });
+        // H-12: Implement 7-day retention for network logs to prevent unbounded KV growth
+        const expireIn = 7 * 24 * 60 * 60 * 1000;
+
+        const ts = new Date(timestamp).getTime();
+        await this.kv.atomic()
+            .set([this.prefix, ts, id], { ...entry, id, timestamp }, { expireIn })
+            .mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(1n) })
+            .commit();
     }
 }

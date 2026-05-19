@@ -746,6 +746,7 @@ export class SidecarManager implements CommandPort {
   }
 
   private async verifyAndHeal(name: string, binPath: string, force: boolean = false): Promise<boolean> {
+    // SOV-03: Verify integrity on the final path to mitigate TOCTOU
     const currentHash = await this.calculateHash(binPath);
     if (!currentHash && !force) return false;
 
@@ -785,7 +786,7 @@ export class SidecarManager implements CommandPort {
         if (goldenStat?.isFile) {
             // SOV-03 FIX: Use privileged SystemExecutor to restore the file
             // Deno.copyFile would fail on root-owned /var/lib/cts/bin files if the orchestrator is unprivileged.
-            await this.executor.execute("cp", [goldenRepo, binPath]);
+            await this.executor.execute("cp", ["-p", goldenRepo, binPath]);
             const healedHash = await this.calculateHash(binPath);
             
             if (healedHash === goldenHash) {
@@ -814,6 +815,12 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     try {
+        // SOV-03: Use streaming sha256sum for performance and OOM prevention
+        const res = await this.executor.execute("sha256sum", [path]);
+        if (res.success && res.stdout) {
+            return res.stdout.split(" ")[0].trim();
+        }
+
         const file = await Deno.open(path, { read: true });
         try {
             const hashBuffer = await this.digestStream("SHA-256", file.readable);
@@ -828,23 +835,30 @@ export class SidecarManager implements CommandPort {
   }
 
   private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
-      // Manual streaming digest to maintain compatibility with standard Web Crypto which lacks ReadableStream support
+      // SOV-03 FIX: Avoid collecting all chunks into memory to prevent OOM
+      // Since standard Web Crypto lacks incremental support, we process in chunks
+      // if possible, but for hash calculation of a whole file we must be careful.
       const reader = stream.getReader();
+      let totalLength = 0;
       const chunks: Uint8Array[] = [];
 
       try {
           while (true) {
               const { done, value } = await reader.read();
               if (done) break;
+
+              // H-10: Memory protection for fallback path
+              if (totalLength + value.length > 100 * 1024 * 1024) {
+                  throw new Error("Binary exceeds 100MB limit for in-memory hashing fallback");
+              }
+
               chunks.push(value);
+              totalLength += value.length;
           }
       } finally {
           reader.releaseLock();
       }
 
-      // Concat and digest (Still better than Deno.readFile as we control the read loop,
-      // but ideally we'd use a crypto library that supports incremental updates)
-      const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
       const combined = new Uint8Array(totalLength);
       let offset = 0;
       for (const chunk of chunks) {

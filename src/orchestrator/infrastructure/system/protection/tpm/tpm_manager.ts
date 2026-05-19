@@ -20,10 +20,15 @@ export class TPMManager implements TpmPort {
     private getIndexForSecret(name: string): string {
         const mapping: Record<string, string> = {
             "MESH_SECRET": "0x1500001",
+            "GOLDEN_PCR_HASH": "0x1500002",
             "PKI_SECRET": "0x1500003",
             "API_TOKEN": "0x1500004"
         };
-        return mapping[name] || "0x1500001";
+        const index = mapping[name];
+        if (!index) {
+            throw new Error(`TPM Error: No NVRAM index defined for secret '${name}'. Collision prevention active.`);
+        }
+        return index;
     }
 
     async sealSecret(secretName: string, data: string) {

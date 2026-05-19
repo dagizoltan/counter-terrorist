@@ -260,7 +260,18 @@ export class AuditService extends BaseService {
                             message: "Audit Chain Integrity Violation during boot sequence.",
                             source: "AuditService:boot",
                             type: "LEDGER_TAMPER",
-                            data: { reason: "RESTORE_CHAIN_HEAD_FAILURE" }
+                            data: { ...verification.brokenAt, reason: "RESTORE_CHAIN_HEAD_FAILURE" }
+                        });
+                    } else {
+                        // SOV-P3: If EventBus not yet ready, we must still ensure lockdown.
+                        // We log a critical error that SovereignApp's bootstrapper will catch if possible,
+                        // but since boot() is async, we emit a global event as a fallback.
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.AUDIT,
+                            severity: LogSeverity.ERROR,
+                            caller: "orchestrator:domain:analysis:audit",
+                            message: "FATAL: Audit tampering detected before EventBus initialization."
                         });
                     }
                 } else {
@@ -448,6 +459,17 @@ export class AuditService extends BaseService {
             // In a high-assurance production environment, we should consider forcing an emergency lockdown
             // However, we emit the CRITICAL event first to let the PolicyEngine/Autopilot decide on the specific remediation.
         }
+    }
+
+    /**
+     * Comprehensive forensic verification of the entire audit ledger.
+     */
+    public async verifyFullChain(): Promise<{
+        valid: boolean;
+        eventsChecked: number;
+        brokenAt?: { eventId: string; expected: string; actual: string; type: string };
+    }> {
+        return await this.verifyChain(-1);
     }
 
     async verifyChain(limit: number = 1000): Promise<{

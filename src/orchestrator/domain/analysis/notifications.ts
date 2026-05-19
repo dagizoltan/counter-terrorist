@@ -63,8 +63,8 @@ export class NotificationService {
     }
 
     async notify(event: { type: string; message: string; data?: any }) {
-        if (event.type !== "CRITICAL" && !event.type.startsWith("DRIFT")) {
-            return; // Only notify on critical or drift events
+        if (event.type !== "CRITICAL" && event.type !== "LEDGER_TAMPER" && !event.type.startsWith("DRIFT")) {
+            return; // Only notify on critical, ledger tampering, or drift events
         }
         for (const webhook of this.webhooks) {
             if (!webhook.enabled) continue;
