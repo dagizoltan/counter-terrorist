@@ -23,6 +23,7 @@ export class LifecycleService extends BaseService {
     private timerId?: number;
     private kv?: Deno.Kv;
     private shadowTimer?: number;
+    private lkgTimer?: number;
     private policyEngine?: any;
 
     constructor(
@@ -88,6 +89,10 @@ export class LifecycleService extends BaseService {
             clearTimeout(this.shadowTimer);
             this.shadowTimer = undefined;
         }
+        if (this.lkgTimer) {
+            clearTimeout(this.lkgTimer);
+            this.lkgTimer = undefined;
+        }
         return ok(undefined);
     }
 
@@ -134,7 +139,8 @@ export class LifecycleService extends BaseService {
         if (!this.kv) return;
 
         // Take a "Last Known Good" snapshot after 10 minutes of stability
-        setTimeout(async () => {
+        if (this.lkgTimer) clearTimeout(this.lkgTimer);
+        this.lkgTimer = setTimeout(async () => {
             try {
                 this.logging.log({
                     timestamp: new Date().toISOString(),

@@ -148,6 +148,7 @@ export class SovereignApp {
         const eventBus = new EventBus(loggingService);
         const notificationService = new NotificationService(this.kv, loggingService);
         const healthService = new HealthService(loggingService);
+        healthService.setSidecarManager(this.sidecarManager);
         
         // REPOSITORY INJECTION
         const auditRepo = new KvAuditRepository(this.kv);
@@ -190,8 +191,6 @@ export class SovereignApp {
             await this.gracefulShutdown();
         });
 
-        this.startWatchdog(healthService);
-
         await loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -205,13 +204,35 @@ export class SovereignApp {
         this.services.lifecycle.setPolicyEngine(this.services.policy);
         this.services.lifecycle.startShadowModeTimer(configProvider);
         this.services.lifecycle.scheduleLkgSnapshot();
+        this.watchdog = this.startWatchdog(healthService);
     }
 
+    private watchdog?: WatchdogService;
+
     private async gracefulShutdown() {
+        if (this.watchdog) this.watchdog.shutdown();
+
         if (this.services) {
-            const { autopilot, mesh, audit, mediator, logging, lifecycle, health, metrics, honeypot, behavioral, processTracker, kernelService, protection, provisioning } = this.services;
+            const {
+                autopilot, mesh, audit, mediator, logging, lifecycle,
+                health, metrics, honeypot, behavioral, processTracker,
+                kernelService, protection, provisioning,
+                morphing, chaos, supplyChain, curatedIntel, news, networkDiscovery,
+                canaryService, autonomousAutopilot, integrity
+            } = this.services;
+
             if (autopilot) await autopilot.shutdown();
+            if (autonomousAutopilot) await autonomousAutopilot.shutdown();
             if (provisioning) await provisioning.shutdown();
+            if (integrity) await integrity.shutdown();
+            if (morphing) await morphing.shutdown();
+            if (chaos && "shutdown" in chaos) await (chaos as any).shutdown();
+            if (supplyChain && "shutdown" in supplyChain) await (supplyChain as any).shutdown();
+            if (curatedIntel) await curatedIntel.shutdown();
+            if (news) await news.shutdown();
+            if (networkDiscovery) await networkDiscovery.shutdown();
+            if (canaryService) await canaryService.shutdown();
+
             if (mesh) await mesh.shutdown();
             if (audit) await audit.shutdown();
             if (mediator && "shutdown" in mediator && typeof mediator.shutdown === "function") {
@@ -308,7 +329,7 @@ export class SovereignApp {
         services.viewModel.setEventBus(bus);
     }
 
-    private startWatchdog(health: HealthService) {
+    private startWatchdog(health: HealthService): WatchdogService {
         const watchdog = new WatchdogService(health, loggingService, async (name) => {
             await loggingService.log({
                 timestamp: new Date().toISOString(),
@@ -353,6 +374,7 @@ export class SovereignApp {
             }
         });
         watchdog.start();
+        return watchdog;
     }
 
     private wireEvents() {
@@ -380,7 +402,7 @@ export class SovereignApp {
     }
 
     private async startSubsystems() {
-        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning } = this.services;
+        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning, integrity } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -440,6 +462,7 @@ export class SovereignApp {
         wrap("NewsSignal", news.start(this.kv));
         wrap("NetworkDiscovery", networkDiscovery.start());
         wrap("Provisioning", provisioning.run());
+        integrity.start();
         
         this.services.baseline.startMonitor();
         lifecycle.start();
@@ -532,6 +555,7 @@ export class SovereignApp {
         const playbook = new PlaybookService();
         const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await factory.initEngine(correlation, mesh);
 
+        const integrity = factory.createService(health, "Integrity", () => new IntegrityService(mesh, this.auditService, tpm, loggingService));
         const morphing = factory.createService(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
         const chaos = factory.createService(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
         const supplyChain = factory.createService(health, "SupplyChain", () => new SupplyChainService());
@@ -550,7 +574,7 @@ export class SovereignApp {
             supplyChain, mesh, meshAuth: identity.meshAuth, threatIntel: intelligence.curatedIntel as any,
             compliance: intelligence.compliance, anonymization: security.anonymization, shadowProtocol: security.shadowProtocol, deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
             curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
-            provisioning,
+            provisioning, integrity,
             incidents: intelligence.incidents, platformInfo, shadow, covert,
             ledger: new LedgerService(mesh, loggingService),
             tpm, health,

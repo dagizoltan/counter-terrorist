@@ -25,11 +25,34 @@ export class HealthService {
         this.intervals = [];
     }
 
+    private sidecarManager?: any;
+
     constructor(private logger: LoggingPort) {
         // Default quotas for agents
         this.sidecarQuotas.set("sentinel", { cpu: 5.0, memory: 64 * 1024 * 1024 });
         this.sidecarQuotas.set("netcap", { cpu: 10.0, memory: 256 * 1024 * 1024 });
         this.sidecarQuotas.set("decoy", { cpu: 2.0, memory: 32 * 1024 * 1024 });
+        this.sidecarQuotas.set("analyzer", { cpu: 25.0, memory: 512 * 1024 * 1024 });
+        this.sidecarQuotas.set("watchfile", { cpu: 5.0, memory: 128 * 1024 * 1024 });
+        this.sidecarQuotas.set("tunnel", { cpu: 2.0, memory: 64 * 1024 * 1024 });
+
+        this.intervals.push(setInterval(() => this.pollAgentResources(), 30000));
+    }
+
+    public setSidecarManager(sm: any) {
+        this.sidecarManager = sm;
+    }
+
+    private async pollAgentResources() {
+        if (!this.sidecarManager) return;
+
+        const agents = ["sentinel", "netcap", "decoy", "analyzer", "watchfile", "tunnel"];
+        for (const agent of agents) {
+            const pid = this.sidecarManager.getPID(agent);
+            if (pid) {
+                await this.auditAgentResources(agent, pid);
+            }
+        }
     }
 
     reportStatus(name: string, status: SubsystemStatus | string, error?: string) {
