@@ -8,20 +8,25 @@ import { isAllowedSidecar } from "@infrastructure/system/validation.ts";
 export class UbuntuFirewallProvider implements FirewallProvider {
   constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}
 
-  private isSentinelAvailable(): boolean {
-    return isAllowedSidecar("sentinel") && this.sidecar.isRunning("sentinel");
+  private async isSentinelActive(): Promise<boolean> {
+    if (!isAllowedSidecar("sentinel") || !this.sidecar.isRunning("sentinel")) return false;
+
+    // Check if Sentinel is in real BPF mode or fallback Dummy mode
+    const status = await this.sidecar.sendCommand("sentinel", { type: "GET_STATUS" });
+    return status.success && status.message === "Active";
   }
 
   async blockIp(ip: string): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
-      return await this.sidecar.sendCommand("sentinel", { type: "BLOCK_IP", ip });
+    if (await this.isSentinelActive()) {
+      const res = await this.sidecar.sendCommand("sentinel", { type: "BLOCK_IP", ip });
+      if (res.success) return res;
     }
-    // Fallback to UFW
+    // Fallback to UFW if Sentinel is unavailable or in Dummy mode
     return await this.executor.execute("ufw", ["deny", "from", ip]);
   }
 
   async shadowBanIp(ip: string): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
+    if (await this.isSentinelActive()) {
       loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
@@ -29,7 +34,8 @@ export class UbuntuFirewallProvider implements FirewallProvider {
           caller: "orchestrator:infra:system:protection:firewall",
           message: `Shadow Banning IP: ${ip} via Native eBPF TC hooks.`
       });
-      return await this.sidecar.sendCommand("sentinel", { type: "SHADOW_BAN", ip });
+      const res = await this.sidecar.sendCommand("sentinel", { type: "SHADOW_BAN", ip });
+      if (res.success) return res;
     }
     
     // No native shadow ban in UFW, fallback to standard block
@@ -37,8 +43,9 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async unblockIp(ip: string): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
-      return await this.sidecar.sendCommand("sentinel", { type: "UNBLOCK_IP", ip });
+    if (await this.isSentinelActive()) {
+      const res = await this.sidecar.sendCommand("sentinel", { type: "UNBLOCK_IP", ip });
+      if (res.success) return res;
     }
     return await this.executor.execute("ufw", ["delete", "deny", "from", ip]);
   }
@@ -92,36 +99,40 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async getStatus(): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
+    if (await this.isSentinelActive()) {
       return await this.sidecar.sendCommand("sentinel", { type: "GET_STATUS" });
     }
     return await this.executor.execute("ufw", ["status"]);
   }
 
   async lockdown(): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
-      return await this.sidecar.sendCommand("sentinel", { type: "LOCKDOWN" });
+    if (await this.isSentinelActive()) {
+      const res = await this.sidecar.sendCommand("sentinel", { type: "LOCKDOWN" });
+      if (res.success) return res;
     }
     return await this.executor.execute("ufw", ["default", "deny", "incoming"]);
   }
   
   async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
-      return await this.sidecar.sendCommand("sentinel", { type: "ALLOW_PORT", port, protocol });
+    if (await this.isSentinelActive()) {
+      const res = await this.sidecar.sendCommand("sentinel", { type: "ALLOW_PORT", port, protocol });
+      if (res.success) return res;
     }
     return await this.executor.execute("ufw", ["allow", `${port}/${protocol}`]);
   }
 
   async denyPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
-      return await this.sidecar.sendCommand("sentinel", { type: "DENY_PORT", port, protocol });
+    if (await this.isSentinelActive()) {
+      const res = await this.sidecar.sendCommand("sentinel", { type: "DENY_PORT", port, protocol });
+      if (res.success) return res;
     }
     return await this.executor.execute("ufw", ["deny", `${port}/${protocol}`]);
   }
 
   async flushRules(): Promise<CommandResult> {
-    if (this.isSentinelAvailable()) {
-      return await this.sidecar.sendCommand("sentinel", { type: "FLUSH_RULES" });
+    if (await this.isSentinelActive()) {
+      const res = await this.sidecar.sendCommand("sentinel", { type: "FLUSH_RULES" });
+      if (res.success) return res;
     }
     return await this.executor.execute("ufw", ["--force", "reset"]);
   }

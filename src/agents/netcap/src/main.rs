@@ -183,14 +183,33 @@ async fn main() -> anyhow::Result<()> {
 
                         // Bind to interface
                         if let Ok(idx) = nix::net::if_::if_nametoindex(interface_clone.as_str()) {
-                            let addr = socket2::SockAddr::packet(idx, 0x0003u16.to_be(), 0, [0; 8]);
+                            // Using libc directly for sockaddr_ll construction if socket2 doesn't expose .packet() helper in this version
+                            use libc::{sockaddr_ll, AF_PACKET, ETH_P_ALL};
+                            let mut address: sockaddr_ll = unsafe { std::mem::zeroed() };
+                            address.sll_family = AF_PACKET as u16;
+                            address.sll_protocol = (ETH_P_ALL as u16).to_be();
+                            address.sll_ifindex = idx as i32;
+
+                            let addr = unsafe {
+                                let mut storage: libc::sockaddr_storage = std::mem::zeroed();
+                                std::ptr::copy_nonoverlapping(
+                                    &address as *const _ as *const u8,
+                                    &mut storage as *mut _ as *mut u8,
+                                    std::mem::size_of::<sockaddr_ll>(),
+                                );
+                                socket2::SockAddr::new(
+                                    storage,
+                                    std::mem::size_of::<sockaddr_ll>() as u32,
+                                )
+                            };
+
                             if let Err(e) = socket.bind(&addr) {
                                 let _ = log_forensic("error", &format!("Failed to bind to interface {}: {}", interface_clone, e)).await;
                                 return;
                             }
                         }
 
-                        let mut buf = [0u8; 65535];
+                        let mut buf = [std::mem::MaybeUninit::new(0u8); 65535];
                         loop {
                             if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
                                 let _ = log_forensic("info", "Forensic capture auto-terminated by duration limit.").await;
@@ -200,14 +219,32 @@ async fn main() -> anyhow::Result<()> {
                             socket.set_read_timeout(Some(std::time::Duration::from_millis(100))).ok();
                             match socket.recv(&mut buf) {
                                 Ok(n) if n > 0 => {
+                                    // SAFETY: recv returned n bytes, so we can initialize them
+                                    let initialized_buf = unsafe {
+                                        std::slice::from_raw_parts(buf.as_ptr() as *const u8, n)
+                                    };
+
+                                    // SOV-06: Basic Filter - Skip if loopback traffic (optimization)
+                                    // Simple check for localhost src/dst (approximate)
+                                    if n > 34 && &initialized_buf[26..30] == [127, 0, 0, 1] && &initialized_buf[30..34] == [127, 0, 0, 1] {
+                                        continue;
+                                    }
+
                                     if let Some(ref mut writer) = pcap_writer {
-                                        let _ = writer.write_packet(&buf[..n], Utc::now().timestamp_nanos() as u64);
+                                        if let Err(e) = writer.write_packet(initialized_buf, Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64) {
+                                            let _ = log_forensic("error", &format!("PCAP Write Failed: {}", e)).await;
+                                            break;
+                                        }
                                     }
                                 }
-                                _ => {
-                                    // Timeout or error, check if we should still be running
+                                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                                     tokio::task::yield_now().await;
                                 }
+                                Err(e) => {
+                                    let _ = log_forensic("error", &format!("Raw socket error: {}", e)).await;
+                                    break;
+                                }
+                                _ => {}
                             }
                         }
                     }

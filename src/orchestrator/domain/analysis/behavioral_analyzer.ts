@@ -46,7 +46,6 @@ export class BehavioralAnalyzer extends BaseService {
         // Since we can't easily know if a PID is still active without system access
         // (and this service is platform-agnostic), we use a shorter TTL for sequences.
         const SEQUENCE_TTL = 900000; // 15 Minutes
-        const traceEntries = Array.from(this.traces.entries());
         // (traces already purged above)
 
         // For syscall sequences, we don't have timestamps per syscall,

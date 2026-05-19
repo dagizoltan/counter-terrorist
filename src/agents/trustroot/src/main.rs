@@ -116,9 +116,22 @@ async fn main() {
                 },
                 TpmCommand::GetPcrs { id, indices } => {
                     let mut pcrs = serde_json::Map::new();
-                    let machine_id = std::fs::read_to_string("/etc/machine-id").unwrap_or_else(|_| "00000000".to_string());
+                    // SOV-06 FIX: Derive Virtual PCRs from real system state
+                    let machine_id = std::fs::read_to_string("/etc/machine-id").unwrap_or_else(|_| "unknown".to_string());
+                    let kernel_version = std::fs::read_to_string("/proc/version").unwrap_or_else(|_| "unknown".to_string());
+                    let hostname = std::fs::read_to_string("/proc/sys/kernel/hostname").unwrap_or_else(|_| "unknown".to_string());
+
                     for idx in indices {
-                        pcrs.insert(idx.to_string(), serde_json::json!(format!("0x{:x}", machine_id.as_bytes()[idx as usize % machine_id.len()])));
+                        let seed = match idx {
+                            0 => machine_id.clone(),
+                            1 => kernel_version.clone(),
+                            7 => hostname.clone(),
+                            _ => format!("PCR_{}_{}", idx, machine_id)
+                        };
+                        use sha2::{Sha256, Digest};
+                        let mut hasher = Sha256::new();
+                        hasher.update(seed.as_bytes());
+                        pcrs.insert(idx.to_string(), serde_json::json!(format!("0x{}", hex::encode(&hasher.finalize()[..8]))));
                     }
                     emit_response(id, true, "Read (Virtual)".to_string(), Some(serde_json::Value::Object(pcrs))).await;
                 },
