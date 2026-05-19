@@ -479,15 +479,21 @@ export class AuditService extends BaseService {
 
     private async purgeExpired() {
         // SOV-05 STABILITY: Comprehensive retention enforcement.
-        // Replaces the previous O(1000) scan which missed deeper expired events.
         const cutoffTimestamp = Date.now() - (this.retentionConfig.maxAgeDays * 24 * 60 * 60 * 1000);
 
         try {
-            // Find the most recent event before the cutoff to use as the "New Genesis"
-            const range = await this.repo.listRange(0, cutoffTimestamp);
-            if (range.length === 0) return;
+            // STREAMING RETENTION: Instead of loading everything into memory (OOM risk),
+            // we use the repository stream to find the boundary event.
+            const stream = this.repo.getStream(5000, true); // Get up to 5000 events to find boundary
+            let boundaryEvent: AuditEvent | undefined;
 
-            const boundaryEvent = range[range.length - 1];
+            for await (const event of stream) {
+                const ts = new Date(event.timestamp).getTime();
+                if (ts < cutoffTimestamp) {
+                    boundaryEvent = event;
+                    break;
+                }
+            }
 
             if (boundaryEvent) {
                 const id = crypto.randomUUID();

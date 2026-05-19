@@ -323,6 +323,29 @@ export class MeshManager extends BaseService {
       return;
     }
 
+    // SOV-06: Remediate SSRF in mesh discovery
+    // We only handshake with valid IPs. We allow private IPs for local mesh
+    // but strictly block loopback and cloud-metadata to prevent SSRF.
+    const { isValidIP } = await import("@infrastructure/system/validation.ts");
+    const isLoopback = node.address === "127.0.0.1" || node.address === "::1" || node.address.startsWith("127.");
+    const isMetadata = node.address === "169.254.169.254" || node.address.startsWith("169.254.");
+
+    if (!isValidIP(node.address) || isLoopback || isMetadata) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:domain:orchestration:mesh",
+            message: `REJECTED node ${node.id} — Illegal or prohibited IP address: ${node.address}`
+        });
+        return;
+    }
+
+    // Strict port validation for mesh peers
+    if (node.port < 1024 || node.port > 65535 || (node.port !== this.port && node.port !== 8000)) {
+        return;
+    }
+
     if (!this.httpClient) {
       this.logging.log({
           timestamp: new Date().toISOString(),
