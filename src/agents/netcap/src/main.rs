@@ -169,18 +169,57 @@ async fn main() -> anyhow::Result<()> {
                     let mut pcap_writer = filename_clone.as_ref().and_then(|f| PcapngWriter::new(f, &interface_clone).ok());
                     let start_time = Utc::now();
 
-                    // NATIVE RAW SOCKET (AF_PACKET)
-                    // For simulation/dev, we use a loop, but the writer logic is real
-                    loop {
-                        if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
-                            let _ = log_forensic("info", "Forensic capture auto-terminated by duration limit.").await;
-                            break;
+                    #[cfg(target_os = "linux")]
+                    {
+                        use socket2::{Socket, Domain, Type, Protocol};
+                        // SOV-06 FIX: Implement real AF_PACKET raw socket for Linux
+                        let socket = match Socket::new(Domain::PACKET, Type::RAW, Some(Protocol::from(0x0003u16.to_be() as i32))) {
+                            Ok(s) => s,
+                            Err(e) => {
+                                let _ = log_forensic("error", &format!("Failed to open raw socket: {}. Ensure CAP_NET_RAW is set.", e)).await;
+                                return;
+                            }
+                        };
+
+                        // Bind to interface
+                        if let Ok(idx) = nix::net::if_::if_nametoindex(interface_clone.as_str()) {
+                            let addr = socket2::SockAddr::packet(idx, 0x0003u16.to_be(), 0, [0; 8]);
+                            if let Err(e) = socket.bind(&addr) {
+                                let _ = log_forensic("error", &format!("Failed to bind to interface {}: {}", interface_clone, e)).await;
+                                return;
+                            }
                         }
 
-                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                        if let Some(ref mut writer) = pcap_writer {
-                            let dummy_packet = b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08\x00\x45\x00\x00\x3c\x12\x34\x40\x00\x40\x06\xb1\xe6\x7f\x00\x00\x01\x7f\x00\x00\x01";
-                            let _ = writer.write_packet(dummy_packet, Utc::now().timestamp_nanos() as u64);
+                        let mut buf = [0u8; 65535];
+                        loop {
+                            if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
+                                let _ = log_forensic("info", "Forensic capture auto-terminated by duration limit.").await;
+                                break;
+                            }
+
+                            socket.set_read_timeout(Some(std::time::Duration::from_millis(100))).ok();
+                            match socket.recv(&mut buf) {
+                                Ok(n) if n > 0 => {
+                                    if let Some(ref mut writer) = pcap_writer {
+                                        let _ = writer.write_packet(&buf[..n], Utc::now().timestamp_nanos() as u64);
+                                    }
+                                }
+                                _ => {
+                                    // Timeout or error, check if we should still be running
+                                    tokio::task::yield_now().await;
+                                }
+                            }
+                        }
+                    }
+
+                    #[cfg(not(target_os = "linux"))]
+                    {
+                        // Fallback/Simulated loop for non-Linux platforms
+                        loop {
+                            if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
+                                break;
+                            }
+                            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                         }
                     }
                 });
