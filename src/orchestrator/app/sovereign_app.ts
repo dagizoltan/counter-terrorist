@@ -554,7 +554,7 @@ export class SovereignApp {
 
         const security = factory.initSecurity(protection, mesh, configProvider, health);
 
-        const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth);
+        const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth, protection.pcap);
 
         const playbook = new PlaybookService();
         const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await factory.initEngine(correlation, mesh);

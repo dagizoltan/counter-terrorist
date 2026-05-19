@@ -198,6 +198,7 @@ export interface TpmPort {
   isHardwareVerified(): boolean;
   sign(data: string): Promise<string>;
   verify(data: string, signature: string): Promise<boolean>;
+  clearSecrets(): Promise<void>;
   generateSelfSignedCA(commonName: string): Promise<CommandResult>;
   issueNodeCert(nodeId: string, caCert: string, caKey: string): Promise<CommandResult>;
 }

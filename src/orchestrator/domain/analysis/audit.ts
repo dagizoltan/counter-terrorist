@@ -224,14 +224,37 @@ export class AuditService extends BaseService {
 
     /**
      * Event Sourcing: Project current ledger state from event stream.
+     * Reconstructs the full state by applying deltas to base events.
      */
     public async projectState(limit: number = 1000): Promise<AuditEvent[]> {
         // 1. Fetch base events
         const baseEvents = await this.repo.getLatest(limit);
 
-        // 2. Fetch deltas (if repository supported it, we'd query them)
-        // For now, we return base events as the "projection"
-        return baseEvents;
+        // 2. Fetch and apply deltas
+        const projectedEvents: AuditEvent[] = [];
+        for (const event of baseEvents) {
+            const deltas = await this.repo.getDeltas(event.id);
+            if (deltas.length === 0) {
+                projectedEvents.push(event);
+                continue;
+            }
+
+            // Deep clone to avoid mutating the original event in cache
+            const projected = JSON.parse(JSON.stringify(event));
+
+            // Sort deltas chronologically
+            deltas.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+            for (const delta of deltas) {
+                // Apply delta to data field
+                if (projected.data) {
+                    (projected.data as any)[delta.field] = delta.newValue;
+                }
+            }
+            projectedEvents.push(projected);
+        }
+
+        return projectedEvents;
     }
 
     private async restoreChainHead(): Promise<Result<void>> {

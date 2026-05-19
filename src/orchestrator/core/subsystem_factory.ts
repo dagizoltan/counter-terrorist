@@ -74,9 +74,9 @@ export class SubsystemFactory {
         return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
     }
 
-    initIntelligence(protection: ProtectionPort, processTracker: ProcessTracker, health: HealthService, config: ConfigurationPort, mesh: MeshManager, meshAuth: MeshAuthService) {
+    initIntelligence(protection: ProtectionPort, processTracker: ProcessTracker, health: HealthService, config: ConfigurationPort, mesh: MeshManager, meshAuth: MeshAuthService, pcap?: any) {
         const geoIp = this.createService(health, "GeoIP", () => new GeoIpService(this.logging));
-        const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, meshAuth));
+        const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, meshAuth, pcap));
         const curatedIntel = this.createService(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, geoIp));
         const news = this.createService(health, "News", () => new NewsSignalService(this.logging));
         const networkDiscovery = this.createService(health, "NetworkDiscovery", () => {
@@ -85,7 +85,7 @@ export class SubsystemFactory {
             return svc;
         });
         const incidents = this.createService(health, "Incidents", () => new IncidentService(this.kv, this.logging));
-        const compliance = this.createService(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
+        const compliance = this.createService(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker, this.sidecarManager.getTpm()));
 
         return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
     }

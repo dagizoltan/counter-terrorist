@@ -76,7 +76,7 @@ export class IntegrityService {
         }
 
         // 2. Clear TPM state
-        // await this.tpm.clearSecrets();
+        await this.tpm.clearSecrets();
 
         // 3. One final dying breath via covert channel (if possible)
         this.logging.log({

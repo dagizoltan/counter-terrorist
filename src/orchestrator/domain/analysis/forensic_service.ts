@@ -4,6 +4,7 @@ import { LoggingPort, LogSeverity, LogType, MeshAuthPort } from "../../core/port
 import { Result, ok } from "../../core/result.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { computeStreamHash } from "../../core/crypto_utils.ts";
+import { PcapPort } from "../../core/ports.ts";
 
 /**
  * ForensicService
@@ -15,7 +16,8 @@ export class ForensicService extends BaseService {
     private logging: LoggingPort,
     private kv: Deno.Kv,
     private processTracker: ProcessTracker,
-    private meshAuth: MeshAuthPort
+    private meshAuth: MeshAuthPort,
+    private pcap?: PcapPort
   ) {
     super();
   }
@@ -37,17 +39,26 @@ export class ForensicService extends BaseService {
     
     // 2. Gather Current Process Tree
     const processTree = this.processTracker.getTree();
+
+    // 3. Gather Network Snapshots
+    let networkSnapshot = [];
+    if (this.pcap) {
+        const pcapStatus = await this.pcap.getStatus();
+        if (pcapStatus.success && pcapStatus.data?.captures) {
+            networkSnapshot = pcapStatus.data.captures;
+        }
+    }
     
-    // 3. Construct the Manifest
+    // 4. Construct the Manifest
     const bundleData = {
-      version: "1.3",
+      version: "1.4",
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       node: Deno.hostname(),
       data: {
         logs,
         processTree,
-        networkSnapshot: [] // Placeholder for PCAP links
+        networkSnapshot
       }
     };
 

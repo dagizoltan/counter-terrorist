@@ -34,7 +34,7 @@ export class RealDiscovery {
         const results = {
             ethernet: await this.scanEthernet(),
             wifi: await this.scanWifi(),
-            bluetooth: []
+            bluetooth: await this.scanBluetooth()
         };
         
         loggingService.log({
@@ -194,6 +194,32 @@ export class RealDiscovery {
                 }
             }
             return aps;
+        } catch {
+            return [];
+        }
+    }
+
+    private async scanBluetooth() {
+        try {
+            const { success, stdout } = await this.executor.execute("bluetoothctl", ["devices"]);
+            if (!success) return [];
+
+            const devices: any[] = [];
+            for (const line of stdout.split("\n")) {
+                if (!line.trim()) continue;
+
+                // bluetoothctl devices output: Device AA:BB:CC:DD:EE:FF Name
+                const match = line.match(/Device\s+([0-9A-Fa-f:]+)\s+(.*)/);
+                if (match) {
+                    devices.push({
+                        mac: match[1].toLowerCase(),
+                        name: match[2],
+                        type: "BLUETOOTH",
+                        state: "IDENTIFIED"
+                    });
+                }
+            }
+            return devices;
         } catch {
             return [];
         }

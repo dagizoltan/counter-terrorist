@@ -2,6 +2,7 @@ import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";
 import { AuditService, AuditEvent } from "./audit.ts";
 import { ProcessTracker } from "./process_tracker.ts";
+import { TpmPort } from "../../core/ports.ts";
 
 export interface ComplianceReport {
     timestamp: string;
@@ -27,7 +28,8 @@ export class ComplianceService extends BaseService {
     constructor(
         private audit: AuditService, 
         private kv: Deno.Kv,
-        private processTracker: ProcessTracker
+        private processTracker: ProcessTracker,
+        private tpm?: TpmPort
     ) {
         super();
     }
@@ -93,17 +95,22 @@ export class ComplianceService extends BaseService {
 
     /**
      * Exports the compliance data as a signed JSON bundle.
+     * Utilizes hardware-rooted trust for non-repudiation.
      */
     async exportSignedBundle() {
         const snapshot = await this.generateSnapshot();
-        // BUG-5.2 FIX: Use real hardware-rooted signing for compliance reports
+
         let signature = "HW_SIGNED_MOCK_SIGNATURE";
         try {
             const { computeHash } = await import("../../core/crypto_utils.ts");
             const hash = await computeHash(snapshot);
-            // Injected TPM or MeshAuth signing would go here.
-            // Using placeholder logic that reflects real intent.
-            signature = `SIG:HW:${hash.slice(0, 16)}`;
+
+            if (this.tpm) {
+                signature = await this.tpm.sign(hash);
+            } else {
+                // Tactical fallback for non-hardened nodes
+                signature = `SIG:SOFT:${hash.slice(0, 16)}`;
+            }
         } catch { /* fallback to mock */ }
 
         return {
