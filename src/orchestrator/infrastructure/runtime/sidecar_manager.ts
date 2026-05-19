@@ -808,9 +808,10 @@ export class SidecarManager implements CommandPort {
             return res.stdout.split(" ")[0].trim();
         }
 
+        const stats = await Deno.stat(path);
         const file = await Deno.open(path, { read: true });
         try {
-            const hashBuffer = await this.digestStream("SHA-256", file.readable);
+            const hashBuffer = await this.digestStream("SHA-256", file.readable, stats.size);
             return Array.from(new Uint8Array(hashBuffer))
                 .map(b => b.toString(16).padStart(2, "0")).join("");
         } finally {
@@ -821,7 +822,7 @@ export class SidecarManager implements CommandPort {
     }
   }
 
-  private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
+  private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>, expectedSize?: number): Promise<ArrayBuffer> {
       // SOV-03 FIX: Use truly streaming OS-level hashing where possible to prevent OOM.
       // This addresses the pseudo-streaming issue identified in the audit.
       try {
@@ -843,18 +844,47 @@ export class SidecarManager implements CommandPort {
           // Fallback to in-memory only if OS command fails
       }
 
-      // SOV-06 FIX: Refined fallback to use streaming if supported by platform (simulated)
-      // Since Web Crypto doesn't support streaming digest, we still accumulate for the fallback,
-      // but we use a more efficient concatenation approach to reduce re-allocations.
+      // SOV-06 FIX: Performance optimization for hashing fallback.
+      // We use a pre-allocated buffer if the size is known to reduce GC pressure.
+      const MAX_HASH_SIZE = 100 * 1024 * 1024; // 100MB limit
+
+      if (expectedSize !== undefined && expectedSize <= MAX_HASH_SIZE) {
+          let combined = new Uint8Array(expectedSize);
+          let pos = 0;
+          const reader = stream.getReader();
+          try {
+              while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+
+                  // Handle file growth during read
+                  if (pos + value.length > combined.length) {
+                      const newCombined = new Uint8Array(Math.min(MAX_HASH_SIZE, (pos + value.length) * 2));
+                      if (pos + value.length > MAX_HASH_SIZE) throw new Error("OOM Protection: 100MB Limit");
+                      newCombined.set(combined);
+                      combined = newCombined;
+                  }
+
+                  combined.set(value, pos);
+                  pos += value.length;
+              }
+          } finally {
+              reader.releaseLock();
+          }
+          // Use a slice to handle cases where the file was smaller than expected
+          return await crypto.subtle.digest(algorithm, combined.slice(0, pos));
+      }
+
+      // Fallback if size unknown or too large (with OOM protection)
       const reader = stream.getReader();
-      let chunks = [];
+      const chunks: Uint8Array[] = [];
       let totalLength = 0;
 
       try {
           while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              if (totalLength + value.length > 100 * 1024 * 1024) throw new Error("OOM Protection: 100MB Limit");
+              if (totalLength + value.length > MAX_HASH_SIZE) throw new Error("OOM Protection: 100MB Limit");
               chunks.push(value);
               totalLength += value.length;
           }

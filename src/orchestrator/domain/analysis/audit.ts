@@ -193,21 +193,41 @@ export class AuditService extends BaseService {
         return ok(undefined);
     }
 
+    private isCommittingMerkle = false;
     private async commitMerkleRoot() {
-        if (this.currentSessionHashes.length === 0) return;
+        if (this.currentSessionHashes.length === 0 || this.isCommittingMerkle) return;
+        this.isCommittingMerkle = true;
 
-        const tree = new MerkleTree(this.currentSessionHashes);
-        const root = await tree.getRoot();
-
-        await this.logEvent({
-            type: "MERKLE_COMMIT",
-            severity: "info",
-            caller: "AUDIT:MERKLE",
-            message: `Merkle Root committed for ${this.currentSessionHashes.length} events: ${root.slice(0, 12)}`,
-            data: { root, eventCount: this.currentSessionHashes.length }
-        });
-
+        // SOV-06 FIX: Optimized Queue-Swap Pattern
+        // Swap out the current buffer immediately to ensure no events are lost
+        // during the asynchronous Merkle root calculation.
+        const hashesToCommit = [...this.currentSessionHashes];
         this.currentSessionHashes = [];
+
+        try {
+            const tree = new MerkleTree(hashesToCommit);
+            const root = await tree.getRoot();
+
+            await this.logEvent({
+                type: "MERKLE_COMMIT",
+                severity: "info",
+                caller: "AUDIT:MERKLE",
+                message: `Merkle Root committed for ${hashesToCommit.length} events: ${root.slice(0, 12)}`,
+                data: { root, eventCount: hashesToCommit.length }
+            });
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:analysis:audit",
+                message: `Merkle commitment failed: ${(e as Error).message}`
+            });
+            // Re-insert hashes at the beginning if commitment failed to try again later
+            this.currentSessionHashes = [...hashesToCommit, ...this.currentSessionHashes];
+        } finally {
+            this.isCommittingMerkle = false;
+        }
     }
 
     public setCorrelation(correlation: any) {
