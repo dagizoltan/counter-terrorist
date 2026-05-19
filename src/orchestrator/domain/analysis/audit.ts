@@ -232,8 +232,10 @@ export class AuditService extends BaseService {
                         type: LogType.AUDIT,
                         severity: LogSeverity.ERROR,
                         caller: "orchestrator:domain:analysis:audit",
-                        message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED.`
+                        message: `CHAIN INTEGRITY FAILURE. TAMPERING DETECTED. FORCING RESTRICTED MODE.`
                     });
+                    // SOV-06: Transition to Restricted Mode immediately if chain is broken
+                    this.state = SystemState.FORENSIC_RESTRICTED;
                 } else {
                     this.lastVerifiedHash = this.lastHash;
                 }
@@ -482,15 +484,18 @@ export class AuditService extends BaseService {
         const cutoffTimestamp = Date.now() - (this.retentionConfig.maxAgeDays * 24 * 60 * 60 * 1000);
 
         try {
-            // STREAMING RETENTION: Instead of loading everything into memory (OOM risk),
-            // we use the repository stream to find the boundary event.
-            const stream = this.repo.getStream(5000, true); // Get up to 5000 events to find boundary
+            // SOV-06: STREAMING RETENTION (Forward Scan)
+            // We scan from oldest to newest to find the last expired event.
+            // This ensures we always find the earliest valid "Genesis" boundary.
+            const stream = this.repo.getStream(10000, false);
             let boundaryEvent: AuditEvent | undefined;
 
             for await (const event of stream) {
                 const ts = new Date(event.timestamp).getTime();
                 if (ts < cutoffTimestamp) {
                     boundaryEvent = event;
+                } else {
+                    // Reached valid events, stop scanning
                     break;
                 }
             }

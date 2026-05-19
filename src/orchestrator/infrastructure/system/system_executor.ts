@@ -490,11 +490,14 @@ export class SystemExecutor implements ExecutorPort {
   }
 
   private isPotentiallyDangerous(arg: string): boolean {
+      // SOV-06 HARDENING: Comprehensive shell metacharacter and escape detection
       return arg.includes("/") || arg.includes("\\") || arg.includes("..") ||
-             arg.includes("%") || arg.includes("{") || arg.includes("$") ||
-             arg.includes("&") || arg.includes("|") || arg.includes(";") ||
-             arg.includes(">") || arg.includes("<") || arg.includes("`") ||
-             arg.includes("(") || arg.includes(")");
+             arg.includes("%") || arg.includes("{") || arg.includes("}") ||
+             arg.includes("$") || arg.includes("&") || arg.includes("|") ||
+             arg.includes(";") || arg.includes(">") || arg.includes("<") ||
+             arg.includes("`") || arg.includes("(") || arg.includes(")") ||
+             arg.includes("!") || arg.includes("[") || arg.includes("]") ||
+             arg.includes("\n") || arg.includes("\r");
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {

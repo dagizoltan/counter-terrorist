@@ -514,15 +514,13 @@ export class MeshManager extends BaseService {
         message: `Gossip: Broadcasting block for ${ip}`
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_BLOCK",
-        data: {
-            ip,
-            sourceNode: this.nodeId,
-            timestamp: Date.now()
-        }
-    });
-    return ok(undefined);
+        data: { ip, sourceNode: this.nodeId, timestamp: Date.now() }
+    };
+
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    return await this.broadcast(payload, true);
   }
 
   async broadcastThreatHash(hash: string, sourceNode: string): Promise<Result<void>> {
@@ -534,15 +532,13 @@ export class MeshManager extends BaseService {
         message: `Gossip: Broadcasting threat hash ${hash.slice(0, 8)}`
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_THREAT_HASH",
-        data: {
-            hash,
-            sourceNode,
-            timestamp: Date.now()
-        }
-    });
-    return ok(undefined);
+        data: { hash, sourceNode, timestamp: Date.now() }
+    };
+
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    return await this.broadcast(payload);
   }
 
   async broadcastLockdown(): Promise<Result<void>> {
@@ -554,29 +550,28 @@ export class MeshManager extends BaseService {
         message: "Gossip: Initiating high-priority EMERGENCY LOCKDOWN broadcast..."
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_LOCKDOWN",
-        data: {
-            sourceNode: this.nodeId,
-            timestamp: Date.now()
-        }
-    });
-    return ok(undefined);
+        data: { sourceNode: this.nodeId, timestamp: Date.now() }
+    };
+
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    return await this.broadcast(payload, true);
   }
 
   async broadcastAuditEvent(event: any) {
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", { type: "GOSSIP_AUDIT", data: event });
+    const payload = { type: "GOSSIP_AUDIT", data: event };
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    await this.broadcast(payload);
   }
 
   async broadcastAuditVerification(lastHash: string, eventCount: number) {
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    const payload = {
         type: "GOSSIP_AUDIT_VERIFY",
-        data: {
-            lastHash,
-            eventCount,
-            node: this.nodeId
-        }
-    });
+        data: { lastHash, eventCount, node: this.nodeId }
+    };
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    await this.broadcast(payload);
   }
 
   async reconcile(): Promise<Result<void>> {
@@ -835,6 +830,12 @@ export class MeshManager extends BaseService {
         caller: "orchestrator:domain:orchestration:mesh",
         message: `Tactical mTLS Sync completed with ${node.address}:${node.port}`
     });
+
+    try {
+        return await res.json();
+    } catch {
+        return { success: true };
+    }
   }
 
   private async startStateWatcher() {
