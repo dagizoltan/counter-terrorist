@@ -44,6 +44,8 @@ export class SystemExecutor implements ExecutorPort {
     "netsh", "taskkill", "pktmon", "powershell", "security"
   ];
 
+  private static readonly PROVISIONING_REGEX = /^(chmod 600 \/etc\/cts\.env && export \$\(grep -v '\^#' \/etc\/cts\.env \| xargs -d (['"])\\n\1\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts\.log 2>&1 &)$/;
+
   private static readonly SSH_SCHEMA = z.array(z.string()).max(10).superRefine((args, ctx) => {
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
@@ -67,9 +69,8 @@ export class SystemExecutor implements ExecutorPort {
         if (/^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/.test(arg)) continue;
 
         // SOV-06: Permit ProvisioningService lateral movement command sequence
-        // Fix: Use a more robust regex for the literal \n match in xargs
         if (arg.includes("chmod 600 /etc/cts.env") && arg.includes("counter-terrorist") && arg.includes("xargs")) {
-            if (/^(chmod 600 \/etc\/cts\.env && export \$\(grep -v '\^#' \/etc\/cts\.env \| xargs -d (['"])\\n\1\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts\.log 2>&1 &)$/.test(arg)) continue;
+            if (SystemExecutor.PROVISIONING_REGEX.test(arg)) continue;
         }
 
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized argument: ${arg}` });
@@ -361,7 +362,8 @@ export class SystemExecutor implements ExecutorPort {
             /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/,
             /^[a-z0-9/._-]+$/, // RESTORED '-': Allows hyphens in hostnames and paths
             /^[a-z0-9]+@[a-z0-9.-]+$/,
-            /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/
+            /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/,
+            SystemExecutor.PROVISIONING_REGEX
         ],
         // Tightened via blocklist instead of removing '-' from allowedArgs regex to avoid breaking hostnames
         blockedStrings: ["&&", "||", "|", ";", ">", "<", "`", "$", "(", ")", "!", "-F", "-E", "-S", "-i"],
@@ -487,7 +489,8 @@ export class SystemExecutor implements ExecutorPort {
 
         // C. Blocklist Check
         // SOV-P3: Explicit enforcement of blocked strings
-        if (policy.blockedStrings) {
+        // Skip check if the argument matched a specific whitelisted pattern (e.g. provisioning script)
+        if (!isPatternWhitelisted && policy.blockedStrings) {
             for (const blocked of policy.blockedStrings) {
                 if (arg.includes(blocked)) {
                     return {
@@ -514,6 +517,11 @@ export class SystemExecutor implements ExecutorPort {
   }
 
   private validateSensitiveArgument(arg: string, baseCmd: string): { valid: boolean; reason?: string } {
+      // SOV-06: Remote path bypass for SCP/SSH to avoid jail enforcement on remote addresses
+      if ((baseCmd === "scp" || baseCmd === "ssh") && /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\]):.*$/.test(arg)) {
+          return { valid: true };
+      }
+
       // Security: Check for path traversal and restricted characters first
       if (this.isPotentiallyDangerous(arg)) {
           // Explicitly block shell metacharacters in paths
@@ -571,12 +579,21 @@ export class SystemExecutor implements ExecutorPort {
 
   private extractPathsFromJson(obj: any, inPathContext: boolean = false): string[] {
       const paths: string[] = [];
-      if (!obj || typeof obj !== "object" || obj === null) return paths;
+      if (!obj || obj === null) return paths;
+
+      // SOV-03 HARDENING: Hybrid key-based and content-aware path extraction.
+      if (Array.isArray(obj)) {
+          for (const item of obj) {
+              paths.push(...this.extractPathsFromJson(item, inPathContext));
+          }
+          return paths;
+      }
+
+      if (typeof obj !== "object") return paths;
 
       const pathKeys = ["path", "target", "exe_path", "log_path", "source", "destination", "output", "file", "paths"];
 
-      // SOV-03 HARDENING: Hybrid key-based and content-aware path extraction.
-      // We inspect all string values and recurse into objects/arrays.
+      // We inspect all string values and recurse into objects.
       for (const [key, value] of Object.entries(obj)) {
           const isPathKey = pathKeys.includes(key);
           if (typeof value === "string") {
