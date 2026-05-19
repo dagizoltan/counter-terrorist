@@ -109,25 +109,29 @@ export class AutopilotService extends BaseService {
     
     await this.spawnLureProcess();
 
-    // BUG-32: Periodic health check for the lure process
-    const healthCheckInterval = setInterval(async () => {
+    // BUG-32 FIX: Robust health check using one-time promise and periodic reporting
+    let lureExited = false;
+    if (this.lureProcess) {
+        this.lureProcess.status.then((status) => {
+            lureExited = true;
+            if (this.services?.health) {
+                this.services.health.reportStatus("Lure", "FAILED", `Lure process exited with code ${status.code}`);
+            }
+        }).catch(() => {
+            lureExited = true;
+        });
+    }
+
+    const healthCheckInterval = setInterval(() => {
         if (!this.isStarted || !this.services) {
             clearInterval(healthCheckInterval);
             return;
         }
 
-        if (this.lureProcess) {
-            try {
-                const status = await this.lureProcess.status;
-                // If status resolved, the process exited
-                if (this.services.health) this.services.health.reportStatus("Lure", "FAILED", `Lure process exited with code ${status.code}`);
-                this.lureProcess = null;
-            } catch {
-                // Process is still running
-                if (this.services.health) this.services.health.reportStatus("Lure", "OPERATIONAL");
-            }
+        if (this.lureProcess && !lureExited) {
+            if (this.services.health) this.services.health.reportStatus("Lure", "OPERATIONAL");
         } else {
-            if (this.services.health) this.services.health.reportStatus("Lure", "FAILED", "Lure process is not running");
+            if (this.services.health) this.services.health.reportStatus("Lure", "FAILED", "Lure process is not running or has exited");
         }
     }, 30000);
     this.unsubscribers.push(() => clearInterval(healthCheckInterval));

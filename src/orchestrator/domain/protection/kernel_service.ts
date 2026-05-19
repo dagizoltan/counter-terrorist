@@ -350,11 +350,14 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
 }
 `.trim();
 
-        // SOV-06 FIX: Use secure, root-owned directory for temporary profile to prevent TOCTOU
-        const tempFile = `/var/lib/cts/${profileName}.profile`;
-        await Deno.writeTextFile(tempFile, profile);
-
+        // SOV-06 HARDENING: Use random, non-predictable temporary file with restrictive permissions to prevent TOCTOU
+        let tempFile = "";
         try {
+            tempFile = await Deno.makeTempFile({ prefix: `cts-profile-${name}-`, suffix: ".profile" });
+            // Set restrictive permissions (0600) immediately after creation
+            await Deno.chmod(tempFile, 0o600);
+            await Deno.writeTextFile(tempFile, profile);
+
             // Deploy profile via privileged SystemExecutor
             const cpRes = await this.executor.execute("cp", [tempFile, `/etc/apparmor.d/${profileName}`]);
             if (!cpRes.success) return err(new Error(`Failed to copy AppArmor profile: ${cpRes.stderr}`));
@@ -380,6 +383,10 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
                 message: `Failed to deploy AppArmor profile: ${error.message}`
             });
             return err(error);
+        } finally {
+            if (tempFile) {
+                try { await Deno.remove(tempFile); } catch {}
+            }
         }
     }
 
