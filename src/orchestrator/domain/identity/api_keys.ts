@@ -1,5 +1,6 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { KvRepository } from "@infrastructure/persistence/repositories/kv_repository.ts";
+import { BaseService } from "@core/base_service.ts";
 import { withTelemetry } from "@core/service_utils.ts";
 import { Result } from "@core/result.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
@@ -14,7 +15,7 @@ export interface ApiKeyMetadata {
   lastUsed?: number;
 }
 
-export class ApiKeysService {
+export class ApiKeysService extends BaseService {
   private hashRepo: KvRepository<ApiKeyMetadata>;
   private idRepo: KvRepository<string>;
 
@@ -24,6 +25,7 @@ export class ApiKeysService {
   public revokeApiKey: (id: string) => Promise<Result<void>>;
 
   constructor(private kv: Deno.Kv, private logging: LoggingPort) {
+    super();
     this.hashRepo = new KvRepository<ApiKeyMetadata>(kv, "api_keys_hash");
     this.idRepo = new KvRepository<string>(kv, "api_keys_id");
 

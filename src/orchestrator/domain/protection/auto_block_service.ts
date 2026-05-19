@@ -1,19 +1,34 @@
-import { EventBus } from "../analysis/events.ts";
+import { BaseService } from "@core/base_service.ts";
 import { FirewallPort } from "@core/ports.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { Result, ok } from "@core/result.ts";
 
 /**
  * AutoBlockService
  * Autonomous threat response engine that consumes security events
  * and enforces immediate firewall blocks.
  */
-export class AutoBlockService {
+export class AutoBlockService extends BaseService {
+  private unsubscriber?: () => void;
+
   constructor(
-    private eventBus: EventBus,
     private firewall: FirewallPort,
     private logging: LoggingPort
   ) {
+    super();
+  }
+
+  override async init(): Promise<Result<void>> {
     this.start();
+    return ok(undefined);
+  }
+
+  override async shutdown(): Promise<Result<void>> {
+      if (this.unsubscriber) {
+          this.unsubscriber();
+          this.unsubscriber = undefined;
+      }
+      return ok(undefined);
   }
 
   private start() {
@@ -25,7 +40,8 @@ export class AutoBlockService {
       message: "Automated Threat Response engine engaged."
     });
 
-    this.eventBus.subscribe(async (event) => {
+    if (!this.eventBus) return;
+    this.unsubscriber = this.eventBus.subscribe(async (event) => {
       // Listen for high-confidence honeypot triggers
       if (event.type === "HONEYPOT") {
         const ip = event.data?.source_ip || event.data?.ip;

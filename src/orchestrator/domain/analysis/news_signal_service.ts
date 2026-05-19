@@ -1,5 +1,6 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export type TacticalSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -14,7 +15,7 @@ export interface NewsItem {
     riskScore: number;
 }
 
-export class NewsSignalService {
+export class NewsSignalService extends BaseService {
     private kv?: Deno.Kv;
     private refreshInterval?: number;
     private feeds = [
@@ -30,6 +31,7 @@ export class NewsSignalService {
     ];
 
     constructor(private logging: LoggingPort) {
+        super();
     }
 
     async start(kv?: Deno.Kv): Promise<Result<void>> {
