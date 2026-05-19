@@ -19,7 +19,7 @@ export class EventMediator {
     private readonly BATCH_THRESHOLD = 50;
     private batchTimer?: number;
 
-    shutdown() {
+    async shutdown() {
         if (this.learningTimeout) {
             clearTimeout(this.learningTimeout);
             this.learningTimeout = null;
@@ -27,10 +27,15 @@ export class EventMediator {
         if (this.batchTimer) {
             clearInterval(this.batchTimer);
         }
+
+        // SOV-06 FIX: Final batch flush on shutdown to prevent telemetry loss
+        this.flushBatches();
+
         if (this.behavioral) {
-            this.behavioral.shutdown();
+            await this.behavioral.shutdown();
         }
-        this.logger.log({
+
+        await this.logger.log({
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
             severity: LogSeverity.INFO,
@@ -146,7 +151,8 @@ export class EventMediator {
                 }
 
                 if (type === "EBPF_STRAY_SHELL") {
-                    this.logger.log({
+                    // SOV-06 FIX: Await logging for critical security alerts
+                    await this.logger.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.AUDIT,
                         severity: LogSeverity.WARNING,
@@ -260,7 +266,7 @@ export class EventMediator {
         });
 
         // 5. Scanner Integration
-        commandPort.onEvent("analyzer", (response: any) => {
+        commandPort.onEvent("analyzer", async (response: any) => {
             const event = response.data || response;
             const data = event.data || event;
             if (data.type === "ThreatDetected" || data.type === "RKH_SCAN_RESULT") {
@@ -271,6 +277,17 @@ export class EventMediator {
                     message: `Scanner Alert: ${data.type}`,
                     data
                 });
+
+                // SOV-06 FIX: Await logging for high-severity scanner findings
+                await this.logger.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "scanner:rkhunter",
+                    message: `CRITICAL THREAT: ${data.type} identified by analyzer sidecar.`,
+                    payload: data
+                });
+
                 this.eventBus.emit("THREAT", data);
             }
         });

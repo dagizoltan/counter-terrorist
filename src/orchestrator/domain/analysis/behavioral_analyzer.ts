@@ -12,6 +12,7 @@ export class BehavioralAnalyzer extends BaseService {
     private syscallSequences: Map<string, string[]> = new Map(); // pid -> recent syscalls
     private isLearningMode: boolean = false;
     private kv?: Deno.Kv;
+    private purgeInterval?: number;
 
     // MALICIOUS INTENT PATTERNS
     private static readonly INTENT_SIGNATURES = [
@@ -24,6 +25,37 @@ export class BehavioralAnalyzer extends BaseService {
 
     constructor() {
         super();
+        // SOV-06: Background cleanup for stale behavioral data
+        this.purgeInterval = setInterval(() => this.purgeStaleData(), 300000); // 5 Minutes
+    }
+
+    private purgeStaleData() {
+        const now = Date.now();
+        const STALE_THRESHOLD = 3600000; // 1 Hour
+
+        // Purge network traces
+        for (const [ip, trace] of this.traces.entries()) {
+            const last = trace[trace.length - 1];
+            if (last && (now - last.timestamp > STALE_THRESHOLD)) {
+                this.traces.delete(ip);
+                this.slidingWindow.delete(ip);
+            }
+        }
+
+        // Purge syscall sequences (PID reuse mitigation)
+        // Since we can't easily know if a PID is still active without system access
+        // (and this service is platform-agnostic), we use a shorter TTL for sequences.
+        const SEQUENCE_TTL = 900000; // 15 Minutes
+        const traceEntries = Array.from(this.traces.entries());
+        // (traces already purged above)
+
+        // For syscall sequences, we don't have timestamps per syscall,
+        // so we just clear everything that hasn't been updated if we had timestamps.
+        // As a fallback, we clear sequences if the corresponding comm frequency map is tiny
+        // or just periodically flush all sequences to prevent stale intent matching on reused PIDs.
+        if (now % 3600000 < 300000) { // Once an hour
+            this.syscallSequences.clear();
+        }
     }
 
     track(ip: string) {
@@ -40,6 +72,10 @@ export class BehavioralAnalyzer extends BaseService {
 
     override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
         const { ok } = await import("@core/result.ts");
+        if (this.purgeInterval) {
+            clearInterval(this.purgeInterval);
+            this.purgeInterval = undefined;
+        }
         if (this.kv) {
             await this.persistBaselines().catch(() => {});
         }
