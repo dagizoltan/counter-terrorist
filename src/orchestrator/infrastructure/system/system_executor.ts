@@ -361,7 +361,7 @@ export class SystemExecutor implements ExecutorPort {
             /^-o$/,
             /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/,
             /^[a-z0-9/._-]+$/, // RESTORED '-': Allows hyphens in hostnames and paths
-            /^[a-z0-9]+@[a-z0-9.-]+$/,
+            /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])$/, // SOV-06 FIX: Support bracketed IPv6 in allowedArgs
             /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/,
             SystemExecutor.PROVISIONING_REGEX
         ],

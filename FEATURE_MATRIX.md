@@ -17,10 +17,10 @@ This matrix provides a detailed overview of the implementation status of various
 
 | Feature | Status | Details |
 | :--- | :--- | :--- |
-| **eBPF Syscall Tracking** | ✅ Stable | High-performance kprobes for monitoring ptrace, mmap, execve, etc. |
+| **eBPF Syscall Tracking** | 🧪 Experimental | Functional kprobes; requires `CAP_SYS_ADMIN`. Falls back to dummy mode if BPF fails to load. |
 | **Neural Defense (Behavioral)** | ✅ Stable | Variance-based bot detection and Bayesian syscall anomaly scoring. |
 | **Intent Modeling** | ✅ Stable | Sequence-based detection of shellcode injection and exfiltration patterns. |
-| **File Integrity Monitoring (FIM)** | ✅ Stable | Active Guard using `fanotify` to block unauthorized binary modifications. |
+| **File Integrity Monitoring (FIM)** | ✅ Stable | Active Guard using `fanotify` to block unauthorized modifications to system binaries. |
 | **Stray Shell Detection** | ✅ Stable | Identifies suspicious shells and unmonitored parent processes. |
 | **Global Threat Intelligence** | ✅ Stable | Synchronization of malicious hashes across the mesh. |
 
@@ -28,9 +28,9 @@ This matrix provides a detailed overview of the implementation status of various
 
 | Feature | Status | Details |
 | :--- | :--- | :--- |
-| **XDP IP Blocking** | ✅ Stable | Kernel-level packet dropping for blacklisted IPs. |
-| **LSM Process Isolation** | ✅ Stable | Ring 0 enforcement of syscall and path-access policies. |
-| **Process Stealth** | ✅ Stable | Hides orchestrator and sidecar PIDs from standard system utilities. |
+| **XDP IP Blocking** | 🧪 Experimental | Core logic present; requires kernel support. Falls back to userspace deny if XDP maps fail. |
+| **LSM Process Isolation** | 🧪 Experimental | AppArmor/LSM-based isolation; profile generation is stable, but Ring 0 enforcement depends on kernel BTF. |
+| **Process Stealth** | ✅ Stable | Hides orchestrator and sidecar PIDs from standard system utilities via `comm` cloaking. |
 | **Interactive Deception** | ✅ Stable | Interactive honeypot modules with port-aware multi-OS banners. |
 | **Deception Morphing** | ✅ Stable | Automated port rotation to confuse and frustrate attackers. |
 | **Active Sabotage (Breaker)** | ✅ Stable | Tarpitting, jitter injection, and fake error responses for adversaries. |
@@ -40,16 +40,16 @@ This matrix provides a detailed overview of the implementation status of various
 
 | Feature | Status | Details |
 | :--- | :--- | :--- |
-| **Cryptographic Audit Ledger** | ✅ Stable | SHA-256 hash-chained logs with hardware-rooted integrity. |
+| **Cryptographic Audit Ledger** | ✅ Stable | SHA-256 hash-chained logs with automated verification. |
 | **Merkle Tree Verification** | ✅ Stable | O(log n) segment verification for high-fidelity audit trails. |
-| **Automated PCAP Capture** | 🧪 Experimental | Native PCAPng structure is stable; packet capture currently uses dummy packets. |
+| **Automated PCAP Capture** | 🧪 Experimental | Native PCAPng structure is stable; packet capture currently uses simulation loop with dummy packets. |
 | **Memory Forensic Dumps** | ✅ Stable | Captures `/proc/{pid}/maps` and `environ` for suspicious processes. |
-| **Hardware Attestation (TPM)** | 🧪 Experimental | Secret sealing and identity quotes currently use simulated hardware responses. |
-| **Forensic restricted Mode** | ✅ Stable | Transitions system to read-only audit state upon tampering detection. |
+| **Hardware Attestation (TPM)** | 🚧 Simulated | TPM 2.0 interface defined; currently returns simulated hardware responses (PCRs, Sealing). |
+| **Forensic Restricted Mode** | ✅ Stable | Transitions system to read-only audit state upon tampering detection. |
 
 ---
 
 **Legend:**
 - ✅ **Stable:** Fully implemented, tested, and verified in production-like environments.
-- 🧪 **Experimental:** Functional core logic, but utilizes simulation or mock data for certain backend operations.
-- 🚧 **Placeholder:** Interface defined, but underlying implementation is missing.
+- 🧪 **Experimental:** Core logic is functional, but may have kernel dependencies or rely on partial simulation for edge cases.
+- 🚧 **Simulated / Placeholder:** Interface defined, but functionality is currently mocked or requires future development.
