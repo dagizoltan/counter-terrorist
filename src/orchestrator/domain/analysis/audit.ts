@@ -68,6 +68,7 @@ export class AuditService extends BaseService {
 
     private auditBuffer: AuditEvent[] = [];
     private intervals: number[] = [];
+    private watcherAbortController: AbortController | null = null;
 
     // Merkle Integration
     private currentSessionHashes: string[] = [];
@@ -113,7 +114,9 @@ export class AuditService extends BaseService {
         const kv = (this.repo as any).kv;
         if (!kv) return;
 
-        const watcher = kv.watch([["audit", "latest"]]);
+        this.watcherAbortController = new AbortController();
+        const watcher = kv.watch([["audit", "latest"]], { signal: this.watcherAbortController.signal });
+        try {
         for await (const [entry] of watcher) {
             if (entry.value) {
                 const latestEvent = entry.value as AuditEvent;
@@ -127,6 +130,11 @@ export class AuditService extends BaseService {
                     });
                     this.lastHash = latestEvent.hash;
                 }
+            }
+        }
+        } catch (e) {
+            if (!(e instanceof DOMException && e.name === "AbortError")) {
+                throw e;
             }
         }
     }
@@ -156,11 +164,21 @@ export class AuditService extends BaseService {
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
 
-        await this.commitMerkleRoot();
+        if (this.watcherAbortController) {
+            this.watcherAbortController.abort();
+            this.watcherAbortController = null;
+        }
 
-        // Graceful queue drain with timeout
+        // SOV-05 STABILITY: Drain queue first so currentSessionHashes is populated before Merkle commitment
         const start = Date.now();
         while ((this.logQueue.length > 0 || this.isProcessingQueue) && (Date.now() - start < 5000)) {
+            await new Promise(r => setTimeout(r, 100));
+        }
+
+        await this.commitMerkleRoot();
+
+        // Final drain for the MERKLE_COMMIT event itself
+        while ((this.logQueue.length > 0 || this.isProcessingQueue) && (Date.now() - start < 10000)) {
             await new Promise(r => setTimeout(r, 100));
         }
 
