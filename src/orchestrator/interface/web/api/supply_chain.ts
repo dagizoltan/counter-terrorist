@@ -1,20 +1,13 @@
-import { Hono } from "hono";
+import { Context } from "hono";
 import { SupplyChainService } from "@domain/analysis/supply_chain.ts";
-import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createSupplyChainApi(supplyChain: SupplyChainService, security: SecurityMiddleware) {
-  const api = new Hono();
+export const getSBOMHandler = (supplyChain: SupplyChainService) => async (c: Context) => {
+  return c.json(supplyChain.getSBOM());
+};
 
-  api.get("/sbom", security.requireRole("admin", "operator", "viewer"), async (c) => {
-    return c.json(supplyChain.getSBOM());
+export const getSupplyChainStatusHandler = (supplyChain: SupplyChainService) => async (c: Context) => {
+  return c.json({
+    score: supplyChain.getHealthScore(),
+    vulnerableCount: supplyChain.getVexReport().length
   });
-
-  api.get("/status", security.requireRole("admin", "operator", "viewer"), async (c) => {
-    return c.json({ 
-      score: supplyChain.getHealthScore(), 
-      vulnerableCount: supplyChain.getVexReport().length 
-    });
-  });
-
-  return api;
-}
+};

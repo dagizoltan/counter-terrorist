@@ -1,112 +1,104 @@
-import { Hono, Context } from "hono";
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "../middleware/security.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
-export function createMeshApi(services: ServiceContainer, security: SecurityMiddleware) {
-  const router = new Hono();
-
-  router.use("/*", security.meshAuth(services.config.getMeshSecret()));
-
-  router.get("/nodes", (c: Context) => {
-    const meshNodes = services.mesh.getNodes();
-    return c.json({
-      local: Deno.hostname(),
-      peers: meshNodes.map(node => ({
-        id: node.id || node.hostname,
-        hostname: node.hostname,
-        address: node.address,
-        status: Date.now() - node.lastSeen < 60000 ? "ACTIVE" : "INACTIVE",
-        verified: node.verified,
-      }))
-    });
+export const meshNodesHandler = (services: ServiceContainer) => (c: Context) => {
+  const meshNodes = services.mesh.getNodes();
+  return c.json({
+    local: Deno.hostname(),
+    peers: meshNodes.map(node => ({
+      id: node.id || node.hostname,
+      hostname: node.hostname,
+      address: node.address,
+      status: Date.now() - node.lastSeen < 60000 ? "ACTIVE" : "INACTIVE",
+      verified: node.verified,
+    }))
   });
+};
 
-  router.get("/ping", async (c: Context) => {
-    const payload = { success: true, nodeId: services.mesh.getNodeId(), timestamp: Date.now() };
-    const signature = await services.mesh.signPayload(payload);
-    c.header("X-Mesh-Signature", signature);
-    return c.json(payload);
-  });
+export const meshPingHandler = (services: ServiceContainer) => async (c: Context) => {
+  const payload = { success: true, nodeId: services.mesh.getNodeId(), timestamp: Date.now() };
+  const signature = await services.mesh.signPayload(payload);
+  c.header("X-Mesh-Signature", signature);
+  return c.json(payload);
+};
 
-  router.post("/sync", async (c: Context) => {
-    const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
-    const result = await services.rateLimit.checkLimit(`mesh_sync:${peerIp}`, 100, 1000);
-    if (!result.allowed) {
-        return c.json({
-            error: "Rate limit exceeded",
-            code: "RATE_LIMIT_EXCEEDED",
-            retryAfterMs: result.retryAfterMs
-        }, 429);
-    }
+export const meshSyncHandler = (services: ServiceContainer) => async (c: Context) => {
+  const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+  const result = await services.rateLimit.checkLimit(`mesh_sync:${peerIp}`, 100, 1000);
+  if (!result.allowed) {
+      return c.json({
+          error: "Rate limit exceeded",
+          code: "RATE_LIMIT_EXCEEDED",
+          retryAfterMs: result.retryAfterMs
+      }, 429);
+  }
 
-    const payload = await c.req.json();
+  const payload = await c.req.json();
 
-    const signature = c.req.header("X-Mesh-Signature");
-    if (signature) {
-        const isValid = await services.mesh.verifySignature(payload, signature);
-        if (!isValid) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:interface:web:api:mesh",
-                message: `REJECTED: Invalid mesh signature from ${peerIp}`
-            });
-            return c.json({ error: "Invalid signature" }, 401);
-        }
-    } else if (Deno.env.get("MESH_SECRET")) {
-        return c.json({ error: "Missing required mesh signature" }, 401);
-    }
+  const signature = c.req.header("X-Mesh-Signature");
+  if (signature) {
+      const isValid = await services.mesh.verifySignature(payload, signature);
+      if (!isValid) {
+          loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.ERROR,
+              caller: "orchestrator:interface:web:api:mesh",
+              message: `REJECTED: Invalid mesh signature from ${peerIp}`
+          });
+          return c.json({ error: "Invalid signature" }, 401);
+      }
+  } else if (Deno.env.get("MESH_SECRET")) {
+      return c.json({ error: "Missing required mesh signature" }, 401);
+  }
 
-    if (payload.timestamp && Math.abs(Date.now() - payload.timestamp) > 300000) {
-        return c.json({ error: "Stale payload" }, 401);
-    }
+  if (payload.timestamp && Math.abs(Date.now() - payload.timestamp) > 300000) {
+      return c.json({ error: "Stale payload" }, 401);
+  }
 
-    if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
-        if (isValidIP(payload.ip) && !isCriticalInfrastructure(payload.ip)) {
-            await services.protection.firewall.blockIp(payload.ip);
-        }
-    }
+  if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
+      if (isValidIP(payload.ip) && !isCriticalInfrastructure(payload.ip)) {
+          await services.protection.firewall.blockIp(payload.ip);
+      }
+  }
 
-    if (payload.type === "GOSSIP_THREAT_HASH" && payload.hash) {
-        await services.audit.logEvent({
-            type: "MESH_THREAT",
-            message: `Mesh-wide binary blacklist updated: ${payload.hash.slice(0, 8)}`,
-            data: payload
-        });
-    }
+  if (payload.type === "GOSSIP_THREAT_HASH" && payload.hash) {
+      await services.audit.logEvent({
+          type: "MESH_THREAT",
+          message: `Mesh-wide binary blacklist updated: ${payload.hash.slice(0, 8)}`,
+          data: payload
+      });
+  }
 
-    if (payload.type === "GOSSIP_AUDIT" && payload.events) {
-        await services.audit.syncEvents(payload.events);
-    }
+  if (payload.type === "GOSSIP_AUDIT" && payload.events) {
+      await services.audit.syncEvents(payload.events);
+  }
 
-    if (payload.type === "GOSSIP_LOCKDOWN") {
-        await services.mediator.broadcastEvent({
-            type: "MESH_LOCKDOWN",
-            message: `Mesh-wide LOCKDOWN initiated by node ${payload.sourceNode || "unknown"}`,
-            data: payload,
-            timestamp: new Date().toISOString()
-        });
-    }
+  if (payload.type === "GOSSIP_LOCKDOWN") {
+      await services.mediator.broadcastEvent({
+          type: "MESH_LOCKDOWN",
+          message: `Mesh-wide LOCKDOWN initiated by node ${payload.sourceNode || "unknown"}`,
+          data: payload,
+          timestamp: new Date().toISOString()
+      });
+  }
 
-    if (payload.type === "GOSSIP_AUDIT_VERIFY") {
-        const localStatus = await services.audit.getChainStatus();
-        if (localStatus.lastHash !== payload.lastHash || localStatus.count !== payload.count) {
-            if (localStatus.count < payload.count) {
-                await services.mesh.requestAuditSync(payload.sourceNode);
-            }
-        }
-    }
+  if (payload.type === "GOSSIP_AUDIT_VERIFY") {
+      const localStatus = await services.audit.getChainStatus();
+      if (localStatus.lastHash !== payload.lastHash || localStatus.count !== payload.count) {
+          if (localStatus.count < payload.count) {
+              await services.mesh.requestAuditSync(payload.sourceNode);
+          }
+      }
+  }
 
-    return c.json({ success: true });
-  });
+  return c.json({ success: true });
+};
 
-  router.post("/resync", security.requireRole("admin", "operator"), async (c: Context) => {
-    await services.mesh.resyncNodes();
-    return c.json({ success: true, message: "Mesh synchronization broadcasted" });
-  });
-
-  return router;
-}
+export const meshResyncHandler = (services: ServiceContainer) => async (c: Context) => {
+  await services.mesh.resyncNodes();
+  return c.json({ success: true, message: "Mesh synchronization broadcasted" });
+};

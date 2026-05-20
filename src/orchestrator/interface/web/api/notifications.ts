@@ -1,28 +1,21 @@
-import { Hono } from "hono";
+import { Context } from "hono";
 import { NotificationService } from "@domain/index.ts";
-import { SecurityMiddleware } from "../middleware/security.ts";
 
-export function createNotificationsApi(notificationService: NotificationService, security: SecurityMiddleware) {
-  const api = new Hono();
+export const getWebhooksHandler = (notificationService: NotificationService) => (c: Context) => {
+  return c.json(notificationService.getWebhooks());
+};
 
-  api.get("/", (c) => {
-      return c.json(notificationService.getWebhooks());
-  });
+export const addWebhookHandler = (notificationService: NotificationService) => async (c: Context) => {
+  const config = await c.req.json();
+  const result = await notificationService.addWebhook(config);
+  if ("error" in result) {
+    return c.json({ success: false, error: result.error }, 400);
+  }
+  return c.json(result, 201);
+};
 
-  api.post("/", security.requireRole("admin", "operator"), async (c) => {
-      const config = await c.req.json();
-      const result = await notificationService.addWebhook(config);
-      if ("error" in result) {
-        return c.json({ success: false, error: result.error }, 400);
-      }
-      return c.json(result, 201);
-  });
-
-  api.delete("/:id", security.requireRole("admin", "operator"), async (c) => {
-      const id = c.req.param("id");
-      const success = await notificationService.deleteWebhook(id);
-      return c.json({ success });
-  });
-
-  return api;
-}
+export const deleteWebhookHandler = (notificationService: NotificationService) => async (c: Context) => {
+  const id = c.req.param("id");
+  const success = await notificationService.deleteWebhook(id);
+  return c.json({ success });
+};

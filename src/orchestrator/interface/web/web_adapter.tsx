@@ -4,14 +4,12 @@ import { serveStatic, upgradeWebSocket } from "hono/deno";
 import { getCookie } from "hono/helper/cookie/index.ts";
 import { WebPort, ApplicationStatus } from "@core/ports.ts";
 import { AppError } from "@core/errors.ts";
-import { createLoginRouter, createLogoutRouter } from "./features/auth/login/handler.tsx";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { createWsHandler } from "@api/ws.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "./middleware/security.ts";
 import { uiContext } from "./middleware/ui_context.ts";
-import { createUiRouter } from "./routes/ui.tsx";
-import { createApiRouter } from "./routes/api.tsx";
+import { registerRoutes } from "./routes/registry.ts";
 import { MeshAuthService } from "@domain/index.ts";
 import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 
@@ -80,15 +78,6 @@ export class WebAdapter implements WebPort {
     // Apply global security headers
     this.app.use("*", this.security.hardenedHeaders());
 
-    // Auth Routes (Login/Logout)
-    this.app.route("/login", createLoginRouter({
-      checkLoginRateLimit: this.checkLoginRateLimit.bind(this),
-      isTokenValid: (t) => this.isTokenValid(t) as any,
-      sessionService: this.services.sessions,
-      config: this.services.config
-    }));
-    this.app.route("/logout", createLogoutRouter({ sessionService: this.services.sessions }));
-    this.app.get("/login/", (c) => c.redirect("/login"));
 
     // 0. AUTH MIDDLEWARE: Protect core resources
     this.app.use("*", (c, next) => {
@@ -277,8 +266,7 @@ export class WebAdapter implements WebPort {
       return c.html(html, 404);
     });
 
-    this.app.route("/api", createApiRouter(this.services, this.security));
-    this.app.route("/", createUiRouter(this.services, this.security, statusAggregator));
+    registerRoutes(this.app, this.services, this.security, statusAggregator);
 
     this.app.get("/api/ws/events", upgradeWebSocket(async (c) => {
       // BUG-30: CSWSH Protection (Origin & Host Validation)
