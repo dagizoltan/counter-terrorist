@@ -8,7 +8,7 @@ export interface PlatformInfo {
   name: PlatformName;
   version: string;
   tag: string;
-  isRoot?: boolean;
+  isRoot: boolean;
   metrics?: {
     memory: { total: number; free: number; used: number };
     cpu: { load: number[]; cores: number };
@@ -117,6 +117,7 @@ async function getMetrics(executor?: SystemExecutor): Promise<PlatformInfo["metr
 
 export async function getPlatformInfo(executor: SystemExecutor): Promise<PlatformInfo> {
   const metrics = await getMetrics(executor);
+  const isRoot = Deno.uid() === 0;
   const envOverride = Deno.env.get("CT_PLATFORM_TAG");
   
   let info: PlatformInfo;
@@ -125,23 +126,24 @@ export async function getPlatformInfo(executor: SystemExecutor): Promise<Platfor
       name: envOverride.startsWith("windows") ? "windows" : envOverride.startsWith("ubuntu") ? "ubuntu" : envOverride.startsWith("macos") ? "macos" : "unknown",
       version: envOverride.split("_")[1] || "unknown",
       tag: envOverride,
+      isRoot
     };
   } else {
     const os = Deno.build.os;
     if (os === "windows") {
-      info = { name: "windows", version: "11", tag: WINDOWS_TAG };
+      info = { name: "windows", version: "11", tag: WINDOWS_TAG, isRoot };
     } else if (os === "darwin") {
       const version = await detectMacosVersion(executor);
       const major = version.split(".")[0] || "unknown";
-      info = { name: "macos", version, tag: `macos_${major}` };
+      info = { name: "macos", version, tag: `macos_${major}`, isRoot };
     } else if (os === "linux") {
       const version = await detectLinuxVersion();
       const tag = version.startsWith("24.04") ? "ubuntu_24.04" : version.startsWith("26.04") ? "ubuntu_26.04" : `ubuntu_${version}`;
-      info = { name: "ubuntu", version, tag };
+      info = { name: "ubuntu", version, tag, isRoot };
     } else {
-      info = { name: "unknown", version: "unknown", tag: "unknown" };
+      info = { name: "unknown", version: "unknown", tag: "unknown", isRoot };
     }
   }
 
-  return { ...info, metrics };
+  return { ...info, isRoot, metrics };
 }

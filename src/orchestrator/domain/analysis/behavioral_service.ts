@@ -18,10 +18,16 @@ export class BehavioralService extends BaseService {
 
   constructor(private firewall: FirewallPort, private audit?: AuditService) {
     super();
+  }
+
+  override async init(): Promise<Result<void>> {
+    console.log("BehavioralService initialized");
     this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
+    return ok(undefined);
   }
 
   override async shutdown(): Promise<Result<void>> {
+      console.log("BehavioralService shutting down");
       if (this.metricsInterval) clearInterval(this.metricsInterval);
       this.analyzer.shutdown();
       return ok(undefined);
