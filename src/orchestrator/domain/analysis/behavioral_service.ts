@@ -41,17 +41,27 @@ export class BehavioralService extends BaseService {
       this.eventBus.emit("METRIC_UPDATE", {
           domain: "firewall_behavioral",
           data: {
-              suspiciousIps: this.getSuspiciousIps().slice(0, 10)
+              suspiciousIps: this.getSuspiciousIps(10)
           }
       });
   }
   
-  getSuspiciousIps() {
-    return Array.from(this.history.entries()).map(([ip, stats]) => ({
-      ip,
-      attempts: stats.timestamps.length,
-      lastSeen: stats.timestamps[stats.timestamps.length - 1]
-    }));
+  getSuspiciousIps(limit: number = 100) {
+    const result = [];
+    const iterator = this.history.entries();
+
+    for (let i = 0; i < limit; i++) {
+        const { value, done } = iterator.next();
+        if (done) break;
+
+        const [ip, stats] = value;
+        result.push({
+          ip,
+          attempts: stats.timestamps.length,
+          lastSeen: stats.timestamps[stats.timestamps.length - 1]
+        });
+    }
+    return result;
   }
 
   async analyze(ip: string): Promise<Result<string>> {
