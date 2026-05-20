@@ -11,16 +11,16 @@ Deno.test({
         let counter = 0;
 
         // Fast handler
-        bus.on("test", () => { counter++; });
+        bus.on("test" as any, () => { counter++; });
 
         // Slow handler (should timeout but not block)
-        bus.on("test", async () => {
+        bus.on("test" as any, async () => {
             // This promise will be orphaned on timeout, which is expected for 'safelyExecute'
             await new Promise(r => setTimeout(r, 5000));
             counter++;
         });
 
-        bus.emit("test", {});
+        bus.emit("test" as any, {});
 
         // Wait a bit for the fast one
         await new Promise(r => setTimeout(r, 500));

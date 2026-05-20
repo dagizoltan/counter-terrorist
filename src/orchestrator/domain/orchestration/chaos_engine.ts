@@ -8,11 +8,12 @@ export class ChaosEngine extends BaseService {
   private logging: LoggingPort;
 
   constructor(
-    private eventBus: EventBus,
+    eventBus: EventBus,
     private auditService: AuditService,
     private sidecar: SidecarManager
   ) {
     super();
+    this.setEventBus(eventBus);
     this.logging = auditService.getLogging();
   }
 

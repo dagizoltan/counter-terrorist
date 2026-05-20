@@ -142,7 +142,7 @@ export class NewsSignalService extends BaseService {
         }
     }
 
-    async shutdown(): Promise<Result<void>> {
+    override async shutdown(): Promise<Result<void>> {
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
             this.refreshInterval = undefined;

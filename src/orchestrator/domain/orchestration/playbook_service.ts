@@ -1,4 +1,4 @@
-import { LogSeverity, LogType } from "@core/ports.ts";
+import { LogSeverity, LogType, LoggingPort } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";

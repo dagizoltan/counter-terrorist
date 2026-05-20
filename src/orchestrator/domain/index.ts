@@ -46,6 +46,7 @@ export { ForensicService } from "./analysis/forensic_service.ts";
 export { LedgerService } from "./analysis/ledger_service.ts";
 export { CorrelationService } from "./analysis/correlation_service.ts";
 export { ViewModelService } from "./analysis/view_model_service.ts";
+export { IntegrityService } from "./analysis/integrity_service.ts";
 
 // Engine Domain
 export { MeshManager } from "./orchestration/mesh.ts";

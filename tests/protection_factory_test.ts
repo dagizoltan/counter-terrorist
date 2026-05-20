@@ -3,7 +3,7 @@ import { createVpnManager, createFirewallManager, createAntivirusManager, create
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { PlatformInfo } from "@infrastructure/system/platform.ts";
-import { CommandResult } from "@core/ports.ts";
+import { CommandResult, LoggingPort, LogEntry } from "@core/ports.ts";
 
 class MockExecutor extends SystemExecutor {
   calls: Array<{ cmd: string; args: string[] }> = [];
@@ -33,6 +33,8 @@ class MockLogging implements LoggingPort {
   async log(_entry: LogEntry): Promise<void> {}
   async getRecentLogs(_limit?: number): Promise<LogEntry[]> { return []; }
   async logLegacy(_message: string, _severity?: any, _source?: string, _payload?: any): Promise<void> {}
+  setKv(_kv: Deno.Kv): void {}
+  async shutdown(): Promise<void> {}
 }
 
 class MockSidecarManager extends SidecarManager {

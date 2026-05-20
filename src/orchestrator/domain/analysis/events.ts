@@ -177,8 +177,13 @@ export class EventBus implements EventBusPort {
       const res = fn();
       if (!(res instanceof Promise)) return; // PERFORMANCE: Avoid microtask overhead for sync handlers
 
-      // Only handle async if it's actually a promise
-      const wrappedPromise = (async () => {
+      let resolveRef: (() => void) | null = null;
+      const wrappedPromise = new Promise<void>((resolve) => {
+        resolveRef = resolve;
+      });
+      this.pendingHandlers.add(wrappedPromise);
+
+      (async () => {
         let timeoutId: any;
         try {
           const timeoutPromise = new Promise((_, reject) => {
@@ -198,9 +203,9 @@ export class EventBus implements EventBusPort {
         } finally {
           if (timeoutId) clearTimeout(timeoutId);
           this.pendingHandlers.delete(wrappedPromise);
+          if (resolveRef) (resolveRef as () => void)();
         }
       })();
-      this.pendingHandlers.add(wrappedPromise);
     } catch (e) {
       const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
       this.logging.log({

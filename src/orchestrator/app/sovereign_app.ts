@@ -15,7 +15,7 @@ import {
     LedgerService, HealthService, EventMediator,
     WatchdogService, TacticalIntelService,
     CorrelationService, PolicyEngine, ViewModelService,
-    DeceptionGridService
+    DeceptionGridService, IntegrityService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";

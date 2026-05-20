@@ -38,7 +38,9 @@ import {
   PolicyEngine,
   RateLimitService,
   CorrelationService,
-  ViewModelService
+  ViewModelService,
+  ProvisioningService,
+  IntegrityService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, CommandPort, MeshAuthPort, TpmPort } from "./ports.ts";
 

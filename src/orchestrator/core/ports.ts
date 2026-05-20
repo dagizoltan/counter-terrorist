@@ -24,6 +24,7 @@ export interface CommandResult {
   stdout: string;
   stderr: string;
   data?: any;
+  message?: string;
 }
 
 export interface CommandPort {
@@ -129,6 +130,7 @@ export interface LogEntry {
   message: string;
   payload?: any;
   formatted?: string; // High-fidelity forensic string [TYPE] [SEVERITY] [CALLER] MESSAGE
+  fromAudit?: boolean;
 }
 
 export interface LoggingPort {

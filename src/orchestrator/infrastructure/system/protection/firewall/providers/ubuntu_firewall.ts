@@ -16,6 +16,10 @@ export class UbuntuFirewallProvider implements FirewallProvider {
     return status.success && status.message === "Active";
   }
 
+  private isSentinelAvailable(): boolean {
+    return isAllowedSidecar("sentinel") && this.sidecar.isRunning("sentinel");
+  }
+
   async blockIp(ip: string): Promise<CommandResult> {
     if (await this.isSentinelActive()) {
       const res = await this.sidecar.sendCommand("sentinel", { type: "BLOCK_IP", ip });

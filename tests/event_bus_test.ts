@@ -25,7 +25,11 @@ class MockLogging implements LoggingPort {
         message,
         payload
     });
+    return Promise.resolve();
   }
+
+  setKv(_kv: Deno.Kv): void {}
+  shutdown(): Promise<void> { return Promise.resolve(); }
 }
 
 Deno.test("EventBus.subscribe and publish", () => {
@@ -156,7 +160,7 @@ Deno.test("EventBus severity mapping", () => {
   eventBus.publish("DRIFT_PORT", "Port drift");
   eventBus.publish("DRIFT_PROCESS", "Process drift");
   eventBus.publish("INFO", "Info message");
-  eventBus.publish("UNKNOWN", "Unknown type");
+  eventBus.publish("UNKNOWN" as any, "Unknown type");
 
   assertEquals(mockLogging.logs.length, 7);
   assertEquals(mockLogging.logs[0].severity, LogSeverity.ERROR);

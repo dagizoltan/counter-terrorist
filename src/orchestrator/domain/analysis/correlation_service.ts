@@ -56,40 +56,42 @@ export class CorrelationService {
                     events: [],
                     riskScore: 0,
                     correlationId: event.correlationId,
-                    pid: event.data?.pid
+                    pid: typeof event.data?.pid === "number" ? event.data.pid : undefined
                 };
                 this.activeNodes.set(subject.value, node);
             }
 
+            const activeNode = node;
+
             // RISK DECAY: Reduce risk based on elapsed time since last seen
-            const lastSeenTime = new Date(node.lastSeen).getTime();
+            const lastSeenTime = new Date(activeNode.lastSeen).getTime();
             const elapsed = now - lastSeenTime;
-            if (elapsed > 0 && node.riskScore > 0) {
+            if (elapsed > 0 && activeNode.riskScore > 0) {
                 const decayFactor = Math.pow(0.5, elapsed / TACTICAL_CONSTANTS.CORRELATION.RISK_DECAY_HALFLIFE_MS);
-                node.riskScore *= decayFactor;
+                activeNode.riskScore *= decayFactor;
             }
 
-            node.lastSeen = event.timestamp;
-            node.events.push(event);
+            activeNode.lastSeen = event.timestamp;
+            activeNode.events.push(event);
             
             // BEHAVIORAL MULTIPLIER: Increase risk if events are happening in a tight burst
-            const timeDiff = new Date(event.timestamp).getTime() - new Date(node.firstSeen).getTime();
+            const timeDiff = new Date(event.timestamp).getTime() - new Date(activeNode.firstSeen).getTime();
             const burstMultiplier = (timeDiff < this.ATTACK_BURST_WINDOW_MS && timeDiff > 0) ? 1.5 : 1.0;
             
-            node.riskScore += (this.calculateRisk(event) * burstMultiplier);
+            activeNode.riskScore += (this.calculateRisk(event) * burstMultiplier);
             
-            if (node.events.length > TACTICAL_CONSTANTS.CORRELATION.MAX_NODES_PER_SUBJECT) {
-                node.events.shift();
+            if (activeNode.events.length > TACTICAL_CONSTANTS.CORRELATION.MAX_NODES_PER_SUBJECT) {
+                activeNode.events.shift();
             }
 
-            await this.updateKillChain(node, event);
+            await this.updateKillChain(activeNode, event);
         }
     }
 
     private extractSubjects(event: AuditEvent): { type: CorrelationNode["type"], value: string }[] {
         const subjects: { type: CorrelationNode["type"], value: string }[] = [];
-        if (event.data?.ip) subjects.push({ type: "IP", value: event.data.ip });
-        if (event.data?.pid) subjects.push({ type: "PROCESS", value: `pid:${event.data.pid}` });
+        if (typeof event.data?.ip === "string") subjects.push({ type: "IP", value: event.data.ip });
+        if (typeof event.data?.pid === "number") subjects.push({ type: "PROCESS", value: `pid:${event.data.pid}` });
         if (event.actor?.ip) subjects.push({ type: "IP", value: event.actor.ip });
         return subjects;
     }
@@ -103,7 +105,7 @@ export class CorrelationService {
             if (syscall === "ptrace") return 35;
             if (syscall === "memfd_create") return 30;
             if (syscall === "execve") {
-                const comm = event.data?.comm || "";
+                const comm = (event.data?.comm as string) || "";
                 if (["nc", "netcat", "ncat", "curl", "wget", "sh", "bash"].includes(comm)) return 25;
             }
         }
@@ -166,7 +168,7 @@ export class CorrelationService {
         };
 
         if (type === "SCAN_RESULT") add("reconnaissance");
-        if (data.syscall === "execve" && ["nc", "curl"].includes(data.comm)) add("weaponization");
+        if (data.syscall === "execve" && ["nc", "curl"].includes(data.comm as string)) add("weaponization");
         if (type === "HONEYPOT" || type === "CANARY_TRIGGER") add("delivery");
         if (data.syscall === "ptrace" || data.syscall === "memfd_create") add("exploitation");
         if (type === "FILE_ALERT" && msg.includes("DENIED")) add("installation");

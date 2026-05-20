@@ -8,6 +8,7 @@ export interface PlatformInfo {
   name: PlatformName;
   version: string;
   tag: string;
+  isRoot?: boolean;
   metrics?: {
     memory: { total: number; free: number; used: number };
     cpu: { load: number[]; cores: number };
