@@ -9,6 +9,7 @@ import { loggingService, LogSeverity, LogType } from "@infrastructure/system/log
 import { createWsHandler } from "@api/ws.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "./middleware/security.ts";
+import { uiContext } from "./middleware/ui_context.ts";
 import { createUiRouter } from "./routes/ui.tsx";
 import { createApiRouter } from "./routes/api.tsx";
 import { MeshAuthService } from "@domain/index.ts";
@@ -238,7 +239,8 @@ export class WebAdapter implements WebPort {
     this.app.use("/theme.ts", serveStatic({ path: "./theme.ts", root: webRoot }));
     
     const statusAggregator = () => this.getSystemStatus();
-    
+    this.app.use("*", uiContext(statusAggregator));
+
     this.app.notFound((c) => {
       const html = `
         <!DOCTYPE html>

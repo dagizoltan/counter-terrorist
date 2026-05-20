@@ -1,5 +1,6 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
+import { TacticalHeader, TacticalPanel, StatusPill, TacticalSectionTitle } from "@interface/components/Tactical.tsx";
 
 /**
  * Mission Dashboard // Sovereign Overwatch
@@ -19,45 +20,43 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
   return (
     <Layout title="System Overview // Sovereign Overwatch" islandPaths={islandPaths} csrfToken={props.csrfToken} nonce={props.nonce} hostname={props.hostname} userRole={props.userRole}>
       {/* 01 Unified Page Header */}
-      <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
-        <div class="title-group">
-          <h1 class="tactical-title text-4xl">Operational Overview</h1>
-          <span class="subtitle">Operational State: Active // Node: {platform?.hostname || "localhost"}</span>
-        </div>
-        <div class="flex gap-6 items-center">
-          <a href="/compliance" class="t-btn px-8 py-4 bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 group transition-all">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            Governance
-          </a>
-          {props.userRole === "admin" && (
-          <button class="t-btn px-8 py-4 group hover:scale-105 transition-transform">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-180 transition-transform duration-500"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            Force Sweep
-          </button>
-          )}
-        </div>
-      </header>
+      <TacticalHeader
+        title="Operational Overview"
+        subtitle={`Operational State: Active // Node: ${platform?.hostname || "localhost"}`}
+      >
+        <a href="/forensics/compliance" class="t-btn px-8 py-4 bg-primary/10 border-primary/20 text-primary hover:bg-primary/20 group transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Governance
+        </a>
+        {props.userRole === "admin" && (
+        <button class="t-btn px-8 py-4 group hover:scale-105 transition-transform">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-180 transition-transform duration-500"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Force Sweep
+        </button>
+        )}
+      </TacticalHeader>
 
       {/* ── Phase 01: Overwatch (Strategic Core) ────────────────────────── */}
       <section class="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <h2 class="mono-xs font-black text-slate-400 uppercase tracking-[0.5em] mb-12 pb-6 border-b border-white/5 flex items-center gap-4">
-           Strategic Core Telemetry
-        </h2>
+        <TacticalSectionTitle label="Strategic Core Telemetry" />
+
         <div class="grid grid-cols-12 gap-6">
-          <div class="col-span-12 lg:col-span-3 t-panel glass-panel group hover:bg-white/[0.02] transition-all">
+          <TacticalPanel class="col-span-12 lg:col-span-3 group hover:bg-white/[0.02] transition-all" paddings="p-10">
             <div class="flex justify-between items-center mb-10">
               <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">System Integrity</span>
-              <div class={`status-pill ${props.status.audit?.hardwareVerified ? 'success' : 'warning'} active !px-4 !py-1 text-[8px]`}>
-                {props.status.audit?.hardwareVerified ? 'HARDWARE' : 'SOFTWARE'}
-              </div>
+              <StatusPill
+                status={props.status.audit?.hardwareVerified ? 'success' : 'warning'}
+                label={props.status.audit?.hardwareVerified ? 'HARDWARE' : 'SOFTWARE'}
+                class="!px-4 !py-1 text-[8px]"
+              />
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-audit-score-large">{props.status.audit?.integrityScore || 100}<span class="text-success">%</span></span>
               <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Trust</span>
             </div>
-          </div>
+          </TacticalPanel>
 
-          <div class="col-span-12 lg:col-span-3 t-panel glass-panel group hover:bg-white/[0.02] transition-all">
+          <TacticalPanel class="col-span-12 lg:col-span-3 group hover:bg-white/[0.02] transition-all" paddings="p-10">
             <div class="flex justify-between items-center mb-10">
                <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Load Factor</span>
                <span class="mono-xs text-success font-black uppercase tracking-widest" id="stat-node-status">{props.status.node?.uptime || 'Active'}</span>
@@ -66,9 +65,9 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-cpu-load-large">{props.status.node?.cpu?.load || 0}<span class="text-warning">%</span></span>
               <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">CPU</span>
             </div>
-          </div>
+          </TacticalPanel>
 
-          <div class="col-span-12 lg:col-span-3 t-panel glass-panel group hover:bg-white/[0.02] transition-all">
+          <TacticalPanel class="col-span-12 lg:col-span-3 group hover:bg-white/[0.02] transition-all" paddings="p-10">
             <div class="flex justify-between items-center mb-10">
                <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Threat Feed</span>
                <div class="flex gap-2">
@@ -79,26 +78,24 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
               <span class="text-6xl font-black italic tracking-tighter text-white tabular-nums" id="stat-threat-hits">{props.status.threats?.totalIngested || 0}</span>
               <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Indicators</span>
             </div>
-          </div>
+          </TacticalPanel>
 
-          <div class="col-span-12 lg:col-span-3 t-panel glass-panel group hover:bg-white/[0.02] transition-all">
+          <TacticalPanel class="col-span-12 lg:col-span-3 group hover:bg-white/[0.02] transition-all" paddings="p-10">
             <div class="flex justify-between items-center mb-10">
                <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Enforcement</span>
-               <span class="status-pill danger active px-3 py-1 text-[8px]">STRICT</span>
+               <StatusPill status="danger" label="STRICT" class="px-3 py-1 text-[8px]" />
             </div>
             <div class="flex items-baseline gap-5">
               <span class="text-6xl font-black italic tracking-tighter text-danger tabular-nums" id="stat-fw-blocked">{props.status.firewall?.blockedCount || 42}</span>
               <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Blocked</span>
             </div>
-          </div>
+          </TacticalPanel>
         </div>
       </section>
 
       {/* ── Phase 02: Enforcement Ledger (NEW) ─────────────────────────── */}
       <section class="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-        <h2 class="mono-xs font-black text-primary uppercase tracking-[0.5em] mb-12 pb-6 border-b border-primary/20 flex items-center gap-4">
-           Active Enforcement Ledger
-        </h2>
+        <TacticalSectionTitle label="Active Enforcement Ledger" color="primary" />
         <div class="t-panel glass-panel p-0 border-t-2 border-primary/30 overflow-hidden shadow-2xl">
            <header class="p-8 border-b border-white/5 flex justify-between items-center bg-black/40 backdrop-blur-md">
               <div class="flex items-center gap-6">
@@ -117,25 +114,24 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
 
       {/* ── Phase 03: Signal (Tactical Awareness) ────────────────────────── */}
       <section class="mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-        <h2 class="mono-xs font-black text-danger uppercase tracking-[0.5em] mb-12 pb-6 border-b border-danger/20 flex items-center gap-4">
-           Tactical Intelligence Deck
-        </h2>
+        <TacticalSectionTitle label="Tactical Intelligence Deck" color="danger" />
         <div class="grid grid-cols-1 gap-6">
-          <div class="col-span-12 t-panel glass-panel p-8 bg-black/40 border-t-2 border-danger/30">
-             <header class="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
-                <span class="mono-xs font-black text-danger uppercase tracking-[0.4em]">External Threat Databases</span>
-                <a href="/intel/feed" class="mono-xs text-slate-500 hover:text-white transition-colors uppercase tracking-widest font-black">Open Intelligence Center →</a>
-             </header>
+          <TacticalPanel
+            title="External Threat Databases"
+            borderColor="danger/30"
+            class="col-span-12 bg-black/40"
+          >
              <news-feed limit="4" compact="true"></news-feed>
-          </div>
+             <div class="mt-6 pt-4 border-t border-white/5 flex justify-end">
+                <a href="/intel/feed" class="mono-xs text-slate-500 hover:text-white transition-colors uppercase tracking-widest font-black">Open Intelligence Center →</a>
+             </div>
+          </TacticalPanel>
         </div>
       </section>
 
       {/* ── Phase 04: Strike (Mesh Topology) ────────────────────────── */}
       <section class="animate-in fade-in slide-in-from-bottom-4 duration-1000 mb-12">
-        <h2 class="mono-xs font-black text-success uppercase tracking-[0.5em] mb-12 pb-6 border-b border-success/20 flex items-center gap-4">
-           Defensive Mesh Topology
-        </h2>
+        <TacticalSectionTitle label="Defensive Mesh Topology" color="success" />
         <div class="grid grid-cols-12 gap-6">
           <div class="col-span-12 lg:col-span-8 t-panel glass-panel p-0 border-t-2 border-success/30 overflow-hidden shadow-2xl">
              <header class="p-8 border-b border-white/5 flex justify-between items-center bg-black/40 backdrop-blur-md">
@@ -167,17 +163,13 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
           </div>
           
            <div class="col-span-12 lg:col-span-4 flex flex-col gap-6">
-              <div class="t-panel glass-panel border-t-2 border-warning/30 p-8 flex flex-col shadow-2xl">
-                 <header class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-                    <span class="mono-xs font-black text-warning uppercase tracking-widest">Deception Lures</span>
-                    <span class="status-pill warning active !px-3 !py-0.5">ACTIVE</span>
-                 </header>
+              <TacticalPanel title="Deception Lures" borderColor="warning/30" class="flex flex-col shadow-2xl">
                  <div class="flex items-center justify-center min-h-[300px]">
                     <honeypot-chart></honeypot-chart>
                  </div>
-              </div>
+              </TacticalPanel>
 
-              <div class="t-panel glass-panel border-t-2 border-slate-700 p-8 flex flex-col shadow-2xl">
+              <TacticalPanel borderColor="slate-700" class="flex flex-col shadow-2xl">
                  {/* BUG-5.4 FIX: Use real metrics for intervention force based on active nodes and health */}
                  <div class="flex justify-between items-baseline mb-4">
                     <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Intervention Force</span>
@@ -188,9 +180,13 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
                  </div>
                  <div class="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
                     <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Strike State</span>
-                    <span class={`status-pill ${props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'success' : 'warning'} !px-3 !py-0.5`}>{props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'ARMED' : 'STANDBY'}</span>
+                    <StatusPill
+                      status={props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'success' : 'warning'}
+                      label={props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'ARMED' : 'STANDBY'}
+                      class="!px-3 !py-0.5"
+                    />
                  </div>
-              </div>
+              </TacticalPanel>
            </div>
         </div>
       </section>

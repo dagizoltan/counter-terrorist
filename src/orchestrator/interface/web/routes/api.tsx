@@ -1,5 +1,4 @@
 import { Hono, Context } from "hono";
-import { IntelEnricher } from "@domain/analysis/intel_enricher.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "../middleware/security.ts";
 import { createReportsApi } from "../api/reports.ts";
@@ -11,7 +10,9 @@ import { createSupplyChainApi } from "../api/supply_chain.ts";
 import { createAgentsApi } from "../api/agents.ts";
 import { createThreatsApi } from "../api/threats.ts";
 import { createComplianceApi } from "../api/compliance.ts";
-import { ComplianceMapper } from "@domain/analysis/compliance_mapper.ts";
+import { createNetworkApi } from "../api/network.ts";
+import { createMeshApi } from "../api/mesh.ts";
+import { createAdminApi } from "../api/admin.ts";
 import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
 import { bootstrap as getBootstrapInfo } from "../../../app/bootstrapper.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
@@ -25,211 +26,16 @@ import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/vali
 export function createApiRouter(services: ServiceContainer, security: SecurityMiddleware) {
   const router = new Hono();
 
-  // 1. Environmental Infrastructure (Discovery & Logs) - HIGH PRIORITY MATCHING
-  // 1. Environmental Infrastructure (Ambient Signal Discovery)
-  router.get("/network/discovery", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
-    // Ambient signals ONLY (WiFi, Bluetooth, Nearby Assets)
-    // Active mesh topology is excluded per user requirements
-    const devices = services.networkDiscovery.getDevices();
-    
-    // Categorize for the UI
-    const wifi = devices.filter(d => d.type === "WIFI");
-    const bluetooth = devices.filter(d => d.type === "BLUETOOTH");
-    const ethernet = devices.filter(d => d.type === "ETHERNET");
-
-    const mesh = services.mesh.getNodes().filter(n => n.verified).map(n => ({
-        id: n.id || n.hostname,
-        hostname: n.hostname,
-        mac: n.id, // ID is used as unique identifier
-        ip: n.address,
-        isMeshNode: true,
-        type: "MESH",
-        state: "REACHABLE",
-        lastSeen: new Date(n.lastSeen).toISOString()
-    }));
- 
-    const enriched = {
-        wifi: IntelEnricher.enrichDevices(wifi),
-        bluetooth: IntelEnricher.enrichDevices(bluetooth),
-        ethernet: IntelEnricher.enrichDevices(ethernet),
-        mesh: IntelEnricher.enrichDevices(mesh)
-    };
-
-    return c.json(enriched);
-  });
-
-  router.get("/network/logs", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
-    const logs = await services.networkLogs.getRecent(50);
-    return c.json(logs);
-  });
+  // 1. Environmental Infrastructure (Discovery & Logs)
+  router.route("/network", createNetworkApi(services, security));
 
   // 2. Mesh Operations (Restricted Auth)
-  router.use("/mesh/*", security.meshAuth(services.config.getMeshSecret()));
-  router.get("/mesh/nodes", (c: Context) => {
-    const meshNodes = services.mesh.getNodes();
-    return c.json({
-      local: Deno.hostname(),
-      peers: meshNodes.map(node => ({
-        id: node.id || node.hostname,
-        hostname: node.hostname,
-        address: node.address,
-        status: Date.now() - node.lastSeen < 60000 ? "ACTIVE" : "INACTIVE",
-        verified: node.verified,
-      }))
-    });
-  });
+  router.route("/mesh", createMeshApi(services, security));
 
-  router.get("/mesh/ping", async (c: Context) => {
-    const payload = { success: true, nodeId: services.mesh.getNodeId(), timestamp: Date.now() };
-    const signature = await services.mesh.signPayload(payload);
-    c.header("X-Mesh-Signature", signature);
-    return c.json(payload);
-  });
+  // 3. Admin Operations (Strict Role Check)
+  router.route("/admin", createAdminApi(services, security));
 
-  router.post("/mesh/sync", async (c: Context) => {
-    const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
-    const now = Date.now();
-    const result = await services.rateLimit.checkLimit(`mesh_sync:${peerIp}`, 100, 1000);
-    if (!result.allowed) {
-        return c.json({ 
-            error: "Rate limit exceeded", 
-            code: "RATE_LIMIT_EXCEEDED",
-            retryAfterMs: result.retryAfterMs 
-        }, 429);
-    }
-
-    const payload = await c.req.json();
-    
-    // SEC-03: HMAC Verification
-    const signature = c.req.header("X-Mesh-Signature");
-    if (signature) {
-        const isValid = await services.mesh.verifySignature(payload, signature);
-        if (!isValid) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:interface:web:api:mesh",
-                message: `REJECTED: Invalid mesh signature from ${peerIp}`
-            });
-            return c.json({ error: "Invalid signature" }, 401);
-        }
-    } else if (Deno.env.get("MESH_SECRET")) {
-        return c.json({ error: "Missing required mesh signature" }, 401);
-    }
-
-    loggingService.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.GENERIC,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:interface:web:api:mesh",
-        message: `Received verified mesh sync from ${peerIp}: ${payload.type}`
-    });
-    
-    // SEC: Gossip Anti-Replay and Freshness check (5 minute window)
-    if (payload.timestamp && Math.abs(Date.now() - payload.timestamp) > 300000) {
-        loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.WARNING,
-            caller: "orchestrator:interface:web:api:mesh",
-            message: `REJECTED: Stale gossip payload detected from ${peerIp}`
-        });
-        return c.json({ error: "Stale payload" }, 401);
-    }
-
-    if (payload.type === "GOSSIP_BLOCK" && payload.ip) {
-        if (isValidIP(payload.ip) && !isCriticalInfrastructure(payload.ip)) {
-            await services.protection.firewall.blockIp(payload.ip);
-        } else {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:interface:web:api:mesh",
-                message: `REJECTED: Malicious/Invalid gossip block IP ${payload.ip} from ${peerIp}`
-            });
-        }
-    }
-
-    if (payload.type === "GOSSIP_THREAT_HASH" && payload.hash) {
-        loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.WARNING,
-            caller: "orchestrator:interface:web:api:mesh:threat",
-            message: `Mesh Threat Intelligence: Blacklisting binary hash ${payload.hash.slice(0, 8)} reported by node ${payload.sourceNode}`
-        });
-        // In a full implementation, this would update a local 'BinaryBlacklist' or trigger a scan
-        await services.audit.logEvent({
-            type: "MESH_THREAT",
-            message: `Mesh-wide binary blacklist updated: ${payload.hash.slice(0, 8)}`,
-            data: payload
-        });
-    }
-
-    // BUG-4.21 FIX: Implement missing gossip handlers
-    if (payload.type === "GOSSIP_AUDIT" && payload.events) {
-        await services.audit.syncEvents(payload.events);
-    }
-
-    if (payload.type === "GOSSIP_LOCKDOWN") {
-        await services.mediator.broadcastEvent({
-            type: "MESH_LOCKDOWN",
-            message: `Mesh-wide LOCKDOWN initiated by node ${payload.sourceNode || "unknown"}`,
-            data: payload,
-            timestamp: new Date().toISOString()
-        });
-    }
-
-    if (payload.type === "GOSSIP_AUDIT_VERIFY") {
-        const localStatus = await services.audit.getChainStatus();
-        if (localStatus.lastHash !== payload.lastHash || localStatus.count !== payload.count) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:interface:web:api:mesh:audit",
-                message: `Audit Ledger Drift Detected: Local(${localStatus.count}) vs Peer(${payload.count} from ${payload.sourceNode})`
-            });
-            // Trigger resync if we are behind
-            if (localStatus.count < payload.count) {
-                await services.mesh.requestAuditSync(payload.sourceNode);
-            }
-        }
-    }
-
-    return c.json({ success: true });
-  });
-
-  // 2. Admin Operations (Strict Role Check)
-  router.use("/admin/*", security.requireRole("admin"));
-  router.get("/admin/api-keys", async (c: Context) => {
-    return c.json(await services.apiKeys.listApiKeys());
-  });
-  
-  router.post("/admin/api-keys", async (c: Context) => {
-    const { name, role } = await c.req.json();
-    if (!name || !["operator", "viewer"].includes(role)) return c.json({ error: "Invalid name or role" }, 400);
-    try {
-      const data = await services.apiKeys.createApiKey(name, role);
-      return c.json(data);
-    } catch (e) {
-      return c.json({ error: (e as Error).message }, 500);
-    }
-  });
-
-  router.delete("/admin/api-keys/:id", async (c: Context) => {
-    const id = c.req.param("id");
-    try {
-      await services.apiKeys.revokeApiKey(id);
-      return c.json({ success: true });
-    } catch (e) {
-      return c.json({ error: (e as Error).message }, 500);
-    }
-  });
-
-  // 3. General Protected APIs
+  // 4. General Protected APIs
   router.use("*", security.requireRole("admin", "operator", "viewer"));
   
   router.route("/agents", createAgentsApi(services, security));
@@ -240,56 +46,38 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
   router.route("/chaos", createChaosApi(services.chaos, security.requireRole.bind(security)));
   router.route("/supply-chain", createSupplyChainApi(services.supplyChain, security));
   router.route("/threats", createThreatsApi(services, security));
-
   router.route("/compliance", createComplianceApi(services, security));
 
   // Autopilot Tactical Intelligence
-  router.get("/autopilot/intelligence", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
+  router.get("/autopilot/intelligence", (c: Context) => {
     return c.json(services.autopilot.getTacticalIntelligence());
   });
 
-  router.get("/platform", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
+  router.get("/platform", (c: Context) => {
     const info = services.platformInfo;
     return c.json({ name: info.name, version: info.version, tag: info.tag });
   });
 
-  router.post("/network/rotate", security.requireRole("admin", "operator"), async (c: Context) => {
-    await services.anonymization.rotate();
-    return c.json({ success: true, message: "Identity rotation initiated" });
-  });
-
-  router.post("/network/mode", security.requireRole("admin", "operator"), async (c: Context) => {
-    const { mode } = await c.req.json();
-    if (!mode) return c.json({ error: "Mode required" }, 400);
-    await services.anonymization.setMode(mode);
-    return c.json({ success: true, message: `Stealth mode set to ${mode}` });
-  });
-
-  router.post("/mesh/resync", security.requireRole("admin", "operator"), async (c: Context) => {
-    await services.mesh.resyncNodes();
-    return c.json({ success: true, message: "Mesh synchronization broadcasted" });
-  });
-
-  router.post("/node/shadow", security.requireRole("admin"), async (c: Context) => {
+  router.post("/node/shadow", security.requireRole("admin"), (c: Context) => {
     return c.json({ success: true, message: "Shadow Mode Engaged" });
   });
 
-  router.get("/metrics", security.requireRole("admin", "operator", "viewer"), (c: Context) => {
+  router.get("/metrics", (c: Context) => {
     const snapshot = getMetricsSnapshot();
     return c.json(snapshot || {});
   });
 
-  router.get("/system/logs", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
+  router.get("/system/logs", async (c: Context) => {
     const logs = await services.audit.getRecentEvents(100);
     return c.json(logs);
   });
 
-  router.get("/status", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
+  router.get("/status", async (c: Context) => {
     const baseStatus = await getBootstrapInfo();
     return c.json(baseStatus);
   });
 
-  router.get("/agent/status", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
+  router.get("/agent/status", async (c: Context) => {
     const metrics = getMetricsSnapshot();
 
     return c.json({
@@ -328,15 +116,15 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     });
   });
 
-  router.get("/processes/tree", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
+  router.get("/processes/tree", async (c: Context) => {
     if (services.processTracker.getTree().length < 5) {
       await services.processTracker.fullScan();
     }
     return c.json(services.processTracker.getTree());
   });
 
-  // 4. Forensics & Active Defense
-  router.get("/forensics/export", security.requireRole("admin", "operator", "viewer"), async (c: Context) => {
+  // 5. Forensics & Active Defense
+  router.get("/forensics/export", async (c: Context) => {
     const type = c.req.query("type");
     if (type === "network_intel") {
       try {
@@ -378,7 +166,7 @@ export function createApiRouter(services: ServiceContainer, security: SecurityMi
     return c.json(result);
   });
   
-  // 5. Governance & Policy (Restricted to Admin)
+  // 6. Governance & Policy (Restricted to Admin)
   router.use("/governance/*", security.requireRole("admin"));
   router.get("/governance/policy", (c: Context) => {
     return c.json(services.policy.getPolicy());
