@@ -429,7 +429,7 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
       return true;
     case "trustroot":
-      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity"].includes(req.type)) return false;
+      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert"].includes(req.type)) return false;
       return true;
     case "tunnel":
       if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;

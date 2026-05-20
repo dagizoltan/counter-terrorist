@@ -87,6 +87,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
           message: `Setting session cookie: ${sessionId.slice(0, 8)}… (secure: ${shouldBeSecure}, Strict)`
       });
       setCookie(c, "session_token", sessionId, {
+        path: "/",
         httpOnly: true,
         secure: shouldBeSecure,
         sameSite: "Strict",
@@ -98,6 +99,7 @@ export function createLoginRouter(deps: LoginRouterDependencies) {
       }
 
       setCookie(c, "csrf_token", csrfToken, {
+        path: "/",
         httpOnly: false,
         secure: shouldBeSecure,
         sameSite: "Strict",
@@ -131,8 +133,8 @@ export function createLogoutRouter(deps: { sessionService: any }) {
     if (sessionId) {
       await deps.sessionService.revokeSession(sessionId);
     }
-    deleteCookie(c, "session_token");
-    deleteCookie(c, "csrf_token");
+    deleteCookie(c, "session_token", { path: "/" });
+    deleteCookie(c, "csrf_token", { path: "/" });
     return c.redirect("/login");
   });
   return router;

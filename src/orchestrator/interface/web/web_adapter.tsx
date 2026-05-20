@@ -36,6 +36,18 @@ export class WebAdapter implements WebPort {
         message: `Initializing with services: ${Object.keys(services).join(", ")}`
     });
 
+    // Debug: expose masked master token length to help diagnose env issues
+    try {
+      const masked = `${masterToken.slice(0, 4)}…${masterToken.slice(-4)}`;
+      loggingService.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.GENERIC,
+        severity: LogSeverity.DEBUG,
+        caller: "orchestrator:interface:web",
+        message: `Master token configured (masked): ${masked} (len=${masterToken.length})`
+      }).catch(() => {});
+    } catch {}
+
     this.meshAuth = services.meshAuth;
     this.security = new SecurityMiddleware(services, masterToken);
     this.app = new Hono();

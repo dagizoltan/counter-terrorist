@@ -2,12 +2,12 @@
   "sidecars": {
     "trustroot": {
       "path": "./src/agents/target/release/trustroot",
-      "hash": "bb8af0f9662c2201556eb41427ae7df6c6ad92bafe84d320550eb5b4e7474c38",
+      "hash": "bac099f5a6a7545c43438783a737c4fb515212ccd353e741b15325e01313e9f1",
       "persistent": true
     },
     "sentinel": {
       "path": "./src/agents/target/release/sentinel",
-      "hash": "ae40733560beb5de3c7adbb54a3cbed4103962236d5d7739b363632cc34bd583",
+      "hash": "a8500a1544b9e39f9ca34ee7a2c8218a47a052e78bc594f2aef9a69d7f804a02",
       "persistent": true,
       "capabilities": ["cap_sys_admin", "cap_net_admin", "cap_sys_resource"]
     },
@@ -19,36 +19,36 @@
     },
     "enforcer": {
       "path": "./src/agents/target/release/enforcer",
-      "hash": "8a65ae29bc29708ae079760f962fdd8c3bee0e483cb66f712b3e89615ade1984",
+      "hash": "b347fc3d5c60c8ac74cfb382813370fbce6914dd0a8e3317463a7a6dfed43213",
       "persistent": true,
       "capabilities": ["cap_net_admin", "cap_kill"]
     },
     "analyzer": {
       "path": "./src/agents/target/release/analyzer",
-      "hash": "c24665d241330fb1226199c3279e050ab70804de6160959b9efff9a3fd8b0d1d",
+      "hash": "1e8deb7a81f56ea781dc757b0a308c372672b0e18582572087190053253062a9",
       "persistent": true
     },
     "netcap": {
       "path": "./src/agents/target/release/netcap",
-      "hash": "218e4ff456a89b14f1a3b690b39be7acade9be632c04861dc9d96afae9c1e5b5",
+      "hash": "a7fbaad0e85bec3730f763f7af48f65f221d1a9696f73bbd85253122b2f3d458",
       "persistent": true,
       "capabilities": ["cap_net_raw", "cap_net_admin"]
     },
     "decoy": {
       "path": "./src/agents/target/release/decoy",
-      "hash": "e916fc400812448cac67840dafebb0e23d2255a99f412f1ca985d50829c7330e",
+      "hash": "e6f564872024ee4598fe7ae94af8492269c9ab0a0fefe484f580a534530447fe",
       "persistent": true
     },
     "watchfile": {
-        "path": "./src/agents/target/release/watchfile",
-        "hash": "c94a0466c8899ed1eaf46484d1cf8d94590e21bfce5b04844e80467548b2b0ee",
-        "persistent": true,
-        "capabilities": ["cap_sys_admin"]
+      "path": "./src/agents/target/release/watchfile",
+      "hash": "19b219f7d874442ed84ad7e939f8f5d4a5408864a311af2403f4d9d6e40e5274",
+      "persistent": true,
+      "capabilities": ["cap_sys_admin"]
     },
     "sentinel-darwin": {
-        "path": "./src/agents/target/release/sentinel-darwin",
-        "hash": "8ef55d8a72e5b566840667633c1695a29825f7ff9d043c279f0eaa78510d4e09",
-        "persistent": true
+      "path": "./src/agents/target/release/sentinel-darwin",
+      "hash": "8ef55d8a72e5b566840667633c1695a29825f7ff9d043c279f0eaa78510d4e09",
+      "persistent": true
     }
   }
 }

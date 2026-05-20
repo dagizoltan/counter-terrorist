@@ -178,7 +178,7 @@ fn generate_ca_task_sync(common_name: String) -> (bool, String, Option<serde_jso
     params.is_ca = IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
     params.key_usages = vec![rcgen::KeyUsagePurpose::DigitalSignature, rcgen::KeyUsagePurpose::KeyCertSign, rcgen::KeyUsagePurpose::CrlSign];
     
-    let key_pair = match KeyPair::generate(&rcgen::PKCS_RSA_SHA256) {
+    let key_pair = match KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256) {
         Ok(k) => k,
         Err(e) => return (false, format!("Key generation failed: {}", e), None),
     };
@@ -202,7 +202,7 @@ fn issue_node_cert_task_sync(node_id: String, ca_cert_pem: String, ca_key_pem: S
     use rcgen::{Certificate, CertificateParams, KeyPair, DistinguishedName};
 
     // 1. Generate Node Key Pair
-    let node_key_pair = match KeyPair::generate(&rcgen::PKCS_RSA_SHA256) {
+    let node_key_pair = match KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256) {
         Ok(k) => k,
         Err(e) => return (false, format!("Node key generation failed: {}", e), None),
     };
