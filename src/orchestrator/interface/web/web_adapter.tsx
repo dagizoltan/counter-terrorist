@@ -111,7 +111,7 @@ export class WebAdapter implements WebPort {
       return c.html(jsx(NotFoundPage, {}) as any, 404);
     });
 
-    registerRoutes(this.app, this.services, this.security, statusAggregator);
+    await registerRoutes(this.app, this.services, this.security, statusAggregator);
 
     this.app.get("/api/ws/events", upgradeWebSocket(async (c) => {
       // BUG-30: CSWSH Protection (Origin & Host Validation)
