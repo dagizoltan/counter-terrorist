@@ -43,4 +43,8 @@ export class DecentralizedMetricsService extends BaseService {
             data: results
         });
     }
+
+    public getLatest(): Record<string, any> | null {
+        return this.metrics.size > 0 ? Object.fromEntries(this.metrics.entries()) : null;
+    }
 }

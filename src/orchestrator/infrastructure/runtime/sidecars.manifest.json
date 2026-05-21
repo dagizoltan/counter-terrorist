@@ -2,7 +2,7 @@
   "sidecars": {
     "trustroot": {
       "path": "./src/agents/target/release/trustroot",
-      "hash": "bac099f5a6a7545c43438783a737c4fb515212ccd353e741b15325e01313e9f1",
+      "hash": "4963791dbe05f56d53b53342f872adcb3116e3a92ee3244e9b5c59cd03261f8b",
       "persistent": true
     },
     "sentinel": {

@@ -2,7 +2,7 @@ import { Context } from "hono";
 import { jsx } from "hono/jsx";
 
 export const handler = async (c: Context) => {
-  const { ThreatMapPage } = await import("../../features/situational/intel/ThreatMapPage.tsx");
+  const { ThreatMapPage } = await import("./page.tsx");
   const { status, csrfToken, nonce, userRole } = c.get("uiContext");
   return c.html(jsx(ThreatMapPage, { status, csrfToken, nonce, userRole }) as unknown as string);
 };

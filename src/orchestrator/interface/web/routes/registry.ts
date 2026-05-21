@@ -53,7 +53,7 @@ async function registerAuthRoutes(app: Hono, services: ServiceContainer) {
     app.get(`${loginRoute.path}/`, (c) => c.redirect(loginRoute.path));
   }
 
-  const { postLoginHandler, logoutHandler } = await import("../features/auth/login/handlers.ts");
+  const { postLoginHandler, logoutHandler } = await import("./ui--login/handlers.ts");
   app.post("/login", postLoginHandler(authDeps));
   app.post("/logout", logoutHandler(authDeps));
   app.get("/logout/", (c) => c.redirect("/logout"));
@@ -63,6 +63,13 @@ async function registerUiRoutes(app: Hono, services: ServiceContainer, security:
   const uiRoutes = await loadRouteModules("ui", services, security, getStatus);
   const publicRoutes = uiRoutes.filter((entry) => entry.module.publicRoute);
   const protectedRoutes = uiRoutes.filter((entry) => !entry.module.publicRoute && entry.path !== "/login");
+  const publicPaths = new Set([
+    "/login",
+    "/login/",
+    "/logout",
+    "/logout/",
+    ...publicRoutes.flatMap((entry) => [entry.path, `${entry.path}/`])
+  ]);
 
   publicRoutes.forEach((entry) => {
     app.get(entry.path, entry.module.handler! as any);
@@ -70,7 +77,12 @@ async function registerUiRoutes(app: Hono, services: ServiceContainer, security:
   });
 
   const ui = app.basePath("/");
-  ui.use("*", security.requireRole("admin", "operator", "viewer"));
+  ui.use("*", async (c, next) => {
+    if (publicPaths.has(c.req.path)) {
+      return next();
+    }
+    return security.requireRole("admin", "operator", "viewer")(c, next);
+  });
 
   ui.get("/", (c) => c.redirect("/dashboard"));
 

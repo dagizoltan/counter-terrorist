@@ -1,3 +1,3 @@
-import { loginHandler } from "../../features/auth/login/handlers.ts";
+import { loginHandler } from "./handlers.ts";
 
 export const handler = loginHandler;

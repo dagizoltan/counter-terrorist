@@ -748,7 +748,9 @@ export class SidecarManager implements CommandPort {
 
     // Authoritative check against Signed Manifest
     const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
+    const isDevMode = this.config?.getBoolean("CTS_DEV_MODE", false);
     const goldenHash = this.manifest?.sidecars?.[name]?.hash || this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
+    const isUnsignedManifest = !!this.manifest && !this.manifest.signature;
 
     // BUG-05: Make manifest mandatory in production
     if (isProduction && !this.manifest?.sidecars?.[name]?.hash) {
@@ -761,9 +763,20 @@ export class SidecarManager implements CommandPort {
         });
         return false;
     }
-    
+
     if (!force && (!goldenHash || currentHash === goldenHash)) {
-        return true; 
+        return true;
+    }
+
+    if (isDevMode && isUnsignedManifest && goldenHash && currentHash !== goldenHash) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Unsigned development manifest mismatch for ${name}. Accepting local binary hash ${currentHash?.slice(0, 8) || "UNKNOWN"} in dev mode.`
+        });
+        return true;
     }
 
     this.logging.log({

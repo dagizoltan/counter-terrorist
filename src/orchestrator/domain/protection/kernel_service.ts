@@ -100,7 +100,19 @@ export class KernelService extends BaseService {
             data: { params }
         });
 
-        return await this.camouflage();
+        const camouflageResult = await this.camouflage();
+        if (!camouflageResult.success && this.config?.getEnv("ENVIRONMENT") !== "production") {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:protection:kernel",
+                message: "Kernel camouflage failed in non-production mode. Continuing without stealth fallback."
+            });
+            return ok(undefined);
+        }
+
+        return camouflageResult;
     }
 
     /**
@@ -127,14 +139,22 @@ export class KernelService extends BaseService {
         });
         
         // On Linux, we can use prctl to change the process name
-        // Since we are in Deno, we use a small binary helper or the 'comm' file
+        // Since we are in Deno, we can either use the helper script or update /proc directly.
         try {
             const selfPid = Deno.pid;
             const targetName = "[kworker/u64:1]";
-            const res = await this.executor.execute("/var/lib/cts/scripts/update_comm.sh", [targetName, selfPid.toString()]);
-            
-            if (!res.success) {
-                return err(new Error(`Camouflage update_comm failed: ${res.stderr}`));
+            const helperPath = "/var/lib/cts/scripts/update_comm.sh";
+            let usedFallback = false;
+
+            if (await this.pathExists(helperPath)) {
+                const res = await this.executor.execute(helperPath, [targetName, selfPid.toString()]);
+                if (!res.success) {
+                    throw new Error(`Camouflage update_comm failed: ${res.stderr}`);
+                }
+            } else {
+                const commPath = `/proc/${selfPid}/comm`;
+                await Deno.writeTextFile(commPath, targetName);
+                usedFallback = true;
             }
 
             this.logging.log({
@@ -142,7 +162,7 @@ export class KernelService extends BaseService {
                 type: LogType.DEBUG,
                 severity: LogSeverity.INFO,
                 caller: "orchestrator:domain:protection:kernel",
-                message: `Process ${selfPid} successfully camouflaged as '${targetName}'`
+                message: `Process ${selfPid} successfully camouflaged as '${targetName}'${usedFallback ? " using direct /proc write" : ""}`
             });
             return ok(undefined);
         } catch (e) {
@@ -155,6 +175,15 @@ export class KernelService extends BaseService {
                 message: `Camouflage failed: ${error.message}`
             });
             return err(error);
+        }
+    }
+
+    private async pathExists(path: string): Promise<boolean> {
+        try {
+            const stat = await Deno.stat(path);
+            return stat && stat.isFile ? true : false;
+        } catch {
+            return false;
         }
     }
 
