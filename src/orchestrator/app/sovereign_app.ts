@@ -15,12 +15,14 @@ import {
     LedgerService, HealthService, EventMediator,
     WatchdogService, TacticalIntelService,
     CorrelationService, PolicyEngine, ViewModelService,
-    DeceptionGridService, IntegrityService
+    DeceptionGridService, IntegrityService,
+    BehavioralService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
-import { ServiceContainer, PlatformInfo as ContainerPlatformInfo } from "@core/container.ts";
-import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
+import { ServiceContainer, PlatformInfo } from "@core/container.ts";
+import { LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
 import { broadcast, initBroadcaster } from "@api/ws.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
@@ -82,6 +84,21 @@ export class SovereignApp {
         const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService);
         this.lifecycleService = factory.initSystemLifecycle(tpmManager);
 
+        await this.setupSafetyAndErrorHandlers();
+
+        const { platformInfo, notificationService, eventBus, meshManager, healthService } =
+            await this.initializeInfrastructure(configProvider, tpmManager);
+
+        // ── Phase 5: Service Orchestration ────────────────────────────────────
+        this.services = await this.initServices(
+            configProvider, platformInfo, notificationService,
+            eventBus, meshManager, tpmManager, healthService
+        );
+
+        await this.finalizeBoot(configProvider, healthService);
+    }
+
+    private async setupSafetyAndErrorHandlers() {
         // Active Safety: Crash Loop Detection / Safe Mode
         const isSafeMode = await this.lifecycleService.checkCrashLoop();
         if (isSafeMode) {
@@ -124,7 +141,9 @@ export class SovereignApp {
 
             this.emergencyLockdown(`Fatal Runtime Error: ${e.message}`);
         });
+    }
 
+    private async initializeInfrastructure(configProvider: ConfigurationPort, tpmManager: TPMManager) {
         // ── Phase 1.1: Security Lockdown Check ───────────────────────────────
         const lockdown = await this.kv.get(["system", "lockdown"]);
         if (lockdown.value) {
@@ -178,12 +197,10 @@ export class SovereignApp {
             await this.emergencyLockdown("Hardware Integrity Violation");
         }
 
-        // ── Phase 5: Service Orchestration ────────────────────────────────────
-        this.services = await this.initServices(
-            configProvider, platformInfo as any, notificationService,
-            eventBus, meshManager, tpmManager, healthService
-        );
+        return { platformInfo, notificationService, eventBus, meshManager, healthService };
+    }
 
+    private async finalizeBoot(configProvider: ConfigurationPort, healthService: HealthService) {
         // ── Phase 6: Web, Metrics & Signals ──────────────────────────────────
         await this.initOperationalLayer(this.services);
 
@@ -291,7 +308,7 @@ export class SovereignApp {
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
     }
 
-    private async initMesh(tpm: TPMManager, config: any): Promise<MeshManager> {
+    private async initMesh(tpm: TPMManager, config: ConfigurationPort): Promise<MeshManager> {
         const meshAuthService = new MeshAuthService(this.kv, loggingService, config, tpm);
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, config);
         
@@ -353,7 +370,7 @@ export class SovereignApp {
 
                 // 2. Specialized re-initialization for domain services
                 if (name === "CuratedIntel") {
-                    await this.services.curatedIntel.start(this.kv);
+                    await this.services.curatedIntel.init(this.kv);
                     return true;
                 }
                 if (name === "Honeypot") {
@@ -406,7 +423,7 @@ export class SovereignApp {
     }
 
     private async startSubsystems() {
-        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning, integrity } = this.services;
+        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning, integrity, behavioral } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -438,6 +455,7 @@ export class SovereignApp {
         };
 
         wrap("Autopilot", autopilot.start());
+        wrap("Behavioral", behavioral.init());
         wrap("Honeypot", honeypot.start());
         wrap("Canary", canaryService.start());
         wrap("KernelService", (async () => {
@@ -462,10 +480,11 @@ export class SovereignApp {
             }
             return ok(undefined);
         })());
-        wrap("CuratedIntel", curatedIntel.start(this.kv));
-        wrap("NewsSignal", news.start(this.kv));
+        wrap("CuratedIntel", curatedIntel.init(this.kv));
+        wrap("NewsSignal", news.init(this.kv));
         wrap("NetworkDiscovery", networkDiscovery.start());
         wrap("Provisioning", provisioning.run());
+        wrap("Baseline", this.services.baseline.init());
         integrity.start();
         
         this.services.baseline.startMonitor();
@@ -536,7 +555,7 @@ export class SovereignApp {
     }
 
     private async initServices(
-        configProvider: EnvConfigProvider, platformInfo: any, notifications: NotificationService,
+        configProvider: EnvConfigProvider, platformInfo: PlatformInfo, notifications: NotificationService,
         eventBus: EventBus, mesh: MeshManager, 
         tpm: TPMManager, health: HealthService
     ): Promise<ServiceContainer> {
@@ -594,7 +613,7 @@ export class SovereignApp {
         return services;
     }
 
-    private checkPilotSafety(config: EnvConfigProvider) {
+    private checkPilotSafety(config: ConfigurationPort) {
         const isPilot = config.getEnv("PILOT_MODE") === "true";
         if (isPilot) {
             loggingService.log({

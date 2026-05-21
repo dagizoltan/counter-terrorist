@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
@@ -48,7 +48,7 @@ export class SystemLifecycleService extends BaseService {
     /**
      * Verifies system hardware integrity against "golden" PCR values.
      */
-    async verifyHardware(config: EnvConfigProvider): Promise<boolean> {
+    async verifyHardware(config: ConfigurationPort): Promise<boolean> {
         const goldenPcrs: Record<number, string> = {};
         for (const [key, value] of Object.entries(Deno.env.toObject())) {
             if (key.startsWith("TPM_GOLDEN_PCR_")) {

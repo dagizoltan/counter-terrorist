@@ -2,9 +2,9 @@ import { Context } from "hono";
 import { jsx } from "hono/jsx";
 
 export const loginHandler = async (c: Context) => {
-  const { LoginPage } = await import("./page.tsx");
+  const { Login } = await import("./page.tsx");
   const nonce = c.get("nonce");
-  return c.html(jsx(LoginPage, { nonce }));
+  return c.html(jsx(Login, { nonce }) as any);
 };
 
 export const postLoginHandler = (deps: any) => async (c: Context) => {

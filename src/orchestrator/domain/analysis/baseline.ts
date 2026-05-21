@@ -47,7 +47,6 @@ export class BaselineService extends BaseService {
     private logging: LoggingPort
   ) {
       super();
-    this.restoreBaseline();
   }
 
   private async restoreBaseline() {
@@ -368,6 +367,11 @@ export class BaselineService extends BaseService {
         });
       }
     }, intervalMs);
+  }
+
+  override async init(): Promise<import("../../core/result.ts").Result<void>> {
+    await this.restoreBaseline();
+    return super.init();
   }
 
   override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {

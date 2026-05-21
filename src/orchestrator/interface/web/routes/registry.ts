@@ -29,7 +29,12 @@ import { jsx } from "hono/jsx";
 
 export function registerRoutes(app: Hono, services: ServiceContainer, security: SecurityMiddleware, getStatus: () => Promise<any>) {
 
-  // --- AUTH ROUTES ---
+  registerAuthRoutes(app, services);
+  registerUiRoutes(app, services, security, getStatus);
+  registerApiRoutes(app, services, security);
+}
+
+function registerAuthRoutes(app: Hono, services: ServiceContainer) {
   const authDeps = {
     checkLoginRateLimit: async (ip: string) => {
       const result = await services.rateLimit.checkLimit(`login:${ip}`, 10, 60000);
@@ -50,7 +55,9 @@ export function registerRoutes(app: Hono, services: ServiceContainer, security: 
   app.post("/logout", authHandlers.logoutHandler(authDeps));
   app.get("/login/", (c) => c.redirect("/login"));
   app.get("/logout/", (c) => c.redirect("/logout"));
+}
 
+function registerUiRoutes(app: Hono, services: ServiceContainer, security: SecurityMiddleware, getStatus: () => Promise<any>) {
   // --- UI ROUTES (PROTECTED) ---
   const ui = app.basePath("/");
   ui.use("*", security.requireRole("admin", "operator", "viewer"));
@@ -67,19 +74,19 @@ export function registerRoutes(app: Hono, services: ServiceContainer, security: 
   ui.get("/infrastructure/mesh", async (c: Context) => {
     const { MeshTopologyPage } = await import("../features/infrastructure/mesh/page.tsx");
     const { status, csrfToken, nonce, userRole } = c.get("uiContext");
-    return c.html(jsx(MeshTopologyPage, { status, csrfToken, nonce, userRole }));
+    return c.html(jsx(MeshTopologyPage, { status, csrfToken, nonce, userRole }) as any);
   });
 
   ui.get("/intel/public-ip-collections", async (c: Context) => {
     const { default: IpIntelPage } = await import("../features/defense/ip_intel_page.tsx");
     const { status, csrfToken, nonce, userRole } = c.get("uiContext");
-    return c.html(jsx(IpIntelPage, { status, csrfToken, nonce, userRole }));
+    return c.html(jsx(IpIntelPage, { status, csrfToken, nonce, userRole }) as any);
   });
 
   ui.get("/intel/artifact-collections", async (c: Context) => {
     const { default: ArtifactIntelPage } = await import("../features/defense/artifact_intel_page.tsx");
     const { status, csrfToken, nonce, userRole } = c.get("uiContext");
-    return c.html(jsx(ArtifactIntelPage, { status, csrfToken, nonce, userRole }));
+    return c.html(jsx(ArtifactIntelPage, { status, csrfToken, nonce, userRole }) as any);
   });
 
   ui.get("/network", (c) => c.redirect("/network/active"));
@@ -87,7 +94,7 @@ export function registerRoutes(app: Hono, services: ServiceContainer, security: 
   ui.get("/network/neighbors", networkHandlers.neighborNetworksHandler);
 
   ui.get("/deception", (c) => c.redirect("/agents/deception"));
-  ui.get("/agents/deception", deceptionHandlers.honeypotsHandler(services.honeypot));
+  ui.get("/agents/deception", deceptionHandlers.honeypotsHandler(services.deceptionGrid));
   ui.get("/agents", agentHandlers.agentsHandler(getStatus));
   ui.get("/agents/:name", agentHandlers.agentDetailHandler(getStatus));
 
@@ -95,7 +102,9 @@ export function registerRoutes(app: Hono, services: ServiceContainer, security: 
   ui.get("/system/supply-chain", systemHandlers.supplyChainHandler);
   ui.get("/system/ledger", forensicHandlers.auditPageHandler);
   ui.get("/system/settings", systemHandlers.settingsHandler);
+}
 
+function registerApiRoutes(app: Hono, services: ServiceContainer, security: SecurityMiddleware) {
   // --- API ROUTES (PROTECTED) ---
   const api = app.basePath("/api");
 
@@ -253,5 +262,4 @@ export function registerRoutes(app: Hono, services: ServiceContainer, security: 
     services.policy.updatePolicy(newPolicy);
     return c.json({ success: true, message: "Security Policy synchronized and active." });
   });
-
 }

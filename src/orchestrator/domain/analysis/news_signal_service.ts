@@ -34,7 +34,7 @@ export class NewsSignalService extends BaseService {
         super();
     }
 
-    async start(kv?: Deno.Kv): Promise<Result<void>> {
+    override async init(kv?: Deno.Kv): Promise<Result<void>> {
         this.kv = kv || await Deno.openKv();
         this.logging.log({
             timestamp: new Date().toISOString(),

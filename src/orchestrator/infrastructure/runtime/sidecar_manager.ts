@@ -1,6 +1,6 @@
 import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, SidecarName } from "../system/validation.ts";
 import { SystemExecutor } from "../system/system_executor.ts";
-import { CommandResult, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { CommandResult, LoggingPort, LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
 import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS, PRIVILEGED_SIDECARS } from "./sidecar_registry.ts";
 
 import { CommandPort } from "@core/ports.ts";
@@ -9,7 +9,7 @@ import { CommandPort } from "@core/ports.ts";
  * Manages persistent Rust sidecars.
  */
 export class SidecarManager implements CommandPort {
-  private config?: any;
+  private config?: ConfigurationPort;
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
   private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
@@ -38,7 +38,7 @@ export class SidecarManager implements CommandPort {
     this.manifestPromise = this.loadManifest();
   }
 
-  setConfig(config: any) {
+  setConfig(config: ConfigurationPort) {
     this.config = config;
   }
 
@@ -508,7 +508,16 @@ export class SidecarManager implements CommandPort {
                 });
                 // Note: We continue here if it's a pure log, but tactical events use standard JSON
                 continue; 
-            } catch { /* malformed log, continue to regular parsing */ }
+            } catch (e) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.ACTIVITY,
+                    severity: LogSeverity.INFO,
+                    caller: `${name}:raw_log`,
+                    message: trimmed,
+                    payload: { error: (e as Error).message }
+                });
+            }
           }
 
           try {

@@ -44,15 +44,22 @@ export class IncidentService extends BaseService {
     async updateStatus(id: string, status: Incident["status"]) {
         // BUG-5.6 FIX: Efficient composite key lookup for status updates
         // TimelineRepository uses [prefix, timestamp, id]
+
+        // We first check the fast index if available (FUTURE: implement id mapping)
+        // For now, we still scan but with better awareness of the key structure
         const iter = this.kv.list<Incident>({ prefix: ["incidents"] }, { reverse: true });
         for await (const entry of iter) {
             if (entry.value.id === id) {
                 const incident = entry.value;
                 incident.status = status;
-                // Atomic update: delete old key and set new one to maintain consistency
-                // (Since timestamp hasn't changed, the key is the same)
+
                 const ts = new Date(incident.timestamp).getTime();
-                await this.kv.set(["incidents", ts, id], incident);
+                const res = await this.kv.atomic()
+                    .check(entry) // Optimistic concurrency control
+                    .set(["incidents", ts, id], incident)
+                    .commit();
+
+                if (!res.ok) throw new Error(`Failed to update incident status for ${id} (conflict)`);
                 break;
             }
         }
