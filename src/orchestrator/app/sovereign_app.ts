@@ -370,7 +370,7 @@ export class SovereignApp {
 
                 // 2. Specialized re-initialization for domain services
                 if (name === "CuratedIntel") {
-                    await this.services.curatedIntel.start(this.kv);
+                    await this.services.curatedIntel.init(this.kv);
                     return true;
                 }
                 if (name === "Honeypot") {
@@ -480,10 +480,11 @@ export class SovereignApp {
             }
             return ok(undefined);
         })());
-        wrap("CuratedIntel", curatedIntel.start(this.kv));
-        wrap("NewsSignal", news.start(this.kv));
+        wrap("CuratedIntel", curatedIntel.init(this.kv));
+        wrap("NewsSignal", news.init(this.kv));
         wrap("NetworkDiscovery", networkDiscovery.start());
         wrap("Provisioning", provisioning.run());
+        wrap("Baseline", this.services.baseline.init());
         integrity.start();
         
         this.services.baseline.startMonitor();

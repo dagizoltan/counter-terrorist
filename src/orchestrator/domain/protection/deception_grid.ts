@@ -1,17 +1,20 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { CanaryService } from "./canary_service.ts";
 import { HoneypotService } from "./honeypot_service.ts";
+import { BaseService } from "@core/base_service.ts";
 
 /**
  * DeceptionGridService
  * Orchestrates high-fidelity deception across the host and network.
  */
-export class DeceptionGridService {
+export class DeceptionGridService extends BaseService {
     constructor(
-        private honeypot: HoneypotService,
-        private canary: CanaryService,
+        public readonly honeypot: HoneypotService,
+        public readonly canary: CanaryService,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
 
     async start() {
         this.logging.log({
