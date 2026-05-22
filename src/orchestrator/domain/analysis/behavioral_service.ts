@@ -15,14 +15,18 @@ export class BehavioralService extends BaseService {
   private metricsInterval?: number;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
+  private readonly MAX_IPS = 1000;
 
   constructor(private firewall: FirewallPort, private audit?: AuditService) {
     super();
   }
 
   override async init(): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
+
     console.log("BehavioralService initialized");
     this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
+    this.initialized = true;
     return ok(undefined);
   }
 
@@ -30,7 +34,7 @@ export class BehavioralService extends BaseService {
       console.log("BehavioralService shutting down");
       if (this.metricsInterval) clearInterval(this.metricsInterval);
       this.analyzer.shutdown();
-      return ok(undefined);
+      return await super.shutdown();
   }
 
   override setEventBus(eventBus: any) {
@@ -75,6 +79,25 @@ export class BehavioralService extends BaseService {
     let stats = this.history.get(ip);
 
     if (!stats) {
+      // SOV-05 STABILITY: Implement TTL + max capacity to prevent memory exhaustion
+      if (this.history.size >= this.MAX_IPS) {
+          // Evict the IP with the oldest activity
+          let oldestIp = "";
+          let oldestTime = Infinity;
+
+          for (const [hIp, hStats] of this.history.entries()) {
+              const lastSeen = hStats.timestamps[hStats.timestamps.length - 1];
+              if (lastSeen < oldestTime) {
+                  oldestTime = lastSeen;
+                  oldestIp = hIp;
+              }
+          }
+
+          if (oldestIp) {
+              this.history.delete(oldestIp);
+          }
+      }
+
       stats = { timestamps: [], intervals: [] };
       this.history.set(ip, stats);
     }

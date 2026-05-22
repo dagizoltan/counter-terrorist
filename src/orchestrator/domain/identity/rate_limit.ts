@@ -28,8 +28,11 @@ export class RateLimitService extends BaseService {
   async checkLimit(key: string, limit: number, windowMs: number): Promise<RateLimitStatus> {
     const fullKey = [...this.PREFIX, key];
     const now = Date.now();
+    const MAX_RETRIES = 5;
+    const backoff = [0, 10, 20, 50, 100];
+    let attempts = 0;
 
-    while (true) {
+    while (attempts < MAX_RETRIES) {
       const entry = await this.kv.get<{ count: number; resetAt: number }>(fullKey);
       let state = entry.value || { count: 0, resetAt: now + windowMs };
 
@@ -65,7 +68,12 @@ export class RateLimitService extends BaseService {
           retryAfterMs
         };
       }
-      // If commit failed (optimistic locking), retry the loop.
+
+      // If commit failed (optimistic locking), retry the loop with backoff.
+      await new Promise(r => setTimeout(r, backoff[attempts]));
+      attempts++;
     }
+
+    throw new Error(`Rate limit state update failed after ${MAX_RETRIES} attempts due to high contention.`);
   }
 }

@@ -28,6 +28,7 @@ export class PlaybookService extends BaseService {
   }
 
   public override async init(..._args: any[]): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
     if (!this.services) return ok(undefined);
 
     this.logging.log({
@@ -199,6 +200,7 @@ export class PlaybookService extends BaseService {
             this.updateThreatScore("local", 2);
         }
     }));
+    this.initialized = true;
     return ok(undefined);
   }
 
@@ -310,6 +312,6 @@ export class PlaybookService extends BaseService {
     this.unsubscribers.forEach(u => u());
     this.unsubscribers = [];
     this.services = undefined;
-    return ok(undefined);
+    return await super.shutdown();
   }
 }

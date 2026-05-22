@@ -102,6 +102,8 @@ export class EventBus implements EventBusPort {
                 caller: "EVENTBUS:MIDDLEWARE",
                 message: `Middleware chain failed: ${e instanceof Error ? e.message : String(e)}`
             });
+            // CRITICAL FIX: Ensure event still flows even if middleware chain crashes
+            this.finalizePublish(event, event.data);
         });
         return;
     }
@@ -128,6 +130,15 @@ export class EventBus implements EventBusPort {
             this.middleware[index](event, () => this.runMiddleware(index + 1, event)),
             timeoutPromise
         ]);
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "EVENTBUS:MIDDLEWARE",
+            message: `Middleware ${index} failed: ${e instanceof Error ? e.message : String(e)}. Forcing finalization.`
+        });
+        this.finalizePublish(event, event.data);
     } finally {
         if (timeoutId) clearTimeout(timeoutId);
     }
