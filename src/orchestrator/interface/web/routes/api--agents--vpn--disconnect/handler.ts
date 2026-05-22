@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { vpnDisconnectHandler } from "../../api/agents.ts";
 
-export const handlerFactory = (services: ServiceContainer) => vpnDisconnectHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  const result = await services.protection.vpn.disconnect();
+  return c.json(result);
+};

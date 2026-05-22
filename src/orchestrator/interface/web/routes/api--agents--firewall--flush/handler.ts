@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { firewallFlushHandler } from "../../api/agents.ts";
 
-export const handlerFactory = (services: ServiceContainer) => firewallFlushHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  const result = await services.protection.firewall.flushRules();
+  return c.json(result);
+};

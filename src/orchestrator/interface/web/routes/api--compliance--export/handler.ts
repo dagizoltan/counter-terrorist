@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { exportSignedBundleHandler } from "../../api/compliance.ts";
 
-export const handlerFactory = (services: ServiceContainer) => exportSignedBundleHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+    const bundle = await services.compliance.exportSignedBundle();
+    return c.json(bundle);
+};

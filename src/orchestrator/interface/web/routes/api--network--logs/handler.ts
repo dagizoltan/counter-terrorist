@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { networkLogsHandler } from "../../api/network.ts";
 
-export const handlerFactory = (services: ServiceContainer) => networkLogsHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  const logs = await services.networkLogs.getRecent(50);
+  return c.json(logs);
+};

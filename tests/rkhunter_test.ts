@@ -2,7 +2,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { RkhunterManager } from "@infrastructure/system/protection/rkhunter/rkhunter.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
-import { initBroadcaster } from "@api/ws.ts";
+import { initBroadcaster } from "@interface/ws_handler.ts";
 
 // Mock dependencies for WS broadcaster
 const mockDeps = {

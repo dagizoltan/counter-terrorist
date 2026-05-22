@@ -23,7 +23,7 @@ import { load } from "@std/dotenv";
 import { ServiceContainer, PlatformInfo } from "@core/container.ts";
 import { LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
-import { broadcast, initBroadcaster } from "@api/ws.ts";
+import { broadcast, initBroadcaster } from "@interface/ws_handler.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
 import { bootstrap, camouflage } from "./bootstrapper.ts";

@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { rotateIdentityHandler } from "../../api/network.ts";
 
-export const handlerFactory = (services: ServiceContainer) => rotateIdentityHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  await services.anonymization.rotate();
+  return c.json({ success: true, message: "Identity rotation initiated" });
+};

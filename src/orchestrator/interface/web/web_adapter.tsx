@@ -5,7 +5,7 @@ import { getCookie } from "hono/helper/cookie/index.ts";
 import { WebPort, ApplicationStatus, TpmPort } from "@core/ports.ts";
 import { AppError } from "@core/errors.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
-import { createWsHandler } from "@api/ws.ts";
+import { createWsHandler } from "./ws_handler.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "./middleware/security.ts";
 import { uiContext } from "./middleware/ui_context.ts";

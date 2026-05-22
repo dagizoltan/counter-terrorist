@@ -1,4 +1,4 @@
-import { broadcast } from "@api/ws.ts";
+import { broadcast } from "@interface/ws_handler.ts";
 import { meshManager } from "@domain/orchestration/mesh.ts";
 import { isValidIP } from "../../validation.ts";
 import { FirewallProvider } from "../interfaces.ts";

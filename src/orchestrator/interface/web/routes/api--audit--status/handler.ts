@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { getAuditStatusHandler } from "../../api/audit.ts";
 
-export const handlerFactory = (services: ServiceContainer) => getAuditStatusHandler(services.audit);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  const status = await services.audit.getChainStatus();
+  return c.json(status);
+};

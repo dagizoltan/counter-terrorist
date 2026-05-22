@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { getThreatSignalsHandler } from "../../api/threats.ts";
 
-export const handlerFactory = (services: ServiceContainer) => getThreatSignalsHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+    const signals = await services.news.getLatestSignals(50);
+    return c.json(signals);
+};
