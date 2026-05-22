@@ -9,20 +9,31 @@ export interface SubsystemHealth {
     error?: string;
 }
 
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
+
 /**
  * HealthService
  * Central registry for monitoring the operational status of all background subsystems.
  */
-export class HealthService {
+export class HealthService extends BaseService {
     private states: Map<string, SubsystemHealth> = new Map();
     private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
     private intervals: number[] = [];
 
-    public shutdown() {
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    public override async shutdown(): Promise<Result<void>> {
         // SOV-05 STABILITY: Clear all background monitoring intervals
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     private sidecarManager?: any;

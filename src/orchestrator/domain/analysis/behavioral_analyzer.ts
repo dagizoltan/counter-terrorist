@@ -25,8 +25,14 @@ export class BehavioralAnalyzer extends BaseService {
 
     constructor() {
         super();
+    }
+
+    override async init(): Promise<import("../../core/result.ts").Result<void>> {
+        if (this.initialized) return { success: true, data: undefined };
         // SOV-06: Background cleanup for stale behavioral data
         this.purgeInterval = setInterval(() => this.purgeStaleData(), 300000); // 5 Minutes
+        this.initialized = true;
+        return { success: true, data: undefined };
     }
 
     private purgeStaleData() {
@@ -82,6 +88,7 @@ export class BehavioralAnalyzer extends BaseService {
         this.syscallFrequencies.clear();
         this.slidingWindow.clear();
         this.syscallSequences.clear();
+        this.initialized = false;
         return ok(undefined);
     }
 

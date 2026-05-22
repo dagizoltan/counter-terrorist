@@ -54,6 +54,7 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: "Mesh MeshManager offline."
       });
+      this.initialized = false;
       return await super.shutdown();
   }
 

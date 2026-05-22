@@ -29,6 +29,12 @@ export class ProvisioningService extends BaseService {
         super();
     }
 
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return { success: true, data: undefined };
+        this.initialized = true;
+        return { success: true, data: undefined };
+    }
+
     override async shutdown(): Promise<Result<void>> {
         this.isRunning = false;
         if (this.scanTimeout) {
@@ -39,7 +45,8 @@ export class ProvisioningService extends BaseService {
             await this.runPromise;
             this.runPromise = null;
         }
-        return { success: true, data: undefined };
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     private async sleep(ms: number): Promise<void> {

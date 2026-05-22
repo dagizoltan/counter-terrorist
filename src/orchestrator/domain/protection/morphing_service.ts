@@ -3,11 +3,14 @@ import { CanaryService } from "./canary_service.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "@core/result.ts";
+
 /**
  * MorphingService
  * Periodically changes the system's defensive posture to confuse attackers.
  */
-export class MorphingService {
+export class MorphingService extends BaseService {
     private intervalId?: number;
     private logging: LoggingPort;
 
@@ -97,13 +100,19 @@ export class MorphingService {
         }
     }
 
-    public async shutdown(): Promise<import("@core/result.ts").Result<void>> {
-        const { ok } = await import("@core/result.ts");
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    public override async shutdown(): Promise<Result<void>> {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = undefined;
         }
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     stop() {

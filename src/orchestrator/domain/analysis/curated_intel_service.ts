@@ -102,6 +102,7 @@ export class CuratedIntelService extends BaseService {
     }
 
     override async init(kv?: Deno.Kv): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
         this.kv = kv || await Deno.openKv();
         
         // 1. Recover existing blacklist from persistent storage
@@ -161,6 +162,7 @@ export class CuratedIntelService extends BaseService {
 
         // 4. Lifecycle Management Loop
         this.lifecycleInterval = setInterval(() => this.processLifecycle(), 15 * 60 * 1000);
+        this.initialized = true;
         return ok(undefined);
     }
 
@@ -173,7 +175,8 @@ export class CuratedIntelService extends BaseService {
             clearInterval(this.lifecycleInterval);
             this.lifecycleInterval = undefined;
         }
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     /**

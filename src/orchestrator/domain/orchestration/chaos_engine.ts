@@ -17,6 +17,17 @@ export class ChaosEngine extends BaseService {
     this.logging = auditService.getLogging();
   }
 
+  override async init(): Promise<import("../../core/result.ts").Result<void>> {
+    if (this.initialized) return { success: true, data: undefined };
+    this.initialized = true;
+    return { success: true, data: undefined };
+  }
+
+  override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    this.initialized = false;
+    return await super.shutdown();
+  }
+
   async simulateBruteForce(ip: string = "192.168.99.100") {
     this.logging.log({
         timestamp: new Date().toISOString(),

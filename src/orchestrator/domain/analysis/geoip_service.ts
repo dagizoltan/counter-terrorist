@@ -19,6 +19,10 @@ export class GeoIpService extends BaseService {
 
     constructor(private logging: LoggingPort) {
         super();
+    }
+
+    override async init(): Promise<import("../../core/result.ts").Result<void>> {
+        if (this.initialized) return { success: true, data: undefined };
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -26,6 +30,13 @@ export class GeoIpService extends BaseService {
             caller: "GEOIP_SERVICE",
             message: "SECURITY ALERT: GeoIP Service operating in [PROVISIONAL_DETERMINISTIC_MODE]. Attribution is algorithmically generated, not authoritative."
         });
+        this.initialized = true;
+        return { success: true, data: undefined };
+    }
+
+    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     /**

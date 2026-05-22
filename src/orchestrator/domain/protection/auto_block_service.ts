@@ -19,7 +19,9 @@ export class AutoBlockService extends BaseService {
   }
 
   override async init(): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
     this.start();
+    this.initialized = true;
     return ok(undefined);
   }
 
@@ -28,7 +30,8 @@ export class AutoBlockService extends BaseService {
           this.unsubscriber();
           this.unsubscriber = undefined;
       }
-      return ok(undefined);
+      this.initialized = false;
+      return await super.shutdown();
   }
 
   private start() {

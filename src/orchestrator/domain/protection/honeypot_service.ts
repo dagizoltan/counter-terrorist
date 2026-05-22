@@ -113,6 +113,13 @@ export class HoneypotService extends BaseService {
   private morphInterval?: number;
   private metricsInterval?: number;
 
+  override async init(): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
+    const res = await this.start();
+    if (res.success) this.initialized = true;
+    return res;
+  }
+
   async start(): Promise<Result<void>> {
     const sidecar = await this.sidecarManager.getPersistentSidecar("decoy");
     if (!sidecar) {
@@ -167,7 +174,8 @@ export class HoneypotService extends BaseService {
           this.metricsInterval = undefined;
       }
       await this.sidecarManager.stopSidecar("decoy");
-      return ok(undefined);
+      this.initialized = false;
+      return await super.shutdown();
   }
 
   private async handleEvent(event: any) {

@@ -32,8 +32,15 @@ export class ComplianceService extends BaseService {
         super();
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.initialized = true;
         return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     /**

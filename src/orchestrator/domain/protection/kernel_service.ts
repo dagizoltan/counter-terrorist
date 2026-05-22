@@ -30,7 +30,9 @@ export class KernelService extends BaseService {
     }
 
     override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
         this.metricsInterval = setInterval(() => this.emitMetrics(), 60000);
+        this.initialized = true;
         return ok(undefined);
     }
 
@@ -50,7 +52,8 @@ export class KernelService extends BaseService {
             }
         }
 
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     private async emitMetrics() {

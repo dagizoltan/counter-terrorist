@@ -40,6 +40,13 @@ export class NetworkDiscoveryService extends BaseService {
         this.mesh = mesh;
     }
 
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        const res = await this.start();
+        if (res.success) this.initialized = true;
+        return res;
+    }
+
     async start(): Promise<Result<void>> {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -238,7 +245,8 @@ export class NetworkDiscoveryService extends BaseService {
             clearInterval(this.intervalId);
             this.intervalId = null;
         }
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     private async getPrimaryInterface() {

@@ -86,15 +86,25 @@ export class AuditService extends BaseService {
             maxEvents: 10000,
         };
 
+    }
+
+    public override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+
+        const restoreRes = await this.restoreChainHead();
+        if (!restoreRes.success) {
+            return restoreRes;
+        }
+
         const jitter = (ms: number) => ms + (Math.random() * 5000);
 
         this.intervals.push(setInterval(() => this.purgeExpired(), jitter(60 * 60 * 1000)));
         this.intervals.push(setInterval(() => this.emitMetrics(), jitter(30000)));
         this.intervals.push(setInterval(async () => {
-          if (this.mesh) {
-            const status = await this.getChainStatus();
-            this.mesh.broadcastAuditVerification(status.lastHash, status.count);
-          }
+            if (this.mesh) {
+                const status = await this.getChainStatus();
+                this.mesh.broadcastAuditVerification(status.lastHash, status.count);
+            }
         }, jitter(5 * 60 * 1000)));
 
         this.intervals.push(setInterval(() => this.verifyChainIncremental(), jitter(60 * 1000)));
@@ -102,15 +112,9 @@ export class AuditService extends BaseService {
 
         // Merkle Root Commitment: Commit root every 10 minutes
         this.intervals.push(setInterval(() => this.commitMerkleRoot(), jitter(600000)));
-    }
-
-    public override async init(): Promise<Result<void>> {
-        const restoreRes = await this.restoreChainHead();
-        if (!restoreRes.success) {
-            return restoreRes;
-        }
 
         this.startLedgerWatcher();
+        this.initialized = true;
         return ok(undefined);
     }
 
@@ -190,7 +194,8 @@ export class AuditService extends BaseService {
         }
 
         await this.flushBuffer();
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     private isCommittingMerkle = false;

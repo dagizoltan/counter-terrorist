@@ -41,6 +41,13 @@ export class AnonymizationService extends BaseService {
         this.firewall = firewall;
     }
 
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        const res = await this.start();
+        if (res.success) this.initialized = true;
+        return res;
+    }
+
     async start(initialMode: StealthMode = StealthMode.VPNGATE): Promise<Result<void>> {
         this.mode = initialMode;
         if (this.mode === StealthMode.OFF) return ok(undefined);
@@ -253,6 +260,7 @@ export class AnonymizationService extends BaseService {
         if (this.rotationInterval) clearInterval(this.rotationInterval);
         if (this.killSwitchInterval) clearInterval(this.killSwitchInterval);
         this.mode = StealthMode.OFF;
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 }

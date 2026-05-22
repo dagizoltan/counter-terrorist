@@ -49,8 +49,6 @@ export async function initializeApplication(deps: ApplicationDependencies) {
                     caller: "orchestrator:core:application:forensics",
                     message: `CRITICAL: Automated PCAP capture failed: ${res.stderr}`
                 });
-                // SOV-05: Propagate as error for visibility
-                throw new Error(`PCAP capture failed: ${res.stderr}`);
             }
         } catch (err) {
             deps.logging.log({

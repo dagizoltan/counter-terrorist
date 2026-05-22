@@ -20,8 +20,10 @@ export interface ThreatEvent {
  */
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
 
-export class AutonomousResponseEngine {
-    private services: any = {};
+import { BaseService } from "@core/base_service.ts";
+
+export class AutonomousResponseEngine extends BaseService {
+    private services: { logging?: LoggingPort } = {};
     private scores: Map<string, number> = new Map();
     private history: Map<string, ThreatEvent[]> = new Map();
     private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
@@ -35,17 +37,25 @@ export class AutonomousResponseEngine {
         private policy: PolicyEngine,
         private logging: LoggingPort
     ) {
+        super();
         this.services.logging = logging;
-        // Automatically decay scores every 5 minutes to allow recovery
-        this.decayInterval = setInterval(() => this.decayScores(), 300000);
     }
 
-    shutdown() {
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        // Automatically decay scores every 5 minutes to allow recovery
+        this.decayInterval = setInterval(() => this.decayScores(), 300000);
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
         if (this.decayInterval) {
             clearInterval(this.decayInterval);
             this.decayInterval = undefined;
         }
-        // Saga handles lifecycle of its own coordination
+        this.initialized = false;
+        return ok(undefined);
     }
 
     /**
@@ -111,7 +121,7 @@ export class AutonomousResponseEngine {
                 this.history.delete(source);
                 this.activeRemediations.delete(source);
 
-                this.services.logging.log({
+                this.services.logging?.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.ACTIVITY,
                     severity: LogSeverity.INFO,

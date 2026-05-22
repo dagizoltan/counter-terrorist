@@ -9,9 +9,15 @@ export interface Plugin {
   status(): "ACTIVE" | "INACTIVE" | "ERROR";
 }
 
-export class PluginManager {
+import { BaseService } from "@core/base_service.ts";
+
+export class PluginManager extends BaseService {
   private plugins: Map<string, Plugin> = new Map();
   private workers: Map<string, Worker> = new Map();
+
+  constructor() {
+    super();
+  }
 
   /**
    * Securely loads a plugin into a restricted Deno.Worker sandbox.
@@ -75,7 +81,9 @@ export class PluginManager {
     });
   }
 
-  async startAll() {
+  async startAll(): Promise<{ name: string; success: boolean; error?: string }[]> {
+    if (this.initialized) return [];
+    this.initialized = true;
     // BUG-6.5 FIX: Start plugins in parallel with timeouts to avoid boot blocking
     const startPromises = Array.from(this.plugins.values()).map(async (plugin) => {
       try {
@@ -90,23 +98,27 @@ export class PluginManager {
             caller: "orchestrator:domain:orchestration:plugin_manager",
             message: `Started plugin: ${plugin.name}`
         });
+        return { name: plugin.name, success: true };
       } catch (e) {
+        const error = (e as Error).message;
         loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
             caller: "orchestrator:domain:orchestration:plugin_manager",
-            message: `Failed to start plugin ${plugin.name}: ${(e as Error).message}`
+            message: `Failed to start plugin ${plugin.name}: ${error}`
         });
         // BUG-11.3: Start failure is implicitly reflected by the plugin's own status()
         // since we didn't await successfully.
+        return { name: plugin.name, success: false, error };
       }
     });
 
-    await Promise.all(startPromises);
+    return await Promise.all(startPromises);
   }
 
   async stopAll() {
+    this.initialized = false;
     // Terminate all sandboxed workers
     for (const [name, worker] of this.workers.entries()) {
         try {
