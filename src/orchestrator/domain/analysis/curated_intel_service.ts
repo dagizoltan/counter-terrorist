@@ -1,6 +1,7 @@
 import { BaseService } from "@core/base_service.ts";
 import { ConfigurationPort, LoggingPort, LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { CircuitBreaker } from "../../core/utils/resilience.ts";
 import { GeoIpService } from "./geoip_service.ts";
 import { z } from "zod";
 
@@ -69,6 +70,7 @@ export class CuratedIntelService extends BaseService {
     private kv?: Deno.Kv;
     private syncInterval?: number;
     private lifecycleInterval?: number;
+    private breaker = new CircuitBreaker({ failureThreshold: 5, resetTimeoutMs: 600000 });
     private sources = [
         { name: "Abuse.ch", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
         { name: "MalwareBazaar", url: "https://bazaar.abuse.ch/export/csv/recent/", type: "HASH" },
@@ -296,16 +298,33 @@ export class CuratedIntelService extends BaseService {
             : this.sources;
 
         const fetchTasks = sourcesToSync.map(async (source) => {
-            try {
+            const res = await this.breaker.execute(async () => {
                 // Use a short timeout for intelligence fetches to prevent hanging the pipeline
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 15000); // Increased to 15s for larger feeds
                 
-                const response = await fetch(source.url, { signal: controller.signal });
-                clearTimeout(timeoutId);
+                try {
+                    const response = await fetch(source.url, { signal: controller.signal });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return await response.text();
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+            });
 
-                if (!response.ok) return;
-                const data = await response.text();
+            if (!res.success) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "INTEL",
+                    message: `Source skipped (${source.name}): ${res.error.message}`
+                });
+                return;
+            }
+
+            try {
+                const data = res.data;
                 const count = await this.processSource(source, data);
                 newThreatsFound += count;
             } catch (e) {
@@ -314,7 +333,7 @@ export class CuratedIntelService extends BaseService {
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
                     caller: "INTEL",
-                    message: `Source failure (${source.name}): ${e instanceof Error ? e.message : String(e)}`
+                    message: `Source processing failure (${source.name}): ${e instanceof Error ? e.message : String(e)}`
                 });
             }
         });

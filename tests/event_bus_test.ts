@@ -64,7 +64,10 @@ Deno.test("EventBus.on (keyed subscription)", () => {
   eventBus.publish("WARN", "Warn msg", { skip: "me" });
 
   assertEquals(receivedData.length, 1);
-  assertEquals(receivedData[0], { foo: "bar", fromEventBus: true });
+  const data = receivedData[0] as any;
+  assertEquals(data.foo, "bar");
+  assertEquals(data.fromEventBus, true);
+  assertEquals(typeof data.correlationId, "string");
 });
 
 Deno.test("EventBus.unsubscribe (general)", () => {
@@ -147,7 +150,10 @@ Deno.test("EventBus.emit alias", () => {
   });
 
   eventBus.emit("ALERT" as "INFO", { hello: "world" });
-  assertEquals(received, { hello: "world", fromEventBus: true });
+  const data = received as any;
+  assertEquals(data.hello, "world");
+  assertEquals(data.fromEventBus, true);
+  assertEquals(typeof data.correlationId, "string");
 });
 
 Deno.test("EventBus severity mapping", () => {

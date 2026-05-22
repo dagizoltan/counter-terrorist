@@ -4,10 +4,21 @@ import { loggingService, LogSeverity, LogType } from "@infrastructure/system/log
 /**
  * Validated schema for the entire application configuration.
  */
+const SecuritySecret = z.string()
+  .min(32, "Secrets must be at least 32 characters for enterprise-grade entropy")
+  .refine(s => {
+    // Check for character diversity
+    const hasLower = /[a-z]/.test(s);
+    const hasUpper = /[A-Z]/.test(s);
+    const hasDigit = /[0-9]/.test(s);
+    const hasSpecial = /[^A-Za-z0-9]/.test(s);
+    return (hasLower && hasUpper && hasDigit) || (hasLower && hasUpper && hasSpecial);
+  }, "Secret complexity requirement not met (must include upper, lower, and digit/special)");
+
 export const ConfigSchema = z.object({
   PORT: z.coerce.number().default(8000),
-  API_TOKEN: z.string().min(16, "API_TOKEN must be at least 16 characters for security"),
-  MESH_SECRET: z.string().min(16, "MESH_SECRET must be at least 16 characters"),
+  API_TOKEN: SecuritySecret,
+  MESH_SECRET: SecuritySecret,
   // SECURITY: Avoid wildcard '*' in production. Explicitly whitelist tactical dashboard origins.
   // BUG-8.2 FIX: Enforce production safety by defaulting to self if not provided
   ALLOWED_ORIGINS: z.string().default("self"),
