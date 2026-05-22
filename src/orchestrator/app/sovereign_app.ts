@@ -31,6 +31,7 @@ import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts
 import { loadConfig } from "@core/config_schema.ts";
 import { setMeshManager } from "@domain/orchestration/mesh.ts";
 import { setMetricsService } from "@domain/analysis/metrics_service.ts";
+import { ServiceRegistry } from "@core/registry.ts";
 
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
@@ -50,6 +51,7 @@ export class SovereignApp {
     private executor!: SystemExecutor;
     private auditService!: AuditService;
     private lifecycleService!: SystemLifecycleService;
+    private registry: ServiceRegistry = new ServiceRegistry(loggingService);
 
     private logPilotBanner() {
         console.log(`
@@ -72,7 +74,13 @@ export class SovereignApp {
             host: config.SYSLOG_HOST,
             port: config.SYSLOG_PORT,
             transport: config.SYSLOG_TRANSPORT,
-            caPath: config.SYSLOG_CA_PATH
+            caPath: config.SYSLOG_CA_PATH,
+            secrets: {
+                API_TOKEN: config.API_TOKEN,
+                MESH_SECRET: config.MESH_SECRET,
+                PKI_SECRET: config.PKI_SECRET,
+                SECURE_BYPASS_TOKEN: config.SECURE_BYPASS_TOKEN
+            }
         });
 
         // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
@@ -81,13 +89,15 @@ export class SovereignApp {
         this.sidecarManager.setTpm(tpmManager);
         this.sidecarManager.init();
 
-        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService);
+        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, this.registry);
         this.lifecycleService = factory.initSystemLifecycle(tpmManager);
+        this.registry.register("SystemLifecycle", this.lifecycleService);
 
         await this.setupSafetyAndErrorHandlers();
 
         const { platformInfo, notificationService, eventBus, meshManager, healthService } =
             await this.initializeInfrastructure(configProvider, tpmManager);
+        this.registry.register("Health", healthService);
 
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
@@ -166,12 +176,14 @@ export class SovereignApp {
         await bootstrap();
         const eventBus = new EventBus(loggingService);
         const notificationService = new NotificationService(this.kv, loggingService);
+        this.registry.register("Notifications", notificationService);
         const healthService = new HealthService(loggingService);
         healthService.setSidecarManager(this.sidecarManager);
         
         // REPOSITORY INJECTION
         const auditRepo = new KvAuditRepository(this.kv);
         this.auditService = new AuditService(auditRepo, loggingService, tpmManager);
+        this.registry.register("Audit", this.auditService);
         this.auditService.setConfig(configProvider);
         const auditInitRes = await this.auditService.init();
         if (!auditInitRes.success) {
@@ -226,6 +238,7 @@ export class SovereignApp {
         this.services.lifecycle.startShadowModeTimer(configProvider);
         this.services.lifecycle.scheduleLkgSnapshot();
         this.watchdog = this.startWatchdog(healthService);
+        this.registry.register("Watchdog", this.watchdog);
     }
 
     private watchdog?: WatchdogService;
@@ -233,48 +246,16 @@ export class SovereignApp {
     private async gracefulShutdown() {
         if (this.watchdog) this.watchdog.shutdown();
 
+        // SOV-05 STABILITY: Use ServiceRegistry for automated, ordered shutdown
+        await this.registry.shutdownAll();
+
         if (this.services) {
             const {
-                autopilot, mesh, audit, mediator, logging, lifecycle,
-                health, metrics, honeypot, behavioral, processTracker,
-                kernelService, protection, provisioning,
-                morphing, chaos, supplyChain, curatedIntel, news, networkDiscovery,
-                canaryService, autonomousAutopilot, integrity
+                metrics, protection, logging
             } = this.services;
 
-            if (autopilot) await autopilot.shutdown();
-            if (autonomousAutopilot) await autonomousAutopilot.shutdown();
-            if (provisioning) await provisioning.shutdown();
-            if (integrity) await integrity.shutdown();
-            if (morphing) await morphing.shutdown();
-            if (chaos && "shutdown" in chaos) await (chaos as any).shutdown();
-            if (supplyChain && "shutdown" in supplyChain) await (supplyChain as any).shutdown();
-            if (curatedIntel) await curatedIntel.shutdown();
-            if (news) await news.shutdown();
-            if (networkDiscovery) await networkDiscovery.shutdown();
-            if (canaryService) await canaryService.shutdown();
-
-            if (mesh) await mesh.shutdown();
-            if (audit) await audit.shutdown();
-            if (mediator && "shutdown" in mediator && typeof mediator.shutdown === "function") {
-                await mediator.shutdown();
-            }
-            if (lifecycle) await lifecycle.shutdown();
-            if (health && "shutdown" in health && typeof health.shutdown === "function") {
-                await (health as any).shutdown();
-            }
             if (metrics && "stop" in metrics && typeof metrics.stop === "function") {
                 metrics.stop();
-            }
-            if (honeypot && "shutdown" in honeypot && typeof honeypot.shutdown === "function") {
-                await (honeypot as any).shutdown();
-            }
-            if (behavioral && "shutdown" in behavioral && typeof behavioral.shutdown === "function") {
-                await (behavioral as any).shutdown();
-            }
-            if (processTracker) await processTracker.shutdown();
-            if (kernelService && "shutdown" in kernelService && typeof kernelService.shutdown === "function") {
-                await (kernelService as any).shutdown();
             }
             if (protection?.firewall && "shutdown" in protection.firewall && typeof (protection.firewall as any).shutdown === "function") {
                 await (protection.firewall as any).shutdown();
@@ -310,7 +291,9 @@ export class SovereignApp {
 
     private async initMesh(tpm: TPMManager, config: ConfigurationPort): Promise<MeshManager> {
         const meshAuthService = new MeshAuthService(this.kv, loggingService, config, tpm);
+        this.registry.register("MeshAuth", meshAuthService);
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, config);
+        this.registry.register("Mesh", meshManager);
         
         setMeshManager(meshManager);
         meshManager.startDiscovery();
@@ -325,6 +308,7 @@ export class SovereignApp {
             services.eventBus,
             loggingService
         );
+        this.registry.register("DecentralizedMetrics", metricsService);
         setMetricsService(metricsService as any);
 
         this.injectEventBus(services);
@@ -348,6 +332,7 @@ export class SovereignApp {
         }
         services.behavioral.setEventBus(bus);
         services.viewModel.setEventBus(bus);
+        services.mediator.setEventBus(bus);
     }
 
     private startWatchdog(health: HealthService): WatchdogService {
@@ -423,69 +408,36 @@ export class SovereignApp {
     }
 
     private async startSubsystems() {
-        const { autopilot, honeypot, canaryService, kernelService, curatedIntel, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning, integrity, behavioral } = this.services;
+        // SOV-05 STABILITY: Unified, registry-managed startup sequence
+        await this.registry.initAll();
+
+        const { autopilot, honeypot, canaryService, kernelService, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning, integrity, behavioral } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
             severity: LogSeverity.INFO,
             caller: "orchestrator:app:sovereign_app:domain",
-            message: "Activating autonomous subsystems..."
+            message: "Autonomous subsystems initialized."
         });
 
-        const report = (name: string, status: string, message?: string) => this.services.health.reportStatus(name, status, message);
-
-        report("Playbook", "OPERATIONAL");
-        report("Autopilot", "OPERATIONAL");
-        report("Morphing", "OPERATIONAL");
-        report("Anonymization", "OPERATIONAL");
-        report("DeceptionGrid", "OPERATIONAL");
-        report("ProcessTracker", "OPERATIONAL");
+        // Background activations for non-BaseService compatible starts
+        autopilot.start();
+        honeypot.start().catch(() => {});
+        canaryService.start().catch(() => {});
         
-        const wrap = (name: string, promise: Promise<Result<any, Error> | void>) => {
-            report(name, "BOOTING");
-            promise.then((res) => {
-                if (!res || res.success) {
-                    report(name, "OPERATIONAL");
-                } else if (res && !res.success) {
-                    report(name, "FAILED", res.error.message);
-                }
-            })
-            .catch(e => report(name, "FAILED", e.message));
-        };
-
-        wrap("Autopilot", autopilot.start());
-        wrap("Behavioral", behavioral.init());
-        wrap("Honeypot", honeypot.start());
-        wrap("Canary", canaryService.start());
-        wrap("KernelService", (async () => {
+        (async () => {
             const res = await (kernelService as any).start();
-            if (!res.success) return res;
-
-            // SOV-P2: Apply AppArmor Lockdown for critical sidecars
-            if (this.services.config.getEnv("ENVIRONMENT") === "production") {
+            if (res.success && this.services.config.getEnv("ENVIRONMENT") === "production") {
                 const sidecars = ["analyzer", "sentinel", "watchfile"];
                 for (const name of sidecars) {
-                    const aaRes = await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`);
-                    if (!aaRes.success) {
-                        loggingService.log({
-                            timestamp: new Date().toISOString(),
-                            type: LogType.AUDIT,
-                            severity: LogSeverity.ERROR,
-                            caller: "orchestrator:app:sovereign_app",
-                            message: `AppArmor deployment failed for ${name}: ${aaRes.error.message}`
-                        });
-                    }
+                    await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`).catch(() => {});
                 }
             }
-            return ok(undefined);
-        })());
-        wrap("CuratedIntel", curatedIntel.init(this.kv));
-        wrap("NewsSignal", news.init(this.kv));
-        wrap("NetworkDiscovery", networkDiscovery.start());
-        wrap("Provisioning", provisioning.run());
-        wrap("Baseline", this.services.baseline.init());
-        integrity.start();
+        })();
+
+        networkDiscovery.start().catch(() => {});
+        provisioning.run().catch(() => {});
         
         this.services.baseline.startMonitor();
         lifecycle.start();
@@ -561,31 +513,71 @@ export class SovereignApp {
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
-        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService);
+        const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, this.registry);
 
         const identity = factory.initIdentity(configProvider);
+        this.registry.register("Sessions", identity.sessions);
+        this.registry.register("ApiKeys", identity.apiKeys);
+        this.registry.register("RateLimit", identity.rateLimit);
+
         const { protection, networkLog } = await factory.initProtection(platformInfo, configProvider);
+        this.registry.register("NetworkLog", networkLog);
         
         const processTracker = factory.initProcessTracker(platformInfo);
+        this.registry.register("ProcessTracker", processTracker);
         
         const correlation = new CorrelationService(this.auditService, loggingService);
         this.auditService.setCorrelation(correlation);
 
         const security = factory.initSecurity(protection, mesh, configProvider, health);
+        this.registry.register("Anonymization", security.anonymization);
+        this.registry.register("ShadowProtocol", security.shadowProtocol);
+        this.registry.register("Behavioral", security.behavioral);
+        this.registry.register("Honeypot", security.honeypot);
 
         const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth);
+        this.registry.register("GeoIp", intelligence.geoIp);
+        this.registry.register("Forensics", intelligence.forensicService);
+        this.registry.register("CuratedIntel", intelligence.curatedIntel);
+        this.registry.register("NewsSignal", intelligence.news);
+        this.registry.register("NetworkDiscovery", intelligence.networkDiscovery);
+        this.registry.register("Incidents", intelligence.incidents);
+        this.registry.register("Compliance", intelligence.compliance);
 
         const playbook = new PlaybookService();
+        this.registry.register("Playbook", playbook);
         const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await factory.initEngine(correlation, mesh);
+        this.registry.register("Autopilot", autopilot);
+        this.registry.register("AutonomousAutopilot", autonomousAutopilot);
+        this.registry.register("Lifecycle", lifecycle);
+        this.registry.register("Policy", policy);
+        this.registry.register("Provisioning", provisioning);
 
         const integrity = factory.createService(health, "Integrity", () => new IntegrityService(mesh, this.auditService, tpm, loggingService));
+        this.registry.register("Integrity", integrity);
+
         const morphing = factory.createService(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
+        this.registry.register("Morphing", morphing);
         const chaos = factory.createService(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
+        this.registry.register("Chaos", chaos);
+
         const supplyChain = factory.createService(health, "SupplyChain", () => new SupplyChainService());
+        this.registry.register("SupplyChain", supplyChain);
         await supplyChain.init();
         const shadow = factory.createService(health, "Shadow", () => new ShadowService(this.executor, loggingService));
+        this.registry.register("Shadow", shadow);
+
         const covert = factory.createService(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
+        this.registry.register("Covert", covert);
+
+        const ledger = new LedgerService(mesh, loggingService);
+        this.registry.register("Ledger", ledger);
+
         const viewModel = new ViewModelService();
+        this.registry.register("ViewModel", viewModel);
+
+        const mediator = new EventMediator(eventBus, processTracker, security.canaryService, broadcast, loggingService, this.kv);
+        this.registry.register("EventMediator", mediator);
 
         const services: ServiceContainer = {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
@@ -599,10 +591,10 @@ export class SovereignApp {
             curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
             provisioning, integrity,
             incidents: intelligence.incidents, platformInfo, shadow, covert,
-            ledger: new LedgerService(mesh, loggingService),
+            ledger,
             tpm, health,
             metrics: (setMetricsService as any)._instance,
-            mediator: new EventMediator(eventBus, processTracker, security.canaryService, broadcast, loggingService, this.kv),
+            mediator,
             behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy, correlation,
             viewModel
         };

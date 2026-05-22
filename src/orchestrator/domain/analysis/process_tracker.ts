@@ -1,6 +1,8 @@
 import { LoggingPort, LogSeverity, LogType, SyslogSeverity } from "@core/ports.ts";
 import { ProcessPort } from "@domain/ports/process_port.ts";
 import { CommandPort } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export interface ProcessNode {
     pid: number;
@@ -16,7 +18,7 @@ export interface ProcessNode {
  * Domain service for behavioral process analysis.
  * Decoupled from system calls via ProcessPort.
  */
-export class ProcessTracker {
+export class ProcessTracker extends BaseService {
     private tree: Map<number, ProcessNode> = new Map();
     private shells = ["bash", "sh", "dash", "zsh", "python", "perl", "php", "ruby"];
     private suspiciousParents = ["nginx", "apache2", "node", "python", "php-fpm", "clamscan"];
@@ -30,9 +32,16 @@ export class ProcessTracker {
         private processProvider: ProcessPort,
         private command?: CommandPort
     ) {
+        super();
+    }
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
         // BUG-4.6 FIX: Automated tree cleanup to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanup(), 300000); // Every 5 minutes
         this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
+        this.initialized = true;
+        return ok(undefined);
     }
 
     setEventBus(eventBus: any) {
@@ -51,9 +60,11 @@ export class ProcessTracker {
         });
     }
 
-    shutdown() {
+    override async shutdown(): Promise<Result<void>> {
         if (this.cleanupInterval) clearInterval(this.cleanupInterval);
         if (this.metricsInterval) clearInterval(this.metricsInterval);
+        this.initialized = false;
+        return ok(undefined);
     }
 
     updateProcess(pid: number, ppid: number, comm: string, isGhost: boolean = false) {

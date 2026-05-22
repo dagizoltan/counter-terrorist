@@ -3,13 +3,15 @@ import { ProcessTracker } from "./process_tracker.ts";
 import { CanaryService } from "../protection/canary_service.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 /**
  * EventMediator
  * Orchestrates event routing between infrastructure (sidecars) and domain services.
  * This decouples the core application from specific sidecar event formats.
  */
-export class EventMediator {
+export class EventMediator extends BaseService {
     private behavioral: BehavioralAnalyzer;
     private learningTimeout: number | null = null;
 
@@ -19,7 +21,13 @@ export class EventMediator {
     private readonly BATCH_THRESHOLD = 50;
     private batchTimer?: number;
 
-    async shutdown() {
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
         if (this.learningTimeout) {
             clearTimeout(this.learningTimeout);
             this.learningTimeout = null;
@@ -42,16 +50,20 @@ export class EventMediator {
             caller: "orchestrator:domain:analysis:event_mediator",
             message: "Event Mediator offline."
         });
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     constructor(
-        private eventBus: EventBus,
+        private eventBusPort: EventBus,
         private processTracker: ProcessTracker,
         private canaryService: CanaryService,
         private broadcast: (msg: any) => void,
         private logger: LoggingPort,
         private kv?: Deno.Kv
     ) {
+        super();
+        this.setEventBus(eventBusPort);
         this.behavioral = new BehavioralAnalyzer();
         if (kv) {
             this.behavioral.setKv(kv).catch(() => {});

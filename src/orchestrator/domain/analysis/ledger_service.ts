@@ -1,6 +1,8 @@
 import { AuditEvent } from "./audit.ts";
 import { MeshManager } from "../orchestration/mesh.ts";
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export interface LedgerEntry {
     index: number;
@@ -15,14 +17,27 @@ export interface LedgerEntry {
  * LedgerService
  * Manages a replicated, hash-linked forensic audit chain across the mesh.
  */
-export class LedgerService {
+export class LedgerService extends BaseService {
     private chain: LedgerEntry[] = [];
     private lastHash: string = "GHOST_GENESIS";
 
     constructor(
         private mesh: MeshManager,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.initialized = false;
+        return await super.shutdown();
+    }
 
     /**
      * Commits an event to the local ledger and replicates it to the mesh.

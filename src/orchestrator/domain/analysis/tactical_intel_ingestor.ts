@@ -1,4 +1,6 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export interface ThreatInfo {
     indicator: string;
@@ -13,7 +15,7 @@ export interface ThreatInfo {
  * TacticalIntelIngestor
  * Periodically fetches global threat intelligence from OSINT sources and stores it locally.
  */
-export class TacticalIntelIngestor {
+export class TacticalIntelIngestor extends BaseService {
     private kv: Deno.Kv | null = null;
     private sources = [
         { name: "FeodoTracker", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
@@ -24,9 +26,18 @@ export class TacticalIntelIngestor {
         { name: "TalosIntelligence", url: "https://www.talosintelligence.com/documents/ip-blacklist", type: "IP" }
     ];
 
-    constructor(private logging: LoggingPort, private firewall: any) {}
+    constructor(private logging: LoggingPort, private firewall: any) {
+        super();
+    }
 
     private intervalId: number | null = null;
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        await this.start();
+        this.initialized = true;
+        return ok(undefined);
+    }
 
     async start() {
         this.kv = await Deno.openKv();
@@ -46,8 +57,7 @@ export class TacticalIntelIngestor {
         this.intervalId = setInterval(() => this.sync(), 6 * 60 * 60 * 1000);
     }
 
-    async shutdown(): Promise<import("@core/result.ts").Result<void>> {
-        const { ok } = await import("@core/result.ts");
+    override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
@@ -56,7 +66,8 @@ export class TacticalIntelIngestor {
             this.kv.close();
             this.kv = null;
         }
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     async sync() {

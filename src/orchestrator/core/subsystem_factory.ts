@@ -30,6 +30,7 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
+import { ServiceRegistry } from "./registry.ts";
 
 export class SubsystemFactory {
     constructor(
@@ -37,7 +38,8 @@ export class SubsystemFactory {
         private logging: LoggingPort,
         private executor: SystemExecutor,
         private sidecarManager: SidecarManager,
-        private auditService: AuditService
+        private auditService: AuditService,
+        private registry: ServiceRegistry
     ) {}
 
     initIdentity(config: EnvConfigProvider) {
@@ -119,6 +121,10 @@ export class SubsystemFactory {
         try {
             const service = factory();
             health.reportStatus(name, "OPERATIONAL");
+            // Automatically register any Sovereign service for lifecycle management
+            if (typeof (service as any).init === "function" || typeof (service as any).shutdown === "function") {
+                this.registry.register(name, service as any);
+            }
             return service;
         } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

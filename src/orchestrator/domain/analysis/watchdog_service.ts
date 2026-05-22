@@ -1,13 +1,15 @@
 import { HealthService } from "../analysis/health_service.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 /**
  * WatchdogService (The "Phoenix" Pattern)
  * Monitors the health of auxiliary services and attempts to re-initialize them
  * if they enter a FAILED state during runtime.
  */
-export class WatchdogService {
+export class WatchdogService extends BaseService {
     private isRunning = false;
     private restartAttempts: Map<string, number> = new Map();
     private readonly MAX_RESTART_ATTEMPTS = 3;
@@ -17,7 +19,16 @@ export class WatchdogService {
         private health: HealthService,
         private logging: LoggingPort,
         private reinitService: (name: string) => Promise<boolean>
-    ) {}
+    ) {
+        super();
+    }
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.start();
+        this.initialized = true;
+        return ok(undefined);
+    }
 
     start() {
         if (this.isRunning) return;
@@ -34,12 +45,14 @@ export class WatchdogService {
         this.intervalId = setInterval(() => this.checkHealth(), 30000); // Check every 30s
     }
 
-    shutdown() {
+    override async shutdown(): Promise<Result<void>> {
         this.isRunning = false;
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = undefined;
         }
+        this.initialized = false;
+        return ok(undefined);
     }
 
     private async checkHealth() {

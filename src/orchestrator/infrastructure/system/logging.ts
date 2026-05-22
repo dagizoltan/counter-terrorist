@@ -2,6 +2,7 @@ import { LoggingPort, LogSeverity, LogType, LogEntry, SyslogSeverity } from "@co
 import { TimelineRepository } from "../persistence/repositories/timeline_repository.ts";
 import { DiagnosticRepository } from "../persistence/diagnostic_repository.ts";
 import { broadcast } from "@interface/ws_handler.ts";
+import { SecretRedactor } from "@core/utils/security.ts";
 
 export { LogSeverity, LogType, SyslogSeverity };
 
@@ -17,6 +18,7 @@ export class LoggingService implements LoggingPort {
     private tlsCaCertPath: string | null = null;
     private diagnosticRepo: DiagnosticRepository | null = null;
     private preInitBuffer: LogEntry[] = [];
+    private redactor: SecretRedactor = new SecretRedactor();
 
     /** Persistent TCP/TLS or UDP connection, reused across flushes. */
     private persistentConn: Deno.Conn | Deno.TlsConn | Deno.DatagramConn | null = null;
@@ -28,7 +30,10 @@ export class LoggingService implements LoggingPort {
         }
     }
 
-    public setConfig(config: { host?: string, port?: number, transport?: string, caPath?: string }) {
+    public setConfig(config: { host?: string, port?: number, transport?: string, caPath?: string, secrets?: Record<string, string | undefined> }) {
+        if (config.secrets) {
+            this.redactor.updateSecrets(config.secrets);
+        }
         this.remoteHost = config.host || null;
         this.remotePort = config.port || 514;
         this.transport = (config.transport as SyslogTransport) || "udp";
@@ -129,6 +134,12 @@ export class LoggingService implements LoggingPort {
     async log(entry: LogEntry) {
         if (!entry || typeof entry !== "object") return;
         if (!entry.message) return;
+
+        // SOV-06 SECURITY: Redact sensitive secrets from all logs before they hit any sink
+        entry.message = this.redactor.redact(entry.message);
+        if (entry.payload) {
+            entry.payload = this.redactor.redactObject(entry.payload);
+        }
 
         // SOV-05 STABILITY: Re-entrancy guard to prevent stack overflow from recursive logging
         if (this.isLogging) {

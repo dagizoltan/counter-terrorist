@@ -1,5 +1,7 @@
 import { SystemExecutor } from "../../infrastructure/system/system_executor.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export interface ShadowEnvironment {
     id: string;
@@ -12,13 +14,26 @@ export interface ShadowEnvironment {
  * ShadowService
  * Manages the "Mirror World" - deceptive isolated environments for high-confidence threats.
  */
-export class ShadowService {
+export class ShadowService extends BaseService {
     private environments: Map<string, ShadowEnvironment> = new Map();
 
     constructor(
         private executor: SystemExecutor,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.initialized = false;
+        return await super.shutdown();
+    }
 
     /**
      * Forks an attacker session into a shadow containment.
