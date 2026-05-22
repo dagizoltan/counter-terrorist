@@ -1,5 +1,6 @@
 import { LoggingPort, LogSeverity, LogType, TpmPort, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { BaseService } from "@core/base_service.ts";
 
 /**
  * Mesh Authentication Service: Manages the internal PKI for mTLS communication.
@@ -27,7 +28,7 @@ interface EncryptedCertPair {
   timestamp: number;
 }
 
-export class MeshAuthService implements MeshAuthPort {
+export class MeshAuthService extends BaseService implements MeshAuthPort {
   private readonly CA_KEY = ["mesh", "pki", "root_ca_v5"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v3"];
 
@@ -36,7 +37,20 @@ export class MeshAuthService implements MeshAuthPort {
     private logging: LoggingPort,
     private config: ConfigurationPort,
     private tpm?: TpmPort
-  ) {}
+  ) {
+    super();
+  }
+
+  override async init(): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
+    this.initialized = true;
+    return ok(undefined);
+  }
+
+  override async shutdown(): Promise<Result<void>> {
+    this.initialized = false;
+    return await super.shutdown();
+  }
 
   /**
    * Generates or retrieves the root CA for the mesh.

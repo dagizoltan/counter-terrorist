@@ -1,5 +1,7 @@
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
+import { retry } from "../../core/utils/resilience.ts";
+import { ResourceExhaustedError } from "../../core/errors.ts";
 
 export interface RateLimitStatus {
   allowed: boolean;
@@ -39,11 +41,8 @@ export class RateLimitService extends BaseService {
   async checkLimit(key: string, limit: number, windowMs: number): Promise<RateLimitStatus> {
     const fullKey = [...this.PREFIX, key];
     const now = Date.now();
-    const MAX_RETRIES = 5;
-    const backoff = [0, 10, 20, 50, 100];
-    let attempts = 0;
 
-    while (attempts < MAX_RETRIES) {
+    const result = await retry(async () => {
       const entry = await this.kv.get<{ count: number; resetAt: number }>(fullKey);
       let state = entry.value || { count: 0, resetAt: now + windowMs };
 
@@ -58,33 +57,30 @@ export class RateLimitService extends BaseService {
         .set(fullKey, state, { expireIn: windowMs })
         .commit();
       
-      if (res.ok) {
-        const allowed = state.count <= limit;
-        const retryAfterMs = Math.max(0, state.resetAt - now);
+      if (!res.ok) throw new Error("KV contention");
 
-        if (!allowed) {
-          loggingService.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.AUDIT,
-              severity: LogSeverity.WARNING,
-              caller: "SECURITY:RATELIMIT",
-              message: `RATE_LIMIT_EXCEEDED: Key=${key}, Count=${state.count}`
-          });
-        }
+      const allowed = state.count <= limit;
+      const retryAfterMs = Math.max(0, state.resetAt - now);
 
-        return {
-          allowed,
-          count: state.count,
-          resetAt: state.resetAt,
-          retryAfterMs
-        };
+      if (!allowed) {
+        loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "SECURITY:RATELIMIT",
+            message: `RATE_LIMIT_EXCEEDED: Key=${key}, Count=${state.count}`
+        });
       }
 
-      // If commit failed (optimistic locking), retry the loop with backoff.
-      await new Promise(r => setTimeout(r, backoff[attempts]));
-      attempts++;
-    }
+      return {
+        allowed,
+        count: state.count,
+        resetAt: state.resetAt,
+        retryAfterMs
+      };
+    }, { maxAttempts: 5, baseDelayMs: 10 });
 
-    throw new Error(`Rate limit state update failed after ${MAX_RETRIES} attempts due to high contention.`);
+    if (result.success) return result.data;
+    throw new ResourceExhaustedError(`Rate limit state update failed after 5 attempts due to high contention.`, { key });
   }
 }

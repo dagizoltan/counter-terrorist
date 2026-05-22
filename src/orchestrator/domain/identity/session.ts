@@ -14,12 +14,28 @@ export interface Session {
   metadata?: Record<string, any>;
 }
 
-export class SessionService {
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
+
+export class SessionService extends BaseService {
   constructor(
     private repo: SessionRepository,
     private logging: LoggingPort,
     private ttlHours: number = 24
-  ) {}
+  ) {
+    super();
+  }
+
+  override async init(): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
+    this.initialized = true;
+    return ok(undefined);
+  }
+
+  override async shutdown(): Promise<Result<void>> {
+    this.initialized = false;
+    return await super.shutdown();
+  }
 
   async createSession(userId: string, role: Role, metadata?: any): Promise<Session> {
     const id = crypto.randomUUID();

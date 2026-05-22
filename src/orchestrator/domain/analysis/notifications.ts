@@ -1,6 +1,8 @@
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
 import { validateWebhookUrlAsync } from "@infrastructure/system/validation.ts";
 import { safeFetch } from "@infrastructure/system/network.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export interface WebhookConfig {
     id: string;
@@ -10,11 +12,23 @@ export interface WebhookConfig {
     enabled: boolean;
 }
 
-export class NotificationService {
+export class NotificationService extends BaseService {
     private webhooks: WebhookConfig[] = [];
 
     constructor(private kv: Deno.Kv, private logging: LoggingPort) {
-        this.loadWebhooks();
+        super();
+    }
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        await this.loadWebhooks();
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.initialized = false;
+        return ok(undefined);
     }
 
     private async loadWebhooks() {

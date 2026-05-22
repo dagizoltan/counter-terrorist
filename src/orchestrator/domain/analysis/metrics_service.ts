@@ -22,6 +22,8 @@ import {
     HealthService, 
     SupplyChainService 
 } from "../index.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export interface SystemMetrics {
     firewall: {
@@ -112,7 +114,7 @@ export interface SystemMetrics {
     }[];
 }
 
-export class MetricsService {
+export class MetricsService extends BaseService {
     private lastScanTime: string = "NEVER";
     private lastScanResult: string = "PENDING";
     private cachedMetrics: SystemMetrics | null = null;
@@ -146,11 +148,24 @@ export class MetricsService {
         private healthService?: HealthService,
         private supplyChain?: SupplyChainService
     ) {
+        super();
         setMetricsService(this);
-        this.start();
     }
 
     private isRunning = false;
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.start();
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.stop();
+        this.initialized = false;
+        return await super.shutdown();
+    }
 
     private async start() {
         if (this.isRunning) return;

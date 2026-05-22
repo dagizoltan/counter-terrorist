@@ -45,3 +45,31 @@ export class SidecarError extends AppError {
     this.name = "SidecarError";
   }
 }
+
+export class InfrastructureError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, 500, "INFRASTRUCTURE_ERROR", details);
+    this.name = "InfrastructureError";
+  }
+}
+
+export class SecurityError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, 403, "SECURITY_VIOLATION", details);
+    this.name = "SecurityError";
+  }
+}
+
+export class ConsensusError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, 500, "CONSENSUS_FAILURE", details);
+    this.name = "ConsensusError";
+  }
+}
+
+export class ResourceExhaustedError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, 429, "RESOURCE_EXHAUSTED", details);
+    this.name = "ResourceExhaustedError";
+  }
+}

@@ -5,11 +5,27 @@ import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
  * CovertChannelService
  * Implements subliminal mesh communication via DNS and ICMP.
  */
-export class CovertChannelService {
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
+
+export class CovertChannelService extends BaseService {
     constructor(
         private executor: SystemExecutor,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
+
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.initialized = false;
+        return await super.shutdown();
+    }
 
     /**
      * Sends a subliminal heartbeat via ICMP payload padding.
