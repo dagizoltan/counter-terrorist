@@ -1,75 +1,132 @@
 /**
  * BoundedMap
- * A memory-safe Map implementation that enforces a maximum capacity
- * and evicts the oldest entries (LRU-ish) when full.
+ * A high-performance, memory-safe collection that enforces a maximum capacity.
+ * Uses a Linked-List based LRU eviction strategy for O(1) operations.
  */
 export class BoundedMap<K, V> {
-    private map: Map<K, { value: V, timestamp: number }> = new Map();
+    private cache: Map<K, ListNode<K, V>> = new Map();
+    private head: ListNode<K, V> | null = null;
+    private tail: ListNode<K, V> | null = null;
 
     constructor(private maxCapacity: number = 1000) {}
 
     set(key: K, value: V) {
-        if (this.map.size >= this.maxCapacity && !this.map.has(key)) {
-            // Evict oldest
-            let oldestKey: K | null = null;
-            let oldestTime = Infinity;
-
-            for (const [k, v] of this.map.entries()) {
-                if (v.timestamp < oldestTime) {
-                    oldestTime = v.timestamp;
-                    oldestKey = k;
-                }
-            }
-
-            if (oldestKey !== null) {
-                this.map.delete(oldestKey);
-            }
+        if (this.cache.has(key)) {
+            const node = this.cache.get(key)!;
+            node.value = value;
+            this.moveToHead(node);
+            return;
         }
 
-        this.map.set(key, { value, timestamp: Date.now() });
+        if (this.cache.size >= this.maxCapacity) {
+            this.evict();
+        }
+
+        const newNode = new ListNode(key, value);
+        this.cache.set(key, newNode);
+        this.addToHead(newNode);
     }
 
     get(key: K): V | undefined {
-        const entry = this.map.get(key);
-        if (entry) {
-            // Update timestamp on access (LRU behavior)
-            entry.timestamp = Date.now();
-            return entry.value;
+        const node = this.cache.get(key);
+        if (node) {
+            this.moveToHead(node);
+            return node.value;
         }
         return undefined;
     }
 
     has(key: K): boolean {
-        return this.map.has(key);
+        return this.cache.has(key);
     }
 
-    delete(key: K) {
-        return this.map.delete(key);
+    delete(key: K): boolean {
+        const node = this.cache.get(key);
+        if (node) {
+            this.removeNode(node);
+            return this.cache.delete(key);
+        }
+        return false;
     }
 
     get size(): number {
-        return this.map.size;
-    }
-
-    entries(): IterableIterator<[K, V]> {
-        const innerEntries = this.map.entries();
-        return (function* () {
-            for (const [k, v] of innerEntries) {
-                yield [k, v.value] as [K, V];
-            }
-        })();
-    }
-
-    values(): IterableIterator<V> {
-        const innerValues = this.map.values();
-        return (function* () {
-            for (const v of innerValues) {
-                yield v.value;
-            }
-        })();
+        return this.cache.size;
     }
 
     clear() {
-        this.map.clear();
+        this.cache.clear();
+        this.head = null;
+        this.tail = null;
     }
+
+    // --- Private Linked List implementation ---
+
+    private addToHead(node: ListNode<K, V>) {
+        node.next = this.head;
+        node.prev = null;
+        if (this.head) {
+            this.head.prev = node;
+        }
+        this.head = node;
+        if (!this.tail) {
+            this.tail = node;
+        }
+    }
+
+    private removeNode(node: ListNode<K, V>) {
+        if (node.prev) {
+            node.prev.next = node.next;
+        } else {
+            this.head = node.next;
+        }
+        if (node.next) {
+            node.next.prev = node.prev;
+        } else {
+            this.tail = node.prev;
+        }
+    }
+
+    private moveToHead(node: ListNode<K, V>) {
+        this.removeNode(node);
+        this.addToHead(node);
+    }
+
+    private evict() {
+        if (this.tail) {
+            this.cache.delete(this.tail.key);
+            this.removeNode(this.tail);
+        }
+    }
+
+    // --- Iterators ---
+
+    *entries(): IterableIterator<[K, V]> {
+        let current = this.head;
+        while (current) {
+            yield [current.key, current.value];
+            current = current.next;
+        }
+    }
+
+    *values(): IterableIterator<V> {
+        let current = this.head;
+        while (current) {
+            yield current.value;
+            current = current.next;
+        }
+    }
+
+    *keys(): IterableIterator<K> {
+        let current = this.head;
+        while (current) {
+            yield current.key;
+            current = current.next;
+        }
+    }
+}
+
+class ListNode<K, V> {
+    public prev: ListNode<K, V> | null = null;
+    public next: ListNode<K, V> | null = null;
+    constructor(public key: K, public value: V) {}
 }

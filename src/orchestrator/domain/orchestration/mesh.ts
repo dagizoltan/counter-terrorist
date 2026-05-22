@@ -3,6 +3,7 @@ import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
+import { retry } from "../../core/utils/resilience.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { z } from "zod";
 
@@ -476,31 +477,21 @@ export class MeshManager extends BaseService {
                 await new Promise(r => setTimeout(r, jitter));
             }
 
-            // SOV-05 STABILITY: Retry logic for gossip to improve reliability in jittery networks
-            let attempts = 0;
-            const maxAttempts = priority ? 3 : 1;
+            // SOV-05 STABILITY: Standardized retry for gossip to improve reliability
+            const gossipRes = await retry(() => this.sendSync(node, payload), {
+                maxAttempts: priority ? 3 : 1,
+                baseDelayMs: 200
+            });
 
-            const trySend = async (): Promise<void> => {
-                try {
-                    await this.sendSync(node, payload);
-                } catch (err) {
-                    attempts++;
-                    if (attempts < maxAttempts) {
-                        const backoff = Math.pow(2, attempts) * 100;
-                        await new Promise(r => setTimeout(r, backoff));
-                        return trySend();
-                    }
-                    this.logging.log({
-                        timestamp: new Date().toISOString(),
-                        type: LogType.GENERIC,
-                        severity: LogSeverity.WARNING,
-                        caller: "orchestrator:domain:orchestration:mesh",
-                        message: `Gossip failure to ${node.hostname} after ${attempts} attempts: ${(err as Error).message}`
-                    });
-                }
-            };
-
-            return trySend();
+            if (!gossipRes.success) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:domain:orchestration:mesh",
+                    message: `Gossip failure to ${node.hostname} after retries: ${gossipRes.error.message}`
+                });
+            }
         });
 
         await Promise.all(batchPromises);
