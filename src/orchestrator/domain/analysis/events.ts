@@ -9,6 +9,7 @@ export interface SystemEvent {
   message: string;
   timestamp: string;
   data?: any;
+  correlationId?: string;
 }
 
 export type Handler<T extends EventName> = (data: z.infer<EventRegistry[T]>) => void | Promise<void>;
@@ -83,12 +84,14 @@ export class EventBus implements EventBusPort {
     
     // SOV-06: Preserve recursion guard flags during publication
     const fromAudit = (data as any)?.fromAudit;
+    const correlationId = (data as any)?.correlationId || crypto.randomUUID();
 
     const event: SystemEvent = {
         type: type as EventType,
         message,
         timestamp: new Date().toISOString(),
         data: validatedData,
+        correlationId,
         fromAudit
     } as any;
 
@@ -151,6 +154,10 @@ export class EventBus implements EventBusPort {
     // SOV-05 STABILITY: Standardize metadata for recursion detection
     if (validatedData && typeof validatedData === "object") {
         validatedData.fromEventBus = true;
+        // SOV-07: Ensure correlationId is propagated in validatedData for future hooks
+        if (!validatedData.correlationId) {
+            validatedData.correlationId = event.correlationId;
+        }
     }
 
     // Forward to centralized logging (Suppress massive payloads for periodic noise)

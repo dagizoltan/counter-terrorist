@@ -1,6 +1,7 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
+import { CircuitBreaker } from "../../core/utils/resilience.ts";
 
 export type TacticalSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -18,6 +19,7 @@ export interface NewsItem {
 export class NewsSignalService extends BaseService {
     private kv?: Deno.Kv;
     private refreshInterval?: number;
+    private breaker = new CircuitBreaker({ failureThreshold: 3, resetTimeoutMs: 300000 });
     private feeds = [
         { name: "Krebs on Security", url: "https://krebsonsecurity.com/feed/" },
         { name: "The Hacker News", url: "https://feeds.feedburner.com/TheHackersNews" },
@@ -86,13 +88,29 @@ export class NewsSignalService extends BaseService {
         });
         
         for (const feed of this.feeds) {
-            try {
+            const res = await this.breaker.execute(async () => {
                 // BUG-4.18 FIX: Use a streaming fetch with a size limit to prevent memory exhaustion
                 const response = await fetch(feed.url);
-                if (!response.ok) continue;
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 
                 // Limit XML payload to 512KB to prevent DoS
-                const xml = await response.text().then(t => t.slice(0, 512 * 1024));
+                return await response.text().then(t => t.slice(0, 512 * 1024));
+            });
+
+            if (!res.success) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "NEWS",
+                    message: `Feed sync skipped (${feed.name}): ${res.error.message}`
+                });
+                continue;
+            }
+
+            const xml = res.data;
+
+            try {
                 
                 // Safe parsing: avoid catastrophic backtracking by not using non-greedy [ \s\S]*? over large blocks.
                 // We split the string instead.

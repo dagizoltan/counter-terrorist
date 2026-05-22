@@ -21,16 +21,16 @@ export interface ThreatEvent {
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
 
 import { BaseService } from "@core/base_service.ts";
+import { BoundedMap } from "../../core/utils/collections.ts";
 
 export class AutonomousResponseEngine extends BaseService {
     private services: { logging?: LoggingPort } = {};
-    private scores: Map<string, number> = new Map();
-    private history: Map<string, ThreatEvent[]> = new Map();
-    private activeRemediations: Map<string, { tier: RemediationTier, timestamp: string, reason: string }> = new Map();
+    private scores: BoundedMap<string, number> = new BoundedMap(500);
+    private history: BoundedMap<string, ThreatEvent[]> = new BoundedMap(500);
+    private activeRemediations: BoundedMap<string, { tier: RemediationTier, timestamp: string, reason: string }> = new BoundedMap(500);
     private decayInterval?: number;
 
     private readonly MAX_HISTORY_PER_SOURCE = 20;
-    private readonly MAX_SOURCES = 500; // Prevent memory exhaustion DoS
 
     constructor(
         private saga: ThreatResponseSaga,
@@ -64,14 +64,6 @@ export class AutonomousResponseEngine extends BaseService {
     async evaluate(event: ThreatEvent): Promise<Result<void>> {
         const key = event.source;
         const currentScore = (this.scores.get(key) || 0) + event.severity;
-        
-        // Prevent map explosion (State Exhaustion Protection)
-        if (!this.scores.has(key) && this.scores.size >= this.MAX_SOURCES) {
-            const oldest = Array.from(this.scores.keys())[0];
-            this.scores.delete(oldest);
-            this.history.delete(oldest);
-            this.activeRemediations.delete(oldest);
-        }
 
         this.scores.set(key, currentScore);
         

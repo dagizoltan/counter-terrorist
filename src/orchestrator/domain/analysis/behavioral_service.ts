@@ -4,6 +4,7 @@ import { Result, ok } from "@core/result.ts";
 
 import { AuditService } from "./audit.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
+import { BoundedMap } from "../../core/utils/collections.ts";
 
 interface IpHistory {
   timestamps: number[];
@@ -11,7 +12,7 @@ interface IpHistory {
 }
 
 export class BehavioralService extends BaseService {
-  private history: Map<string, IpHistory> = new Map();
+  private history: BoundedMap<string, IpHistory> = new BoundedMap(1000);
   private metricsInterval?: number;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
@@ -80,25 +81,6 @@ export class BehavioralService extends BaseService {
     let stats = this.history.get(ip);
 
     if (!stats) {
-      // SOV-05 STABILITY: Implement TTL + max capacity to prevent memory exhaustion
-      if (this.history.size >= this.MAX_IPS) {
-          // Evict the IP with the oldest activity
-          let oldestIp = "";
-          let oldestTime = Infinity;
-
-          for (const [hIp, hStats] of this.history.entries()) {
-              const lastSeen = hStats.timestamps[hStats.timestamps.length - 1];
-              if (lastSeen < oldestTime) {
-                  oldestTime = lastSeen;
-                  oldestIp = hIp;
-              }
-          }
-
-          if (oldestIp) {
-              this.history.delete(oldestIp);
-          }
-      }
-
       stats = { timestamps: [], intervals: [] };
       this.history.set(ip, stats);
     }
