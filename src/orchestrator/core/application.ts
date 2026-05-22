@@ -37,29 +37,30 @@ export async function initializeApplication(deps: ApplicationDependencies) {
   deps.mesh.startDiscovery();
 
   // Automated Forensic Response
-  deps.eventBus.subscribe((event) => {
+  deps.eventBus.subscribe(async (event) => {
     if (event.type === "CRITICAL") {
-      deps.protection.pcap.startCapture("any", 60, `intrusion_${Date.now()}.pcap`)
-        .then(res => {
-          if (!res.success) {
-            deps.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:core:application:forensics",
-                message: `PCAP capture failed: ${res.stderr}`
-            });
-          }
-        })
-        .catch(err => {
+        try {
+            const res = await deps.protection.pcap.startCapture("any", 60, `intrusion_${Date.now()}.pcap`);
+            if (!res.success) {
+                deps.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:core:application:forensics",
+                    message: `CRITICAL: Automated PCAP capture failed: ${res.stderr}`
+                });
+                // SOV-05: Propagate as error for visibility
+                throw new Error(`PCAP capture failed: ${res.stderr}`);
+            }
+        } catch (err) {
             deps.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "orchestrator:core:application:forensics",
-                message: `Unexpected PCAP error: ${err.message}`
+                message: `Unexpected PCAP error during forensic response: ${err instanceof Error ? err.message : String(err)}`
             });
-        });
+        }
     }
   });
 

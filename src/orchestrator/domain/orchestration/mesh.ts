@@ -54,7 +54,7 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: "Mesh MeshManager offline."
       });
-      return ok(undefined);
+      return await super.shutdown();
   }
 
   constructor(
@@ -87,6 +87,8 @@ export class MeshManager extends BaseService {
   }
 
   override async init(): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
+
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.startStateWatcher();
     this.port = this.config.getNumber("PORT", 8000);
@@ -112,6 +114,7 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `mTLS Identity established for ${this.nodeId}`
       });
+      this.initialized = true;
       return ok(undefined);
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e));
