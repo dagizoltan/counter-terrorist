@@ -24,7 +24,6 @@
     "@core/": "./src/orchestrator/core/",
     "@domain/": "./src/orchestrator/domain/",
     "@infrastructure/": "./src/orchestrator/infrastructure/",
-    "@api/": "./src/orchestrator/interface/web/api/",
     "@interface/": "./src/orchestrator/interface/web/",
     "@orchestrator/": "./src/orchestrator/",
     "@app/": "./src/orchestrator/app/",

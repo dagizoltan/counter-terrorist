@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { getThreatStatsHandler } from "../../api/threats.ts";
 
-export const handlerFactory = (services: ServiceContainer) => getThreatStatsHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+    const stats = await services.curatedIntel.getStats();
+    return c.json(stats);
+};

@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { bundleForensicsHandler } from "../../api/reports.ts";
 
-export const handlerFactory = (services: ServiceContainer) => bundleForensicsHandler(services.forensicService);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  const bundle = await services.forensicService.generateEvidenceBundle();
+  return c.json({ success: true, bundleId: bundle.id });
+};

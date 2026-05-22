@@ -1,7 +1,7 @@
 import { LoggingPort, LogSeverity, LogType, LogEntry, SyslogSeverity } from "@core/ports.ts";
 import { TimelineRepository } from "../persistence/repositories/timeline_repository.ts";
 import { DiagnosticRepository } from "../persistence/diagnostic_repository.ts";
-import { broadcast } from "@api/ws.ts";
+import { broadcast } from "@interface/ws_handler.ts";
 
 export { LogSeverity, LogType, SyslogSeverity };
 

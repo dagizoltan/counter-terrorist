@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { getIncidentsHandler } from "../../api/compliance.ts";
 
-export const handlerFactory = (services: ServiceContainer) => getIncidentsHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+    const incidents = await services.incidents.getIncidents(100);
+    return c.json(incidents);
+};

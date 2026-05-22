@@ -1,16 +1,17 @@
 import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { getWebhooksHandler, addWebhookHandler } from "../../api/notifications.ts";
 
-export const handlerFactory = (services: ServiceContainer) => {
-  const handlers = {
-    getWebhooksHandler: getWebhooksHandler(services.notifications),
-    addWebhookHandler: addWebhookHandler(services.notifications),
-  };
-
-  return async (c: Context) => {
-    if (c.req.method === "GET") return handlers.getWebhooksHandler(c);
-    if (c.req.method === "POST") return handlers.addWebhookHandler(c);
-    return c.text("Method not allowed", 405);
-  };
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  const method = c.req.method;
+  if (method === "GET") {
+    return c.json(services.notifications.getWebhooks());
+  } else if (method === "POST") {
+    const config = await c.req.json();
+    const result = await services.notifications.addWebhook(config);
+    if ("error" in result) {
+      return c.json({ success: false, error: result.error }, 400);
+    }
+    return c.json(result, 201);
+  }
+  return c.json({ error: "Method not allowed" }, 405);
 };

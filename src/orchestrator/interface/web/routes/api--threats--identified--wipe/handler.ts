@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { wipeThreatsHandler } from "../../api/threats.ts";
 
-export const handlerFactory = (services: ServiceContainer) => wipeThreatsHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+    await services.curatedIntel.wipeDatabase();
+    return c.json({ success: true });
+};

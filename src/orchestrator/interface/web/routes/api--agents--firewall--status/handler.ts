@@ -1,4 +1,7 @@
+import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
-import { firewallStatusHandler } from "../../api/agents.ts";
 
-export const handlerFactory = (services: ServiceContainer) => firewallStatusHandler(services);
+export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+  const result = await services.protection.firewall.getStatus();
+  return c.json(result);
+};
