@@ -19,6 +19,17 @@ export class RateLimitService extends BaseService {
       super();
   }
 
+  override async init(): Promise<import("../../core/result.ts").Result<void>> {
+    if (this.initialized) return { success: true, data: undefined };
+    this.initialized = true;
+    return { success: true, data: undefined };
+  }
+
+  override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    this.initialized = false;
+    return await super.shutdown();
+  }
+
   /**
    * Increments and checks the rate limit for a given key (e.g., IP).
    * @param key The identifier to rate limit (IP, User ID, etc.)

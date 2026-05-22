@@ -34,6 +34,7 @@ export class BehavioralService extends BaseService {
       console.log("BehavioralService shutting down");
       if (this.metricsInterval) clearInterval(this.metricsInterval);
       this.analyzer.shutdown();
+      this.initialized = false;
       return await super.shutdown();
   }
 

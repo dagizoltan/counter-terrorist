@@ -114,10 +114,27 @@ export class ThreatResponseSaga {
                 await this.deps.firewall.quarantineProcess(pid);
 
                 // 2. Extract and Gossip binary hash for fleet-wide blocking
-                this.deps.forensics.calculateProcessHash(pid).then(hash => {
+                this.deps.forensics.calculateProcessHash(pid).then(async (hash) => {
                     if (hash) {
-                        this.deps.mesh.broadcastThreatHash(hash, Deno.hostname());
+                        const res = await this.deps.mesh.broadcastThreatHash(hash, Deno.hostname());
+                        if (!res.success) {
+                            this.deps.logging.log({
+                                timestamp: new Date().toISOString(),
+                                type: LogType.GENERIC,
+                                severity: LogSeverity.WARNING,
+                                caller: "orchestrator:saga:threat_response:gossip",
+                                message: `Failed to broadcast threat hash for PID ${pid}: ${res.error.message}`
+                            });
+                        }
                     }
+                }).catch(err => {
+                    this.deps.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:saga:threat_response:forensics",
+                        message: `Failed to calculate process hash for PID ${pid}: ${err instanceof Error ? err.message : String(err)}`
+                    });
                 });
 
                 // 3. Delayed kill to allow forensics to complete

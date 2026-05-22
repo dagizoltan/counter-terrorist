@@ -35,6 +35,7 @@ export class AutopilotService extends BaseService {
   }
 
   public override async init(..._args: any[]): Promise<Result<void>> {
+    if (this.initialized) return ok(undefined);
     if (!this.services) return ok(undefined);
 
     const saga = new ThreatResponseSaga({
@@ -52,6 +53,7 @@ export class AutopilotService extends BaseService {
         this.policy,
         this.services.logging
     );
+    this.initialized = true;
     return ok(undefined);
   }
 
@@ -91,7 +93,8 @@ export class AutopilotService extends BaseService {
           caller: "orchestrator:domain:orchestration:autopilot_service",
           message: "Autonomous Defense Mesh disengaged."
       });
-      return ok(undefined);
+      this.initialized = false;
+      return await super.shutdown();
   }
 
   async start() {
@@ -219,7 +222,11 @@ export class AutopilotService extends BaseService {
     });
 
     // Periodic integrity check using injected authoritative tracker
-    this.intervalId = setInterval(async () => {
+    const ghostInterval = setInterval(async () => {
+        if (!this.isStarted || !this.services) {
+            clearInterval(ghostInterval);
+            return;
+        }
         const ghosts = await this.services!.processTracker.scanForGhosts();
         if (ghosts.length > 0) {
             await this.engine.evaluate({
@@ -230,7 +237,8 @@ export class AutopilotService extends BaseService {
                 data: { ghosts }
             });
         }
-    }, 60000); 
+    }, 60000);
+    this.unsubscribers.push(() => clearInterval(ghostInterval));
   }
 
   public async spawnLureProcess() {

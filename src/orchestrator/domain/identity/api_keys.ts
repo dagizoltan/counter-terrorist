@@ -35,6 +35,17 @@ export class ApiKeysService extends BaseService {
     this.revokeApiKey = withTelemetry("Auth:RevokeKey", this._revokeApiKey.bind(this), logging);
   }
 
+  override async init(): Promise<import("../../core/result.ts").Result<void>> {
+    if (this.initialized) return { success: true, data: undefined };
+    this.initialized = true;
+    return { success: true, data: undefined };
+  }
+
+  override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    this.initialized = false;
+    return await super.shutdown();
+  }
+
   /**
    * Hashes a raw API key with a salt using SHA-256.
    */

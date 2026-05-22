@@ -1,6 +1,7 @@
 import { AuditEvent, AuditService } from "./audit.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
+import { BaseService } from "@core/base_service.ts";
 
 export interface CorrelationNode {
     id: string;
@@ -31,12 +32,25 @@ export interface KillChain {
     isConfirmedBreach: boolean;
 }
 
-export class CorrelationService {
+export class CorrelationService extends BaseService {
     private activeNodes: Map<string, CorrelationNode> = new Map();
     private killChains: Map<string, KillChain> = new Map();
     private readonly ATTACK_BURST_WINDOW_MS = 60000;
 
-    constructor(private audit: AuditService, private logging: LoggingPort) {}
+    constructor(private audit: AuditService, private logging: LoggingPort) {
+        super();
+    }
+
+    override async init(): Promise<import("../../core/result.ts").Result<void>> {
+        if (this.initialized) return { success: true, data: undefined };
+        this.initialized = true;
+        return { success: true, data: undefined };
+    }
+
+    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+        this.initialized = false;
+        return await super.shutdown();
+    }
 
     async processEvent(event: AuditEvent) {
         const subjects = this.extractSubjects(event);

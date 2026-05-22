@@ -7,14 +7,18 @@ export interface Dependency {
     cve?: string;
 }
 
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "@core/result.ts";
+
 /**
  * SupplyChainService
  * Dynamically generates SBOM by parsing Deno and Rust dependency manifests.
  */
-export class SupplyChainService {
+export class SupplyChainService extends BaseService {
     private dependencies: Dependency[] = [];
 
-    async init() {
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
         this.dependencies = [];
         
         // 1. Parse Deno Dependencies (deno.lock)
@@ -95,6 +99,13 @@ export class SupplyChainService {
                 { name: "hono", version: "v4.3.7", license: "MIT", status: "SECURE", feature: "ORCHESTRATOR" }
             ];
         }
+        this.initialized = true;
+        return ok(undefined);
+    }
+
+    override async shutdown(): Promise<Result<void>> {
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     getSBOM() {

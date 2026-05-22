@@ -112,6 +112,13 @@ export class CanaryService extends BaseService {
         } catch {}
     }
 
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        const res = await this.start();
+        if (res.success) this.initialized = true;
+        return res;
+    }
+
     /**
      * Deploys deception artifacts by creating master files and hardlinking them.
      */
@@ -326,6 +333,7 @@ export class CanaryService extends BaseService {
                 await Deno.remove(token.masterPath).catch(() => {});
             } catch { /* ignore */ }
         }
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 }

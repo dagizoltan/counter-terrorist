@@ -24,16 +24,26 @@ export class GovernanceService extends BaseService {
 
     constructor(
         private mesh: MeshManager,
-        private protection: any, // ProtectionPort
+        private protection: import("../../core/ports.ts").ProtectionPort,
         private logging: LoggingPort
     ) {
         super();
+    }
+
+    override async init(): Promise<import("../../core/result.ts").Result<void>> {
+        if (this.initialized) return { success: true, data: undefined };
         // BUG-4.24 FIX: Periodically cleanup expired proposals to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanupProposals(), 3600000); // 1 hour
+        this.initialized = true;
+        return { success: true, data: undefined };
     }
 
     override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
-        if (this.cleanupInterval) clearInterval(this.cleanupInterval);
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = undefined;
+        }
+        this.initialized = false;
         return { success: true, data: undefined };
     }
 
@@ -198,8 +208,11 @@ export class GovernanceService extends BaseService {
         }
     }
 
+    private executionLocks: Set<string> = new Set();
+
     private async executeProposal(proposal: Proposal) {
-        if (proposal.executed) return;
+        if (proposal.executed || this.executionLocks.has(proposal.id)) return;
+        this.executionLocks.add(proposal.id);
         proposal.executed = true;
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -259,6 +272,8 @@ export class GovernanceService extends BaseService {
                 caller: "GOVERNANCE",
                 message: `Execution failure for ${proposal.id}: ${(e as Error).message}`
             });
+        } finally {
+            this.executionLocks.delete(proposal.id);
         }
     }
 }

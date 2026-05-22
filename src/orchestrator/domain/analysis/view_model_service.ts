@@ -28,14 +28,29 @@ export class ViewModelService extends BaseService {
     private recentAlerts: any[] = [];
     private readonly MAX_ALERTS = 50;
 
+    private unsubscribers: (() => void)[] = [];
+
     constructor() {
         super();
+    }
+
+    override async init(): Promise<import("../../core/result.ts").Result<void>> {
+        if (this.initialized) return { success: true, data: undefined };
+        this.initialized = true;
+        return { success: true, data: undefined };
+    }
+
+    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+        this.unsubscribers.forEach(u => u());
+        this.unsubscribers = [];
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     override setEventBus(eventBus: any) {
         super.setEventBus(eventBus);
 
-        this.eventBus!.on("METRIC_UPDATE", (event: any) => {
+        this.unsubscribers.push(this.eventBus!.on("METRIC_UPDATE", (event: any) => {
             if (event.domain === "audit") {
                 this.metrics.totalEvents = event.data.totalEvents;
                 this.metrics.lastAuditTimestamp = new Date().toISOString();
@@ -44,18 +59,18 @@ export class ViewModelService extends BaseService {
             } else if (event.domain === "mesh") {
                 this.metrics.activeNodes = event.data.activeNodes;
             }
-        });
+        }));
 
-        this.eventBus!.on("THREAT", (event: any) => {
+        this.unsubscribers.push(this.eventBus!.on("THREAT", (event: any) => {
             this.metrics.threatsDetected++;
             this.addAlert("THREAT", event);
-        });
+        }));
 
-        this.eventBus!.on("UI_BROADCAST", (msg: any) => {
+        this.unsubscribers.push(this.eventBus!.on("UI_BROADCAST", (msg: any) => {
             if (msg.type === "TACTICAL_TRIGGER") {
                 this.addAlert("TRIGGER", msg.data);
             }
-        });
+        }));
     }
 
     private addAlert(type: string, data: any) {

@@ -3,11 +3,14 @@ import { AuditService } from "./audit.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";
 
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "@core/result.ts";
+
 /**
  * IntegrityService
  * Implements the "Dead Man's Switch" - autonomous self-destruct for isolated, compromised nodes.
  */
-export class IntegrityService {
+export class IntegrityService extends BaseService {
     private checkIntervalId?: number;
 
     constructor(
@@ -17,6 +20,13 @@ export class IntegrityService {
         private logging: LoggingPort
     ) {}
 
+    override async init(): Promise<Result<void>> {
+        if (this.initialized) return ok(undefined);
+        this.start();
+        this.initialized = true;
+        return ok(undefined);
+    }
+
     /**
      * Starts the integrity monitoring loop.
      */
@@ -25,13 +35,13 @@ export class IntegrityService {
         this.checkIntervalId = setInterval(() => this.checkIntegrity(), 60000); // Once per minute
     }
 
-    public async shutdown(): Promise<import("@core/result.ts").Result<void>> {
-        const { ok } = await import("@core/result.ts");
+    public override async shutdown(): Promise<Result<void>> {
         if (this.checkIntervalId) {
             clearInterval(this.checkIntervalId);
             this.checkIntervalId = undefined;
         }
-        return ok(undefined);
+        this.initialized = false;
+        return await super.shutdown();
     }
 
     private async checkIntegrity() {

@@ -1,16 +1,16 @@
-import { LogSeverity, LogType, LoggingPort } from "@core/ports.ts";
+import { LogSeverity, LogType, LoggingPort, EventBusPort, ProtectionPort, NotificationPort, MeshPort } from "@core/ports.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";
 import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
 export interface PlaybookDependencies {
-  eventBus: any;
-  protection: any;
-  notifications: any;
-  mesh: any;
-  shadowProtocol: any;
-  behavioral?: any;
+  eventBus: EventBusPort;
+  protection: ProtectionPort;
+  notifications: NotificationPort;
+  mesh: MeshPort;
+  shadowProtocol: import("../protection/shadow_protocol_service.ts").ShadowProtocolService;
+  behavioral?: import("../analysis/behavioral_service.ts").BehavioralService;
 }
 
 export class PlaybookService extends BaseService {
@@ -312,6 +312,7 @@ export class PlaybookService extends BaseService {
     this.unsubscribers.forEach(u => u());
     this.unsubscribers = [];
     this.services = undefined;
+    this.initialized = false;
     return await super.shutdown();
   }
 }
