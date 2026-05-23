@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
 import { retry } from "../../core/utils/resilience.ts";
@@ -21,15 +22,12 @@ export class RateLimitService extends BaseService {
       super();
   }
 
-  override async init(): Promise<import("../../core/result.ts").Result<void>> {
-    if (this.initialized) return { success: true, data: undefined };
-    this.initialized = true;
+  protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
     return { success: true, data: undefined };
   }
 
-  override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
-    this.initialized = false;
-    return await super.shutdown();
+  protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    return ok(undefined);
   }
 
   /**

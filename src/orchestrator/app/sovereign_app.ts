@@ -31,7 +31,7 @@ import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts
 import { loadConfig } from "@core/config_schema.ts";
 import { setMeshManager } from "@domain/orchestration/mesh.ts";
 import { setMetricsService } from "@domain/analysis/metrics_service.ts";
-import { ServiceRegistry } from "@core/registry.ts";
+import { ServiceRegistry, ShutdownPriority } from "@core/registry.ts";
 
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
@@ -91,13 +91,13 @@ export class SovereignApp {
 
         const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, this.registry);
         this.lifecycleService = factory.initSystemLifecycle(tpmManager);
-        this.registry.register("SystemLifecycle", this.lifecycleService);
+        this.registry.register("SystemLifecycle", this.lifecycleService, ShutdownPriority.CRITICAL);
 
         await this.setupSafetyAndErrorHandlers();
 
         const { platformInfo, notificationService, eventBus, meshManager, healthService } =
             await this.initializeInfrastructure(configProvider, tpmManager);
-        this.registry.register("Health", healthService);
+        this.registry.register("Health", healthService, ShutdownPriority.CRITICAL);
 
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
@@ -176,14 +176,14 @@ export class SovereignApp {
         await bootstrap();
         const eventBus = new EventBus(loggingService);
         const notificationService = new NotificationService(this.kv, loggingService);
-        this.registry.register("Notifications", notificationService);
+        this.registry.register("Notifications", notificationService, ShutdownPriority.AUXILIARY);
         const healthService = new HealthService(loggingService);
         healthService.setSidecarManager(this.sidecarManager);
         
         // REPOSITORY INJECTION
         const auditRepo = new KvAuditRepository(this.kv);
         this.auditService = new AuditService(auditRepo, loggingService, tpmManager);
-        this.registry.register("Audit", this.auditService);
+        this.registry.register("Audit", this.auditService, ShutdownPriority.CRITICAL);
         this.auditService.setConfig(configProvider);
         const auditInitRes = await this.auditService.init();
         if (!auditInitRes.success) {
@@ -238,7 +238,7 @@ export class SovereignApp {
         this.services.lifecycle.startShadowModeTimer(configProvider);
         this.services.lifecycle.scheduleLkgSnapshot();
         this.watchdog = this.startWatchdog(healthService);
-        this.registry.register("Watchdog", this.watchdog);
+        this.registry.register("Watchdog", this.watchdog, ShutdownPriority.AUXILIARY);
     }
 
     private watchdog?: WatchdogService;
@@ -291,9 +291,9 @@ export class SovereignApp {
 
     private async initMesh(tpm: TPMManager, config: ConfigurationPort): Promise<MeshManager> {
         const meshAuthService = new MeshAuthService(this.kv, loggingService, config, tpm);
-        this.registry.register("MeshAuth", meshAuthService);
+        this.registry.register("MeshAuth", meshAuthService, ShutdownPriority.NETWORK);
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, config);
-        this.registry.register("Mesh", meshManager);
+        this.registry.register("Mesh", meshManager, ShutdownPriority.NETWORK);
         
         setMeshManager(meshManager);
         meshManager.startDiscovery();
@@ -308,7 +308,7 @@ export class SovereignApp {
             services.eventBus,
             loggingService
         );
-        this.registry.register("DecentralizedMetrics", metricsService);
+        this.registry.register("DecentralizedMetrics", metricsService, ShutdownPriority.AUXILIARY);
         setMetricsService(metricsService as any);
 
         this.injectEventBus(services);
@@ -516,68 +516,68 @@ export class SovereignApp {
         const factory = new SubsystemFactory(this.kv, loggingService, this.executor, this.sidecarManager, this.auditService, this.registry);
 
         const identity = factory.initIdentity(configProvider);
-        this.registry.register("Sessions", identity.sessions);
-        this.registry.register("ApiKeys", identity.apiKeys);
-        this.registry.register("RateLimit", identity.rateLimit);
+        this.registry.register("Sessions", identity.sessions, ShutdownPriority.AUXILIARY);
+        this.registry.register("ApiKeys", identity.apiKeys, ShutdownPriority.CRITICAL);
+        this.registry.register("RateLimit", identity.rateLimit, ShutdownPriority.CRITICAL);
 
         const { protection, networkLog } = await factory.initProtection(platformInfo, configProvider);
-        this.registry.register("NetworkLog", networkLog);
+        this.registry.register("NetworkLog", networkLog, ShutdownPriority.AUXILIARY);
         
         const processTracker = factory.initProcessTracker(platformInfo);
-        this.registry.register("ProcessTracker", processTracker);
+        this.registry.register("ProcessTracker", processTracker, ShutdownPriority.CRITICAL);
         
         const correlation = new CorrelationService(this.auditService, loggingService);
         this.auditService.setCorrelation(correlation);
 
         const security = factory.initSecurity(protection, mesh, configProvider, health);
-        this.registry.register("Anonymization", security.anonymization);
-        this.registry.register("ShadowProtocol", security.shadowProtocol);
-        this.registry.register("Behavioral", security.behavioral);
-        this.registry.register("Honeypot", security.honeypot);
+        this.registry.register("Anonymization", security.anonymization, ShutdownPriority.NETWORK);
+        this.registry.register("ShadowProtocol", security.shadowProtocol, ShutdownPriority.AUXILIARY);
+        this.registry.register("Behavioral", security.behavioral, ShutdownPriority.AUXILIARY);
+        this.registry.register("Honeypot", security.honeypot, ShutdownPriority.AUXILIARY);
 
         const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth);
-        this.registry.register("GeoIp", intelligence.geoIp);
-        this.registry.register("Forensics", intelligence.forensicService);
-        this.registry.register("CuratedIntel", intelligence.curatedIntel);
-        this.registry.register("NewsSignal", intelligence.news);
-        this.registry.register("NetworkDiscovery", intelligence.networkDiscovery);
-        this.registry.register("Incidents", intelligence.incidents);
-        this.registry.register("Compliance", intelligence.compliance);
+        this.registry.register("GeoIp", intelligence.geoIp, ShutdownPriority.AUXILIARY);
+        this.registry.register("Forensics", intelligence.forensicService, ShutdownPriority.AUXILIARY);
+        this.registry.register("CuratedIntel", intelligence.curatedIntel, ShutdownPriority.AUXILIARY);
+        this.registry.register("NewsSignal", intelligence.news, ShutdownPriority.AUXILIARY);
+        this.registry.register("NetworkDiscovery", intelligence.networkDiscovery, ShutdownPriority.AUXILIARY);
+        this.registry.register("Incidents", intelligence.incidents, ShutdownPriority.AUXILIARY);
+        this.registry.register("Compliance", intelligence.compliance, ShutdownPriority.AUXILIARY);
 
         const playbook = new PlaybookService();
-        this.registry.register("Playbook", playbook);
+        this.registry.register("Playbook", playbook, ShutdownPriority.AUXILIARY);
         const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await factory.initEngine(correlation, mesh);
-        this.registry.register("Autopilot", autopilot);
-        this.registry.register("AutonomousAutopilot", autonomousAutopilot);
-        this.registry.register("Lifecycle", lifecycle);
-        this.registry.register("Policy", policy);
-        this.registry.register("Provisioning", provisioning);
+        this.registry.register("Autopilot", autopilot, ShutdownPriority.AUXILIARY);
+        this.registry.register("AutonomousAutopilot", autonomousAutopilot, ShutdownPriority.AUXILIARY);
+        this.registry.register("Lifecycle", lifecycle, ShutdownPriority.AUXILIARY);
+        this.registry.register("Policy", policy, ShutdownPriority.AUXILIARY);
+        this.registry.register("Provisioning", provisioning, ShutdownPriority.AUXILIARY);
 
         const integrity = factory.createService(health, "Integrity", () => new IntegrityService(mesh, this.auditService, tpm, loggingService));
-        this.registry.register("Integrity", integrity);
+        this.registry.register("Integrity", integrity, ShutdownPriority.CRITICAL);
 
         const morphing = factory.createService(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
-        this.registry.register("Morphing", morphing);
+        this.registry.register("Morphing", morphing, ShutdownPriority.AUXILIARY);
         const chaos = factory.createService(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
-        this.registry.register("Chaos", chaos);
+        this.registry.register("Chaos", chaos, ShutdownPriority.AUXILIARY);
 
         const supplyChain = factory.createService(health, "SupplyChain", () => new SupplyChainService());
-        this.registry.register("SupplyChain", supplyChain);
+        this.registry.register("SupplyChain", supplyChain, ShutdownPriority.AUXILIARY);
         await supplyChain.init();
         const shadow = factory.createService(health, "Shadow", () => new ShadowService(this.executor, loggingService));
-        this.registry.register("Shadow", shadow);
+        this.registry.register("Shadow", shadow, ShutdownPriority.AUXILIARY);
 
         const covert = factory.createService(health, "Covert", () => new CovertChannelService(this.executor, loggingService));
-        this.registry.register("Covert", covert);
+        this.registry.register("Covert", covert, ShutdownPriority.NETWORK);
 
         const ledger = new LedgerService(mesh, loggingService);
-        this.registry.register("Ledger", ledger);
+        this.registry.register("Ledger", ledger, ShutdownPriority.CRITICAL);
 
         const viewModel = new ViewModelService();
-        this.registry.register("ViewModel", viewModel);
+        this.registry.register("ViewModel", viewModel, ShutdownPriority.INTERFACE);
 
         const mediator = new EventMediator(eventBus, processTracker, security.canaryService, broadcast, loggingService, this.kv);
-        this.registry.register("EventMediator", mediator);
+        this.registry.register("EventMediator", mediator, ShutdownPriority.AUXILIARY);
 
         const services: ServiceContainer = {
             config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,

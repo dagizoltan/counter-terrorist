@@ -22,18 +22,15 @@ export class HealthService extends BaseService {
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
     private intervals: number[] = [];
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
-        this.initialized = true;
+    protected override async onInit(): Promise<Result<void>> {
         return ok(undefined);
     }
 
-    public override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         // SOV-05 STABILITY: Clear all background monitoring intervals
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private sidecarManager?: any;

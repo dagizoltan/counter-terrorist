@@ -19,15 +19,12 @@ export class NotificationService extends BaseService {
         super();
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         await this.loadWebhooks();
-        this.initialized = true;
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
-        this.initialized = false;
+    protected override async onShutdown(): Promise<Result<void>> {
         return ok(undefined);
     }
 

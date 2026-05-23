@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
@@ -369,19 +370,16 @@ export class BaselineService extends BaseService {
     }, intervalMs);
   }
 
-  override async init(): Promise<import("../../core/result.ts").Result<void>> {
-    if (this.initialized) return { success: true, data: undefined };
+  protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
     await this.restoreBaseline();
-    this.initialized = true;
     return { success: true, data: undefined };
   }
 
-  override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+  protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
       if (this.monitorInterval) {
           clearInterval(this.monitorInterval);
           this.monitorInterval = undefined;
       }
-      this.initialized = false;
-      return super.shutdown();
+      return ok(undefined);
   }
 }

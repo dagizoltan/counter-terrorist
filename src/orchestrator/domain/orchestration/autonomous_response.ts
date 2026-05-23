@@ -41,20 +41,17 @@ export class AutonomousResponseEngine extends BaseService {
         this.services.logging = logging;
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         // Automatically decay scores every 5 minutes to allow recovery
         this.decayInterval = setInterval(() => this.decayScores(), 300000);
-        this.initialized = true;
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.decayInterval) {
             clearInterval(this.decayInterval);
             this.decayInterval = undefined;
         }
-        this.initialized = false;
         return ok(undefined);
     }
 

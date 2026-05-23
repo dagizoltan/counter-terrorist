@@ -113,10 +113,8 @@ export class HoneypotService extends BaseService {
   private morphInterval?: number;
   private metricsInterval?: number;
 
-  override async init(): Promise<Result<void>> {
-    if (this.initialized) return ok(undefined);
+  protected override async onInit(): Promise<Result<void>> {
     const res = await this.start();
-    if (res.success) this.initialized = true;
     return res;
   }
 
@@ -164,7 +162,7 @@ export class HoneypotService extends BaseService {
     });
   }
 
-  override async shutdown(): Promise<Result<void>> {
+  protected override async onShutdown(): Promise<Result<void>> {
       if (this.morphInterval) {
           clearInterval(this.morphInterval);
           this.morphInterval = undefined;
@@ -174,8 +172,7 @@ export class HoneypotService extends BaseService {
           this.metricsInterval = undefined;
       }
       await this.sidecarManager.stopSidecar("decoy");
-      this.initialized = false;
-      return await super.shutdown();
+      return ok(undefined);
   }
 
   private async handleEvent(event: any) {

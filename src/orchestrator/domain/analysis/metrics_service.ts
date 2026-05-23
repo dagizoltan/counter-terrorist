@@ -154,17 +154,14 @@ export class MetricsService extends BaseService {
 
     private isRunning = false;
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         this.start();
-        this.initialized = true;
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         this.stop();
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private async start() {

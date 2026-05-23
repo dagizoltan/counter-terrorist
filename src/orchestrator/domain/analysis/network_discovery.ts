@@ -40,10 +40,8 @@ export class NetworkDiscoveryService extends BaseService {
         this.mesh = mesh;
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         const res = await this.start();
-        if (res.success) this.initialized = true;
         return res;
     }
 
@@ -240,13 +238,12 @@ export class NetworkDiscoveryService extends BaseService {
         return Array.from(this.devices.values());
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
         }
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private async getPrimaryInterface() {

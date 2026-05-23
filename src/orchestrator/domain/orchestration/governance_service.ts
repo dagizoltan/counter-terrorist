@@ -30,20 +30,17 @@ export class GovernanceService extends BaseService {
         super();
     }
 
-    override async init(): Promise<import("../../core/result.ts").Result<void>> {
-        if (this.initialized) return { success: true, data: undefined };
+    protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
         // BUG-4.24 FIX: Periodically cleanup expired proposals to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanupProposals(), 3600000); // 1 hour
-        this.initialized = true;
         return { success: true, data: undefined };
     }
 
-    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
         if (this.cleanupInterval) {
             clearInterval(this.cleanupInterval);
             this.cleanupInterval = undefined;
         }
-        this.initialized = false;
         return { success: true, data: undefined };
     }
 

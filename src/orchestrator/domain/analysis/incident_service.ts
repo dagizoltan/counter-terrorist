@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { LoggingPort, SyslogSeverity } from "@core/ports.ts";
 import { TimelineRepository } from "@infrastructure/persistence/repositories/timeline_repository.ts";
 import { BaseService } from "@core/base_service.ts";
@@ -21,15 +22,12 @@ export class IncidentService extends BaseService {
         this.repo = new TimelineRepository<Incident>(kv, "incidents");
     }
 
-    override async init(): Promise<import("../../core/result.ts").Result<void>> {
-        if (this.initialized) return { success: true, data: undefined };
-        this.initialized = true;
+    protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
         return { success: true, data: undefined };
     }
 
-    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
-        this.initialized = false;
-        return await super.shutdown();
+    protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
+        return ok(undefined);
     }
 
     async reportIncident(incident: Omit<Incident, "id" | "timestamp" | "status">) {

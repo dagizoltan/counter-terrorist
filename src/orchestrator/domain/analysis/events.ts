@@ -4,15 +4,15 @@ import { z } from "npm:zod";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT" | "METRIC_UPDATE";
 
-export interface SystemEvent {
-  type: EventType;
+export interface SystemEvent<T extends EventName = any> {
+  type: T;
   message: string;
   timestamp: string;
-  data?: any;
+  data: z.infer<EventRegistry[T]>;
   correlationId?: string;
 }
 
-export type Handler<T extends EventName> = (data: z.infer<EventRegistry[T]>) => void | Promise<void>;
+export type Handler<T extends EventName> = (data: z.infer<EventRegistry[T]>, event: SystemEvent<T>) => void | Promise<void>;
 
 export type Middleware = (event: SystemEvent, next: () => void | Promise<void>) => void | Promise<void>;
 
@@ -45,7 +45,7 @@ export class EventBus implements EventBusPort {
     this.middleware.push(mw);
   }
 
-  subscribe(handler: (event: SystemEvent) => void | Promise<void>): () => void {
+  subscribe(handler: (event: SystemEvent<any>) => void | Promise<void>): () => void {
     this.handlers.push(handler);
     return () => this.unsubscribe(handler);
   }
@@ -186,7 +186,7 @@ export class EventBus implements EventBusPort {
         this.safelyExecute(() => h(event), 2000);
     }
     for (const h of typeHandlers) {
-        this.safelyExecute(() => h(validatedData), 2000);
+        this.safelyExecute(() => h(validatedData, event), 2000);
     }
   }
 

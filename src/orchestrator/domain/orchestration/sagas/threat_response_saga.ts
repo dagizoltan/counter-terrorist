@@ -20,39 +20,91 @@ export interface SagaDependencies {
  * Coordinates complex, multi-stage defensive responses to detected threats.
  * Decouples coordination logic from pure behavioral assessment.
  */
+export enum SagaState {
+    PENDING = "PENDING",
+    EXECUTING = "EXECUTING",
+    COMPLETED = "COMPLETED",
+    FAILED = "FAILED",
+    ROLLED_BACK = "ROLLED_BACK"
+}
+
+export interface SagaInstance {
+    id: string;
+    source: string;
+    tier: RemediationTier;
+    state: SagaState;
+    steps: string[];
+    timestamp: string;
+}
+
+/**
+ * ThreatResponseSaga
+ * Coordinates complex, multi-stage defensive responses to detected threats.
+ * Decouples coordination logic from pure behavioral assessment.
+ */
 export class ThreatResponseSaga {
+    private activeSagas: Map<string, SagaInstance> = new Map();
+
     constructor(private deps: SagaDependencies) {}
 
     async execute(source: string, tier: RemediationTier, trigger: ThreatEvent, totalScore: number): Promise<Result<void>> {
-        const auditMsg = `Remediation Tier [${tier}] engaged for ${source}. Reason: ${trigger.type}`;
+        const sagaId = crypto.randomUUID();
+        const instance: SagaInstance = {
+            id: sagaId,
+            source,
+            tier,
+            state: SagaState.PENDING,
+            steps: [],
+            timestamp: new Date().toISOString()
+        };
+        this.activeSagas.set(sagaId, instance);
+
+        const auditMsg = `Saga [${sagaId.slice(0, 8)}] Remediation Tier [${tier}] engaged for ${source}. Reason: ${trigger.type}`;
         await this.deps.audit.logEvent({
             type: LogType.AUDIT,
             message: auditMsg,
             data: { source, tier, trigger, totalScore }
         });
 
+        instance.state = SagaState.EXECUTING;
+
         try {
+            let result: Result<void>;
             switch (tier) {
                 case "LOCKDOWN":
-                    return await this.handleLockdown(source);
+                    result = await this.handleLockdown(source);
+                    break;
 
                 case "ISOLATE":
-                    return await this.handleIsolation(source);
+                    result = await this.handleIsolation(source);
+                    break;
 
                 case "BLOCK":
-                    return await this.handleBlock(source, trigger);
+                    result = await this.handleBlock(source, trigger);
+                    break;
 
                 case "SHADOW":
-                    return await this.handleShadow(source);
+                    result = await this.handleShadow(source);
+                    break;
 
                 case "WATCH":
-                    return await this.handleWatch(source);
+                    result = await this.handleWatch(source);
+                    break;
 
                 case "LOG":
                 default:
-                    return ok(undefined);
+                    result = ok(undefined);
             }
+
+            if (result.success) {
+                instance.state = SagaState.COMPLETED;
+            } else {
+                instance.state = SagaState.FAILED;
+            }
+            return result;
+
         } catch (e) {
+            instance.state = SagaState.FAILED;
             const error = e instanceof Error ? e : new Error(String(e));
             this.deps.logging.log({
                 timestamp: new Date().toISOString(),

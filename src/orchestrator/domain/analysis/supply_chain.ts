@@ -17,8 +17,7 @@ import { Result, ok } from "@core/result.ts";
 export class SupplyChainService extends BaseService {
     private dependencies: Dependency[] = [];
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         this.dependencies = [];
         
         // 1. Parse Deno Dependencies (deno.lock)
@@ -99,13 +98,11 @@ export class SupplyChainService extends BaseService {
                 { name: "hono", version: "v4.3.7", license: "MIT", status: "SECURE", feature: "ORCHESTRATOR" }
             ];
         }
-        this.initialized = true;
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
-        this.initialized = false;
-        return await super.shutdown();
+    protected override async onShutdown(): Promise<Result<void>> {
+        return ok(undefined);
     }
 
     getSBOM() {

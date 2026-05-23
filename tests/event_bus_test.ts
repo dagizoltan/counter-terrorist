@@ -35,37 +35,38 @@ class MockLogging implements LoggingPort {
 Deno.test("EventBus.subscribe and publish", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
-  const events: SystemEvent[] = [];
+  const events: SystemEvent<any>[] = [];
 
   eventBus.subscribe((event) => {
     events.push(event);
   });
 
-  const testData = { key: "value" };
+  const testData = { message: "Test message", data: { key: "value" } };
   eventBus.publish("INFO", "Test message", testData);
 
   assertEquals(events.length, 1);
   assertEquals(events[0].type, "INFO");
   assertEquals(events[0].message, "Test message");
-  assertEquals(events[0].data, testData);
+  assertEquals(events[0].data.message, "Test message");
   assertEquals(typeof events[0].timestamp, "string");
+  assertEquals(typeof events[0].correlationId, "string");
 });
 
 Deno.test("EventBus.on (keyed subscription)", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
-  const receivedData: unknown[] = [];
+  const receivedData: any[] = [];
 
   eventBus.on("INFO", (data) => {
     receivedData.push(data);
   });
 
-  eventBus.publish("INFO", "Info msg", { foo: "bar" });
-  eventBus.publish("WARN", "Warn msg", { skip: "me" });
+  eventBus.publish("INFO", "Info msg", { message: "Info msg", data: { foo: "bar" } });
+  eventBus.publish("WARN", "Warn msg", { message: "Warn msg", data: { skip: "me" } });
 
   assertEquals(receivedData.length, 1);
   const data = receivedData[0] as any;
-  assertEquals(data.foo, "bar");
+  assertEquals(data.data.foo, "bar");
   assertEquals(data.fromEventBus, true);
   assertEquals(typeof data.correlationId, "string");
 });
@@ -77,21 +78,21 @@ Deno.test("EventBus.unsubscribe (general)", () => {
   const handler = () => { count++; };
 
   const unsub = eventBus.subscribe(handler);
-  eventBus.publish("INFO", "msg 1");
+  eventBus.publish("INFO", "msg 1", { message: "msg 1" });
   assertEquals(count, 1);
 
   unsub();
-  eventBus.publish("INFO", "msg 2");
+  eventBus.publish("INFO", "msg 2", { message: "msg 2" });
   assertEquals(count, 1);
 
   // Manual unsubscribe
   const handler2 = () => { count++; };
   eventBus.subscribe(handler2);
-  eventBus.publish("INFO", "msg 3");
+  eventBus.publish("INFO", "msg 3", { message: "msg 3" });
   assertEquals(count, 2);
 
   eventBus.unsubscribe(handler2);
-  eventBus.publish("INFO", "msg 4");
+  eventBus.publish("INFO", "msg 4", { message: "msg 4" });
   assertEquals(count, 2);
 });
 
@@ -102,21 +103,21 @@ Deno.test("EventBus.unsubscribe (keyed)", () => {
   const handler = () => { count++; };
 
   const unsub = eventBus.on("INFO", handler);
-  eventBus.publish("INFO", "msg 1");
+  eventBus.publish("INFO", "msg 1", { message: "msg 1" });
   assertEquals(count, 1);
 
   unsub();
-  eventBus.publish("INFO", "msg 2");
+  eventBus.publish("INFO", "msg 2", { message: "msg 2" });
   assertEquals(count, 1);
 
   // Manual unsubscribe
   const handler2 = () => { count++; };
   eventBus.on("WARN", handler2);
-  eventBus.publish("WARN", "msg 3");
+  eventBus.publish("WARN", "msg 3", { message: "msg 3" });
   assertEquals(count, 2);
 
   eventBus.unsubscribe(handler2);
-  eventBus.publish("WARN", "msg 4");
+  eventBus.publish("WARN", "msg 4", { message: "msg 4" });
   assertEquals(count, 2);
 });
 
@@ -130,28 +131,28 @@ Deno.test("EventBus.unsubscribe should remove from all registrations", () => {
   eventBus.on("WARN", handler);
   eventBus.subscribe(handler);
 
-  eventBus.publish("INFO", "msg 1"); // +2 (on INFO and subscribe)
-  eventBus.publish("WARN", "msg 2"); // +2 (on WARN and subscribe)
+  eventBus.publish("INFO", "msg 1", { message: "msg 1" }); // +2 (on INFO and subscribe)
+  eventBus.publish("WARN", "msg 2", { message: "msg 2" }); // +2 (on WARN and subscribe)
   assertEquals(count, 4);
 
   eventBus.unsubscribe(handler);
-  eventBus.publish("INFO", "msg 3");
-  eventBus.publish("WARN", "msg 4");
+  eventBus.publish("INFO", "msg 3", { message: "msg 3" });
+  eventBus.publish("WARN", "msg 4", { message: "msg 4" });
   assertEquals(count, 4);
 });
 
 Deno.test("EventBus.emit alias", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
-  let received: unknown = null;
+  let received: any = null;
 
-  eventBus.on("ALERT" as "INFO", (data) => {
+  eventBus.on("ALERT", (data) => {
     received = data;
   });
 
-  eventBus.emit("ALERT" as "INFO", { hello: "world" });
+  eventBus.emit("ALERT", { message: "Alert!", data: { hello: "world" } });
   const data = received as any;
-  assertEquals(data.hello, "world");
+  assertEquals(data.data.hello, "world");
   assertEquals(data.fromEventBus, true);
   assertEquals(typeof data.correlationId, "string");
 });
@@ -160,22 +161,18 @@ Deno.test("EventBus severity mapping", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
 
-  eventBus.publish("CRITICAL", "Critical error");
-  eventBus.publish("BLOCK", "Blocked action");
-  eventBus.publish("WARN", "Warning message");
-  eventBus.publish("DRIFT_PORT", "Port drift");
-  eventBus.publish("DRIFT_PROCESS", "Process drift");
-  eventBus.publish("INFO", "Info message");
-  eventBus.publish("UNKNOWN" as any, "Unknown type");
+  eventBus.publish("CRITICAL", "Critical error", { message: "crit" });
+  eventBus.publish("BLOCK", "Blocked action", { message: "block" });
+  eventBus.publish("WARN", "Warning message", { message: "warn" });
+  eventBus.publish("DRIFT_PROCESS", "Process drift", { path: "/", action: "mod" });
+  eventBus.publish("INFO", "Info message", { message: "info" });
 
-  assertEquals(mockLogging.logs.length, 7);
+  assertEquals(mockLogging.logs.length, 5);
   assertEquals(mockLogging.logs[0].severity, LogSeverity.ERROR);
   assertEquals(mockLogging.logs[1].severity, LogSeverity.WARNING);
   assertEquals(mockLogging.logs[2].severity, LogSeverity.WARNING);
   assertEquals(mockLogging.logs[3].severity, LogSeverity.WARNING);
-  assertEquals(mockLogging.logs[4].severity, LogSeverity.WARNING);
-  assertEquals(mockLogging.logs[5].severity, LogSeverity.INFO);
-  assertEquals(mockLogging.logs[6].severity, LogSeverity.INFO);
+  assertEquals(mockLogging.logs[4].severity, LogSeverity.INFO);
 });
 
 Deno.test("EventBus handler error isolation", () => {
@@ -192,7 +189,7 @@ Deno.test("EventBus handler error isolation", () => {
   });
 
   // This should not throw and should call the second handler
-  eventBus.publish("INFO", "Test error isolation");
+  eventBus.publish("INFO", "Test error isolation", { message: "iso" });
 
   assertEquals(handlerCalled, true);
 });
@@ -206,7 +203,7 @@ Deno.test("EventBus logs handler errors", async () => {
     throw error;
   });
 
-  eventBus.publish("INFO", "Test error logging");
+  eventBus.publish("INFO", "Test error logging", { message: "log" });
 
   // Wait for promise-based logging to complete
   await new Promise(resolve => setTimeout(resolve, 50));
@@ -220,23 +217,26 @@ Deno.test("EventBus logs handler errors", async () => {
 Deno.test("EventBus edge cases", () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
-  const events: SystemEvent[] = [];
+  const events: SystemEvent<any>[] = [];
 
   eventBus.subscribe(e => { events.push(e); });
 
-  // Undefined data
-  eventBus.publish("INFO", "No data");
-  assertEquals(events[0].data, undefined);
+  // Undefined data should fail validation now
+  try {
+    eventBus.publish("INFO", "No data", undefined as any);
+  } catch (e) {
+    assertEquals(e instanceof Error, true);
+  }
 
   // Empty message
-  eventBus.publish("INFO", "");
-  assertEquals(events[1].message, "");
+  eventBus.publish("INFO", "", { message: "" });
+  assertEquals(events[0].message, "");
 
   // Multiple subscribers of different types
   let keyedCount = 0;
   eventBus.on("INFO", () => { keyedCount++; });
 
-  eventBus.publish("INFO", "Both");
-  assertEquals(events.length, 3);
+  eventBus.publish("INFO", "Both", { message: "Both" });
+  assertEquals(events.length, 2); // 1 for first success, second threw error above
   assertEquals(keyedCount, 1);
 });

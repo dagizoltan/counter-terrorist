@@ -22,21 +22,18 @@ export class BehavioralService extends BaseService {
     super();
   }
 
-  override async init(): Promise<Result<void>> {
-    if (this.initialized) return ok(undefined);
+  protected override async onInit(): Promise<Result<void>> {
 
     console.log("BehavioralService initialized");
     this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
-    this.initialized = true;
     return ok(undefined);
   }
 
-  override async shutdown(): Promise<Result<void>> {
+  protected override async onShutdown(): Promise<Result<void>> {
       console.log("BehavioralService shutting down");
       if (this.metricsInterval) clearInterval(this.metricsInterval);
       this.analyzer.shutdown();
-      this.initialized = false;
-      return await super.shutdown();
+      return ok(undefined);
   }
 
   override setEventBus(eventBus: any) {
@@ -77,6 +74,7 @@ export class BehavioralService extends BaseService {
   }
 
   async analyze(ip: string): Promise<Result<string>> {
+    this.ensureReady();
     const now = Date.now();
     let stats = this.history.get(ip);
 
@@ -138,6 +136,7 @@ export class BehavioralService extends BaseService {
   }
 
   async checkSyscallAnomalies(pid: number, comm: string, syscall: string, args: string[]): Promise<Result<string>> {
+    this.ensureReady();
     // 1. Neural Analysis (Syscall Frequency Anomaly)
     this.analyzer.trackSyscall(pid, comm, syscall);
     const anomalyScore = this.analyzer.getSyscallAnomalyScore(comm, syscall);

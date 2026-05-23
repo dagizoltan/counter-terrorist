@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 import { SidecarManager } from "../../infrastructure/runtime/sidecar_manager.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
@@ -29,13 +30,11 @@ export class ProvisioningService extends BaseService {
         super();
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return { success: true, data: undefined };
-        this.initialized = true;
+    protected override async onInit(): Promise<Result<void>> {
         return { success: true, data: undefined };
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         this.isRunning = false;
         if (this.scanTimeout) {
             clearTimeout(this.scanTimeout);
@@ -45,8 +44,7 @@ export class ProvisioningService extends BaseService {
             await this.runPromise;
             this.runPromise = null;
         }
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private async sleep(ms: number): Promise<void> {

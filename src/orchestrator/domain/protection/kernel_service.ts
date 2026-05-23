@@ -29,14 +29,12 @@ export class KernelService extends BaseService {
         this.logging = auditService.getLogging();
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         this.metricsInterval = setInterval(() => this.emitMetrics(), 60000);
-        this.initialized = true;
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.metricsInterval) {
             clearInterval(this.metricsInterval);
             this.metricsInterval = undefined;
@@ -52,8 +50,7 @@ export class KernelService extends BaseService {
             }
         }
 
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private async emitMetrics() {

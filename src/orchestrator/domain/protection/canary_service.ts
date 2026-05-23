@@ -112,10 +112,8 @@ export class CanaryService extends BaseService {
         } catch {}
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         const res = await this.start();
-        if (res.success) this.initialized = true;
         return res;
     }
 
@@ -318,7 +316,7 @@ export class CanaryService extends BaseService {
         return this.tokens;
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.agingIntervalId) {
             clearInterval(this.agingIntervalId);
             this.agingIntervalId = undefined;
@@ -333,7 +331,6 @@ export class CanaryService extends BaseService {
                 await Deno.remove(token.masterPath).catch(() => {});
             } catch { /* ignore */ }
         }
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 }

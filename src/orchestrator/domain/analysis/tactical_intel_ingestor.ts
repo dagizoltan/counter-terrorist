@@ -32,10 +32,8 @@ export class TacticalIntelIngestor extends BaseService {
 
     private intervalId: number | null = null;
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         await this.start();
-        this.initialized = true;
         return ok(undefined);
     }
 
@@ -57,7 +55,7 @@ export class TacticalIntelIngestor extends BaseService {
         this.intervalId = setInterval(() => this.sync(), 6 * 60 * 60 * 1000);
     }
 
-    override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+    protected override async onShutdown(): Promise<import("@core/result.ts").Result<void>> {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = null;
@@ -66,8 +64,7 @@ export class TacticalIntelIngestor extends BaseService {
             this.kv.close();
             this.kv = null;
         }
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     async sync() {

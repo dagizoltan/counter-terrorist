@@ -2,13 +2,20 @@ import { Service } from "./base_service.ts";
 import { LoggingPort, LogSeverity, LogType } from "./ports.ts";
 import { Result, ok } from "./result.ts";
 
+export enum ShutdownPriority {
+    CRITICAL = 0,    // Logging, Audit, Health
+    NETWORK = 1,     // Mesh, VPN
+    AUXILIARY = 2,   // Plugins, Tactical Ingestors
+    INTERFACE = 3    // Web UI, ViewModel
+}
+
 /**
  * ServiceRegistry
  * Centralizes the management of all active domain services.
  * Ensures ordered initialization and graceful, automated shutdown.
  */
 export class ServiceRegistry {
-    private services: Map<string, Service> = new Map();
+    private services: Map<string, { service: Service, priority: ShutdownPriority }> = new Map();
     private initOrder: string[] = [];
 
     constructor(private logging?: LoggingPort) {}
@@ -16,7 +23,7 @@ export class ServiceRegistry {
     /**
      * Registers a service with the registry.
      */
-    register(name: string, service: Service) {
+    register(name: string, service: Service, priority: ShutdownPriority = ShutdownPriority.AUXILIARY) {
         if (this.services.has(name)) {
             this.logging?.log({
                 timestamp: new Date().toISOString(),
@@ -26,7 +33,7 @@ export class ServiceRegistry {
                 message: `Service '${name}' is already registered. Overwriting.`
             });
         }
-        this.services.set(name, service);
+        this.services.set(name, { service, priority });
         this.initOrder.push(name);
     }
 
@@ -42,10 +49,11 @@ export class ServiceRegistry {
             message: `Initiating automated shutdown for ${this.services.size} services...`
         });
 
-        // Shutdown in reverse order of registration
-        const names = [...this.initOrder].reverse();
-        for (const name of names) {
-            const service = this.services.get(name);
+        // 1. Group services by priority
+        const prioritized = Array.from(this.services.entries())
+            .sort((a, b) => b[1].priority - a[1].priority); // Highest priority index first
+
+        for (const [name, { service }] of prioritized) {
             if (service && typeof service.shutdown === "function") {
                 try {
                     await service.shutdown();
@@ -74,7 +82,7 @@ export class ServiceRegistry {
     }
 
     getService<T extends Service>(name: string): T | undefined {
-        return this.services.get(name) as T;
+        return this.services.get(name)?.service as T;
     }
 
     listServices(): string[] {
@@ -94,7 +102,8 @@ export class ServiceRegistry {
         });
 
         for (const name of this.initOrder) {
-            const service = this.services.get(name);
+            const entry = this.services.get(name);
+            const service = entry?.service;
             if (service && typeof service.init === "function") {
                 try {
                     const res = await service.init();

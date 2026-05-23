@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 
 export interface ConnectionTrace {
@@ -27,11 +28,9 @@ export class BehavioralAnalyzer extends BaseService {
         super();
     }
 
-    override async init(): Promise<import("../../core/result.ts").Result<void>> {
-        if (this.initialized) return { success: true, data: undefined };
+    protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
         // SOV-06: Background cleanup for stale behavioral data
         this.purgeInterval = setInterval(() => this.purgeStaleData(), 300000); // 5 Minutes
-        this.initialized = true;
         return { success: true, data: undefined };
     }
 
@@ -75,7 +74,7 @@ export class BehavioralAnalyzer extends BaseService {
         this.traces.set(ip, trace);
     }
 
-    override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+    protected override async onShutdown(): Promise<import("@core/result.ts").Result<void>> {
         const { ok } = await import("@core/result.ts");
         if (this.purgeInterval) {
             clearInterval(this.purgeInterval);
@@ -88,7 +87,6 @@ export class BehavioralAnalyzer extends BaseService {
         this.syscallFrequencies.clear();
         this.slidingWindow.clear();
         this.syscallSequences.clear();
-        this.initialized = false;
         return ok(undefined);
     }
 

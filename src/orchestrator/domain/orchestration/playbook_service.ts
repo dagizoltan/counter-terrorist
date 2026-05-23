@@ -27,8 +27,7 @@ export class PlaybookService extends BaseService {
     this.services = services;
   }
 
-  public override async init(..._args: any[]): Promise<Result<void>> {
-    if (this.initialized) return ok(undefined);
+  protected override async onInit(..._args: any[]): Promise<Result<void>> {
     if (!this.services) return ok(undefined);
 
     this.logging.log({
@@ -200,7 +199,6 @@ export class PlaybookService extends BaseService {
             this.updateThreatScore("local", 2);
         }
     }));
-    this.initialized = true;
     return ok(undefined);
   }
 
@@ -308,11 +306,10 @@ export class PlaybookService extends BaseService {
     }
   }
 
-  override async shutdown(): Promise<Result<void>> {
+  protected override async onShutdown(): Promise<Result<void>> {
     this.unsubscribers.forEach(u => u());
     this.unsubscribers = [];
     this.services = undefined;
-    this.initialized = false;
-    return await super.shutdown();
+    return ok(undefined);
   }
 }
