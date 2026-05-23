@@ -95,9 +95,9 @@ class BlockingLog extends HTMLElement {
   }
 
   connect() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const socket = new SharedWebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const socket = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
     
     socket.onmessage = (event) => {
       try {
@@ -151,22 +151,22 @@ class BlockingLog extends HTMLElement {
 
         <!-- 02 Type -->
         <div class="w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest text-slate-400">
-          ${window.escapeHTML(type)}
+          ${globalThis.escapeHTML(type)}
         </div>
         
         <!-- 02b Caller -->
         <div class="w-40 flex-shrink-0 mono text-[9px] font-black text-slate-500 truncate uppercase tracking-tight">
-          ${window.escapeHTML(log.caller || 'SYSTEM')}
+          ${globalThis.escapeHTML(log.caller || 'SYSTEM')}
         </div>
 
         <!-- 03 Severity -->
         <div class="w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest ${severityTextClass}">
-          ${window.escapeHTML(severity)}
+          ${globalThis.escapeHTML(severity)}
         </div>
 
         <!-- 04 Message -->
         <div class="flex-grow min-w-0 text-[10px] font-medium text-slate-300 tracking-wide truncate">
-          ${window.escapeHTML(log.message || '---')}
+          ${globalThis.escapeHTML(log.message || '---')}
         </div>
 
         <!-- Expand Icon -->
@@ -188,14 +188,14 @@ class BlockingLog extends HTMLElement {
                 <div class="w-1.5 h-1.5 bg-danger rounded-full animate-pulse"></div>
                 <span class="mono text-[9px] font-black text-danger uppercase tracking-widest">Behavioral_Intent_Verdict</span>
              </div>
-             <div class="mono text-[10px] text-slate-300 uppercase font-bold">Intent: <span class="text-danger">${window.escapeHTML(log.data.intent)}</span> // Confidence: <span class="text-white">${(log.data.score * 100).toFixed(0)}%</span></div>
+             <div class="mono text-[10px] text-slate-300 uppercase font-bold">Intent: <span class="text-danger">${globalThis.escapeHTML(log.data.intent)}</span> // Confidence: <span class="text-white">${(log.data.score * 100).toFixed(0)}%</span></div>
           </div>
           ` : ''}
           <div class="flex items-center gap-2 mb-3">
              <div class="w-1 h-3 bg-primary/40 rounded-full"></div>
              <span class="mono text-[8px] font-black text-slate-500 uppercase tracking-widest">Extended_Payload</span>
           </div>
-          <pre class="mono text-[8.5px] text-primary/80 leading-relaxed whitespace-pre-wrap">${window.escapeHTML(JSON.stringify(log.payload || log, null, 2))}</pre>
+          <pre class="mono text-[8.5px] text-primary/80 leading-relaxed whitespace-pre-wrap">${globalThis.escapeHTML(JSON.stringify(log.payload || log, null, 2))}</pre>
         </div>
       </div>
     `;

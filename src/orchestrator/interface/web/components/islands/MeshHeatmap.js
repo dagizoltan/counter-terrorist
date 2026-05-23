@@ -14,7 +14,7 @@ class MeshHeatmap extends HTMLElement {
     this.fetchNodes();
     this.initWebSocket();
     this.animate();
-    window.addEventListener('resize', () => this.resize());
+    globalThis.addEventListener('resize', () => this.resize());
   }
 
   disconnectedCallback() {
@@ -46,7 +46,7 @@ class MeshHeatmap extends HTMLElement {
   }
 
   initWebSocket() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     this.ws = new SharedWebSocket(`${protocol}//${location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
     this.ws.onmessage = (msg) => {

@@ -44,8 +44,8 @@ class ScannerAgent extends HTMLElement {
     listEl.innerHTML = ledger.map(item => `
       <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded transition-colors">
         <div class="flex flex-col gap-1 overflow-hidden">
-           <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">${window.escapeHTML(item.threatType || 'MALICIOUS_ARTIFACT')}</span>
-           <span class="mono-sm font-black text-danger uppercase tracking-widest truncate">${window.escapeHTML(item.indicator.slice(0, 32))}...</span>
+           <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">${globalThis.escapeHTML(item.threatType || 'MALICIOUS_ARTIFACT')}</span>
+           <span class="mono-sm font-black text-danger uppercase tracking-widest truncate">${globalThis.escapeHTML(item.indicator.slice(0, 32))}...</span>
         </div>
         <div class="flex items-center gap-4">
            <div class="flex flex-col items-end">
@@ -83,7 +83,7 @@ class ScannerAgent extends HTMLElement {
         resultsEl.innerHTML = `
           <div class="t-panel glass-panel border-l-4 border-success p-8 animate-in zoom-in duration-500">
              <h4 class="mono-sm font-black text-success uppercase tracking-widest mb-4">SYNC_COMPLETE</h4>
-             <pre class="mono-xs text-slate-500 bg-black/40 p-4 rounded border border-white/5 overflow-x-auto">${window.escapeHTML(result.message || 'Database updated successfully.')}</pre>
+             <pre class="mono-xs text-slate-500 bg-black/40 p-4 rounded border border-white/5 overflow-x-auto">${globalThis.escapeHTML(result.message || 'Database updated successfully.')}</pre>
           </div>
         `;
       }
@@ -143,12 +143,12 @@ class ScannerAgent extends HTMLElement {
              </div>
              
              <p class="mono-xs text-slate-400 mb-8 uppercase leading-relaxed tracking-tight font-bold">
-               ${window.escapeHTML(result.summary || 'Full integrity audit completed. No malicious signatures identified in the target path.')}
+               ${globalThis.escapeHTML(result.summary || 'Full integrity audit completed. No malicious signatures identified in the target path.')}
              </p>
              
              <div class="bg-black/60 rounded p-6 border border-white/5 mono-xs text-slate-500 max-h-[300px] overflow-y-auto custom-scrollbar uppercase tracking-tighter leading-tight font-bold">
                <div class="text-slate-800 mb-4 border-b border-white/5 pb-2">RAW_AUDIT_MANIFEST</div>
-               ${window.escapeHTML(result.message || 'No detailed log provided.')}
+               ${globalThis.escapeHTML(result.message || 'No detailed log provided.')}
              </div>
              
              <div class="mt-8 flex justify-between items-center border-t border-white/5 pt-6">

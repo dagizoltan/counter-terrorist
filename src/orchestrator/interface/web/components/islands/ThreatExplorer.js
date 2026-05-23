@@ -21,9 +21,9 @@ class ThreatExplorer extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {

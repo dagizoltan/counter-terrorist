@@ -17,7 +17,7 @@ class HoneypotChart extends HTMLElement {
     
     // Resize handler with debounce
     let resizeTimer;
-    window.addEventListener('resize', () => {
+    globalThis.addEventListener('resize', () => {
        clearTimeout(resizeTimer);
        resizeTimer = setTimeout(() => this.updateChart(), 250);
     });
@@ -78,9 +78,9 @@ class HoneypotChart extends HTMLElement {
 
     if (!this.data || this.data.length === 0) return;
 
-    const width = this.canvas.width = this.canvas.clientWidth * window.devicePixelRatio;
-    const height = this.canvas.height = this.canvas.clientHeight * window.devicePixelRatio;
-    this.ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    const width = this.canvas.width = this.canvas.clientWidth * globalThis.devicePixelRatio;
+    const height = this.canvas.height = this.canvas.clientHeight * globalThis.devicePixelRatio;
+    this.ctx.scale(globalThis.devicePixelRatio, globalThis.devicePixelRatio);
 
     const drawWidth = this.canvas.clientWidth;
     const drawHeight = this.canvas.clientHeight;

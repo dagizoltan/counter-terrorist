@@ -27,12 +27,12 @@ export class MacosFirewallProvider implements FirewallProvider {
     return await this.sidecar.sendCommand("sentinel-darwin", { type: "QuarantineProcess", pid });
   }
 
-  async enforcePid(_pid: number): Promise<CommandResult> {
-    return { success: false, stdout: "", stderr: "EndpointSecurity LSM not yet implemented for macOS." };
+  enforcePid(_pid: number): Promise<CommandResult> {
+    return Promise.resolve({ success: false, stdout: "", stderr: "EndpointSecurity LSM not yet implemented for macOS." });
   }
 
-  async unenforcePid(_pid: number): Promise<CommandResult> {
-    return { success: false, stdout: "", stderr: "EndpointSecurity LSM not yet implemented for macOS." };
+  unenforcePid(_pid: number): Promise<CommandResult> {
+    return Promise.resolve({ success: false, stdout: "", stderr: "EndpointSecurity LSM not yet implemented for macOS." });
   }
 
   async getStatus(): Promise<CommandResult> {

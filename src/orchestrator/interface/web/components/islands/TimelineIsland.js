@@ -29,12 +29,12 @@ class TimelineIsland extends HTMLElement {
     
     // Virtualization: Bind scroll listener to window
     this.scrollListener = () => this.handleScroll();
-    window.addEventListener('scroll', this.scrollListener, { passive: true });
+    globalThis.addEventListener('scroll', this.scrollListener, { passive: true });
   }
 
   disconnectedCallback() {
     if (this.interval) clearInterval(this.interval);
-    if (this.scrollListener) window.removeEventListener('scroll', this.scrollListener);
+    if (this.scrollListener) globalThis.removeEventListener('scroll', this.scrollListener);
   }
 
   async fetchTimeline() {
@@ -64,7 +64,7 @@ class TimelineIsland extends HTMLElement {
 
     const rect = container.getBoundingClientRect();
     // Load more if we're' close to the bottom of the container
-    const isNearBottom = rect.bottom < window.innerHeight + 1000;
+    const isNearBottom = rect.bottom < globalThis.innerHeight + 1000;
 
     if (isNearBottom && this.visibleCount < this.events.length) {
       this.visibleCount += 25;

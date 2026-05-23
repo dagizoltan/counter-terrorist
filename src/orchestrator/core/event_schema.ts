@@ -36,7 +36,8 @@ export const SyscallEventSchema = z.object({
   returnValue: z.number().optional(),
   timestamp: z.string().optional(),
   anomalyScore: z.number().optional(),
-  intent: z.string().optional()
+  intent: z.string().optional(),
+  ip: z.string().optional()
 });
 
 export const NetworkLogSchema = z.object({

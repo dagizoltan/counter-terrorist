@@ -88,22 +88,22 @@ class WebhookManager extends HTMLElement {
         <div class="t-panel glass-panel flex justify-between items-center group transition-all hover:border-white/10 p-6 mb-4 last:mb-0">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-4 mb-3">
-              <span class="mono text-[10px] font-black uppercase tracking-widest text-white">${window.escapeHTML(wh.name)}</span>
-              <span class="px-2 py-0.5 text-[8px] font-black uppercase mono tracking-widest rounded" style="background:var(--primary-glow); color:var(--primary);">${window.escapeHTML(wh.type)}</span>
+              <span class="mono text-[10px] font-black uppercase tracking-widest text-white">${globalThis.escapeHTML(wh.name)}</span>
+              <span class="px-2 py-0.5 text-[8px] font-black uppercase mono tracking-widest rounded" style="background:var(--primary-glow); color:var(--primary);">${globalThis.escapeHTML(wh.type)}</span>
               <span class="px-2 py-0.5 text-[8px] font-black uppercase mono tracking-widest rounded" style="background:${wh.enabled ? 'var(--success-glow)' : 'var(--danger-glow)'}; color:${wh.enabled ? 'var(--success)' : 'var(--danger)'};">
                 ${wh.enabled ? 'ACTIVE' : 'DISABLED'}
               </span>
             </div>
-            <p class="text-[9px] text-slate-500 font-mono truncate max-w-lg italic opacity-60">${window.escapeHTML(wh.url)}</p>
+            <p class="text-[9px] text-slate-500 font-mono truncate max-w-lg italic opacity-60">${globalThis.escapeHTML(wh.url)}</p>
           </div>
-          <button onclick="const csrf=document.querySelector('meta[name=\\'csrf-token\\']')?.content;fetch('/api/notifications/${window.escapeHTML(wh.id)}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())" 
+          <button onclick="const csrf=document.querySelector('meta[name=\\'csrf-token\\']')?.content;fetch('/api/notifications/${globalThis.escapeHTML(wh.id)}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())"
                   class="t-btn danger opacity-0 group-hover:opacity-100 transition-opacity" style="padding: 0.5rem 1rem; font-size: 8px;">
             Remove
           </button>
         </div>
       `).join('');
     } catch (e) {
-      container.innerHTML = `<p class="mono text-[9px] font-black uppercase text-center" style="color:var(--danger);">Sync_Failed: ${window.escapeHTML(e.message)}</p>`;
+      container.innerHTML = `<p class="mono text-[9px] font-black uppercase text-center" style="color:var(--danger);">Sync_Failed: ${globalThis.escapeHTML(e.message)}</p>`;
     }
   }
 }

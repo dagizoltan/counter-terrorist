@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
@@ -93,7 +93,7 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
                   <div class="flex flex-col gap-4">
                     <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.8em] animate-pulse">Identity obfuscation engaged</p>
                     <div class="flex justify-center gap-2">
-                      {[1,2,3,4,5].map(i => <div class="w-12 h-1 bg-primary/20 rounded-full overflow-hidden"><div class="h-full bg-primary animate-progress" style={`animation-delay: ${i*0.2}s`}></div></div>)}
+                      {[1,2,3,4,5].map(i => <div key={i} class="w-12 h-1 bg-primary/20 rounded-full overflow-hidden"><div class="h-full bg-primary animate-progress" style={`animation-delay: ${i*0.2}s`}></div></div>)}
                     </div>
                   </div>
                </div>
@@ -128,9 +128,9 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
             <div class="space-y-4">
                <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white rounded-lg transition-colors" />
                <div class="grid grid-cols-2 gap-4">
-                  <button onclick="const ip=document.getElementById('fw-block-input').value; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({ip}) }).then(() => location.reload())" class="t-btn danger w-full py-4 text-[10px] uppercase font-black tracking-widest">Block_IP</button>
+                  <button type="button" onclick="const ip=document.getElementById('fw-block-input').value; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({ip}) }).then(() => location.reload())" class="t-btn danger w-full py-4 text-[10px] uppercase font-black tracking-widest">Block_IP</button>
                   {props.userRole === "admin" && (
-                  <button onclick="if(confirm('Flush all rules?')) fetch('/api/agents/firewall/flush', { method: 'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content} }).then(() => location.reload())" class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest" style="background:transparent; border-color:var(--border-subtle);">Flush_All</button>
+                  <button type="button" onclick="if(confirm('Flush all rules?')) fetch('/api/agents/firewall/flush', { method: 'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content} }).then(() => location.reload())" class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest" style="background:transparent; border-color:var(--border-subtle);">Flush_All</button>
                   )}
                </div>
             </div>
@@ -195,8 +195,8 @@ export const EbpfPage = (props: { csrfToken?: string, nonce?: string, userRole?:
           {(props.userRole === "admin" || props.userRole === "operator") && (
           <div class="t-panel">
             <span class="metric-tag mb-8 block">LSM_Directives</span>
-            <button onclick="fetch('/api/agents/sentinel/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'HIDE_PID'})})" class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
-            <button onclick="fetch('/api/agents/sentinel/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'RESTRICT_NETWORK'})})" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
+            <button type="button" onclick="fetch('/api/agents/sentinel/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'HIDE_PID'})})" class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
+            <button type="button" onclick="fetch('/api/agents/sentinel/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'RESTRICT_NETWORK'})})" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
           </div>
           )}
         </div>
@@ -237,7 +237,14 @@ export const EbpfPage = (props: { csrfToken?: string, nonce?: string, userRole?:
  * Mesh Agent Page
  * Peer discovery, mTLS gossip protocol, and distributed consensus.
  */
-export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: string, userRole?: string }) => (
+interface MeshStatus {
+  mesh?: {
+    nodes?: number;
+  };
+  [key: string]: unknown;
+}
+
+export const MeshPage = (props: { status: MeshStatus, csrfToken?: string, nonce?: string, userRole?: string }) => (
   <Layout title="Mesh Fabric" islandPaths={['/components/islands/VpnAgent.js', '/components/islands/MeshHeatmap.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
     <header class="flex justify-between items-end mb-12">
       <div class="flex items-center gap-6">
@@ -273,9 +280,9 @@ export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: strin
           <div class="t-panel">
              <span class="metric-tag mb-8 block">Control_Directives</span>
              <div class="space-y-4">
-                <button onclick="fetch('/api/mesh/resync', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}})" class="t-btn w-full">Broadcast Resync</button>
+                <button type="button" onclick="fetch('/api/mesh/resync', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}})" class="t-btn w-full">Broadcast Resync</button>
                 {props.userRole === "admin" && (
-                <button class="t-btn w-full danger" style="background:transparent; border-color:var(--danger); color:var(--danger);">Isolate Local Node</button>
+                <button type="button" class="t-btn w-full danger" style="background:transparent; border-color:var(--danger); color:var(--danger);">Isolate Local Node</button>
                 )}
              </div>
           </div>
@@ -303,10 +310,10 @@ export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: strin
 
        <div class="flex gap-6">
           {(props.userRole === "admin" || props.userRole === "operator") && (
-          <button id="vpn-connect-btn" class="t-btn" style="background:var(--success); color:black; padding: 1rem 3rem;">Link_Tunnel</button>
+          <button type="button" id="vpn-connect-btn" class="t-btn" style="background:var(--success); color:black; padding: 1rem 3rem;">Link_Tunnel</button>
           )}
           {props.userRole === "admin" && (
-          <button id="vpn-disconnect-btn" class="t-btn danger" style="padding: 1rem 3rem; background:transparent; border-color:var(--danger);">Sever_Link</button>
+          <button type="button" id="vpn-disconnect-btn" class="t-btn danger" style="padding: 1rem 3rem; background:transparent; border-color:var(--danger);">Sever_Link</button>
           )}
        </div>
     </div>

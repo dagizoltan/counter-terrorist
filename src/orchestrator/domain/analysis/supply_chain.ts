@@ -17,6 +17,10 @@ import { Result, ok } from "@core/result.ts";
 export class SupplyChainService extends BaseService {
     private dependencies: Dependency[] = [];
 
+    constructor() {
+        super();
+    }
+
     protected override async onInit(): Promise<Result<void>> {
         this.dependencies = [];
         

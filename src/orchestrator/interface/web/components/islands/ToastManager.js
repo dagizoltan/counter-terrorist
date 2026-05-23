@@ -6,12 +6,12 @@ class ToastManager extends HTMLElement {
     }
 
     connectedCallback() {
-        window.toast = (message, type = 'info', duration = 4000) => {
+        globalThis.toast = (message, type = 'info', duration = 4000) => {
             this.addToast(message, type, duration);
         };
         
         // Listen to global events for common mutations
-        window.addEventListener('tactical-mutation', (e) => {
+        globalThis.addEventListener('tactical-mutation', (e) => {
             this.addToast(e.detail.message, e.detail.type || 'success');
         });
     }
@@ -49,7 +49,7 @@ class ToastManager extends HTMLElement {
                         <div class="shrink-0 p-2 rounded-full bg-black/40 border border-white/5">
                             ${this.getIcon(toast.type)}
                         </div>
-                        <p class="mono-xs font-bold text-slate-200 tracking-wide uppercase leading-tight">${window.escapeHTML(toast.message)}</p>
+                        <p class="mono-xs font-bold text-slate-200 tracking-wide uppercase leading-tight">${globalThis.escapeHTML(toast.message)}</p>
                     </div>
                 `).join('')}
             </div>

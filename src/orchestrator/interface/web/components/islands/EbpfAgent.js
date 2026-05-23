@@ -79,9 +79,9 @@ class EbpfAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
@@ -104,7 +104,7 @@ class EbpfAgent extends HTMLElement {
       });
       
       if (res.status === 401 || res.status === 403) {
-        window.location.href = "/login";
+        globalThis.location.href = "/login";
         return;
       }
 
@@ -210,19 +210,19 @@ class EbpfAgent extends HTMLElement {
           <div class="flex justify-between items-center mb-2">
              <div class="flex items-center gap-3">
                 <span class="status-pill ${isCritical ? 'danger' : 'neutral'} text-[8px]">
-                  ${window.escapeHTML(typeLabel)}
+                  ${globalThis.escapeHTML(typeLabel)}
                 </span>
                 <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest text-[9px]">Syscall_Intercept</span>
              </div>
              <span class="mono-xs text-slate-600 font-bold">${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
           </div>
           <div class="mono-sm font-bold ${isCritical ? 'text-danger' : 'text-slate-400'} uppercase tracking-tight leading-tight mb-3">
-            ${window.escapeHTML(log.message)}
+            ${globalThis.escapeHTML(log.message)}
             ${log.data?.anomalyScore > 0.5 ? `<span class="text-[8px] px-2 py-0.5 bg-danger/20 text-danger rounded border border-danger/30 font-black ml-4">NEURAL_ANOMALY_${(log.data.anomalyScore*100).toFixed(0)}%</span>` : ''}
           </div>
           ${isCritical && pid ? `
             <div class="flex gap-4">
-               <button data-purge-pid="${window.escapeHTML(pid)}" class="t-btn danger !py-1 !px-3 text-[8px] font-black uppercase tracking-widest rounded transition-colors">PURGE_PID_${pid}</button>
+               <button data-purge-pid="${globalThis.escapeHTML(pid)}" class="t-btn danger !py-1 !px-3 text-[8px] font-black uppercase tracking-widest rounded transition-colors">PURGE_PID_${pid}</button>
             </div>
           ` : ''}
         </div>
@@ -245,14 +245,14 @@ class EbpfAgent extends HTMLElement {
               <td class="p-4 mono-xs text-slate-500 font-bold">${new Date(log.timestamp).toLocaleTimeString()}</td>
               <td class="p-4">
                  <span class="status-pill ${isCritical ? 'danger' : 'neutral'} !px-3 !py-0.5 text-[8px]">
-                    ${window.escapeHTML(typeLabel)}
+                    ${globalThis.escapeHTML(typeLabel)}
                  </span>
               </td>
               <td class="p-4 mono-xs text-slate-400 font-black">PID: ${pid}</td>
-              <td class="p-4 mono-xs text-slate-300 font-bold uppercase tracking-tight truncate max-w-[200px]">${window.escapeHTML(log.message)}</td>
+              <td class="p-4 mono-xs text-slate-300 font-bold uppercase tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(log.message)}</td>
               <td class="p-4 text-right">
                  ${pid !== 'N/A' ? `
-                   <button data-purge-pid="${window.escapeHTML(pid)}" class="mono-xs text-danger hover:text-white transition-colors uppercase font-black">PURGE</button>
+                   <button data-purge-pid="${globalThis.escapeHTML(pid)}" class="mono-xs text-danger hover:text-white transition-colors uppercase font-black">PURGE</button>
                  ` : '---'}
               </td>
            </tr>

@@ -3,14 +3,13 @@ use sysinfo::{PidExt, System, SystemExt};
 use std::fs::{self, File};
 use std::path::{Path};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::io::{BufRead, BufReader as StdBufReader};
+use std::io::BufRead;
 use tokio::io::{AsyncBufReadExt, BufReader as TokioBufReader};
 use std::sync::{Arc};
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
 use chrono::Utc;
 use sha2::{Sha256, Digest};
-use hex;
 use dashmap::DashMap;
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
@@ -23,7 +22,7 @@ struct CacheEntry {
     hash: String,
     timestamp: u64,
 }
-static HASH_CACHE: Lazy<DashMap<String, CacheEntry>> = Lazy::new(|| DashMap::new());
+static HASH_CACHE: Lazy<DashMap<String, CacheEntry>> = Lazy::new(DashMap::new);
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
@@ -92,7 +91,7 @@ fn scan_process_memory(pid: u32) -> Vec<MemoryAnomaly> {
 
     if let Ok(file) = File::open(&maps_path) {
         let reader = std::io::BufReader::new(file);
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(Result::ok) {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() < 2 { continue; }
             
@@ -204,7 +203,7 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
             // Phase 5: Native Multi-Engine Hash Matching
             // In a production scenario, this would load a database of 100k+ hashes.
             // Here we implement the high-performance matching logic.
-            let malicious_hashes = vec![
+            let malicious_hashes = [
                 "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", // Empty file
                 "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce", // Test payload A
                 "f345831526487e4975549040337c688f28f322479e4917a161f36b69b61d3345", // Test payload B
@@ -275,7 +274,7 @@ async fn main() -> anyhow::Result<()> {
                 sys.refresh_processes();
                 
                 let mut all_anomalies = Vec::new();
-                for (pid, _) in sys.processes() {
+                for pid in sys.processes().keys() {
                     let pid_u32 = pid.as_u32();
                     if pid_u32 > 1 {
                         all_anomalies.extend(scan_process_memory(pid_u32));

@@ -10,7 +10,7 @@ class SystemHealth extends HTMLElement {
   }
 
   setupListeners() {
-    window.addEventListener('metrics-update', (e) => {
+    globalThis.addEventListener('metrics-update', (e) => {
       if (e.detail?.health) {
         this.health = e.detail.health;
         this.render();
@@ -46,12 +46,12 @@ class SystemHealth extends HTMLElement {
       <div class="space-y-6">
         <div class="flex justify-between items-center mb-8 p-6 bg-black/60 border border-white/5 rounded-2xl backdrop-blur-xl">
            <span class="mono-xs text-slate-400 font-black uppercase tracking-widest">Global Integrity</span>
-           <span class="status-pill ${window.escapeHTML(severity.toLowerCase())} !px-6 !py-2 text-[10px] tracking-[0.2em]">${window.escapeHTML(severity)}</span>
+           <span class="status-pill ${globalThis.escapeHTML(severity.toLowerCase())} !px-6 !py-2 text-[10px] tracking-[0.2em]">${globalThis.escapeHTML(severity)}</span>
         </div>
         
         <div class="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-3">
           ${subsystems.map(s => {
-            const name = window.escapeHTML(s.name).replace(/_/g, ' ');
+            const name = globalThis.escapeHTML(s.name).replace(/_/g, ' ');
             return `
               <div class="flex justify-between items-center p-5 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-white/[0.05] group transition-all">
                  <div class="flex items-center gap-5">
@@ -59,8 +59,8 @@ class SystemHealth extends HTMLElement {
                     <span class="mono-xs font-black text-slate-300 uppercase tracking-widest">${name}</span>
                  </div>
                  <div class="flex flex-col items-end gap-1">
-                    <span class="mono-xs font-black ${this.getSeverityColor(s.status)} tracking-widest">${window.escapeHTML(s.status)}</span>
-                    ${s.error ? `<span class="text-[8px] text-danger/80 font-mono truncate max-w-[150px] italic" title="${window.escapeHTML(s.error)}">${window.escapeHTML(s.error)}</span>` : ''}
+                    <span class="mono-xs font-black ${this.getSeverityColor(s.status)} tracking-widest">${globalThis.escapeHTML(s.status)}</span>
+                    ${s.error ? `<span class="text-[8px] text-danger/80 font-mono truncate max-w-[150px] italic" title="${globalThis.escapeHTML(s.error)}">${globalThis.escapeHTML(s.error)}</span>` : ''}
                  </div>
               </div>
             `;

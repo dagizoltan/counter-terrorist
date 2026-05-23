@@ -95,7 +95,7 @@ class ForensicVault extends HTMLElement {
                  ` : this.artifacts.map(a => `
                     <tr class="hover:bg-white/[0.02] transition-colors group">
                        <td class="p-4 truncate">
-                          <span class="mono text-[10px] text-white font-bold tabular-nums">${window.escapeHTML(a.name)}</span>
+                          <span class="mono text-[10px] text-white font-bold tabular-nums">${globalThis.escapeHTML(a.name)}</span>
                        </td>
                        <td class="p-4">
                           <span class="status-pill ${a.type === 'NETWORK_CAPTURE' ? 'primary' : 'warning'} !px-3 !py-0.5 text-[8px]">
@@ -111,7 +111,7 @@ class ForensicVault extends HTMLElement {
                           </span>
                        </td>
                        <td class="p-4 text-right">
-                          <a href="/api/reports/forensics/download/${window.escapeHTML(a.name)}" class="mono-xs text-primary hover:text-white transition-colors uppercase font-black" download>Download</a>
+                          <a href="/api/reports/forensics/download/${globalThis.escapeHTML(a.name)}" class="mono-xs text-primary hover:text-white transition-colors uppercase font-black" download>Download</a>
                        </td>
                     </tr>
                  `).join('')}

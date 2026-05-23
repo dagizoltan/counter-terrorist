@@ -20,6 +20,7 @@ export class MorphingService extends BaseService {
         private audit: AuditService,
         private mesh: any // MeshManager
     ) {
+        super();
         this.logging = audit.getLogging();
     }
 
