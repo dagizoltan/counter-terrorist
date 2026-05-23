@@ -27,8 +27,8 @@ export class PlaybookService extends BaseService {
     this.services = services;
   }
 
-  protected override async onInit(..._args: any[]): Promise<Result<void>> {
-    if (!this.services) return ok(undefined);
+  protected override onInit(..._args: any[]): Promise<Result<void>> {
+    if (!this.services) return Promise.resolve(ok(undefined));
 
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -74,7 +74,17 @@ export class PlaybookService extends BaseService {
             message: `Starting forensic capture for IP: ${source_ip}`
         });
         if (this.services?.protection.pcap) {
-            await this.services.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`).catch(() => {});
+            try {
+              await this.services.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`);
+            } catch (err) {
+              this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:orchestration:playbook_service",
+                message: `Forensic capture failed for ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
+              }).catch(() => {});
+            }
         }
 
         try {
@@ -199,7 +209,7 @@ export class PlaybookService extends BaseService {
             this.updateThreatScore("local", 2);
         }
     }));
-    return ok(undefined);
+    return Promise.resolve(ok(undefined));
   }
 
   /**
@@ -227,7 +237,17 @@ export class PlaybookService extends BaseService {
       await this.services.mesh.isolateNode("local");
 
       // 3. Trigger Forensic Acquisition
-      this.services.protection.pcap.startCapture("any", 120, `artifact_containment_${artifact.slice(0, 8)}.pcap`).catch(() => {});
+      try {
+        await this.services.protection.pcap.startCapture("any", 120, `artifact_containment_${artifact.slice(0, 8)}.pcap`);
+      } catch (err: any) {
+        this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "PLAYBOOK:ARTIFACT",
+          message: `Artifact containment capture failed: ${err instanceof Error ? err.message : String(err)}`
+        }).catch(() => {});
+      }
 
       await this.services.notifications.notify({
           type: "audit",

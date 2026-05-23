@@ -1,4 +1,4 @@
-import { LogType, LogSeverity, FirewallPort, MeshPort, CommandPort, PcapPort, LoggingPort } from "@core/ports.ts";
+import { LogType, LogSeverity, FirewallPort, MeshPort, PcapPort, LoggingPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { ThreatEvent, RemediationTier } from "../autonomous_response.ts";
 import { AuditService } from "../../analysis/audit.ts";
@@ -147,7 +147,7 @@ export class ThreatResponseSaga {
         }
     }
 
-    private async handleBlock(source: string, trigger: ThreatEvent): Promise<Result<void>> {
+    private async handleBlock(source: string, _trigger: ThreatEvent): Promise<Result<void>> {
         this.deps.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -166,7 +166,8 @@ export class ThreatResponseSaga {
                 await this.deps.firewall.quarantineProcess(pid);
 
                 // 2. Extract and Gossip binary hash for fleet-wide blocking
-                this.deps.forensics.calculateProcessHash(pid).then(async (hash) => {
+                try {
+                    const hash = await this.deps.forensics.calculateProcessHash(pid);
                     if (hash) {
                         const res = await this.deps.mesh.broadcastThreatHash(hash, Deno.hostname());
                         if (!res.success) {
@@ -179,7 +180,7 @@ export class ThreatResponseSaga {
                             });
                         }
                     }
-                }).catch(err => {
+                } catch (err) {
                     this.deps.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.GENERIC,
@@ -187,11 +188,19 @@ export class ThreatResponseSaga {
                         caller: "orchestrator:saga:threat_response:forensics",
                         message: `Failed to calculate process hash for PID ${pid}: ${err instanceof Error ? err.message : String(err)}`
                     });
-                });
+                }
 
                 // 3. Delayed kill to allow forensics to complete
                 setTimeout(() => {
-                    this.deps.firewall.killProcess(pid).catch(() => {});
+                    this.deps.firewall.killProcess(pid).catch((killErr) => {
+                        this.deps.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.GENERIC,
+                            severity: LogSeverity.WARNING,
+                            caller: "orchestrator:saga:threat_response:kill",
+                            message: `Failed to kill PID ${pid}: ${killErr instanceof Error ? killErr.message : String(killErr)}`
+                        });
+                    });
                 }, 5000);
 
                 return ok(undefined);
@@ -228,7 +237,7 @@ export class ThreatResponseSaga {
         } else {
             const pid = parseInt(source);
             if (!isNaN(pid)) {
-                (this.deps.firewall as any).dumpProcess?.(pid, `./volume/storage/forensics/dump_${pid}_${Date.now()}`).catch(() => {});
+                (this.deps.firewall as unknown as { dumpProcess?: (pid: number, path: string) => Promise<void> }).dumpProcess?.(pid, `./volume/storage/forensics/dump_${pid}_${Date.now()}`).catch(() => {});
             }
         }
         return ok(undefined);

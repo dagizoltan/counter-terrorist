@@ -76,9 +76,9 @@ export class AuditService extends BaseService {
     constructor(
         private repo: AuditRepository,
         private logging: LoggingPort,
-        private tpm: any | null = null,
+        private tpm: unknown | null = null,
         private mesh: MeshManager | null = null,
-        private correlation: any | null = null
+        private correlation: unknown | null = null
     ) {
         super();
         this.retentionConfig = {
@@ -120,7 +120,7 @@ export class AuditService extends BaseService {
      * Reactive state: Watch for ledger changes from other nodes
      */
     private async startLedgerWatcher() {
-        const kv = (this.repo as any).kv;
+        const kv = (this.repo as unknown as { kv?: Deno.Kv }).kv;
         if (!kv) return;
 
         this.watcherAbortController = new AbortController();
@@ -148,11 +148,18 @@ export class AuditService extends BaseService {
         }
     }
 
-    public setConfig(config: any) {
-        this.retentionConfig = {
-            maxAgeDays: config.getNumber("AUDIT_RETENTION_DAYS", 90),
-            maxEvents: config.getNumber("AUDIT_MAX_EVENTS", 10000),
-        };
+    public setConfig(config: { getNumber?(key: string, def: number): number } | Record<string, unknown>) {
+        if (typeof (config as any).getNumber === "function") {
+            this.retentionConfig = {
+                maxAgeDays: (config as any).getNumber("AUDIT_RETENTION_DAYS", 90),
+                maxEvents: (config as any).getNumber("AUDIT_MAX_EVENTS", 10000),
+            };
+        } else {
+            this.retentionConfig = {
+                maxAgeDays: (config as any)["AUDIT_RETENTION_DAYS"] as number || 90,
+                maxEvents: (config as any)["AUDIT_MAX_EVENTS"] as number || 10000,
+            };
+        }
     }
 
     private async emitMetrics() {
@@ -319,10 +326,10 @@ export class AuditService extends BaseService {
         }
     }
 
-    async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string, fromAudit?: boolean }) {
+    logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string, fromAudit?: boolean }) {
         this.ensureReady();
         // SOV-05 STABILITY: Immediate drop if event is from audit itself to prevent recursion
-        if ((event as any).fromAudit) return;
+        if ((event as { fromAudit?: boolean }).fromAudit) return;
 
         if (this.state === SystemState.FORENSIC_RESTRICTED &&
             event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS" && event.type !== "MERKLE_COMMIT") {
@@ -343,7 +350,15 @@ export class AuditService extends BaseService {
 
         this.logQueue.push(event);
         if (!this.isProcessingQueue) {
-            this.processQueue().catch(console.error);
+            this.processQueue().catch((err) => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:domain:analysis:audit",
+                    message: `Audit processing failed: ${err instanceof Error ? err.message : String(err)}`
+                }).catch(() => {});
+            });
         }
     }
 
@@ -377,7 +392,7 @@ export class AuditService extends BaseService {
                 const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
 
                 const auditEvent: AuditEvent = {
-                    ...event as any, id, timestamp, hash, prevHash, hwSignature, formatted
+                    ...event as unknown as Record<string, unknown>, id, timestamp, hash, prevHash, hwSignature, formatted
                 };
 
                 this.auditBuffer.push(auditEvent);
@@ -507,7 +522,7 @@ export class AuditService extends BaseService {
         brokenAt?: { eventId: string; expected: string; actual: string; type: string };
     }> {
         const fetchLimit = limit === -1 ? undefined : limit;
-        const stream = this.repo.getStream(fetchLimit as any, true);
+        const stream = this.repo.getStream(fetchLimit as number, true);
 
         let eventsChecked = 0;
         let prevEvent: AuditEvent | null = null;

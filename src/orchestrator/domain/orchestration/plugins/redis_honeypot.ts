@@ -21,7 +21,7 @@ export class RedisHoneypotPlugin implements Plugin {
     return this.active ? "ACTIVE" : "INACTIVE";
   }
 
-  async start() {
+  start() {
     try {
       this.listener = Deno.listen({ port: this.port });
       this.active = true;
@@ -63,8 +63,29 @@ export class RedisHoneypotPlugin implements Plugin {
         data: { source_ip: remoteAddr, port: this.port }
       });
 
-      this.firewall.blockIp(remoteAddr).catch(() => {});
-      this.pcap.startCapture("any", 30).catch(() => {});
+      try {
+        await this.firewall.blockIp(remoteAddr);
+      } catch (err) {
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "REDIS-HONEYPOT",
+          message: `Failed to block IP ${remoteAddr}: ${err instanceof Error ? err.message : String(err)}`
+        });
+      }
+
+      try {
+        await this.pcap.startCapture("any", 30);
+      } catch (err) {
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "REDIS-HONEYPOT",
+          message: `PCAP failed for ${remoteAddr}: ${err instanceof Error ? err.message : String(err)}`
+        });
+      }
 
       // Simple Redis response and close
       try {
@@ -75,7 +96,7 @@ export class RedisHoneypotPlugin implements Plugin {
     }
   }
 
-  async stop() {
+  stop() {
     this.active = false;
     if (this.listener) {
       this.listener.close();

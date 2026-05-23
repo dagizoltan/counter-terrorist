@@ -62,17 +62,19 @@ export class HoneypotPlugin implements Plugin {
     }
   }
 
-  async stop() {
+  stop() {
     // Currently CommandManager doesn't support explicit sidecar termination via API
     // but we can mark it inactive.
     this.active = false;
   }
 
-  private handleEvent(event: any) {
-    if (!event.event) return;
+  private handleEvent(event: unknown) {
+    if (!event || typeof event !== "object") return;
+    const ev = (event as { event?: { type?: string; payload?: unknown } }).event;
+    if (!ev || typeof ev.type !== "string") return;
 
-    const payload = event.event.payload;
-    const type = event.event.type;
+    const payload = ev.payload as Record<string, unknown> | undefined;
+    const type = ev.type as string;
 
     switch (type) {
       case "PortAccess":
@@ -85,7 +87,19 @@ export class HoneypotPlugin implements Plugin {
         });
         
         // 1. Engage Tarpit immediately to waste their time
-        this.tarpitIp(payload.source_ip).catch(() => {});
+        (async () => {
+          try {
+            await this.tarpitIp(String(payload?.source_ip));
+          } catch (err) {
+            loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.WARNING,
+              caller: "HONEYPOT",
+              message: `Tarpit engagement failed for ${String(payload?.source_ip)}: ${err instanceof Error ? err.message : String(err)}`
+            });
+          }
+        })();
 
         this.broadcast({
           type: "AUDIT_EVENT",
@@ -99,15 +113,19 @@ export class HoneypotPlugin implements Plugin {
         });
 
         // 2. Trigger PCAP capture for forensics
-        this.pcap.startCapture("any", 60).catch(err => {
-          loggingService.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.GENERIC,
-              severity: LogSeverity.ERROR,
-              caller: "HONEYPOT",
-              message: `Failed to trigger PCAP: ${err.message}`
-          });
-        });
+        (async () => {
+          try {
+            await this.pcap.startCapture("any", 60);
+          } catch (err) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "HONEYPOT",
+                message: `Failed to trigger PCAP: ${err instanceof Error ? err.message : String(err)}`
+            });
+          }
+        })();
 
         // 3. Delayed Block: Wait 30s while tarpitting before committing to firewall
         setTimeout(() => {

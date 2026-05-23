@@ -34,7 +34,7 @@ export class AutopilotService extends BaseService {
     this.services = services;
   }
 
-  protected override async onInit(..._args: any[]): Promise<Result<void>> {
+    protected override onInit(..._args: any[]): Promise<Result<void>> {
     if (!this.services) return ok(undefined);
 
     const saga = new ThreatResponseSaga({
@@ -71,7 +71,7 @@ export class AutopilotService extends BaseService {
   private intervalId: number | null = null;
   private unsubscribers: (() => void)[] = [];
 
-  protected override async onShutdown(): Promise<Result<void>> {
+    protected override onShutdown(): Promise<Result<void>> {
       if (!this.services) return ok(undefined);
       this.isStarted = false;
       if (this.intervalId) {
@@ -200,9 +200,10 @@ export class AutopilotService extends BaseService {
         });
 
         // Demand Scan: Critical syscalls might indicate rootkit injection attempts
-        this.services!.processTracker.scanForGhosts().then((ghosts: any[]) => {
+        try {
+            const ghosts = await this.services!.processTracker.scanForGhosts();
             if (ghosts.length > 0) {
-                this.engine.evaluate({
+                await this.engine.evaluate({
                     source: "local",
                     type: "ROOTKIT_DETECTION",
                     severity: 10,
@@ -210,7 +211,15 @@ export class AutopilotService extends BaseService {
                     data: { ghosts }
                 });
             }
-        });
+        } catch (err) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:domain:orchestration:autopilot_service",
+                message: `Ghost scan failed: ${err instanceof Error ? err.message : String(err)}`
+            }).catch(() => {});
+        }
     });
 
     // Proactive Artifact Containment Hook
@@ -238,7 +247,7 @@ export class AutopilotService extends BaseService {
     this.unsubscribers.push(() => clearInterval(ghostInterval));
   }
 
-  public async spawnLureProcess() {
+    public spawnLureProcess() {
     if (!this.services) return;
     try {
         const scriptPath = new URL("../../tools/lure.ts", import.meta.url).pathname;

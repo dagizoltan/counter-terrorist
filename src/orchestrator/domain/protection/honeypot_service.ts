@@ -1,5 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
-import { LoggingPort, LogSeverity, LogType, CommandPort, FirewallPort, PcapPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort, FirewallPort, PcapPort, EventBusPort } from "@core/ports.ts";
+import { SystemEvent } from "@domain/analysis/events.ts";
 import { Result, ok, err } from "@core/result.ts";
 
 export interface HoneypotModule {
@@ -12,7 +13,8 @@ export interface HoneypotModule {
 
 export class HoneypotService extends BaseService {
   private modules: Map<string, HoneypotModule> = new Map();
-  private eventHandlers: ((event: any) => void)[] = [];
+  private eventHandlers: ((event: SystemEvent) => void)[] = [];
+  private eventBus?: EventBusPort;
   private hitCount: number = 0;
 
   constructor(
@@ -67,11 +69,11 @@ export class HoneypotService extends BaseService {
     });
   }
 
-  onEvent(handler: (event: any) => void) {
+  onEvent(handler: (event: SystemEvent) => void) {
     this.eventHandlers.push(handler);
   }
 
-  private emitEvent(event: any) {
+  private emitEvent(event: SystemEvent) {
     for (const handler of this.eventHandlers) {
       handler(event);
     }
@@ -147,7 +149,7 @@ export class HoneypotService extends BaseService {
     return ok(undefined);
   }
 
-  override setEventBus(eventBus: any) {
+  override setEventBus(eventBus: EventBusPort) {
     this.eventBus = eventBus;
   }
 
@@ -198,7 +200,7 @@ export class HoneypotService extends BaseService {
           payload: { source_ip, port, hitCount: this.hitCount, module: module?.name }
       });
 
-      if (this.eventBus) (this.eventBus as any).emit("UI_BROADCAST", {
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "TACTICAL_TRIGGER",
         data: {
           type: "HONEYPOT_HIT",
@@ -225,7 +227,17 @@ export class HoneypotService extends BaseService {
 
       // Automated Forensics: Start capture for the attacker's traffic
       const safeIp = source_ip.replace(/[\.:]/g, '_');
-      this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`).catch(console.error);
+      try {
+        await this.pcap.startCapture("any", 300, `honeypot_hit_${safeIp}_${Date.now()}.pcap`, `host ${source_ip}`);
+      } catch (err) {
+        this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "orchestrator:domain:protection:honeypot_service",
+          message: `Honeypot forensic capture failed for ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
+        }).catch(() => {});
+      }
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
@@ -261,7 +273,7 @@ export class HoneypotService extends BaseService {
         payload: { source_ip, route, hitCount: this.hitCount }
     });
 
-    if (this.eventBus) (this.eventBus as any).emit("UI_BROADCAST", {
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
       type: "TACTICAL_TRIGGER",
       data: {
         type: "WEB_DECOY_HIT",
@@ -440,7 +452,7 @@ export class HoneypotService extends BaseService {
           message: `DECEPTION MORPH: ${module.name} port rotation from ${oldPort} to ${newPort}`
       });
 
-      if (this.eventBus) (this.eventBus as any).emit("UI_BROADCAST", {
+      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
           type: LogType.AUDIT,

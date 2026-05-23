@@ -21,7 +21,7 @@ export class SshHoneypotPlugin implements Plugin {
     return this.active ? "ACTIVE" : "INACTIVE";
   }
 
-  async start() {
+  start() {
     try {
       this.listener = Deno.listen({ port: this.port });
       this.active = true;
@@ -68,8 +68,29 @@ export class SshHoneypotPlugin implements Plugin {
         }
       });
 
-      this.firewall.blockIp(remoteAddr).catch(() => {});
-      this.pcap.startCapture("any", 30).catch(() => {});
+      try {
+        await this.firewall.blockIp(remoteAddr);
+      } catch (err) {
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "SSH-HONEYPOT",
+          message: `Failed to block IP ${remoteAddr}: ${err instanceof Error ? err.message : String(err)}`
+        });
+      }
+
+      try {
+        await this.pcap.startCapture("any", 30);
+      } catch (err) {
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.GENERIC,
+          severity: LogSeverity.WARNING,
+          caller: "SSH-HONEYPOT",
+          message: `PCAP failed for ${remoteAddr}: ${err instanceof Error ? err.message : String(err)}`
+        });
+      }
 
       // Send a fake SSH banner and close
       try {
@@ -81,7 +102,7 @@ export class SshHoneypotPlugin implements Plugin {
     }
   }
 
-  async stop() {
+  stop() {
     this.active = false;
     if (this.listener) {
       this.listener.close();
