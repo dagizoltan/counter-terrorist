@@ -17,19 +17,61 @@ export interface Service {
 export abstract class BaseService implements Service {
     protected eventBus?: EventBus;
     protected initialized = false;
+    protected initPromise: Promise<Result<void>> | null = null;
 
     setEventBus(eventBus: EventBus) {
         this.eventBus = eventBus;
     }
 
+    /**
+     * Standard initialization with re-entrancy protection.
+     */
     async init(..._args: any[]): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
-        this.initialized = true;
+        if (this.initPromise) return this.initPromise;
+
+        this.initPromise = (async () => {
+            try {
+                const res = await this.onInit(..._args);
+                if (res.success) {
+                    this.initialized = true;
+                }
+                return res;
+            } finally {
+                this.initPromise = null;
+            }
+        })();
+
+        return this.initPromise;
+    }
+
+    /**
+     * Override this for service-specific initialization logic.
+     */
+    protected async onInit(..._args: any[]): Promise<Result<void>> {
         return ok(undefined);
     }
 
+    /**
+     * Standard shutdown logic.
+     */
     async shutdown(): Promise<Result<void>> {
-        this.initialized = false;
+        const res = await this.onShutdown();
+        return res;
+    }
+
+    /**
+     * Override this for service-specific shutdown logic.
+     */
+    protected async onShutdown(): Promise<Result<void>> {
         return ok(undefined);
+    }
+
+    /**
+     * Guard that ensures the service is fully initialized before use.
+     */
+    protected ensureReady() {
+        if (!this.initialized) {
+            throw new Error(`Service ${this.constructor.name} is not initialized.`);
+        }
     }
 }

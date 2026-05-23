@@ -20,10 +20,8 @@ export class IntegrityService extends BaseService {
         private logging: LoggingPort
     ) {}
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         this.start();
-        this.initialized = true;
         return ok(undefined);
     }
 
@@ -35,13 +33,12 @@ export class IntegrityService extends BaseService {
         this.checkIntervalId = setInterval(() => this.checkIntegrity(), 60000); // Once per minute
     }
 
-    public override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.checkIntervalId) {
             clearInterval(this.checkIntervalId);
             this.checkIntervalId = undefined;
         }
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private async checkIntegrity() {

@@ -21,13 +21,11 @@ export class EventMediator extends BaseService {
     private readonly BATCH_THRESHOLD = 50;
     private batchTimer?: number;
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
-        this.initialized = true;
+    protected override async onInit(): Promise<Result<void>> {
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.learningTimeout) {
             clearTimeout(this.learningTimeout);
             this.learningTimeout = null;
@@ -50,8 +48,7 @@ export class EventMediator extends BaseService {
             caller: "orchestrator:domain:analysis:event_mediator",
             message: "Event Mediator offline."
         });
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     constructor(
@@ -120,7 +117,25 @@ export class EventMediator extends BaseService {
 
         // 2. eBPF Integration
         commandPort.onEvent("sentinel", async (response: any) => {
-            const event = response.data || response;
+            let event = response.data || response;
+
+            // SOV-06: Schema enforcement for IPC
+            try {
+                const { SyscallEventSchema } = await import("../../core/event_schema.ts");
+                if (event.type === "SYSCALL_EVENT") {
+                    event = SyscallEventSchema.parse(event);
+                }
+            } catch (e) {
+                this.logger.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "MEDIATOR:SCHEMA",
+                    message: `Malformed EBPF event: ${(e as Error).message}`
+                });
+                return;
+            }
+
             if (event.type === "SYSCALL_EVENT") {
                 this.syscallBatch.push(event);
                 if (this.syscallBatch.length >= this.BATCH_THRESHOLD) {
@@ -178,7 +193,25 @@ export class EventMediator extends BaseService {
         // 3. FIM Integration
         commandPort.onEvent("watchfile", async (response: any) => {
             const event = response.data || response;
-            const payload = event.data || event;
+            let payload = event.data || event;
+
+            // SOV-06: Schema enforcement for IPC
+            try {
+                const { FileDriftSchema } = await import("../../core/event_schema.ts");
+                if (payload?.type === "FileAlert") {
+                    payload = FileDriftSchema.parse(payload);
+                }
+            } catch (e) {
+                this.logger.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "MEDIATOR:SCHEMA",
+                    message: `Malformed FIM event: ${(e as Error).message}`
+                });
+                return;
+            }
+
             if (payload?.type === "FileAlert") {
                 const { path, action, comm, pid } = payload;
                 const actor = comm || "system:internal";
@@ -213,9 +246,26 @@ export class EventMediator extends BaseService {
         });
 
         // 4. PCAP Integration
-        commandPort.onEvent("netcap", (response: any) => {
+        commandPort.onEvent("netcap", async (response: any) => {
             const event = response.data || response;
-            const data = event.data || event;
+            let data = event.data || event;
+
+            // SOV-06: Schema enforcement for IPC
+            try {
+                const { NetworkLogSchema } = await import("../../core/event_schema.ts");
+                if (event.type === "NETWORK_LOG") {
+                    data = NetworkLogSchema.parse(data);
+                }
+            } catch (e) {
+                this.logger.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "MEDIATOR:SCHEMA",
+                    message: `Malformed NETWORK event: ${(e as Error).message}`
+                });
+                return;
+            }
 
             if (event.type === "PACKET" || event.type === "NETWORK_LOG" || event.type === "EXFIL_ALERT") {
                 if (event.type === "NETWORK_LOG") {

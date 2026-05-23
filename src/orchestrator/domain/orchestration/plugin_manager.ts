@@ -10,6 +10,7 @@ export interface Plugin {
 }
 
 import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 export class PluginManager extends BaseService {
   private plugins: Map<string, Plugin> = new Map();
@@ -17,6 +18,16 @@ export class PluginManager extends BaseService {
 
   constructor() {
     super();
+  }
+
+  protected override async onInit(): Promise<Result<void>> {
+    await this.startAll();
+    return ok(undefined);
+  }
+
+  protected override async onShutdown(): Promise<Result<void>> {
+    await this.stopAll();
+    return ok(undefined);
   }
 
   /**
@@ -82,8 +93,6 @@ export class PluginManager extends BaseService {
   }
 
   async startAll(): Promise<{ name: string; success: boolean; error?: string }[]> {
-    if (this.initialized) return [];
-    this.initialized = true;
     // BUG-6.5 FIX: Start plugins in parallel with timeouts to avoid boot blocking
     const startPromises = Array.from(this.plugins.values()).map(async (plugin) => {
       try {
@@ -118,7 +127,6 @@ export class PluginManager extends BaseService {
   }
 
   async stopAll() {
-    this.initialized = false;
     // Terminate all sandboxed workers
     for (const [name, worker] of this.workers.entries()) {
         try {

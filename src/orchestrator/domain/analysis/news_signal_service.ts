@@ -36,8 +36,7 @@ export class NewsSignalService extends BaseService {
         super();
     }
 
-    override async init(kv?: Deno.Kv): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(kv?: Deno.Kv): Promise<Result<void>> {
         this.kv = kv || await Deno.openKv();
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -52,7 +51,6 @@ export class NewsSignalService extends BaseService {
 
         // Refresh every 30 minutes
         this.refreshInterval = setInterval(() => this.fetchFeeds(), 30 * 60 * 1000);
-        this.initialized = true;
         return ok(undefined);
     }
 
@@ -162,13 +160,12 @@ export class NewsSignalService extends BaseService {
         }
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
             this.refreshInterval = undefined;
         }
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     async getLatestSignals(limit = 10): Promise<NewsItem[]> {

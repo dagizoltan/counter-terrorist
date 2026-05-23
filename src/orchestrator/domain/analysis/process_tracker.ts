@@ -35,12 +35,10 @@ export class ProcessTracker extends BaseService {
         super();
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         // BUG-4.6 FIX: Automated tree cleanup to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanup(), 300000); // Every 5 minutes
         this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
-        this.initialized = true;
         return ok(undefined);
     }
 
@@ -60,10 +58,9 @@ export class ProcessTracker extends BaseService {
         });
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.cleanupInterval) clearInterval(this.cleanupInterval);
         if (this.metricsInterval) clearInterval(this.metricsInterval);
-        this.initialized = false;
         return ok(undefined);
     }
 

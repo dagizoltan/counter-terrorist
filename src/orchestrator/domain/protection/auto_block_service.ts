@@ -18,20 +18,17 @@ export class AutoBlockService extends BaseService {
     super();
   }
 
-  override async init(): Promise<Result<void>> {
-    if (this.initialized) return ok(undefined);
+  protected override async onInit(): Promise<Result<void>> {
     this.start();
-    this.initialized = true;
     return ok(undefined);
   }
 
-  override async shutdown(): Promise<Result<void>> {
+  protected override async onShutdown(): Promise<Result<void>> {
       if (this.unsubscriber) {
           this.unsubscriber();
           this.unsubscriber = undefined;
       }
-      this.initialized = false;
-      return await super.shutdown();
+      return ok(undefined);
   }
 
   private start() {

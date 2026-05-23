@@ -23,10 +23,8 @@ export class WatchdogService extends BaseService {
         super();
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         this.start();
-        this.initialized = true;
         return ok(undefined);
     }
 
@@ -45,13 +43,12 @@ export class WatchdogService extends BaseService {
         this.intervalId = setInterval(() => this.checkHealth(), 30000); // Check every 30s
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         this.isRunning = false;
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = undefined;
         }
-        this.initialized = false;
         return ok(undefined);
     }
 

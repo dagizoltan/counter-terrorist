@@ -22,17 +22,14 @@ export class DecentralizedMetricsService extends BaseService {
         });
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         this.interval = setInterval(() => this.broadcastMetrics(), 5000 + (Math.random() * 500));
-        this.initialized = true;
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.interval) clearInterval(this.interval);
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private broadcastMetrics() {

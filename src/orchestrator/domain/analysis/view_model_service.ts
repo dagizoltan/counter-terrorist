@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
 
@@ -34,17 +35,14 @@ export class ViewModelService extends BaseService {
         super();
     }
 
-    override async init(): Promise<import("../../core/result.ts").Result<void>> {
-        if (this.initialized) return { success: true, data: undefined };
-        this.initialized = true;
+    protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
         return { success: true, data: undefined };
     }
 
-    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
         this.unsubscribers.forEach(u => u());
         this.unsubscribers = [];
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     override setEventBus(eventBus: any) {

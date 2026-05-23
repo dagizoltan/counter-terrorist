@@ -32,15 +32,12 @@ export class ComplianceService extends BaseService {
         super();
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
-        this.initialized = true;
+    protected override async onInit(): Promise<Result<void>> {
         return ok(undefined);
     }
 
-    override async shutdown(): Promise<Result<void>> {
-        this.initialized = false;
-        return await super.shutdown();
+    protected override async onShutdown(): Promise<Result<void>> {
+        return ok(undefined);
     }
 
     /**

@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
 
@@ -21,8 +22,7 @@ export class GeoIpService extends BaseService {
         super();
     }
 
-    override async init(): Promise<import("../../core/result.ts").Result<void>> {
-        if (this.initialized) return { success: true, data: undefined };
+    protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -30,13 +30,11 @@ export class GeoIpService extends BaseService {
             caller: "GEOIP_SERVICE",
             message: "SECURITY ALERT: GeoIP Service operating in [PROVISIONAL_DETERMINISTIC_MODE]. Attribution is algorithmically generated, not authoritative."
         });
-        this.initialized = true;
         return { success: true, data: undefined };
     }
 
-    override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
-        this.initialized = false;
-        return await super.shutdown();
+    protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
+        return ok(undefined);
     }
 
     /**

@@ -1,3 +1,4 @@
+import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 import { EventBus } from "@domain/index.ts";
 import { AuditService } from "../analysis/audit.ts";
@@ -17,15 +18,12 @@ export class ChaosEngine extends BaseService {
     this.logging = auditService.getLogging();
   }
 
-  override async init(): Promise<import("../../core/result.ts").Result<void>> {
-    if (this.initialized) return { success: true, data: undefined };
-    this.initialized = true;
+  protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
     return { success: true, data: undefined };
   }
 
-  override async shutdown(): Promise<import("../../core/result.ts").Result<void>> {
-    this.initialized = false;
-    return await super.shutdown();
+  protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    return ok(undefined);
   }
 
   async simulateBruteForce(ip: string = "192.168.99.100") {

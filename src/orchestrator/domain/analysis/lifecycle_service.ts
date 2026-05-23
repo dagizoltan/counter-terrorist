@@ -80,13 +80,11 @@ export class LifecycleService extends BaseService {
         this.timerId = setInterval(() => this.tick(), 10000); // Check every 10s
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
-        this.initialized = true;
+    protected override async onInit(): Promise<Result<void>> {
         return ok(undefined);
     }
 
-    public override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.timerId) {
             clearInterval(this.timerId);
             this.timerId = undefined;
@@ -99,8 +97,7 @@ export class LifecycleService extends BaseService {
             clearTimeout(this.lkgTimer);
             this.lkgTimer = undefined;
         }
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private async tick() {

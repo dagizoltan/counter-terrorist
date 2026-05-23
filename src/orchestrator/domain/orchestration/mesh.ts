@@ -30,7 +30,7 @@ export class MeshManager extends BaseService {
   private meshSecret: string | undefined;
   private watcherAbortController: AbortController | null = null;
 
-  override async shutdown(): Promise<Result<void>> {
+  protected override async onShutdown(): Promise<Result<void>> {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
       this.discoveryInterval = null;
       if (this.metricsInterval) clearInterval(this.metricsInterval);
@@ -55,8 +55,7 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: "Mesh MeshManager offline."
       });
-      this.initialized = false;
-      return await super.shutdown();
+      return ok(undefined);
   }
 
   constructor(
@@ -88,8 +87,7 @@ export class MeshManager extends BaseService {
     });
   }
 
-  override async init(): Promise<Result<void>> {
-    if (this.initialized) return ok(undefined);
+  protected override async onInit(): Promise<Result<void>> {
 
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.startStateWatcher();
@@ -116,7 +114,6 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `mTLS Identity established for ${this.nodeId}`
       });
-      this.initialized = true;
       return ok(undefined);
     } catch (e) {
       const error = e instanceof Error ? e : new Error(String(e));
@@ -462,6 +459,7 @@ export class MeshManager extends BaseService {
   }
 
   async broadcast(payload: any, priority: boolean = false): Promise<Result<void>> {
+    this.ensureReady();
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
 
     const MAX_GOSSIP_CONCURRENCY = 16;

@@ -41,10 +41,8 @@ export class AnonymizationService extends BaseService {
         this.firewall = firewall;
     }
 
-    override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
         const res = await this.start();
-        if (res.success) this.initialized = true;
         return res;
     }
 
@@ -256,11 +254,10 @@ export class AnonymizationService extends BaseService {
         };
     }
 
-    override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.rotationInterval) clearInterval(this.rotationInterval);
         if (this.killSwitchInterval) clearInterval(this.killSwitchInterval);
         this.mode = StealthMode.OFF;
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 }

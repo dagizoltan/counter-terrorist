@@ -35,6 +35,7 @@ Deno.test("AuditService - Merkle Root Commitment", async () => {
     const repo = new MockAuditRepository();
     const logger = new MockLoggingPort();
     const service = new AuditService(repo, logger);
+    await service.init();
 
     await service.logEvent({ type: "TEST", message: "Event 1" });
     await service.logEvent({ type: "TEST", message: "Event 2" });
@@ -58,6 +59,7 @@ Deno.test("AuditService - Chain Verification and Tampering Detection", async () 
     const repo = new MockAuditRepository();
     const logger = new MockLoggingPort();
     const service = new AuditService(repo, logger);
+    await service.init();
 
     await service.logEvent({ type: "TEST", message: "Valid 1" });
     await service.logEvent({ type: "TEST", message: "Valid 2" });
@@ -80,6 +82,7 @@ Deno.test("AuditService - Retention Checkpoint", async () => {
     const repo = new MockAuditRepository();
     const logger = new MockLoggingPort();
     const service = new AuditService(repo, logger);
+    await service.init();
 
     // Add an old event
     const oldDate = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString();

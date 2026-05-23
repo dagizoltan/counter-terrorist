@@ -88,8 +88,7 @@ export class AuditService extends BaseService {
 
     }
 
-    public override async init(): Promise<Result<void>> {
-        if (this.initialized) return ok(undefined);
+    protected override async onInit(): Promise<Result<void>> {
 
         const restoreRes = await this.restoreChainHead();
         if (!restoreRes.success) {
@@ -114,7 +113,6 @@ export class AuditService extends BaseService {
         this.intervals.push(setInterval(() => this.commitMerkleRoot(), jitter(600000)));
 
         this.startLedgerWatcher();
-        this.initialized = true;
         return ok(undefined);
     }
 
@@ -170,7 +168,7 @@ export class AuditService extends BaseService {
         });
     }
 
-    public override async shutdown(): Promise<Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         // SOV-05 STABILITY: Ensure all intervals and timers are cleared to prevent hanging
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
@@ -194,8 +192,7 @@ export class AuditService extends BaseService {
         }
 
         await this.flushBuffer();
-        this.initialized = false;
-        return await super.shutdown();
+        return ok(undefined);
     }
 
     private isCommittingMerkle = false;
@@ -323,6 +320,7 @@ export class AuditService extends BaseService {
     }
 
     async logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string, fromAudit?: boolean }) {
+        this.ensureReady();
         // SOV-05 STABILITY: Immediate drop if event is from audit itself to prevent recursion
         if ((event as any).fromAudit) return;
 

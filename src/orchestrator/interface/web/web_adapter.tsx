@@ -9,6 +9,7 @@ import { createWsHandler } from "./ws_handler.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "./middleware/security.ts";
 import { uiContext } from "./middleware/ui_context.ts";
+import { apiConsistencyMiddleware } from "./middleware/api_consistency.ts";
 import { registerRoutes } from "./routes/registry.ts";
 import { MeshAuthPort } from "@core/ports.ts";
 import { getMetricsSnapshot } from "@domain/analysis/metrics_service.ts";
@@ -262,6 +263,9 @@ export class WebAdapter implements WebPort {
   private setupMiddleware() {
     // Apply global security headers
     this.app.use("*", this.security.hardenedHeaders());
+
+    // SOV-06: Unified API response format
+    this.app.use("/api/*", apiConsistencyMiddleware);
 
     // 0. AUTH MIDDLEWARE: Protect core resources
     this.app.use("*", (c, next) => {
