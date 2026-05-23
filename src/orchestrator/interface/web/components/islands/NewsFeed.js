@@ -17,7 +17,7 @@ class NewsFeed extends HTMLElement {
   }
 
   setupListeners() {
-    window.addEventListener('metrics-update', (e) => {
+    globalThis.addEventListener('metrics-update', (e) => {
       if (e.detail?.news?.latest) {
         this.news = e.detail.news.latest.map(item => ({
           ...item,

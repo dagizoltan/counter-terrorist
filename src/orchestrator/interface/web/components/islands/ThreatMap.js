@@ -27,7 +27,7 @@ class ThreatMap extends HTMLElement {
 
   async loadDependencies() {
     return new Promise((resolve) => {
-      if (window.L) return resolve();
+      if (globalThis.L) return resolve();
 
       const link = document.createElement('link');
       link.rel = 'stylesheet';
@@ -42,7 +42,7 @@ class ThreatMap extends HTMLElement {
   }
 
   initMap() {
-    const L = window.L;
+    const L = globalThis.L;
     
     // Initialize map with a dark tactical theme
     this.map = L.map(this, {
@@ -81,9 +81,9 @@ class ThreatMap extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
@@ -102,7 +102,7 @@ class ThreatMap extends HTMLElement {
 
   plotThreat(indicator, lat, lon, type, blocked, isNew = false) {
     if (!this.map || !lat || !lon) return;
-    const L = window.L;
+    const L = globalThis.L;
 
     // Remove existing marker for this indicator if it exists
     if (this.markers.has(indicator)) {

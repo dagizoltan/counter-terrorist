@@ -41,6 +41,7 @@ Deno.test("AuditService batching", async () => {
     const repo = new MockRepo();
     const logging = new MockLogging();
     const service = new AuditService(repo as any, logging);
+    await service.init();
 
     // Log 5 events, should be buffered
     for (let i = 0; i < 5; i++) {

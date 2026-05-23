@@ -6,8 +6,8 @@ class MiniLog extends HTMLElement {
 
   connectedCallback() {
     // Ensure escape helper is available
-    if (!window.escapeHTML) {
-      window.escapeHTML = (str) => {
+    if (!globalThis.escapeHTML) {
+      globalThis.escapeHTML = (str) => {
         if (typeof str !== 'string') return String(str);
         return str.replace(/[&<>"']/g, (m) => ({
           '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -39,8 +39,8 @@ class MiniLog extends HTMLElement {
       this._ws.onclose = null;
       this._ws.close();
     }
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = new URL(`${protocol}//${globalThis.location.host}/api/ws/events`);
 
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     if (csrfToken) {
@@ -133,19 +133,19 @@ class MiniLog extends HTMLElement {
                 <div class="absolute inset-y-0 left-0 w-0.5 ${this.getSeverityBgClass(severity)} opacity-40 group-hover:opacity-100"></div>
                 
                 <span class="flex-shrink-0 mono text-[6.5px] font-black uppercase tracking-tighter ${typeColorClass} w-8">
-                  ${window.escapeHTML(type.slice(0, 4))}
+                  ${globalThis.escapeHTML(type.slice(0, 4))}
                 </span>
 
                 <span class="flex-shrink-0 mono text-[6.5px] font-bold uppercase tracking-tighter ${severityTextClass} w-6">
-                  ${window.escapeHTML(severity.slice(0, 3))}
+                  ${globalThis.escapeHTML(severity.slice(0, 3))}
                 </span>
 
                 <span class="flex-shrink-0 mono text-[6.5px] text-slate-500 font-bold uppercase truncate tracking-tighter w-16 opacity-60">
-                  ${window.escapeHTML(caller.slice(0, 10))}
+                  ${globalThis.escapeHTML(caller.slice(0, 10))}
                 </span>
 
                 <span class="flex-grow min-w-0 text-[7.5px] text-slate-300 font-medium truncate tracking-tight">
-                  ${window.escapeHTML(log.message || '---')}
+                  ${globalThis.escapeHTML(log.message || '---')}
                 </span>
  
                 <span class="flex-shrink-0 mono text-[6.5px] font-black text-slate-600 tabular-nums">
@@ -157,7 +157,7 @@ class MiniLog extends HTMLElement {
               <div class="message-detail hidden px-4 py-3 bg-black/60 border-t border-white/5">
                 <div class="mono text-[8px] text-primary/90 leading-relaxed bg-black/40 p-3 rounded-lg border border-white/5">
                   <div class="text-slate-500 mb-2 uppercase tracking-widest border-b border-white/5 pb-1">Full_Forensic_Message</div>
-                  ${window.escapeHTML(log.message || '---')}
+                  ${globalThis.escapeHTML(log.message || '---')}
                   ${log.payload ? `<div class="mt-2 pt-2 border-t border-white/5 text-[7px] text-slate-500 uppercase">Payload: ${JSON.stringify(log.payload)}</div>` : ''}
                 </div>
               </div>

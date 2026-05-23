@@ -24,9 +24,9 @@ class FimAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket(`${protocol}//${window.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
 
     ws.onmessage = (event) => {
       try {
@@ -72,7 +72,7 @@ class FimAgent extends HTMLElement {
           <div class="flex justify-between items-center mb-3">
              <div class="flex items-center gap-4">
                 <span class="mono-xs font-black uppercase tracking-widest ${isCritical ? 'text-danger' : 'text-warning'}">
-                  ${window.escapeHTML(alert.action || 'MODIFY')}
+                  ${globalThis.escapeHTML(alert.action || 'MODIFY')}
                 </span>
                 <span class="dot ${isCritical ? 'danger' : 'warning'}" style="width: 4px; height: 4px;"></span>
                 <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest">Integrity_Violation</span>
@@ -81,7 +81,7 @@ class FimAgent extends HTMLElement {
           </div>
           <div class="flex items-start gap-4">
              <div class="mono-sm font-bold text-slate-400 uppercase tracking-tight break-all leading-relaxed">
-               ${window.escapeHTML(alert.path)}
+               ${globalThis.escapeHTML(alert.path)}
              </div>
           </div>
           <div class="mt-4 flex gap-4">

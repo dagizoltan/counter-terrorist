@@ -18,7 +18,9 @@ export class IntegrityService extends BaseService {
         private audit: AuditService,
         private tpm: TPMManager,
         private logging: LoggingPort
-    ) {}
+    ) {
+        super();
+    }
 
     protected override async onInit(): Promise<Result<void>> {
         this.start();

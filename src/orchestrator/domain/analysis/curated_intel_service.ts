@@ -103,6 +103,10 @@ export class CuratedIntelService extends BaseService {
         return this.blacklist;
     }
 
+    async start(kv?: Deno.Kv): Promise<Result<void>> {
+        return await this.init(kv);
+    }
+
     protected override async onInit(kv?: Deno.Kv): Promise<Result<void>> {
         this.kv = kv || await Deno.openKv();
         

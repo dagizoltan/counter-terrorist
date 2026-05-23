@@ -1,4 +1,4 @@
-import { LoggingPort, LogType, LogSeverity } from "../../core/ports.ts";
+import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
 
 export type SubsystemStatus = "BOOTING" | "OPERATIONAL" | "DEGRADED" | "FAILED";
 
@@ -22,20 +22,21 @@ export class HealthService extends BaseService {
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
     private intervals: number[] = [];
 
-    protected override async onInit(): Promise<Result<void>> {
-        return ok(undefined);
+    protected override onInit(): Promise<Result<void>> {
+        return Promise.resolve(ok(undefined));
     }
 
-    protected override async onShutdown(): Promise<Result<void>> {
+    protected override onShutdown(): Promise<Result<void>> {
         // SOV-05 STABILITY: Clear all background monitoring intervals
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
-    private sidecarManager?: any;
+    private sidecarManager?: CommandPort;
 
     constructor(private logger: LoggingPort) {
+        super();
         // Default quotas for agents
         this.sidecarQuotas.set("sentinel", { cpu: 5.0, memory: 64 * 1024 * 1024 });
         this.sidecarQuotas.set("netcap", { cpu: 10.0, memory: 256 * 1024 * 1024 });
@@ -47,7 +48,7 @@ export class HealthService extends BaseService {
         this.intervals.push(setInterval(() => this.pollAgentResources(), 30000));
     }
 
-    public setSidecarManager(sm: any) {
+    public setSidecarManager(sm: CommandPort) {
         this.sidecarManager = sm;
     }
 

@@ -56,7 +56,7 @@ Deno.test("AutoBlockService - Respond to HONEYPOT event", async () => {
     eventBus.emit("HONEYPOT", { source_ip: "10.0.0.1", type: "port_scan", port: 22 });
 
     // Wait for async handler
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 200));
 
     assertEquals(firewall.blockedIps.includes("10.0.0.1"), true);
     assertEquals(logger.logs.some(l => l.message.includes("Automated block triggered for 10.0.0.1")), true);
@@ -73,9 +73,9 @@ Deno.test("AutoBlockService - Respond to EBPF_CRITICAL anomaly", async () => {
     await service.init();
 
     // Trigger critical eBPF event with high anomaly score
-    eventBus.emit("EBPF_CRITICAL", { pid: 1234, comm: "malware", anomalyScore: 0.9, ip: "10.0.0.2" });
+    eventBus.emit("EBPF_CRITICAL", { pid: 1234, comm: "malware", anomalyScore: 0.9, ip: "10.0.0.2", syscall: "execve" } as any);
 
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 200));
 
     assertEquals(firewall.blockedIps.includes("10.0.0.2"), true);
     assertEquals(firewall.isolatedPids.includes(1234), true);

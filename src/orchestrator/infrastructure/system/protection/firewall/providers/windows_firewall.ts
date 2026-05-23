@@ -28,21 +28,21 @@ export class WindowsFirewallProvider implements FirewallProvider {
     return await this.sidecar.sendCommand("enforcer-win", { type: "QuarantineProcess", pid });
   }
 
-  async enforcePid(_pid: number): Promise<CommandResult> {
-    return { success: false, stdout: "", stderr: "LSM Enforcement not supported on Windows." };
+  enforcePid(_pid: number): Promise<CommandResult> {
+    return Promise.resolve({ success: false, stdout: "", stderr: "LSM Enforcement not supported on Windows." });
   }
 
-  async unenforcePid(_pid: number): Promise<CommandResult> {
-    return { success: false, stdout: "", stderr: "LSM Enforcement not supported on Windows." };
+  unenforcePid(_pid: number): Promise<CommandResult> {
+    return Promise.resolve({ success: false, stdout: "", stderr: "LSM Enforcement not supported on Windows." });
   }
 
   async getStatus(): Promise<CommandResult> {
     return await this.sidecar.sendCommand("enforcer-win", { type: "GetStatus" });
   }
 
-  async lockdown(): Promise<CommandResult> {
+  lockdown(): Promise<CommandResult> {
     // Implement global lockdown via WFP if needed, or just return success for now
-    return { success: true, stdout: "Windows Lockdown (via WFP) Active", stderr: "" };
+    return Promise.resolve({ success: true, stdout: "Windows Lockdown (via WFP) Active", stderr: "" });
   }
 
   async allowPort(port: number, protocol: "tcp" | "udp"): Promise<CommandResult> {

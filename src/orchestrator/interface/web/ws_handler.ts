@@ -87,7 +87,7 @@ export function broadcast(data: BroadcastData) {
       message: data.message || data.type || "",
       data: data.data,
       timestamp: eventToBroadcast.timestamp
-    }).catch(() => {});
+    });
 
     // Trigger external notifications
     notificationService.notify({

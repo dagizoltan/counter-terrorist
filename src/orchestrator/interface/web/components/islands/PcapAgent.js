@@ -60,9 +60,9 @@ class PcapAgent extends HTMLElement {
   }
 
   connectWS() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-    const url = `${protocol}//${window.location.host}/api/ws/events${csrf ? `?token=${csrf}` : ''}`;
+    const url = `${protocol}//${globalThis.location.host}/api/ws/events${csrf ? `?token=${csrf}` : ''}`;
     
     this._ws = new SharedWebSocket(url);
 
@@ -166,16 +166,16 @@ class PcapAgent extends HTMLElement {
           
           <div class="flex-1 min-w-0">
              <div class="flex items-center gap-2 mb-1">
-                <span class="mono-xs font-black text-white italic tracking-tight truncate max-w-[200px]">${window.escapeHTML(p.source || '...')}</span>
+                <span class="mono-xs font-black text-white italic tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(p.source || '...')}</span>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-slate-700"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                <span class="mono-xs font-black text-slate-400 italic tracking-tight truncate max-w-[200px]">${window.escapeHTML(p.destination || '...')}</span>
+                <span class="mono-xs font-black text-slate-400 italic tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(p.destination || '...')}</span>
              </div>
-             ${p.message ? `<div class="mono-xs text-[7px] text-slate-600 uppercase font-black tracking-widest truncate">${window.escapeHTML(p.message)}</div>` : ''}
+             ${p.message ? `<div class="mono-xs text-[7px] text-slate-600 uppercase font-black tracking-widest truncate">${globalThis.escapeHTML(p.message)}</div>` : ''}
           </div>
  
           <div class="flex items-center gap-4">
              <span class="mono-xs font-black uppercase tracking-[0.2em] text-slate-500 bg-white/5 px-2 py-0.5 rounded text-[7px]">
-                ${window.escapeHTML(p.protocol || 'TCP')}
+                ${globalThis.escapeHTML(p.protocol || 'TCP')}
              </span>
              <span class="mono-xs text-slate-600 font-bold text-[8px] tabular-nums">${new Date(p.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
           </div>

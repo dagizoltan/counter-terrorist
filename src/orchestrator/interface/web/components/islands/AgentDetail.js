@@ -46,7 +46,7 @@ class AgentDetail extends HTMLElement {
       if (capsEl) {
         const caps = agentData.capabilities || ['STANDARD'];
         capsEl.innerHTML = caps.map(c => 
-          `<span class="status-pill active primary">${window.escapeHTML(c)}</span>`
+          `<span class="status-pill active primary">${globalThis.escapeHTML(c)}</span>`
         ).join('');
       }
 
@@ -168,8 +168,8 @@ class AgentDetail extends HTMLElement {
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 ${(metrics.blockedIps || []).map(ip => `
                  <div class="p-4 bg-black/60 border border-white/5 flex items-center justify-between group hover:border-danger/40 rounded-lg">
-                     <span class="mono-xs text-danger font-black uppercase tracking-widest">${window.escapeHTML(ip)}</span>
-                     <button onclick="const t=document.querySelector('meta[name=\\'csrf-token\\']')?.content; fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token': t}, body:JSON.stringify({ip: '${window.escapeHTML(ip)}'})}).then(() => location.reload())" 
+                     <span class="mono-xs text-danger font-black uppercase tracking-widest">${globalThis.escapeHTML(ip)}</span>
+                     <button onclick="const t=document.querySelector('meta[name=\\'csrf-token\\']')?.content; fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token': t}, body:JSON.stringify({ip: '${globalThis.escapeHTML(ip)}'})}).then(() => location.reload())"
                              class="opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white transition-opacity">PURGE</button>
                  </div>
                `).join('') || `
@@ -270,12 +270,12 @@ class AgentDetail extends HTMLElement {
         return `
           <div class="flex items-center gap-8 p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors">
             <span class="mono-xs text-slate-600 font-bold w-20">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
-            <span class="mono-xs font-bold w-16 ${l.direction === 'INBOUND' ? 'text-primary' : 'text-warning'}">${window.escapeHTML(l.direction.slice(0, 3))}</span>
+            <span class="mono-xs font-bold w-16 ${l.direction === 'INBOUND' ? 'text-primary' : 'text-warning'}">${globalThis.escapeHTML(l.direction.slice(0, 3))}</span>
             <span class="mono-xs flex-1 truncate text-slate-400 font-bold uppercase tracking-widest">
-               ${window.escapeHTML(l.source)} <span class="text-slate-800 mx-2">→</span> ${window.escapeHTML(l.destination)}
+               ${globalThis.escapeHTML(l.source)} <span class="text-slate-800 mx-2">→</span> ${globalThis.escapeHTML(l.destination)}
             </span>
             <div class="flex items-center gap-6">
-               <span class="status-pill ${isBlock ? 'danger' : 'success'}">${window.escapeHTML(l.action)}</span>
+               <span class="status-pill ${isBlock ? 'danger' : 'success'}">${globalThis.escapeHTML(l.action)}</span>
             </div>
           </div>
         `;

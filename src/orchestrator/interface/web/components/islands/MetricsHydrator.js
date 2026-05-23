@@ -28,8 +28,8 @@ class MetricsHydrator extends HTMLElement {
       this._ws.onclose = null;
       this._ws.close();
     }
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = new URL(`${protocol}//${window.location.host}/api/ws/events`);
+    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const url = new URL(`${protocol}//${globalThis.location.host}/api/ws/events`);
 
     // SEC-05: Authenticated WebSocket Handshake
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
@@ -119,7 +119,7 @@ class MetricsHydrator extends HTMLElement {
        this.setText('stat-policy-remediations', (m.policy.remediations ?? 0).toLocaleString());
     }
 
-    window.dispatchEvent(new CustomEvent('metrics-update', { detail: m }));
+    globalThis.dispatchEvent(new CustomEvent('metrics-update', { detail: m }));
   }
 
   setText(id, text) {

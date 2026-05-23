@@ -49,10 +49,17 @@ Deno.test("KernelService - Process camouflage", async () => {
     const config = { getBoolean: () => true };
     const service = new KernelService(executor as any, audit as any, config as any);
 
-    await service.camouflage();
+    // Mock Deno.stat to simulate helper script existence
+    const statStub = stub(Deno, "stat", () => Promise.resolve({ isFile: true } as any));
 
-    // Verify call to update_comm.sh
-    assertEquals(executor.calls.some(c => c.cmd.includes("update_comm.sh") && c.args.includes("[kworker/u64:1]")), true);
+    try {
+        await service.camouflage();
+
+        // Verify call to update_comm.sh
+        assertEquals(executor.calls.some(c => c.cmd.includes("update_comm.sh") && c.args.includes("[kworker/u64:1]")), true);
+    } finally {
+        statStub.restore();
+    }
 });
 
 Deno.test("KernelService - eBPF Syscall Block", async () => {

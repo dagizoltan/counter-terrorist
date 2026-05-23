@@ -9,6 +9,7 @@ use std::io::{Write, BufWriter};
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type", content = "payload")]
 enum PcapCommand {
@@ -22,6 +23,7 @@ enum PcapCommand {
     GetStatus,
 }
 
+#[allow(dead_code)]
 #[derive(Serialize, Debug)]
 struct SidecarResponse {
     id: Option<String>,
@@ -58,7 +60,7 @@ impl PcapngWriter {
         // 2. Write Interface Description Block (IDB)
         let mut idb = Vec::new();
         idb.write_all(&IDB_TYPE.to_le_bytes())?;
-        let idb_len = 20 + (interface.len() + 3) & !3; // Padding
+        let idb_len = (20 + interface.len() + 3) & !3; // Padding
         idb.write_all(&(idb_len as u32).to_le_bytes())?;
         idb.write_all(&1u16.to_le_bytes())?; // LinkType (Ethernet)
         idb.write_all(&0u16.to_le_bytes())?; // Reserved
@@ -159,7 +161,7 @@ async fn main() -> anyhow::Result<()> {
                     let err_msg = format!("Failed to initialize PCAP writer: {}", e);
                     log_forensic("error", &err_msg).await;
                     let resp = serde_json::json!({ "id": id, "success": false, "message": err_msg, "timestamp": Utc::now().to_rfc3339() });
-                    println!("{}", resp.to_string());
+                    println!("{}", resp);
                     continue;
                 }
 
@@ -304,7 +306,7 @@ async fn main() -> anyhow::Result<()> {
                 *handle = Some(h);
                 let msg = format!("PCAPng Forensic Recording Active on {}", interface);
                 let resp = serde_json::json!({ "id": id, "success": true, "message": msg, "timestamp": Utc::now().to_rfc3339() });
-                println!("{}", resp.to_string());
+                println!("{}", resp);
             }
             "StopCapture" => {
                 let mut handle = capture_handle.lock().await;

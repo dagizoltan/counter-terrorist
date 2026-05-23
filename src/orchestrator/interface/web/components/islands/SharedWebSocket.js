@@ -1,8 +1,8 @@
 class WsManager {
     constructor() {
-        this.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        this.protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
         this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        this.url = `${this.protocol}//${window.location.host}/api/ws/events${this.csrfToken ? `?token=${this.csrfToken}` : ''}`;
+        this.url = `${this.protocol}//${globalThis.location.host}/api/ws/events${this.csrfToken ? `?token=${this.csrfToken}` : ''}`;
         this.listeners = new Set();
         this.ws = null;
         this.reconnectTimer = null;
@@ -68,25 +68,25 @@ class WsManager {
     }
 }
 
-if (!window.SovereignWS) {
-    window.SovereignWS = new WsManager();
+if (!globalThis.SovereignWS) {
+    globalThis.SovereignWS = new WsManager();
 }
 
-window.SharedWebSocket = class SharedWebSocket {
+globalThis.SharedWebSocket = class SharedWebSocket {
     constructor(url) {
         this.url = url; // Ignored, we use the multiplexed URL
         this.onmessage = null;
         this.onopen = null;
         this.onclose = null;
-        window.SovereignWS.subscribe(this);
+        globalThis.SovereignWS.subscribe(this);
     }
 
     send(data) {
-        window.SovereignWS.send(data);
+        globalThis.SovereignWS.send(data);
     }
 
     close() {
-        window.SovereignWS.unsubscribe(this);
+        globalThis.SovereignWS.unsubscribe(this);
         if (this.onclose) {
             this.onclose({ type: 'close', wasClean: true });
         }
