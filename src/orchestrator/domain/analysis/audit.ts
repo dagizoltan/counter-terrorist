@@ -149,15 +149,17 @@ export class AuditService extends BaseService {
     }
 
     public setConfig(config: { getNumber?(key: string, def: number): number } | Record<string, unknown>) {
-        if (typeof (config as any).getNumber === "function") {
+        const typedConfig = config as { getNumber?(key: string, def: number): number };
+        if (typeof typedConfig.getNumber === "function") {
             this.retentionConfig = {
-                maxAgeDays: (config as any).getNumber("AUDIT_RETENTION_DAYS", 90),
-                maxEvents: (config as any).getNumber("AUDIT_MAX_EVENTS", 10000),
+                maxAgeDays: typedConfig.getNumber("AUDIT_RETENTION_DAYS", 90),
+                maxEvents: typedConfig.getNumber("AUDIT_MAX_EVENTS", 10000),
             };
         } else {
+            const recordConfig = config as Record<string, unknown>;
             this.retentionConfig = {
-                maxAgeDays: (config as any)["AUDIT_RETENTION_DAYS"] as number || 90,
-                maxEvents: (config as any)["AUDIT_MAX_EVENTS"] as number || 10000,
+                maxAgeDays: typeof recordConfig["AUDIT_RETENTION_DAYS"] === "number" ? recordConfig["AUDIT_RETENTION_DAYS"] as number : 90,
+                maxEvents: typeof recordConfig["AUDIT_MAX_EVENTS"] === "number" ? recordConfig["AUDIT_MAX_EVENTS"] as number : 10000,
             };
         }
     }
@@ -239,7 +241,7 @@ export class AuditService extends BaseService {
         }
     }
 
-    public setCorrelation(correlation: any) {
+    public setCorrelation(correlation: unknown) {
         this.correlation = correlation;
     }
 

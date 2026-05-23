@@ -6,7 +6,7 @@ import { Result, ok } from "./result.ts";
  * Enforces a standard lifecycle and communication pattern.
  */
 export interface Service {
-    init?(...args: any[]): Promise<Result<void>> | Result<void>;
+    init?(...args: unknown[]): Promise<Result<void>> | Result<void>;
     shutdown?(): Promise<Result<void>> | Result<void>;
     setEventBus?(eventBus: EventBus): void;
 }
@@ -26,7 +26,7 @@ export abstract class BaseService implements Service {
     /**
      * Standard initialization with re-entrancy protection.
      */
-    async init(..._args: any[]): Promise<Result<void>> {
+    init(..._args: unknown[]): Promise<Result<void>> {
         if (this.initPromise) return this.initPromise;
 
         this.initPromise = (async () => {
@@ -47,7 +47,7 @@ export abstract class BaseService implements Service {
     /**
      * Override this for service-specific initialization logic.
      */
-    protected async onInit(..._args: any[]): Promise<Result<void>> {
+    protected onInit(..._args: unknown[]): Promise<Result<void>> {
         return ok(undefined);
     }
 
@@ -62,7 +62,7 @@ export abstract class BaseService implements Service {
     /**
      * Override this for service-specific shutdown logic.
      */
-    protected async onShutdown(): Promise<Result<void>> {
+    protected onShutdown(): Promise<Result<void>> {
         return ok(undefined);
     }
 

@@ -1,4 +1,4 @@
-import { z } from "npm:zod";
+import { z } from "zod";
 
 /**
  * Define schemas for all possible system events.
@@ -15,8 +15,8 @@ export const HoneypotHitSchema = z.object({
 
 export const DriftDetectedSchema = z.object({
   resource: z.string().optional(),
-  expected: z.any().optional(),
-  actual: z.any().optional(),
+  expected: z.unknown().optional(),
+  actual: z.unknown().optional(),
   path: z.string().optional(),
   action: z.string().optional()
 });
@@ -61,7 +61,7 @@ export const FileDriftSchema = z.object({
 
 export const GenericEventSchema = z.object({
   message: z.string().optional(),
-  data: z.any().optional(),
+  data: z.unknown().optional(),
   correlationId: z.string().optional(),
   fromAudit: z.boolean().optional()
 });
@@ -93,12 +93,12 @@ export const SystemEventRegistry = {
   }),
   "METRIC_UPDATE": z.object({
     domain: z.string(),
-    data: z.any()
+    data: z.unknown()
   }),
-  "AUDIT_EVENT": z.any(),
+  "AUDIT_EVENT": z.unknown(),
   "UI_BROADCAST": z.object({
     type: z.string(),
-    data: z.any()
+    data: z.unknown()
   }),
   "EBPF_SYSCALL": SyscallEventSchema,
   "EBPF_CRITICAL": SyscallEventSchema,
@@ -112,8 +112,29 @@ export const SystemEventRegistry = {
     bytes_count: z.number().optional(),
     correlationId: z.string().optional()
   }),
-  "PACKET": z.any(),
+  "PACKET": z.unknown(),
   "ALERT": GenericEventSchema,
+  "ARTIFACT_FOUND": z.object({
+    indicator: z.string().optional(),
+    path: z.string().optional(),
+    severity: z.string().optional(),
+    correlationId: z.string().optional()
+  }),
+  "ES_EXEC": z.object({
+    path: z.string().optional(),
+    pid: z.number().optional(),
+    signing_id: z.string().optional(),
+    command_line: z.string().optional(),
+    correlationId: z.string().optional()
+  }),
+  "ETW_PROCESS": z.object({
+    process_name: z.string().optional(),
+    command_line: z.string().optional(),
+    pid: z.number().optional(),
+    correlationId: z.string().optional()
+  }),
+  "EBPF_SYSCALL_BATCH": z.array(SyscallEventSchema),
+  "NETWORK_LOG_BATCH": z.array(NetworkLogSchema),
   "LEDGER_TAMPER": z.object({
     eventId: z.string().optional(),
     expected: z.string().optional(),
@@ -141,8 +162,8 @@ export type EventName = keyof EventRegistry;
 /**
  * Validates an event payload against its registered schema.
  */
-export function validateEvent<T extends EventName>(type: T, data: any) {
-  const schema = (SystemEventRegistry as any)[type];
+export function validateEvent<T extends EventName>(type: T, data: unknown) {
+  const schema = (SystemEventRegistry as Record<string, z.ZodTypeAny>)[type];
   if (!schema) return data; // Default to allow if no schema defined yet
   return schema.parse(data);
 }

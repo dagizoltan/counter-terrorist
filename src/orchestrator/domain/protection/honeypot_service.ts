@@ -177,8 +177,9 @@ export class HoneypotService extends BaseService {
       return ok(undefined);
   }
 
-  private async handleEvent(event: any) {
-    const payload = event.data;
+  private async handleEvent(event: unknown) {
+    if (!event || typeof event !== "object") return;
+    const payload = (event as { data?: unknown }).data as Record<string, unknown> | undefined;
     if (!payload) return;
 
     if (payload.type === "PortAccess") {

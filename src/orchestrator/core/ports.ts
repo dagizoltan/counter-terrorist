@@ -1,5 +1,21 @@
 import { Plugin } from "@domain/orchestration/plugin_manager.ts";
 import { PlatformInfo } from "@infrastructure/system/platform.ts";
+import { z } from "npm:zod";
+import type { EventName, EventRegistry } from "@core/event_schema.ts";
+
+export type SystemEventEnvelope<T extends EventName = EventName> = {
+  type: T;
+  message: string;
+  timestamp: string;
+  data: z.infer<EventRegistry[T]>;
+  correlationId?: string;
+  fromAudit?: boolean;
+};
+
+export type EventHandler<T extends EventName> = (
+  data: z.infer<EventRegistry[T]>,
+  event: SystemEventEnvelope<T>
+) => void | Promise<void>;
 
 export interface StartupPort {
   bootstrap(): Promise<{ os: string; isRoot: boolean; dependencies: Record<string, boolean> }>;
@@ -215,11 +231,11 @@ export interface NotificationPort {
 }
 
 export interface EventBusPort {
-  publish(type: string, message: string, data?: any): void;
-  emit(event: string, data: any): void;
-  subscribe(handler: (event: { type: string; message: string; timestamp: string; data?: any }) => void): () => void;
-  unsubscribe(handler: (event: any) => void): void;
-  on(event: string, callback: (data: any) => void): () => void;
+  publish<T extends EventName>(type: T, message: string, data?: z.infer<EventRegistry[T]>): void;
+  emit<T extends EventName>(event: T, data: z.infer<EventRegistry[T]>): void;
+  subscribe(handler: (event: SystemEventEnvelope) => void | Promise<void>): () => void;
+  unsubscribe(handler: (event: SystemEventEnvelope) => void): void;
+  on<T extends EventName>(event: T, callback: EventHandler<T>): () => void;
 }
 
 export interface ExecutorPort {
