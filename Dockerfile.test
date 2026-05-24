@@ -1,0 +1,27 @@
+FROM denoland/deno:ubuntu-2.0.2
+
+# Install dependencies for Rust and agents
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    pkg-config \
+    libssl-dev \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /app
+
+# Copy the entire repo
+COPY . .
+
+# Build Rust agents (Excluding ebpf for faster test build)
+RUN cd src/agents && cargo build --release --workspace --exclude ebpf --exclude ebpf-ebpf
+
+# Ensure the manifest is up-to-date
+RUN deno run -A src/orchestrator/tools/build/update_sidecar_manifest.ts
+
+CMD ["deno", "task", "test:integration"]

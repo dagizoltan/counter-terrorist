@@ -7,7 +7,8 @@
     "build-agents": "cd src/agents && cargo build --release && cd ../.. && deno run -A src/orchestrator/tools/build/update_sidecar_manifest.ts",
     "install-sovereign": "deno run -A src/orchestrator/tools/ops/installer.ts",
     "provision-integrity": "deno run -A src/orchestrator/tools/provision_integrity.ts",
-    "package": "deno run --allow-run --allow-read --allow-write --allow-net src/orchestrator/tools/build/package.ts"
+    "package": "deno run --allow-run --allow-read --allow-write --allow-net src/orchestrator/tools/build/package.ts",
+    "test:integration": "deno test --allow-all --unstable-kv tests/integration/"
   },
   "compilerOptions": {
     "jsx": "react-jsx",

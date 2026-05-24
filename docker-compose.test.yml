@@ -1,0 +1,11 @@
+services:
+  integration-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      - CTS_DEV_MODE=true
+      - ENVIRONMENT=test
+    privileged: true # Required for some sidecar operations (though we use DEV_MODE)
+    volumes:
+      - ./volume:/app/volume
