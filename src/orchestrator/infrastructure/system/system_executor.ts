@@ -599,7 +599,7 @@ export class SystemExecutor implements ExecutorPort {
       const pathKeys = ["path", "target", "exe_path", "log_path", "source", "destination", "output", "file", "paths"];
 
       // We inspect all string values and recurse into objects.
-      for (const [key, value] of Object.entries(obj)) {
+      for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
           const isPathKey = pathKeys.includes(key);
           if (typeof value === "string") {
               // Extract if it's a known path key, if we're inside a path-related structure,
