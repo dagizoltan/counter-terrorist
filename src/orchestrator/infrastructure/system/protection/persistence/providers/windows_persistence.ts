@@ -15,7 +15,6 @@ export class WindowsPersistenceProvider implements PersistenceProvider {
         Write-Error $_.Exception.Message
       }
     `;
-    const encodedScript = btoa(new TextEncoder().encode(script).reduce((data, byte) => data + String.fromCharCode(byte), ""));
     // Note: PowerShell expects UTF-16LE for EncodedCommand, but since we are doing simple ASCII here,
     // we need to be careful. Actually, Deno's btoa works on strings.
     // For standard PowerShell usage:

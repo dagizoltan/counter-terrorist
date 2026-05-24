@@ -1,11 +1,11 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * PCAP Agent Page
  * Deep Packet Capture and real-time traffic analysis.
  */
-export const PcapPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
+export const PcapPage = (props: { status: unknown, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="PCAP Agent // Traffic Capture" islandPaths={[
       '/components/islands/PcapAgent.js'

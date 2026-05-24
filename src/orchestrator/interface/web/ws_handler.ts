@@ -5,6 +5,7 @@
 import { WSContext } from "hono/helper/websocket/index.ts";
 import { NotificationService, AuditService, EventBus } from "@domain/index.ts";
 import { LoggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
+import { EventName } from "@core/event_schema.ts";
 
 const MAX_CONNECTIONS = 100;
 const clients = new Set<WSContext>();
@@ -15,8 +16,8 @@ const clientMetadata = new WeakMap<WSContext, { count: number; resetAt: number; 
 export interface BroadcastData {
   type: string;
   message?: string;
-  data?: any;
-  [key: string]: any;
+  data?: unknown;
+  [key: string]: unknown;
 }
 
 export interface BroadcasterDeps {
@@ -53,7 +54,7 @@ export function broadcast(data: BroadcastData) {
 
   // Publish to central event bus (Phase 3: Trigger Forensic Automation)
   if (data.type && !fromEventBus) {
-    eventBus.publish(data.type as any, data.message || "", data.data);
+    eventBus.publish(data.type as EventName, data.message || "", data.data as never);
   }
   const message = JSON.stringify(eventToBroadcast);
 
@@ -184,7 +185,7 @@ export function createWsHandler(role: string = "viewer") {
         if (payload.type === "PING") {
           ws.send(JSON.stringify({ type: "PONG", timestamp: new Date().toISOString() }));
         }
-      } catch (e) {
+      } catch (_e) {
         ws.close(1003, "Unsupported Data");
       }
     },

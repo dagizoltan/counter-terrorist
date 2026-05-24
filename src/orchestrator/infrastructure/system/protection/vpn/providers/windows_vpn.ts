@@ -29,12 +29,12 @@ export class WindowsVpnProvider implements VpnProvider {
     return res.data?.active === true;
   }
 
-  async getStatus(): Promise<any> {
+  async getStatus(): Promise<unknown> {
     const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS" });
     return res.data;
   }
 
-  async flushRules(): Promise<VpnResult> {
-    return { success: true, message: "No dynamic VPN rules to flush on Windows" };
+  flushRules(): Promise<VpnResult> {
+    return Promise.resolve({ success: true, message: "No dynamic VPN rules to flush on Windows" });
   }
 }

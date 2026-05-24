@@ -47,7 +47,9 @@ class MetricsHydrator extends HTMLElement {
         if (isMetrics && payload.data) {
           this.updateMetrics(payload.data);
         }
-      } catch (e) {}
+      } catch (_e) {
+        // Ignore parsing errors from WS stream
+      }
     };
 
     ws.onclose = () => {

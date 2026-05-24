@@ -1,6 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 
-import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort, AuditEvent } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 import { retry } from "../../core/utils/resilience.ts";
@@ -23,14 +23,14 @@ export class MeshManager extends BaseService {
   private discoveryInterval: number | null = null;
   private metricsInterval: number | null = null;
   private mdnsListener: Deno.DatagramConn | null = null;
-  private nodeCert: any = null;
+  private nodeCert: { cert: string, key: string } | null = null;
   private nodeId: string = "";
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
   private watcherAbortController: AbortController | null = null;
 
-  protected override async onShutdown(): Promise<Result<void>> {
+  protected override onShutdown(): Promise<Result<void>> {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
       this.discoveryInterval = null;
       if (this.metricsInterval) clearInterval(this.metricsInterval);
@@ -55,7 +55,7 @@ export class MeshManager extends BaseService {
           caller: "orchestrator:domain:orchestration:mesh",
           message: "Mesh MeshManager offline."
       });
-      return ok(undefined);
+      return Promise.resolve(ok(undefined));
   }
 
   constructor(
@@ -260,7 +260,7 @@ export class MeshManager extends BaseService {
 
   private async listenForDiscovery() {
     try {
-      // @ts-ignore
+      // @ts-ignore: Deno.listenDatagram is unstable and may not be in all environments
       if (typeof Deno.listenDatagram !== "function") return;
 
       this.mdnsListener = Deno.listenDatagram({
@@ -315,7 +315,7 @@ export class MeshManager extends BaseService {
 
   private scanNetwork() {
     try {
-      // @ts-ignore
+      // @ts-ignore: Deno.listenDatagram is unstable and may not be in all environments
       if (typeof Deno.listenDatagram !== "function") return;
 
       const txt = `id=${this.nodeId},port=${this.port}`;
@@ -325,7 +325,7 @@ export class MeshManager extends BaseService {
       const socket = Deno.listenDatagram({ port: 0, transport: "udp" });
       socket.send(message, { transport: "udp", hostname: "224.0.0.251", port: 5353 });
       socket.close();
-    } catch (e) {
+    } catch (_e) {
       // Silent fail
     }
   }
@@ -458,7 +458,7 @@ export class MeshManager extends BaseService {
     }
   }
 
-  async broadcast(payload: any, priority: boolean = false): Promise<Result<void>> {
+  async broadcast(payload: Record<string, unknown>, priority: boolean = false): Promise<Result<void>> {
     this.ensureReady();
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
 
@@ -580,7 +580,7 @@ export class MeshManager extends BaseService {
     return await this.broadcast(payload, true);
   }
 
-  async broadcastAuditEvent(event: any) {
+  async broadcastAuditEvent(event: AuditEvent & { fromAudit?: boolean }) {
     // SOV-06: Propagate recursion guards during gossip
     const payload = {
         type: "GOSSIP_AUDIT",
@@ -611,9 +611,9 @@ export class MeshManager extends BaseService {
                 caller: "orchestrator:domain:orchestration:mesh",
                 message: `Requesting state reconciliation from ${node.hostname}...`
             });
-            const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
+            const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId }) as Record<string, unknown>;
             
-            if (res !== undefined && res !== null && (res as any).kv_snapshot && Array.isArray((res as any).kv_snapshot)) {
+            if (res !== undefined && res !== null && res.kv_snapshot && Array.isArray(res.kv_snapshot)) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
@@ -621,7 +621,7 @@ export class MeshManager extends BaseService {
                     caller: "orchestrator:domain:orchestration:mesh",
                     message: `Received state snapshot from ${node.hostname}. Synchronizing...`
                 });
-                await (this.audit as any).syncEvents((res as any).kv_snapshot);
+                await this.audit.syncEvents(res.kv_snapshot as AuditEvent[]);
             }
             
             this.logging.log({
@@ -645,7 +645,7 @@ export class MeshManager extends BaseService {
     return ok(undefined);
   }
 
-  async getLocalStateSnapshot(): Promise<any> {
+  async getLocalStateSnapshot(): Promise<Record<string, unknown>> {
       const recentEvents = await this.audit.getRecentEvents(100);
       return {
           timestamp: Date.now(),
@@ -658,7 +658,7 @@ export class MeshManager extends BaseService {
       return await this.requestQuorumCommand(`UNLOCK_${secretType}`, { secretType });
   }
 
-  async requestQuorumCommand(action: string, data: any): Promise<boolean> {
+  async requestQuorumCommand(action: string, data: unknown): Promise<boolean> {
       if (this.config?.getEnv("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
           this.logging.log({
               timestamp: new Date().toISOString(),
@@ -701,11 +701,11 @@ export class MeshManager extends BaseService {
                   action,
                   data,
                   requester: this.nodeId
-              });
-              if (res !== undefined && res !== null && (res as any).approved) {
+              }) as Record<string, unknown>;
+              if (res !== undefined && res !== null && res.approved) {
                   approvals++;
               }
-          } catch (e) {
+          } catch (_e) {
               this.logging.log({
                   timestamp: new Date().toISOString(),
                   type: LogType.GENERIC,
@@ -729,19 +729,19 @@ export class MeshManager extends BaseService {
       return success;
   }
 
-  async signPayload(payload: any): Promise<string> {
+  async signPayload(payload: unknown): Promise<string> {
     if (!this.meshSecret) return "unsigned";
     const { signPayload } = await import("../../core/crypto_utils.ts");
-    return await signPayload(payload, this.meshSecret);
+    return await signPayload(payload as Record<string, unknown>, this.meshSecret);
   }
 
-  async verifySignature(payload: any, signature: string): Promise<boolean> {
+  async verifySignature(payload: unknown, signature: string): Promise<boolean> {
     if (!this.meshSecret) return false;
     const { verifySignature } = await import("../../core/crypto_utils.ts");
-    return await verifySignature(payload, signature, this.meshSecret);
+    return await verifySignature(payload as Record<string, unknown>, signature, this.meshSecret);
   }
 
-  async requestApproval(action: string, data: any, threshold?: number): Promise<boolean> {
+  async requestApproval(action: string, data: unknown, threshold?: number): Promise<boolean> {
     const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
     const totalNodes = verifiedNodes.length + 1; // Include self
     const targetThreshold = threshold ?? (Math.floor(totalNodes / 2) + 1);
@@ -767,10 +767,10 @@ export class MeshManager extends BaseService {
                 type: "REQUEST_APPROVAL", 
                 payload: requestPayload,
                 signature 
-            });
-            if ((res as any).approved) {
-                if ((res as any).signature) {
-                    const isValid = await this.verifySignature((res as any).payload, (res as any).signature);
+            }) as Record<string, unknown>;
+            if (res.approved) {
+                if (res.signature) {
+                    const isValid = await this.verifySignature(res.payload, res.signature as string);
                     if (isValid) approvals++;
                 } else {
                     approvals++;
@@ -798,7 +798,7 @@ export class MeshManager extends BaseService {
     return success;
   }
 
-  private async sendSync(node: MeshNode, payload: any) {
+  private async sendSync(node: MeshNode, payload: Record<string, unknown>) {
     if (!this.httpClient) await this.init();
 
     const client = this.httpClient!;
@@ -865,7 +865,7 @@ export class MeshManager extends BaseService {
   }
 
   private async startStateWatcher() {
-    const kv = (this.config as any).kv;
+    const kv = (this.config as ConfigurationPort & { kv?: Deno.Kv }).kv;
     if (!kv) return;
 
     this.watcherAbortController = new AbortController();

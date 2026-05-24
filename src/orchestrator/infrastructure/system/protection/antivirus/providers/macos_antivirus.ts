@@ -4,8 +4,8 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 export class MacosAntivirusProvider implements AntivirusProvider {
   constructor(private executor: SystemExecutor) {}
 
-  async getStatus(): Promise<any> {
-    return { success: true, engine: "XProtect / Gatekeeper", status: "Active" };
+  getStatus(): Promise<unknown> {
+    return Promise.resolve({ success: true, engine: "XProtect / Gatekeeper", status: "Active" });
   }
 
   async scanPath(path: string): Promise<{ success: boolean; threatsFound: boolean; message: string; details?: string }> {
@@ -20,7 +20,7 @@ export class MacosAntivirusProvider implements AntivirusProvider {
     return { success: res.success, message: res.success ? "Quarantined" : "Failed", target };
   }
 
-  async syncSignatures(): Promise<any> {
-    return { success: true, message: "System managed" };
+  syncSignatures(): Promise<import("@core/ports.ts").CommandResult> {
+    return Promise.resolve({ success: true, message: "System managed", stdout: "", stderr: "" });
   }
 }

@@ -1,11 +1,11 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * Firewall Agent Page
  * Hardened perimeter defense, blocklists, and active containment.
  */
-export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
+export const FirewallPage = (props: { status: unknown, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Firewall Agent // Active Enforcement" islandPaths={[
       '/components/islands/FirewallAgent.js',
@@ -65,6 +65,7 @@ export const FirewallPage = (props: { status: any, csrfToken?: string, nonce?: s
                          <input id="fw-block-input" type="text" class="t-input w-full pl-12 py-4" placeholder="TARGET_IPV4" />
                       </div>
                       <button 
+                        type="button"
                         onclick="const ip=document.getElementById('fw-block-input').value; const t=document.querySelector('meta[name=\'csrf-token\']')?.content; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': t}, body: JSON.stringify({ip}) })"
                         class="t-btn danger w-full py-4 font-black uppercase tracking-[0.4em] group/btn"
                       >

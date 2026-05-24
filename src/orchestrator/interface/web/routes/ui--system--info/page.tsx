@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
@@ -6,7 +6,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Hardware, OS, and overall node health metadata.
  * Refactored to unified tactical tokens.
  */
-export const SystemInfoPage = (props: { status: any, csrfToken?: string, nonce?: string, hostname?: string, userRole?: string }) => {
+export const SystemInfoPage = (props: { status: Record<string, unknown>, csrfToken?: string, nonce?: string, hostname?: string, userRole?: string }) => {
   return (
     <Layout title="System Info // Node Metadata" islandPaths={[
       '/components/islands/SystemHealth.js'

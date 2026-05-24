@@ -578,7 +578,7 @@ export class SystemExecutor implements ExecutorPort {
       return { valid: true };
   }
 
-  private extractPathsFromJson(obj: any, inPathContext: boolean = false, depth: number = 0): string[] {
+  private extractPathsFromJson(obj: unknown, inPathContext: boolean = false, depth: number = 0): string[] {
       const paths: string[] = [];
       if (!obj || obj === null) return paths;
 
@@ -614,7 +614,7 @@ export class SystemExecutor implements ExecutorPort {
       return paths;
   }
 
-  async executeAsync(cmd: string, args: string[] = []): Promise<void> {
+  executeAsync(cmd: string, args: string[] = []): Promise<void> {
     const baseCmd = path.basename(cmd);
     if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
         throw new Error(`Security Violation: Command '${cmd}' is not in the system whitelist.`);
@@ -640,6 +640,8 @@ export class SystemExecutor implements ExecutorPort {
     });
     const child = command.spawn();
     child.unref();
+
+    return Promise.resolve();
   }
 
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {

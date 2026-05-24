@@ -4,28 +4,24 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
 import { 
-    BaselineService, ProcessTracker, EventBus, MeshAuthService, MeshManager,
+    EventBus, MeshAuthService, MeshManager,
     DecentralizedMetricsService,
     PlaybookService, MorphingService,
-    ChaosEngine, SupplyChainService, HoneypotService, 
-    CanaryService, AutopilotService, KernelService, 
+    ChaosEngine, SupplyChainService,
     ShadowService, CovertChannelService,
-    NetworkDiscoveryService, NetworkLogService,
-    IncidentService, NewsSignalService,
     LedgerService, HealthService, EventMediator,
-    WatchdogService, TacticalIntelService,
-    CorrelationService, PolicyEngine, ViewModelService,
-    DeceptionGridService, IntegrityService,
-    BehavioralService
+    WatchdogService,
+    CorrelationService, ViewModelService,
+    DeceptionGridService, IntegrityService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
 import { ServiceContainer, PlatformInfo } from "@core/container.ts";
-import { LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
+import { LogSeverity, LogType, ConfigurationPort, FirewallPort, VpnPort } from "@core/ports.ts";
+import { Service } from "@core/base_service.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { broadcast, initBroadcaster } from "@interface/ws_handler.ts";
 import { getPlatformInfo } from "@infrastructure/system/platform.ts";
-import { secureCompare } from "@infrastructure/system/validation.ts";
 import { bootstrap, camouflage } from "./bootstrapper.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { loadConfig } from "@core/config_schema.ts";
@@ -38,10 +34,6 @@ import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_servic
 
 // Infrastructure Providers
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
-
-import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
-import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
-import { Result, ok, err } from "@core/result.ts";
 
 export class SovereignApp {
     private services!: ServiceContainer;
@@ -155,9 +147,9 @@ export class SovereignApp {
 
     private async initializeInfrastructure(configProvider: ConfigurationPort, tpmManager: TPMManager) {
         // ── Phase 1.1: Security Lockdown Check ───────────────────────────────
-        const lockdown = await this.kv.get(["system", "lockdown"]);
+        const lockdown = await this.kv.get<{ reason: string, timestamp: string }>(["system", "lockdown"]);
         if (lockdown.value) {
-            const data = lockdown.value as any;
+            const data = lockdown.value;
             await loggingService.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
@@ -254,14 +246,14 @@ export class SovereignApp {
                 metrics, protection, logging
             } = this.services;
 
-            if (metrics && "stop" in metrics && typeof metrics.stop === "function") {
-                metrics.stop();
+            if (metrics && "stop" in metrics && typeof (metrics as { stop?: () => void }).stop === "function") {
+                (metrics as { stop: () => void }).stop();
             }
-            if (protection?.firewall && "shutdown" in protection.firewall && typeof (protection.firewall as any).shutdown === "function") {
-                await (protection.firewall as any).shutdown();
+            if (protection?.firewall && "shutdown" in (protection.firewall as FirewallPort & Service)) {
+                await (protection.firewall as FirewallPort & Service).shutdown?.();
             }
-            if (protection?.vpn && "shutdown" in protection.vpn && typeof (protection.vpn as any).shutdown === "function") {
-                await (protection.vpn as any).shutdown();
+            if (protection?.vpn && "shutdown" in (protection.vpn as VpnPort & Service)) {
+                await (protection.vpn as VpnPort & Service).shutdown?.();
             }
             if (logging) await logging.shutdown();
         }
@@ -289,7 +281,7 @@ export class SovereignApp {
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
     }
 
-    private async initMesh(tpm: TPMManager, config: ConfigurationPort): Promise<MeshManager> {
+    private initMesh(tpm: TPMManager, config: ConfigurationPort): Promise<MeshManager> {
         const meshAuthService = new MeshAuthService(this.kv, loggingService, config, tpm);
         this.registry.register("MeshAuth", meshAuthService, ShutdownPriority.NETWORK);
         const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, config);
@@ -297,7 +289,7 @@ export class SovereignApp {
         
         setMeshManager(meshManager);
         meshManager.startDiscovery();
-        return meshManager;
+        return Promise.resolve(meshManager);
     }
 
     private async initOperationalLayer(services: ServiceContainer) {
@@ -309,7 +301,7 @@ export class SovereignApp {
             loggingService
         );
         this.registry.register("DecentralizedMetrics", metricsService, ShutdownPriority.AUXILIARY);
-        setMetricsService(metricsService as any);
+        setMetricsService(metricsService);
 
         this.injectEventBus(services);
         this.wireEvents();
@@ -319,16 +311,16 @@ export class SovereignApp {
 
     private injectEventBus(services: ServiceContainer) {
         const bus = services.eventBus;
-        if ("setEventBus" in services.protection.firewall && typeof (services.protection.firewall as any).setEventBus === "function") {
-            (services.protection.firewall as any).setEventBus(bus);
+        if ("setEventBus" in (services.protection.firewall as FirewallPort & Service)) {
+            (services.protection.firewall as FirewallPort & Service).setEventBus?.(bus);
         }
         services.mesh.setEventBus(bus);
         services.honeypot.setEventBus(bus);
         services.processTracker.setEventBus(bus);
         services.kernelService.setEventBus(bus);
         services.audit.setEventBus(bus);
-        if ("setEventBus" in services.protection.vpn && typeof (services.protection.vpn as any).setEventBus === "function") {
-            (services.protection.vpn as any).setEventBus(bus);
+        if ("setEventBus" in (services.protection.vpn as VpnPort & Service)) {
+            (services.protection.vpn as VpnPort & Service).setEventBus?.(bus);
         }
         services.behavioral.setEventBus(bus);
         services.viewModel.setEventBus(bus);
@@ -404,14 +396,14 @@ export class SovereignApp {
 
     // Accessor for internal logging
     private get loggingService() {
-        return (this as any).services?.logging || loggingService;
+        return this.services?.logging || loggingService;
     }
 
     private async startSubsystems() {
         // SOV-05 STABILITY: Unified, registry-managed startup sequence
         await this.registry.initAll();
 
-        const { autopilot, honeypot, canaryService, kernelService, news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning, integrity, behavioral } = this.services;
+        const { autopilot, honeypot, canaryService, kernelService, news: _news, networkDiscovery, lifecycle, autonomousAutopilot, provisioning, integrity: _integrity, behavioral: _behavioral } = this.services;
         
         await loggingService.log({
             timestamp: new Date().toISOString(),
@@ -427,7 +419,7 @@ export class SovereignApp {
         canaryService.start().catch(() => {});
         
         (async () => {
-            const res = await (kernelService as any).start();
+            const res = await kernelService.start();
             if (res.success && this.services.config.getEnv("ENVIRONMENT") === "production") {
                 const sidecars = ["analyzer", "sentinel", "watchfile"];
                 for (const name of sidecars) {
@@ -586,14 +578,14 @@ export class SovereignApp {
             honeypot: security.honeypot, canaryService: security.canaryService, kernelService: security.kernelService, forensicService: intelligence.forensicService,
             autopilot, autonomousAutopilot, lifecycle, logging: loggingService,
             playbook, morphing, chaos,
-            supplyChain, mesh, meshAuth: identity.meshAuth, threatIntel: intelligence.curatedIntel as any,
+            supplyChain, mesh, meshAuth: identity.meshAuth, threatIntel: intelligence.curatedIntel,
             compliance: intelligence.compliance, anonymization: security.anonymization, shadowProtocol: security.shadowProtocol, deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
             curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
             provisioning, integrity,
             incidents: intelligence.incidents, platformInfo, shadow, covert,
             ledger,
             tpm, health,
-            metrics: (setMetricsService as any)._instance,
+            metrics: metricsService,
             mediator,
             behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy, correlation,
             viewModel
@@ -635,7 +627,9 @@ export class SovereignApp {
 
         try {
             await this.sidecarManager.sendCommand("sentinel", { type: "LOCKDOWN" });
-        } catch {}
+        } catch (_e) {
+            // Ignore lockdown errors during emergency shutdown
+        }
 
         Deno.exit(1);
     }

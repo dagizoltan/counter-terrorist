@@ -1,7 +1,7 @@
 /**
  * Centralized validation logic for security orchestrator.
  */
-import { normalize } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { normalize } from "@std/path";
 import { BloomFilter } from "../../core/cache.ts";
 
 export const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
@@ -264,9 +264,9 @@ export interface SidecarResponse {
   message?: string;
   stdout?: string;
   stderr?: string;
-  data?: any;
+  data?: unknown;
   timestamp?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface ScannerResponse extends SidecarResponse {
@@ -297,9 +297,9 @@ export interface PcapResponse extends SidecarResponse {
 
 export interface SidecarEvent {
   type: string;
-  data: any;
+  data: unknown;
   timestamp: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 // Validation functions
@@ -310,7 +310,7 @@ let comparisonKeyPromise: Promise<CryptoKey> | null = null;
  * Gets or generates the HMAC key for constant-time comparisons.
  * Uses a Promise to avoid race conditions during initialization.
  */
-async function getComparisonKey(): Promise<CryptoKey> {
+function getComparisonKey(): Promise<CryptoKey> {
   if (!comparisonKeyPromise) {
     comparisonKeyPromise = crypto.subtle.generateKey(
       { name: "HMAC", hash: "SHA-256" },
@@ -363,7 +363,7 @@ export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
 
 const SCANNER_JAIL = ["/home/", "/var/www/", "./volume/", "/var/lib/cts/", "/tmp/"];
 
-export function validateRequest(sidecar: SidecarName, req: any): boolean {
+export function validateRequest(sidecar: SidecarName, req: Record<string, unknown>): boolean {
   if (!req.type) return false;
 
   switch (sidecar) {
@@ -379,14 +379,15 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
         }
       }
       return true;
-    case "enforcer":
-      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus"].includes(req.type)) return false;
+    case "enforcer": {
+      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus"].includes(req.type as string)) return false;
       if ((req.type === "KillProcess" || req.type === "QuarantineProcess" || req.type === "DumpProcess") && typeof req.pid !== "number") return false;
-      const targetIp = req.ip;
+      const targetIp = req.ip as string;
       if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
       if (req.type === "BlockIp" && isCriticalInfrastructure(targetIp || "")) return false;
-      if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
+      if (req.type === "DumpProcess" && req.path && !validatePath(req.path as string)) return false;
       return true;
+    }
     case "netcap":
       if (!["StartCapture", "StopCapture", "GetStatus"].includes(req.type)) return false;
       if (req.type === "StartCapture") {
@@ -409,12 +410,13 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       }
       if (req.type === "Sabotage" && typeof req.source_ip !== "string") return false;
       return true;
-    case "watchfile":
-      if (!["WatchPath", "UnwatchPath", "GetStatus"].includes(req.type)) return false;
-      const targetPath = req.path;
+    case "watchfile": {
+      if (!["WatchPath", "UnwatchPath", "GetStatus"].includes(req.type as string)) return false;
+      const targetPath = req.path as string;
       if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof targetPath !== "string") return false;
       return true;
-    case "sentinel":
+    }
+    case "sentinel": {
       const ebpfTypes = [
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
         "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
@@ -428,13 +430,14 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if ((req.type === "ALLOW_PORT" || req.type === "DENY_PORT") && typeof req.port !== "number") return false;
       if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
       return true;
+    }
     case "trustroot":
       if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert"].includes(req.type)) return false;
       return true;
     case "tunnel":
       if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
       return true;
-    case "sentinel-darwin":
+    case "sentinel-darwin": {
       const esfTypes = [
         "BlockIp", "UnblockIp", "ShadowBanIp", "AllowPort", "DenyPort",
         "Lockdown", "FlushRules", "GetStatus", "UpdatePolicy"
@@ -444,7 +447,8 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (req.type === "BlockIp" && isCriticalInfrastructure(req.ip || "")) return false;
       if ((req.type === "AllowPort" || req.type === "DenyPort") && typeof req.port !== "number") return false;
       return true;
-    case "enforcer-win":
+    }
+    case "enforcer-win": {
       const wfpTypes = [
         "AddBlockRule", "RemoveBlockRule", "AddAllowRule", "RemoveAllowRule",
         "ProtectDirectory", "GetStatus", "FlushRules"
@@ -454,12 +458,13 @@ export function validateRequest(sidecar: SidecarName, req: any): boolean {
       if (req.type === "AddBlockRule" && isCriticalInfrastructure(req.ip || "")) return false;
       if ((req.type === "AddAllowRule" || req.type === "RemoveAllowRule") && typeof req.port !== "number") return false;
       return true;
+    }
     default:
       return false; // Unknown sidecars are rejected by default
   }
 }
 
-export function validateResponse(sidecar: SidecarName, res: any): boolean {
+export function validateResponse(_sidecar: SidecarName, res: SidecarResponse): boolean {
   // If it's an event payload, allow it without the success field
   if (res.event) return true;
 

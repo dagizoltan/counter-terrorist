@@ -8,8 +8,9 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 export class UbuntuAntivirusProvider implements AntivirusProvider {
   constructor(private sidecar: SidecarManager) {}
 
-  async getStatus(): Promise<any> {
-    return await this.sidecar.sendCommand("analyzer", { type: "GetStatus" });
+  async getStatus(): Promise<unknown> {
+    const res = await this.sidecar.sendCommand("analyzer", { type: "GetStatus" });
+    return res.data;
   }
 
   async scanPath(path: string): Promise<ScanResult> {

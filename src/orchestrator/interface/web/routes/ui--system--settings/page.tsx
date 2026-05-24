@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { ApplicationStatus } from "@core/ports.ts";
 
@@ -84,7 +84,7 @@ export const NotificationsPage = (props: { status: ApplicationStatus, csrfToken?
                     <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em] mt-1">Authorized Ingress/Egress Points</p>
                  </div>
               </div>
-              <button id="test-all-btn" class="t-btn px-8 py-4 text-[10px] font-black uppercase tracking-[0.3em]">
+              <button type="button" id="test-all-btn" class="t-btn px-8 py-4 text-[10px] font-black uppercase tracking-[0.3em]">
                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
                  Test_All_Relays
               </button>

@@ -4,7 +4,7 @@ import { loggingService, LogSeverity, LogType } from "@infrastructure/system/log
 import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
 export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
-  const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+  const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as (Record<string, unknown> & { remoteAddr?: { hostname: string } }))?.remoteAddr?.hostname || "unknown";
   const result = await services.rateLimit.checkLimit(`mesh_sync:${peerIp}`, 100, 1000);
   if (!result.allowed) {
       return c.json({

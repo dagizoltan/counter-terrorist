@@ -4,7 +4,7 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 export class WindowsAntivirusProvider implements AntivirusProvider {
   constructor(private executor: SystemExecutor) {}
 
-  async getStatus(): Promise<any> {
+  async getStatus(): Promise<unknown> {
     const res = await this.executor.execute("powershell", ["-Command", "Get-MpComputerStatus | Select-Object AMServiceEnabled, AntivirusEnabled, RealTimeProtectionEnabled | ConvertTo-Json"]);
     return { success: res.success, data: res.data, engine: "Windows Defender" };
   }
@@ -21,8 +21,8 @@ export class WindowsAntivirusProvider implements AntivirusProvider {
     return { success: res.success, message: res.success ? "Quarantined" : "Failed", target };
   }
 
-  async syncSignatures(): Promise<any> {
+  async syncSignatures(): Promise<import("@core/ports.ts").CommandResult> {
     const res = await this.executor.execute("powershell", ["-Command", "Update-MpSignature"]);
-    return { success: res.success, message: "Signatures updated" };
+    return { success: res.success, message: "Signatures updated", stdout: res.stdout, stderr: res.stderr };
   }
 }

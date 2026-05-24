@@ -128,13 +128,13 @@ class MeshGraph extends HTMLElement {
 
     // Node Label
     ctx.fillStyle = 'white';
-    ctx.font = '900' 10px JetBrains Mono';
+    ctx.font = '900 10px JetBrains Mono';
     ctx.textAlign = 'center';
     ctx.fillText(label.toUpperCase(), x, y + 25);
     
     // Status Tag
     ctx.fillStyle = isActive ? 'hsla(var(--success-h), 100%, 50%, 0.4)' : 'rgba(255,255,255,0.2)';
-    ctx.font = '700' 7px JetBrains Mono';
+    ctx.font = '700 7px JetBrains Mono';
     ctx.fillText(status.toUpperCase(), x, y + 35);
   }
 }

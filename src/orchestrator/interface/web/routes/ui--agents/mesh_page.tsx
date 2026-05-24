@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
@@ -62,9 +62,9 @@ export const MeshPage = (props: { status: any, csrfToken?: string, nonce?: strin
            <div class="t-panel glass-panel border-t-2 border-warning flex-grow">
               <h3 class="tactical-title text-xs uppercase tracking-[0.3em] text-slate-400 mb-8 pb-4 border-b border-white/5">COMMAND DISPATCH</h3>
               <div class="space-y-4">
-                 <button class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest">Broadcast Global Sweep</button>
-                 <button class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest">Rotate Mesh Keys</button>
-                 <button class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest danger">Initiate Mesh Lockdown</button>
+                 <button type="button" class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest">Broadcast Global Sweep</button>
+                 <button type="button" class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest">Rotate Mesh Keys</button>
+                 <button type="button" class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest danger">Initiate Mesh Lockdown</button>
               </div>
            </div>
         </div>
