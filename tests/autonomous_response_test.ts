@@ -1,25 +1,25 @@
-import { assertEquals, assertExists } from "@std/assert";
+import { assertEquals } from "@std/assert";
 import { AutonomousResponseEngine, ThreatEvent } from "@domain/orchestration/autonomous_response.ts";
 import { PolicyEngine } from "@domain/orchestration/policy_engine.ts";
-import { ThreatResponseSaga } from "@domain/orchestration/sagas/threat_response_saga.ts";
+import { ThreatResponseSaga, SagaDependencies } from "@domain/orchestration/sagas/threat_response_saga.ts";
 import { LoggingPort, LogEntry } from "@core/ports.ts";
 
 class MockLoggingPort implements LoggingPort {
     logs: LogEntry[] = [];
     enableGlobalIntercept(): void {}
-    async log(entry: LogEntry): Promise<void> { this.logs.push(entry); }
-    async getRecentLogs(_limit?: number): Promise<LogEntry[]> { return this.logs; }
-    async logLegacy(_message: string, _severity?: any, _source?: string, _payload?: any): Promise<void> {}
-    setKv(_kv: any): void {}
-    async shutdown(): Promise<void> {}
+    log(entry: LogEntry): Promise<void> { this.logs.push(entry); return Promise.resolve(); }
+    getRecentLogs(_limit?: number): Promise<LogEntry[]> { return Promise.resolve(this.logs); }
+    logLegacy(_message: string, _severity?: unknown, _source?: string, _payload?: unknown): Promise<void> { return Promise.resolve(); }
+    setKv(_kv: unknown): void {}
+    shutdown(): Promise<void> { return Promise.resolve(); }
 }
 
 class MockThreatResponseSaga extends ThreatResponseSaga {
-    calls: any[] = [];
-    constructor() { super({} as any); }
-    override async execute(source: string, tier: any, trigger: ThreatEvent, totalScore: number): Promise<any> {
+    calls: Array<{ source: string, tier: string, trigger: ThreatEvent, totalScore: number }> = [];
+    constructor() { super({} as unknown as SagaDependencies); }
+    override execute(source: string, tier: string, trigger: ThreatEvent, totalScore: number): Promise<{ success: boolean }> {
         this.calls.push({ source, tier, trigger, totalScore });
-        return { success: true };
+        return Promise.resolve({ success: true });
     }
 }
 
@@ -77,13 +77,13 @@ Deno.test("AutonomousResponseEngine - Score Decay", async () => {
         assertEquals(intel1[0].score, 5);
 
         // Manually trigger decay
-        (engine as any).decayScores();
+        (engine as unknown as { decayScores: () => void }).decayScores();
 
         const intel2 = engine.getTacticalIntelligence();
         assertEquals(intel2[0].score, 4);
 
         // Decay to zero
-        for(let i=0; i<4; i++) (engine as any).decayScores();
+        for(let i=0; i<4; i++) (engine as unknown as { decayScores: () => void }).decayScores();
 
         const intel3 = engine.getTacticalIntelligence();
         assertEquals(intel3.length, 0); // State should be cleared

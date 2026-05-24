@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  deno-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Lint
+        run: deno lint
+      - name: Create Dummy BPF Files
+        run: |
+          mkdir -p src/agents/target/bpfel-unknown-none/debug/
+          mkdir -p src/agents/target/bpfel-unknown-none/release/
+          touch src/agents/target/bpfel-unknown-none/debug/sentinel-kernel
+          touch src/agents/target/bpfel-unknown-none/release/sentinel-kernel
+      - name: Build Analyzer Agent
+        run: cd src/agents/analyzer && cargo build --release
+      - name: Prepare Integration Tests
+        run: |
+          mkdir -p agents/
+          cp src/agents/target/release/analyzer agents/
+      - name: Unit Tests
+        run: deno test --allow-all --unstable-kv --no-check --ignore=tests/integration/ tests/
+
+  integration-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Integration Tests (Containerized)
+        run: docker compose -f docker-compose.test.yml up --build --exit-code-from integration-tests
+
+  rust-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Create Dummy BPF Files
+        run: |
+          mkdir -p src/agents/target/bpfel-unknown-none/debug/
+          mkdir -p src/agents/target/bpfel-unknown-none/release/
+          touch src/agents/target/bpfel-unknown-none/debug/sentinel-kernel
+          touch src/agents/target/bpfel-unknown-none/release/sentinel-kernel
+      - name: Clippy
+        run: cd src/agents && cargo clippy -- -D warnings

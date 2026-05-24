@@ -1,0 +1,10 @@
+services:
+  integration-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    environment:
+      - ENVIRONMENT=development
+      - CTS_DEV_MODE=true
+    volumes:
+      - .:/app

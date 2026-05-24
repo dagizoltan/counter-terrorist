@@ -1,0 +1,21 @@
+FROM denoland/deno:ubuntu-2.0.0
+
+# Install Rust and build dependencies
+RUN apt-get update && apt-get install -y \
+    curl build-essential pkg-config libssl-dev sudo \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /app
+
+# Copy source
+COPY . .
+
+# Build agents
+RUN mkdir -p src/agents/target/bpfel-unknown-none/release/ && \
+    touch src/agents/target/bpfel-unknown-none/release/sentinel-kernel && \
+    cd src/agents && cargo build --release
+
+# Run tests
+CMD ["deno", "test", "--allow-all", "--unstable-kv", "--no-check", "tests/integration/"]
