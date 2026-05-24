@@ -41,12 +41,12 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
     super();
   }
 
-  protected override async onInit(): Promise<Result<void>> {
-    return ok(undefined);
+  protected override onInit(): Promise<Result<void>> {
+    return Promise.resolve(ok(undefined));
   }
 
-  protected override async onShutdown(): Promise<Result<void>> {
-    return ok(undefined);
+  protected override onShutdown(): Promise<Result<void>> {
+    return Promise.resolve(ok(undefined));
   }
 
   /**

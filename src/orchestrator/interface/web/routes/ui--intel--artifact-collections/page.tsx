@@ -1,11 +1,11 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * Artifact Intelligence Page // Forensic Artifacts
  * Dedicated ledger for file hashes, YARA signatures, and malware DNA.
  */
-const ArtifactIntelPage = (props: { status: any, csrfToken?: string, nonce?: string, userRole?: string }) => {
+const ArtifactIntelPage = (props: { status: unknown, csrfToken?: string, nonce?: string, userRole?: string }) => {
    return (
       <Layout title="Artifact Intelligence // Forensic Artifacts" islandPaths={[
          '/components/islands/ArtifactExplorer.js'

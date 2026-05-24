@@ -1,11 +1,11 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * Scanner Agent Page
  * Vulnerability and port scanner for local network assessment.
  */
-export const ScannerPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
+export const ScannerPage = (props: { status: unknown, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Scanner Agent // Tactical Assessment" islandPaths={[
       '/components/islands/ScannerAgent.js'

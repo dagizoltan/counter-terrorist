@@ -1,11 +1,11 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * Network Agent Page
  * Topology discovery, packet capture, and mesh visualization.
  */
-export const NetworkPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
+export const NetworkPage = (props: { status: unknown, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="Network Agent // Operational Discovery" islandPaths={[
       '/components/islands/NetworkMap.js'

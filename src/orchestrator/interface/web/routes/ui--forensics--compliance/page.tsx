@@ -1,7 +1,7 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const ComplianceCenterPage = (props: { status: any; csrfToken: string; nonce?: string, userRole?: string }) => {
+export const ComplianceCenterPage = (props: { status: unknown; csrfToken: string; nonce?: string, userRole?: string }) => {
   return (
     <Layout title="Compliance Center" csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       <header class="page-header mb-8">
@@ -14,7 +14,7 @@ export const ComplianceCenterPage = (props: { status: any; csrfToken: string; no
            <header class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
               <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Active Frameworks</span>
               {(props.userRole === "admin" || props.userRole === "operator") && (
-              <button class="t-btn px-6 py-2" onclick="window.generateComplianceReport()">
+              <button type="button" class="t-btn px-6 py-2" onclick="window.generateComplianceReport()">
                  Generate Audit Bundle
               </button>
               )}

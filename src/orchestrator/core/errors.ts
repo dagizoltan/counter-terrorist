@@ -7,7 +7,7 @@ export class AppError extends Error {
     public override message: string,
     public statusCode: number = 500,
     public code: string = "INTERNAL_ERROR",
-    public details?: any
+    public details?: unknown
   ) {
     super(message);
     this.name = "AppError";
@@ -26,7 +26,7 @@ export class AppError extends Error {
 }
 
 export class ValidationError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 400, "VALIDATION_ERROR", details);
     this.name = "ValidationError";
   }
@@ -40,35 +40,35 @@ export class UnauthorizedError extends AppError {
 }
 
 export class SidecarError extends AppError {
-  constructor(message: string, sidecar: string, details?: any) {
+  constructor(message: string, sidecar: string, details?: Record<string, unknown>) {
     super(message, 502, "SIDECAR_ERROR", { sidecar, ...details });
     this.name = "SidecarError";
   }
 }
 
 export class InfrastructureError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 500, "INFRASTRUCTURE_ERROR", details);
     this.name = "InfrastructureError";
   }
 }
 
 export class SecurityError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 403, "SECURITY_VIOLATION", details);
     this.name = "SecurityError";
   }
 }
 
 export class ConsensusError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 500, "CONSENSUS_FAILURE", details);
     this.name = "ConsensusError";
   }
 }
 
 export class ResourceExhaustedError extends AppError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: unknown) {
     super(message, 429, "RESOURCE_EXHAUSTED", details);
     this.name = "ResourceExhaustedError";
   }

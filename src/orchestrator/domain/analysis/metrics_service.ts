@@ -30,7 +30,7 @@ export interface SystemMetrics {
         blockedCount: number;
         rules: number;
         blockedIps: string[];
-        suspiciousIps: any[];
+        suspiciousIps: unknown[];
     };
     mesh: {
         activeNodes: number;
@@ -154,14 +154,14 @@ export class MetricsService extends BaseService {
 
     private isRunning = false;
 
-    protected override async onInit(): Promise<Result<void>> {
+    protected override onInit(): Promise<Result<void>> {
         this.start();
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
-    protected override async onShutdown(): Promise<Result<void>> {
+    protected override onShutdown(): Promise<Result<void>> {
         this.stop();
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
     private async start() {
@@ -200,7 +200,7 @@ export class MetricsService extends BaseService {
             // Allow system to stabilize before heavy audit
             await new Promise(r => setTimeout(r, 5000));
 
-            const verification = await (this.auditService as any).verifyFullChain();
+            const verification = await this.auditService.verifyFullChain();
             if (!verification.valid) {
                 loggingService.log({
                     timestamp: new Date().toISOString(),
@@ -253,10 +253,10 @@ export class MetricsService extends BaseService {
         this.isCollecting = true;
         this.collectionCount++;
 
-        const timeout = (promise: Promise<any>, ms: number) => {
+        const timeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
             return Promise.race([
                 promise,
-                new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+                new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
             ]);
         };
 
@@ -264,14 +264,14 @@ export class MetricsService extends BaseService {
             // 1. Detection Phase (Run once)
             if (this.scannerAvailable === null) {
                 this.scannerAvailable = this.sidecarManager.isRunning("analyzer");
-                this.vpnAvailable = this.sidecarManager.isRunning("tunnel") || (await timeout(this.sidecarManager.getExecutor().execute("which", ["wg"]), 2000).catch(() => ({ success: false }))).success;
+                this.vpnAvailable = this.sidecarManager.isRunning("tunnel") || (await timeout(this.sidecarManager.getExecutor().execute("which", ["wg"]), 2000).catch(() => ({ success: false, stdout: "", stderr: "" }))).success;
             }
 
             // 2. High-Frequency Phase (Parallelized for Performance with Timeouts)
             const [firewallStatus, meshNodes, blockedIps, vpnConnected] = await Promise.all([
-                timeout(this.firewall.getStatus(), 5000).catch(() => ({ success: false, stdout: "" })),
+                timeout(this.firewall.getStatus(), 5000).catch(() => ({ success: false, stdout: "", stderr: "" })),
                 Promise.resolve(this.mesh.getNodes()),
-                (this.firewall as any).getBlockedIps ? timeout((this.firewall as any).getBlockedIps(), 5000).catch(() => []) : Promise.resolve([]),
+                timeout(this.firewall.getBlockedIps(), 5000).catch(() => []),
                 timeout(this.vpn.isConnected(), 5000).catch(() => false)
             ]);
 
@@ -295,9 +295,16 @@ export class MetricsService extends BaseService {
                 };
             }
 
-            const kernelStatus = (this.collectionCount % this.STAGGER_KERNEL === 0) 
-                ? await this.kernelService.getStatus() as any
-                : (this.cachedMetrics?.kernel || { aslr: "2", syncookies: "1", rp_filter: "1" }) as any;
+            const kernelStatusResult = (this.collectionCount % this.STAGGER_KERNEL === 0)
+                ? await this.kernelService.getStatus()
+                : null;
+
+            const kernelStatus = (kernelStatusResult?.success ? kernelStatusResult.data : null) ||
+                (this.cachedMetrics?.kernel || {
+                    aslr: "2", syncookies: "1", rp_filter: "1",
+                    tcp_timestamps: "1", accept_source_route: "0",
+                    icmp_echo_ignore_broadcasts: "1"
+                });
 
             const mem = Deno.memoryUsage();
             const metrics: SystemMetrics = {
@@ -349,7 +356,7 @@ export class MetricsService extends BaseService {
                 audit: {
                     chainVerified: auditStatus.valid,
                     totalEvents: auditStatus.count,
-                    hardwareVerified: this.kernelService.getTpmManager?.()?.isHardwareVerified() || false,
+                    hardwareVerified: this.kernelService.getTpmManager()?.isHardwareVerified() || false,
                 },
                 scanner: {
                     lastScanTime: this.lastScanTime,
@@ -369,15 +376,16 @@ export class MetricsService extends BaseService {
                 tactical: {
                     recentThreats: await (async () => {
                         const threats = await this.tacticalIntel?.getRecentThreats(10) ?? [];
-                        return threats.slice(0, 10).map((t: any) => ({
-                            ...t,
-                            blocked: blockedIps.includes(t.indicator)
+                        return threats.slice(0, 10).map((t) => ({
+                            indicator: t.indicator,
+                            type: t.type,
+                            blocked: (blockedIps as string[]).includes(t.indicator)
                         }));
                     })(),
                     stats: await this.tacticalIntel?.getStats() ?? {}
                 },
                 discovery: {
-                    devices: (this.networkDiscovery?.getDevices() ?? []).map((d: any) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))
+                    devices: (this.networkDiscovery?.getDevices() ?? []).map((d) => ({ ip: d.ip || "unknown", hostname: d.hostname, lastSeen: d.lastSeen }))
                 },
                 news: {
                     latest: await this.news?.getLatestSignals(50) ?? []
@@ -420,7 +428,6 @@ let _metricsInstance: MetricsService | null = null;
 
 export function setMetricsService(instance: MetricsService) {
     _metricsInstance = instance;
-    (setMetricsService as any)._instance = instance;
 }
 
 export function getMetricsSnapshot(): SystemMetrics | null {

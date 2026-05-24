@@ -2,7 +2,7 @@ import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
 import { IntelEnricher } from "@domain/analysis/intel_enricher.ts";
 
-export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
+export const handlerFactory = (services: ServiceContainer) => (c: Context) => {
   const devices = services.networkDiscovery.getDevices();
 
   const wifi = devices.filter(d => d.type === "WIFI");

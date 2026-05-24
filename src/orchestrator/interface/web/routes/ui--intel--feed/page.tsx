@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
@@ -6,7 +6,7 @@ import { Layout } from "@interface/components/Layout.tsx";
  * Detailed tactical signals and global intelligence archive.
  * Refined for high-readability and zero-underscore policy.
  */
-export const NewsPage = (props: { status: any, csrfToken?: string, nonce?: string, userRole?: string }) => {
+export const NewsPage = (props: { status: Record<string, unknown>, csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
     <Layout title="Tactical News // Intelligence Feed" islandPaths={[
       '/components/islands/NewsFeed.js'
@@ -33,7 +33,7 @@ export const NewsPage = (props: { status: any, csrfToken?: string, nonce?: strin
                <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Historical and real-time signal intercepts</p>
             </div>
             <div class="flex gap-4">
-               <button class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Refresh Feed</button>
+               <button type="button" class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Refresh Feed</button>
             </div>
           </header>
           <div class="bg-black/60 p-12 min-h-[800px] relative">

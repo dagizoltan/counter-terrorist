@@ -23,12 +23,12 @@ export class UbuntuVpnProvider implements VpnProvider {
     return res.success && (res.data?.active === true || res.data?.active_interfaces?.includes(interfaceName));
   }
 
-  async getStatus(): Promise<any> {
+  async getStatus(): Promise<unknown> {
     const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS", payload: {} });
     return res.data;
   }
 
-  async flushRules(): Promise<VpnResult> {
-    return { success: true, message: "Hermetic: No legacy rules to flush." };
+  flushRules(): Promise<VpnResult> {
+    return Promise.resolve({ success: true, message: "Hermetic: No legacy rules to flush." });
   }
 }

@@ -1,7 +1,7 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
-export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: any; description: string; }, csrfToken?: string, nonce?: string, userRole?: string }) => {
+export const AgentDetailPage = (props: { agent: { name: string; status: string; details?: unknown; description: string; }, csrfToken?: string, nonce?: string, userRole?: string }) => {
   const { agent } = props;
   const islandPaths = [
     '/components/islands/BlockingLog.js', 
@@ -31,8 +31,8 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
           </div>
         </div>
         <div class="flex gap-4 mb-2">
-          <button id={`btn-restart-${agent.name}`} class="t-btn">Cycle_Process</button>
-          <button id={`btn-stop-${agent.name}`} class="t-btn danger">Deactivate</button>
+          <button type="button" id={`btn-restart-${agent.name}`} class="t-btn">Cycle_Process</button>
+          <button type="button" id={`btn-stop-${agent.name}`} class="t-btn danger">Deactivate</button>
         </div>
       </header>
 
@@ -97,11 +97,11 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
                           Tunnel_Control
                        </p>
                        <div class="grid grid-cols-2 gap-4">
-                          <button id="btn-vpn-connect-main" class="t-btn" style="padding:1rem;">Link_Tunnel</button>
-                          <button id="btn-vpn-disconnect-main" class="t-btn danger" style="padding:1rem;">Sever_Link</button>
+                          <button type="button" id="btn-vpn-connect-main" class="t-btn" style="padding:1rem;">Link_Tunnel</button>
+                          <button type="button" id="btn-vpn-disconnect-main" class="t-btn danger" style="padding:1rem;">Sever_Link</button>
                        </div>
                     </div>
-                    <button class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Rotate_Identity_Keys</button>
+                    <button type="button" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Rotate_Identity_Keys</button>
                   </div>
                 )}
 
@@ -115,18 +115,18 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
                        <div class="space-y-4">
                           <input id="block-ip-input-main" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white" />
                           <div class="grid grid-cols-2 gap-4">
-                             <button id="btn-firewall-block-main" class="t-btn danger" style="padding:1rem;">Execute_Block</button>
-                             <button id="btn-firewall-unblock-main" class="t-btn" style="padding:1rem; background:transparent; border-color:var(--border-subtle);">Pardon_IP</button>
+                             <button type="button" id="btn-firewall-block-main" class="t-btn danger" style="padding:1rem;">Execute_Block</button>
+                             <button type="button" id="btn-firewall-unblock-main" class="t-btn" style="padding:1rem; background:transparent; border-color:var(--border-subtle);">Pardon_IP</button>
                           </div>
                        </div>
                     </div>
-                    <button id="btn-firewall-flush-main" class="t-btn danger w-full" style="background:transparent; border-color:var(--danger); color:var(--danger);">Flush_Global_Ruleset</button>
+                    <button type="button" id="btn-firewall-flush-main" class="t-btn danger w-full" style="background:transparent; border-color:var(--danger); color:var(--danger);">Flush_Global_Ruleset</button>
                   </div>
                 )}
 
                 <div class="space-y-4 pt-10 border-t border-white/5">
-                   <button class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Export_Compliance_Report</button>
-                   <button class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Verification_Challenge</button>
+                   <button type="button" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Export_Compliance_Report</button>
+                   <button type="button" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Verification_Challenge</button>
                 </div>
              </div>
           </section>

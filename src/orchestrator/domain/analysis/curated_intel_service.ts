@@ -1,6 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 import { ConfigurationPort, LoggingPort, LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
-import { Result, ok, err } from "@core/result.ts";
+import { Result, ok } from "@core/result.ts";
 import { CircuitBreaker } from "../../core/utils/resilience.ts";
 import { GeoIpService } from "./geoip_service.ts";
 import { z } from "zod";
@@ -170,7 +170,7 @@ export class CuratedIntelService extends BaseService {
         return ok(undefined);
     }
 
-    protected override async onShutdown(): Promise<Result<void>> {
+    protected override onShutdown(): Promise<Result<void>> {
         if (this.syncInterval) {
             clearInterval(this.syncInterval);
             this.syncInterval = undefined;
@@ -179,7 +179,7 @@ export class CuratedIntelService extends BaseService {
             clearInterval(this.lifecycleInterval);
             this.lifecycleInterval = undefined;
         }
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
     /**
@@ -197,7 +197,7 @@ export class CuratedIntelService extends BaseService {
             message: "Starting adaptive perimeter lifecycle audit..."
         });
 
-        const iter = this.kv.list<any>({ prefix: ["enforcement"] });
+        const iter = this.kv.list<{ expiresAt: number }>({ prefix: ["enforcement"] });
         let expiredCount = 0;
         let revalidatedCount = 0;
 
@@ -364,11 +364,10 @@ export class CuratedIntelService extends BaseService {
         }
     }
 
-    private async processSource(source: any, data: string): Promise<number> {
+    private async processSource(source: { name: string, type: string }, data: string): Promise<number> {
         const lines = data.split("\n");
         let ingestCount = 0;
-        let blockCount = 0;
-        let newIPsBlocked = 0;
+        const newIPsBlocked = 0;
 
         let consecutiveExisting = 0;
         const CONSECUTIVE_THRESHOLD = 50; // Delta-Update heuristic
@@ -447,7 +446,7 @@ export class CuratedIntelService extends BaseService {
 
             // Enrichment: GeoIP Attribution
             if (curated.type === "IP" && this.geoip) {
-                const geo = await this.geoip.resolve(curated.indicator) as any;
+                const geo = await this.geoip.resolve(curated.indicator) as Record<string, unknown>;
                 if (geo) {
                     curated.geo = {
                         country: geo.country,
@@ -591,7 +590,7 @@ export class CuratedIntelService extends BaseService {
         let cursor = "";
 
         // BUG-02 Optimization: Fetch blocked IPs once
-        const blockedSet = new Set(await (this.firewall as any).getBlockedIps?.() || []);
+        const blockedSet = new Set(await this.firewall.getBlockedIps() || []);
 
         for await (const res of iter) {
             const t = res.value;
@@ -604,7 +603,7 @@ export class CuratedIntelService extends BaseService {
             if (matchesType && matchesProvider && matchesSearch) {
                 // Real-time check for block status (Optimized via Set)
                 const blocked = blockedSet.has(t.indicator);
-                threats.push({ ...t, blocked } as any);
+                threats.push({ ...t, blocked } as IntelIndicator & { blocked: boolean });
             }
             
             // Always update cursor to the last processed item

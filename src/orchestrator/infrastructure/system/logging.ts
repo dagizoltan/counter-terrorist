@@ -216,7 +216,7 @@ export class LoggingService implements LoggingPort {
         }
     }
 
-    async logLegacy(message: string, severity: LogSeverity | SyslogSeverity = LogSeverity.INFO, source: string = "SYSTEM", payload?: any) {
+    logLegacy(message: string, severity: LogSeverity | SyslogSeverity = LogSeverity.INFO, source: string = "SYSTEM", payload?: unknown) {
         let mappedSeverity = LogSeverity.INFO;
         
         if (typeof severity === "number") {
@@ -310,7 +310,7 @@ export class LoggingService implements LoggingPort {
         }
     }
 
-    private async getOrCreateUdpConnection(): Promise<Deno.DatagramConn> {
+    private getOrCreateUdpConnection(): Deno.DatagramConn {
         if (this.persistentConn && "send" in this.persistentConn) {
             return this.persistentConn;
         }
@@ -343,7 +343,9 @@ export class LoggingService implements LoggingPort {
                 try {
                     const caCert = await Deno.readTextFile(this.tlsCaCertPath);
                     options.caCerts = [caCert];
-                } catch {}
+                } catch (err) {
+                    this.originalError(`Failed to read CA cert for TLS logging: ${err}`);
+                }
             }
             this.persistentConn = await Deno.connectTls(options);
         } else {
@@ -354,7 +356,10 @@ export class LoggingService implements LoggingPort {
 
     private closePersistentConn() {
         if (this.persistentConn) {
-            try { this.persistentConn.close(); } catch {}
+            try { this.persistentConn.close(); } catch (err) {
+                // Ignore error during close
+                void err;
+            }
             this.persistentConn = null;
         }
     }

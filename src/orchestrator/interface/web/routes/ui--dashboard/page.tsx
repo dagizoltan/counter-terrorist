@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { TacticalHeader, TacticalPanel, StatusPill, TacticalSectionTitle } from "@interface/components/Tactical.tsx";
 
@@ -7,7 +7,17 @@ import { TacticalHeader, TacticalPanel, StatusPill, TacticalSectionTitle } from 
  * Primary strategic command interface.
  * Refined for high-readability and zero-underscore policy.
  */
-export const Dashboard = (props: { status: any; csrfToken: string; nonce?: string; hostname?: string; userRole?: string }) => {
+interface DashboardStatus {
+  platform?: { hostname?: string };
+  audit?: { hardwareVerified?: boolean; integrityScore?: number };
+  node?: { uptime?: string; cpu?: { load?: number } };
+  threats?: { totalIngested?: number };
+  firewall?: { blockedCount?: number };
+  mesh?: { activeNodes?: number };
+  [key: string]: unknown;
+}
+
+export const Dashboard = (props: { status: DashboardStatus; csrfToken: string; nonce?: string; hostname?: string; userRole?: string }) => {
   const { platform } = props.status;
 
   const islandPaths = [
@@ -29,7 +39,7 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
           Governance
         </a>
         {props.userRole === "admin" && (
-        <button class="t-btn px-8 py-4 group hover:scale-105 transition-transform">
+        <button type="button" class="t-btn px-8 py-4 group hover:scale-105 transition-transform">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:rotate-180 transition-transform duration-500"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           Force Sweep
         </button>
@@ -181,8 +191,8 @@ export const Dashboard = (props: { status: any; csrfToken: string; nonce?: strin
                  <div class="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
                     <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Strike State</span>
                     <StatusPill
-                      status={props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'success' : 'warning'}
-                      label={props.status.audit?.integrityScore > 90 && props.status.mesh?.activeNodes > 0 ? 'ARMED' : 'STANDBY'}
+                      status={(props.status.audit?.integrityScore ?? 0) > 90 && (props.status.mesh?.activeNodes ?? 0) > 0 ? 'success' : 'warning'}
+                      label={(props.status.audit?.integrityScore ?? 0) > 90 && (props.status.mesh?.activeNodes ?? 0) > 0 ? 'ARMED' : 'STANDBY'}
                       class="!px-3 !py-0.5"
                     />
                  </div>

@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { HoneypotModule } from "@domain/protection/honeypot_service.ts";
 
@@ -53,6 +53,7 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: st
                   <a href={`/agents/deception/${module.id}`} class="t-btn flex-1 text-center justify-center text-[9px] py-3">Inspect Logs</a>
                   {(props.userRole === "admin" || props.userRole === "operator") && (
                   <button 
+                    type="button"
                     onclick={`const t=document.querySelector('meta[name="csrf-token"]')?.content; fetch('/agents/deception/api/${module.id}/toggle', { method: 'POST', body: JSON.stringify({ active: ${!module.active} }), headers: { 'Content-Type': 'application/json', 'X-CT-Token': t || '' } }).then(() => location.reload())`}
                     class={`t-btn flex-1 justify-center text-[9px] py-3 ${module.active ? "danger" : "warning"}`}
                   >
@@ -74,11 +75,11 @@ export const HoneypotsPage = (props: { modules: HoneypotModule[], csrfToken?: st
                  <h3 class="tactical-title text-lg tracking-widest">TRAP CONFIGURATION</h3>
               </header>
               <div class="grid grid-cols-2 gap-6">
-                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Morph Decoy Signatures</button>
-                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Rotate Trap Keys</button>
-                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em] bg-warning/5 border-warning/20 text-warning">Inject Network Latency</button>
+                 <button type="button" class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Morph Decoy Signatures</button>
+                 <button type="button" class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em]">Rotate Trap Keys</button>
+                 <button type="button" class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em] bg-warning/5 border-warning/20 text-warning">Inject Network Latency</button>
                  {props.userRole === "admin" && (
-                 <button class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em] danger">Flush All Decoys</button>
+                 <button type="button" class="t-btn w-full py-5 text-[9px] font-black uppercase tracking-[0.3em] danger">Flush All Decoys</button>
                  )}
               </div>
            </div>

@@ -1,4 +1,4 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { ApplicationStatus } from "@core/ports.ts";
 
@@ -23,12 +23,12 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
         </div>
         <div class="flex gap-4">
           {(props.userRole === "admin" || props.userRole === "operator") && (
-          <button class="t-btn px-6 py-3 text-[9px]">
+          <button type="button" class="t-btn px-6 py-3 text-[9px]">
             Provision Node
           </button>
           )}
           {props.userRole === "admin" && (
-          <button class="t-btn px-6 py-3 text-[9px] border-danger text-danger">
+          <button type="button" class="t-btn px-6 py-3 text-[9px] border-danger text-danger">
             Purge Failed
           </button>
           )}

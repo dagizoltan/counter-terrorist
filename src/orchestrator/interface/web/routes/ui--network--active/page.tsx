@@ -1,11 +1,11 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * Active Network Page
  * Focused on Authoritative Mesh Core & Local Infrastructure.
  */
-export const ActiveNetworkPage = (props: { status: any, csrfToken?: string, nonce?: string, userRole?: string }) => {
+export const ActiveNetworkPage = (props: { status: unknown, csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
     <Layout title="Active Network // Sovereign Mesh" islandPaths={[
       '/components/islands/NetworkMap.js'
@@ -32,7 +32,7 @@ export const ActiveNetworkPage = (props: { status: any, csrfToken?: string, nonc
                <p class="mono-xs text-slate-500 font-black uppercase tracking-[0.4em]">Live authoritative node interaction & local asset map</p>
             </div>
             <div class="flex gap-4">
-               <button class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Refresh Discovery</button>
+               <button type="button" class="t-btn px-6 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Refresh Discovery</button>
             </div>
           </header>
           <div class="bg-black/60 p-12 min-h-[600px] relative">

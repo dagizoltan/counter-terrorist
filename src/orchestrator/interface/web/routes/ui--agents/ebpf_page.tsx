@@ -1,11 +1,11 @@
-import { jsx } from "hono/jsx";
+import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 /**
  * eBPF Agent Page
  * Kernel-level observability and enforcement.
  */
-export const EbpfPage = (props: { status: any, csrfToken?: string, nonce?: string }) => {
+export const EbpfPage = (props: { status: unknown, csrfToken?: string, nonce?: string }) => {
   return (
     <Layout title="eBPF Agent // Kernel Observability" islandPaths={[
       '/components/islands/EbpfAgent.js'

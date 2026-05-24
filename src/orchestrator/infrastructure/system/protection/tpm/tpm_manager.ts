@@ -216,9 +216,9 @@ export class TPMManager implements TpmPort {
         return `NCRYPT_V_SIG:${btoa(data + machineId).slice(0, 32)}`;
     }
 
-    private async verifyWithHardware(data: string, signature: string): Promise<boolean> {
+    private verifyWithHardware(_data: string, signature: string): Promise<boolean> {
         // Shared logic for OS-native hardware identity verification
-        return signature.startsWith("SEP_SIG:") || signature.startsWith("NCRYPT_SIG:");
+        return Promise.resolve(signature.startsWith("SEP_SIG:") || signature.startsWith("NCRYPT_SIG:"));
     }
 
     async nvDefine(index: string, size: number) {

@@ -8,7 +8,7 @@ export const agentsHandler = (getStatus: () => Promise<ApplicationStatus>) => as
   const csrfToken = c.get("csrfToken") as string;
   const nonce = c.get("nonce") as string;
   const userRole = c.get("user")?.role;
-  return c.html(jsx(AgentsPage, { status, csrfToken, nonce, userRole }) as any);
+  return c.html(jsx(AgentsPage, { status, csrfToken, nonce, userRole }) as never);
 };
 
 export const agentDetailHandler = (getStatus: () => Promise<ApplicationStatus>) => async (c: Context) => {
@@ -36,17 +36,17 @@ export const agentDetailHandler = (getStatus: () => Promise<ApplicationStatus>) 
 
   const { FirewallPage, EbpfPage, FimPage, PcapPage, HoneypotPage, MeshPage } = await import("./subpages/core.tsx");
 
-  if (name === "firewall" || name === "sentinel" || name === "vpn" || name === "tunnel") return c.html(jsx(FirewallPage, { csrfToken, nonce, userRole }) as any);
-  if (name === "mesh") return c.html(jsx(MeshPage, { status, csrfToken, nonce, userRole }) as any);
+  if (name === "firewall" || name === "sentinel" || name === "vpn" || name === "tunnel") return c.html(jsx(FirewallPage, { csrfToken, nonce, userRole }) as never);
+  if (name === "mesh") return c.html(jsx(MeshPage, { status, csrfToken, nonce, userRole }) as never);
   if (name === "scanner" || name === "analyzer") {
     const { ScannerPage } = await import("./scanner_page.tsx");
-    return c.html(jsx(ScannerPage, { status, csrfToken, nonce }) as any);
+    return c.html(jsx(ScannerPage, { status, csrfToken, nonce }) as never);
   }
-  if (name === "ebpf") return c.html(jsx(EbpfPage, { csrfToken, nonce, userRole }) as any);
-  if (name === "fim" || name === "watchfile") return c.html(jsx(FimPage, { csrfToken, nonce, userRole }) as any);
-  if (name === "pcap" || name === "netcap") return c.html(jsx(PcapPage, { csrfToken, nonce, userRole }) as any);
-  if (name === "honeypot" || name === "decoy") return c.html(jsx(HoneypotPage, { csrfToken, nonce, userRole }) as any);
+  if (name === "ebpf") return c.html(jsx(EbpfPage, { csrfToken, nonce, userRole }) as never);
+  if (name === "fim" || name === "watchfile") return c.html(jsx(FimPage, { csrfToken, nonce, userRole }) as never);
+  if (name === "pcap" || name === "netcap") return c.html(jsx(PcapPage, { csrfToken, nonce, userRole }) as never);
+  if (name === "honeypot" || name === "decoy") return c.html(jsx(HoneypotPage, { csrfToken, nonce, userRole }) as never);
 
   const { AgentDetailPage } = await import("./detail.tsx");
-  return c.html(jsx(AgentDetailPage, { agent, csrfToken, nonce, userRole }) as any);
+  return c.html(jsx(AgentDetailPage, { agent, csrfToken, nonce, userRole }) as never);
 };

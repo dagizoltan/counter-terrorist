@@ -3,7 +3,7 @@ import { meshManager } from "@domain/orchestration/mesh.ts";
 import { isValidIP } from "../../validation.ts";
 import { FirewallProvider } from "../interfaces.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
-import { LogSeverity, LogType, FirewallPort } from "@core/ports.ts";
+import { LogSeverity, LogType, FirewallPort, ConfigurationPort, EventBusPort, LoggingPort } from "@core/ports.ts";
 
 export type { FirewallProvider };
 
@@ -11,12 +11,12 @@ export class FirewallManager implements FirewallPort {
   private blockedIps: Set<string> = new Set();
   private kv?: Deno.Kv;
   private connectivityCheckInProgress = false;
-  private config?: any;
+  private config?: ConfigurationPort;
 
-  private eventBus?: any;
+  private eventBus?: EventBusPort;
   private metricsInterval?: number;
 
-  constructor(private provider: FirewallProvider, private networkLogs?: any) {
+  constructor(private provider: FirewallProvider, private networkLogs?: LoggingPort) {
       this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
   }
 
@@ -24,11 +24,11 @@ export class FirewallManager implements FirewallPort {
       if (this.metricsInterval) clearInterval(this.metricsInterval);
   }
 
-  setEventBus(eventBus: any) {
+  setEventBus(eventBus: EventBusPort) {
       this.eventBus = eventBus;
   }
 
-  setConfig(config: any) {
+  setConfig(config: ConfigurationPort) {
       this.config = config;
   }
 
@@ -54,7 +54,7 @@ export class FirewallManager implements FirewallPort {
   async setKv(kv: Deno.Kv) {
     this.kv = kv;
     // BUG-8.1 FIX: Avoid full list operation on start to prevent boot delay
-    const iter = kv.list<any>({ prefix: ["enforcement"] }, { limit: 1000 });
+    const iter = kv.list<unknown>({ prefix: ["enforcement"] }, { limit: 1000 });
     const ips: string[] = [];
     for await (const res of iter) {
       const ip = res.key[1] as string;
@@ -298,12 +298,12 @@ export class FirewallManager implements FirewallPort {
     return await this.unblockIp(ip);
   }
 
-  async isBlocked(ip: string): Promise<boolean> {
-    return this.blockedIps.has(ip);
+  isBlocked(ip: string): Promise<boolean> {
+    return Promise.resolve(this.blockedIps.has(ip));
   }
 
-  async getBlockedIps(): Promise<string[]> {
-    return Array.from(this.blockedIps);
+  getBlockedIps(): Promise<string[]> {
+    return Promise.resolve(Array.from(this.blockedIps));
   }
 
   async killProcess(pid: number) {

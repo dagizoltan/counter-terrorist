@@ -1,9 +1,15 @@
 import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, SidecarName } from "../system/validation.ts";
 import { SystemExecutor } from "../system/system_executor.ts";
-import { CommandResult, LoggingPort, LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
-import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS, PRIVILEGED_SIDECARS } from "./sidecar_registry.ts";
+import { CommandResult, LoggingPort, LogSeverity, LogType, ConfigurationPort, TpmPort } from "@core/ports.ts";
+import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS } from "./sidecar_registry.ts";
 
 import { CommandPort } from "@core/ports.ts";
+
+interface SidecarManifest {
+    sidecars: Record<string, { hash: string }>;
+    signature?: string;
+    signedBy?: string;
+}
 
 /**
  * Manages persistent Rust sidecars.
@@ -13,7 +19,7 @@ export class SidecarManager implements CommandPort {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
   private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
-  private eventHandlers: Map<string, ((data: any) => void)[]> = new Map();
+  private eventHandlers: Map<string, ((data: unknown) => void)[]> = new Map();
   private unsupportedSidecars: Set<string> = new Set();
   private trippedSidecars: Set<string> = new Set();
   private expectedExits: Set<string> = new Set();
@@ -24,10 +30,10 @@ export class SidecarManager implements CommandPort {
   private rotationInterval?: number;
   private backoffTimers: Set<number> = new Set();
 
-  private manifest: any = null;
+  private manifest: SidecarManifest | null = null;
   private manifestPromise: Promise<void> | null = null;
 
-  private tpm: any | null = null;
+  private tpm: TpmPort | null = null;
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
@@ -42,7 +48,7 @@ export class SidecarManager implements CommandPort {
     this.config = config;
   }
 
-  setTpm(tpm: any) {
+  setTpm(tpm: TpmPort) {
     this.tpm = tpm;
   }
 
@@ -430,7 +436,7 @@ export class SidecarManager implements CommandPort {
         const real = await Deno.realPath(p);
         this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "orchestrator:infra:runtime:sidecar_manager", message: `findBinary(${name}) -> ${real}` });
         return real;
-      } catch (e) {
+      } catch (_e) {
         // Silent fail for stat
       }
     }
@@ -622,12 +628,12 @@ export class SidecarManager implements CommandPort {
     return env;
   }
 
-  async sendCommand(name: string, cmd: string | object): Promise<CommandResult> {
-    const child = await this.getPersistentSidecar(name);
+  async sendCommand(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult> {
+    const child = await this.getPersistentSidecar(name) as Deno.ChildProcess | null;
     if (!child) return { success: false, stdout: "", stderr: `Sidecar ${name} not found` };
 
     const id = crypto.randomUUID();
-    let commandObj: any = typeof cmd === "string" ? { id, type: cmd } : { ...cmd, id };
+    const commandObj = typeof cmd === "string" ? { id, type: cmd } : { ...cmd, id };
 
     if (!validateRequest(name as SidecarName, commandObj)) {
       return { success: false, stdout: "", stderr: `Security violation: Invalid command for sidecar '${name}'` };
@@ -656,12 +662,12 @@ export class SidecarManager implements CommandPort {
     return Promise.race([responsePromise, timeoutPromise]);
   }
 
-  onEvent(name: string, handler: (data: any) => void) {
+  onEvent(name: string, handler: (data: unknown) => void) {
     if (!this.eventHandlers.has(name)) this.eventHandlers.set(name, []);
     this.eventHandlers.get(name)!.push(handler);
   }
 
-  emitEvent(name: string, data: any) {
+  emitEvent(name: string, data: unknown) {
     const handlers = this.eventHandlers.get(name);
     if (handlers) {
       for (const handler of handlers) handler(data);

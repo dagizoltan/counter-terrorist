@@ -39,15 +39,15 @@ export interface CommandResult {
   success: boolean;
   stdout: string;
   stderr: string;
-  data?: any;
+  data?: unknown;
   message?: string;
 }
 
 export interface CommandPort {
-  sendCommand(sidecar: string, command: any): Promise<CommandResult>;
-  onEvent(sidecar: string, handler: (event: any) => void): void;
-  emitEvent(sidecar: string, event: any): void;
-  getPersistentSidecar(sidecar: string): Promise<any>;
+  sendCommand(sidecar: string, command: Record<string, unknown> | string): Promise<CommandResult>;
+  onEvent(sidecar: string, handler: (event: unknown) => void): void;
+  emitEvent(sidecar: string, event: unknown): void;
+  getPersistentSidecar(sidecar: string): Promise<unknown>;
   isRunning(sidecar: string): boolean;
   restartSidecar(sidecar: string): Promise<void>;
   stopSidecar(sidecar: string): Promise<void>;
@@ -78,18 +78,18 @@ export interface VpnPort {
   connect(interfaceName: string): Promise<{ success: boolean; message: string; details?: string }>;
   disconnect(): Promise<{ success: boolean; message: string; details?: string }>;
   isConnected(): Promise<boolean>;
-  getStatus(): Promise<any>;
+  getStatus(): Promise<unknown>;
 }
 
 export interface AntivirusPort {
-  getStatus(): Promise<any>;
+  getStatus(): Promise<unknown>;
   scanPath(path: string): Promise<{ success: boolean; threatsFound: boolean; message: string; details?: string }>;
   quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }>;
   syncSignatures(): Promise<CommandResult>;
 }
 
 export interface PersistencePort {
-  audit(): Promise<{ success: boolean; anomalies: any[]; timestamp: string }>;
+  audit(): Promise<{ success: boolean; anomalies: unknown[]; timestamp: string }>;
 }
 
 export interface PcapPort {
@@ -99,7 +99,7 @@ export interface PcapPort {
 
 export interface RkhunterPort {
   runScan(): Promise<{ success: boolean; exit_code?: number; stdout?: string; stderr?: string; error?: string }>;
-  getLastResult(): any;
+  getLastResult(): unknown;
 }
 
 export interface ProtectionPort {
@@ -144,7 +144,7 @@ export interface LogEntry {
   severity: LogSeverity;
   caller: string;
   message: string;
-  payload?: any;
+  payload?: unknown;
   formatted?: string; // High-fidelity forensic string [TYPE] [SEVERITY] [CALLER] MESSAGE
   fromAudit?: boolean;
 }
@@ -154,7 +154,7 @@ export interface LoggingPort {
   log(entry: LogEntry): Promise<void>;
   getRecentLogs(limit?: number): Promise<LogEntry[]>;
   // Legacy support
-  logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: any): Promise<void>;
+  logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: unknown): Promise<void>;
   setKv(kv: Deno.Kv): void;
   shutdown(): Promise<void>;
 }
@@ -169,19 +169,19 @@ export interface MeshPort {
   startDiscovery(): void;
   getNodeId(): string;
   getActiveNodeCount(): number;
-  getNodes(): any[];
+  getNodes(): unknown[];
   isolateNode(nodeId: string): import("./result.ts").Result<void>;
   broadcastThreatHash(hash: string, sourceNode: string): Promise<import("./result.ts").Result<void>>;
-  broadcastAuditEvent(event: any): Promise<void>;
+  broadcastAuditEvent(event: unknown): Promise<void>;
   broadcastAuditVerification(lastHash: string, eventCount: number): Promise<void>;
   requestAuditSync(nodeId: string): Promise<void>;
 }
 
 export interface MeshAuthPort {
-  getRootCA(): Promise<any>; // Returns CertPair
+  getRootCA(): Promise<unknown>; // Returns CertPair
   getTrustedCerts(): Promise<string[]>;
-  generateNodeCert(nodeId: string): Promise<any>;
-  rotateCert(nodeId: string): Promise<any>;
+  generateNodeCert(nodeId: string): Promise<unknown>;
+  rotateCert(nodeId: string): Promise<unknown>;
 }
 
 export interface ConfigurationPort {
@@ -201,7 +201,7 @@ export interface AuditEvent {
   type: string;
   message: string;
   timestamp?: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface AuditPort {
@@ -223,7 +223,7 @@ export interface TpmPort {
 export interface NotificationPayload {
   type: string;
   message: string;
-  data?: any;
+  data?: unknown;
 }
 
 export interface NotificationPort {
