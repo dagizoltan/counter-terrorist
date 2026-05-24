@@ -16,8 +16,8 @@ enum TpmCommand {
     QuoteIdentity { id: String, nonce: String }, // NEW: Hardware-Rooted Identity Quote
     Verify { id: String, data: String, signature: String },
     GetPcrs { id: String, indices: Vec<u32> },
-    NvDefine { id: String, index: String, size: usize },
-    NvWrite { id: String, index: String, data: String },
+    NvDefine { id: String, index: String },
+    NvWrite { id: String, index: String },
     NvRead { id: String, index: String },
     GenerateSelfSignedCA { id: String, common_name: String },
     IssueNodeCert { 
@@ -137,10 +137,10 @@ async fn main() {
                     }
                     emit_response(id, true, "Read (Virtual)".to_string(), Some(serde_json::Value::Object(pcrs))).await;
                 },
-                TpmCommand::NvDefine { id, index, .. } => {
+                TpmCommand::NvDefine { id, index } => {
                     emit_response(id, true, format!("NV index {} defined", index), None).await;
                 },
-                TpmCommand::NvWrite { id, index, .. } => {
+                TpmCommand::NvWrite { id, index } => {
                     emit_response(id, true, format!("Data written to NV index {}", index), None).await;
                 },
                 TpmCommand::NvRead { id, index } => {

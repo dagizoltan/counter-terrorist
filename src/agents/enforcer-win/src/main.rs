@@ -10,7 +10,7 @@ static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 enum Command {
-    AddBlockRule { id: String, ip: String, port: Option<u16> },
+    AddBlockRule { id: String, ip: String },
     RemoveBlockRule { id: String, ip: String },
     AddAllowRule { id: String, port: u16, protocol: String },
     RemoveAllowRule { id: String, port: u16, protocol: String },
@@ -46,7 +46,7 @@ async fn main() {
     while let Ok(Some(line)) = stdin.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
             match cmd {
-                Command::AddBlockRule { id, ip, .. } => {
+                Command::AddBlockRule { id, ip } => {
                     // MOCK: WFP FwpmFilterAdd0
                     emit_response(Some(id), true, format!("WFP Block Rule Added: {}", ip), None).await;
                 },

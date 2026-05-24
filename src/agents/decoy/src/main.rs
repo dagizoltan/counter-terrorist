@@ -79,12 +79,14 @@ async fn emit_response(id: String, success: bool, message: String) {
 
 #[derive(Clone)]
 struct SabotageConfig {
+    #[allow(dead_code)]
     level: String,
     mode: String,
     latency_ms: u64,
 }
 
 struct ListenerState {
+    #[allow(dead_code)]
     port: u16,
     active: bool,
     sabotage_ips: HashMap<String, SabotageConfig>,
@@ -250,7 +252,7 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                                 let _ = reader.get_mut().write_all(err.as_bytes()).await;
                             } else {
                                 // Mimic a "Password:" prompt after login
-                                if line.contains("login") || line.len() > 0 {
+                                if line.contains("login") || !line.is_empty() {
                                     let _ = reader.get_mut().write_all(b"password: ").await;
                                 }
                             }

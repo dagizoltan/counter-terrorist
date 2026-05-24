@@ -121,7 +121,7 @@ async fn main() -> Result<(), anyhow::Error> {
         if let Some(prog) = bpf_static.lock().program_mut(name) {
             if let Ok(p) = <&mut KProbe>::try_from(prog) {
                 let _ = p.load();
-                let _ = p.attach(func, 0).or_else(|_| p.attach(&format!("__x64_{}", func), 0));
+                let _ = p.attach(func, 0).or_else(|_| p.attach(format!("__x64_{}", func), 0));
             }
         }
     }
@@ -132,21 +132,21 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut bpf = bpf_static.lock();
         if let Some(prog) = bpf.program_mut("file_open") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-                if let Ok(_) = lsm_prog.load("file_open", btf) {
+                if lsm_prog.load("file_open", btf).is_ok() {
                     let _ = lsm_prog.attach();
                 }
             }
         }
         if let Some(prog) = bpf.program_mut("socket_connect") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-                if let Ok(_) = lsm_prog.load("socket_connect", btf) {
+                if lsm_prog.load("socket_connect", btf).is_ok() {
                     let _ = lsm_prog.attach();
                 }
             }
         }
         if let Some(prog) = bpf.program_mut("sb_mount") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-                if let Ok(_) = lsm_prog.load("sb_mount", btf) {
+                if lsm_prog.load("sb_mount", btf).is_ok() {
                     let _ = lsm_prog.attach();
                 }
             }
@@ -175,8 +175,7 @@ async fn main() -> Result<(), anyhow::Error> {
             loop {
                 match buf.read_events(&mut buffers) {
                     Ok(events) => {
-                        for i in 0..events.read {
-                            let data = &buffers[i];
+                        for data in buffers.iter().take(events.read) {
                             if let Some(event) = SyscallEvent::read_from(&data[..std::mem::size_of::<SyscallEvent>()]) {
                                 // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
                                 let syscall = if cfg!(target_arch = "x86_64") {
@@ -220,160 +219,169 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut stdin = BufReader::new(io::stdin()).lines();
     while let Ok(Some(line)) = stdin.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<SidecarCommand>(&line) {
-            let mut bpf_ref = bpf_static.lock();
-            match cmd.cmd_type.as_str() {
-                "BLOCK_IP" => {
-                    if let Some(ip_str) = cmd.ip {
-                        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
-                            let addr = match ip {
-                                std::net::IpAddr::V4(v4) => {
-                                    let mut a = [0u8; 16];
-                                    a[0..4].copy_from_slice(&v4.octets());
-                                    IpV6Addr { addr: a }
-                                },
-                                std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
-                            };
-                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                                let _ = m.insert(addr, 1u32, 0);
-                                emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
-                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
-                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
-                    }
-                },
-                "UNBLOCK_IP" => {
-                    if let Some(ip_str) = cmd.ip {
-                        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
-                            let addr = match ip {
-                                std::net::IpAddr::V4(v4) => {
-                                    let mut a = [0u8; 16];
-                                    a[0..4].copy_from_slice(&v4.octets());
-                                    IpV6Addr { addr: a }
-                                },
-                                std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
-                            };
-                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                                let _ = m.remove(&addr);
-                                emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
-                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
-                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
-                    }
-                },
-                "SHADOW_BAN" => {
-                    if let Some(ip_str) = cmd.ip {
-                        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
-                            let addr = match ip {
-                                std::net::IpAddr::V4(v4) => {
-                                    let mut a = [0u8; 16];
-                                    a[0..4].copy_from_slice(&v4.octets());
-                                    IpV6Addr { addr: a }
-                                },
-                                std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
-                            };
-                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap()) {
-                                let _ = m.insert(addr, ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
-                                emit_response(cmd.id, true, format!("Shadow Ban: {}", ip_str)).await;
-                            } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
-                    }
-                },
-                "ALLOW_PORT" => {
-                    if let Some(port) = cmd.port {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
-                            let _ = m.insert(port, 1, 0);
-                            emit_response(cmd.id, true, format!("Firewall: Allowed port {}", port)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                    }
-                },
-                "ENFORCE_PID" => {
-                    if let Some(pid) = cmd.pid {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
-                            // Default to full block (1) for now
-                            let _ = m.insert(pid, 1, 0);
-                            emit_response(cmd.id, true, format!("LSM Enforced for PID {}", pid)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                    }
-                },
-                "UNENFORCE_PID" => {
-                    if let Some(pid) = cmd.pid {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
-                            let _ = m.remove(&pid);
-                            emit_response(cmd.id, true, format!("LSM Enforcement removed for PID {}", pid)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                    }
-                },
-                "DENY_PORT" => {
-                    if let Some(port) = cmd.port {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
-                            let _ = m.remove(&port);
-                            emit_response(cmd.id, true, format!("Firewall: Denied port {}", port)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                    }
-                },
-                "LOCKDOWN" => {
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
-                        let _ = m.insert(0, 1, 0); // index 0 is lockdown flag
-                        emit_response(cmd.id, true, "LOCKDOWN engaged".to_string()).await;
-                    } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                },
-                "FLUSH_RULES" => {
-                    let mut success = true;
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                        let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
-                        for k in keys { let _ = m.remove(&k); }
-                    } else { success = false; }
-                    
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
-                        let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
-                        for k in keys { let _ = m.remove(&k); }
-                    } else { success = false; }
+            let mut result = None;
+            {
+                let mut bpf_ref = bpf_static.lock();
+                match cmd.cmd_type.as_str() {
+                    "BLOCK_IP" => {
+                        if let Some(ip_str) = cmd.ip.as_ref() {
+                            if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                                let addr = match ip {
+                                    std::net::IpAddr::V4(v4) => {
+                                        let mut a = [0u8; 16];
+                                        a[0..4].copy_from_slice(&v4.octets());
+                                        IpV6Addr { addr: a }
+                                    },
+                                    std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
+                                };
+                                if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                    let _ = m.insert(addr, 1u32, 0);
+                                    result = Some((true, format!("XDP Blocked: {}", ip_str)));
+                                } else { result = Some((false, "XDP Map Error".to_string())); }
+                            } else { result = Some((false, "Invalid IP".to_string())); }
+                        }
+                    },
+                    "UNBLOCK_IP" => {
+                        if let Some(ip_str) = cmd.ip.as_ref() {
+                            if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                                let addr = match ip {
+                                    std::net::IpAddr::V4(v4) => {
+                                        let mut a = [0u8; 16];
+                                        a[0..4].copy_from_slice(&v4.octets());
+                                        IpV6Addr { addr: a }
+                                    },
+                                    std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
+                                };
+                                if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                    let _ = m.remove(&addr);
+                                    result = Some((true, format!("XDP Unblocked: {}", ip_str)));
+                                } else { result = Some((false, "XDP Map Error".to_string())); }
+                            } else { result = Some((false, "Invalid IP".to_string())); }
+                        }
+                    },
+                    "SHADOW_BAN" => {
+                        if let Some(ip_str) = cmd.ip.as_ref() {
+                            if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                                let addr = match ip {
+                                    std::net::IpAddr::V4(v4) => {
+                                        let mut a = [0u8; 16];
+                                        a[0..4].copy_from_slice(&v4.octets());
+                                        IpV6Addr { addr: a }
+                                    },
+                                    std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
+                                };
+                                if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap()) {
+                                    let _ = m.insert(addr, ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
+                                    result = Some((true, format!("Shadow Ban: {}", ip_str)));
+                                } else { result = Some((false, "Map Error".to_string())); }
+                            } else { result = Some((false, "Invalid IP".to_string())); }
+                        }
+                    },
+                    "ALLOW_PORT" => {
+                        if let Some(port) = cmd.port {
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                                let _ = m.insert(port, 1, 0);
+                                result = Some((true, format!("Firewall: Allowed port {}", port)));
+                            } else { result = Some((false, "Map Error".to_string())); }
+                        }
+                    },
+                    "ENFORCE_PID" => {
+                        if let Some(pid) = cmd.pid {
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                                // Default to full block (1) for now
+                                let _ = m.insert(pid, 1, 0);
+                                result = Some((true, format!("LSM Enforced for PID {}", pid)));
+                            } else { result = Some((false, "Map Error".to_string())); }
+                        }
+                    },
+                    "UNENFORCE_PID" => {
+                        if let Some(pid) = cmd.pid {
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                                let _ = m.remove(&pid);
+                                result = Some((true, format!("LSM Enforcement removed for PID {}", pid)));
+                            } else { result = Some((false, "Map Error".to_string())); }
+                        }
+                    },
+                    "DENY_PORT" => {
+                        if let Some(port) = cmd.port {
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                                let _ = m.remove(&port);
+                                result = Some((true, format!("Firewall: Denied port {}", port)));
+                            } else { result = Some((false, "Map Error".to_string())); }
+                        }
+                    },
+                    "LOCKDOWN" => {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
+                            let _ = m.insert(0, 1, 0); // index 0 is lockdown flag
+                            result = Some((true, "LOCKDOWN engaged".to_string()));
+                        } else { result = Some((false, "Map Error".to_string())); }
+                    },
+                    "FLUSH_RULES" => {
+                        let mut success = true;
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                            let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
+                            for k in keys { let _ = m.remove(&k); }
+                        } else { success = false; }
 
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
-                        let _ = m.insert(0, 0, 0); // clear lockdown
-                    } else { success = false; }
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                            let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
+                            for k in keys { let _ = m.remove(&k); }
+                        } else { success = false; }
 
-                    emit_response(cmd.id, success, if success { "Rules flushed".to_string() } else { "Partial flush failure".to_string() }).await;
-                },
-                "HIDE_PID" => {
-                    if let Some(pid) = cmd.pid {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HIDE_CONFIG").unwrap()) {
-                            let _ = m.insert(pid, 1, 0);
-                            emit_response(cmd.id, true, format!("Stealth: PID {}", pid)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                    }
-                },
-                "GET_STATUS" => emit_response(cmd.id, true, "Active".to_string()).await,
-                "TRUST_COMM" => {
-                    if let Some(comm_str) = cmd.comm {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 16], u8>::try_from(bpf_ref.map_mut("TRUSTED_COMM").unwrap()) {
-                            let mut comm = [0u8; 16];
-                            let bytes = comm_str.as_bytes();
-                            let len = std::cmp::min(bytes.len(), 16);
-                            comm[..len].copy_from_slice(&bytes[..len]);
-                            let _ = m.insert(comm, 1, 0);
-                            emit_response(cmd.id, true, format!("Trusted Comm: {}", comm_str)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
-                    }
-                },
-                "KillProcess" => {
-                    if let Some(pid) = cmd.pid {
-                        let res = kill_process_task(pid).await;
-                        emit_response(cmd.id, res.0, res.1).await;
-                    }
-                },
-                "QuarantineProcess" => {
-                    if let Some(pid) = cmd.pid {
-                        let res = quarantine_process_task(pid).await;
-                        emit_response(cmd.id, res.0, res.1).await;
-                    }
-                },
-                "DumpProcess" => {
-                    if let (Some(pid), Some(path)) = (cmd.pid, cmd.path) {
-                        let res = dump_process_task(pid, path).await;
-                        emit_response(cmd.id, res.0, res.1).await;
-                    }
-                },
-                "SHUTDOWN" => std::process::exit(0),
-                _ => {}
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
+                            let _ = m.insert(0, 0, 0); // clear lockdown
+                        } else { success = false; }
+
+                        result = Some((success, if success { "Rules flushed".to_string() } else { "Partial flush failure".to_string() }));
+                    },
+                    "HIDE_PID" => {
+                        if let Some(pid) = cmd.pid {
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HIDE_CONFIG").unwrap()) {
+                                let _ = m.insert(pid, 1, 0);
+                                result = Some((true, format!("Stealth: PID {}", pid)));
+                            } else { result = Some((false, "Map Error".to_string())); }
+                        }
+                    },
+                    "GET_STATUS" => result = Some((true, "Active".to_string())),
+                    "TRUST_COMM" => {
+                        if let Some(comm_str) = cmd.comm.as_ref() {
+                            if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 16], u8>::try_from(bpf_ref.map_mut("TRUSTED_COMM").unwrap()) {
+                                let mut comm = [0u8; 16];
+                                let bytes = comm_str.as_bytes();
+                                let len = std::cmp::min(bytes.len(), 16);
+                                comm[..len].copy_from_slice(&bytes[..len]);
+                                let _ = m.insert(comm, 1, 0);
+                                result = Some((true, format!("Trusted Comm: {}", comm_str)));
+                            } else { result = Some((false, "Map Error".to_string())); }
+                        }
+                    },
+                    "KillProcess" => {
+                        if let Some(pid) = cmd.pid {
+                            drop(bpf_ref);
+                            let res = kill_process_task(pid).await;
+                            emit_response(cmd.id.clone(), res.0, res.1).await;
+                        }
+                    },
+                    "QuarantineProcess" => {
+                        if let Some(pid) = cmd.pid {
+                            drop(bpf_ref);
+                            let res = quarantine_process_task(pid).await;
+                            emit_response(cmd.id.clone(), res.0, res.1).await;
+                        }
+                    },
+                    "DumpProcess" => {
+                        if let (Some(pid), Some(path)) = (cmd.pid, cmd.path) {
+                            drop(bpf_ref);
+                            let res = dump_process_task(pid, path).await;
+                            emit_response(cmd.id.clone(), res.0, res.1).await;
+                        }
+                    },
+                    "SHUTDOWN" => std::process::exit(0),
+                    _ => {}
+                }
+            }
+            if let Some((success, message)) = result {
+                emit_response(cmd.id, success, message).await;
             }
         }
     }
