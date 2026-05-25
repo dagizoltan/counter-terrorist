@@ -2,6 +2,7 @@ import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, S
 import { SystemExecutor } from "../system/system_executor.ts";
 import { CommandResult, LoggingPort, LogSeverity, LogType, ConfigurationPort, TpmPort } from "@core/ports.ts";
 import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS } from "./sidecar_registry.ts";
+import { canonicalStringify } from "@core/crypto_utils.ts";
 
 import { CommandPort } from "@core/ports.ts";
 
@@ -15,6 +16,9 @@ interface SidecarManifest {
  * Manages persistent Rust sidecars.
  */
 export class SidecarManager implements CommandPort {
+  // SEC-03: Hardcoded Developer Public Key for Manifest Verification
+  private static readonly DEVELOPER_PUBLIC_KEY = "b80786c296385f3561db0fabe88abfb649c13652fa982316519701ae4bffd66d";
+
   private config?: ConfigurationPort;
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
@@ -64,40 +68,59 @@ export class SidecarManager implements CommandPort {
 
         const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
 
-        // SOV-P1: Implement Signed Manifest Enforcement
-        if (data.signature && this.tpm) {
-            const verified = await this.tpm.verify(data.sidecars, data.signature);
-            if (verified) {
-                this.manifest = data;
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.SUCCESS,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `Authoritative Manifest Loaded & Hardware-Verified. Signed by: ${data.signedBy || "Developer"}`
-                });
-            } else {
-                const msg = "CRITICAL: Sidecar manifest signature verification FAILED!";
+        // SEC-03: Enforce Signed Manifest via Ed25519 (Developer Key)
+        let signatureVerified = false;
+        if (data.signature) {
+            try {
+                const publicKeyBytes = new Uint8Array(SidecarManager.DEVELOPER_PUBLIC_KEY.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+                const publicKey = await crypto.subtle.importKey(
+                    "raw",
+                    publicKeyBytes,
+                    "Ed25519",
+                    false,
+                    ["verify"]
+                );
+
+                const signatureBytes = new Uint8Array(data.signature.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+                const dataToVerify = new TextEncoder().encode(canonicalStringify(data.sidecars));
+
+                signatureVerified = await crypto.subtle.verify(
+                    "Ed25519",
+                    publicKey,
+                    signatureBytes,
+                    dataToVerify
+                );
+            } catch (e) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
                     caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: msg
+                    message: `Crypto error during manifest verification: ${(e as Error).message}`
                 });
-                if (isProduction) throw new Error(msg);
             }
+        }
+
+        if (signatureVerified) {
+            this.manifest = data;
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: `Authoritative Manifest Hardware-Verified via Ed25519. Signed by: ${data.signedBy || "Developer"}`
+            });
         } else {
             this.manifest = data;
-            const msg = data.signature ? "Manifest has signature but TPM not ready." : "Manifest is UNSIGNED.";
+            const msg = data.signature ? "Sidecar manifest signature verification FAILED!" : "Manifest is UNSIGNED.";
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: isProduction ? LogSeverity.ERROR : LogSeverity.WARNING,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `${msg} Falling back to environment-based integrity.`
+                message: `${msg} Production lockdown enforced.`
             });
-            if (isProduction) throw new Error(`Production Lockdown: Unsigned manifest or missing TPM verification. (${msg})`);
+            if (isProduction) throw new Error(`Production Lockdown: ${msg}`);
         }
     } catch (e) {
         if (this.logging) {
@@ -462,20 +485,23 @@ export class SidecarManager implements CommandPort {
         const { value, done } = await reader.read();
         if (done) break;
 
-        // Prevent memory exhaustion from unbounded sidecar output
+        // SEC-05: Stricter DoS prevention for IPC ingestion.
+        // We check the cumulative buffer size *before* decoding or appending the new chunk.
         if (buffer.length + value.length > MAX_BUFFER_SIZE) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `[${name}] CRITICAL: IPC buffer overflow. Dropping data to prevent OOM.`
+                message: `[${name}] CRITICAL: IPC buffer overflow. Eagerly dropping data to prevent OOM.`
             });
             buffer = "";
-            continue;
+            // Also truncate the current chunk to avoid spikes
+            const safeChunk = value.slice(0, Math.min(value.length, MAX_BUFFER_SIZE));
+            buffer = decoder.decode(safeChunk, { stream: true });
+        } else {
+            buffer += decoder.decode(value, { stream: true });
         }
-
-        buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
@@ -755,7 +781,9 @@ export class SidecarManager implements CommandPort {
     // Authoritative check against Signed Manifest
     const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
     const isDevMode = this.config?.getBoolean("CTS_DEV_MODE", false);
-    const goldenHash = this.manifest?.sidecars?.[name]?.hash || this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
+    const manifestHash = this.manifest?.sidecars?.[name]?.hash;
+    const envHash = this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
+    const goldenHash = isProduction ? manifestHash : (manifestHash || envHash);
     const isUnsignedManifest = !!this.manifest && !this.manifest.signature;
 
     // BUG-05: Make manifest mandatory in production
@@ -772,6 +800,17 @@ export class SidecarManager implements CommandPort {
 
     if (!force && (!goldenHash || currentHash === goldenHash)) {
         return true;
+    }
+
+    if (isProduction && isUnsignedManifest) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `CRITICAL SECURITY VIOLATION: Sidecar manifest for ${name} is UNSIGNED in production. Failing closed.`
+        });
+        return false;
     }
 
     if (isDevMode && isUnsignedManifest && goldenHash && currentHash !== goldenHash) {

@@ -31,17 +31,17 @@ export class TPMManager implements TpmPort {
         return index;
     }
 
-    async sealSecret(secretName: string, data: string) {
+    async sealSecret(secretName: string, data: string, pcrs?: Record<number, string>) {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.INFO,
             caller: "orchestrator:infra:system:protection:tpm",
-            message: `Sealing mesh secret '${secretName}' into hardware...`
+            message: `Sealing mesh secret '${secretName}' into hardware (PCR-Bound: ${!!pcrs})...`
         });
         
         const index = this.getIndexForSecret(secretName);
-        const res = await this.sidecar.sendCommand("trustroot", { type: "Seal", index, data });
+        const res = await this.sidecar.sendCommand("trustroot", { type: "Seal", index, data, pcrs });
         
         if (!res.success) {
             this.logging.log({
@@ -244,7 +244,7 @@ export class TPMManager implements TpmPort {
         });
     }
 
-    async issueNodeCert(nodeId: string, caCert: string, caKey: string) {
+    async issueNodeCert(nodeId: string, caCert?: string, caKey?: string) {
         return await this.sidecar.sendCommand("trustroot", { 
             type: "IssueNodeCert", 
             node_id: nodeId, 

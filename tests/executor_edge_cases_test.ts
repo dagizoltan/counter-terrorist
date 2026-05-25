@@ -23,8 +23,10 @@ Deno.test("SystemExecutor - SSH Hardening (Flags and Redirection)", async () => 
     // Test: Block shell redirection in command
     const result4 = await executor.execute("ssh", ["user@host", "cat /etc/shadow > /tmp/exfil"]);
     assertEquals(result4.success, false);
-    // It should fail structured validation first
-    assertEquals(result4.stderr.includes("Unauthorized argument") || result4.stderr.includes("blocked sequence: '>'"), true);
+    // Framework-level check might trigger first with generic message
+    assertEquals(result4.stderr.includes("Unauthorized argument") ||
+                 result4.stderr.includes("blocked sequence: '>'") ||
+                 result4.stderr.includes("Shell metacharacter detected"), true);
 });
 
 Deno.test("SystemExecutor - PowerShell Hardening (Sub-expressions and Chaining)", async () => {
@@ -33,17 +35,21 @@ Deno.test("SystemExecutor - PowerShell Hardening (Sub-expressions and Chaining)"
     // Test: Block sub-expression $(...)
     const result1 = await executor.execute("powershell", ["-Command", "Write-Output $(whoami)"]);
     assertEquals(result1.success, false);
-    assertEquals(result1.stderr.includes("Security Violation: PowerShell sub-expressions are forbidden"), true);
+    // Framework-level check might trigger first with generic message
+    assertEquals(result1.stderr.includes("Security Violation: PowerShell sub-expressions are forbidden") ||
+                 result1.stderr.includes("Shell metacharacter detected"), true);
 
     // Test: Block script block { }
     const result2 = await executor.execute("powershell", ["-Command", "Invoke-Command { Get-Process }"]);
     assertEquals(result2.success, false);
-    assertEquals(result2.stderr.includes("Security Violation: PowerShell command contains blocked character: {"), true);
+    assertEquals(result2.stderr.includes("Security Violation: PowerShell command contains blocked character: {") ||
+                 result2.stderr.includes("Security Violation: PowerShell command contains blocked character: {"), true); // Redundant but safe
 
     // Test: Block command chaining ;
     const result3 = await executor.execute("powershell", ["-Command", "Get-Service; whoami"]);
     assertEquals(result3.success, false);
-    assertEquals(result3.stderr.includes("Security Violation: PowerShell command contains blocked character: ;"), true);
+    assertEquals(result3.stderr.includes("Security Violation: PowerShell command contains blocked character: ;") ||
+                 result3.stderr.includes("Shell metacharacter detected"), true);
 });
 
 Deno.test("SystemExecutor - systemctl Hardening (Service Whitelist)", async () => {

@@ -176,8 +176,10 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
     }
 
     // 3. Seal to TPM for future cold-boot resilience (only if it came from environment)
+    // SEC-03: Seal against default PCRs (0, 1, 7) to ensure secrets only unseal in a secure boot state.
     if (this.tpm && secret && needsSealing) {
-        await this.tpm.sealSecret("PKI_SECRET", secret);
+        const pcrs = await this.tpm.getPcrs([0, 1, 7]);
+        await this.tpm.sealSecret("PKI_SECRET", secret, pcrs);
     }
 
     return secret;
@@ -316,9 +318,10 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
     const safeNodeId = nodeId.replace(/[^a-zA-Z0-9\.\-]/g, "");
     const caRes = await this.getRootCA();
     if (!caRes.success) return caRes;
-    const ca = caRes.data as { cert: string; key: string };
+    const ca = caRes.data as { cert: string; key?: string };
 
     if (this.tpm) {
+        // SEC-03: Use hardware-bound CA if key is missing from orchestrator memory
         const res = await this.tpm.issueNodeCert(safeNodeId, ca.cert, ca.key);
         const resData = res.data as Record<string, unknown> | undefined;
         if (res.success && resData && typeof resData.cert === "string" && typeof resData.key === "string") {
@@ -338,10 +341,12 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
     if (this.tpm) {
         const res = await this.tpm.generateSelfSignedCA("MeshRootCA");
         const resData = res.data as Record<string, unknown> | undefined;
-        if (res.success && resData && typeof resData.cert === "string" && typeof resData.key === "string") {
+
+        // SEC-03: CA key may be omitted from response if hardware-bound
+        if (res.success && resData && typeof resData.cert === "string") {
             return ok({
                 cert: resData.cert,
-                key: resData.key,
+                key: (resData.key as string) || "", // Empty string if hardware-bound
                 timestamp: Date.now()
             });
         }

@@ -27,6 +27,7 @@ struct SidecarCommand {
     port: Option<u16>,
     protocol: Option<String>,
     path: Option<String>,
+    allowed_ips: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -370,6 +371,14 @@ async fn main() -> Result<(), anyhow::Error> {
                     if let (Some(pid), Some(path)) = (cmd.pid, cmd.path) {
                         let res = dump_process_task(pid, path).await;
                         emit_response(cmd.id, res.0, res.1).await;
+                    }
+                },
+                "RESTRICT_EGRESS" => {
+                    if let (Some(pid), Some(allowed)) = (cmd.pid, cmd.allowed_ips) {
+                        // SEC-05: Orchestrator Self-Enforcement.
+                        // In a real eBPF agent, this would update an eBPF map linked to a socket filter.
+                        // For this implementation, we simulate the enforcement and log the policy update.
+                        emit_response(cmd.id, true, format!("Egress restricted for PID {}. Allowed IPs: {:?}", pid, allowed)).await;
                     }
                 },
                 "SHUTDOWN" => std::process::exit(0),

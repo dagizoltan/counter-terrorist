@@ -229,13 +229,21 @@ export class AuditService extends BaseService {
             const tree = new MerkleTree(hashesToCommit);
             const root = await tree.getRoot();
 
+            // SEC-03: Signed Merkle Commitment.
+            const hwSignature = this.tpm ? await this.tpm.sign(root) : undefined;
+
             await this.logEvent({
                 type: "MERKLE_COMMIT",
                 severity: "info",
                 caller: "AUDIT:MERKLE",
                 message: `Merkle Root committed for ${hashesToCommit.length} events: ${root.slice(0, 12)}`,
-                data: { root, eventCount: hashesToCommit.length }
+                data: { root, eventCount: hashesToCommit.length, hwSignature }
             });
+
+            // SEC-05: Anchor the root across the mesh
+            if (this.mesh) {
+                this.mesh.broadcastAuditVerification(root, hashesToCommit.length).catch(() => {});
+            }
         } catch (e) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
@@ -620,11 +628,12 @@ export class AuditService extends BaseService {
                 };
             }
 
-            if (prevEvent && event.prevHash !== prevEvent.hash && event.prevHash !== "TRUNCATED") {
+            // AUDIT-FIX: Chain verification logic fix for reverse streams (newest to oldest)
+            if (prevEvent && prevEvent.prevHash !== event.hash && prevEvent.prevHash !== "TRUNCATED") {
                 return {
                     valid: false,
                     eventsChecked,
-                    brokenAt: { eventId: event.id, expected: prevEvent.hash, actual: event.prevHash, type: "CHAIN_BREAK" },
+                    brokenAt: { eventId: prevEvent.id, expected: event.hash, actual: prevEvent.prevHash, type: "CHAIN_BREAK" },
                 };
             }
             

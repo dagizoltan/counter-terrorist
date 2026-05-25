@@ -42,14 +42,14 @@ if [ -z "$PKI_SECRET" ]; then
 fi
 
 # 4. Binary Compilation Check
-if [ ! -f "src/agents/target/release/honeypot" ]; then
+if [ ! -f "src/agents/target/release/trustroot" ]; then
     echo "[BOOT] Compiling hardened agent fleet..."
     (cd src/agents && cargo build --release)
 fi
 
 # 5. Volume Integrity Check (Data-at-Rest Protection)
 if [ -d "./volume" ]; then
-    MOUNT_INFO=$(df ./volume | tail -1)
+    MOUNT_INFO=$(df ./volume 2>/dev/null | tail -1)
     if [[ ! "$MOUNT_INFO" =~ "/dev/mapper/" ]] && [[ "$MOUNT_INFO" != *"tmpfs"* ]]; then
         echo "[SECURITY WARNING] ./volume is not on an encrypted mapper device (LUKS). Data-at-rest is vulnerable."
         # In a strict environment, we might exit here:
@@ -58,9 +58,28 @@ if [ -d "./volume" ]; then
 fi
 
 # 6. Engage Orchestrator (NON-PRIVILEGED)
-# We run the orchestrator as the current user. 
-# Privileged operations are delegated to sidecars via sudo with NOPASSWD or setcap.
-echo "[BOOT] Integrity verified. Engaging Sovereign Mesh (unprivileged)..."
+# We attempt to drop privileges to cts-orchestrator if running as root.
+ORCHESTRATOR_USER="cts-orchestrator"
+
+if [ "$EUID" -eq 0 ]; then
+    if id "$ORCHESTRATOR_USER" &>/dev/null; then
+        echo "[BOOT] Dropping privileges to $ORCHESTRATOR_USER..."
+        # We need to preserve certain env vars and pass them to the sudo session
+        # Note: In a real systemd service, this is handled by User= and Group=
+        exec sudo -u "$ORCHESTRATOR_USER" env \
+            PATH="$PATH" \
+            ENVIRONMENT="${ENVIRONMENT:-production}" \
+            API_TOKEN="${API_TOKEN}" \
+            MESH_SECRET="${MESH_SECRET}" \
+            PKI_SECRET="${PKI_SECRET}" \
+            PROVISIONING_ENABLED="${PROVISIONING_ENABLED:-false}" \
+            deno run --allow-all --unstable-kv src/orchestrator/index.ts
+    else
+        echo "[WARNING] Running as root! $ORCHESTRATOR_USER not found. Run 'scripts/provision_os_security.sh' to harden."
+    fi
+fi
+
+echo "[BOOT] Engaging Sovereign Mesh..."
 
 ENVIRONMENT=${ENVIRONMENT:-production} \
 API_TOKEN=${API_TOKEN} \
