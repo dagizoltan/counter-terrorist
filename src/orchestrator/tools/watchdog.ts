@@ -29,7 +29,6 @@ async function resurrect() {
     args: ["run", "-A", "src/orchestrator/main.ts"],
     stdout: "inherit",
     stderr: "inherit",
-    unref: true,
   });
 
   cmd.spawn();

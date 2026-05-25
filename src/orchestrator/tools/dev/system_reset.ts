@@ -16,11 +16,11 @@ for (const path of pathsToWipe) {
     try {
         await Deno.remove(path);
         console.log(`[SUCCESS] Wiped: ${path}`);
-    } catch (e) {
+    } catch (e: unknown) {
         if (e instanceof Deno.errors.NotFound) {
             console.log(`[SKIPPED] Not found: ${path}`);
         } else {
-            console.error(`[ERROR] Failed to wipe ${path}: ${e.message}`);
+            console.error(`[ERROR] Failed to wipe ${path}: ${(e as Error)?.message ?? String(e)}`);
         }
     }
 }
@@ -35,9 +35,9 @@ try {
              console.log(`[SUCCESS] Wiped additional storage file: ${entry.name}`);
         }
     }
-} catch (e) {
+} catch (e: unknown) {
      if (!(e instanceof Deno.errors.NotFound)) {
-        console.error(`[ERROR] Failed to clean storage directory: ${e.message}`);
+        console.error(`[ERROR] Failed to clean storage directory: ${(e as Error)?.message ?? String(e)}`);
      }
 }
 

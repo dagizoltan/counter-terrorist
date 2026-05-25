@@ -81,7 +81,7 @@ async function checkPermissions(_executor: SystemExecutor): Promise<boolean> {
 
     for (const p of paths) {
         try {
-            const stat = await Deno.stat(p).catch(() => null);
+            const stat = await Deno.stat(p).catch(() => null) as Deno.FileInfo | null;
             if (!stat) {
                 console.log(`   ❌ Path Missing: ${p}`);
                 passed = false;
@@ -142,7 +142,7 @@ async function checkEmergencyRestoration(executor: SystemExecutor): Promise<bool
             return false;
         }
 
-        const isExecutable = (stat.mode || 0) & 0o111;
+        const isExecutable = ((stat.mode ?? 0) as number) & 0o111;
         if (isExecutable) {
             console.log(`   ✅ Emergency Script Found: ${scriptPath}`);
         } else {

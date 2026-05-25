@@ -8,7 +8,7 @@ export const handlerFactory = (_services: ServiceContainer) => async (c: Context
   try {
       for await (const entry of Deno.readDir(forensicDir)) {
           if (entry.isFile) {
-              const stat = await Deno.stat(`${forensicDir}/${entry.name}`);
+              const stat = await Deno.stat(`${forensicDir}/${entry.name}`) as Deno.FileInfo;
               artifacts.push({
                   name: entry.name,
                   size: stat.size,

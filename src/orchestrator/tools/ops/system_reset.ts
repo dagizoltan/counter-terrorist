@@ -13,8 +13,8 @@ async function reset() {
         console.log("[-] Purging forensic audit ledger (Deno KV)...");
         await Deno.remove(KV_PATH).catch(() => {});
         console.log("[+] Database purged.");
-    } catch (e) {
-        console.error(`[!] Failed to clear KV: ${e.message}`);
+    } catch (e: unknown) {
+        console.error(`[!] Failed to clear KV: ${(e as Error)?.message ?? String(e)}`);
     }
 
     // 2. Truncate log file
@@ -22,8 +22,8 @@ async function reset() {
         console.log("[-] Truncating diagnostic log file...");
         await Deno.writeTextFile(LOG_FILE, "");
         console.log("[+] Log file cleared.");
-    } catch (e) {
-        console.error(`[!] Failed to clear log file: ${e.message}`);
+    } catch (e: unknown) {
+        console.error(`[!] Failed to clear log file: ${(e as Error)?.message ?? String(e)}`);
     }
 
     // 3. Clear bait directory
@@ -31,8 +31,8 @@ async function reset() {
         console.log("[-] Clearing deception bait directory...");
         await Deno.remove("./volume/deception/bait", { recursive: true }).catch(() => {});
         console.log("[+] Deception artifacts purged.");
-    } catch (e) {
-        console.error(`[!] Failed to clear bait: ${e.message}`);
+    } catch (e: unknown) {
+        console.error(`[!] Failed to clear bait: ${(e as Error)?.message ?? String(e)}`);
     }
 
     console.log("── Reset Complete. System ready for re-initialization. ──────────");

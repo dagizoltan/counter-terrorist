@@ -21,7 +21,7 @@ export class RedisHoneypotPlugin implements Plugin {
     return this.active ? "ACTIVE" : "INACTIVE";
   }
 
-  start() {
+  async start(): Promise<void> {
     try {
       this.listener = Deno.listen({ port: this.port });
       this.active = true;
@@ -96,7 +96,7 @@ export class RedisHoneypotPlugin implements Plugin {
     }
   }
 
-  stop() {
+  async stop(): Promise<void> {
     this.active = false;
     if (this.listener) {
       this.listener.close();

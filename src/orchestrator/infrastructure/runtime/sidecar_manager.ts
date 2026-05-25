@@ -836,7 +836,7 @@ export class SidecarManager implements CommandPort {
             return res.stdout.split(" ")[0].trim();
         }
 
-        const stats = await Deno.stat(path);
+        const stats = await Deno.stat(path) as Deno.FileInfo;
         const file = await Deno.open(path, { read: true });
         try {
             const hashBuffer = await this.digestStream("SHA-256", file.readable, stats.size);

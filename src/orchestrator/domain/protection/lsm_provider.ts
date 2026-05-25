@@ -25,7 +25,7 @@ export class AppArmorProvider implements LSMProvider {
 
     async isSupported(): Promise<boolean> {
         try {
-            const status = await Deno.stat("/sys/kernel/security/apparmor");
+            const status = await Deno.stat("/sys/kernel/security/apparmor") as Deno.FileInfo;
             return status.isDirectory;
         } catch {
             return false;

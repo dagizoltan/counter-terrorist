@@ -86,8 +86,8 @@ export class CanaryService extends BaseService {
             
             // BUG-4.25 FIX: Verify if existing file is actually our canary
             try {
-                const stat = await Deno.stat(newToken.projectionPath);
-                const masterStat = await Deno.stat(newToken.masterPath);
+                const stat = await Deno.stat(newToken.projectionPath) as Deno.FileInfo;
+                const masterStat = await Deno.stat(newToken.masterPath) as Deno.FileInfo;
 
                 // If inodes match, it's our hardlink. If sizes/mtimes match and it's not a link,
                 // it might be a copy. For simplicity, we check if they are the same file.
@@ -150,8 +150,8 @@ export class CanaryService extends BaseService {
 
                 // BUG-4.25 FIX: Verify if existing file is actually our canary
                 try {
-                    const stat = await Deno.stat(token.projectionPath);
-                    const masterStat = await Deno.stat(token.masterPath);
+                    const stat = await Deno.stat(token.projectionPath) as Deno.FileInfo;
+                    const masterStat = await Deno.stat(token.masterPath) as Deno.FileInfo;
 
                     if (stat.ino === masterStat.ino) {
                         // Already deployed

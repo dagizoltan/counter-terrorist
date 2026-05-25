@@ -80,8 +80,8 @@ async function prepareVendor(webDest: string) {
       const code = await res.text();
       const sanitized = code.replace(/from\s*["']https:\/\/esm\.sh\/preact@10\.20\.1["']/g, 'from "./preact.js"');
       await Deno.writeTextFile(join(vendorDir, lib.name), sanitized);
-    } catch (e) {
-      console.warn(`[!] Failed to vendor ${lib.name}: ${e.message}`);
+    } catch (e: unknown) {
+      console.warn(`[!] Failed to vendor ${lib.name}: ${(e as Error)?.message ?? String(e)}`);
     }
   }
 }

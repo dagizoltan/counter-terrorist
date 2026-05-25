@@ -1,28 +1,3 @@
-declare namespace Deno {
-  const env: {
-    get(key: string): string | undefined;
-  };
-  function exit(code?: number): never;
-  function hostname(): string;
-  const build: {
-    os: "windows" | "linux" | "darwin" | string;
-  };
-  function stat(path: string): Promise<{ isFile: boolean }>;
-  function readTextFile(path: string): Promise<string>;
-  function serve(options: any, handler: any): void;
-  interface CommandOptions {
-    cmd: string[];
-    stdout?: "piped" | "null" | "inherit";
-    stderr?: "piped" | "null" | "inherit";
-  }
-  class Command {
-    constructor(options: CommandOptions);
-    output(): Promise<{ success: boolean; stdout: Uint8Array; stderr: Uint8Array }>;
-  }
-  function run(options: any): any;
-  const uid: (() => number) | undefined;
-}
-
 declare module "https://deno.land/x/hono@v4.3.7/mod.ts" {
   export class Hono {
     constructor();

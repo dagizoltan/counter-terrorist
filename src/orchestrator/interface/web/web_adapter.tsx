@@ -98,8 +98,8 @@ export class WebAdapter implements WebPort {
     });
 
     // ── STATIC ASSETS ────────────────────────────────────────────────
-    const webRoot = await Deno.stat("./web").then(s => s.isDirectory).catch(() => false) 
-      ? "./web" 
+    const webRoot = await Deno.stat("./web").then((s) => (s as Deno.FileInfo).isDirectory).catch(() => false)
+      ? "./web"
       : "./src/orchestrator/interface/web";
     
     this.app.use("/style.css", serveStatic({ path: "./style.css", root: webRoot }));
@@ -350,7 +350,7 @@ export class WebAdapter implements WebPort {
   }
 
   private async setupStaticAssets() {
-    const webRoot = await Deno.stat("./web").then(s => s.isDirectory).catch(() => false)
+    const webRoot = await Deno.stat("./web").then((s) => (s as Deno.FileInfo).isDirectory).catch(() => false)
       ? "./web"
       : "./src/orchestrator/interface/web";
 
@@ -417,7 +417,7 @@ export class WebAdapter implements WebPort {
           message: `SOVEREIGN mTLS Active. Tactical Console: https://localhost:${port}`
       });
       
-      this.server = Deno.serve({ 
+      Deno.serve({ 
         port,
         cert: nodeCert.cert,
         key: nodeCert.key
@@ -430,7 +430,7 @@ export class WebAdapter implements WebPort {
           caller: "orchestrator:interface:web",
           message: `Orchestrator Engine active (INSECURE HTTP). Tactical Console: http://localhost:${port}`
       });
-      this.server = Deno.serve({ port }, this.app.fetch);
+      Deno.serve({ port }, this.app.fetch);
     }
   }
 }
