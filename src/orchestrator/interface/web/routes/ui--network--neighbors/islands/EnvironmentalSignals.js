@@ -1,1 +1,1 @@
-export { default } from "../../islands/EnvironmentalSignals.js";
+export { default } from "../../../components/islands/EnvironmentalSignals.js";

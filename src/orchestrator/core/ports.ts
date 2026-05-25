@@ -1,5 +1,6 @@
 import { Plugin } from "@domain/orchestration/plugin_manager.ts";
 import { PlatformInfo } from "@infrastructure/system/platform.ts";
+import { Result } from "./result.ts";
 import { z } from "npm:zod";
 import type { EventName, EventRegistry } from "@core/event_schema.ts";
 
@@ -39,7 +40,7 @@ export interface CommandResult {
   success: boolean;
   stdout: string;
   stderr: string;
-  data?: unknown;
+  data?: Record<string, any>;
   message?: string;
 }
 
@@ -52,7 +53,7 @@ export interface CommandPort {
   restartSidecar(sidecar: string): Promise<void>;
   stopSidecar(sidecar: string): Promise<void>;
   getPID(sidecar: string): number | null;
-  getTpm(): TpmPort | null;
+  getTpm(): TpmPort | undefined;
   getExecutor(): ExecutorPort;
 }
 
@@ -178,10 +179,10 @@ export interface MeshPort {
 }
 
 export interface MeshAuthPort {
-  getRootCA(): Promise<unknown>; // Returns CertPair
+  getRootCA(): Promise<Result<{ cert: string; key: string }>>;
   getTrustedCerts(): Promise<string[]>;
-  generateNodeCert(nodeId: string): Promise<unknown>;
-  rotateCert(nodeId: string): Promise<unknown>;
+  generateNodeCert(nodeId: string): Promise<Result<{ cert: string; key: string }>>;
+  rotateCert(nodeId: string): Promise<Result<{ cert: string; key: string }>>;
 }
 
 export interface ConfigurationPort {

@@ -55,8 +55,11 @@ export class ForensicService extends BaseService {
     let signature = null;
     try {
         const caRes = await this.meshAuth.getRootCA();
-        if (!caRes.success) throw new Error(`MeshAuth getRootCA failed: ${caRes.error.message}`);
-        const ca = caRes.data;
+        if (!caRes.success) throw new Error(`MeshAuth getRootCA failed: ${String((caRes.error as any)?.message || caRes.error)}`);
+        const ca = caRes.data as { cert: string; key: string };
+        if (!ca || typeof ca.cert !== "string" || typeof ca.key !== "string") {
+            throw new Error("MeshAuth getRootCA returned invalid certificate data");
+        }
         const encoder = new TextEncoder();
         const data = encoder.encode(JSON.stringify(bundleData));
 

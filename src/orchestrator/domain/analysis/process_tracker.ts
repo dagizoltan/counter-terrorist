@@ -3,6 +3,7 @@ import { ProcessPort } from "@domain/ports/process_port.ts";
 import { CommandPort } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "../../core/result.ts";
+import { EventBus } from "./events.ts";
 
 export interface ProcessNode {
     pid: number;
@@ -25,7 +26,6 @@ export class ProcessTracker extends BaseService {
 
     private cleanupInterval?: number;
     private metricsInterval?: number;
-    private eventBus?: any;
 
     constructor(
         private logging: LoggingPort, 
@@ -42,13 +42,13 @@ export class ProcessTracker extends BaseService {
         return ok(undefined);
     }
 
-    setEventBus(eventBus: any) {
-        this.eventBus = eventBus;
+    override setEventBus(eventBus: EventBus) {
+        super.setEventBus(eventBus);
     }
 
     private emitMetrics() {
         if (!this.eventBus) return;
-        this.eventBus.emit("METRIC_UPDATE", {
+        this.eventBus.emit("METRIC_UPDATE" as any, {
             domain: "forensics",
             data: {
                 processCount: this.tree.size,

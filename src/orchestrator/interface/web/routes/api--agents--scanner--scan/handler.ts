@@ -11,7 +11,9 @@ export const handlerFactory = (services: ServiceContainer) => async (c: Context)
       result = await services.protection.antivirus.scanPath(path || "/home/");
   }
 
-  const data = result.success ? (result as { data: unknown }).data : { success: false, error: (result as { error?: { message?: string } }).error?.message || "Unknown error" };
+  const data = result.success && typeof (result as any).data === "object" && (result as any).data !== null
+      ? (result as any).data
+      : { success: false, error: (result as any).error?.message || "Unknown error" };
 
   const { recordScannerResult } = await import("@domain/analysis/metrics_service.ts");
   const scanStatus = (data.success && !data.threatsFound) ? "OK" : (data.threatsFound ? "THREAT_FOUND" : "SCAN_FAILED");

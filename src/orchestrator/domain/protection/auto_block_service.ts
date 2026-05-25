@@ -42,30 +42,36 @@ export class AutoBlockService extends BaseService {
 
     if (!this.eventBus) return;
     this.unsubscriber = this.eventBus.subscribe(async (event) => {
+      const payload = event.data as Record<string, unknown> | undefined;
+
       // Listen for high-confidence honeypot triggers
-      if (event.type === "HONEYPOT") {
-        const ip = event.data?.source_ip || event.data?.ip;
-        if (ip && typeof ip === "string") {
-            await this.executeBlock(ip, `honeypot:${event.data.type}`);
+      if (event.type === "HONEYPOT" && payload) {
+        const ip = typeof payload.source_ip === "string" ? payload.source_ip : typeof payload.ip === "string" ? payload.ip : undefined;
+        const eventType = typeof payload.type === "string" ? payload.type : "unknown";
+        if (ip) {
+            await this.executeBlock(ip, `honeypot:${eventType}`);
         }
       }
 
       // Listen for critical eBPF alerts
-      if (event.type === "EBPF_CRITICAL") {
-          const ip = event.data?.ip;
+      if (event.type === "EBPF_CRITICAL" && payload) {
+          const ip = typeof payload.ip === "string" ? payload.ip : undefined;
           if (ip) {
               await this.executeBlock(ip, "ebpf:critical");
           }
 
-          // If the event has a PID and indicates a severe behavioral anomaly, isolate the process
-          if (event.data?.pid && (event.data?.anomalyScore > 0.8 || event.data?.intent)) {
-              await this.executeIsolation(event.data.pid, `ebpf:behavioral:${event.data.comm || 'unknown'}`);
+          const pid = typeof payload.pid === "number" ? payload.pid : undefined;
+          const anomalyScore = typeof payload.anomalyScore === "number" ? payload.anomalyScore : 0;
+          const intent = typeof payload.intent === "string" ? payload.intent : undefined;
+          const comm = typeof payload.comm === "string" ? payload.comm : "unknown";
+          if (pid && (anomalyScore > 0.8 || intent)) {
+              await this.executeIsolation(pid, `ebpf:behavioral:${comm}`);
           }
       }
 
       // Listen for Exfiltration Alerts
-      if (event.type === "EXFIL_ALERT") {
-          const pid = event.data?.pid;
+      if (event.type === "EXFIL_ALERT" && payload) {
+          const pid = typeof payload.pid === "number" ? payload.pid : undefined;
           if (pid) {
               await this.executeIsolation(pid, "pcap:exfil_threshold_exceeded");
           }

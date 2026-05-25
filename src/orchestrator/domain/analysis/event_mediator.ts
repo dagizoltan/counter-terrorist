@@ -4,6 +4,7 @@ import { CanaryService } from "../protection/canary_service.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
+import { BroadcastData } from "@interface/ws_handler.ts";
 import { Result, ok } from "../../core/result.ts";
 
 type SidecarEvent = Record<string, unknown>;
@@ -34,7 +35,7 @@ export class EventMediator extends BaseService {
     private batchTimer?: number;
 
     protected override onInit(): Promise<Result<void>> {
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
     protected override async onShutdown(): Promise<Result<void>> {
@@ -67,12 +68,13 @@ export class EventMediator extends BaseService {
         private eventBusPort: EventBus,
         private processTracker: ProcessTracker,
         private canaryService: CanaryService,
-        private broadcast: (msg: SidecarEvent) => void,
+        private broadcast: (msg: BroadcastData) => void,
         private logger: LoggingPort,
         private kv?: Deno.Kv
     ) {
         super();
         this.setEventBus(eventBusPort);
+        this.eventBus = eventBusPort;
         this.behavioral = new BehavioralAnalyzer();
         if (kv) {
             this.behavioral.setKv(kv).catch(() => {});
@@ -91,9 +93,9 @@ export class EventMediator extends BaseService {
             });
         }, 30000);
 
-        this.eventBus.on("UI_BROADCAST", (msg: unknown) => {
+        this.eventBus?.on("UI_BROADCAST", (msg: unknown) => {
             if (typeof msg === "object" && msg !== null) {
-                this.broadcast(msg as SidecarEvent);
+                this.broadcast(msg as BroadcastData);
             }
         });
 
@@ -103,11 +105,11 @@ export class EventMediator extends BaseService {
 
     private flushBatches() {
         if (this.syscallBatch.length > 0) {
-            this.eventBus.emit("EBPF_SYSCALL_BATCH", [...this.syscallBatch]);
+            this.eventBus?.emit("EBPF_SYSCALL_BATCH" as any, [...this.syscallBatch] as any);
             this.syscallBatch = [];
         }
         if (this.networkBatch.length > 0) {
-            this.eventBus.emit("NETWORK_LOG_BATCH", [...this.networkBatch]);
+            this.eventBus?.emit("NETWORK_LOG_BATCH" as any, [...this.networkBatch] as any);
             this.networkBatch = [];
         }
     }
@@ -127,7 +129,7 @@ export class EventMediator extends BaseService {
                 message: `Honeypot Trigger: ${typeof event.type === "string" ? event.type : "unknown"} from ${typeof event.source_ip === "string" ? event.source_ip : "remote"}`,
                 data: event
             });
-            this.eventBus.emit("HONEYPOT", event);
+            this.eventBus?.emit("HONEYPOT" as any, event as any);
         });
 
         // 2. eBPF Integration
@@ -193,7 +195,7 @@ export class EventMediator extends BaseService {
                         message: `eBPF Alert: ${event.comm} called ${event.syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
                         data: { ...event, anomalyScore }
                     });
-                    this.eventBus.emit(type, event);
+                    this.eventBus?.emit(type as any, event as any);
                 }
 
                 if (type === "EBPF_STRAY_SHELL") {
@@ -263,7 +265,7 @@ export class EventMediator extends BaseService {
                     message: `FIM Alert: ${action} on ${path} [Actor: ${actor}]`,
                     data: payload
                 });
-                this.eventBus.emit(isCanary ? "THREAT" : "DRIFT_PROCESS", payload);
+                this.eventBus?.emit((isCanary ? "THREAT" : "DRIFT_PROCESS") as any, payload as any);
             }
         });
 
@@ -322,7 +324,7 @@ export class EventMediator extends BaseService {
                         type,
                         severity,
                         caller: "pcap:dissector",
-                        message: data.message || "Network Exfiltration Attempt Detected",
+                        message: typeof data.message === "string" ? data.message : "Network Exfiltration Attempt Detected",
                         payload: data
                     }).catch(() => {});
                 }
@@ -379,7 +381,7 @@ export class EventMediator extends BaseService {
                     payload: data
                 });
 
-                this.eventBus.emit("THREAT", data);
+                this.eventBus?.emit("THREAT" as any, data as any);
             }
         });
 
@@ -395,7 +397,7 @@ export class EventMediator extends BaseService {
     /**
      * Broadcasts a manual event to all connected UI clients.
      */
-    broadcastEvent(event: SidecarEvent) {
+    broadcastEvent(event: BroadcastData) {
         this.broadcast(event);
     }
 }

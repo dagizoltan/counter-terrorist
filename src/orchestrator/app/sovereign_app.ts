@@ -5,6 +5,7 @@ import { AuditService } from "@domain/analysis/audit.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
 import { 
     EventBus, MeshAuthService, MeshManager,
+    BaselineService, CuratedIntelService,
     DecentralizedMetricsService,
     PlaybookService, MorphingService,
     ChaosEngine, SupplyChainService,
@@ -233,6 +234,18 @@ export class SovereignApp {
         this.registry.register("Watchdog", this.watchdog, ShutdownPriority.AUXILIARY);
     }
 
+    private async checkPilotSafety(configProvider: ConfigurationPort) {
+        if (!configProvider.getBoolean("PILOT_MODE", false)) return;
+
+        await loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:app:sovereign_app",
+            message: "🛡️ PILOT SAFETY CHECK: System is running in Pilot Mode. Ensure 'scripts/emergency_off.sh' is accessible."
+        });
+    }
+
     private watchdog?: WatchdogService;
 
     private async gracefulShutdown() {
@@ -300,6 +313,7 @@ export class SovereignApp {
             services.eventBus,
             loggingService
         );
+        services.metrics = metricsService;
         this.registry.register("DecentralizedMetrics", metricsService, ShutdownPriority.AUXILIARY);
         setMetricsService(metricsService);
 
@@ -380,16 +394,17 @@ export class SovereignApp {
 
         // Fail-Closed Lifecycle: Monitor critical sidecar health
         this.sidecarManager.onEvent("SYSTEM_ERROR", (payload) => {
-            if (payload.type === "SIDECAR_CRASH_LOOP" && payload.critical) {
-                this.loggingService.log({
+            const eventPayload = payload as { type?: string; critical?: boolean; sidecar?: string };
+            if (eventPayload.type === "SIDECAR_CRASH_LOOP" && eventPayload.critical) {
+                loggingService.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.ERROR,
                     caller: "orchestrator:app:sovereign_app:fail_closed",
-                    message: `FATAL: Critical sidecar '${payload.sidecar}' entered crash loop. Initiating emergency lockdown.`
+                    message: `FATAL: Critical sidecar '${eventPayload.sidecar ?? "unknown"}' entered crash loop. Initiating emergency lockdown.`
                 }).catch(() => {});
 
-                this.emergencyLockdown(`Critical Sidecar Failure: ${payload.sidecar}`);
+                this.emergencyLockdown(`Critical Sidecar Failure: ${eventPayload.sidecar ?? "unknown"}`);
             }
         });
     }
@@ -572,42 +587,60 @@ export class SovereignApp {
         this.registry.register("EventMediator", mediator, ShutdownPriority.AUXILIARY);
 
         const services: ServiceContainer = {
-            config: configProvider, protection, command: this.sidecarManager, audit: this.auditService,
-            notifications, baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService),
-            processTracker, sessions: identity.sessions, apiKeys: identity.apiKeys, eventBus,
-            honeypot: security.honeypot, canaryService: security.canaryService, kernelService: security.kernelService, forensicService: intelligence.forensicService,
-            autopilot, autonomousAutopilot, lifecycle, logging: loggingService,
-            playbook, morphing, chaos,
-            supplyChain, mesh, meshAuth: identity.meshAuth, threatIntel: intelligence.curatedIntel,
-            compliance: intelligence.compliance, anonymization: security.anonymization, shadowProtocol: security.shadowProtocol, deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
-            curatedIntel: intelligence.curatedIntel, news: intelligence.news, networkDiscovery: intelligence.networkDiscovery, networkLogs: networkLog,
-            provisioning, integrity,
-            incidents: intelligence.incidents, platformInfo, shadow, covert,
+            config: configProvider,
+            protection,
+            command: this.sidecarManager,
+            audit: this.auditService,
+            notifications,
+            baseline: new BaselineService(this.kv, this.sidecarManager, this.executor, loggingService),
+            processTracker,
+            sessions: identity.sessions,
+            apiKeys: identity.apiKeys,
+            eventBus,
+            honeypot: security.honeypot,
+            canaryService: security.canaryService,
+            kernelService: security.kernelService,
+            forensicService: intelligence.forensicService,
+            autopilot,
+            autonomousAutopilot,
+            lifecycle,
+            logging: loggingService,
+            playbook,
+            morphing,
+            chaos,
+            supplyChain,
+            mesh,
+            meshAuth: identity.meshAuth,
+            threatIntel: intelligence.curatedIntel,
+            compliance: intelligence.compliance,
+            anonymization: security.anonymization,
+            shadowProtocol: security.shadowProtocol,
+            deceptionGrid: new DeceptionGridService(security.honeypot, security.canaryService, loggingService),
+            curatedIntel: intelligence.curatedIntel,
+            news: intelligence.news,
+            networkDiscovery: intelligence.networkDiscovery,
+            networkLogs: networkLog,
+            provisioning,
+            integrity,
+            incidents: intelligence.incidents,
+            shadow,
+            covert,
             ledger,
-            tpm, health,
-            metrics: metricsService,
+            tpm,
+            policy,
+            health,
+            metrics: {} as any,
             mediator,
-            behavioral: security.behavioral, geoIp: intelligence.geoIp, rateLimit: identity.rateLimit, policy, correlation,
+            behavioral: security.behavioral,
+            geoIp: intelligence.geoIp,
+            correlation,
+            rateLimit: identity.rateLimit,
+            platformInfo,
             viewModel
         };
 
         playbook.setServices(services);
-        autopilot.setServices(services);
-
         return services;
-    }
-
-    private checkPilotSafety(config: ConfigurationPort) {
-        const isPilot = config.getEnv("PILOT_MODE") === "true";
-        if (isPilot) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.INFO,
-                caller: "orchestrator:app:sovereign_app",
-                message: "🛡️ PILOT SAFETY CHECK: System is running in Pilot Mode. Ensure 'scripts/emergency_off.sh' is accessible."
-            });
-        }
     }
 
     private async emergencyLockdown(reason: string = "Hardware Integrity Failure") {

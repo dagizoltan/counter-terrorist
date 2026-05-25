@@ -1,1 +1,1 @@
-export { default } from "../../islands/AnonymizerController.js";
+export { default } from "../../../components/islands/AnonymizerController.js";

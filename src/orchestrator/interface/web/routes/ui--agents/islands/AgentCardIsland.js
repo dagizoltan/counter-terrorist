@@ -1,1 +1,1 @@
-export { default } from "../../islands/AgentCardIsland.js";
+export { default } from "../../../components/islands/AgentCardIsland.js";

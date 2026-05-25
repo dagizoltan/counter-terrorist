@@ -19,11 +19,14 @@ export class PlaybookEngine {
     this.eventBus.subscribe(async (event) => {
       // BUG-4.26 FIX: Use structured threat codes for robust matching
       const { TacticalThreatCode } = await import("../../core/event_schema.ts");
-      const threatCode = event.data?.code;
+      const data = event.data as Record<string, unknown> | undefined;
+      const eventType = typeof event.type === "string" ? event.type : "";
+      const eventMessage = typeof event.message === "string" ? event.message : "";
+      const threatCode = data?.code;
 
       // 1. SSH Brute Force Detection
-      if (event.type === "THREAT" && (threatCode === TacticalThreatCode.SSH_BRUTE_FORCE || event.message.includes("SSH Brute Force"))) {
-        const ip = event.data?.src_ip;
+      if (eventType === "THREAT" && (threatCode === TacticalThreatCode.SSH_BRUTE_FORCE || eventMessage.includes("SSH Brute Force"))) {
+        const ip = typeof data?.src_ip === "string" ? data.src_ip : undefined;
         if (ip) {
           this.logging.log({
               timestamp: new Date().toISOString(),
@@ -37,12 +40,11 @@ export class PlaybookEngine {
       }
 
       // 2. Critical System Intrusion
-      if ((event.type === "CRITICAL" || event.type === "THREAT") &&
+      if ((eventType === "CRITICAL" || eventType === "THREAT" || eventType === "LEDGER_TAMPER") &&
           (threatCode === TacticalThreatCode.REVERSE_SHELL ||
            threatCode === TacticalThreatCode.EXPLOIT_ATTEMPT ||
-           event.type === "LEDGER_TAMPER" ||
-           event.message.includes("Exploit") ||
-           event.message.includes("Reverse Shell"))) {
+           eventMessage.includes("Exploit") ||
+           eventMessage.includes("Reverse Shell"))) {
          this.logging.log({
              timestamp: new Date().toISOString(),
              type: LogType.AUDIT,
@@ -54,9 +56,9 @@ export class PlaybookEngine {
       }
 
       // 3. Honeypot Interaction
-      if (event.type === "HONEYPOT" &&
-          (threatCode === TacticalThreatCode.CRITICAL_HONEYPOT_HIT || event.data?.severity === "CRITICAL")) {
-        const ip = event.data?.ip;
+      if (eventType === "HONEYPOT" &&
+          (threatCode === TacticalThreatCode.CRITICAL_HONEYPOT_HIT || eventMessage === "CRITICAL" || data?.severity === "CRITICAL")) {
+        const ip = typeof data?.ip === "string" ? data.ip : undefined;
         if (ip) {
           this.logging.log({
               timestamp: new Date().toISOString(),

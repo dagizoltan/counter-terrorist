@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { AuditService } from "@domain/analysis/audit.ts";
+import { AuditService, AuditDelta } from "@domain/analysis/audit.ts";
 import { AuditRepository } from "@domain/repositories/audit_repository.ts";
 import { AuditEvent } from "@domain/analysis/audit.ts";
 import { LoggingPort, LogEntry, LogSeverity, LogType } from "@core/ports.ts";
@@ -26,6 +26,9 @@ class MockRepo implements AuditRepository {
     async *getStream(limit: number, reverse: boolean): AsyncIterable<AuditEvent> {
         for (const e of this.events) yield e;
     }
+
+    async appendDelta(_delta: any): Promise<void> {}
+    async getDeltas(_eventId: string): Promise<AuditDelta[]> { return []; }
 }
 
 class MockLogging implements LoggingPort {

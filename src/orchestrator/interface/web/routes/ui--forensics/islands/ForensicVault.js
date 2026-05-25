@@ -1,1 +1,1 @@
-export { default } from "../../islands/ForensicVault.js";
+export { default } from "../../../components/islands/ForensicVault.js";

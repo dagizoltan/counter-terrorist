@@ -66,7 +66,7 @@ export interface SecuritySubsystem {
 }
 
 export interface IntelligenceSubsystem {
-  threatIntel: ThreatIntelService;
+  threatIntel: ThreatIntelService | CuratedIntelService;
   curatedIntel: CuratedIntelService;
   geoIp: GeoIpService;
   forensicService: ForensicService;

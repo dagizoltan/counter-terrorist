@@ -1,1 +1,1 @@
-export { default } from "../../islands/ThreatExplorer.js";
+export { default } from "../../../components/islands/ThreatExplorer.js";

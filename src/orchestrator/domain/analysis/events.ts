@@ -18,7 +18,7 @@ export type Middleware = (event: SystemEvent, next: () => void | Promise<void>) 
 
 export class EventBus implements EventBusPort {
   private handlers: ((event: SystemEvent) => void | Promise<void>)[] = [];
-  private keyedListeners: Map<string, ((data: any) => void | Promise<void>)[]> = new Map();
+  private keyedListeners: Map<string, Handler<any>[]> = new Map();
   private middleware: Middleware[] = [];
   private pendingHandlers: Set<Promise<void>> = new Set();
 
@@ -50,7 +50,7 @@ export class EventBus implements EventBusPort {
     return () => this.unsubscribe(handler);
   }
 
-  unsubscribe(handler: (event: any) => void) {
+  unsubscribe(handler: Handler<any>) {
     // Remove from main handlers
     this.handlers = this.handlers.filter(h => h !== handler);
 

@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort } from "@core/ports.ts";
 import { MeshManager } from "../orchestration/mesh.ts";
 import { AuditRepository } from "../repositories/audit_repository.ts";
 import { computeHash } from "@core/crypto_utils.ts";
@@ -52,6 +52,16 @@ interface RetentionConfig {
     maxEvents: number;
 }
 
+interface AuditCorrelation {
+    processEvent(event: AuditEvent): Promise<void>;
+}
+
+type KvWatchable = {
+    watch(keys: string[][], options: { signal: AbortSignal }): AsyncIterable<{ key: unknown[]; value: unknown; oldValue?: unknown }>;
+};
+
+type AuditBroadcastPayload = Parameters<MeshManager["broadcastAuditEvent"]>[0];
+
 /**
  * AuditService
  * Hardware-rooted immutable ledger logic.
@@ -63,7 +73,7 @@ export class AuditService extends BaseService {
     private retentionConfig: RetentionConfig;
     private state: SystemState = SystemState.NORMAL;
 
-    private logQueue: Array<Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string }> = [];
+    private logQueue: Array<Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string, fromAudit?: boolean }> = [];
     private isProcessingQueue = false;
 
     private auditBuffer: AuditEvent[] = [];
@@ -76,9 +86,9 @@ export class AuditService extends BaseService {
     constructor(
         private repo: AuditRepository,
         private logging: LoggingPort,
-        private tpm: unknown | null = null,
+        private tpm?: TpmPort,
         private mesh: MeshManager | null = null,
-        private correlation: unknown | null = null
+        private correlation?: AuditCorrelation
     ) {
         super();
         this.retentionConfig = {
@@ -124,11 +134,11 @@ export class AuditService extends BaseService {
         if (!kv) return;
 
         this.watcherAbortController = new AbortController();
-        const watcher = kv.watch([["audit", "latest"]], { signal: this.watcherAbortController.signal });
+        const watcher = (kv as KvWatchable).watch([["audit", "latest"]], { signal: this.watcherAbortController.signal });
         try {
-        for await (const [entry] of watcher) {
-            if (entry.value) {
-                const latestEvent = entry.value as AuditEvent;
+            for await (const entry of watcher) {
+                if (entry && typeof entry === "object" && entry !== null && "value" in entry) {
+                    const latestEvent = (entry as { value: unknown }).value as AuditEvent;
                 if (latestEvent.hash !== this.lastHash) {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
@@ -241,7 +251,7 @@ export class AuditService extends BaseService {
         }
     }
 
-    public setCorrelation(correlation: unknown) {
+    public setCorrelation(correlation?: AuditCorrelation) {
         this.correlation = correlation;
     }
 
@@ -297,7 +307,7 @@ export class AuditService extends BaseService {
                             source: "AuditService:boot",
                             type: "LEDGER_TAMPER",
                             data: { ...verification.brokenAt, reason: "RESTORE_CHAIN_HEAD_FAILURE" }
-                        });
+                        } as never);
                     }
 
                     return err(new Error(errorMsg));
@@ -321,17 +331,55 @@ export class AuditService extends BaseService {
 
     public async syncEvents(events: AuditEvent[]) {
         for (const event of events) {
-            if (event.hash !== this.lastHash) {
-                await this.repo.save(event);
-                this.lastHash = event.hash;
+            if (event.hash === this.lastHash) continue;
+
+            // Validate event integrity before accepting remote chain pieces.
+            const expectedHash = await computeHash({
+                id: event.id,
+                timestamp: event.timestamp,
+                type: event.type,
+                severity: event.severity,
+                caller: event.caller,
+                message: event.message,
+                actor: event.actor,
+                data: event.data,
+                correlationId: event.correlationId,
+                prevHash: event.prevHash
+            });
+
+            if (event.hash !== expectedHash) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:domain:analysis:audit",
+                    message: `Rejected synced audit event ${event.id} due to checksum mismatch`,
+                    payload: { expectedHash, actualHash: event.hash }
+                }).catch(() => {});
+                continue;
             }
+
+            if (event.prevHash !== this.lastHash && event.prevHash !== "TRUNCATED") {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:domain:analysis:audit",
+                    message: `Rejected synced audit event ${event.id} due to chain gap: expected prevHash ${this.lastHash}`,
+                    payload: { eventPrevHash: event.prevHash }
+                }).catch(() => {});
+                continue;
+            }
+
+            await this.repo.save(event);
+            this.lastHash = event.hash;
         }
     }
 
     logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string, fromAudit?: boolean }) {
         this.ensureReady();
         // SOV-05 STABILITY: Immediate drop if event is from audit itself to prevent recursion
-        if ((event as { fromAudit?: boolean }).fromAudit) return;
+        if (event.fromAudit) return;
 
         if (this.state === SystemState.FORENSIC_RESTRICTED &&
             event.type !== "CRITICAL" && event.type !== "THREAT" && event.type !== "SUCCESS" && event.type !== "MERKLE_COMMIT") {
@@ -370,77 +418,80 @@ export class AuditService extends BaseService {
 
         try {
             while (this.logQueue.length > 0) {
-            const currentQueue = this.logQueue;
-            this.logQueue = [];
+                const currentQueue = this.logQueue;
+                this.logQueue = [];
 
-            for (const event of currentQueue) {
-                const id = crypto.randomUUID();
-                const timestamp = event.timestamp || new Date().toISOString();
-                const prevHash = this.lastHash;
+                for (let i = 0; i < currentQueue.length; i++) {
+                    const event = currentQueue[i];
+                    const id = crypto.randomUUID();
+                    const timestamp = event.timestamp || new Date().toISOString();
+                    const prevHash = this.lastHash;
 
-                const hashInput = {
-                    id, timestamp, type: event.type, severity: event.severity,
-                    caller: event.caller, message: event.message,
-                    actor: event.actor, data: event.data,
-                    correlationId: event.correlationId, prevHash,
-                };
-                const hash = await computeHash(hashInput);
+                    try {
+                        const hashInput = {
+                            id, timestamp, type: event.type, severity: event.severity,
+                            caller: event.caller, message: event.message,
+                            actor: event.actor, data: event.data,
+                            correlationId: event.correlationId, prevHash,
+                        };
+                        const hash = await computeHash(hashInput);
 
-                let hwSignature: string | undefined;
-                if (this.tpm) {
-                    hwSignature = await this.tpm.sign(hash);
-                }
+                        let hwSignature: string | undefined;
+                        if (this.tpm) {
+                            hwSignature = await this.tpm.sign(hash);
+                        }
 
-                const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
+                        const formatted = `[${event.type.toUpperCase()}] [${(event.severity || "info").toLowerCase()}] [${(event.caller || "SYSTEM").toUpperCase()}] ${event.message}`;
+                        const { fromAudit: _fromAudit, ...eventPayload } = event;
+                        const auditEvent: AuditEvent = {
+                            ...eventPayload,
+                            id,
+                            timestamp,
+                            hash,
+                            prevHash,
+                            hwSignature,
+                            formatted
+                        };
 
-                const auditEvent: AuditEvent = {
-                    ...event as unknown as Record<string, unknown>, id, timestamp, hash, prevHash, hwSignature, formatted
-                };
+                        this.auditBuffer.push(auditEvent);
+                        this.lastHash = hash;
 
-                this.auditBuffer.push(auditEvent);
-                this.lastHash = hash;
+                        if (event.type !== "MERKLE_COMMIT") {
+                            this.currentSessionHashes.push(hash);
+                            const MAX_MERKLE_BUFFER = 1000;
+                            if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
+                                this.commitMerkleRoot().catch(() => {});
+                            }
+                        }
 
-                // Track for Merkle calculation (Exclude commit events themselves to prevent recursion)
-                if (event.type !== "MERKLE_COMMIT") {
-                    this.currentSessionHashes.push(hash);
+                        const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.AUDIT,
+                            severity,
+                            caller: "orchestrator:domain:analysis:audit",
+                            message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
+                            payload: auditEvent.data,
+                            fromAudit: true
+                        }).catch(() => {});
 
-                    // SOV-06 FIX: Memory Protection - Force Merkle commitment if buffer is too large
-                    // This prevents unbounded growth of the hashes array in memory.
-                    const MAX_MERKLE_BUFFER = 1000;
-                    if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
-                        this.commitMerkleRoot().catch(() => {});
+                        if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
+                            this.mesh.broadcastAuditEvent(auditEvent as unknown as AuditBroadcastPayload).catch(() => {});
+                        }
+
+                        if (this.correlation) {
+                            this.correlation.processEvent(auditEvent).catch(() => {});
+                        }
+
+                        if (this.auditBuffer.length >= 20 || this.state === SystemState.FORENSIC_RESTRICTED) {
+                            await this.flushBuffer();
+                        }
+                    } catch (e) {
+                        this.logQueue.unshift(...currentQueue.slice(i));
+                        throw e;
                     }
                 }
-
-                const severity = (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT") ? LogSeverity.WARNING : LogSeverity.INFO;
-                // SOV-05 STABILITY: Ensure audit logging doesn't cause recursion loop
-                // We use original console or direct logging for audit trace to avoid re-entering logEvent.
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity,
-                    caller: "orchestrator:domain:analysis:audit",
-                    message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
-                    payload: auditEvent.data,
-                    fromAudit: true // Flag to signal no further re-entry into audit
-                }).catch(() => {});
-
-                if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
-                    this.mesh.broadcastAuditEvent({
-                        ...auditEvent,
-                        node: "orchestrator-node"
-                    }).catch(() => {});
-                }
-
-                if (this.correlation) {
-                    this.correlation.processEvent(auditEvent).catch(() => {});
-                }
-
-                if (this.auditBuffer.length >= 20 || this.state === SystemState.FORENSIC_RESTRICTED) {
-                    await this.flushBuffer();
-                }
             }
-        }
         } finally {
             this.isProcessingQueue = false;
         }
@@ -451,12 +502,13 @@ export class AuditService extends BaseService {
         if (this.isFlushing || this.auditBuffer.length === 0) return;
         this.isFlushing = true;
 
-        const toFlush = [...this.auditBuffer];
+        const toFlush = this.auditBuffer;
         this.auditBuffer = [];
 
         try {
             await this.repo.saveMany(toFlush);
         } catch (e) {
+            this.auditBuffer.unshift(...toFlush);
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
@@ -499,7 +551,7 @@ export class AuditService extends BaseService {
                     source: "AuditService",
                     type: "LEDGER_TAMPER",
                     data: res.brokenAt
-                });
+                } as never);
             }
 
             // In a high-assurance production environment, we should consider forcing an emergency lockdown
@@ -523,8 +575,7 @@ export class AuditService extends BaseService {
         eventsChecked: number;
         brokenAt?: { eventId: string; expected: string; actual: string; type: string };
     }> {
-        const fetchLimit = limit === -1 ? undefined : limit;
-        const stream = this.repo.getStream(fetchLimit as number, true);
+        const stream = limit === -1 ? this.repo.getStream(Number.MAX_SAFE_INTEGER, true) : this.repo.getStream(limit, true);
 
         let eventsChecked = 0;
         let prevEvent: AuditEvent | null = null;
@@ -569,11 +620,11 @@ export class AuditService extends BaseService {
                 };
             }
 
-            if (prevEvent && event.hash !== prevEvent.prevHash && prevEvent.prevHash !== "TRUNCATED") {
+            if (prevEvent && event.prevHash !== prevEvent.hash && event.prevHash !== "TRUNCATED") {
                 return {
                     valid: false,
                     eventsChecked,
-                    brokenAt: { eventId: prevEvent.id, expected: event.hash, actual: prevEvent.prevHash, type: "CHAIN_BREAK" },
+                    brokenAt: { eventId: event.id, expected: prevEvent.hash, actual: event.prevHash, type: "CHAIN_BREAK" },
                 };
             }
             

@@ -14,7 +14,6 @@ export interface HoneypotModule {
 export class HoneypotService extends BaseService {
   private modules: Map<string, HoneypotModule> = new Map();
   private eventHandlers: ((event: SystemEvent) => void)[] = [];
-  private eventBus?: EventBusPort;
   private hitCount: number = 0;
 
   constructor(
@@ -73,9 +72,9 @@ export class HoneypotService extends BaseService {
     this.eventHandlers.push(handler);
   }
 
-  private emitEvent(event: SystemEvent) {
+  private emitEvent(event: unknown) {
     for (const handler of this.eventHandlers) {
-      handler(event);
+      handler(event as SystemEvent);
     }
   }
 
@@ -183,9 +182,8 @@ export class HoneypotService extends BaseService {
     if (!payload) return;
 
     if (payload.type === "PortAccess") {
-      const source_ip = payload.source_ip || payload.ip || "unknown";
-      const port = payload.port || "unknown";
-      
+      const source_ip = typeof payload.source_ip === "string" ? payload.source_ip : typeof payload.ip === "string" ? payload.ip : "unknown";
+      const port = typeof payload.port === "number" || typeof payload.port === "string" ? payload.port : "unknown";
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
       const callerId = module ? `decoy:${module.id}` : "decoy:unknown";
 

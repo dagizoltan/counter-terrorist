@@ -1,1 +1,1 @@
-export { default } from "../../islands/HoneypotChart.js";
+export { default } from "../../../components/islands/HoneypotChart.js";

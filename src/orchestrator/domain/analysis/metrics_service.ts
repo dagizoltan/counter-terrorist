@@ -114,6 +114,11 @@ export interface SystemMetrics {
     }[];
 }
 
+export type MetricsProvider = {
+    getLatest(): Record<string, any> | SystemMetrics | null;
+    recordScan(time: string, result: string): void;
+};
+
 export class MetricsService extends BaseService {
     private lastScanTime: string = "NEVER";
     private lastScanResult: string = "PENDING";
@@ -424,13 +429,13 @@ export class MetricsService extends BaseService {
 }
 
 // Singleton for HTTP endpoint access
-let _metricsInstance: MetricsService | null = null;
+let _metricsInstance: MetricsProvider | null = null;
 
-export function setMetricsService(instance: MetricsService) {
+export function setMetricsService(instance: MetricsProvider) {
     _metricsInstance = instance;
 }
 
-export function getMetricsSnapshot(): SystemMetrics | null {
+export function getMetricsSnapshot(): SystemMetrics | Record<string, any> | null {
     return _metricsInstance?.getLatest() ?? null;
 }
 

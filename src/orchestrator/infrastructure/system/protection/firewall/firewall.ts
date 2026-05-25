@@ -118,12 +118,19 @@ export class FirewallManager implements FirewallPort {
 
     if (this.networkLogs) {
         await this.networkLogs.log({
-            direction: "INBOUND",
-            source: ip,
-            destination: "LOCAL",
-            protocol: "ANY",
-            length: 0,
-            action: "BLOCK"
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:infra:system:protection:firewall",
+            message: "Firewall network log entry",
+            payload: {
+                direction: "INBOUND",
+                source: ip,
+                destination: "LOCAL",
+                protocol: "ANY",
+                length: 0,
+                action: "BLOCK"
+            }
         });
     }
 
@@ -241,12 +248,19 @@ export class FirewallManager implements FirewallPort {
     
     if (this.networkLogs) {
         await this.networkLogs.log({
-            direction: "INBOUND",
-            source: ip,
-            destination: "LOCAL",
-            protocol: "ANY",
-            length: 0,
-            action: "SHADOW"
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "orchestrator:infra:system:protection:firewall",
+            message: "Firewall shadow ban network log entry",
+            payload: {
+                direction: "INBOUND",
+                source: ip,
+                destination: "LOCAL",
+                protocol: "ANY",
+                length: 0,
+                action: "SHADOW"
+            }
         });
     }
 

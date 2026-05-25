@@ -1,1 +1,1 @@
-export { default } from "../../islands/BlockingLog.js";
+export { default } from "../../../components/islands/BlockingLog.js";

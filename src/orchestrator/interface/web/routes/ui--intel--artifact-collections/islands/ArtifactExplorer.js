@@ -1,1 +1,1 @@
-export { default } from "../../islands/ArtifactExplorer.js";
+export { default } from "../../../components/islands/ArtifactExplorer.js";

@@ -1,1 +1,1 @@
-export { default } from "../../islands/FirewallAgent.js";
+export { default } from "../../../components/islands/FirewallAgent.js";

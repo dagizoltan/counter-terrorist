@@ -1,1 +1,1 @@
-export { default } from "../../islands/VpnAgent.js";
+export { default } from "../../../components/islands/VpnAgent.js";

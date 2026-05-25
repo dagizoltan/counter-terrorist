@@ -1,1 +1,1 @@
-export { default } from "../../islands/ReplayIsland.js";
+export { default } from "../../../components/islands/ReplayIsland.js";

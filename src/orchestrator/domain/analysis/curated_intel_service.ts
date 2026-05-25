@@ -433,7 +433,7 @@ export class CuratedIntelService extends BaseService {
             } else {
                 curated = {
                     indicator,
-                    type: source.type,
+                    type: source.type as "IP" | "URL" | "DOMAIN" | "HASH",
                     provider: source.name,
                     confidence: weight,
                     threatType,
@@ -446,15 +446,16 @@ export class CuratedIntelService extends BaseService {
 
             // Enrichment: GeoIP Attribution
             if (curated.type === "IP" && this.geoip) {
-                const geo = await this.geoip.resolve(curated.indicator) as Record<string, unknown>;
-                if (geo) {
+                const geoCandidate = await this.geoip.resolve(curated.indicator);
+                if (geoCandidate && typeof geoCandidate === "object" && geoCandidate !== null) {
+                    const geo = geoCandidate as unknown as Record<string, unknown>;
                     curated.geo = {
-                        country: geo.country,
-                        isp: geo.isp,
-                        asn: geo.asn,
-                        isBulletproof: geo.isBulletproof,
-                        lat: geo.lat,
-                        lon: geo.lon
+                        country: typeof geo.country === "string" ? geo.country : "unknown",
+                        isp: typeof geo.isp === "string" ? geo.isp : "unknown",
+                        asn: typeof geo.asn === "string" ? geo.asn : "unknown",
+                        isBulletproof: typeof geo.isBulletproof === "boolean" ? geo.isBulletproof : false,
+                        lat: typeof geo.lat === "number" ? geo.lat : undefined,
+                        lon: typeof geo.lon === "number" ? geo.lon : undefined
                     };
                 }
             }

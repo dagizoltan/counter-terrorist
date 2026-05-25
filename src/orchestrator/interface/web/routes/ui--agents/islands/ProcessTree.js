@@ -1,1 +1,1 @@
-export { default } from "../../islands/ProcessTree.js";
+export { default } from "../../../components/islands/ProcessTree.js";

@@ -1,1 +1,1 @@
-export { default } from "../../islands/NewsFeed.js";
+export { default } from "../../../components/islands/NewsFeed.js";

@@ -33,7 +33,7 @@ export class SidecarManager implements CommandPort {
   private manifest: SidecarManifest | null = null;
   private manifestPromise: Promise<void> | null = null;
 
-  private tpm: TpmPort | null = null;
+  private tpm: TpmPort | undefined;
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
@@ -52,7 +52,7 @@ export class SidecarManager implements CommandPort {
     this.tpm = tpm;
   }
 
-  getTpm() {
+  getTpm(): TpmPort | undefined {
       return this.tpm;
   }
 
@@ -544,7 +544,7 @@ export class SidecarManager implements CommandPort {
               const waiters = this.responseWaiters.get(name)!;
               const waiter = waiters.get(data.id);
               if (waiter) {
-                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data, message: data.message });
+                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
 
                 // BUG-4.22 FIX: Also emit to event handlers even if it was a direct response
                 // This ensures Autopilot/Mediator can see results of manual scans/commands

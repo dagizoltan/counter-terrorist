@@ -1,6 +1,6 @@
-import { h } from '/vendor/preact.js';
-import { useState } from '/vendor/preact-hooks.js';
-import htm from '/vendor/htm.js';
+import { h } from '../../vendor/preact.js';
+import { useState } from '../../vendor/preact-hooks.js';
+import htm from '../../vendor/htm.js';
 
 const html = htm.bind(h);
 

@@ -1,1 +1,1 @@
-export { default } from "../../islands/MeshHeatmap.js";
+export { default } from "../../../components/islands/MeshHeatmap.js";

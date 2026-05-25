@@ -1,1 +1,1 @@
-export { default } from "../../islands/SystemHealth.js";
+export { default } from "../../../components/islands/SystemHealth.js";

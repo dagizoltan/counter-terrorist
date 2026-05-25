@@ -363,8 +363,8 @@ export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
 
 const SCANNER_JAIL = ["/home/", "/var/www/", "./volume/", "/var/lib/cts/", "/tmp/"];
 
-export function validateRequest(sidecar: SidecarName, req: Record<string, unknown>): boolean {
-  if (!req.type) return false;
+export function validateRequest(sidecar: SidecarName, req: Record<string, any>): boolean {
+  if (typeof req.type !== "string") return false;
 
   switch (sidecar) {
     case "analyzer":

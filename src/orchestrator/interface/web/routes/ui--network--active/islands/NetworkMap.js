@@ -1,1 +1,1 @@
-export { default } from "../../islands/NetworkMap.js";
+export { default } from "../../../components/islands/NetworkMap.js";

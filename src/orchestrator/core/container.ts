@@ -80,7 +80,7 @@ export interface ServiceContainer {
   supplyChain: SupplyChainService;
   mesh: MeshManager;
   meshAuth: MeshAuthPort;
-  threatIntel: ThreatIntelService;
+  threatIntel: ThreatIntelService | CuratedIntelService;
   compliance: ComplianceService;
   anonymization: AnonymizationService;
   shadowProtocol: ShadowProtocolService;

@@ -1,6 +1,7 @@
 import { BaseService } from "@core/base_service.ts";
 
-import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort, AuditEvent } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
+import type { AuditEvent as DomainAuditEvent } from "../analysis/audit.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 import { retry } from "../../core/utils/resilience.ts";
@@ -96,8 +97,12 @@ export class MeshManager extends BaseService {
 
     try {
       const res = await this.meshAuth.generateNodeCert(this.nodeId);
-      if (!res.success) throw new Error(`MeshAuth generateNodeCert failed: ${res.error.message}`);
-      this.nodeCert = res.data;
+      if (!res.success) throw new Error(`MeshAuth generateNodeCert failed: ${String((res.error as any)?.message || res.error)}`);
+      const nodeCert = res.data as { cert: string; key: string } | undefined;
+      if (!nodeCert || typeof nodeCert.cert !== "string" || typeof nodeCert.key !== "string") {
+          throw new Error("MeshAuth generateNodeCert returned invalid certificate data");
+      }
+      this.nodeCert = nodeCert;
 
       // Create mTLS HTTP client
       this.httpClient = Deno.createHttpClient({
@@ -580,7 +585,7 @@ export class MeshManager extends BaseService {
     return await this.broadcast(payload, true);
   }
 
-  async broadcastAuditEvent(event: AuditEvent & { fromAudit?: boolean }) {
+  async broadcastAuditEvent(event: DomainAuditEvent & { fromAudit?: boolean }) {
     // SOV-06: Propagate recursion guards during gossip
     const payload = {
         type: "GOSSIP_AUDIT",
@@ -621,7 +626,7 @@ export class MeshManager extends BaseService {
                     caller: "orchestrator:domain:orchestration:mesh",
                     message: `Received state snapshot from ${node.hostname}. Synchronizing...`
                 });
-                await this.audit.syncEvents(res.kv_snapshot as AuditEvent[]);
+                await this.audit.syncEvents(res.kv_snapshot as DomainAuditEvent[]);
             }
             
             this.logging.log({
@@ -869,7 +874,7 @@ export class MeshManager extends BaseService {
     if (!kv) return;
 
     this.watcherAbortController = new AbortController();
-    const watcher = kv.watch([["mesh", "nodes"]], { signal: this.watcherAbortController.signal });
+    const watcher = kv.watch([["mesh", "nodes"]]);
     try {
         for await (const [entries] of watcher) {
             const nodeData = entries.value as MeshNode[];

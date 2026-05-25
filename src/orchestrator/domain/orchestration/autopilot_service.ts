@@ -35,7 +35,7 @@ export class AutopilotService extends BaseService {
   }
 
     protected override onInit(..._args: any[]): Promise<Result<void>> {
-    if (!this.services) return ok(undefined);
+    if (!this.services) return Promise.resolve(ok(undefined));
 
     const saga = new ThreatResponseSaga({
         firewall: this.services.protection.firewall,
@@ -52,7 +52,7 @@ export class AutopilotService extends BaseService {
         this.policy,
         this.services.logging
     );
-    return ok(undefined);
+    return Promise.resolve(ok(undefined));
   }
 
   getPolicy() {
@@ -72,7 +72,7 @@ export class AutopilotService extends BaseService {
   private unsubscribers: (() => void)[] = [];
 
     protected override onShutdown(): Promise<Result<void>> {
-      if (!this.services) return ok(undefined);
+      if (!this.services) return Promise.resolve(ok(undefined));
       this.isStarted = false;
       if (this.intervalId) {
           clearInterval(this.intervalId);
@@ -91,7 +91,7 @@ export class AutopilotService extends BaseService {
           caller: "orchestrator:domain:orchestration:autopilot_service",
           message: "Autonomous Defense Mesh disengaged."
       });
-      return ok(undefined);
+      return Promise.resolve(ok(undefined));
   }
 
   async start() {
@@ -212,7 +212,7 @@ export class AutopilotService extends BaseService {
                 });
             }
         } catch (err) {
-            this.logging.log({
+            this.services?.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.WARNING,

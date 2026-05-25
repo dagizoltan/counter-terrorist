@@ -15,6 +15,7 @@ const clientMetadata = new WeakMap<WSContext, { count: number; resetAt: number; 
 
 export interface BroadcastData {
   type: string;
+  subType?: string;
   message?: string;
   data?: unknown;
   [key: string]: unknown;
@@ -81,12 +82,18 @@ export function broadcast(data: BroadcastData) {
     let forensicType = LogType.AUDIT;
     if (data.type === "INFO" || data.type === "ACTIVITY") forensicType = LogType.ACTIVITY;
 
+    const eventData = data as Record<string, unknown>;
+    const logSeverity = typeof eventData.severity === "string" ? eventData.severity : (data.type === "CRITICAL" ? LogSeverity.ERROR : LogSeverity.INFO);
+    const logCaller = typeof eventData.caller === "string" ? eventData.caller : "WS:BROADCAST";
+    const logMessage = typeof eventData.message === "string" ? eventData.message : data.type || "";
+    const logPayload = eventData.data as Record<string, unknown> | undefined;
+
     auditService.logEvent({
       type: forensicType, // Use mandated type instead of raw data.type
-      severity: data.severity || (data.type === "CRITICAL" ? LogSeverity.ERROR : LogSeverity.INFO),
-      caller: data.caller || "WS:BROADCAST",
-      message: data.message || data.type || "",
-      data: data.data,
+      severity: logSeverity,
+      caller: logCaller,
+      message: logMessage,
+      data: logPayload,
       timestamp: eventToBroadcast.timestamp
     });
 

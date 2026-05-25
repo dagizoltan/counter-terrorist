@@ -1,4 +1,4 @@
-import { EventBus } from "@domain/analysis/events.ts";
+import { EventBusPort } from "@core/ports.ts";
 import { Result, ok } from "./result.ts";
 
 /**
@@ -8,18 +8,18 @@ import { Result, ok } from "./result.ts";
 export interface Service {
     init?(...args: unknown[]): Promise<Result<void>> | Result<void>;
     shutdown?(): Promise<Result<void>> | Result<void>;
-    setEventBus?(eventBus: EventBus): void;
+    setEventBus?(eventBus: EventBusPort): void;
 }
 
 /**
  * Optional Base class for services that provides default implementations.
  */
 export abstract class BaseService implements Service {
-    protected eventBus?: EventBus;
+    protected eventBus?: EventBusPort;
     protected initialized = false;
     protected initPromise: Promise<Result<void>> | null = null;
 
-    setEventBus(eventBus: EventBus) {
+    setEventBus(eventBus: EventBusPort) {
         this.eventBus = eventBus;
     }
 
@@ -48,7 +48,7 @@ export abstract class BaseService implements Service {
      * Override this for service-specific initialization logic.
      */
     protected onInit(..._args: unknown[]): Promise<Result<void>> {
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
     /**
@@ -63,7 +63,7 @@ export abstract class BaseService implements Service {
      * Override this for service-specific shutdown logic.
      */
     protected onShutdown(): Promise<Result<void>> {
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
     /**

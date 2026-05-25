@@ -1,1 +1,1 @@
-export { default } from "../../islands/WebhookManager.js";
+export { default } from "../../../components/islands/WebhookManager.js";

@@ -1,1 +1,1 @@
-export { default } from "../../islands/MeshGraph.js";
+export { default } from "../../../components/islands/MeshGraph.js";

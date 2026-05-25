@@ -244,7 +244,7 @@ export class PlaybookService extends BaseService {
 
       // 1. Proactive Quarantine (If path is known or globally applicable)
       // In a real environment, the agent would search and move.
-      if (metadata.path) {
+      if (typeof metadata.path === "string") {
           await this.services.protection.antivirus.quarantine(metadata.path);
       }
 

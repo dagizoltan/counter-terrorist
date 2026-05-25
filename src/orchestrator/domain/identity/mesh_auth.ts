@@ -316,14 +316,15 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
     const safeNodeId = nodeId.replace(/[^a-zA-Z0-9\.\-]/g, "");
     const caRes = await this.getRootCA();
     if (!caRes.success) return caRes;
-    const ca = caRes.data;
+    const ca = caRes.data as { cert: string; key: string };
 
     if (this.tpm) {
         const res = await this.tpm.issueNodeCert(safeNodeId, ca.cert, ca.key);
-        if (res.success && res.data?.cert && res.data?.key) {
+        const resData = res.data as Record<string, unknown> | undefined;
+        if (res.success && resData && typeof resData.cert === "string" && typeof resData.key === "string") {
             return ok({
-                cert: res.data.cert,
-                key: res.data.key,
+                cert: resData.cert,
+                key: resData.key,
                 timestamp: Date.now()
             });
         }
@@ -336,10 +337,11 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
   private async generateSelfSignedCA(): Promise<Result<CertPair>> {
     if (this.tpm) {
         const res = await this.tpm.generateSelfSignedCA("MeshRootCA");
-        if (res.success && res.data?.cert && res.data?.key) {
+        const resData = res.data as Record<string, unknown> | undefined;
+        if (res.success && resData && typeof resData.cert === "string" && typeof resData.key === "string") {
             return ok({
-                cert: res.data.cert,
-                key: res.data.key,
+                cert: resData.cert,
+                key: resData.key,
                 timestamp: Date.now()
             });
         }
