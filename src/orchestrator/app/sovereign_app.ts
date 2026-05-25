@@ -63,6 +63,19 @@ export class SovereignApp {
         const config = loadConfig();
         const configProvider = new EnvConfigProvider(config);
 
+        // SEC-01 & SEC-02 Hardening: Fail-shut on insecure production configuration
+        if (config.ENVIRONMENT === "production") {
+            if (config.CTS_DEV_MODE) {
+                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with CTS_DEV_MODE enabled.");
+            }
+            if (config.ALLOW_HARDWARE_BYPASS) {
+                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with ALLOW_HARDWARE_BYPASS enabled.");
+            }
+            if (!config.STRICT_HARDWARE_INTEGRITY) {
+                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with STRICT_HARDWARE_INTEGRITY disabled.");
+            }
+        }
+
         loggingService.setConfig({
             host: config.SYSLOG_HOST,
             port: config.SYSLOG_PORT,

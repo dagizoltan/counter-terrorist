@@ -162,11 +162,13 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 6
     },
     "launchctl": {
-        allowedArgs: [/^(list|load|unload|start|stop)$/, /^[a-zA-Z0-9\.\/_ \-]+$/],
+        // SEC-02 Hardening: Tightened regex to exclude spaces and common shell characters
+        allowedArgs: [/^(list|load|unload|start|stop)$/, /^[a-zA-Z0-9\.\/_-]+$/],
         maxArgs: 2
     },
     "spctl": {
-        allowedArgs: [/^--assess$/, /^[a-zA-Z0-9.\/_ \-]+$/],
+        // SEC-02 Hardening: Tightened regex to exclude spaces
+        allowedArgs: [/^--assess$/, /^[a-zA-Z0-9.\/_-]+$/],
         maxArgs: 2
     },
     "ps": {
@@ -195,7 +197,7 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 2
     },
     "netsh": {
-        allowedArgs: [/^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/, /^[a-zA-Z0-9\s\-\.\/_=:]+$/],
+        allowedArgs: [/^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/, /^[a-zA-Z0-9\-\.\/_=:]+$/],
         maxArgs: 10
     },
     "taskkill": {
@@ -265,7 +267,7 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 1
     },
     "tc": {
-        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid|default)$/, /^[a-zA-Z0-9\.:\/_\-]+$/, /^[0-9]+(kbps|mbps|gbps|ms|s)$/],
+        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid|default)$/, /^[a-zA-Z0-9\.:\/_-]+$/, /^[0-9]+(kbps|mbps|gbps|ms|s)$/],
         maxArgs: 20
     },
     "gcore": {
@@ -397,12 +399,13 @@ export class SystemExecutor implements ExecutorPort {
     "decoy": { maxArgs: 10 },
     "netcap": { maxArgs: 10 },
     "ebpf": {
-      allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID|KillProcess|QuarantineProcess|DumpProcess)".*\}$/],
+      // SEC-02 Hardening: Tightened JSON-like regex to avoid broad wildcards
+      allowedArgs: [/^\{"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID|KillProcess|QuarantineProcess|DumpProcess)"(,"[^"]+":[^,{}]+)*\}$/],
       maxArgs: 1
     },
     "sentinel": { 
       schema: SystemExecutor.SENTINEL_SCHEMA,
-      allowedArgs: [/^\{.*"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID|KillProcess|QuarantineProcess|DumpProcess)".*\}$/],
+      allowedArgs: [/^\{"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID|KillProcess|QuarantineProcess|DumpProcess)"(,"[^"]+":[^,{}]+)*\}$/],
       maxArgs: 1 
     },
     "watchfile": { maxArgs: 10 },
@@ -432,6 +435,21 @@ export class SystemExecutor implements ExecutorPort {
   private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
     const baseCmd = path.basename(cmd);
     const policy = SystemExecutor.COMMAND_POLICIES[cmd] || SystemExecutor.COMMAND_POLICIES[baseCmd];
+
+    // SEC-02 Framework-level hardening: Reject shell metacharacters before processing
+    for (const arg of args) {
+        if (/[;&|><`$!]/.test(arg)) {
+            // Exceptions for JSON payloads which might contain some of these in a controlled way.
+            // We strictly reject shell-sensitive characters: ;, &, |, $, `, <, >, !
+            if (/[;&|><`$!]/.test(arg)) {
+                // If it's a sentinel/ebpf JSON, we might allow it if it passes schema,
+                // but let's be strict first.
+                if (!((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
+                    return { valid: false, reason: `Security Violation: Shell metacharacter detected in command arguments.` };
+                }
+            }
+        }
+    }
     
     // 1. Policy Existence Check
     if (!policy) {

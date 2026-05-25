@@ -462,20 +462,23 @@ export class SidecarManager implements CommandPort {
         const { value, done } = await reader.read();
         if (done) break;
 
-        // Prevent memory exhaustion from unbounded sidecar output
+        // SEC-05: Stricter DoS prevention for IPC ingestion.
+        // We check the cumulative buffer size *before* decoding or appending the new chunk.
         if (buffer.length + value.length > MAX_BUFFER_SIZE) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.ERROR,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `[${name}] CRITICAL: IPC buffer overflow. Dropping data to prevent OOM.`
+                message: `[${name}] CRITICAL: IPC buffer overflow. Eagerly dropping data to prevent OOM.`
             });
             buffer = "";
-            continue;
+            // Also truncate the current chunk to avoid spikes
+            const safeChunk = value.slice(0, Math.min(value.length, MAX_BUFFER_SIZE));
+            buffer = decoder.decode(safeChunk, { stream: true });
+        } else {
+            buffer += decoder.decode(value, { stream: true });
         }
-
-        buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
 
@@ -755,7 +758,9 @@ export class SidecarManager implements CommandPort {
     // Authoritative check against Signed Manifest
     const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
     const isDevMode = this.config?.getBoolean("CTS_DEV_MODE", false);
-    const goldenHash = this.manifest?.sidecars?.[name]?.hash || this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
+    const manifestHash = this.manifest?.sidecars?.[name]?.hash;
+    const envHash = this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
+    const goldenHash = isProduction ? manifestHash : (manifestHash || envHash);
     const isUnsignedManifest = !!this.manifest && !this.manifest.signature;
 
     // BUG-05: Make manifest mandatory in production
@@ -772,6 +777,17 @@ export class SidecarManager implements CommandPort {
 
     if (!force && (!goldenHash || currentHash === goldenHash)) {
         return true;
+    }
+
+    if (isProduction && isUnsignedManifest) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `CRITICAL SECURITY VIOLATION: Sidecar manifest for ${name} is UNSIGNED in production. Failing closed.`
+        });
+        return false;
     }
 
     if (isDevMode && isUnsignedManifest && goldenHash && currentHash !== goldenHash) {

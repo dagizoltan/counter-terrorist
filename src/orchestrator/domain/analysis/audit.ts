@@ -620,11 +620,12 @@ export class AuditService extends BaseService {
                 };
             }
 
-            if (prevEvent && event.prevHash !== prevEvent.hash && event.prevHash !== "TRUNCATED") {
+            // AUDIT-FIX: Chain verification logic fix for reverse streams (newest to oldest)
+            if (prevEvent && prevEvent.prevHash !== event.hash && prevEvent.prevHash !== "TRUNCATED") {
                 return {
                     valid: false,
                     eventsChecked,
-                    brokenAt: { eventId: event.id, expected: prevEvent.hash, actual: event.prevHash, type: "CHAIN_BREAK" },
+                    brokenAt: { eventId: prevEvent.id, expected: event.hash, actual: prevEvent.prevHash, type: "CHAIN_BREAK" },
                 };
             }
             

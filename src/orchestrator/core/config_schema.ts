@@ -27,6 +27,8 @@ export const ConfigSchema = z.object({
   SESSION_TTL_HOURS: z.coerce.number().default(24),
   LOG_LEVEL: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).default("INFO"),
   ENVIRONMENT: z.enum(["development", "production", "test"]).default("development"),
+  CTS_DEV_MODE: z.coerce.boolean().default(false),
+  STRICT_HARDWARE_INTEGRITY: z.coerce.boolean().default(true),
   REMOTE_SYSLOG_URL: z.string().url().optional(),
   SYSLOG_HOST: z.string().optional(),
   SYSLOG_PORT: z.coerce.number().default(514),
@@ -56,6 +58,7 @@ export const ConfigSchema = z.object({
   GATEWAY_IP: z.string().optional(),
   PILOT_CHECKIN_IP: z.string().default("8.8.8.8"),
   MESH_DOMAIN: z.string().default("cts-mesh.internal"),
+  MESH_ALLOWED_SUBNETS: z.string().optional(), // Comma-separated CIDR or IP ranges
   PKI_SECRET: z.string().optional(),
 });
 
@@ -76,6 +79,8 @@ export function loadConfig(): AppConfig {
     SESSION_TTL_HOURS: Deno.env.get("SESSION_TTL_HOURS"),
     LOG_LEVEL: Deno.env.get("LOG_LEVEL"),
     ENVIRONMENT: Deno.env.get("ENVIRONMENT"),
+    CTS_DEV_MODE: Deno.env.get("CTS_DEV_MODE"),
+    STRICT_HARDWARE_INTEGRITY: Deno.env.get("STRICT_HARDWARE_INTEGRITY"),
     REMOTE_SYSLOG_URL: Deno.env.get("REMOTE_SYSLOG_URL"),
     SYSLOG_HOST: Deno.env.get("SYSLOG_HOST"),
     SYSLOG_PORT: Deno.env.get("SYSLOG_PORT"),
@@ -97,6 +102,7 @@ export function loadConfig(): AppConfig {
     GATEWAY_IP: Deno.env.get("GATEWAY_IP"),
     PILOT_CHECKIN_IP: Deno.env.get("PILOT_CHECKIN_IP"),
     MESH_DOMAIN: Deno.env.get("MESH_DOMAIN"),
+    MESH_ALLOWED_SUBNETS: Deno.env.get("MESH_ALLOWED_SUBNETS"),
     PKI_SECRET: Deno.env.get("PKI_SECRET"),
   };
 
