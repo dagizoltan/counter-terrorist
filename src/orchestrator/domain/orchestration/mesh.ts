@@ -292,13 +292,36 @@ export class MeshManager extends BaseService {
         if (data.length > 2048) continue;
         const msg = new TextDecoder().decode(data);
         if (msg.includes("_ct-orchestrator._tcp.local")) {
-           const idMatch = msg.match(/id=([^,]+)/);
+           const idMatch = msg.match(/id=([^,|]+)/);
            const portMatch = msg.match(/port=(\d+)/);
+           const tsMatch = msg.match(/ts=(\d+)/);
+           const sigMatch = msg.match(/sig=([^|]+)/);
 
-           if (idMatch && portMatch) {
+           if (idMatch && portMatch && tsMatch && sigMatch) {
              const id = idMatch[1];
              const port = parseInt(portMatch[1]);
+             const ts = parseInt(tsMatch[1]);
+             const sig = sigMatch[1];
              const address = (addr as Deno.NetAddr).hostname;
+
+             // SEC-05: Verify HMAC Signature and Freshness
+             const now = Date.now();
+             if (Math.abs(now - ts) > 300000) continue; // 5 minute window
+
+             if (this.meshSecret) {
+                const { verifySignature } = await import("../../core/crypto_utils.ts");
+                const isValid = await verifySignature({ id, port, ts }, sig, this.meshSecret);
+                if (!isValid) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.WARNING,
+                        caller: "MESH:DISCOVERY",
+                        message: `Rejected forged mDNS announcement from ${address} (Invalid Signature)`
+                    });
+                    continue;
+                }
+             }
 
              if (id !== this.nodeId) {
                this.validateAndRegisterNode({
@@ -324,13 +347,22 @@ export class MeshManager extends BaseService {
     }
   }
 
-  private scanNetwork() {
+  private async scanNetwork() {
     try {
       // @ts-ignore: Deno.listenDatagram is unstable and may not be in all environments
       if (typeof Deno.listenDatagram !== "function") return;
 
-      const txt = `id=${this.nodeId},port=${this.port}`;
-      const announcement = `_ct-orchestrator._tcp.local|${txt}`;
+      const timestamp = Date.now();
+      const txt = `id=${this.nodeId},port=${this.port},ts=${timestamp}`;
+
+      // SEC-05: Authenticated Discovery via HMAC-mDNS
+      let signature = "unsigned";
+      if (this.meshSecret) {
+          const { signPayload } = await import("../../core/crypto_utils.ts");
+          signature = await signPayload({ id: this.nodeId, port: this.port, ts: timestamp }, this.meshSecret);
+      }
+
+      const announcement = `_ct-orchestrator._tcp.local|${txt}|sig=${signature}`;
       const message = new TextEncoder().encode(announcement);
 
       const socket = Deno.listenDatagram({ port: 0, transport: "udp" });

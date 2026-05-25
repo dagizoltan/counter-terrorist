@@ -514,6 +514,21 @@ export class SovereignApp {
             for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
                 await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
             }
+
+            // SEC-05: Orchestrator Self-Enforcement (Egress Gating)
+            // Limit the Deno process to verified mesh peers and known infrastructure
+            const gateway = this.services.config.getEnv("GATEWAY_IP");
+            const trustedIps = [
+                "1.1.1.1", "8.8.8.8", // DNS
+                ...(gateway ? [gateway] : []),
+                ...this.services.mesh.getNodes().map((n: any) => n.address)
+            ].filter(Boolean);
+
+            await sm.sendCommand("sentinel", {
+                type: "RESTRICT_EGRESS",
+                pid: Deno.pid,
+                allowed_ips: trustedIps
+            }).catch(() => {});
         }
     }
 
