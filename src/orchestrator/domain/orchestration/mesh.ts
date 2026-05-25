@@ -904,6 +904,20 @@ export class MeshManager extends BaseService {
     if (!kv) return;
 
     this.watcherAbortController = new AbortController();
+
+    // SEC-03: Ensure MESH_SECRET is sealed to hardware on boot if it came from environment
+    const tpm = (this.config as any).tpm as TpmPort | undefined;
+    const meshSecret = this.config.getEnv("MESH_SECRET");
+    if (tpm && meshSecret) {
+        (async () => {
+            const sealed = await tpm.unsealSecret("MESH_SECRET");
+            if (!sealed) {
+                const pcrs = await tpm.getPcrs([0, 1, 7]);
+                await tpm.sealSecret("MESH_SECRET", meshSecret, pcrs);
+            }
+        })();
+    }
+
     const watcher = kv.watch([["mesh", "nodes"]]);
     try {
         for await (const [entries] of watcher) {

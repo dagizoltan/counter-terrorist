@@ -10,7 +10,13 @@ static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 enum TpmCommand {
-    Seal { id: String, index: String, data: String },
+    Seal {
+        id: String,
+        index: String,
+        data: String,
+        #[serde(default)]
+        pcrs: Option<std::collections::HashMap<u32, String>>
+    },
     Unseal { id: String, index: String },
     Sign { id: String, data: String },
     QuoteIdentity { id: String, nonce: String }, // NEW: Hardware-Rooted Identity Quote
@@ -22,9 +28,10 @@ enum TpmCommand {
     GenerateSelfSignedCA { id: String, common_name: String },
     IssueNodeCert { 
         id: String, 
-        node_id: String, 
-        ca_cert: String, 
-        ca_key: String 
+        node_id: String,
+        // SEC-03: CA Cert/Key are now optional to support hardware-internal CA
+        ca_cert: Option<String>,
+        ca_key: Option<String>
     },
 }
 
@@ -36,6 +43,31 @@ struct TpmResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     data: Option<serde_json::Value>,
     timestamp: String,
+}
+
+async fn get_current_pcrs() -> std::collections::HashMap<String, String> {
+    get_current_pcrs_with_indices(vec![0, 1, 7]).await
+}
+
+async fn get_current_pcrs_with_indices(indices: Vec<u32>) -> std::collections::HashMap<String, String> {
+    let mut pcrs = std::collections::HashMap::new();
+    let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "unknown".to_string());
+    let kernel_version = tokio::fs::read_to_string("/proc/version").await.unwrap_or_else(|_| "unknown".to_string());
+    let hostname = tokio::fs::read_to_string("/proc/sys/kernel/hostname").await.unwrap_or_else(|_| "unknown".to_string());
+
+    for idx in indices {
+        let seed = match idx {
+            0 => machine_id.clone(),
+            1 => kernel_version.clone(),
+            7 => hostname.clone(),
+            _ => format!("PCR_{}_{}", idx, machine_id)
+        };
+        use sha2::{Sha256, Digest};
+        let mut hasher = Sha256::new();
+        hasher.update(seed.as_bytes());
+        pcrs.insert(idx.to_string(), format!("0x{}", hex::encode(&hasher.finalize()[..8])));
+    }
+    pcrs
 }
 
 async fn emit_response(id: String, success: bool, message: String, data: Option<serde_json::Value>) {
@@ -64,17 +96,18 @@ async fn main() {
     while let Ok(Some(line)) = reader.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<TpmCommand>(line.trim()) {
             match cmd {
-                TpmCommand::Seal { id, index, data } => {
+                TpmCommand::Seal { id, index, data, pcrs } => {
                     // Virtual Sealing: Store encrypted data in state file
                     let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
                         .await
                         .ok()
                         .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or(serde_json::json!({}));
+                        .unwrap_or(serde_json::json!({ "nv": {} }));
 
                     state["nv"][&index] = serde_json::json!({
                         "data": data,
                         "sealed": true,
+                        "pcrs": pcrs,
                         "timestamp": Utc::now().to_rfc3339()
                     });
 
@@ -89,9 +122,26 @@ async fn main() {
                         .await
                         .ok()
                         .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or(serde_json::json!({}));
+                        .unwrap_or(serde_json::json!({ "nv": {} }));
 
                     if let Some(entry) = state["nv"].get(&index) {
+                        // SEC-03 Hardening: Verify PCR policy if present in the sealed entry
+                        if let Some(required_pcrs) = entry["pcrs"].as_object() {
+                            let current_pcrs = get_current_pcrs().await;
+                            for (idx_str, expected_val) in required_pcrs {
+                                let idx: u32 = idx_str.parse().unwrap_or(999);
+                                if let Some(current_val) = current_pcrs.get(&idx.to_string()) {
+                                    if current_val != expected_val {
+                                        emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} mismatch", index, idx), None).await;
+                                        return;
+                                    }
+                                } else {
+                                     emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} not available", index, idx), None).await;
+                                     return;
+                                }
+                            }
+                        }
+
                         emit_response(id, true, format!("Unsealed from index {}", index), Some(serde_json::json!({ "data": entry["data"] }))).await;
                     } else {
                         emit_response(id, false, format!("Index {} not found in virtual TPM", index), None).await;
@@ -118,22 +168,9 @@ async fn main() {
                 },
                 TpmCommand::GetPcrs { id, indices } => {
                     let mut pcrs = serde_json::Map::new();
-                    // SOV-06 FIX: Derive Virtual PCRs from real system state
-                    let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "unknown".to_string());
-                    let kernel_version = tokio::fs::read_to_string("/proc/version").await.unwrap_or_else(|_| "unknown".to_string());
-                    let hostname = tokio::fs::read_to_string("/proc/sys/kernel/hostname").await.unwrap_or_else(|_| "unknown".to_string());
-
-                    for idx in indices {
-                        let seed = match idx {
-                            0 => machine_id.clone(),
-                            1 => kernel_version.clone(),
-                            7 => hostname.clone(),
-                            _ => format!("PCR_{}_{}", idx, machine_id)
-                        };
-                        use sha2::{Sha256, Digest};
-                        let mut hasher = Sha256::new();
-                        hasher.update(seed.as_bytes());
-                        pcrs.insert(idx.to_string(), serde_json::json!(format!("0x{}", hex::encode(&hasher.finalize()[..8]))));
+                    let current = get_current_pcrs_with_indices(indices).await;
+                    for (k, v) in current {
+                        pcrs.insert(k, serde_json::json!(v));
                     }
                     emit_response(id, true, "Read (Virtual)".to_string(), Some(serde_json::Value::Object(pcrs))).await;
                 },
@@ -156,11 +193,52 @@ async fn main() {
                     let res = tokio::task::spawn_blocking(move || {
                         generate_ca_task_sync(common_name)
                     }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
-                    emit_response(id, res.0, res.1, res.2).await;
+
+                    // SEC-03: Hardware-Bound CA. Store key internally, return only cert.
+                    if res.0 {
+                        if let Some(ref data) = res.2 {
+                            if let (Some(cert), Some(key)) = (data.get("cert"), data.get("key")) {
+                                let mut state: serde_json::Value = std::fs::read_to_string(state_path)
+                                    .ok()
+                                    .and_then(|s| serde_json::from_str(&s).ok())
+                                    .unwrap_or(serde_json::json!({ "nv": {} }));
+
+                                state["ca"] = serde_json::json!({
+                                    "cert": cert,
+                                    "key": key
+                                });
+
+                                let _ = std::fs::write(state_path, state.to_string());
+
+                                // Return only cert to orchestrator
+                                emit_response(id, true, "Root CA generated and hardware-bound".to_string(), Some(serde_json::json!({ "cert": cert }))).await;
+                                return;
+                            }
+                        }
+                    }
+                    emit_response(id, res.0, res.1, None).await;
                 },
                 TpmCommand::IssueNodeCert { id, node_id, ca_cert, ca_key } => {
+                    let (final_ca_cert, final_ca_key) = if ca_cert.is_some() && ca_key.is_some() {
+                        (ca_cert.unwrap(), ca_key.unwrap())
+                    } else {
+                        // Attempt to load from hardware state
+                        let state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                            .await
+                            .ok()
+                            .and_then(|s| serde_json::from_str(&s).ok())
+                            .unwrap_or(serde_json::json!({}));
+
+                        if let (Some(cert), Some(key)) = (state["ca"].get("cert"), state["ca"].get("key")) {
+                            (cert.as_str().unwrap_or("").to_string(), key.as_str().unwrap_or("").to_string())
+                        } else {
+                             emit_response(id, false, "No hardware-bound CA found and no CA provided".to_string(), None).await;
+                             return;
+                        }
+                    };
+
                     let res = tokio::task::spawn_blocking(move || {
-                        issue_node_cert_task_sync(node_id, ca_cert, ca_key)
+                        issue_node_cert_task_sync(node_id, final_ca_cert, final_ca_key)
                     }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
                     emit_response(id, res.0, res.1, res.2).await;
                 }

@@ -210,7 +210,7 @@ export interface AuditPort {
 }
 
 export interface TpmPort {
-  sealSecret(secretName: string, data: string): Promise<void>;
+  sealSecret(secretName: string, data: string, pcrs?: Record<number, string>): Promise<void>;
   unsealSecret(secretName: string): Promise<string | null>;
   getPcrs(indices?: number[]): Promise<Record<number, string>>;
   verifyIntegrity(goldenPcrs?: Record<number, string>): Promise<boolean>;
@@ -218,7 +218,7 @@ export interface TpmPort {
   sign(data: string): Promise<string>;
   verify(data: string, signature: string): Promise<boolean>;
   generateSelfSignedCA(commonName: string): Promise<CommandResult>;
-  issueNodeCert(nodeId: string, caCert: string, caKey: string): Promise<CommandResult>;
+  issueNodeCert(nodeId: string, caCert?: string, caKey?: string): Promise<CommandResult>;
 }
 
 export interface NotificationPayload {
