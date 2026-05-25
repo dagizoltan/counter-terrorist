@@ -40,33 +40,48 @@ export class RateLimitService extends BaseService {
   private async flushMemoryTier() {
       const now = Date.now();
       for (const [key, state] of this.memoryTier.entries()) {
+          // If window expired, just clean up
           if (now > state.resetAt) {
               this.memoryTier.delete(key);
               continue;
           }
 
-          // Asynchronously sync to KV. We don't await here to avoid blocking the flush loop.
-          this.syncToKv(key, state).catch(() => {});
+          // SEC-08 Hardening: Atomically extract and sync the current count
+          // We clear the local count to avoid exponential over-counting.
+          const countToSync = state.count;
+          state.count = 0;
+
+          // Asynchronously sync to KV.
+          this.syncToKv(key, countToSync, state.resetAt).catch((e) => {
+              // Re-add to memory tier if sync failed to avoid losing counts
+              const currentState = this.memoryTier.get(key);
+              if (currentState) currentState.count += countToSync;
+          });
       }
   }
 
-  private async syncToKv(key: string, memState: { count: number, resetAt: number }) {
+  private async syncToKv(key: string, delta: number, resetAt: number) {
+      if (delta === 0) return;
       const fullKey = [...this.PREFIX, key];
+
       await retry(async () => {
           const entry = await this.kv.get<{ count: number; resetAt: number }>(fullKey);
-          const kvState = entry.value || { count: 0, resetAt: memState.resetAt };
-
-          // SEC-08: Merge logic improvement. Sum counts across nodes instead of taking max.
-          // If the KV resetAt is significantly older, we start fresh.
           const now = Date.now();
-          const newState = {
-              count: (now > kvState.resetAt) ? memState.count : (kvState.count + memState.count),
-              resetAt: Math.max(kvState.resetAt, memState.resetAt)
-          };
 
+          let newState: { count: number, resetAt: number };
+          if (!entry.value || now > entry.value.resetAt) {
+              newState = { count: delta, resetAt };
+          } else {
+              newState = {
+                  count: entry.value.count + delta,
+                  resetAt: Math.max(entry.value.resetAt, resetAt)
+              };
+          }
+
+          const expireIn = Math.max(1000, newState.resetAt - now);
           const res = await this.kv.atomic()
             .check(entry)
-            .set(fullKey, newState, { expireIn: newState.resetAt - Date.now() })
+            .set(fullKey, newState, { expireIn })
             .commit();
 
           if (!res.ok) throw new Error("KV contention during sync");

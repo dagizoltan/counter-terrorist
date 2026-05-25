@@ -9,19 +9,28 @@
       "path": "./src/agents/target/release/sentinel",
       "hash": "a8500a1544b9e39f9ca34ee7a2c8218a47a052e78bc594f2aef9a69d7f804a02",
       "persistent": true,
-      "capabilities": ["cap_sys_admin", "cap_net_admin", "cap_sys_resource"]
+      "capabilities": [
+        "cap_sys_admin",
+        "cap_net_admin",
+        "cap_sys_resource"
+      ]
     },
     "tunnel": {
       "path": "./src/agents/target/release/tunnel",
       "hash": "5c2c38fb8afa7701c5466738dc4c729e87ac2df8c4513690ff6fa8ca9836c79e",
       "persistent": true,
-      "capabilities": ["cap_net_admin"]
+      "capabilities": [
+        "cap_net_admin"
+      ]
     },
     "enforcer": {
       "path": "./src/agents/target/release/enforcer",
       "hash": "b347fc3d5c60c8ac74cfb382813370fbce6914dd0a8e3317463a7a6dfed43213",
       "persistent": true,
-      "capabilities": ["cap_net_admin", "cap_kill"]
+      "capabilities": [
+        "cap_net_admin",
+        "cap_kill"
+      ]
     },
     "analyzer": {
       "path": "./src/agents/target/release/analyzer",
@@ -32,7 +41,10 @@
       "path": "./src/agents/target/release/netcap",
       "hash": "a7fbaad0e85bec3730f763f7af48f65f221d1a9696f73bbd85253122b2f3d458",
       "persistent": true,
-      "capabilities": ["cap_net_raw", "cap_net_admin"]
+      "capabilities": [
+        "cap_net_raw",
+        "cap_net_admin"
+      ]
     },
     "decoy": {
       "path": "./src/agents/target/release/decoy",
@@ -43,12 +55,16 @@
       "path": "./src/agents/target/release/watchfile",
       "hash": "19b219f7d874442ed84ad7e939f8f5d4a5408864a311af2403f4d9d6e40e5274",
       "persistent": true,
-      "capabilities": ["cap_sys_admin"]
+      "capabilities": [
+        "cap_sys_admin"
+      ]
     },
     "sentinel-darwin": {
       "path": "./src/agents/target/release/sentinel-darwin",
       "hash": "8ef55d8a72e5b566840667633c1695a29825f7ff9d043c279f0eaa78510d4e09",
       "persistent": true
     }
-  }
+  },
+  "signature": "feb1bc9da122abe47c9c5620a4b07149da0ff9dd78e2b29512f148cef38ce3dca44f15eceeb1354f1ecaece4d6cad4d66917b95553d0055d8e4c02b0f41c7b0a",
+  "signedBy": "Counter-Terrorist Developer"
 }

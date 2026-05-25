@@ -18,3 +18,5 @@ data/
 .env
 !.env.example
 *.log
+.dev_private_key
+.dev_public_key
