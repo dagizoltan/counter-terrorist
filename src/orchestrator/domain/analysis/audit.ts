@@ -5,6 +5,7 @@ import { computeHash } from "@core/crypto_utils.ts";
 import { BaseService } from "@core/base_service.ts";
 import { MerkleTree } from "@core/merkle.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { ServiceLocatorPort } from "../../core/ports.ts";
 
 export interface ActorContext {
     id: string;
@@ -82,6 +83,11 @@ export class AuditService extends BaseService {
 
     // Merkle Integration
     private currentSessionHashes: string[] = [];
+    private locator?: ServiceLocatorPort;
+
+    public setLocator(locator: ServiceLocatorPort) {
+        this.locator = locator;
+    }
 
     constructor(
         private repo: AuditRepository,
@@ -117,7 +123,7 @@ export class AuditService extends BaseService {
         }, jitter(5 * 60 * 1000)));
 
         this.intervals.push(setInterval(() => this.verifyChainIncremental(), jitter(60 * 1000)));
-        this.intervals.push(setInterval(() => this.flushBuffer(), 5000));
+        this.intervals.push(setInterval(() => this.flushBuffer(), 1000)); // PERFORMANCE: Faster flush for better interactivity
 
         // Merkle Root Commitment: Commit root every 10 minutes
         this.intervals.push(setInterval(() => this.commitMerkleRoot(), jitter(600000)));
@@ -466,7 +472,8 @@ export class AuditService extends BaseService {
 
                         if (event.type !== "MERKLE_COMMIT") {
                             this.currentSessionHashes.push(hash);
-                            const MAX_MERKLE_BUFFER = 1000;
+                            // SOV-06 STABILITY: Bound Merkle Tree Memory to prevent OOM during high-activity incidents
+                            const MAX_MERKLE_BUFFER = 5000;
                             if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
                                 this.commitMerkleRoot().catch(() => {});
                             }
@@ -491,7 +498,7 @@ export class AuditService extends BaseService {
                             this.correlation.processEvent(auditEvent).catch(() => {});
                         }
 
-                        if (this.auditBuffer.length >= 20 || this.state === SystemState.FORENSIC_RESTRICTED) {
+                        if (this.auditBuffer.length >= 100 || this.state === SystemState.FORENSIC_RESTRICTED) {
                             await this.flushBuffer();
                         }
                     } catch (e) {

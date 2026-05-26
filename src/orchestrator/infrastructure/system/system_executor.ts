@@ -535,6 +535,7 @@ export class SystemExecutor implements ExecutorPort {
       // SOV-06: Remote path bypass for SCP/SSH to avoid jail enforcement on remote addresses
       // FIX: Apply shell metacharacter protection even to remote paths to prevent injection
       if ((baseCmd === "scp" || baseCmd === "ssh") && /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\]):.*$/.test(arg)) {
+          // SOV-06 HARDENING: Ensure remote paths do not contain shell metacharacters that could enable command injection
           if (/[;&|><`$()!]/.test(arg)) {
               return { valid: false, reason: `Security Violation: Shell metacharacters detected in remote path for '${baseCmd}'` };
           }

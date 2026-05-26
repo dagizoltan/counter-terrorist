@@ -247,11 +247,33 @@ export class LoggingService implements LoggingPort {
 
     private async writeToKv(entry: LogEntry) {
         if (this.diagnosticRepo) {
-            await this.diagnosticRepo.addLog(entry).catch(() => {});
+            // SOV-06 PERFORMANCE: Implement batching for log writes to KV
+            this.kvBuffer.push(entry);
+            if (this.kvBuffer.length >= 50) {
+                await this.flushKvBuffer();
+            }
         } else {
             // Buffer logs until KV is available
             this.preInitBuffer.push(entry);
             if (this.preInitBuffer.length > 500) this.preInitBuffer.shift();
+        }
+    }
+
+    private kvBuffer: LogEntry[] = [];
+    private isFlushingKv = false;
+
+    private async flushKvBuffer() {
+        if (!this.diagnosticRepo || this.kvBuffer.length === 0 || this.isFlushingKv) return;
+        this.isFlushingKv = true;
+        const toFlush = [...this.kvBuffer];
+        this.kvBuffer = [];
+        try {
+            // TimelineRepository supports saveMany for atomic batching
+            await (this.diagnosticRepo as any).repo.saveMany(toFlush);
+        } catch {
+            this.kvBuffer = [...toFlush, ...this.kvBuffer].slice(0, 1000);
+        } finally {
+            this.isFlushingKv = false;
         }
     }
 
@@ -261,7 +283,10 @@ export class LoggingService implements LoggingPort {
     }
 
     private startFlushInterval() {
-        this.flushIntervalId = setInterval(() => this.flushLogs(), 5000);
+        this.flushIntervalId = setInterval(() => {
+            this.flushLogs();
+            this.flushKvBuffer();
+        }, 5000);
     }
 
     /**
@@ -273,6 +298,7 @@ export class LoggingService implements LoggingPort {
             this.flushIntervalId = null;
         }
         await this.flushLogs();
+        await this.flushKvBuffer();
         this.closePersistentConn();
 
         // Restore original console if intercepted

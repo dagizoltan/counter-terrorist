@@ -253,3 +253,8 @@ export interface ApplicationStatus {
   plugins: { name: string; status: string; description: string; details?: any }[];
 }
 
+export interface ServiceLocatorPort {
+  register<T>(key: string, service: T): void;
+  get<T>(key: string): T;
+  has(key: string): boolean;
+}

@@ -36,6 +36,18 @@ export async function initializeApplication(deps: ApplicationDependencies) {
   await deps.mesh.init();
   deps.mesh.startDiscovery();
 
+  // Register all services to the service locator for decoupled access
+  const { serviceLocator } = await import("./service_locator.ts");
+  serviceLocator.register("config", deps.config);
+  serviceLocator.register("protection", deps.protection);
+  serviceLocator.register("command", deps.command);
+  serviceLocator.register("logging", deps.logging);
+  serviceLocator.register("audit", deps.audit);
+  serviceLocator.register("mesh", deps.mesh);
+  serviceLocator.register("eventBus", deps.eventBus);
+  serviceLocator.register("notifications", deps.notifications);
+  serviceLocator.register("baseline", deps.baseline);
+
   // Automated Forensic Response
   deps.eventBus.subscribe(async (event) => {
     if (event.type === "CRITICAL") {

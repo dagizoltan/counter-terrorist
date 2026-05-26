@@ -43,14 +43,15 @@ Deno.test("PlaybookService - Honeypot auto-block playbook", async () => {
     const pcap = { startCapture: async () => ({ success: true }) };
     const notifications = { notify: async () => {} };
 
+    const { ServiceLocator } = await import("../src/orchestrator/core/service_locator.ts");
+    const locator = new ServiceLocator();
+    locator.register("eventBus", eventBus);
+    locator.register("protection", { firewall, pcap });
+    locator.register("notifications", notifications);
+    locator.register("mesh", { isolateNode: () => {} });
+
     const service = new PlaybookService(logger);
-    service.setServices({
-        eventBus,
-        protection: { firewall, pcap },
-        notifications,
-        mesh: { isolateNode: () => {} },
-        shadowProtocol: { activate: () => {} }
-    });
+    service.setLocator(locator);
     service.setEventBus(eventBus);
     await service.init();
 
@@ -75,14 +76,16 @@ Deno.test("PlaybookService - eBPF ptrace playbook", async () => {
     const firewall = new MockFirewallPort();
     const shadowProtocol = { activated: false, activate: async () => { shadowProtocol.activated = true; } };
 
+    const { ServiceLocator } = await import("../src/orchestrator/core/service_locator.ts");
+    const locator = new ServiceLocator();
+    locator.register("eventBus", eventBus);
+    locator.register("protection", { firewall });
+    locator.register("notifications", { notify: async () => {} });
+    locator.register("mesh", { isolateNode: () => {} });
+    locator.register("shadowProtocol", shadowProtocol);
+
     const service = new PlaybookService(logger);
-    service.setServices({
-        eventBus,
-        protection: { firewall },
-        notifications: { notify: async () => {} },
-        mesh: { isolateNode: () => {} },
-        shadowProtocol
-    });
+    service.setLocator(locator);
     service.setEventBus(eventBus);
     await service.init();
 
