@@ -22,19 +22,32 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
     if (items.length === 0) return;
     this.checkWritePermission();
 
-    let atomic = this.kv.atomic();
-    let count = 0;
-    for (const item of items) {
-        const ts = typeof item.data.timestamp === "string" ? new Date(item.data.timestamp).getTime() : item.data.timestamp;
-        atomic = atomic.set([this.prefix, ts, item.id], item.data);
-        count++;
+    // SOV-P5: Transactional Batching with Chunking
+    // Deno KV atomic transactions have a limit on the number of mutations (around 1000).
+    // We chunk large batches into smaller atomic units to ensure reliability.
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < items.length; i += CHUNK_SIZE) {
+        const chunk = items.slice(i, i + CHUNK_SIZE);
+        let atomic = this.kv.atomic();
+        let count = 0;
+
+        for (const item of chunk) {
+            const ts = typeof item.data.timestamp === "string" ? new Date(item.data.timestamp).getTime() : item.data.timestamp;
+            atomic = atomic.set([this.prefix, ts, item.id], item.data);
+            count++;
+        }
+
+        const res = await atomic
+            .mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(BigInt(count)) })
+            .commit();
+
+        if (!res.ok) throw new Error(`Failed to set chunk of ${chunk.length} timeline entries`);
+
+        // Yield to event loop if processing many chunks
+        if (items.length > CHUNK_SIZE) {
+            await new Promise(r => setTimeout(r, 0));
+        }
     }
-
-    const res = await atomic
-        .mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(BigInt(count)) })
-        .commit();
-
-    if (!res.ok) throw new Error(`Failed to set batch of ${items.length} timeline entries`);
   }
 
   async getLatest(limit: number = 1): Promise<T[]> {

@@ -38,6 +38,13 @@ pub struct IpV6Addr {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, AsBytes, FromBytes, FromZeroes)]
+pub struct SyscallAllowKey {
+    pub pid: u32,
+    pub syscall_id: u32,
+}
+
+#[repr(C)]
 #[derive(Clone, Copy, AsBytes, FromBytes, FromZeroes)]
 pub struct SessionValue {
     pub last_seen: u64,
@@ -54,3 +61,5 @@ unsafe impl aya::Pod for SessionKey {}
 unsafe impl aya::Pod for SessionValue {}
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for IpV6Addr {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for SyscallAllowKey {}

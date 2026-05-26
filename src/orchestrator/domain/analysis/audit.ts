@@ -84,6 +84,7 @@ export class AuditService extends BaseService {
 
     // Merkle Integration
     private currentSessionHashes: string[] = [];
+    private merkleTree: MerkleTree = new MerkleTree();
     private locator?: ServiceLocatorPort;
     private wormRepo: WormRepository | null = null;
 
@@ -539,7 +540,10 @@ export class AuditService extends BaseService {
                         this.lastHash = hash;
 
                         if (event.type !== "MERKLE_COMMIT") {
+                            // SOV-P5: Incremental Merkle Update
+                            await this.merkleTree.addLeaf(hash);
                             this.currentSessionHashes.push(hash);
+
                             // SOV-06 STABILITY: Bound Merkle Tree Memory to prevent OOM during high-activity incidents
                             const MAX_MERKLE_BUFFER = 5000;
                             if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
