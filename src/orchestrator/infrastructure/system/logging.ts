@@ -3,6 +3,7 @@ import { TimelineRepository } from "../persistence/repositories/timeline_reposit
 import { DiagnosticRepository } from "../persistence/diagnostic_repository.ts";
 import { broadcast } from "@interface/ws_handler.ts";
 import { SecretRedactor } from "@core/utils/security.ts";
+import { PersistentQueue } from "@core/utils/persistent_queue.ts";
 
 export { LogSeverity, LogType, SyslogSeverity };
 
@@ -17,6 +18,7 @@ export class LoggingService implements LoggingPort {
     private isForwarding = false;
     private tlsCaCertPath: string | null = null;
     private diagnosticRepo: DiagnosticRepository | null = null;
+    private alertQueue: PersistentQueue<string> | null = null;
     private preInitBuffer: LogEntry[] = [];
     private redactor: SecretRedactor = new SecretRedactor();
 
@@ -53,6 +55,8 @@ export class LoggingService implements LoggingPort {
 
     setKv(kv: Deno.Kv) {
         this.diagnosticRepo = new DiagnosticRepository(kv);
+        this.alertQueue = new PersistentQueue<string>(kv, "syslog_alerts");
+
         // Flush pre-init buffer to KV
         if (this.preInitBuffer.length > 0) {
             const logs = [...this.preInitBuffer];
@@ -310,21 +314,48 @@ export class LoggingService implements LoggingPort {
     }
 
     private async flushLogs() {
-        if (this.isForwarding || this.logBuffer.length === 0 || !this.remoteHost) return;
+        if (this.isForwarding || !this.remoteHost) return;
+
+        // Process retries from persistent queue first
+        if (this.alertQueue) {
+            await this.alertQueue.process(async (msg) => {
+                try {
+                    await this.forwardLog(msg);
+                    return true;
+                } catch {
+                    return false;
+                }
+            });
+        }
+
+        if (this.logBuffer.length === 0) return;
         this.isForwarding = true;
         const logsToSend = [...this.logBuffer];
         this.logBuffer = [];
         try {
-            switch (this.transport) {
-                case "udp": await this.sendUdp(logsToSend); break;
-                case "tcp": await this.sendTcpOrTls(logsToSend, false); break;
-                case "tls": await this.sendTcpOrTls(logsToSend, true); break;
+            for (const log of logsToSend) {
+                try {
+                    await this.forwardLog(log);
+                } catch (e) {
+                    // If forwarding fails, push to persistent queue for retry
+                    if (this.alertQueue) {
+                        await this.alertQueue.enqueue(log);
+                    } else {
+                        // Fallback to memory buffer if KV not ready
+                        this.logBuffer.push(log);
+                    }
+                }
             }
-        } catch {
-            this.logBuffer = [...logsToSend, ...this.logBuffer].slice(0, this.maxBufferSize);
-            this.closePersistentConn();
         } finally {
             this.isForwarding = false;
+        }
+    }
+
+    private async forwardLog(log: string) {
+        switch (this.transport) {
+            case "udp": await this.sendUdp([log]); break;
+            case "tcp": await this.sendTcpOrTls([log], false); break;
+            case "tls": await this.sendTcpOrTls([log], true); break;
         }
     }
 

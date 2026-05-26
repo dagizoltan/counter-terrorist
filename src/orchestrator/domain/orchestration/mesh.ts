@@ -179,6 +179,7 @@ export class MeshManager extends BaseService {
     this.discoveryInterval = setInterval(() => {
         this.discoverSubnet();
         this.scanNetwork();
+        this.resolveSplitBrain(); // Periodic split-brain check
     }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + (Math.random() * 5000));
   }
 
@@ -972,6 +973,69 @@ export class MeshManager extends BaseService {
     } catch {
         return { success: true };
     }
+  }
+
+  /**
+   * SOV-P4: Resolves a split-brain condition by reconciling state with the mesh majority.
+   */
+  async resolveSplitBrain(): Promise<Result<void>> {
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "MESH:RESILIENCE",
+        message: "Detecting state divergence. Initiating mesh-wide reconciliation (View-Stamp Strategy)..."
+    });
+
+    const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
+    if (verifiedNodes.length === 0) return ok(undefined);
+
+    // 1. Fetch Merkle roots from all verified nodes
+    const roots = new Map<string, number>();
+    for (const node of verifiedNodes) {
+        try {
+            const res = await this.sendSync(node, { type: "GET_AUDIT_STATUS" }) as any;
+            if (res && res.lastHash) {
+                roots.set(res.lastHash, (roots.get(res.lastHash) || 0) + 1);
+            }
+        } catch { /* ignore */ }
+    }
+
+    // 2. Identify the majority root
+    let majorityRoot = "";
+    let maxVotes = 0;
+    for (const [root, votes] of roots.entries()) {
+        if (votes > maxVotes) {
+            maxVotes = votes;
+            majorityRoot = root;
+        }
+    }
+
+    // 3. If we diverge from majority, trigger re-sync
+    const currentStatus = await this.audit.getChainStatus();
+    if (majorityRoot && majorityRoot !== currentStatus.lastHash) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "MESH:RESILIENCE",
+            message: `Split-brain detected! Local root ${currentStatus.lastHash.slice(0,8)} diverges from mesh majority ${majorityRoot.slice(0,8)}. Triggering rollback sync.`
+        });
+
+        // Trigger reconciliation from a node that has the majority root
+        const targetNode = verifiedNodes.find(async n => {
+            try {
+                const res = await this.sendSync(n, { type: "GET_AUDIT_STATUS" }) as any;
+                return res?.lastHash === majorityRoot;
+            } catch { return false; }
+        });
+
+        if (targetNode) {
+            await this.requestAuditSync(targetNode.id);
+        }
+    }
+
+    return ok(undefined);
   }
 
   private async startStateWatcher() {

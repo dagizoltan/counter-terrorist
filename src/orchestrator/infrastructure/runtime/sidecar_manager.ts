@@ -42,6 +42,8 @@ export class SidecarManager implements CommandPort {
   private tpm: TpmPort | undefined;
   private redactor: SecretRedactor = new SecretRedactor();
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
+  private lastHeartbeat: Map<string, number> = new Map();
+  private heartbeatInterval?: number;
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
@@ -49,6 +51,7 @@ export class SidecarManager implements CommandPort {
 
   public init() {
     this.startRotationLoop();
+    this.startHeartbeatMonitor();
     this.manifestPromise = this.loadManifest();
   }
 
@@ -525,6 +528,12 @@ export class SidecarManager implements CommandPort {
           const trimmed = line.trim();
           if (!trimmed) continue;
 
+          // SOV-P4: Heartbeat tracking
+          if (trimmed === "HEARTBEAT" || (trimmed.startsWith("{") && trimmed.includes("\"type\":\"HEARTBEAT\""))) {
+              this.lastHeartbeat.set(name, Date.now());
+              if (trimmed === "HEARTBEAT") continue;
+          }
+
           // New: Structured Log Ingestion
           if (trimmed.startsWith("[LOG] ")) {
             try {
@@ -764,6 +773,7 @@ export class SidecarManager implements CommandPort {
   async shutdown(): Promise<void> {
     this.isShuttingDown = true;
     if (this.rotationInterval) clearInterval(this.rotationInterval);
+    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
     for (const timer of this.backoffTimers) clearTimeout(timer);
     this.backoffTimers.clear();
 
@@ -994,6 +1004,35 @@ export class SidecarManager implements CommandPort {
           pos += chunk.length;
       }
       return await crypto.subtle.digest(algorithm, combined);
+  }
+
+  private startHeartbeatMonitor() {
+    const HEARTBEAT_TIMEOUT = 5000; // 5 seconds
+    this.heartbeatInterval = setInterval(() => {
+        if (this.isShuttingDown) return;
+        const now = Date.now();
+        for (const [name, last] of this.lastHeartbeat.entries()) {
+            if (this.persistentProcesses.has(name) && now - last > HEARTBEAT_TIMEOUT) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `CRITICAL: Sidecar ${name} missed heartbeats for 5s. Potential hang detected. Triggering fail-closed lockdown.`
+                });
+
+                // SOV-P4: Fail-closed Trigger
+                this.emitEvent("SYSTEM_ERROR", {
+                    type: "SIDECAR_CRASH_LOOP",
+                    sidecar: name,
+                    critical: true,
+                    message: `Heartbeat Timeout: ${name}`
+                });
+
+                this.lastHeartbeat.delete(name);
+            }
+        }
+    }, 2000);
   }
 
   private handleSidecarExit(name: string, exitCode: number) {

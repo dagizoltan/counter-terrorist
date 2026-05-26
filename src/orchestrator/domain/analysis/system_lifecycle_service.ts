@@ -139,6 +139,69 @@ export class SystemLifecycleService extends BaseService {
     }
 
     /**
+     * Schedules periodic LKG snapshots of the core database.
+     */
+    scheduleLkgSnapshot() {
+        const INTERVAL = 12 * 60 * 60 * 1000; // 12 Hours
+        setInterval(async () => {
+            await this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.ACTIVITY,
+                severity: LogSeverity.INFO,
+                caller: "LIFECYCLE:LKG",
+                message: "Creating periodic 'Last Known Good' snapshot of system state..."
+            });
+            await this.createLkgSnapshot();
+        }, INTERVAL);
+    }
+
+    async createLkgSnapshot() {
+        try {
+            // SOV-P4: High-Performance, Chunked LKG Snapshotting
+            // We use atomic batches and yielded execution to avoid blocking the event loop.
+            const iter = this.kv.list({ prefix: [] });
+            let count = 0;
+            let batch = this.kv.atomic();
+            const BATCH_SIZE = 20;
+
+            for await (const entry of iter) {
+                if (entry.key[0] === "lkg") continue;
+
+                batch.set(["lkg", ...entry.key], entry.value);
+                count++;
+
+                if (count % BATCH_SIZE === 0) {
+                    await batch.commit();
+                    batch = this.kv.atomic();
+                    // Yield to event loop to prevent OOM/Lag
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            await batch.commit();
+
+            // Mark the snapshot timestamp
+            await this.kv.set(["lkg_metadata", "last_snapshot"], Date.now());
+
+            await this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "LIFECYCLE:LKG",
+                message: `LKG snapshot completed successfully. Backed up ${count} keys.`
+            });
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "LIFECYCLE:LKG",
+                message: `LKG Snapshot failed: ${(e as Error).message}`
+            }).catch(() => {});
+        }
+    }
+
+    /**
      * Attempts to restore system state from a 'Last Known Good' snapshot.
      */
     async tryRestoreLkg() {
