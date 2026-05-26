@@ -31,6 +31,7 @@ interface EncryptedCertPair {
 export class MeshAuthService extends BaseService implements MeshAuthPort {
   private readonly CA_KEY = ["mesh", "pki", "root_ca_v5"];
   private readonly NODES_PREFIX = ["mesh", "pki", "nodes_v3"];
+  private secondaryMeshSecret: string | null = null;
 
   constructor(
     private kv: Deno.Kv,
@@ -117,6 +118,30 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
   /**
    * Generates a signed certificate for a node.
    */
+  /**
+   * SOV-P4: Stages a new mesh secret to allow overlap during rotation.
+   */
+  public stageSecondarySecret(secret: string) {
+    this.secondaryMeshSecret = secret;
+  }
+
+  /**
+   * SOV-P4: Commits the swap by clearing the secondary secret.
+   */
+  public commitSecretSwap() {
+    this.secondaryMeshSecret = null;
+  }
+
+  /**
+   * Validates a mesh secret, checking both primary and secondary (if rotating).
+   */
+  public validateMeshSecret(provided: string): boolean {
+    const primary = this.config.getEnv("MESH_SECRET");
+    if (provided === primary) return true;
+    if (this.secondaryMeshSecret && provided === this.secondaryMeshSecret) return true;
+    return false;
+  }
+
   async generateNodeCert(nodeId: string): Promise<Result<CertPair>> {
     try {
         const nodeKey = [...this.NODES_PREFIX, nodeId];

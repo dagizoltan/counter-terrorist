@@ -35,7 +35,8 @@ Deno.test("SystemExecutor - Path traversal detection", async () => {
     // mkdir is allowed in ./volume/, but traversal should be caught
     const result = await executor.execute("mkdir", ["-p", "./volume/../../etc/passwd"]);
     assertEquals(result.success, false);
-    assertEquals(result.stderr.includes("Security Violation: Path traversal or prefix bypass detected in argument './volume/../../etc/passwd'"), true);
+    // Note: Since mkdir now uses structured schema validation, it returns a schema error message
+    assertEquals(result.stderr.includes("Unauthorized path: ./volume/../../etc/passwd"), true);
 });
 
 Deno.test("SystemExecutor - Too many arguments", async () => {

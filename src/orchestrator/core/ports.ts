@@ -183,6 +183,9 @@ export interface MeshAuthPort {
   getTrustedCerts(): Promise<string[]>;
   generateNodeCert(nodeId: string): Promise<Result<{ cert: string; key: string }>>;
   rotateCert(nodeId: string): Promise<Result<{ cert: string; key: string }>>;
+  stageSecondarySecret(secret: string): void;
+  commitSecretSwap(): void;
+  validateMeshSecret(provided: string): boolean;
 }
 
 export interface ConfigurationPort {

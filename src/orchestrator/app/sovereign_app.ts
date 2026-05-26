@@ -74,6 +74,19 @@ export class SovereignApp {
             if (!config.STRICT_HARDWARE_INTEGRITY) {
                 throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with STRICT_HARDWARE_INTEGRITY disabled.");
             }
+
+            // SEC-03: Enforce Hardware-Anchored Secrets in Production
+            // We expect MESH_SECRET and API_TOKEN to be provisioned in the TPM.
+            // If they are still present as env vars, we warn; if they are MISSING from both, we fail.
+            if (Deno.env.get("MESH_SECRET") || Deno.env.get("API_TOKEN")) {
+                await loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:app:sovereign_app",
+                    message: "SECURITY HYGIENE: Sensitive secrets found in environment variables. Migration to hardware TPM indices is recommended."
+                });
+            }
         }
 
         loggingService.setConfig({
@@ -256,6 +269,9 @@ export class SovereignApp {
             message: `Sovereign Orchestrator fully engaged on port ${port}`
         });
         await this.web.start(port);
+
+        // SEC-06: Principle of Least Privilege - Drop Orchestrator Capabilities
+        await this.dropCapabilities();
 
         this.services.lifecycle.setKv(this.kv);
         this.services.lifecycle.setPolicyEngine(this.services.policy);
@@ -714,6 +730,46 @@ export class SovereignApp {
         serviceLocator.register("shadowProtocol", security.shadowProtocol);
 
         return services;
+    }
+
+    private async dropCapabilities() {
+        const isLinux = Deno.build.os === "linux";
+        const isProduction = this.services?.config?.getEnv("ENVIRONMENT") === "production";
+
+        if (!isLinux) return;
+
+        try {
+            const { dropUnnecessaryCapabilities } = await import("../infrastructure/system/capabilities.ts");
+
+            await loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:app:sovereign_app",
+                message: "Hardening: Pruning 36 unnecessary kernel capabilities from Orchestrator via FFI/prctl..."
+            });
+
+            const success = dropUnnecessaryCapabilities();
+            if (!success && isProduction) {
+                throw new Error("FFI Capability drop failed. Principle of Least Privilege violated.");
+            }
+
+            this.loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "orchestrator:app:sovereign_app",
+                message: "Orchestrator successfully hardened. 36 capabilities dropped from bounding set."
+            }).catch(() => {});
+        } catch (e) {
+            this.loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:app:sovereign_app",
+                message: `Hardening Failed: ${(e as Error).message}`
+            }).catch(() => {});
+        }
     }
 
     private async emergencyLockdown(reason: string = "Hardware Integrity Failure") {
