@@ -15,6 +15,5 @@ socket2 = { version = "0.5", features = ["all"] }
 anyhow = "1.0"
 nix = { version = "0.27", features = ["net"] }
 libc = "0.2"
-shared_memory = "0.12"
 bytes = "1.4"
-landlock = "0.3"
+cts_ipc = { path = "../cts_ipc" }

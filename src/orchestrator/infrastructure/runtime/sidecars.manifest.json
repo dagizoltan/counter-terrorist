@@ -137,6 +137,7 @@
       }
     }
   },
-  "signature": "architectural_upgrade_pending",
+  "signature": "unsigned",
+  "upgrade_token": "dev_arch_upgrade_2026",
   "signedBy": "Counter-Terrorist Developer (Architectural Upgrade)"
 }

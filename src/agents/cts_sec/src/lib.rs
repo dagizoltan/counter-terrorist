@@ -79,23 +79,20 @@ pub extern "C" fn shmem_read(shmem_ptr: *mut Shmem, out_buf: *mut u8, max_len: u
     let slice = unsafe { shmem.as_slice_mut() };
 
     // SOV-P5: Stabilized Atomic Ring Buffer Protocol
-    // Structure: [len: u32][data...]
-    // We use atomic-like semantics by clearing the length after read to prevent double-read.
-    if slice.len() < 4 { return -2; }
+    // Structure: [len: u32][dirty: u32][data...]
+    if slice.len() < 8 { return -2; }
 
     let mut len_bytes = [0u8; 4];
     len_bytes.copy_from_slice(&slice[0..4]);
     let len = u32::from_le_bytes(len_bytes) as usize;
 
     if len == 0 { return 0; }
-    if len > max_len || len > slice.len() - 4 { return -3; }
+    if len > max_len || len > slice.len() - 8 { return -3; }
 
     unsafe {
-        std::ptr::copy_nonoverlapping(slice[4..4+len].as_ptr(), out_buf, len);
+        std::ptr::copy_nonoverlapping(slice[8..8+len].as_ptr(), out_buf, len);
 
         // Atomic-like clear of the length header to signal completion to agent
-        // We use volatile-like write via ptr::write_bytes or atomic equivalents if needed.
-        // For shmem, ptr::copy_nonoverlapping onto the mutable slice pointer is sufficient.
         let zero_len = 0u32.to_le_bytes();
         std::ptr::copy_nonoverlapping(zero_len.as_ptr(), slice.as_mut_ptr(), 4);
     }

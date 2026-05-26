@@ -17,8 +17,7 @@ bytes = "1.11"
 once_cell = "1.18"
 parking_lot = "0.12"
 sysinfo = "0.29"
-shared_memory = "0.12"
-landlock = "0.3"
+cts_ipc = { path = "../cts_ipc" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 aya = "0.12"

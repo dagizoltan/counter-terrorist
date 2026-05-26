@@ -382,6 +382,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "cts_ipc"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "landlock 0.3.1",
+ "log",
+ "parking_lot",
+ "rmp-serde",
+ "serde",
+ "shared_memory",
+]
+
+[[package]]
 name = "cts_sec"
 version = "0.1.0"
 dependencies = [
@@ -790,7 +803,7 @@ dependencies = [
  "anyhow",
  "bytes",
  "chrono",
- "landlock 0.3.1",
+ "cts_ipc",
  "libc",
  "nix 0.27.1",
  "once_cell",
@@ -798,7 +811,6 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_json",
- "shared_memory",
  "socket2 0.5.10",
  "tokio",
 ]
@@ -1232,8 +1244,8 @@ dependencies = [
  "aya",
  "bytes",
  "chrono",
+ "cts_ipc",
  "env_logger",
- "landlock 0.3.1",
  "libc",
  "log",
  "once_cell",
@@ -1243,7 +1255,6 @@ dependencies = [
  "sentinel-common",
  "serde",
  "serde_json",
- "shared_memory",
  "sysinfo",
  "tokio",
  "zerocopy 0.7.35",

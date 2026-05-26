@@ -1,12 +1,9 @@
 use serde::{Serialize, Deserialize};
 use chrono::Utc;
-use tokio::io::{self, AsyncBufReadExt, AsyncReadExt};
+use tokio::io::{self, AsyncReadExt};
 use std::error::Error;
 use std::sync::Arc;
-use std::fs::File;
-use std::io::Write;
 use parking_lot::Mutex;
-use landlock::{RulesetAttr, ABI, Access, RulesetCreatedAttr};
 use once_cell::sync::Lazy;
 use aya::Bpf;
 use aya::maps::PerfEventArray;
@@ -45,6 +42,8 @@ struct SidecarResponse {
     timestamp: String,
 }
 
+static IPC: Lazy<cts_ipc::IpcManager> = Lazy::new(|| cts_ipc::IpcManager::new("sentinel", 1024 * 1024));
+
 async fn emit_response(id: Option<String>, success: bool, message: String) {
     let resp = SidecarResponse {
         id,
@@ -60,20 +59,6 @@ async fn emit_response(id: Option<String>, success: bool, message: String) {
     }
 }
 
-struct ShmemWrapper(shared_memory::Shmem);
-unsafe impl Send for ShmemWrapper {}
-unsafe impl Sync for ShmemWrapper {}
-
-static SHMEM: Lazy<Option<Arc<Mutex<ShmemWrapper>>>> = Lazy::new(|| {
-    let path = format!("/dev/shm/cts_sentinel_{}", std::process::id());
-    shared_memory::ShmemConf::new()
-        .size(1024 * 1024) // 1MB ring buffer
-        .flink(&path)
-        .create()
-        .ok()
-        .map(|s| Arc::new(Mutex::new(ShmemWrapper(s))))
-});
-
 async fn emit_event(data: serde_json::Value) {
     let resp = SidecarResponse {
         id: None,
@@ -83,37 +68,11 @@ async fn emit_event(data: serde_json::Value) {
         timestamp: Utc::now().to_rfc3339(),
     };
 
-    // SOV-P5: Zero-Copy Shared Memory IPC
-    if let Some(shmem_arc) = &*SHMEM {
-        // PERFORMANCE: Use pre-allocated buffer for serialization to reduce GC pressure
-        let mut buf = Vec::with_capacity(8192);
-        if resp.serialize(&mut rmp_serde::Serializer::new(&mut buf)).is_ok() {
-            let mut shmem_wrapper = shmem_arc.lock();
-            let slice = unsafe { shmem_wrapper.0.as_slice_mut() };
-
-            // SOV-P5: Stabilized Ring Buffer Access
-            // Structure: [len: u32][data...]
-            // We wait for the previous message to be read (len cleared to 0) before writing.
-            let mut len_bytes = [0u8; 4];
-            len_bytes.copy_from_slice(&slice[0..4]);
-            let current_len = u32::from_le_bytes(len_bytes);
-
-            if current_len == 0 && buf.len() + 4 <= slice.len() {
-                let len = (buf.len() as u32).to_le_bytes();
-                slice[4..4+buf.len()].copy_from_slice(&buf);
-                slice[0..4].copy_from_slice(&len); // Write length last (commit)
-
-                // Signal Orchestrator via stdout that shmem is updated
-                let _lock = STDOUT_LOCK.lock();
-                println!("SHMEM_UPDATE:{}", buf.len());
-                return;
-            }
+    if !IPC.emit_event(&resp) {
+        if let Ok(json) = serde_json::to_string(&resp) {
+            let _lock = STDOUT_LOCK.lock();
+            println!("{}", json);
         }
-    }
-
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock();
-        println!("{}", json);
     }
 }
 
@@ -372,31 +331,10 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                     }
                 },
                 "ENFORCE_PID" => {
-                    if let (Some(pid), Some(path)) = (cmd.pid, cmd.path) {
-                        // SOV-P5: Dynamic Landlock FS Gating
-                        // We use Landlock to restrict filesystem access for a specific PID at runtime.
-                        let abi = ABI::V1;
-                        match landlock::Ruleset::default()
-                            .handle_access(landlock::AccessFs::from_all(abi))
-                            .expect("Failed to handle access")
-                            .create()
-                        {
-                            Ok(ruleset) => {
-                                let path_handle = File::open(&path).expect("Failed to open path");
-                                match ruleset.add_rule(landlock::PathBeneath::new(path_handle, landlock::AccessFs::from_all(abi))) {
-                                    Ok(new_ruleset) => {
-                                        // SOV-P5: Dynamic Landlock FS Gating
-                                        // Landlock is thread-group scoped, so we restrict the agent itself.
-                                        // This provides dynamic "sandboxing" based on behavioral signals from the Orchestrator.
-                                        match new_ruleset.restrict_self() {
-                                            Ok(_) => emit_response(cmd.id, true, format!("Landlock FS Gating applied to agent for path {}", path)).await,
-                                            Err(e) => emit_response(cmd.id, false, format!("Landlock restriction failed: {}", e)).await,
-                                        }
-                                    }
-                                    Err(e) => emit_response(cmd.id, false, format!("Failed to add rule: {}", e)).await,
-                                }
-                            }
-                            Err(_) => emit_response(cmd.id, false, "Landlock not supported".to_string()).await,
+                    if let (Some(_pid), Some(path)) = (cmd.pid, cmd.path) {
+                        match cts_ipc::apply_landlock(&path) {
+                            Ok(_) => emit_response(cmd.id, true, format!("Landlock FS Gating applied to agent for path {}", path)).await,
+                            Err(e) => emit_response(cmd.id, false, format!("Landlock failed: {}", e)).await,
                         }
                     } else if let Some(pid) = cmd.pid {
                         if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
