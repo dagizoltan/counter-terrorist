@@ -75,9 +75,12 @@ pub extern "C" fn create_shmem(path: *const i8, size: usize) -> *mut Shmem {
 #[no_mangle]
 pub extern "C" fn shmem_read(shmem_ptr: *mut Shmem, out_buf: *mut u8, max_len: usize) -> i32 {
     if shmem_ptr.is_null() { return -1; }
-    let shmem = unsafe { &*shmem_ptr };
-    let slice = unsafe { shmem.as_slice() };
+    let shmem = unsafe { &mut *shmem_ptr };
+    let slice = unsafe { shmem.as_slice_mut() };
 
+    // SOV-P5: Stabilized Atomic Ring Buffer Protocol
+    // Structure: [len: u32][data...]
+    // We use atomic-like semantics by clearing the length after read to prevent double-read.
     if slice.len() < 4 { return -2; }
 
     let mut len_bytes = [0u8; 4];
@@ -89,6 +92,12 @@ pub extern "C" fn shmem_read(shmem_ptr: *mut Shmem, out_buf: *mut u8, max_len: u
 
     unsafe {
         std::ptr::copy_nonoverlapping(slice[4..4+len].as_ptr(), out_buf, len);
+
+        // Atomic-like clear of the length header to signal completion to agent
+        // We use volatile-like write via ptr::write_bytes or atomic equivalents if needed.
+        // For shmem, ptr::copy_nonoverlapping onto the mutable slice pointer is sufficient.
+        let zero_len = 0u32.to_le_bytes();
+        std::ptr::copy_nonoverlapping(zero_len.as_ptr(), slice.as_mut_ptr(), 4);
     }
     len as i32
 }
@@ -109,6 +118,32 @@ pub extern "C" fn serialize_msgpack(json_ptr: *const i8, out_len: *mut usize) ->
     let ptr = buf.as_mut_ptr();
     std::mem::forget(buf);
     ptr
+}
+
+#[no_mangle]
+pub extern "C" fn deserialize_msgpack(msgpack_ptr: *const u8, len: usize) -> *mut i8 {
+    let buf = unsafe { std::slice::from_raw_parts(msgpack_ptr, len) };
+    let value: serde_json::Value = match rmp_serde::from_slice(buf) {
+        Ok(v) => v,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let json_str = match serde_json::to_string(&value) {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let c_str = std::ffi::CString::new(json_str).unwrap();
+    c_str.into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn free_string(ptr: *mut i8) {
+    if !ptr.is_null() {
+        unsafe {
+            let _ = std::ffi::CString::from_raw(ptr);
+        }
+    }
 }
 
 #[no_mangle]

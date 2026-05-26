@@ -22,7 +22,7 @@ export class KernelService extends BaseService {
         private executor: ExecutorPort,
         private auditService: AuditService,
         private config: ConfigurationPort,
-        private sidecarManager?: CommandPort,
+        private sidecarManager: CommandPort,
         private tpm?: TpmPort
     ) {
         super();

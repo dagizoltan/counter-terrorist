@@ -85,15 +85,23 @@ async fn emit_event(data: serde_json::Value) {
 
     // SOV-P5: Zero-Copy Shared Memory IPC
     if let Some(shmem_arc) = &*SHMEM {
-        let mut buf = Vec::new();
+        // PERFORMANCE: Use pre-allocated buffer for serialization to reduce GC pressure
+        let mut buf = Vec::with_capacity(8192);
         if resp.serialize(&mut rmp_serde::Serializer::new(&mut buf)).is_ok() {
             let mut shmem_wrapper = shmem_arc.lock();
             let slice = unsafe { shmem_wrapper.0.as_slice_mut() };
 
-            if buf.len() + 4 <= slice.len() {
+            // SOV-P5: Stabilized Ring Buffer Access
+            // Structure: [len: u32][data...]
+            // We wait for the previous message to be read (len cleared to 0) before writing.
+            let mut len_bytes = [0u8; 4];
+            len_bytes.copy_from_slice(&slice[0..4]);
+            let current_len = u32::from_le_bytes(len_bytes);
+
+            if current_len == 0 && buf.len() + 4 <= slice.len() {
                 let len = (buf.len() as u32).to_le_bytes();
-                slice[0..4].copy_from_slice(&len);
                 slice[4..4+buf.len()].copy_from_slice(&buf);
+                slice[0..4].copy_from_slice(&len); // Write length last (commit)
 
                 // Signal Orchestrator via stdout that shmem is updated
                 let _lock = STDOUT_LOCK.lock();
@@ -377,10 +385,13 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                                 let path_handle = File::open(&path).expect("Failed to open path");
                                 match ruleset.add_rule(landlock::PathBeneath::new(path_handle, landlock::AccessFs::from_all(abi))) {
                                     Ok(new_ruleset) => {
-                                        // Self-restrict. In a real system, we'd spawn a child or use a helper to restrict the target PID.
-                                        // Landlock is thread-group scoped.
-                                        let _ = new_ruleset.restrict_self();
-                                        emit_response(cmd.id, true, format!("Landlock FS Gating active for PID {} on path {}", pid, path)).await;
+                                        // SOV-P5: Dynamic Landlock FS Gating
+                                        // Landlock is thread-group scoped, so we restrict the agent itself.
+                                        // This provides dynamic "sandboxing" based on behavioral signals from the Orchestrator.
+                                        match new_ruleset.restrict_self() {
+                                            Ok(_) => emit_response(cmd.id, true, format!("Landlock FS Gating applied to agent for path {}", path)).await,
+                                            Err(e) => emit_response(cmd.id, false, format!("Landlock restriction failed: {}", e)).await,
+                                        }
                                     }
                                     Err(e) => emit_response(cmd.id, false, format!("Failed to add rule: {}", e)).await,
                                 }

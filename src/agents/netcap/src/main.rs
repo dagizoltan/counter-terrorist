@@ -6,6 +6,7 @@ use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
 use std::fs::File;
 use std::io::{Write, BufWriter};
+use landlock::{RulesetAttr, ABI, Access, RulesetCreatedAttr};
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
@@ -105,6 +106,20 @@ impl PcapngWriter {
     }
 }
 
+struct ShmemWrapper(shared_memory::Shmem);
+unsafe impl Send for ShmemWrapper {}
+unsafe impl Sync for ShmemWrapper {}
+
+static SHMEM: Lazy<Option<Arc<Mutex<ShmemWrapper>>>> = Lazy::new(|| {
+    let path = format!("/dev/shm/cts_netcap_{}", std::process::id());
+    shared_memory::ShmemConf::new()
+        .size(1024 * 1024)
+        .flink(&path)
+        .create()
+        .ok()
+        .map(|s| Arc::new(Mutex::new(ShmemWrapper(s))))
+});
+
 async fn log_forensic(severity: &str, message: &str) {
     let log = serde_json::json!({
         "timestamp": Utc::now().to_rfc3339(),
@@ -114,9 +129,25 @@ async fn log_forensic(severity: &str, message: &str) {
         "message": message
     });
 
-    let mut buf = Vec::new();
-    if log.serialize(&mut rmp_serde::Serializer::new(&mut buf)).is_ok() {
-        // Shmem write would go here
+    if let Some(shmem_arc) = &*SHMEM {
+        let mut buf = Vec::with_capacity(8192);
+        if log.serialize(&mut rmp_serde::Serializer::new(&mut buf)).is_ok() {
+            let mut shmem_wrapper = shmem_arc.lock().await;
+            let slice = unsafe { shmem_wrapper.0.as_slice_mut() };
+            // SOV-P5: Stabilized Ring Buffer Access
+            let mut len_bytes = [0u8; 4];
+            len_bytes.copy_from_slice(&slice[0..4]);
+            let current_len = u32::from_le_bytes(len_bytes);
+
+            if current_len == 0 && buf.len() + 4 <= slice.len() {
+                let len = (buf.len() as u32).to_le_bytes();
+                slice[4..4+buf.len()].copy_from_slice(&buf);
+                slice[0..4].copy_from_slice(&len); // Commit
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("SHMEM_UPDATE:{}", buf.len());
+                return;
+            }
+        }
     }
 
     if let Ok(json) = serde_json::to_string(&log) {
@@ -167,6 +198,26 @@ async fn handle_netcap_command(cmd_val: serde_json::Value, capture_handle: Arc<M
         let cmd_type = cmd_val["type"].as_str().unwrap_or("");
 
         match cmd_type {
+            "ENFORCE_PID" => {
+                if let Some(path) = cmd_val["path"].as_str() {
+                    let abi = ABI::V1;
+                    match landlock::Ruleset::default()
+                        .handle_access(landlock::AccessFs::from_all(abi))
+                        .expect("Failed to handle access")
+                        .create()
+                    {
+                        Ok(ruleset) => {
+                            if let Ok(file) = File::open(path) {
+                                if let Ok(new_ruleset) = ruleset.add_rule(landlock::PathBeneath::new(file, landlock::AccessFs::from_all(abi))) {
+                                    let _ = new_ruleset.restrict_self();
+                                    log_forensic("info", &format!("Landlock FS Gating active for netcap on path {}", path)).await;
+                                }
+                            }
+                        }
+                        Err(_) => {}
+                    }
+                }
+            },
             "StartCapture" => {
                 let interface = cmd_val["payload"]["interface"].as_str().unwrap_or("eth0").to_string();
                 let filename = cmd_val["payload"]["filename"].as_str().map(|s| s.to_string());

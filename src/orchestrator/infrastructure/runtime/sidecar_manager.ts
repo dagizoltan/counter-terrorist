@@ -18,7 +18,9 @@ const ffiLib = (() => {
             "hash_file_sha256": { parameters: ["buffer", "buffer"], result: "i32" },
             "create_shmem": { parameters: ["buffer", "usize"], result: "pointer" },
             "serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
+            "deserialize_msgpack": { parameters: ["buffer", "usize"], result: "pointer" },
             "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
+            "free_string": { parameters: ["pointer"], result: "void" },
             "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" }
         });
     } catch {
@@ -53,6 +55,7 @@ export class SidecarManager implements CommandPort {
   private eventHandlers: Map<string, ((data: unknown) => void)[]> = new Map();
   private unsupportedSidecars: Set<string> = new Set();
   private trippedSidecars: Set<string> = new Set();
+  private mappedShmem: Map<string, Deno.PointerValue> = new Map();
   private expectedExits: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
   private cleanupHandler: (() => Promise<void>) | null = null;
@@ -428,15 +431,16 @@ export class SidecarManager implements CommandPort {
             });
 
     // SOV-P5: Shared Memory Data Plane Ingestion
-    if (name === "sentinel") {
+    if (name === "sentinel" || name === "netcap") {
         (async () => {
-            const shmemPath = `/dev/shm/cts_sentinel_${child.pid}`;
+            const shmemPath = `/dev/shm/cts_${name}_${child.pid}`;
             // Wait a moment for agent to create shmem
-            await new Promise(r => setTimeout(r, 500));
+            await new Promise(r => setTimeout(r, 1000));
             const pathBuf = new TextEncoder().encode(shmemPath + "\0");
             const shmemPtr = ffiLib?.symbols.create_shmem(pathBuf, 1024 * 1024);
 
             if (shmemPtr) {
+                this.mappedShmem.set(name, shmemPtr);
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.DEBUG,
@@ -538,6 +542,105 @@ export class SidecarManager implements CommandPort {
     return this.persistentProcesses.has(name) && !this.unsupportedSidecars.has(name);
   }
 
+  private handleIpcLine(name: string, trimmed: string) {
+          try {
+            // SOV-P4: Robust IPC Recursion Depth & Complexity Limiter
+            // Ignores brackets within string literals to prevent false positives.
+            const MAX_DEPTH = 8;
+            let depth = 0;
+            let maxSeenDepth = 0;
+            let inString = false;
+            let escaped = false;
+
+            for (let i = 0; i < trimmed.length; i++) {
+                const char = trimmed[i];
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+                if (char === "\\") {
+                    escaped = true;
+                    continue;
+                }
+                if (char === "\"") {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString) {
+                    if (char === "{" || char === "[") {
+                        depth++;
+                        if (depth > maxSeenDepth) maxSeenDepth = depth;
+                    } else if (char === "}" || char === "]") {
+                        depth--;
+                    }
+                }
+                if (depth > MAX_DEPTH) break;
+            }
+
+            if (depth > MAX_DEPTH || maxSeenDepth > MAX_DEPTH) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] CRITICAL: Maliciously deep JSON detected in IPC (depth=${maxSeenDepth}). Rejecting payload.`
+                });
+                return;
+            }
+
+            // SOV-06 SECURITY: Redact sensitive payloads from IPC before they are processed or logged
+            const redactedLine = this.redactor.redact(trimmed);
+            const data = JSON.parse(redactedLine) as SidecarResponse;
+
+            if (!validateResponse(name as SidecarName, data)) {
+              this.logging.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.AUDIT,
+                  severity: LogSeverity.ERROR,
+                  caller: "orchestrator:infra:runtime:sidecar_manager",
+                  message: `[${name}] Security violation: Invalid response schema. Payload: ${trimmed.substring(0, 200)}${trimmed.length > 200 ? "..." : ""}`
+              });
+              return;
+            }
+
+            if (data.id && this.responseWaiters.has(name)) {
+              const waiters = this.responseWaiters.get(name)!;
+              const waiter = waiters.get(data.id);
+              if (waiter) {
+                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
+
+                // BUG-4.22 FIX: Also emit to event handlers even if it was a direct response
+                // This ensures Autopilot/Mediator can see results of manual scans/commands
+                const handlers = this.eventHandlers.get(name) || [];
+                for (const handler of handlers) {
+                  handler(data);
+                }
+
+                waiters.delete(data.id);
+                return;
+              }
+            }
+
+            const handlers = this.eventHandlers.get(name) || [];
+            for (const handler of handlers) {
+              handler(data);
+            }
+          } catch (e) {
+            // H-08: Log malformed IPC output for forensic analysis in pilots
+            if (trimmed.length > 0) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.DEBUG,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] Malformed IPC JSON detected: ${trimmed.substring(0, 100)}${trimmed.length > 100 ? "..." : ""}`,
+                    payload: { error: (e as Error).message }
+                });
+            }
+          }
+  }
+
   private async startResponseReader(name: string, child: Deno.ChildProcess) {
     const reader = child.stdout.getReader();
     const decoder = new TextDecoder();
@@ -594,8 +697,20 @@ export class SidecarManager implements CommandPort {
 
           // SOV-P5: Shmem Update Signal
           if (trimmed.startsWith("SHMEM_UPDATE:")) {
-              // High-volume data available in shared memory.
-              // In a full implementation, we'd trigger the shmem reader here.
+              const shmemPtr = this.mappedShmem.get(name);
+              if (shmemPtr && ffiLib) {
+                  const outBuf = new Uint8Array(65536); // 64KB max event size
+                  const readLen = ffiLib.symbols.shmem_read(shmemPtr, outBuf, outBuf.length);
+                  if (readLen > 0) {
+                      const msgpackData = outBuf.slice(0, readLen);
+                      const jsonPtr = ffiLib.symbols.deserialize_msgpack(msgpackData, readLen);
+                      if (jsonPtr) {
+                          const jsonStr = Deno.UnsafePointerView.getCString(jsonPtr);
+                          ffiLib.symbols.free_string(jsonPtr);
+                          this.handleIpcLine(name, jsonStr);
+                      }
+                  }
+              }
               continue;
           }
 
@@ -619,7 +734,7 @@ export class SidecarManager implements CommandPort {
                     message: sanitizedMsg
                 });
                 // Note: We continue here if it's a pure log, but tactical events use standard JSON
-                continue; 
+                continue;
             } catch (e) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
@@ -632,102 +747,7 @@ export class SidecarManager implements CommandPort {
             }
           }
 
-          try {
-            // SOV-P4: Robust IPC Recursion Depth & Complexity Limiter
-            // Ignores brackets within string literals to prevent false positives.
-            const MAX_DEPTH = 8;
-            let depth = 0;
-            let maxSeenDepth = 0;
-            let inString = false;
-            let escaped = false;
-
-            for (let i = 0; i < trimmed.length; i++) {
-                const char = trimmed[i];
-                if (escaped) {
-                    escaped = false;
-                    continue;
-                }
-                if (char === "\\") {
-                    escaped = true;
-                    continue;
-                }
-                if (char === "\"") {
-                    inString = !inString;
-                    continue;
-                }
-
-                if (!inString) {
-                    if (char === "{" || char === "[") {
-                        depth++;
-                        if (depth > maxSeenDepth) maxSeenDepth = depth;
-                    } else if (char === "}" || char === "]") {
-                        depth--;
-                    }
-                }
-                if (depth > MAX_DEPTH) break;
-            }
-
-            if (depth > MAX_DEPTH || maxSeenDepth > MAX_DEPTH) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `[${name}] CRITICAL: Maliciously deep JSON detected in IPC (depth=${maxSeenDepth}). Rejecting payload.`
-                });
-                continue;
-            }
-
-            // SOV-06 SECURITY: Redact sensitive payloads from IPC before they are processed or logged
-            const redactedLine = this.redactor.redact(trimmed);
-            const data = JSON.parse(redactedLine) as SidecarResponse;
-
-            if (!validateResponse(name as SidecarName, data)) {
-              this.logging.log({
-                  timestamp: new Date().toISOString(),
-                  type: LogType.AUDIT,
-                  severity: LogSeverity.ERROR,
-                  caller: "orchestrator:infra:runtime:sidecar_manager",
-                  message: `[${name}] Security violation: Invalid response schema. Payload: ${trimmed.substring(0, 200)}${trimmed.length > 200 ? "..." : ""}`
-              });
-              continue;
-            }
-
-            if (data.id && this.responseWaiters.has(name)) {
-              const waiters = this.responseWaiters.get(name)!;
-              const waiter = waiters.get(data.id);
-              if (waiter) {
-                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
-
-                // BUG-4.22 FIX: Also emit to event handlers even if it was a direct response
-                // This ensures Autopilot/Mediator can see results of manual scans/commands
-                const handlers = this.eventHandlers.get(name) || [];
-                for (const handler of handlers) {
-                  handler(data);
-                }
-
-                waiters.delete(data.id);
-                continue;
-              }
-            }
-
-            const handlers = this.eventHandlers.get(name) || [];
-            for (const handler of handlers) {
-              handler(data);
-            }
-          } catch (e) {
-            // H-08: Log malformed IPC output for forensic analysis in pilots
-            if (trimmed.length > 0) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.DEBUG,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `[${name}] Malformed IPC JSON detected: ${trimmed.substring(0, 100)}${trimmed.length > 100 ? "..." : ""}`,
-                    payload: { error: (e as Error).message }
-                });
-            }
-          }
+          this.handleIpcLine(name, trimmed);
         }
       }
     } catch (e) {
@@ -840,7 +860,9 @@ export class SidecarManager implements CommandPort {
 
     const timeoutPromise = new Promise<CommandResult>((resolve) => {
       setTimeout(() => {
-        if (this.responseWaiters.has(name)) this.responseWaiters.get(name)!.delete(id);
+        if (this.responseWaiters.has(name)) this.responseWaiters.set(name, new Map());
+        const waiters = this.responseWaiters.get(name);
+        if (waiters) waiters.delete(id);
         resolve({ 
           success: false, 
           stdout: "", 

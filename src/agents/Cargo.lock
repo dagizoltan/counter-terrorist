@@ -790,6 +790,7 @@ dependencies = [
  "anyhow",
  "bytes",
  "chrono",
+ "landlock 0.3.1",
  "libc",
  "nix 0.27.1",
  "once_cell",
