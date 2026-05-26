@@ -35,6 +35,7 @@ import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_servic
 
 // Infrastructure Providers
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
+import { WormRepository } from "@domain/repositories/worm_repository.ts";
 
 export class SovereignApp {
     private services!: ServiceContainer;
@@ -220,6 +221,11 @@ export class SovereignApp {
         // REPOSITORY INJECTION
         const auditRepo = new KvAuditRepository(this.kv);
         this.auditService = new AuditService(auditRepo, loggingService, tpmManager);
+
+        // SOV-P4: Forensic WORM Mirroring
+        const wormRepo = new WormRepository();
+        this.auditService.setWormRepository(wormRepo);
+
         this.registry.register("Audit", this.auditService, ShutdownPriority.CRITICAL);
         this.auditService.setConfig(configProvider);
         const auditInitRes = await this.auditService.init();

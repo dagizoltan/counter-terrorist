@@ -6,6 +6,7 @@ import { BaseService } from "@core/base_service.ts";
 import { MerkleTree } from "@core/merkle.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { ServiceLocatorPort } from "../../core/ports.ts";
+import { WormRepository } from "../repositories/worm_repository.ts";
 
 export interface ActorContext {
     id: string;
@@ -84,6 +85,11 @@ export class AuditService extends BaseService {
     // Merkle Integration
     private currentSessionHashes: string[] = [];
     private locator?: ServiceLocatorPort;
+    private wormRepo: WormRepository | null = null;
+
+    public setWormRepository(repo: WormRepository) {
+        this.wormRepo = repo;
+    }
 
     public setLocator(locator: ServiceLocatorPort) {
         this.locator = locator;
@@ -235,6 +241,23 @@ export class AuditService extends BaseService {
     private isCommittingMerkle = false;
     private async commitMerkleRoot() {
         if (this.currentSessionHashes.length === 0 || this.isCommittingMerkle) return;
+
+        // SEC-03: PCR-Sealed Ledger logic.
+        // We only commit a Merkle root if the hardware integrity is verified.
+        if (this.tpm) {
+            const isHealthy = await this.tpm.verifyIntegrity();
+            if (!isHealthy) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "AUDIT:MERKLE",
+                    message: "CRITICAL: Merkle commitment blocked. Hardware integrity (PCR) violation detected."
+                });
+                return;
+            }
+        }
+
         this.isCommittingMerkle = true;
 
         // SOV-06 FIX: Optimized Queue-Swap Pattern
@@ -508,6 +531,18 @@ export class AuditService extends BaseService {
 
                         if (this.correlation) {
                             this.correlation.processEvent(auditEvent).catch(() => {});
+                        }
+
+                        if (this.wormRepo && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT" || auditEvent.type === "MERKLE_COMMIT")) {
+                            await this.wormRepo.append(auditEvent).catch(e => {
+                                this.logging.log({
+                                    timestamp: new Date().toISOString(),
+                                    type: LogType.GENERIC,
+                                    severity: LogSeverity.ERROR,
+                                    caller: "AUDIT:WORM",
+                                    message: `Failed to mirror log to WORM persistence: ${e.message}`
+                                });
+                            });
                         }
 
                         if (this.auditBuffer.length >= 100 || this.state === SystemState.FORENSIC_RESTRICTED) {

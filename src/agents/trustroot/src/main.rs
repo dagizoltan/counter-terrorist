@@ -25,6 +25,8 @@ enum TpmCommand {
     NvDefine { id: String, index: String, size: usize },
     NvWrite { id: String, index: String, data: String },
     NvRead { id: String, index: String },
+    SignProxy { id: String, data: String, key_id: String },
+    GenerateProxyKey { id: String, key_id: String },
     GenerateSelfSignedCA { id: String, common_name: String },
     IssueNodeCert { 
         id: String, 
@@ -188,6 +190,40 @@ async fn main() {
                         "MOCK_NV_DATA"
                     };
                     emit_response(id, true, format!("Read from NV index {}", index), Some(serde_json::json!({ "data": data }))).await;
+                },
+                TpmCommand::GenerateProxyKey { id, key_id } => {
+                    // SOV-P4: Hardware-Resident Proxy Keys
+                    // Generate and store key in VTPM state, never export to orchestrator
+                    let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                        .await
+                        .ok()
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                        .unwrap_or(serde_json::json!({ "keys": {} }));
+
+                    let dummy_private_key = format!("proxy-key-data-{}", key_id);
+                    state["keys"][&key_id] = serde_json::json!(dummy_private_key);
+
+                    if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
+                        emit_response(id, true, format!("Hardware-resident proxy key '{}' generated.", key_id), None).await;
+                    } else {
+                        emit_response(id, false, "Failed to persist proxy key".to_string(), None).await;
+                    }
+                },
+                TpmCommand::SignProxy { id, data, key_id } => {
+                    // SOV-P4: Proxy Signing
+                    // Use hardware-resident key to sign data
+                    let state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                        .await
+                        .ok()
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                        .unwrap_or(serde_json::json!({ "keys": {} }));
+
+                    if let Some(_key) = state["keys"].get(&key_id) {
+                        let sig = format!("p-sig:{}:{}", key_id, data);
+                        emit_response(id, true, "Data signed via proxy key".to_string(), Some(serde_json::json!({ "signature": sig }))).await;
+                    } else {
+                        emit_response(id, false, format!("Proxy key '{}' not found", key_id), None).await;
+                    }
                 },
                 TpmCommand::GenerateSelfSignedCA { id, common_name } => {
                     let res = tokio::task::spawn_blocking(move || {

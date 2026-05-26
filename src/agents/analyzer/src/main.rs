@@ -12,6 +12,10 @@ use chrono::Utc;
 use sha2::{Sha256, Digest};
 use lru::LruCache;
 use parking_lot::Mutex;
+use landlock::{
+    Access, AccessFs, Ruleset, RulesetAttr, RulesetStatus,
+    ABI, PathBeneath, PathFd, RulesetCreatedAttr,
+};
 
 static STDOUT_LOCK: Lazy<Arc<AsyncMutex<()>>> = Lazy::new(|| Arc::new(AsyncMutex::new(())));
 
@@ -232,6 +236,48 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     log_forensic("info", "Sovereign Multi-Vector Scanner Engine Active").await;
+
+    // SOV-P4: Linux Landlock Hardening
+    // We restrict the scanner to only its required volumes and system directories.
+    #[cfg(target_os = "linux")]
+    {
+        let abi = ABI::V1;
+        let access_all = AccessFs::from_all(abi);
+        let access_read = AccessFs::from_read(abi);
+
+        let mut ruleset = Ruleset::default()
+            .handle_access(access_all)?
+            .create()?;
+
+        let paths = vec![
+            ("/proc", access_all),
+            ("/sys", access_all),
+            ("/etc", access_read),
+            ("/usr", access_read),
+            ("/bin", access_read),
+            ("/lib", access_read),
+            ("/lib64", access_read),
+            ("/var/lib/cts", access_all),
+            ("./volume", access_all),
+            ("/tmp", access_all),
+        ];
+
+        for (path, access) in paths {
+            if Path::new(path).exists() {
+                if let Ok(fd) = PathFd::new(path) {
+                    ruleset = ruleset.add_rule(PathBeneath::new(fd, access))?;
+                }
+            }
+        }
+
+        let status = ruleset.restrict_self()?;
+
+        match status.ruleset {
+            RulesetStatus::FullyEnforced => log_forensic("info", "Landlock security policy fully enforced.").await,
+            RulesetStatus::PartiallyEnforced => log_forensic("warning", "Landlock security policy partially enforced.").await,
+            RulesetStatus::NotEnforced => log_forensic("warning", "Landlock security policy not enforced (Kernel too old).").await,
+        }
+    }
 
     // Periodic Cache Eviction Task
     tokio::spawn(async move {

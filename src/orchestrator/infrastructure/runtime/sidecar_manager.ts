@@ -568,6 +568,51 @@ export class SidecarManager implements CommandPort {
           }
 
           try {
+            // SOV-P4: Robust IPC Recursion Depth & Complexity Limiter
+            // Ignores brackets within string literals to prevent false positives.
+            const MAX_DEPTH = 8;
+            let depth = 0;
+            let maxSeenDepth = 0;
+            let inString = false;
+            let escaped = false;
+
+            for (let i = 0; i < trimmed.length; i++) {
+                const char = trimmed[i];
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+                if (char === "\\") {
+                    escaped = true;
+                    continue;
+                }
+                if (char === "\"") {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString) {
+                    if (char === "{" || char === "[") {
+                        depth++;
+                        if (depth > maxSeenDepth) maxSeenDepth = depth;
+                    } else if (char === "}" || char === "]") {
+                        depth--;
+                    }
+                }
+                if (depth > MAX_DEPTH) break;
+            }
+
+            if (depth > MAX_DEPTH || maxSeenDepth > MAX_DEPTH) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] CRITICAL: Maliciously deep JSON detected in IPC (depth=${maxSeenDepth}). Rejecting payload.`
+                });
+                continue;
+            }
+
             // SOV-06 SECURITY: Redact sensitive payloads from IPC before they are processed or logged
             const redactedLine = this.redactor.redact(trimmed);
             const data = JSON.parse(redactedLine) as SidecarResponse;

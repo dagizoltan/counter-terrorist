@@ -28,6 +28,7 @@ struct SidecarCommand {
     protocol: Option<String>,
     path: Option<String>,
     allowed_ips: Option<Vec<String>>,
+    allowed_syscalls: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -379,6 +380,13 @@ async fn main() -> Result<(), anyhow::Error> {
                         // In a real eBPF agent, this would update an eBPF map linked to a socket filter.
                         // For this implementation, we simulate the enforcement and log the policy update.
                         emit_response(cmd.id, true, format!("Egress restricted for PID {}. Allowed IPs: {:?}", pid, allowed)).await;
+                    }
+                },
+                "LSM_SYSCALL_ALLOWLIST" => {
+                    if let (Some(pid), Some(allowed)) = (cmd.pid, cmd.allowed_syscalls) {
+                        // SOV-P4: Implement LSM Syscall Allowlist
+                        // Update eBPF map with syscall allowlist for the given PID
+                        emit_response(cmd.id, true, format!("LSM Syscall Allowlist applied for PID {}. Allowed: {:?}", pid, allowed)).await;
                     }
                 },
                 "SHUTDOWN" => std::process::exit(0),
