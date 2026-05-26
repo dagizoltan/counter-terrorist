@@ -153,6 +153,13 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
             }
         }
+        if let Some(prog) = bpf.program_mut("bprm_check_security") {
+            if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
+                if let Ok(_) = lsm_prog.load("bprm_check_security", btf) {
+                    let _ = lsm_prog.attach();
+                }
+            }
+        }
     }
 
     // Handle Perf Events
@@ -384,9 +391,35 @@ async fn main() -> Result<(), anyhow::Error> {
                 },
                 "LSM_SYSCALL_ALLOWLIST" => {
                     if let (Some(pid), Some(allowed)) = (cmd.pid, cmd.allowed_syscalls) {
-                        // SOV-P4: Implement LSM Syscall Allowlist
-                        // Update eBPF map with syscall allowlist for the given PID
-                        emit_response(cmd.id, true, format!("LSM Syscall Allowlist applied for PID {}. Allowed: {:?}", pid, allowed)).await;
+                        if let Ok(mut m) = aya::maps::LruHashMap::<_, (u32, u32), u8>::try_from(bpf_ref.map_mut("SYSCALL_ALLOWLIST").unwrap()) {
+                            // Clear existing or just add? Usually we want to set the full list.
+                            // LruHashMap doesn't have an easy clear, so we just add.
+                            for syscall_str in allowed {
+                                let syscall_id = match syscall_str.as_str() {
+                                    "ptrace" => if cfg!(target_arch = "aarch64") { 117 } else { 101 },
+                                    "mmap" => if cfg!(target_arch = "aarch64") { 222 } else { 9 },
+                                    "execve" => if cfg!(target_arch = "aarch64") { 221 } else { 59 },
+                                    "connect" => if cfg!(target_arch = "aarch64") { 203 } else { 42 },
+                                    "openat" => if cfg!(target_arch = "aarch64") { 56 } else { 257 },
+                                    "open" => if cfg!(target_arch = "aarch64") { 1024 } else { 2 },
+                                    "read" => if cfg!(target_arch = "aarch64") { 63 } else { 0 },
+                                    "write" => if cfg!(target_arch = "aarch64") { 64 } else { 1 },
+                                    "close" => if cfg!(target_arch = "aarch64") { 57 } else { 3 },
+                                    _ => syscall_str.parse::<u32>().unwrap_or(0),
+                                };
+                                if syscall_id > 0 {
+                                    let _ = m.insert((pid, syscall_id), 1, 0);
+                                }
+                            }
+
+                            // Also ensure ENFORCEMENT_POLICY bit 16 is set for this PID
+                            if let Ok(mut policy_map) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                                let current = policy_map.get(&pid, 0).unwrap_or(0);
+                                let _ = policy_map.insert(pid, current | 0x10000, 0);
+                            }
+
+                            emit_response(cmd.id, true, format!("Adaptive LSM Policy applied for PID {}.", pid)).await;
+                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
                     }
                 },
                 "SHUTDOWN" => std::process::exit(0),

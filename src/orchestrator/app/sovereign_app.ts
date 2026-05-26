@@ -641,7 +641,11 @@ export class SovereignApp {
         health.registerService("lifecycle", lifecycle);
         health.registerService("policy", policy);
 
-        const integrity = factory.createService(health, "Integrity", () => new IntegrityService(mesh, this.auditService, tpm, loggingService));
+        const integrity = factory.createService(health, "Integrity", () => {
+            const service = new IntegrityService(mesh, this.auditService, tpm, loggingService);
+            service.setSidecarManager(this.sidecarManager as any);
+            return service;
+        });
         this.registry.register("Integrity", integrity, ShutdownPriority.CRITICAL);
 
         const morphing = factory.createService(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));

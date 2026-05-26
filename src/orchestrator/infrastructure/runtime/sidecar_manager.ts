@@ -334,15 +334,14 @@ export class SidecarManager implements CommandPort {
 
             const env = await this.getSidecarEnv(name);
 
-            // Active Safety: Implement Resource Throttling for Pilots
-            // On Linux, we attempt to use systemd-run for CPU/Memory constraints if running as root
-            const isPilot = this.config?.getBoolean("PILOT_MODE", false);
+            // Active Safety: Implement Cgroups v2 Resource Isolation for All Sidecars
+            // On Linux, we use systemd-run for CPU/Memory constraints if running as root.
             const isLinux = Deno.build.os === "linux";
             let finalExec = execPath;
             let finalArgs: string[] = [];
 
-            if (isPilot && isLinux && Deno.uid() === 0) {
-                // Constraints: 25% CPU, 512MB RAM
+            if (isLinux && Deno.uid() === 0) {
+                // Standard Constraints: 25% CPU, 512MB RAM
                 finalExec = "systemd-run";
                 finalArgs = [
                     "--scope",
@@ -357,7 +356,7 @@ export class SidecarManager implements CommandPort {
                     type: LogType.DEBUG,
                     severity: LogSeverity.INFO,
                     caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `Resource Throttling active for ${name} (CPU: 25%, MEM: 512MB)`
+                    message: `Resource Throttling (Cgroups v2) active for ${name} (CPU: 25%, MEM: 512MB)`
                 });
             }
 
@@ -845,6 +844,18 @@ export class SidecarManager implements CommandPort {
   getPID(name: string): number | null {
     const process = this.persistentProcesses.get(name);
     return process ? process.pid : null;
+  }
+
+  /**
+   * SOV-P4: External trigger for integrity verification and healing.
+   */
+  async triggerHeal(name: string): Promise<boolean> {
+      const config = SIDECAR_REGISTRY[name];
+      const isDev = this.config?.getBoolean("CTS_DEV_MODE", false);
+      const binPath = isDev ? await this.findBinary(name) : `/var/lib/cts/bin/${name}`;
+
+      if (!binPath) return false;
+      return await this.verifyAndHeal(name, binPath, true);
   }
 
   getTrippedSidecars(): string[] {

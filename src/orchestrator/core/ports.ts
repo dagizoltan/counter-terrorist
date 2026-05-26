@@ -226,6 +226,7 @@ export interface TpmPort {
   issueNodeCert(nodeId: string, caCert?: string, caKey?: string): Promise<CommandResult>;
   generateProxyKey(keyId: string): Promise<CommandResult>;
   signProxy(keyId: string, data: string): Promise<CommandResult>;
+  wipeSecrets(): Promise<CommandResult>;
 }
 
 export interface NotificationPayload {

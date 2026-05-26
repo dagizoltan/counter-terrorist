@@ -1,6 +1,6 @@
 import { MeshManager } from "../orchestration/mesh.ts";
 import { AuditService } from "./audit.ts";
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { TPMManager } from "../../infrastructure/system/protection/tpm/tpm_manager.ts";
 
 import { BaseService } from "@core/base_service.ts";
@@ -8,10 +8,11 @@ import { Result, ok } from "@core/result.ts";
 
 /**
  * IntegrityService
- * Implements the "Dead Man's Switch" - autonomous self-destruct for isolated, compromised nodes.
+ * Implements the "Dead Man's Switch" and "Self-Healing Filesystem".
  */
 export class IntegrityService extends BaseService {
     private checkIntervalId?: number;
+    private sidecarManager?: CommandPort & { triggerHeal(name: string): Promise<boolean> };
 
     constructor(
         private mesh: MeshManager,
@@ -43,7 +44,29 @@ export class IntegrityService extends BaseService {
         return ok(undefined);
     }
 
+    public setSidecarManager(sm: CommandPort & { triggerHeal(name: string): Promise<boolean> }) {
+        this.sidecarManager = sm;
+    }
+
     private async checkIntegrity() {
+        // 1. SELF-HEALING: Verify and heal sidecar binaries
+        if (this.sidecarManager) {
+            const sidecars = ["analyzer", "sentinel", "netcap", "enforcer", "watchfile"];
+            for (const s of sidecars) {
+                const healed = await this.sidecarManager.triggerHeal(s);
+                if (!healed) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "INTEGRITY",
+                        message: `Binary integrity mismatch for agent ${s}. Automated healing failed!`
+                    });
+                }
+            }
+        }
+
+        // 2. DEAD MAN'S SWITCH logic
         const isIsolated = this.mesh.getActiveNodeCount() === 0;
 
         // BUG-4.17 FIX: Make self-destruct less trigger-happy.
@@ -85,7 +108,7 @@ export class IntegrityService extends BaseService {
         }
 
         // 2. Clear TPM state
-        // await this.tpm.clearSecrets();
+        await this.tpm.wipeSecrets().catch(() => {});
 
         // 3. One final dying breath via covert channel (if possible)
         this.logging.log({

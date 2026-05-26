@@ -44,6 +44,9 @@ static mut FIREWALL_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(8, 0);
 #[map]
 static mut ENFORCEMENT_POLICY: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0); // Key: PID, Value: Policy flags (1=BlockAll, 2=NetBlock, 4=FileBlock, 8=MountBlock)
 
+#[map]
+static mut SYSCALL_ALLOWLIST: LruHashMap<(u32, u32), u8> = LruHashMap::with_max_entries(4096, 0);
+
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
     match try_xdp_ingress(&ctx) {
@@ -307,6 +310,14 @@ pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
         if (*policy & 4) != 0 || (*policy & 1) != 0 {
             return -1; // EPERM
         }
+
+        // Adaptive: If bit 16 is set, check syscall allowlist (e.g. 257 for openat)
+        if (*policy & 0x10000) != 0 {
+            if unsafe { SYSCALL_ALLOWLIST.get(&(pid, 257)) }.is_none() &&
+               unsafe { SYSCALL_ALLOWLIST.get(&(pid, 2)) }.is_none() {
+                return -1;
+            }
+        }
     }
     0
 }
@@ -317,6 +328,31 @@ pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 2) != 0 || (*policy & 1) != 0 {
             return -1; // EPERM
+        }
+
+        // Adaptive: If bit 16 is set, check syscall allowlist (42 for connect)
+        if (*policy & 0x10000) != 0 {
+            if unsafe { SYSCALL_ALLOWLIST.get(&(pid, 42)) }.is_none() {
+                return -1;
+            }
+        }
+    }
+    0
+}
+
+#[aya_ebpf::macros::lsm]
+pub fn bprm_check_security(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
+        if (*policy & 1) != 0 {
+            return -1;
+        }
+
+        // Adaptive: If bit 16 is set, check syscall allowlist (59 for execve)
+        if (*policy & 0x10000) != 0 {
+            if unsafe { SYSCALL_ALLOWLIST.get(&(pid, 59)) }.is_none() {
+                return -1;
+            }
         }
     }
     0

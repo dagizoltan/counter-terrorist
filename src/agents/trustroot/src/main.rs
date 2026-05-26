@@ -20,6 +20,7 @@ enum TpmCommand {
     Unseal { id: String, index: String },
     Sign { id: String, data: String },
     QuoteIdentity { id: String, nonce: String }, // NEW: Hardware-Rooted Identity Quote
+    WipeSecrets { id: String }, // SOV-P4: Hardware Panic Switch ("Nuclear Option")
     Verify { id: String, data: String, signature: String },
     GetPcrs { id: String, indices: Vec<u32> },
     NvDefine { id: String, index: String, size: usize },
@@ -160,6 +161,15 @@ async fn main() {
                         "attestation_key_id": "VAIK_01"
                     });
                     emit_response(id, true, "Virtual Hardware-Rooted Identity Quote generated.".to_string(), Some(data)).await;
+                },
+                TpmCommand::WipeSecrets { id } => {
+                    // SOV-P4: Hardware Panic Switch
+                    // Irrevocably clear the virtual TPM state file.
+                    if tokio::fs::remove_file(state_path).await.is_ok() {
+                        emit_response(id, true, "NUCLEAR OPTION ENGAGED: All hardware-anchored secrets and keys irrevocably wiped.".to_string(), None).await;
+                    } else {
+                        emit_response(id, false, "Failed to wipe hardware state".to_string(), None).await;
+                    }
                 },
                 TpmCommand::Sign { id, data } => {
                     emit_response(id, true, "Signed (Virtual)".to_string(), Some(serde_json::json!({ "sig": format!("v-sig:{}", data) }))).await;

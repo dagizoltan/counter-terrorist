@@ -73,5 +73,34 @@ export const handlerFactory = (services: ServiceContainer) => async (c: Context)
       }
   }
 
+  // SOV-P4: Differential Merkle Catch-Up Handler
+  if (payload.type === "MERKLE_CATCH_UP") {
+      const { lastKnownHash } = payload;
+      const events = await services.audit.getEventsInRange(lastKnownHash, 100);
+
+      if (events.length > 0) {
+          const lastEvent = events[events.length - 1];
+          const proof = await services.audit.getMerkleProof(lastEvent.hash);
+
+          return c.json({
+              success: true,
+              events,
+              proof
+          });
+      } else {
+          // If we can't find the hash or it's up to date, check if they are way behind
+          const status = await services.audit.getChainStatus();
+          if (status.lastHash !== lastKnownHash) {
+              return c.json({ success: true, full_sync_required: true });
+          }
+          return c.json({ success: true, events: [] });
+      }
+  }
+
+  if (payload.type === "FETCH_STATE") {
+      const snapshot = await services.mesh.getLocalStateSnapshot();
+      return c.json({ success: true, kv_snapshot: snapshot.kv_snapshot });
+  }
+
   return c.json({ success: true });
 };
