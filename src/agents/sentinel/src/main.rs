@@ -9,7 +9,7 @@ use aya::Bpf;
 use aya::maps::PerfEventArray;
 use aya::programs::{KProbe, SchedClassifier, TcAttachType, Lsm};
 use aya::{include_bytes_aligned, Btf};
-use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr, SyscallAllowKey};
 use zerocopy::FromBytes;
 use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
@@ -391,9 +391,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 },
                 "LSM_SYSCALL_ALLOWLIST" => {
                     if let (Some(pid), Some(allowed)) = (cmd.pid, cmd.allowed_syscalls) {
-                        if let Ok(mut m) = aya::maps::LruHashMap::<_, (u32, u32), u8>::try_from(bpf_ref.map_mut("SYSCALL_ALLOWLIST").unwrap()) {
-                            // Clear existing or just add? Usually we want to set the full list.
-                            // LruHashMap doesn't have an easy clear, so we just add.
+                        if let Ok(mut m) = aya::maps::HashMap::<_, SyscallAllowKey, u8>::try_from(bpf_ref.map_mut("SYSCALL_ALLOWLIST").expect("SYSCALL_ALLOWLIST not found")) {
                             for syscall_str in allowed {
                                 let syscall_id = match syscall_str.as_str() {
                                     "ptrace" => if cfg!(target_arch = "aarch64") { 117 } else { 101 },
@@ -408,7 +406,7 @@ async fn main() -> Result<(), anyhow::Error> {
                                     _ => syscall_str.parse::<u32>().unwrap_or(0),
                                 };
                                 if syscall_id > 0 {
-                                    let _ = m.insert((pid, syscall_id), 1, 0);
+                                    let _ = m.insert(SyscallAllowKey { pid, syscall_id }, 1u8, 0);
                                 }
                             }
 

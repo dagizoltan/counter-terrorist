@@ -8,7 +8,7 @@ use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
 };
 
-use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, IpV6Addr};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, IpV6Addr, SyscallAllowKey};
 use core::mem;
 
 const TC_ACT_OK: i32 = 0;
@@ -45,7 +45,7 @@ static mut FIREWALL_CONFIG: HashMap<u32, u32> = HashMap::with_max_entries(8, 0);
 static mut ENFORCEMENT_POLICY: HashMap<u32, u32> = HashMap::with_max_entries(1024, 0); // Key: PID, Value: Policy flags (1=BlockAll, 2=NetBlock, 4=FileBlock, 8=MountBlock)
 
 #[map]
-static mut SYSCALL_ALLOWLIST: LruHashMap<(u32, u32), u8> = LruHashMap::with_max_entries(4096, 0);
+static mut SYSCALL_ALLOWLIST: LruHashMap<SyscallAllowKey, u8> = LruHashMap::with_max_entries(4096, 0);
 
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
@@ -313,8 +313,8 @@ pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
 
         // Adaptive: If bit 16 is set, check syscall allowlist (e.g. 257 for openat)
         if (*policy & 0x10000) != 0 {
-            if unsafe { SYSCALL_ALLOWLIST.get(&(pid, 257)) }.is_none() &&
-               unsafe { SYSCALL_ALLOWLIST.get(&(pid, 2)) }.is_none() {
+            if unsafe { SYSCALL_ALLOWLIST.get(&SyscallAllowKey { pid, syscall_id: 257 }) }.is_none() &&
+               unsafe { SYSCALL_ALLOWLIST.get(&SyscallAllowKey { pid, syscall_id: 2 }) }.is_none() {
                 return -1;
             }
         }
@@ -332,7 +332,7 @@ pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
 
         // Adaptive: If bit 16 is set, check syscall allowlist (42 for connect)
         if (*policy & 0x10000) != 0 {
-            if unsafe { SYSCALL_ALLOWLIST.get(&(pid, 42)) }.is_none() {
+            if unsafe { SYSCALL_ALLOWLIST.get(&SyscallAllowKey { pid, syscall_id: 42 }) }.is_none() {
                 return -1;
             }
         }
@@ -350,7 +350,7 @@ pub fn bprm_check_security(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
 
         // Adaptive: If bit 16 is set, check syscall allowlist (59 for execve)
         if (*policy & 0x10000) != 0 {
-            if unsafe { SYSCALL_ALLOWLIST.get(&(pid, 59)) }.is_none() {
+            if unsafe { SYSCALL_ALLOWLIST.get(&SyscallAllowKey { pid, syscall_id: 59 }) }.is_none() {
                 return -1;
             }
         }

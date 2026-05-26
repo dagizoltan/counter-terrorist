@@ -9,6 +9,7 @@ import { AuditService } from "../analysis/audit.ts";
 import { z } from "zod";
 import { ServiceLocatorPort } from "../../core/ports.ts";
 import { MeshChaosEngine } from "./chaos_engine.ts";
+import { BloomFilter } from "../../core/cache.ts";
 
 export const MeshNodeSchema = z.object({
   id: z.string(),
@@ -35,6 +36,7 @@ export class MeshManager extends BaseService {
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   private locator?: ServiceLocatorPort;
   private chaosEngine: MeshChaosEngine;
+  private gossipCache: BloomFilter = new BloomFilter(10000, 4);
 
   public setLocator(locator: ServiceLocatorPort) {
     this.locator = locator;
@@ -550,6 +552,14 @@ export class MeshManager extends BaseService {
 
   async broadcast(payload: Record<string, unknown>, priority: boolean = false): Promise<Result<void>> {
     this.ensureReady();
+
+    // SOV-P5: Gossip Deduplication via Bloom Filter
+    const payloadHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(payload)))
+        .then(b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''));
+
+    if (this.gossipCache.has(payloadHash)) return ok(undefined);
+    this.gossipCache.add(payloadHash);
+
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => {
         if (!n.verified) return false;
         if (this.chaosEngine.shouldPartition(n.id)) return false;

@@ -8,9 +8,52 @@ export class MerkleTree {
     private tree: string[][] = [];
     private initPromise: Promise<void>;
 
-    constructor(leaves: string[]) {
+    constructor(leaves: string[] = []) {
         this.leaves = leaves;
         this.initPromise = this.buildTree();
+    }
+
+    /**
+     * SOV-P5: Support incremental leaf addition for O(log N) updates.
+     */
+    public async addLeaf(leaf: string): Promise<string> {
+        await this.initPromise;
+        this.leaves.push(leaf);
+
+        if (this.tree.length === 0 || this.tree[0][0] === "EMPTY") {
+            this.tree = [[leaf]];
+            return leaf;
+        }
+
+        this.tree[0] = this.leaves;
+        let currentIndex = this.leaves.length - 1;
+        let currentHash = leaf;
+
+        for (let i = 0; i < this.tree.length - 1; i++) {
+            const level = this.tree[i];
+            const isRight = currentIndex % 2 === 1;
+            const left = isRight ? level[currentIndex - 1] : currentHash;
+            const right = isRight ? currentHash : left; // Simplified logic for incremental build
+
+            currentHash = await MerkleTree.hashPair(left, right);
+            currentIndex = Math.floor(currentIndex / 2);
+
+            if (this.tree[i + 1]) {
+                this.tree[i + 1][currentIndex] = currentHash;
+            } else {
+                this.tree.push([currentHash]);
+            }
+        }
+
+        // Handle case where we need a new root level
+        if (this.tree[this.tree.length - 1].length > 1) {
+            const lastLevel = this.tree[this.tree.length - 1];
+            const left = lastLevel[0];
+            const right = lastLevel[1];
+            this.tree.push([await MerkleTree.hashPair(left, right)]);
+        }
+
+        return await this.getRoot();
     }
 
     public async waitReady(): Promise<void> {

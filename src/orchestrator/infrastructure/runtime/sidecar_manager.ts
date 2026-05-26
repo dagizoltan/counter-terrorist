@@ -8,6 +8,20 @@ import { CircuitBreaker } from "@core/utils/resilience.ts";
 
 import { CommandPort } from "@core/ports.ts";
 
+// SOV-P5: Native Security Primitives via Deno FFI
+const ffiLib = (() => {
+    try {
+        const isLinux = Deno.build.os === "linux";
+        const suffix = isLinux ? "so" : "dylib";
+        const libPath = `./src/agents/target/release/libcts_sec.${suffix}`;
+        return Deno.dlopen(libPath, {
+            "hash_file_sha256": { parameters: ["buffer", "buffer"], result: "i32" }
+        });
+    } catch {
+        return null;
+    }
+})();
+
 interface SidecarManifest {
     sidecars: Record<string, { hash: string }>;
     signature?: string;
@@ -962,8 +976,18 @@ export class SidecarManager implements CommandPort {
   }
 
   private async calculateHash(path: string): Promise<string | null> {
+    // SOV-P5: Optimized hashing via Native FFI
+    if (ffiLib) {
+        const out = new Uint8Array(32);
+        const pathEncoded = new TextEncoder().encode(path + "\0");
+        const res = ffiLib.symbols.hash_file_sha256(pathEncoded, out);
+        if (res === 0) {
+            return Array.from(out).map(b => b.toString(16).padStart(2, "0")).join("");
+        }
+    }
+
     try {
-        // SOV-03: Use streaming sha256sum for performance and OOM prevention
+        // Fallback to subprocess if FFI unavailable or fails
         const res = await this.executor.execute("sha256sum", [path]);
         if (res.success && res.stdout) {
             return res.stdout.split(" ")[0].trim();

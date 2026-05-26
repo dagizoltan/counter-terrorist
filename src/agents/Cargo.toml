@@ -8,6 +8,7 @@ members = [
     "watchfile",
     "trustroot", "tunnel",
     "sentinel-darwin", "telemetry-win", "enforcer-win",
+    "cts_sec",
 ]
 
 [workspace.dependencies]
