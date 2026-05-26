@@ -101,6 +101,35 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
   }
 
   /**
+   * SOV-P4: TPM-Resident Mode
+   * Generates a node cert but keeps the key in hardware (via trustroot proxy).
+   */
+  async generateProxyNodeCert(nodeId: string): Promise<Result<{ cert: string }>> {
+      if (!this.tpm) return err(new Error("TPM required for proxy node cert"));
+
+      // 1. Ensure hardware key exists for this node
+      const keyId = `node-key-${nodeId}`;
+      await this.tpm.generateProxyKey(keyId);
+
+      // 2. Issue cert chained to Root CA (key remains in TPM)
+      const res = await this.generateNodeCert(nodeId);
+      if (!res.success) return res;
+
+      return ok({ cert: res.data.cert });
+  }
+
+  async signWithNodeKey(nodeId: string, data: string): Promise<Result<string>> {
+      if (!this.tpm) return err(new Error("TPM required for proxy signing"));
+      const keyId = `node-key-${nodeId}`;
+      const res = await this.tpm.signProxy(keyId, data);
+
+      if (res.success && res.data?.signature) {
+          return ok(res.data.signature);
+      }
+      return err(new Error(`Proxy signing failed: ${res.stderr}`));
+  }
+
+  /**
    * BUG-07: Returns both current and previous (if any) Root CAs for dual-trust handshakes.
    */
   async getTrustedCerts(): Promise<string[]> {
@@ -149,6 +178,7 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
 
         if (entry.value) {
           const decrypted = await this.decryptCertPair(entry.value);
+          // SOV-P4: In TPM-resident mode, the key might be empty (proxy-based)
           if (decrypted) return ok(decrypted);
         }
 

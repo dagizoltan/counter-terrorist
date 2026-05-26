@@ -253,6 +253,21 @@ export class TPMManager implements TpmPort {
         });
     }
 
+    async generateProxyKey(keyId: string) {
+        return await this.sidecar.sendCommand("trustroot", {
+            type: "GenerateProxyKey",
+            key_id: keyId
+        });
+    }
+
+    async signProxy(keyId: string, data: string) {
+        return await this.sidecar.sendCommand("trustroot", {
+            type: "SignProxy",
+            key_id: keyId,
+            data
+        });
+    }
+
     /**
      * Seals the current PCR state into TPM NVRAM as the 'Golden' baseline.
      */

@@ -68,6 +68,37 @@ export class KernelService extends BaseService {
     }
 
     async start(): Promise<Result<void>> {
+        // SOV-P4: Orchestrator eBPF Policy Hardening
+        // Deploy a "Default Deny" syscall policy for the Orchestrator itself.
+        if (Deno.build.os === "linux") {
+            const selfPid = Deno.pid;
+            const allowlist = [
+                "read", "write", "open", "close", "fstat", "mmap", "munmap", "brk",
+                "rt_sigaction", "rt_sigprocmask", "rt_sigreturn", "ioctl", "pread64",
+                "pwrite64", "access", "pipe", "select", "sched_yield", "mremap",
+                "getpid", "getuid", "getgid", "setuid", "setgid", "geteuid", "getegid",
+                "socket", "connect", "accept", "sendto", "recvfrom", "setsockopt",
+                "getsockopt", "shutdown", "bind", "listen", "getsockname", "getpeername",
+                "clone", "execve", "wait4", "kill", "fcntl", "flock", "fsync",
+                "getdents", "getcwd", "chdir", "rename", "mkdir", "rmdir", "unlink",
+                "chmod", "chown", "lchown", "utime", "capget", "capset", "prctl"
+            ];
+
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "KERNEL:LSM",
+                message: `Applying eBPF Default Deny policy for Orchestrator (PID ${selfPid})...`
+            });
+
+            await this.sidecarManager.sendCommand("sentinel", {
+                type: "LSM_SYSCALL_ALLOWLIST",
+                pid: selfPid,
+                allowed_syscalls: allowlist
+            });
+        }
+
         const params = [
             "net.ipv4.conf.all.rp_filter=1",
             "net.ipv4.conf.default.rp_filter=1",

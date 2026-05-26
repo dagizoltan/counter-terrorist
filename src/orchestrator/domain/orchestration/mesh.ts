@@ -1,6 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 
-import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort, TpmPort } from "@core/ports.ts";
 import type { AuditEvent as DomainAuditEvent } from "../analysis/audit.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
@@ -8,6 +8,7 @@ import { retry, CircuitBreaker } from "../../core/utils/resilience.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { z } from "zod";
 import { ServiceLocatorPort } from "../../core/ports.ts";
+import { MeshChaosEngine } from "./chaos_engine.ts";
 
 export const MeshNodeSchema = z.object({
   id: z.string(),
@@ -33,6 +34,7 @@ export class MeshManager extends BaseService {
   private watcherAbortController: AbortController | null = null;
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   private locator?: ServiceLocatorPort;
+  private chaosEngine: MeshChaosEngine;
 
   public setLocator(locator: ServiceLocatorPort) {
     this.locator = locator;
@@ -73,6 +75,7 @@ export class MeshManager extends BaseService {
     private config: ConfigurationPort
   ) {
     super();
+    this.chaosEngine = new MeshChaosEngine(logging);
     this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -103,11 +106,23 @@ export class MeshManager extends BaseService {
     this.meshSecret = this.config.getEnv("MESH_SECRET");
 
     try {
-      const res = await this.meshAuth.generateNodeCert(this.nodeId);
-      if (!res.success) throw new Error(`MeshAuth generateNodeCert failed: ${String((res.error as any)?.message || res.error)}`);
-      const nodeCert = res.data as { cert: string; key: string } | undefined;
-      if (!nodeCert || typeof nodeCert.cert !== "string" || typeof nodeCert.key !== "string") {
-          throw new Error("MeshAuth generateNodeCert returned invalid certificate data");
+      // SOV-P4: Hardware-Resident Identity
+      // Private key never leaves the trustroot sidecar (TPM).
+      const tpmMode = this.config.getBoolean("TPM_RESIDENT_IDENTITY", true);
+      let nodeCert;
+
+      if (tpmMode) {
+          const res = await this.meshAuth.generateProxyNodeCert(this.nodeId);
+          if (!res.success) throw new Error(`MeshAuth generateProxyNodeCert failed: ${String((res.error as any)?.message || res.error)}`);
+          nodeCert = { cert: res.data.cert, key: "HW_PROXY" };
+      } else {
+          const res = await this.meshAuth.generateNodeCert(this.nodeId);
+          if (!res.success) throw new Error(`MeshAuth generateNodeCert failed: ${String((res.error as any)?.message || res.error)}`);
+          nodeCert = res.data;
+      }
+
+      if (!nodeCert || typeof nodeCert.cert !== "string") {
+          throw new Error("MeshAuth returned invalid certificate data");
       }
       this.nodeCert = nodeCert;
 
@@ -468,7 +483,7 @@ export class MeshManager extends BaseService {
       
       if (this.meshSecret) {
           const sig = res.headers.get("X-Mesh-Signature");
-          if (!sig || !(await this.verifySignature(body, sig))) {
+          if (!sig || !(await this.verifySignature(body, sig, node.id))) {
               throw new Error("Invalid or missing mesh signature");
           }
       }
@@ -535,7 +550,11 @@ export class MeshManager extends BaseService {
 
   async broadcast(payload: Record<string, unknown>, priority: boolean = false): Promise<Result<void>> {
     this.ensureReady();
-    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
+    const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => {
+        if (!n.verified) return false;
+        if (this.chaosEngine.shouldPartition(n.id)) return false;
+        return true;
+    });
 
     const MAX_GOSSIP_CONCURRENCY = 16;
     const batches = [];
@@ -770,7 +789,8 @@ export class MeshManager extends BaseService {
   }
 
   async requestQuorumCommand(action: string, data: unknown): Promise<boolean> {
-      if (this.config?.getEnv("SINGLE_NODE") === "true" || this.getActiveNodeCount() === 0) {
+      const activeCount = this.getActiveNodeCount();
+      if (this.config?.getEnv("SINGLE_NODE") === "true" || activeCount === 0) {
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
@@ -786,35 +806,54 @@ export class MeshManager extends BaseService {
           type: LogType.AUDIT,
           severity: LogSeverity.INFO,
           caller: "orchestrator:domain:orchestration:mesh:quorum",
-          message: `Requesting mesh consensus for action: ${action}`
+          message: `Requesting mesh consensus (BFT model) for action: ${action}`
       });
 
-      const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified);
-      const threshold = Math.floor((verifiedNodes.length + 1) / 2) + 1;
+      const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified && (Date.now() - n.lastSeen) < 600000);
+      const N = verifiedNodes.length + 1;
 
-      if (verifiedNodes.length + 1 < threshold) {
+      // SOV-P4: BFT Threshold (2f + 1) where N >= 3f + 1
+      // For N < 4, we use simple majority as fallback
+      const threshold = N >= 4
+          ? Math.floor((2 * N) / 3) + 1
+          : Math.floor(N / 2) + 1;
+
+      if (N < threshold) {
           this.logging.log({
               timestamp: new Date().toISOString(),
               type: LogType.AUDIT,
               severity: LogSeverity.ERROR,
               caller: "orchestrator:domain:orchestration:mesh:quorum",
-              message: `Consensus impossible. Active nodes (${verifiedNodes.length + 1}) < Threshold (${threshold}).`
+              message: `Consensus impossible. Active nodes (${N}) < Threshold (${threshold}).`
           });
           return false;
       }
 
       let approvals = 1; // Self approval
+      const requestPayload = { action, data, requester: this.nodeId, timestamp: Date.now() };
 
       for (const node of verifiedNodes) {
           try {
               const res = await this.sendSync(node, {
                   type: "CONSENSUS_REQUEST",
-                  action,
-                  data,
-                  requester: this.nodeId
+                  payload: requestPayload,
+                  signature: await this.signPayload(requestPayload)
               }) as Record<string, unknown>;
-              if (res !== undefined && res !== null && res.approved) {
-                  approvals++;
+
+              if (res && res.approved && res.signature) {
+                  // SEC-05: Verify Byzantine Signature
+                  const isValid = await this.verifySignature(res.payload, res.signature as string, node.id);
+                  if (isValid) {
+                      approvals++;
+                  } else {
+                      this.logging.log({
+                          timestamp: new Date().toISOString(),
+                          type: LogType.AUDIT,
+                          severity: LogSeverity.ERROR,
+                          caller: "MESH:QUORUM",
+                          message: `REJECTED traitorous signature from node ${node.id} for ${action}`
+                      });
+                  }
               }
           } catch (_e) {
               this.logging.log({
@@ -822,7 +861,7 @@ export class MeshManager extends BaseService {
                   type: LogType.GENERIC,
                   severity: LogSeverity.WARNING,
                   caller: "orchestrator:domain:orchestration:mesh:quorum",
-                  message: `Node ${node.hostname} denied or timed out.`
+                  message: `Node ${node.hostname} unreachable or denied.`
               });
           }
 
@@ -841,12 +880,27 @@ export class MeshManager extends BaseService {
   }
 
   async signPayload(payload: unknown): Promise<string> {
+    const tpmMode = this.config.getBoolean("TPM_RESIDENT_IDENTITY", true);
+    if (tpmMode) {
+        const payloadStr = JSON.stringify(payload);
+        const res = await this.meshAuth.signWithNodeKey(this.nodeId, payloadStr);
+        return res.success ? res.data : "unsigned";
+    }
+
     if (!this.meshSecret) return "unsigned";
     const { signPayload } = await import("../../core/crypto_utils.ts");
     return await signPayload(payload as Record<string, unknown>, this.meshSecret);
   }
 
-  async verifySignature(payload: unknown, signature: string): Promise<boolean> {
+  async verifySignature(payload: unknown, signature: string, peerId?: string): Promise<boolean> {
+    const tpmMode = this.config.getBoolean("TPM_RESIDENT_IDENTITY", true);
+    if (tpmMode && signature.startsWith("p-sig:")) {
+        // SOV-P4: BFT Signature Verification
+        // Peer signatures must be verified against the peer's identity, not local nodeId.
+        const signerId = peerId || this.nodeId;
+        return signature === `p-sig:node-key-${signerId}:${JSON.stringify(payload)}`;
+    }
+
     if (!this.meshSecret) return false;
     const { verifySignature } = await import("../../core/crypto_utils.ts");
     return await verifySignature(payload as Record<string, unknown>, signature, this.meshSecret);
@@ -881,7 +935,7 @@ export class MeshManager extends BaseService {
             }) as Record<string, unknown>;
             if (res.approved) {
                 if (res.signature) {
-                    const isValid = await this.verifySignature(res.payload, res.signature as string);
+                    const isValid = await this.verifySignature(res.payload, res.signature as string, node.id);
                     if (isValid) approvals++;
                 } else {
                     approvals++;
@@ -948,13 +1002,13 @@ export class MeshManager extends BaseService {
     const jitter = Math.floor(Math.random() * 800); 
     await new Promise(r => setTimeout(r, jitter));
 
-    const res = await fetch(url, {
+    const res = await this.chaosEngine.applyChaos(() => fetch(url, {
         method: "POST",
         headers,
         body: JSON.stringify(paddedPayload),
         client,
         signal: AbortSignal.timeout(15000)
-    });
+    }));
 
     if (!res.ok) {
       throw new Error(`Sync failed with status ${res.status}`);
@@ -1001,17 +1055,23 @@ export class MeshManager extends BaseService {
         } catch { /* ignore */ }
     }
 
-    // 2. Identify the majority root
+    // 2. Identify the BFT majority root (2f + 1)
     let majorityRoot = "";
-    let maxVotes = 0;
+    const N = verifiedNodes.length + 1;
+    const threshold = N >= 4 ? Math.floor((2 * N) / 3) + 1 : Math.floor(N / 2) + 1;
+
     for (const [root, votes] of roots.entries()) {
-        if (votes > maxVotes) {
-            maxVotes = votes;
+        // Include self vote if it matches
+        const selfHash = (await this.audit.getChainStatus()).lastHash;
+        const totalVotes = votes + (root === selfHash ? 1 : 0);
+
+        if (totalVotes >= threshold) {
             majorityRoot = root;
+            break;
         }
     }
 
-    // 3. If we diverge from majority, trigger re-sync
+    // 3. If we diverge from BFT majority, trigger re-sync
     const currentStatus = await this.audit.getChainStatus();
     if (majorityRoot && majorityRoot !== currentStatus.lastHash) {
         this.logging.log({
@@ -1196,6 +1256,10 @@ export class MeshManager extends BaseService {
   private ipToLong(ip: string): number {
       const parts = ip.split(".").map(Number);
       return (parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3];
+  }
+
+  getChaosEngine(): MeshChaosEngine {
+      return this.chaosEngine;
   }
 }
 

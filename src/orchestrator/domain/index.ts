@@ -52,7 +52,7 @@ export { IntegrityService } from "./analysis/integrity_service.ts";
 export { MeshManager } from "./orchestration/mesh.ts";
 export { PlaybookService } from "./orchestration/playbook_service.ts";
 export { AutopilotService } from "./orchestration/autopilot_service.ts";
-export { ChaosEngine } from "./orchestration/chaos_engine.ts";
+export { MeshChaosEngine as ChaosEngine } from "./orchestration/chaos_engine.ts";
 export { pluginManager } from "./orchestration/plugin_manager.ts";
 export { GovernanceService } from "./orchestration/governance_service.ts";
 export { CovertChannelService } from "./orchestration/covert_service.ts";

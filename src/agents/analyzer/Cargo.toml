@@ -17,3 +17,4 @@ parking_lot = { workspace = true }
 dashmap = "6.1.0"
 lru = "0.12"
 anyhow = { workspace = true }
+landlock = "0.4.0"

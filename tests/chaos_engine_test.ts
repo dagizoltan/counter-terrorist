@@ -6,7 +6,7 @@ import { SidecarManager } from "../src/orchestrator/infrastructure/runtime/sidec
 import { LogType, LogSeverity } from "../src/orchestrator/core/ports.ts";
 
 Deno.test("ChaosEngine - simulateBruteForce emits events", async () => {
-    const eventBus = new EventBus();
+    const eventBus = new EventBus({ log: async () => {} } as any);
     const auditService = {
         getLogging: () => ({ log: () => {} }),
         logEvent: async () => {}
@@ -19,7 +19,7 @@ Deno.test("ChaosEngine - simulateBruteForce emits events", async () => {
         }
     } as any;
 
-    const engine = new ChaosEngine(eventBus, auditService, sidecar);
+    const engine = new ChaosEngine({ log: () => {} } as any, eventBus, auditService, sidecar);
     await engine.simulateBruteForce("1.2.3.4");
 
     assertEquals(sidecarEvents.length, 3);
@@ -28,7 +28,7 @@ Deno.test("ChaosEngine - simulateBruteForce emits events", async () => {
 });
 
 Deno.test("ChaosEngine - simulateCanaryTrigger emits FIM event", async () => {
-    const eventBus = new EventBus();
+    const eventBus = new EventBus({ log: async () => {} } as any);
     const auditService = {
         getLogging: () => ({ log: () => {} }),
         logEvent: async () => {}
@@ -41,7 +41,7 @@ Deno.test("ChaosEngine - simulateCanaryTrigger emits FIM event", async () => {
         }
     } as any;
 
-    const engine = new ChaosEngine(eventBus, auditService, sidecar);
+    const engine = new ChaosEngine({ log: () => {} } as any, eventBus, auditService, sidecar);
     await engine.simulateCanaryTrigger("/tmp/secret");
 
     assertEquals(sidecarEvents.length, 1);
@@ -50,7 +50,7 @@ Deno.test("ChaosEngine - simulateCanaryTrigger emits FIM event", async () => {
 });
 
 Deno.test("ChaosEngine - simulateMalwareExecution emits eBPF event", async () => {
-    const eventBus = new EventBus();
+    const eventBus = new EventBus({ log: async () => {} } as any);
     const auditService = {
         getLogging: () => ({ log: () => {} }),
         logEvent: async () => {}
@@ -63,7 +63,7 @@ Deno.test("ChaosEngine - simulateMalwareExecution emits eBPF event", async () =>
         }
     } as any;
 
-    const engine = new ChaosEngine(eventBus, auditService, sidecar);
+    const engine = new ChaosEngine({ log: () => {} } as any, eventBus, auditService, sidecar);
     await engine.simulateMalwareExecution("evil_proc");
 
     assertEquals(sidecarEvents.length, 1);

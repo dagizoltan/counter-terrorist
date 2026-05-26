@@ -182,6 +182,8 @@ export interface MeshAuthPort {
   getRootCA(): Promise<Result<{ cert: string; key: string }>>;
   getTrustedCerts(): Promise<string[]>;
   generateNodeCert(nodeId: string): Promise<Result<{ cert: string; key: string }>>;
+  generateProxyNodeCert(nodeId: string): Promise<Result<{ cert: string }>>;
+  signWithNodeKey(nodeId: string, data: string): Promise<Result<string>>;
   rotateCert(nodeId: string): Promise<Result<{ cert: string; key: string }>>;
   stageSecondarySecret(secret: string): void;
   commitSecretSwap(): void;
@@ -222,6 +224,8 @@ export interface TpmPort {
   verify(data: string, signature: string): Promise<boolean>;
   generateSelfSignedCA(commonName: string): Promise<CommandResult>;
   issueNodeCert(nodeId: string, caCert?: string, caKey?: string): Promise<CommandResult>;
+  generateProxyKey(keyId: string): Promise<CommandResult>;
+  signProxy(keyId: string, data: string): Promise<CommandResult>;
 }
 
 export interface NotificationPayload {

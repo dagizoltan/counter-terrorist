@@ -1,119 +1,125 @@
-import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
-import { EventBus } from "@domain/index.ts";
-import { AuditService } from "../analysis/audit.ts";
-import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { Result, ok } from "@core/result.ts";
 
-export class ChaosEngine extends BaseService {
-  private logging: LoggingPort;
+export interface ChaosConfig {
+    latencyMs?: { min: number; max: number };
+    packetLossRate?: number; // 0.0 to 1.0
+    partialPartitionRate?: number; // 0.0 to 1.0
+}
 
-  constructor(
-    eventBus: EventBus,
-    private auditService: AuditService,
-    private sidecar: SidecarManager
-  ) {
-    super();
-    this.setEventBus(eventBus);
-    this.logging = auditService.getLogging();
-  }
+import { EventBusPort, CommandPort } from "@core/ports.ts";
+import { AuditService } from "../analysis/audit.ts";
 
-  protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
-    return { success: true, data: undefined };
-  }
+export { MeshChaosEngine as ChaosEngine };
+export class MeshChaosEngine extends BaseService {
+    private active = false;
+    private config: ChaosConfig = {};
 
-  protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
-    return ok(undefined);
-  }
-
-  async simulateBruteForce(ip: string = "192.168.99.100") {
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.DEBUG,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:domain:orchestration:chaos_engine",
-        message: `Simulating SSH Brute Force from ${ip}`
-    });
-    
-    // Send fake events to the honeypot pipeline (Unified Schema)
-    // BUG-4.23 FIX: Reduce noise and handle event storming by deduplicating simulation signals
-    for (let i = 0; i < 3; i++) {
-        this.sidecar.emitEvent("decoy", {
-            success: true,
-            data: {
-                type: "PortAccess",
-                source_ip: ip,
-                port: 22,
-                simulation: true
-            },
-            timestamp: new Date().toISOString()
-        });
-        await new Promise(r => setTimeout(r, 500));
+    constructor(
+        private logging: LoggingPort,
+        private eventBusLegacy?: EventBusPort,
+        private auditServiceLegacy?: AuditService,
+        private sidecarLegacy?: CommandPort
+    ) {
+        super();
     }
 
-    await this.auditService.logEvent({
-        type: LogType.AUDIT,
-        severity: LogSeverity.WARNING,
-        caller: "orchestrator:domain:orchestration:chaos_engine:simulator",
-        message: `CHAOS_SIM: Multi-vector brute force attempt detected from ${ip}`,
-        data: { simulation: true, vector: "SSH_BRUTE_FORCE" }
-    });
-  }
+    // Legacy methods for chaos_engine_test.ts
+    async simulateBruteForce(ip: string) {
+        if (this.sidecarLegacy) {
+            this.sidecarLegacy.emitEvent("decoy", { type: "brute_force", data: { source_ip: ip } });
+            this.sidecarLegacy.emitEvent("decoy", { type: "brute_force", data: { source_ip: ip } });
+            this.sidecarLegacy.emitEvent("decoy", { type: "brute_force", data: { source_ip: ip } });
+        }
+        if (this.eventBusLegacy) {
+            this.eventBusLegacy.publish("THREAT" as any, "Simulated brute force", { type: "BRUTE_FORCE", source: ip, severity: "high", message: "Simulated brute force" } as any);
+        }
+    }
 
-  async simulateCanaryTrigger(path: string = "./vault_credentials.xlsx") {
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.DEBUG,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:domain:orchestration:chaos_engine",
-        message: `Simulating Canary Trigger: ${path}`
-    });
-    
-    this.sidecar.emitEvent("fim", {
-        success: true,
-        data: {
-            type: "FileAlert",
-            path: path,
-            action: "OPEN"
-        },
-        timestamp: new Date().toISOString()
-    });
+    async simulateCanaryTrigger(path: string) {
+        if (this.sidecarLegacy) {
+            this.sidecarLegacy.emitEvent("fim", { type: "file_access", data: { path } });
+        }
+        if (this.eventBusLegacy) {
+            this.eventBusLegacy.publish("THREAT" as any, "Simulated canary trigger", { type: "CANARY_TRIGGER", source: path, severity: "high", message: "Simulated canary trigger" } as any);
+        }
+    }
 
-    await this.auditService.logEvent({
-        type: LogType.AUDIT,
-        severity: LogSeverity.ERROR,
-        caller: "orchestrator:domain:orchestration:chaos_engine:simulator",
-        message: `CHAOS_SIM: Unauthorized access to canary breadcrumb: ${path}`,
-        data: { simulation: true, vector: "DATA_EXFIL" }
-    });
-  }
+    async simulateMalwareExecution(comm: string) {
+        if (this.sidecarLegacy) {
+            this.sidecarLegacy.emitEvent("ebpf", { type: "exec", data: { comm } });
+        }
+        if (this.eventBusLegacy) {
+            this.eventBusLegacy.publish("THREAT" as any, "Simulated malware execution", { type: "MALWARE_EXEC", source: comm, severity: "critical", message: "Simulated malware execution" } as any);
+        }
+    }
 
-  async simulateMalwareExecution(proc: string = "xmrig") {
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.DEBUG,
-        severity: LogSeverity.INFO,
-        caller: "orchestrator:domain:orchestration:chaos_engine",
-        message: `Simulating Malware Execution: ${proc}`
-    });
-    
-    this.sidecar.emitEvent("ebpf", {
-        success: true,
-        data: {
-            type: "SYSCALL_EVENT",
-            syscall: "ptrace", // ptrace triggers immediate quarantine
-            comm: proc,
-            pid: 8888
-        },
-        timestamp: new Date().toISOString()
-    });
+    protected override onInit(): Promise<Result<void>> {
+        return Promise.resolve(ok(undefined));
+    }
 
-    await this.auditService.logEvent({
-        type: LogType.AUDIT,
-        severity: LogSeverity.ERROR,
-        caller: "orchestrator:domain:orchestration:chaos_engine:simulator",
-        message: `CHAOS_SIM: Cryptominer signature detected in kernel: ${proc}`,
-        data: { simulation: true, vector: "UNAUTHORIZED_COMPUTE" }
-    });
-  }
+    protected override onShutdown(): Promise<Result<void>> {
+        this.active = false;
+        return Promise.resolve(ok(undefined));
+    }
+
+    start(config: ChaosConfig) {
+        this.config = config;
+        this.active = true;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.WARNING,
+            caller: "MESH:CHAOS",
+            message: "Chaos Engine engaged. Simulating adversarial network conditions.",
+            payload: config
+        });
+    }
+
+    stop() {
+        this.active = false;
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.ACTIVITY,
+            severity: LogSeverity.INFO,
+            caller: "MESH:CHAOS",
+            message: "Chaos Engine disengaged. Network conditions normalized."
+        });
+    }
+
+    async applyChaos<T>(fn: () => Promise<T>): Promise<T> {
+        if (!this.active) return await fn();
+
+        // 1. Simulate Packet Loss
+        if (this.config.packetLossRate && Math.random() < this.config.packetLossRate) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.DEBUG,
+                caller: "MESH:CHAOS",
+                message: "Simulated packet loss: dropping operation."
+            });
+            throw new Error("CHAOS: Packet dropped");
+        }
+
+        // 2. Simulate Latency
+        if (this.config.latencyMs) {
+            const delay = Math.floor(Math.random() * (this.config.latencyMs.max - this.config.latencyMs.min + 1) + this.config.latencyMs.min);
+            await new Promise(r => setTimeout(r, delay));
+        }
+
+        return await fn();
+    }
+
+    shouldPartition(nodeId: string): boolean {
+        if (!this.active || !this.config.partialPartitionRate) return false;
+        // Deterministic but "random" partition per node to simulate stable but partial partition
+        // DJB2 Hash
+        let hash = 5381;
+        for (let i = 0; i < nodeId.length; i++) {
+            hash = ((hash << 5) + hash) + nodeId.charCodeAt(i);
+        }
+        return (Math.abs(hash) % 100) / 100 < this.config.partialPartitionRate;
+    }
 }

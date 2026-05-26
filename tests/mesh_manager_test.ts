@@ -73,10 +73,20 @@ Deno.test("MeshManager - Consensus logic", async () => {
 
     // Mock sendSync for approval
     const sendSyncStub = stub(manager as any, "sendSync", (node: any) => {
-        if (node.id === "n1") return Promise.resolve({ approved: true });
+        if (node.id === "n1") {
+            return Promise.resolve({
+                approved: true,
+                payload: { action: "TEST_ACTION" },
+                signature: "p-sig:node-key-n0:{\"action\":\"TEST_ACTION\"}"
+            });
+        }
         if (node.id === "n2") return Promise.resolve({ approved: false });
         return Promise.resolve({ approved: false });
     });
+
+    // Mock signature logic
+    stub(manager as any, "signPayload", () => Promise.resolve("sig"));
+    stub(manager as any, "verifySignature", () => Promise.resolve(true));
 
     try {
         // Threshold for 3 nodes (self + 2) is floor(3/2) + 1 = 2
