@@ -120,20 +120,25 @@ export class EventMediator extends BaseService {
     wireSidecars(commandPort: CommandPort) {
         // 1. Honeypot Integration
         commandPort.onEvent("decoy", (response: unknown) => {
-            const payload = (typeof response === "object" && response !== null ? response as SidecarEvent : {} as SidecarEvent);
-            const event = (payload.data as SidecarEvent) ?? payload;
-            this.broadcast({ 
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: typeof event.caller === "string" ? event.caller : "decoy:honeypot",
-                message: `Honeypot Trigger: ${typeof event.type === "string" ? event.type : "unknown"} from ${typeof event.source_ip === "string" ? event.source_ip : "remote"}`,
-                data: event
-            });
-            this.eventBus?.emit("HONEYPOT" as any, event as any);
+            try {
+                const payload = (typeof response === "object" && response !== null ? response as SidecarEvent : {} as SidecarEvent);
+                const event = (payload.data as SidecarEvent) ?? payload;
+                this.broadcast({
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: typeof event.caller === "string" ? event.caller : "decoy:honeypot",
+                    message: `Honeypot Trigger: ${typeof event.type === "string" ? event.type : "unknown"} from ${typeof event.source_ip === "string" ? event.source_ip : "remote"}`,
+                    data: event
+                });
+                this.eventBus?.emit("HONEYPOT" as any, event as any);
+            } catch (e) {
+                this.handleMediatorError(e as Error, "decoy");
+            }
         });
 
         // 2. eBPF Integration
         commandPort.onEvent("sentinel", async (response: unknown) => {
+            try {
             const event = unwrapSidecar(response);
 
             // SOV-06: Schema enforcement for IPC
@@ -209,10 +214,14 @@ export class EventMediator extends BaseService {
                     });
                 }
             }
+            } catch (e) {
+                this.handleMediatorError(e as Error, "sentinel");
+            }
         });
 
         // 3. FIM Integration
         commandPort.onEvent("watchfile", async (response: unknown) => {
+            try {
             const event = unwrapSidecar(response);
             let payload = unwrapSidecar(event);
 
@@ -267,10 +276,14 @@ export class EventMediator extends BaseService {
                 });
                 this.eventBus?.emit((isCanary ? "THREAT" : "DRIFT_PROCESS") as any, payload as any);
             }
+            } catch (e) {
+                this.handleMediatorError(e as Error, "watchfile");
+            }
         });
 
         // 4. PCAP Integration
         commandPort.onEvent("netcap", async (response: unknown) => {
+            try {
             const event = unwrapSidecar(response);
             let data = unwrapSidecar(event);
 
@@ -355,10 +368,14 @@ export class EventMediator extends BaseService {
                     data: data
                 });
             }
+            } catch (e) {
+                this.handleMediatorError(e as Error, "netcap");
+            }
         });
 
         // 5. Scanner Integration
         commandPort.onEvent("analyzer", async (response: unknown) => {
+            try {
             const event = unwrapSidecar(response);
             const data = unwrapSidecar(event);
             const scanType = typeof data.type === "string" ? data.type : "";
@@ -383,6 +400,9 @@ export class EventMediator extends BaseService {
 
                 this.eventBus?.emit("THREAT" as any, data as any);
             }
+            } catch (e) {
+                this.handleMediatorError(e as Error, "analyzer");
+            }
         });
 
         this.logger.log({
@@ -392,6 +412,16 @@ export class EventMediator extends BaseService {
             caller: "BOOT",
             message: "Event Mediator: Sidecar routing established"
         });
+    }
+
+    private handleMediatorError(e: Error, sidecar: string) {
+        this.logger.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:analysis:event_mediator",
+            message: `Error processing ${sidecar} event: ${e.message}`
+        }).catch(() => {});
     }
 
     /**

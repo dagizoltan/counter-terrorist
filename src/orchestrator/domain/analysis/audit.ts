@@ -113,20 +113,32 @@ export class AuditService extends BaseService {
 
         const jitter = (ms: number) => ms + (Math.random() * 5000);
 
-        this.intervals.push(setInterval(() => this.purgeExpired(), jitter(60 * 60 * 1000)));
-        this.intervals.push(setInterval(() => this.emitMetrics(), jitter(30000)));
-        this.intervals.push(setInterval(async () => {
-            if (this.mesh) {
-                const status = await this.getChainStatus();
-                this.mesh.broadcastAuditVerification(status.lastHash, status.count);
-            }
+        this.intervals.push(setInterval(() => {
+            this.purgeExpired().catch(e => this.handleTaskError(e, "purgeExpired"));
+        }, jitter(60 * 60 * 1000)));
+        this.intervals.push(setInterval(() => {
+            this.emitMetrics().catch(e => this.handleTaskError(e, "emitMetrics"));
+        }, jitter(30000)));
+        this.intervals.push(setInterval(() => {
+            (async () => {
+                if (this.mesh) {
+                    const status = await this.getChainStatus();
+                    this.mesh.broadcastAuditVerification(status.lastHash, status.count);
+                }
+            })().catch(e => this.handleTaskError(e, "broadcastAuditVerification"));
         }, jitter(5 * 60 * 1000)));
 
-        this.intervals.push(setInterval(() => this.verifyChainIncremental(), jitter(60 * 1000)));
-        this.intervals.push(setInterval(() => this.flushBuffer(), 1000)); // PERFORMANCE: Faster flush for better interactivity
+        this.intervals.push(setInterval(() => {
+            this.verifyChainIncremental().catch(e => this.handleTaskError(e, "verifyChainIncremental"));
+        }, jitter(60 * 1000)));
+        this.intervals.push(setInterval(() => {
+            this.flushBuffer().catch(e => this.handleTaskError(e, "flushBuffer"));
+        }, 1000)); // PERFORMANCE: Faster flush for better interactivity
 
         // Merkle Root Commitment: Commit root every 10 minutes
-        this.intervals.push(setInterval(() => this.commitMerkleRoot(), jitter(600000)));
+        this.intervals.push(setInterval(() => {
+            this.commitMerkleRoot().catch(e => this.handleTaskError(e, "commitMerkleRoot"));
+        }, jitter(600000)));
 
         this.startLedgerWatcher();
         return ok(undefined);
@@ -513,6 +525,21 @@ export class AuditService extends BaseService {
     }
 
     private isFlushing = false;
+    private handleTaskError(e: Error, task: string) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:analysis:audit",
+            message: `Background task '${task}' failed: ${e.message}`
+        }).catch(() => {});
+
+        if (this.locator?.has("health")) {
+            const health = this.locator.get<any>("health");
+            health.reportStatus("audit", "DEGRADED", `Background task '${task}' failed: ${e.message}`);
+        }
+    }
+
     private async flushBuffer() {
         if (this.isFlushing || this.auditBuffer.length === 0) return;
         this.isFlushing = true;

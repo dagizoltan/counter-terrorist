@@ -148,7 +148,7 @@ export class AutopilotService extends BaseService {
             severity: 2,
             description: `Accessed honey-port ${data.port}`,
             data
-        });
+        }).catch(e => this.handleError(e, "HONEYPOT"));
     });
 
     on("THREAT", async (data) => {
@@ -158,7 +158,7 @@ export class AutopilotService extends BaseService {
             severity: 15,
             description: `Canary breadcrumb triggered: ${data.path}`,
             data
-        });
+        }).catch(e => this.handleError(e, "THREAT"));
     });
 
     on("DRIFT_PROCESS", async (data) => {
@@ -168,7 +168,7 @@ export class AutopilotService extends BaseService {
             severity: 2,
             description: `Unauthorized change detected in ${data.path || data.resource}`,
             data
-        });
+        }).catch(e => this.handleError(e, "DRIFT_PROCESS"));
     });
 
     on("EBPF_STRAY_SHELL", async (data) => {
@@ -178,7 +178,7 @@ export class AutopilotService extends BaseService {
             severity: 8,
             description: `Stray shell detected: ${data.comm} (PID: ${data.pid})`,
             data
-        });
+        }).catch(e => this.handleError(e, "EBPF_STRAY_SHELL"));
     });
 
     on("EBPF_CRITICAL", async (data) => {
@@ -209,7 +209,7 @@ export class AutopilotService extends BaseService {
                     severity: 10,
                     description: `Ghost processes identified after critical syscall: ${ghosts.join(", ")}`,
                     data: { ghosts }
-                });
+                }).catch(e => this.handleError(e, "EBPF_CRITICAL_GHOST_EVAL"));
             }
         } catch (err) {
             this.services?.logging.log({
@@ -224,7 +224,7 @@ export class AutopilotService extends BaseService {
 
     // Proactive Artifact Containment Hook
     on("ARTIFACT_FOUND", async (data) => {
-        await this.services!.playbook.executeArtifactContainment(data.indicator, data);
+        await this.services!.playbook.executeArtifactContainment(data.indicator, data).catch((e: Error) => this.handleError(e, "ARTIFACT_FOUND"));
     });
 
     // Periodic integrity check using injected authoritative tracker
@@ -233,18 +233,37 @@ export class AutopilotService extends BaseService {
             clearInterval(ghostInterval);
             return;
         }
-        const ghosts = await this.services!.processTracker.scanForGhosts();
-        if (ghosts.length > 0) {
-            await this.engine.evaluate({
-                source: "local",
-                type: "ROOTKIT_DETECTION",
-                severity: 10,
-                description: `Ghost processes identified: ${ghosts.join(", ")}`,
-                data: { ghosts }
-            });
+        try {
+            const ghosts = await this.services!.processTracker.scanForGhosts();
+            if (ghosts.length > 0) {
+                await this.engine.evaluate({
+                    source: "local",
+                    type: "ROOTKIT_DETECTION",
+                    severity: 10,
+                    description: `Ghost processes identified: ${ghosts.join(", ")}`,
+                    data: { ghosts }
+                });
+            }
+        } catch (e) {
+            this.handleError(e as Error, "PERIODIC_GHOST_SCAN");
         }
     }, 60000);
     this.unsubscribers.push(() => clearInterval(ghostInterval));
+  }
+
+  private handleError(e: Error, context: string) {
+      if (this.services?.logging) {
+          this.services.logging.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.GENERIC,
+              severity: LogSeverity.ERROR,
+              caller: `autopilot:${context}`,
+              message: `Async task failed: ${e.message}`
+          }).catch(() => {});
+      }
+      if (this.services?.health) {
+          this.services.health.reportStatus("autopilot", "DEGRADED", `Task failed (${context}): ${e.message}`);
+      }
   }
 
     public spawnLureProcess() {

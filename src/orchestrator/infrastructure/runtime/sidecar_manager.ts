@@ -464,9 +464,7 @@ export class SidecarManager implements CommandPort {
       try {
         const info = await Deno.stat(p);
         if (!info.isFile) continue;
-        const real = await Deno.realPath(p);
-        this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "orchestrator:infra:runtime:sidecar_manager", message: `findBinary(${name}) -> ${real}` });
-        return real;
+        return await Deno.realPath(p);
       } catch (_e) {
         // Silent fail for stat
       }
