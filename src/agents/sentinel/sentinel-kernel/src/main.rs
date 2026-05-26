@@ -47,6 +47,12 @@ static mut ENFORCEMENT_POLICY: HashMap<u32, u32> = HashMap::with_max_entries(102
 #[map]
 static mut SYSCALL_ALLOWLIST: LruHashMap<SyscallAllowKey, u8> = LruHashMap::with_max_entries(4096, 0);
 
+#[map]
+static mut HOOK_STATS: HashMap<u32, u64> = HashMap::with_max_entries(64, 0); // Key: Hook ID, Value: Total Duration (ns)
+
+#[map]
+static mut HOOK_COUNTS: HashMap<u32, u64> = HashMap::with_max_entries(64, 0); // Key: Hook ID, Value: Call Count
+
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
     match try_xdp_ingress(&ctx) {
@@ -66,6 +72,8 @@ fn load<T>(ctx: &XdpContext, offset: usize) -> Result<T, ()> {
 }
 
 fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
+    let start_ns = unsafe { bpf_ktime_get_ns() };
+    let res = (|| -> Result<u32, ()> {
     let eth_proto = u16::from_be(load::<u16>(ctx, 12)?);
 
     let (src_ip, dst_ip, proto, src_port, dst_port, family) = if eth_proto == 0x0800 { // IPv4
@@ -128,6 +136,24 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
     }
 
     Ok(XDP_DROP)
+    })();
+
+    let end_ns = unsafe { bpf_ktime_get_ns() };
+    let duration = end_ns.saturating_sub(start_ns);
+
+    // Hook ID 1 for XDP
+    if let Some(val) = unsafe { HOOK_STATS.get_ptr_mut(&1) } {
+        unsafe { *val += duration };
+    } else {
+        unsafe { HOOK_STATS.insert(&1, &duration, 0) };
+    }
+    if let Some(val) = unsafe { HOOK_COUNTS.get_ptr_mut(&1) } {
+        unsafe { *val += 1 };
+    } else {
+        unsafe { HOOK_COUNTS.insert(&1, &1, 0) };
+    }
+
+    res
 }
 
 #[classifier]
@@ -196,6 +222,7 @@ fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
 
 #[kprobe]
 pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
+    let start_ns = unsafe { bpf_ktime_get_ns() };
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
@@ -211,6 +238,15 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         ip: [0; 16],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
+
+    let end_ns = unsafe { bpf_ktime_get_ns() };
+    let duration = end_ns.saturating_sub(start_ns);
+    // Hook ID 2 for Execve
+    if let Some(val) = unsafe { HOOK_STATS.get_ptr_mut(&2) } { unsafe { *val += duration }; }
+    else { unsafe { HOOK_STATS.insert(&2, &duration, 0) }; }
+    if let Some(val) = unsafe { HOOK_COUNTS.get_ptr_mut(&2) } { unsafe { *val += 1 }; }
+    else { unsafe { HOOK_COUNTS.insert(&2, &1, 0) }; }
+
     0
 }
 

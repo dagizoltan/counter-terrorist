@@ -153,12 +153,22 @@ export class SystemExecutor implements ExecutorPort {
       }
   });
 
-  private static readonly CP_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
-      if (args.length !== 2) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Exactly 2 arguments required" });
+  private static readonly CP_SCHEMA = z.array(z.string()).max(3).superRefine((args, ctx) => {
+      const paths = args.filter(a => !a.startsWith("-"));
+      const flags = args.filter(a => a.startsWith("-"));
+
+      if (paths.length !== 2) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Exactly 2 paths required" });
           return;
       }
-      for (const arg of args) {
+
+      for (const flag of flags) {
+          if (!/^--reflink=(always|auto|never)$/.test(flag) && flag !== "-p") {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized flag: ${flag}` });
+          }
+      }
+
+      for (const arg of paths) {
           if (!validatePath(arg, SystemExecutor.SYSTEM_JAILS)) {
               ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized path: ${arg}` });
           }
@@ -299,8 +309,8 @@ export class SystemExecutor implements ExecutorPort {
     },
     "cp": {
       schema: SystemExecutor.CP_SCHEMA,
-      allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
-      maxArgs: 2
+      allowedArgs: [/^--reflink=(always|auto|never)$/, /^-p$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
+      maxArgs: 3
     },
     "mv": {
       schema: SystemExecutor.MV_SCHEMA,

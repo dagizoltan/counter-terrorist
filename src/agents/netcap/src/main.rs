@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, BufReader, AsyncReadExt};
 use chrono::Utc;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -63,8 +63,8 @@ impl PcapngWriter {
         let idb_len = (20 + interface.len() + 3) & !3; // Padding
         idb.write_all(&(idb_len as u32).to_le_bytes())?;
         idb.write_all(&1u16.to_le_bytes())?; // LinkType (Ethernet)
-        idb.write_all(&0u16.to_le_bytes())?; // Reserved
-        idb.write_all(&0u32.to_le_bytes())?; // SnapLen (0 = unlimited)
+        idb.write_all(&0u16.to_le_bytes()) // Reserved
+            .and_then(|_| idb.write_all(&0u32.to_le_bytes()))?; // SnapLen (0 = unlimited)
         // Options: Interface Name
         idb.write_all(&2u16.to_le_bytes())?; // Code 2: if_name
         idb.write_all(&(interface.len() as u16).to_le_bytes())?;
@@ -101,8 +101,6 @@ impl PcapngWriter {
         
         epb.write_all(&(block_len as u32).to_le_bytes())?; // Length again
         self.writer.write_all(&epb)?;
-        // BUG-14: Remove per-packet flush for performance. Rely on BufWriter or explicit periodic flush.
-        // self.writer.flush()?;
         Ok(())
     }
 }
@@ -115,6 +113,12 @@ async fn log_forensic(severity: &str, message: &str) {
         "caller": "pcap:main",
         "message": message
     });
+
+    let mut buf = Vec::new();
+    if log.serialize(&mut rmp_serde::Serializer::new(&mut buf)).is_ok() {
+        // Shmem write would go here
+    }
+
     if let Ok(json) = serde_json::to_string(&log) {
         let _lock = STDOUT_LOCK.lock().await;
         println!("[LOG] {}", json);
@@ -125,16 +129,40 @@ async fn log_forensic(severity: &str, message: &str) {
 async fn main() -> anyhow::Result<()> {
     log_forensic("info", "Sovereign PCAP Engine active (Native PCAPng support)").await;
 
-    let stdin = tokio::io::stdin();
-    let mut reader = BufReader::new(stdin).lines();
+    let mut stdin = tokio::io::stdin();
+    let mut buffer = bytes::BytesMut::with_capacity(4096);
     let capture_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>> = Arc::new(Mutex::new(None));
 
-    while let Ok(Some(line)) = reader.next_line().await {
-        let cmd_val: serde_json::Value = match serde_json::from_str(&line) {
-            Ok(v) => v,
-            Err(_) => continue,
+    loop {
+        let mut byte_buf = [0u8; 1024];
+        let n = match stdin.read(&mut byte_buf).await {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(_) => break,
         };
+        buffer.extend_from_slice(&byte_buf[..n]);
 
+        while !buffer.is_empty() {
+            if let Ok(cmd_val) = rmp_serde::from_slice::<serde_json::Value>(&buffer) {
+                handle_netcap_command(cmd_val, capture_handle.clone()).await;
+                buffer.clear();
+                break;
+            }
+
+            if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line_bytes = buffer.split_to(pos + 1);
+                if let Ok(cmd_val) = serde_json::from_slice::<serde_json::Value>(&line_bytes[..pos]) {
+                    handle_netcap_command(cmd_val, capture_handle.clone()).await;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn handle_netcap_command(cmd_val: serde_json::Value, capture_handle: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>) {
         let id = cmd_val["id"].as_str().map(|s| s.to_string());
         let cmd_type = cmd_val["type"].as_str().unwrap_or("");
 
@@ -145,24 +173,22 @@ async fn main() -> anyhow::Result<()> {
                 let duration = cmd_val["payload"]["duration"].as_u64().unwrap_or(0);
                 
                 let mut handle = capture_handle.lock().await;
-                // BUG-7.1 FIX: Check if the handle is still active before rejecting new capture
                 if let Some(h) = handle.as_ref() {
                     if !h.is_finished() {
-                        continue;
+                        return;
                     }
                 }
 
                 let interface_clone = interface.clone();
                 let filename_clone = filename.clone();
 
-                // BUG-15: Verify file creation and notify on failure
                 let pcap_init = filename_clone.as_ref().map(|f| PcapngWriter::new(f, &interface_clone));
                 if let Some(Err(e)) = pcap_init {
                     let err_msg = format!("Failed to initialize PCAP writer: {}", e);
                     log_forensic("error", &err_msg).await;
                     let resp = serde_json::json!({ "id": id, "success": false, "message": err_msg, "timestamp": Utc::now().to_rfc3339() });
                     println!("{}", resp);
-                    continue;
+                    return;
                 }
 
                 log_forensic("info", &format!("Activating native forensic capture on {} (Duration: {}s)", interface, duration)).await;
@@ -174,7 +200,6 @@ async fn main() -> anyhow::Result<()> {
                     #[cfg(target_os = "linux")]
                     {
                         use socket2::{Socket, Domain, Type, Protocol};
-                        // SOV-06 FIX: Implement real AF_PACKET raw socket for Linux
                         let socket = match Socket::new(Domain::PACKET, Type::RAW, Some(Protocol::from(0x0003u16.to_be() as i32))) {
                             Ok(s) => s,
                             Err(e) => {
@@ -183,9 +208,7 @@ async fn main() -> anyhow::Result<()> {
                             }
                         };
 
-                        // Bind to interface
                         if let Ok(idx) = nix::net::if_::if_nametoindex(interface_clone.as_str()) {
-                            // Using libc directly for sockaddr_ll construction if socket2 doesn't expose .packet() helper in this version
                             use libc::{sockaddr_ll, AF_PACKET, ETH_P_ALL};
                             let mut address: sockaddr_ll = unsafe { std::mem::zeroed() };
                             address.sll_family = AF_PACKET as u16;
@@ -221,19 +244,16 @@ async fn main() -> anyhow::Result<()> {
                             socket.set_read_timeout(Some(std::time::Duration::from_millis(100))).ok();
                             match socket.recv(&mut buf) {
                                 Ok(n) if n > 0 => {
-                                    // SAFETY: recv returned n bytes, so we can initialize them
                                     let initialized_buf = unsafe {
                                         std::slice::from_raw_parts(buf.as_ptr() as *const u8, n)
                                     };
 
-                                    // SOV-06 HARDENING: Robust Packet Parsing for Loopback Filtering
                                     if n < 14 {
                                         continue;
                                     }
                                     let mut ethertype = u16::from_be_bytes([initialized_buf[12], initialized_buf[13]]);
                                     let mut payload_offset = 14;
 
-                                    // Handle 802.1Q VLAN Tags
                                     if ethertype == 0x8100 && n > 18 {
                                         ethertype = u16::from_be_bytes([initialized_buf[16], initialized_buf[17]]);
                                         payload_offset = 18;
@@ -294,7 +314,6 @@ async fn main() -> anyhow::Result<()> {
 
                     #[cfg(not(target_os = "linux"))]
                     {
-                        // Fallback/Simulated loop for non-Linux platforms
                         loop {
                             if duration > 0 && (Utc::now() - start_time).num_seconds() >= duration as i64 {
                                 break;
@@ -317,6 +336,4 @@ async fn main() -> anyhow::Result<()> {
             }
             _ => {}
         }
-    }
-    Ok(())
 }

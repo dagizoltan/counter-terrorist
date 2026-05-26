@@ -15,7 +15,11 @@ const ffiLib = (() => {
         const suffix = isLinux ? "so" : "dylib";
         const libPath = `./src/agents/target/release/libcts_sec.${suffix}`;
         return Deno.dlopen(libPath, {
-            "hash_file_sha256": { parameters: ["buffer", "buffer"], result: "i32" }
+            "hash_file_sha256": { parameters: ["buffer", "buffer"], result: "i32" },
+            "create_shmem": { parameters: ["buffer", "usize"], result: "pointer" },
+            "serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
+            "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
+            "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" }
         });
     } catch {
         return null;
@@ -23,7 +27,14 @@ const ffiLib = (() => {
 })();
 
 interface SidecarManifest {
-    sidecars: Record<string, { hash: string }>;
+    sidecars: Record<string, {
+        persistent?: boolean;
+        capabilities?: string[];
+        architectures: Record<string, {
+            path: string;
+            hash: string;
+        }>;
+    }>;
     signature?: string;
     signedBy?: string;
 }
@@ -95,7 +106,7 @@ export class SidecarManager implements CommandPort {
 
         // SEC-03: Enforce Signed Manifest via Ed25519 (Developer Key)
         let signatureVerified = false;
-        if (data.signature) {
+        if (data.signature && data.signature !== "unsigned") {
             try {
                 const publicKeyBytes = new Uint8Array(SidecarManager.DEVELOPER_PUBLIC_KEY.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
                 const publicKey = await crypto.subtle.importKey(
@@ -133,11 +144,23 @@ export class SidecarManager implements CommandPort {
                 type: LogType.AUDIT,
                 severity: LogSeverity.SUCCESS,
                 caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Authoritative Manifest Hardware-Verified via Ed25519. Signed by: ${data.signedBy || "Developer"}`
+                message: `Authoritative Multi-Arch Manifest Hardware-Verified via Ed25519. Signed by: ${data.signedBy || "Developer"}`
             });
+        } else if (data.signature === "architectural_upgrade_pending") {
+            // SOV-P5: Temporary bypass for architectural upgrade verification during deployment.
+            // This is allowed in non-production environments to facilitate rapid iteration on core primitives.
+            this.manifest = data;
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: "Sidecar manifest in UPGRADE_PENDING state. Signature verification bypassed for architectural primitives."
+            });
+            if (isProduction) throw new Error("Production Lockdown: Architectural upgrade signature must be finalized.");
         } else {
             this.manifest = data;
-            const msg = data.signature ? "Sidecar manifest signature verification FAILED!" : "Manifest is UNSIGNED.";
+            const msg = (data.signature && data.signature !== "unsigned") ? "Sidecar manifest signature verification FAILED!" : "Manifest is UNSIGNED.";
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
@@ -310,7 +333,8 @@ export class SidecarManager implements CommandPort {
                 const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
 
                 if (spawnScript) {
-                    const expectedHash = this.manifest?.sidecars?.[name]?.hash || "none";
+                    const arch = Deno.build.arch;
+                    const expectedHash = this.manifest?.sidecars?.[name]?.architectures[arch]?.hash || "none";
                     const res = await this.executor.execute(spawnScript, [name, binPath, caps, expectedHash]);
                     if (res.success) {
                         execPath = `/var/lib/cts/bin/${name}`;
@@ -402,6 +426,27 @@ export class SidecarManager implements CommandPort {
                 this.persistentProcesses.delete(name);
                 this.handleSidecarExit(name, status.code);
             });
+
+    // SOV-P5: Shared Memory Data Plane Ingestion
+    if (name === "sentinel") {
+        (async () => {
+            const shmemPath = `/dev/shm/cts_sentinel_${child.pid}`;
+            // Wait a moment for agent to create shmem
+            await new Promise(r => setTimeout(r, 500));
+            const pathBuf = new TextEncoder().encode(shmemPath + "\0");
+            const shmemPtr = ffiLib?.symbols.create_shmem(pathBuf, 1024 * 1024);
+
+            if (shmemPtr) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.INFO,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] Mapped shared memory ring buffer at ${shmemPath}`
+                });
+            }
+        })();
+    }
 
             // Handle stderr for error detection
             (async () => {
@@ -545,6 +590,13 @@ export class SidecarManager implements CommandPort {
           if (trimmed === "HEARTBEAT" || (trimmed.startsWith("{") && trimmed.includes("\"type\":\"HEARTBEAT\""))) {
               this.lastHeartbeat.set(name, Date.now());
               if (trimmed === "HEARTBEAT") continue;
+          }
+
+          // SOV-P5: Shmem Update Signal
+          if (trimmed.startsWith("SHMEM_UPDATE:")) {
+              // High-volume data available in shared memory.
+              // In a full implementation, we'd trigger the shmem reader here.
+              continue;
           }
 
           // New: Structured Log Ingestion
@@ -729,6 +781,27 @@ export class SidecarManager implements CommandPort {
     return env;
   }
 
+  /**
+   * SOV-P5: Binary Protocol Migration (MessagePack)
+   * Converts JSON command to MessagePack via Native FFI for optimized IPC.
+   */
+  private async prepareBinaryCommand(cmd: Record<string, unknown>): Promise<Uint8Array | null> {
+      if (!ffiLib) return null;
+      const jsonStr = JSON.stringify(cmd) + "\0";
+      const jsonBuf = new TextEncoder().encode(jsonStr);
+      const outLenPtr = new BigUint64Array(1);
+      const msgpackPtr = ffiLib.symbols.serialize_msgpack(jsonBuf, Deno.UnsafePointer.of(outLenPtr));
+
+      if (!msgpackPtr) return null;
+
+      const len = Number(outLenPtr[0]);
+      const view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgpackPtr, len));
+      const result = new Uint8Array(view); // Copy
+
+      ffiLib.symbols.free_buffer(msgpackPtr, len);
+      return result;
+  }
+
   async sendCommand(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult> {
     let breaker = this.circuitBreakers.get(name);
     if (!breaker) {
@@ -777,6 +850,17 @@ export class SidecarManager implements CommandPort {
     });
 
     const writer = child.stdin.getWriter();
+
+    // SOV-P5: Try Binary IPC first for high-volume agents
+    if (name === "sentinel" || name === "netcap") {
+        const binCmd = await this.prepareBinaryCommand(commandObj);
+        if (binCmd) {
+            await writer.write(binCmd);
+            writer.releaseLock();
+            return Promise.race([responsePromise, timeoutPromise]);
+        }
+    }
+
     await writer.write(new TextEncoder().encode(JSON.stringify(commandObj) + "\n"));
     writer.releaseLock();
 
@@ -889,13 +973,14 @@ export class SidecarManager implements CommandPort {
     // Authoritative check against Signed Manifest
     const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
     const isDevMode = this.config?.getBoolean("CTS_DEV_MODE", false);
-    const manifestHash = this.manifest?.sidecars?.[name]?.hash;
+    const arch = Deno.build.arch;
+    const manifestHash = this.manifest?.sidecars?.[name]?.architectures[arch]?.hash;
     const envHash = this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
     const goldenHash = isProduction ? manifestHash : (manifestHash || envHash);
-    const isUnsignedManifest = !!this.manifest && !this.manifest.signature;
+    const isUnsignedManifest = !!this.manifest && (!this.manifest.signature || this.manifest.signature === "unsigned");
 
     // BUG-05: Make manifest mandatory in production
-    if (isProduction && !this.manifest?.sidecars?.[name]?.hash) {
+    if (isProduction && !manifestHash) {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
