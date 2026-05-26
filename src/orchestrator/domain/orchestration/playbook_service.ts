@@ -4,17 +4,10 @@ import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";
 import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
 
-export interface PlaybookDependencies {
-  eventBus: EventBusPort;
-  protection: ProtectionPort;
-  notifications: NotificationPort;
-  mesh: MeshPort;
-  shadowProtocol: import("../protection/shadow_protocol_service.ts").ShadowProtocolService;
-  behavioral?: import("../analysis/behavioral_service.ts").BehavioralService;
-}
+import { ServiceLocatorPort } from "../../core/ports.ts";
 
 export class PlaybookService extends BaseService {
-  private services?: PlaybookDependencies;
+  private locator?: ServiceLocatorPort;
   private threatScores: Map<string, number> = new Map();
   private unsubscribers: (() => void)[] = [];
   private readonly ISOLATION_THRESHOLD = 5;
@@ -23,22 +16,58 @@ export class PlaybookService extends BaseService {
     super();
   }
 
-  public setServices(services: PlaybookDependencies) {
-    this.services = services;
+  public setLocator(locator: ServiceLocatorPort) {
+    this.locator = locator;
+  }
+
+  private get eventBus(): EventBusPort | undefined {
+    return this.locator?.get<EventBusPort>("eventBus");
+  }
+
+  private get protection(): ProtectionPort | undefined {
+    return this.locator?.get<ProtectionPort>("protection");
+  }
+
+  private get notifications(): NotificationPort | undefined {
+    return this.locator?.get<NotificationPort>("notifications");
+  }
+
+  private get mesh(): MeshPort | undefined {
+    return this.locator?.get<MeshPort>("mesh");
+  }
+
+  private get shadowProtocol(): import("../protection/shadow_protocol_service.ts").ShadowProtocolService | undefined {
+    if (!this.locator?.has("shadowProtocol")) return undefined;
+    return this.locator.get<import("../protection/shadow_protocol_service.ts").ShadowProtocolService>("shadowProtocol");
+  }
+
+  private get behavioral(): import("../analysis/behavioral_service.ts").BehavioralService | undefined {
+    if (!this.locator?.has("behavioral")) return undefined;
+    return this.locator.get<import("../analysis/behavioral_service.ts").BehavioralService>("behavioral");
   }
 
   protected override onInit(..._args: unknown[]): Promise<Result<void>> {
-    if (!this.services) return Promise.resolve(ok(undefined));
+    if (!this.locator) return Promise.resolve(ok(undefined));
 
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
         severity: LogSeverity.INFO,
         caller: "orchestrator:domain:orchestration:playbook_service",
-        message: "Initializing Automated Response Engine"
+        message: "Initializing Automated Response Engine via Service Locator"
     });
 
-    const eventBus = this.services.eventBus;
+    const eventBus = this.eventBus;
+    if (!eventBus) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:orchestration:playbook_service",
+            message: "CRITICAL: EventBus not available in Service Locator during init."
+        });
+        return Promise.resolve(ok(undefined));
+    }
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
     this.unsubscribers.push(eventBus.on("HONEYPOT", async (payload) => {
@@ -75,9 +104,9 @@ export class PlaybookService extends BaseService {
             caller: "orchestrator:domain:orchestration:playbook_service",
             message: `Starting forensic capture for IP: ${source_ip}`
         });
-        if (this.services?.protection.pcap) {
+        if (this.protection?.pcap) {
             try {
-              await this.services.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`);
+              await this.protection.pcap.startCapture("any", 60, `threat_${source_ip}_${Date.now()}.pcap`, `host ${source_ip}`);
             } catch (err) {
               this.logging.log({
                 timestamp: new Date().toISOString(),
@@ -90,11 +119,11 @@ export class PlaybookService extends BaseService {
         }
 
         try {
-          if (this.services?.protection?.firewall) {
-              await this.services.protection.firewall.blockIp(source_ip);
+          if (this.protection?.firewall) {
+              await this.protection.firewall.blockIp(source_ip);
           }
-          if (this.services?.notifications) {
-              await this.services.notifications.notify({
+          if (this.notifications) {
+              await this.notifications.notify({
                 type: "audit",
                 message: `IP ${source_ip} automatically blocked after honeypot access on port ${port}`
               });
@@ -125,7 +154,7 @@ export class PlaybookService extends BaseService {
           message: `FIM trigger: ${action} detected on ${path}`
       });
       
-      await this.services?.notifications.notify({
+      await this.notifications?.notify({
         type: "audit",
         message: `Unauthorized ${action} detected on ${path}. Investigation required immediately.`
       });
@@ -150,14 +179,14 @@ export class PlaybookService extends BaseService {
         });
         
         try {
-          if (this.services?.protection?.firewall) {
-              await this.services.protection.firewall.killProcess(pid);
+          if (this.protection?.firewall) {
+              await this.protection.firewall.killProcess(pid);
           }
-          if (this.services?.shadowProtocol) {
-              await this.services.shadowProtocol.activate(); // ENGAGE SHADOW MODE
+          if (this.shadowProtocol) {
+              await this.shadowProtocol.activate(); // ENGAGE SHADOW MODE
           }
-          if (this.services?.notifications) {
-              await this.services.notifications.notify({
+          if (this.notifications) {
+              await this.notifications.notify({
                 type: "audit",
                 message: `Process ${comm} (PID: ${pid}) quarantined due to ptrace violation. SHADOW PROTOCOL ENGAGED.`
               });
@@ -232,7 +261,7 @@ export class PlaybookService extends BaseService {
    * Multi-stage response to binary threats.
    */
   public async executeArtifactContainment(artifact: string, metadata: Record<string, unknown>) {
-      if (!this.services) return;
+      if (!this.locator) return;
 
       this.logging.log({
           timestamp: new Date().toISOString(),
@@ -245,15 +274,15 @@ export class PlaybookService extends BaseService {
       // 1. Proactive Quarantine (If path is known or globally applicable)
       // In a real environment, the agent would search and move.
       if (typeof metadata.path === "string") {
-          await this.services.protection.antivirus.quarantine(metadata.path);
+          await this.protection.antivirus.quarantine(metadata.path);
       }
 
       // 2. Mesh Isolation (OpSec baseline)
-      await this.services.mesh.isolateNode("local");
+      await this.mesh?.isolateNode("local");
 
       // 3. Trigger Forensic Acquisition
       try {
-        await this.services.protection.pcap.startCapture("any", 120, `artifact_containment_${artifact.slice(0, 8)}.pcap`);
+        await this.protection?.pcap.startCapture("any", 120, `artifact_containment_${artifact.slice(0, 8)}.pcap`);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         this.logging.log({
@@ -265,7 +294,7 @@ export class PlaybookService extends BaseService {
         }).catch(() => {});
       }
 
-      await this.services.notifications.notify({
+      await this.notifications?.notify({
           type: "audit",
           message: `AUTOPILOT: Artifact Containment engaged for ${artifact.slice(0, 8)}. Host isolated. Forensic capture active.`
       });
@@ -275,15 +304,15 @@ export class PlaybookService extends BaseService {
    * Executes a behavioral audit on a specific syscall event.
    */
   public async executeBehavioralAudit(pid: number, comm: string, syscall: string, args: string[]) {
-      if (!this.services?.behavioral) return "PASS";
-      return await this.services.behavioral.checkSyscallAnomalies(pid, comm, syscall, args);
+      if (!this.behavioral) return "PASS";
+      return await this.behavioral.checkSyscallAnomalies(pid, comm, syscall, args);
   }
 
   /**
    * Executes a predefined security playbook by name.
    */
   public async runPlaybook(name: string) {
-    if (!this.services) return;
+    if (!this.locator) return;
 
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -302,15 +331,15 @@ export class PlaybookService extends BaseService {
             caller: "orchestrator:domain:orchestration:playbook_service",
             message: "Protocol: Emergency Isolation. Isolating local node from mesh."
         });
-        await this.services.mesh.isolateNode("local");
-        await this.services.notifications.notify({
+        await this.mesh?.isolateNode("local");
+        await this.notifications?.notify({
           type: "audit",
           message: "AUTO-DEFENSE: Local node isolated from mesh due to critical threat detection."
         });
         break;
       
       case "Force Lockdown":
-        await this.services.protection.lockdown();
+        await this.protection?.lockdown();
         break;
 
       default:
@@ -336,7 +365,7 @@ export class PlaybookService extends BaseService {
           caller: "orchestrator:domain:orchestration:playbook_service",
           message: `Node ${nodeId} reached isolation threshold (${score}). Executing isolation.`
       });
-      this.services?.mesh.isolateNode(nodeId);
+      this.mesh?.isolateNode(nodeId);
       // Reset after isolation
       this.threatScores.set(nodeId, 0);
     }
@@ -345,7 +374,7 @@ export class PlaybookService extends BaseService {
   protected override onShutdown(): Promise<Result<void>> {
     this.unsubscribers.forEach(u => u());
     this.unsubscribers = [];
-    this.services = undefined;
+    this.locator = undefined;
     return Promise.resolve(ok(undefined));
   }
 }

@@ -1,4 +1,4 @@
-import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
+import { LoggingPort, LogType, LogSeverity, CommandPort, EventBusPort } from "../../core/ports.ts";
 
 export type SubsystemStatus = "BOOTING" | "OPERATIONAL" | "DEGRADED" | "FAILED";
 
@@ -21,8 +21,10 @@ export class HealthService extends BaseService {
     private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
     private intervals: number[] = [];
+    private serviceRegistry: Map<string, BaseService> = new Map();
 
     protected override onInit(): Promise<Result<void>> {
+        this.intervals.push(setInterval(() => this.emitMetrics(), 30000));
         return Promise.resolve(ok(undefined));
     }
 
@@ -50,6 +52,25 @@ export class HealthService extends BaseService {
 
     public setSidecarManager(sm: CommandPort) {
         this.sidecarManager = sm;
+    }
+
+    public registerService(name: string, service: any) {
+        if (service instanceof BaseService) {
+            this.serviceRegistry.set(name, service);
+        }
+    }
+
+    private emitMetrics() {
+        if (this.eventBus) {
+            this.eventBus.emit("METRIC_UPDATE", {
+                domain: "system_health",
+                data: {
+                    status: this.getGlobalSeverity(),
+                    subsystems: this.getAllStatuses(),
+                    fullyOperational: this.isFullyOperational()
+                }
+            });
+        }
     }
 
     private async pollAgentResources() {

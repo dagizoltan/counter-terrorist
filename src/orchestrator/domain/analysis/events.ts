@@ -25,9 +25,22 @@ export class EventBus implements EventBusPort {
   constructor(private logging: LoggingPort) {}
 
   public async shutdown() {
-      // SOV-05 STABILITY: Wait for pending handlers to complete (with timeout)
       const start = Date.now();
-      while (this.pendingHandlers.size > 0 && (Date.now() - start < 3000)) {
+      const timeoutMs = 10000;
+
+      while (this.pendingHandlers.size > 0) {
+          const elapsed = Date.now() - start;
+          if (elapsed > timeoutMs) {
+              this.logging.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.GENERIC,
+                  severity: LogSeverity.WARNING,
+                  caller: "EVENTBUS",
+                  message: `Shutdown timed out with ${this.pendingHandlers.size} pending handlers still active.`
+              });
+              break;
+          }
+
           await Promise.race([
               Promise.all(Array.from(this.pendingHandlers)),
               new Promise(r => setTimeout(r, 100))

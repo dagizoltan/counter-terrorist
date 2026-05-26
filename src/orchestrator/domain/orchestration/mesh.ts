@@ -4,9 +4,10 @@ import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort } fr
 import type { AuditEvent as DomainAuditEvent } from "../analysis/audit.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
-import { retry } from "../../core/utils/resilience.ts";
+import { retry, CircuitBreaker } from "../../core/utils/resilience.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { z } from "zod";
+import { ServiceLocatorPort } from "../../core/ports.ts";
 
 export const MeshNodeSchema = z.object({
   id: z.string(),
@@ -30,6 +31,12 @@ export class MeshManager extends BaseService {
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
   private watcherAbortController: AbortController | null = null;
+  private circuitBreakers: Map<string, CircuitBreaker> = new Map();
+  private locator?: ServiceLocatorPort;
+
+  public setLocator(locator: ServiceLocatorPort) {
+    this.locator = locator;
+  }
 
   protected override onShutdown(): Promise<Result<void>> {
       if (this.discoveryInterval) clearInterval(this.discoveryInterval);
@@ -536,17 +543,26 @@ export class MeshManager extends BaseService {
     }
 
     for (const [batchIndex, batch] of batches.entries()) {
-        const batchPromises = batch.map(async (node, nodeIndex) => {
+        const batchResults = await Promise.allSettled(batch.map(async (node, nodeIndex) => {
             if (!priority) {
                 const jitter = (batchIndex * MAX_GOSSIP_CONCURRENCY + nodeIndex) * 100;
                 await new Promise(r => setTimeout(r, jitter));
             }
 
-            // SOV-05 STABILITY: Standardized retry for gossip to improve reliability
-            const gossipRes = await retry(() => this.sendSync(node, payload), {
+            // SOV-05 STABILITY: Circuit Breaker for each node to prevent hanging the gossip chain
+            let breaker = this.circuitBreakers.get(node.id);
+            if (!breaker) {
+                breaker = new CircuitBreaker({ failureThreshold: 3, resetTimeoutMs: 60000 });
+                this.circuitBreakers.set(node.id, breaker);
+            }
+
+            const gossipRes = await breaker.execute(() => retry(() => this.sendSync(node, payload), {
                 maxAttempts: priority ? 3 : 1,
                 baseDelayMs: 200
-            });
+            }).then(res => {
+                if (!res.success) throw res.error;
+                return res.data;
+            }));
 
             if (!gossipRes.success) {
                 this.logging.log({
@@ -554,12 +570,23 @@ export class MeshManager extends BaseService {
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
                     caller: "orchestrator:domain:orchestration:mesh",
-                    message: `Gossip failure to ${node.hostname} after retries: ${gossipRes.error.message}`
+                    message: `Gossip failure to ${node.hostname}: ${gossipRes.error.message}`
                 });
             }
-        });
+        }));
 
-        await Promise.all(batchPromises);
+        // SOV-06 HARDENING: Ensure all batch errors are logged to avoid unhandled rejections
+        for (const res of batchResults) {
+            if (res.status === "rejected") {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:domain:orchestration:mesh:batch",
+                    message: `Unexpected error in gossip batch: ${res.reason}`
+                });
+            }
+        }
     }
     return ok(undefined);
   }

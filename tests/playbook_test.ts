@@ -43,9 +43,21 @@ Deno.test("PlaybookService - Honeypot auto-block", async () => {
     logging: { log: async () => {} }
   } as any;
 
+  const { ServiceLocator } = await import("../src/orchestrator/core/service_locator.ts");
+  const locator = new ServiceLocator();
+  locator.register("eventBus", mockEventBus);
+  locator.register("protection", mockProtection);
+  locator.register("notifications", mockNotifications);
+  locator.register("mesh", mockMeshManager);
+
+  // SEC-03: Register behavioral and shadowProtocol as well for completeness in test
+  locator.register("behavioral", { checkSyscallAnomalies: async () => "PASS" });
+  locator.register("shadowProtocol", { activate: async () => {} });
+
   const playbook = new PlaybookService();
-  playbook.setServices(services);
-  await playbook.init(services);
+  playbook.setLocator(locator);
+  playbook.setEventBus(mockEventBus as any);
+  await playbook.init();
 
   // Simulate honeypot access
   const event = {

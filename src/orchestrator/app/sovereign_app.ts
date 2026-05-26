@@ -105,6 +105,24 @@ export class SovereignApp {
             await this.initializeInfrastructure(configProvider, tpmManager);
         this.registry.register("Health", healthService, ShutdownPriority.CRITICAL);
 
+        const { serviceLocator } = await import("../core/service_locator.ts");
+        serviceLocator.register("config", configProvider);
+        serviceLocator.register("command", this.sidecarManager);
+        serviceLocator.register("logging", loggingService);
+        serviceLocator.register("audit", this.auditService);
+        serviceLocator.register("eventBus", eventBus);
+        serviceLocator.register("notifications", notificationService);
+        serviceLocator.register("mesh", meshManager);
+        serviceLocator.register("health", healthService);
+
+        meshManager.setLocator(serviceLocator);
+        this.auditService.setLocator(serviceLocator);
+        healthService.setEventBus(eventBus);
+
+        // SOV-06: Register core infrastructure services with HealthService
+        healthService.registerService("Mesh", meshManager);
+        healthService.registerService("Audit", this.auditService);
+
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
             configProvider, platformInfo, notificationService,
@@ -565,10 +583,16 @@ export class SovereignApp {
         this.auditService.setCorrelation(correlation);
 
         const security = factory.initSecurity(protection, mesh, configProvider, health);
+        serviceLocator.register("protection", protection);
         this.registry.register("Anonymization", security.anonymization, ShutdownPriority.NETWORK);
         this.registry.register("ShadowProtocol", security.shadowProtocol, ShutdownPriority.AUXILIARY);
         this.registry.register("Behavioral", security.behavioral, ShutdownPriority.AUXILIARY);
         this.registry.register("Honeypot", security.honeypot, ShutdownPriority.AUXILIARY);
+
+        health.registerService("Anonymization", security.anonymization);
+        health.registerService("ShadowProtocol", security.shadowProtocol);
+        health.registerService("Behavioral", security.behavioral);
+        health.registerService("Honeypot", security.honeypot);
 
         const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth);
         this.registry.register("GeoIp", intelligence.geoIp, ShutdownPriority.AUXILIARY);
@@ -579,7 +603,11 @@ export class SovereignApp {
         this.registry.register("Incidents", intelligence.incidents, ShutdownPriority.AUXILIARY);
         this.registry.register("Compliance", intelligence.compliance, ShutdownPriority.AUXILIARY);
 
+        const { serviceLocator } = await import("../core/service_locator.ts");
         const playbook = new PlaybookService();
+        playbook.setLocator(serviceLocator);
+        serviceLocator.register("playbook", playbook);
+
         this.registry.register("Playbook", playbook, ShutdownPriority.AUXILIARY);
         const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await factory.initEngine(correlation, mesh);
         this.registry.register("Autopilot", autopilot, ShutdownPriority.AUXILIARY);
@@ -587,6 +615,10 @@ export class SovereignApp {
         this.registry.register("Lifecycle", lifecycle, ShutdownPriority.AUXILIARY);
         this.registry.register("Policy", policy, ShutdownPriority.AUXILIARY);
         this.registry.register("Provisioning", provisioning, ShutdownPriority.AUXILIARY);
+
+        health.registerService("Autopilot", autopilot);
+        health.registerService("Lifecycle", lifecycle);
+        health.registerService("Policy", policy);
 
         const integrity = factory.createService(health, "Integrity", () => new IntegrityService(mesh, this.auditService, tpm, loggingService));
         this.registry.register("Integrity", integrity, ShutdownPriority.CRITICAL);
@@ -667,7 +699,21 @@ export class SovereignApp {
             viewModel
         };
 
-        playbook.setServices(services);
+        // Final registration of all remaining services into locator
+        serviceLocator.register("autopilot", autopilot);
+        serviceLocator.register("shadow", shadow);
+        serviceLocator.register("covert", covert);
+        serviceLocator.register("ledger", ledger);
+        serviceLocator.register("autonomousAutopilot", autonomousAutopilot);
+        serviceLocator.register("lifecycle", lifecycle);
+        serviceLocator.register("policy", policy);
+        serviceLocator.register("provisioning", provisioning);
+        serviceLocator.register("integrity", integrity);
+        serviceLocator.register("processTracker", processTracker);
+        serviceLocator.register("behavioral", security.behavioral);
+        serviceLocator.register("honeypot", security.honeypot);
+        serviceLocator.register("shadowProtocol", security.shadowProtocol);
+
         return services;
     }
 

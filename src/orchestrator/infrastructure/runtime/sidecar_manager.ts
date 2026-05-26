@@ -3,6 +3,8 @@ import { SystemExecutor } from "../system/system_executor.ts";
 import { CommandResult, LoggingPort, LogSeverity, LogType, ConfigurationPort, TpmPort } from "@core/ports.ts";
 import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS } from "./sidecar_registry.ts";
 import { canonicalStringify } from "@core/crypto_utils.ts";
+import { SecretRedactor } from "@core/utils/security.ts";
+import { CircuitBreaker } from "@core/utils/resilience.ts";
 
 import { CommandPort } from "@core/ports.ts";
 
@@ -38,6 +40,8 @@ export class SidecarManager implements CommandPort {
   private manifestPromise: Promise<void> | null = null;
 
   private tpm: TpmPort | undefined;
+  private redactor: SecretRedactor = new SecretRedactor();
+  private circuitBreakers: Map<string, CircuitBreaker> = new Map();
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.registerCleanup();
@@ -50,6 +54,10 @@ export class SidecarManager implements CommandPort {
 
   setConfig(config: ConfigurationPort) {
     this.config = config;
+    this.redactor.updateSecrets({
+      MESH_SECRET: config.getEnv("MESH_SECRET"),
+      API_TOKEN: config.getToken()
+    });
   }
 
   setTpm(tpm: TpmPort) {
@@ -553,7 +561,9 @@ export class SidecarManager implements CommandPort {
           }
 
           try {
-            const data = JSON.parse(trimmed) as SidecarResponse;
+            // SOV-06 SECURITY: Redact sensitive payloads from IPC before they are processed or logged
+            const redactedLine = this.redactor.redact(trimmed);
+            const data = JSON.parse(redactedLine) as SidecarResponse;
 
             if (!validateResponse(name as SidecarName, data)) {
               this.logging.log({
@@ -655,6 +665,26 @@ export class SidecarManager implements CommandPort {
   }
 
   async sendCommand(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult> {
+    let breaker = this.circuitBreakers.get(name);
+    if (!breaker) {
+        breaker = new CircuitBreaker({ failureThreshold: 3, resetTimeoutMs: 30000 });
+        this.circuitBreakers.set(name, breaker);
+    }
+
+    const breakerRes = await breaker.execute(async () => {
+        const res = await this.rawSendCommand(name, cmd);
+        if (!res.success) throw new Error(res.stderr);
+        return res;
+    });
+
+    if (!breakerRes.success) {
+        return { success: false, stdout: "", stderr: `Circuit Breaker: ${breakerRes.error.message}` };
+    }
+
+    return breakerRes.data;
+  }
+
+  private async rawSendCommand(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult> {
     const child = await this.getPersistentSidecar(name) as Deno.ChildProcess | null;
     if (!child) return { success: false, stdout: "", stderr: `Sidecar ${name} not found` };
 

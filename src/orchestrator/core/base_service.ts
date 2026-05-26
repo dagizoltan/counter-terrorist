@@ -27,6 +27,7 @@ export abstract class BaseService implements Service {
      * Standard initialization with re-entrancy protection.
      */
     init(..._args: unknown[]): Promise<Result<void>> {
+        if (this.initialized) return Promise.resolve(ok(undefined));
         if (this.initPromise) return this.initPromise;
 
         this.initPromise = (async () => {

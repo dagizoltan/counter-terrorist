@@ -379,13 +379,19 @@ profile ${profileName} ${binaryPath} flags=(attach_disconnected) {
 }
 `.trim();
 
-        // SOV-06 HARDENING: Use random, non-predictable temporary file with restrictive permissions to prevent TOCTOU
+        // SOV-06 HARDENING: Use secure root-owned directory for temporary files to prevent TOCTOU symlink attacks
+        const secureTempDir = "/var/lib/cts/tmp";
+        try {
+            await this.executor.execute("mkdir", ["-p", secureTempDir]);
+        } catch { /* ignore if already exists */ }
+
         let tempFile = "";
         try {
-            tempFile = await Deno.makeTempFile({ prefix: `cts-profile-${name}-`, suffix: ".profile" });
-            // Set restrictive permissions (0600) immediately after creation
-            await Deno.chmod(tempFile, 0o600);
+            const randomSuffix = crypto.randomUUID().slice(0, 8);
+            tempFile = `${secureTempDir}/cts-profile-${name}-${randomSuffix}.profile`;
+
             await Deno.writeTextFile(tempFile, profile);
+            await Deno.chmod(tempFile, 0o600);
 
             // Deploy profile via privileged SystemExecutor
             const cpRes = await this.executor.execute("cp", [tempFile, `/etc/apparmor.d/${profileName}`]);
