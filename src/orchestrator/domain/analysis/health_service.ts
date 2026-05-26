@@ -56,7 +56,7 @@ export class HealthService extends BaseService {
 
     public registerService(name: string, service: any) {
         if (service instanceof BaseService) {
-            this.serviceRegistry.set(name, service);
+            this.serviceRegistry.set(name.toLowerCase(), service);
         }
     }
 
@@ -90,7 +90,8 @@ export class HealthService extends BaseService {
             ? status as SubsystemStatus
             : "DEGRADED";
 
-        this.states.set(name, {
+        const key = name.toLowerCase();
+        this.states.set(key, {
             name,
             status: validStatus,
             lastUpdate: Date.now(),
@@ -122,6 +123,10 @@ export class HealthService extends BaseService {
 
     isFullyOperational(): boolean {
         return Array.from(this.states.values()).every(s => s.status === "OPERATIONAL");
+    }
+
+    getServiceStatus(name: string): SubsystemStatus | undefined {
+        return this.states.get(name.toLowerCase())?.status;
     }
 
     getGlobalSeverity(): "SUCCESS" | "WARNING" | "DANGER" {

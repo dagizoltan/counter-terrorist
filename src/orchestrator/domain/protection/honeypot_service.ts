@@ -143,7 +143,17 @@ export class HoneypotService extends BaseService {
     }
 
     // Phase 3: Deception Morphing - Periodically rotate decoy ports
-    this.morphInterval = setInterval(() => this.morph(), 600000); // Every 10 minutes
+    this.morphInterval = setInterval(() => {
+        this.morph().catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:honeypot:morph",
+                message: `Periodic morphing failed: ${e.message}`
+            }).catch(() => {});
+        });
+    }, 600000); // Every 10 minutes
     this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     return ok(undefined);
   }

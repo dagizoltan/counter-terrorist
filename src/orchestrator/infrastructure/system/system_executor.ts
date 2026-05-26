@@ -153,6 +153,66 @@ export class SystemExecutor implements ExecutorPort {
       }
   });
 
+  private static readonly CP_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
+      if (args.length !== 2) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Exactly 2 arguments required" });
+          return;
+      }
+      for (const arg of args) {
+          if (!validatePath(arg, SystemExecutor.SYSTEM_JAILS)) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized path: ${arg}` });
+          }
+      }
+  });
+
+  private static readonly MV_SCHEMA = SystemExecutor.CP_SCHEMA;
+
+  private static readonly CHMOD_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
+      if (args.length !== 2) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Exactly 2 arguments required" });
+          return;
+      }
+      if (!/^[0-7]{3,4}$/.test(args[0])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid mode" });
+      }
+      if (!validatePath(args[1], SystemExecutor.SYSTEM_JAILS)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized path: ${args[1]}` });
+      }
+  });
+
+  private static readonly MKDIR_SCHEMA = z.array(z.string()).min(1).max(2).superRefine((args, ctx) => {
+      let pathArg = args[0];
+      if (args.length === 2) {
+          if (args[0] !== "-p") {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid flag for mkdir" });
+          }
+          pathArg = args[1];
+      }
+      if (!validatePath(pathArg, SystemExecutor.SYSTEM_JAILS)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized path: ${pathArg}` });
+      }
+  });
+
+  private static readonly LS_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
+      for (const arg of args) {
+          if (arg.startsWith("-")) {
+              if (!/^-la?$/.test(arg)) {
+                  ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized flag: ${arg}` });
+              }
+          } else {
+              if (!validatePath(arg, SystemExecutor.SYSTEM_JAILS)) {
+                  ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized path: ${arg}` });
+              }
+          }
+      }
+  });
+
+  private static readonly SHA256SUM_SCHEMA = z.array(z.string()).max(1).superRefine((args, ctx) => {
+      if (args.length === 1 && !validatePath(args[0], SystemExecutor.SYSTEM_JAILS)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized path: ${args[0]}` });
+      }
+  });
+
   /**
    * Granular policies for sensitive commands.
    */
@@ -219,10 +279,12 @@ export class SystemExecutor implements ExecutorPort {
       maxArgs: 2
     },
     "chmod": {
+      schema: SystemExecutor.CHMOD_SCHEMA,
       allowedArgs: [/^[0-7]{3,4}$/, /^(\.\/volume\/.*|\/etc\/systemd\/system\/cts-.*)$/],
       maxArgs: 2
     },
     "mkdir": {
+      schema: SystemExecutor.MKDIR_SCHEMA,
       allowedArgs: [/^-p$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
       maxArgs: 2
     },
@@ -231,14 +293,17 @@ export class SystemExecutor implements ExecutorPort {
       maxArgs: 8
     },
     "ls": {
+      schema: SystemExecutor.LS_SCHEMA,
       allowedArgs: [/^-la?$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
       maxArgs: 2
     },
     "cp": {
+      schema: SystemExecutor.CP_SCHEMA,
       allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
       maxArgs: 2
     },
     "mv": {
+      schema: SystemExecutor.MV_SCHEMA,
       allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
       maxArgs: 2
     },
@@ -255,6 +320,7 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 5
     },
     "sha256sum": {
+        schema: SystemExecutor.SHA256SUM_SCHEMA,
         allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
         maxArgs: 1
     },
@@ -436,24 +502,27 @@ export class SystemExecutor implements ExecutorPort {
     const baseCmd = path.basename(cmd);
     const policy = SystemExecutor.COMMAND_POLICIES[cmd] || SystemExecutor.COMMAND_POLICIES[baseCmd];
 
-    // SEC-02 Framework-level hardening: Reject shell metacharacters before processing
-    for (const arg of args) {
-        if (/[;&|><`$!]/.test(arg)) {
-            // Exceptions for JSON payloads which might contain some of these in a controlled way.
-            // We strictly reject shell-sensitive characters: ;, &, |, $, `, <, >, !
-            if (/[;&|><`$!]/.test(arg)) {
-                // If it's a sentinel/ebpf JSON, we might allow it if it passes schema,
-                // but let's be strict first.
-                if (!((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
-                    return { valid: false, reason: `Security Violation: Shell metacharacter detected in command arguments.` };
-                }
-            }
-        }
-    }
-    
     // 1. Policy Existence Check
     if (!policy) {
       return { valid: false, reason: `No security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
+    }
+
+    // SEC-02 Framework-level hardening: Reject shell metacharacters before processing
+    // SOV-P3: Transition to context-aware validation. Skip global check if command is strictly validated by schema.
+    if (!policy.schema) {
+        for (const arg of args) {
+            if (/[;&|><`$!]/.test(arg)) {
+                // Exceptions for JSON payloads which might contain some of these in a controlled way.
+                // We strictly reject shell-sensitive characters: ;, &, |, $, `, <, >, !
+                if (/[;&|><`$!]/.test(arg)) {
+                    // If it's a sentinel/ebpf JSON, we might allow it if it passes schema,
+                    // but let's be strict first.
+                    if (!((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
+                        return { valid: false, reason: `Security Violation: Shell metacharacter detected in command arguments.` };
+                    }
+                }
+            }
+        }
     }
 
     // 2. Structured Schema Validation (Priority)
@@ -523,7 +592,7 @@ export class SystemExecutor implements ExecutorPort {
     return { valid: true };
   }
 
-  private static readonly DANGEROUS_PATTERN = /[\/\\%{}&|;><`()!\[\]\n\r\$]|\.\./;
+  private static readonly DANGEROUS_PATTERN = /[\/\\%{}&|;><`()!\n\r\$]|\.\./;
 
   private isPotentiallyDangerous(arg: string): boolean {
       // SOV-06 HARDENING: Comprehensive shell metacharacter and escape detection

@@ -120,8 +120,8 @@ export class SovereignApp {
         healthService.setEventBus(eventBus);
 
         // SOV-06: Register core infrastructure services with HealthService
-        healthService.registerService("Mesh", meshManager);
-        healthService.registerService("Audit", this.auditService);
+        healthService.registerService("mesh", meshManager);
+        healthService.registerService("audit", this.auditService);
 
         // ── Phase 5: Service Orchestration ────────────────────────────────────
         this.services = await this.initServices(
@@ -589,10 +589,10 @@ export class SovereignApp {
         this.registry.register("Behavioral", security.behavioral, ShutdownPriority.AUXILIARY);
         this.registry.register("Honeypot", security.honeypot, ShutdownPriority.AUXILIARY);
 
-        health.registerService("Anonymization", security.anonymization);
-        health.registerService("ShadowProtocol", security.shadowProtocol);
-        health.registerService("Behavioral", security.behavioral);
-        health.registerService("Honeypot", security.honeypot);
+        health.registerService("anonymization", security.anonymization);
+        health.registerService("shadowProtocol", security.shadowProtocol);
+        health.registerService("behavioral", security.behavioral);
+        health.registerService("honeypot", security.honeypot);
 
         const intelligence = factory.initIntelligence(protection, processTracker, health, configProvider, mesh, identity.meshAuth);
         this.registry.register("GeoIp", intelligence.geoIp, ShutdownPriority.AUXILIARY);
@@ -603,7 +603,6 @@ export class SovereignApp {
         this.registry.register("Incidents", intelligence.incidents, ShutdownPriority.AUXILIARY);
         this.registry.register("Compliance", intelligence.compliance, ShutdownPriority.AUXILIARY);
 
-        const { serviceLocator } = await import("../core/service_locator.ts");
         const playbook = new PlaybookService();
         playbook.setLocator(serviceLocator);
         serviceLocator.register("playbook", playbook);
@@ -616,9 +615,9 @@ export class SovereignApp {
         this.registry.register("Policy", policy, ShutdownPriority.AUXILIARY);
         this.registry.register("Provisioning", provisioning, ShutdownPriority.AUXILIARY);
 
-        health.registerService("Autopilot", autopilot);
-        health.registerService("Lifecycle", lifecycle);
-        health.registerService("Policy", policy);
+        health.registerService("autopilot", autopilot);
+        health.registerService("lifecycle", lifecycle);
+        health.registerService("policy", policy);
 
         const integrity = factory.createService(health, "Integrity", () => new IntegrityService(mesh, this.auditService, tpm, loggingService));
         this.registry.register("Integrity", integrity, ShutdownPriority.CRITICAL);

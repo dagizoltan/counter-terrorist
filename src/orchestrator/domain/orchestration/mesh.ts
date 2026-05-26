@@ -682,7 +682,15 @@ export class MeshManager extends BaseService {
         fromAudit: event.fromAudit
     };
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
-    await this.broadcast(payload);
+    this.broadcast(payload).catch(e => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:orchestration:mesh:gossip",
+            message: `Failed to broadcast audit event: ${e.message}`
+        });
+    });
   }
 
   async broadcastAuditVerification(lastHash: string, eventCount: number) {
@@ -691,7 +699,15 @@ export class MeshManager extends BaseService {
         data: { lastHash, eventCount, node: this.nodeId }
     };
     if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
-    await this.broadcast(payload);
+    this.broadcast(payload).catch(e => {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:domain:orchestration:mesh:gossip",
+            message: `Failed to broadcast audit verification: ${e.message}`
+        });
+    });
   }
 
   async reconcile(): Promise<Result<void>> {
@@ -1075,7 +1091,15 @@ export class MeshManager extends BaseService {
   async requestAuditSync(nodeId: string) {
       const node = this.nodes.get(nodeId);
       if (node && node.verified) {
-          await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId });
+          this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId }).catch(e => {
+              this.logging.log({
+                  timestamp: new Date().toISOString(),
+                  type: LogType.GENERIC,
+                  severity: LogSeverity.ERROR,
+                  caller: "orchestrator:domain:orchestration:mesh:sync",
+                  message: `Failed to request audit sync from ${nodeId}: ${e.message}`
+              });
+          });
       }
   }
 

@@ -6,13 +6,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::io::BufRead;
 use tokio::io::{AsyncBufReadExt, BufReader as TokioBufReader};
 use std::sync::{Arc};
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as AsyncMutex;
 use once_cell::sync::Lazy;
 use chrono::Utc;
 use sha2::{Sha256, Digest};
-use dashmap::DashMap;
+use lru::LruCache;
+use parking_lot::Mutex;
 
-static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+static STDOUT_LOCK: Lazy<Arc<AsyncMutex<()>>> = Lazy::new(|| Arc::new(AsyncMutex::new(())));
 
 // Memory Leak Mitigation: Hash Cache with TTL/Eviction logic
 const MAX_CACHE_SIZE: usize = 5000;
@@ -22,7 +23,9 @@ struct CacheEntry {
     hash: String,
     timestamp: u64,
 }
-static HASH_CACHE: Lazy<DashMap<String, CacheEntry>> = Lazy::new(DashMap::new);
+static HASH_CACHE: Lazy<Mutex<LruCache<String, CacheEntry>>> = Lazy::new(|| {
+    Mutex::new(LruCache::new(std::num::NonZeroUsize::new(MAX_CACHE_SIZE).unwrap()))
+});
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
@@ -138,9 +141,12 @@ fn hash_file(path: &Path) -> Option<String> {
     let path_str = path.to_string_lossy().to_string();
     let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-    if let Some(entry) = HASH_CACHE.get(&path_str) {
-        if now - entry.timestamp < 3600 { // 1 Hour TTL
-            return Some(entry.hash.clone());
+    {
+        let mut cache = HASH_CACHE.lock();
+        if let Some(entry) = cache.get(&path_str) {
+            if now - entry.timestamp < 3600 { // 1 Hour TTL
+                return Some(entry.hash.clone());
+            }
         }
     }
 
@@ -156,33 +162,16 @@ fn hash_file(path: &Path) -> Option<String> {
     std::io::copy(&mut file, &mut hasher).ok()?;
     let hash = hex::encode(hasher.finalize());
 
-    // 3. Update Cache (with size limit and simple eviction)
+    // 3. Update Cache (with size limit and O(1) LRU eviction)
     // SOV-P3: Optimized Cache Eviction
-    // FIX: Instead of a full sort (O(n log n)), we use a faster O(n) threshold-based eviction.
-    if HASH_CACHE.len() >= MAX_CACHE_SIZE {
-        let now_s = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-
-        // Strategy 1: First try to evict expired entries (O(n))
-        HASH_CACHE.retain(|_, v| now_s - v.timestamp < 3600);
-
-        // Strategy 2: If still too large, perform bulk eviction using a random sampling threshold (O(n))
-        if HASH_CACHE.len() >= MAX_CACHE_SIZE {
-            // Sample a small percentage of entries to estimate a "recent enough" timestamp
-            // or just use a fixed time window for the secondary eviction.
-            let eviction_threshold = now_s - 1800; // Evict anything older than 30 mins
-            HASH_CACHE.retain(|_, v| v.timestamp > eviction_threshold);
-        }
-
-        // Strategy 3: Hard limit fallback (Safety)
-        if HASH_CACHE.len() >= MAX_CACHE_SIZE {
-            HASH_CACHE.clear(); // Emergency flush if we can't shed enough load
-        }
+    // FIX: Using lru::LruCache for O(1) eviction during insert.
+    {
+        let mut cache = HASH_CACHE.lock();
+        cache.put(path_str, CacheEntry {
+            hash: hash.clone(),
+            timestamp: now,
+        });
     }
-
-    HASH_CACHE.insert(path_str, CacheEntry {
-        hash: hash.clone(),
-        timestamp: now,
-    });
 
     Some(hash)
 }
@@ -250,11 +239,20 @@ async fn main() -> anyhow::Result<()> {
             tokio::time::sleep(std::time::Duration::from_secs(1800)).await; // Every 30 mins
             let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
             // B-08: Memory Leak Fix - Evict expired entries OR entries where the file no longer exists
-            HASH_CACHE.retain(|k, v| {
+            let mut cache = HASH_CACHE.lock();
+
+            // LruCache doesn't support retain, so we iterate and collect keys to remove.
+            // This is O(n) but only runs every 30 mins, so it's acceptable for a background task.
+            let mut keys_to_remove = Vec::new();
+            for (k, v) in cache.iter() {
                 let ttl_valid = now - v.timestamp < 3600;
-                let exists = Path::new(k).exists();
-                ttl_valid && exists
-            });
+                if !ttl_valid || !Path::new(k).exists() {
+                    keys_to_remove.push(k.clone());
+                }
+            }
+            for k in keys_to_remove {
+                cache.pop(&k);
+            }
         }
     });
 

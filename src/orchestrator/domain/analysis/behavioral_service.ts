@@ -40,7 +40,9 @@ export class BehavioralService extends BaseService {
       this.eventBus = eventBus;
       if (this.eventBus) this.eventBus.on("HONEYPOT", (event: any) => {
           if (event && event.source_ip) {
-              this.analyze(event.source_ip).catch(() => {});
+              this.analyze(event.source_ip).catch(e => {
+                  console.error(`Behavioral analysis failed for ${event.source_ip}: ${e.message}`);
+              });
           }
       });
   }
