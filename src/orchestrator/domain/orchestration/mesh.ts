@@ -734,24 +734,49 @@ export class MeshManager extends BaseService {
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => n.verified);
     for (const node of verifiedNodes) {
         try {
+            const localStatus = await this.audit.getChainStatus();
+
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.DEBUG,
                 severity: LogSeverity.INFO,
                 caller: "orchestrator:domain:orchestration:mesh",
-                message: `Requesting state reconciliation from ${node.hostname}...`
+                message: `Requesting differential Merkle catch-up from ${node.hostname}...`
             });
-            const res = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId }) as Record<string, unknown>;
+
+            // Differential Sync: Send our last hash to get only what's missing
+            const res = await this.sendSync(node, {
+                type: "MERKLE_CATCH_UP",
+                lastKnownHash: localStatus.lastHash,
+                nodeId: this.nodeId
+            }) as Record<string, unknown>;
             
-            if (res !== undefined && res !== null && res.kv_snapshot && Array.isArray(res.kv_snapshot)) {
+            if (res && res.events && Array.isArray(res.events)) {
+                if (res.proof) {
+                    // SEC-05: Verify Merkle proof of the catch-up batch
+                    const { MerkleTree } = await import("../../core/merkle.ts");
+                    const proof = res.proof as any;
+                    const isValid = await MerkleTree.verify(proof.root, proof.leaf, proof.index, proof.proof);
+
+                    if (!isValid) {
+                        throw new Error(`Merkle proof verification failed for batch from ${node.hostname}`);
+                    }
+                }
+
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,
                     severity: LogSeverity.INFO,
                     caller: "orchestrator:domain:orchestration:mesh",
-                    message: `Received state snapshot from ${node.hostname}. Synchronizing...`
+                    message: `Received ${res.events.length} differential events from ${node.hostname}.`
                 });
-                await this.audit.syncEvents(res.kv_snapshot as DomainAuditEvent[]);
+                await this.audit.syncEvents(res.events as DomainAuditEvent[]);
+            } else if (res && res.full_sync_required) {
+                // Fallback to full snapshot if hashes have diverged too far
+                const fullRes = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId }) as any;
+                if (fullRes?.kv_snapshot) {
+                    await this.audit.syncEvents(fullRes.kv_snapshot as DomainAuditEvent[]);
+                }
             }
             
             this.logging.log({

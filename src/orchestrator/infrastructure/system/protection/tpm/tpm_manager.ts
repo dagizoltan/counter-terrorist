@@ -268,6 +268,10 @@ export class TPMManager implements TpmPort {
         });
     }
 
+    async wipeSecrets() {
+        return await this.sidecar.sendCommand("trustroot", { type: "WipeSecrets" });
+    }
+
     /**
      * Seals the current PCR state into TPM NVRAM as the 'Golden' baseline.
      */

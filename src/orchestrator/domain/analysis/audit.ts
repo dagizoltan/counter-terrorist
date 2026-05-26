@@ -312,6 +312,39 @@ export class AuditService extends BaseService {
         return await this.repo.getLatest(limit);
     }
 
+    public async getEventsInRange(startHash: string, limit: number = 50): Promise<AuditEvent[]> {
+        const stream = this.repo.getStream(1000, true);
+        const events: AuditEvent[] = [];
+        let found = false;
+
+        for await (const event of stream) {
+            if (found) {
+                events.push(event);
+                if (events.length >= limit) break;
+            }
+            if (event.hash === startHash) {
+                found = true;
+            }
+        }
+        return events;
+    }
+
+    public async getMerkleProof(eventHash: string): Promise<{ leaf: string, index: number, proof: string[], root: string } | null> {
+        // This is a simplified implementation.
+        // In a real system, we would maintain Merkle trees for blocks of events.
+        const recent = await this.getRecentEvents(100);
+        const hashes = recent.map(e => e.hash).reverse();
+        const index = hashes.indexOf(eventHash);
+
+        if (index === -1) return null;
+
+        const tree = new MerkleTree(hashes);
+        const proof = await tree.getProof(index);
+        const root = await tree.getRoot();
+
+        return { leaf: eventHash, index, proof, root };
+    }
+
     /**
      * Event Sourcing: Project current ledger state from event stream.
      */

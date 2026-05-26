@@ -6,6 +6,7 @@
     "jsr:@std/fmt@0.224": "0.224.0",
     "jsr:@std/internal@0.224": "0.224.0",
     "jsr:@std/path@0.224": "0.224.0",
+    "npm:fast-check@*": "4.8.0",
     "npm:zod@*": "4.4.2",
     "npm:zod@^4.4.1": "4.4.2"
   },
@@ -37,6 +38,15 @@
     }
   },
   "npm": {
+    "fast-check@4.8.0": {
+      "integrity": "sha512-GOJ158CUMnN6cSahsv4+ExARvIDuzzinFjkp0E9WtiBa5zcVeLozVkWaE4IzFcc+Y48Wp1EDlUZsXRyAztQcSg==",
+      "dependencies": [
+        "pure-rand"
+      ]
+    },
+    "pure-rand@8.4.0": {
+      "integrity": "sha512-IoM8YF/jY0hiugFo/wOWqfmarlE6J0wc6fDK1PhftMk7MGhVZl88sZimmqBBFomLOCSmcCCpsfj7wXASCpvK9A=="
+    },
     "zod@4.4.2": {
       "integrity": "sha512-IynmDyxsEsb9RKzO3J9+4SxXnl2FTFSzNBaKKaMV6tsSk0rw9gYw9gs+JFCq/qk2LCZ78KDwyj+Z289TijSkUw=="
     }

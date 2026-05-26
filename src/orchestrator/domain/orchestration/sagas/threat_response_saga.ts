@@ -215,7 +215,7 @@ export class ThreatResponseSaga {
             type: LogType.AUDIT,
             severity: LogSeverity.WARNING,
             caller: "orchestrator:saga:threat_response",
-            message: `SHADOW REDIRECTION for ${source}`
+            message: `SHADOW REDIRECTION/ADAPTIVE LSM for ${source}`
         });
 
         if (source.includes(".")) {
@@ -224,8 +224,14 @@ export class ThreatResponseSaga {
         } else {
             const pid = parseInt(source);
             if (!isNaN(pid)) {
-                const res = await this.deps.kernel.blockSyscall(pid, "execve");
-                return res;
+                // Adaptive LSM: Tighten syscall allowlist for the process
+                // In shadow mode, we allow basic I/O but block high-risk calls.
+                const res = await this.deps.firewall.sendCommand("sentinel", {
+                    type: "LSM_SYSCALL_ALLOWLIST",
+                    pid,
+                    allowed_syscalls: ["open", "openat", "read", "write", "close"]
+                });
+                return res.success ? ok(undefined) : err(new Error(res.stderr));
             }
         }
         return err(new Error(`Invalid source for SHADOW: ${source}`));
