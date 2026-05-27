@@ -16,6 +16,28 @@ pub extern "C" fn hash_sha256(data: *const u8, len: usize, out: *mut u8) {
 }
 
 #[no_mangle]
+pub extern "C" fn shmem_write(shmem_ptr: *mut Shmem, data: *const u8, len: usize) -> bool {
+    if shmem_ptr.is_null() { return false; }
+    let shmem = unsafe { &mut *shmem_ptr };
+    let slice = unsafe { shmem.as_slice_mut() };
+
+    if slice.len() < 8 || len + 8 > slice.len() { return false; }
+
+    let mut current_len_bytes = [0u8; 4];
+    current_len_bytes.copy_from_slice(&slice[0..4]);
+    let current_len = u32::from_le_bytes(current_len_bytes);
+
+    if current_len != 0 { return false; } // Buffer busy
+
+    unsafe {
+        std::ptr::copy_nonoverlapping(data, slice[8..8+len].as_mut_ptr(), len);
+        let len_bytes = (len as u32).to_le_bytes();
+        std::ptr::copy_nonoverlapping(len_bytes.as_ptr(), slice.as_mut_ptr(), 4);
+    }
+    true
+}
+
+#[no_mangle]
 pub extern "C" fn hash_file_sha256(path: *const i8, out: *mut u8) -> i32 {
     let path_str = unsafe { std::ffi::CStr::from_ptr(path) }.to_str();
     let path_str = match path_str {

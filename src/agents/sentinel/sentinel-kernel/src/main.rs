@@ -48,10 +48,21 @@ static mut ENFORCEMENT_POLICY: HashMap<u32, u32> = HashMap::with_max_entries(102
 static mut SYSCALL_ALLOWLIST: LruHashMap<SyscallAllowKey, u8> = LruHashMap::with_max_entries(4096, 0);
 
 #[map]
+static mut HOOK_CONTROL: HashMap<u32, u32> = HashMap::with_max_entries(64, 0); // Key: Hook ID, Value: Control bits (0=Disabled)
+
+#[map]
 static mut HOOK_STATS: HashMap<u32, u64> = HashMap::with_max_entries(64, 0); // Key: Hook ID, Value: Total Duration (ns)
 
 #[map]
 static mut HOOK_COUNTS: HashMap<u32, u64> = HashMap::with_max_entries(64, 0); // Key: Hook ID, Value: Call Count
+
+#[inline(always)]
+fn is_hook_enabled(hook_id: u32) -> bool {
+    if let Some(control) = unsafe { HOOK_CONTROL.get(&hook_id) } {
+        return *control != 0;
+    }
+    true // Default enabled
+}
 
 #[xdp]
 pub fn xdp_ingress(ctx: XdpContext) -> u32 {
@@ -72,6 +83,9 @@ fn load<T>(ctx: &XdpContext, offset: usize) -> Result<T, ()> {
 }
 
 fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
+    if !is_hook_enabled(1) {
+        return Ok(XDP_PASS);
+    }
     let start_ns = unsafe { bpf_ktime_get_ns() };
     let res = (|| -> Result<u32, ()> {
     let eth_proto = u16::from_be(load::<u16>(ctx, 12)?);
@@ -222,6 +236,9 @@ fn try_tc_egress(ctx: &TcContext) -> Result<(), ()> {
 
 #[kprobe]
 pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
+    if !is_hook_enabled(2) {
+        return 0;
+    }
     let start_ns = unsafe { bpf_ktime_get_ns() };
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
@@ -252,6 +269,9 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
 
 #[kprobe]
 pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
+    if !is_hook_enabled(3) {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
@@ -272,6 +292,9 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
 
 #[kprobe]
 pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
+    if !is_hook_enabled(4) {
+        return 0;
+    }
     let prot: u64 = ctx.arg(2).unwrap_or(0);
     if (prot & 0x04) != 0 { // PROT_EXEC
         let event = SyscallEvent {
@@ -290,6 +313,9 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
 
 #[aya_ebpf::macros::lsm]
 pub fn sb_mount(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    if !is_hook_enabled(5) {
+        return 0;
+    }
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 8) != 0 || (*policy & 1) != 0 {
@@ -301,6 +327,9 @@ pub fn sb_mount(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
 
 #[kprobe]
 pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
+    if !is_hook_enabled(6) {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
@@ -321,6 +350,9 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
 
 #[kprobe]
 pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
+    if !is_hook_enabled(7) {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
@@ -341,6 +373,9 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
 
 #[aya_ebpf::macros::lsm]
 pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    if !is_hook_enabled(8) {
+        return 0;
+    }
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 4) != 0 || (*policy & 1) != 0 {
@@ -360,6 +395,9 @@ pub fn file_open(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
 
 #[aya_ebpf::macros::lsm]
 pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    if !is_hook_enabled(9) {
+        return 0;
+    }
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 2) != 0 || (*policy & 1) != 0 {
@@ -378,6 +416,9 @@ pub fn socket_connect(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
 
 #[aya_ebpf::macros::lsm]
 pub fn bprm_check_security(_ctx: aya_ebpf::programs::LsmContext) -> i32 {
+    if !is_hook_enabled(10) {
+        return 0;
+    }
     let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
     if let Some(policy) = unsafe { ENFORCEMENT_POLICY.get(&pid) } {
         if (*policy & 1) != 0 {

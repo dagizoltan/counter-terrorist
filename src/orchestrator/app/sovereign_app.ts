@@ -13,7 +13,8 @@ import {
     LedgerService, HealthService, EventMediator,
     WatchdogService,
     CorrelationService, ViewModelService,
-    DeceptionGridService, IntegrityService
+    DeceptionGridService, IntegrityService,
+    LsmLearningService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
@@ -392,6 +393,7 @@ export class SovereignApp {
         services.behavioral.setEventBus(bus);
         services.viewModel.setEventBus(bus);
         services.mediator.setEventBus(bus);
+        services.lsmLearning?.setEventBus(bus);
     }
 
     private startWatchdog(health: HealthService): WatchdogService {
@@ -605,6 +607,11 @@ export class SovereignApp {
         this.auditService.setCorrelation(correlation);
 
         const security = factory.initSecurity(protection, mesh, configProvider, health);
+
+        const lsmLearning = new LsmLearningService(this.sidecarManager, loggingService);
+        await lsmLearning.init();
+        this.registry.register("LsmLearning", lsmLearning, ShutdownPriority.AUXILIARY);
+
         serviceLocator.register("protection", protection);
         this.registry.register("Anonymization", security.anonymization, ShutdownPriority.NETWORK);
         this.registry.register("ShadowProtocol", security.shadowProtocol, ShutdownPriority.AUXILIARY);
@@ -720,6 +727,7 @@ export class SovereignApp {
             geoIp: intelligence.geoIp,
             correlation,
             rateLimit: identity.rateLimit,
+            lsmLearning,
             platformInfo,
             viewModel
         };
@@ -735,9 +743,11 @@ export class SovereignApp {
         serviceLocator.register("provisioning", provisioning);
         serviceLocator.register("integrity", integrity);
         serviceLocator.register("processTracker", processTracker);
+        const { serviceLocator } = await import("../core/service_locator.ts");
         serviceLocator.register("behavioral", security.behavioral);
         serviceLocator.register("honeypot", security.honeypot);
         serviceLocator.register("shadowProtocol", security.shadowProtocol);
+        serviceLocator.register("lsmLearning", lsmLearning);
 
         return services;
     }

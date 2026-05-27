@@ -19,7 +19,8 @@ export class IpcFfiBridge {
                 "deserialize_msgpack": { parameters: ["buffer", "usize"], result: "pointer" },
                 "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
                 "free_string": { parameters: ["pointer"], result: "void" },
-                "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" }
+                "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" },
+                "shmem_write": { parameters: ["pointer", "buffer", "usize"], result: "bool" }
             });
         } catch {
             return null;
@@ -56,6 +57,11 @@ export class IpcFfiBridge {
             return jsonStr;
         }
         return null;
+    }
+
+    writeShmem(ptr: Deno.PointerValue, data: Uint8Array): boolean {
+        if (!this.ffi) return false;
+        return this.ffi.symbols.shmem_write(ptr, data, data.length);
     }
 
     serializeMessagePack(cmd: Record<string, unknown>): Uint8Array | null {
