@@ -655,7 +655,12 @@ export class SovereignApp {
         });
         this.registry.register("Integrity", integrity, ShutdownPriority.CRITICAL);
 
-        const morphing = factory.createService(health, "Morphing", () => new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh));
+        const morphing = factory.createService(health, "Morphing", () => {
+            const service = new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh);
+            // @ts-ignore: Access private ffi for roadmap implementation
+            service.setFfi(this.sidecarManager.ffi);
+            return service;
+        });
         this.registry.register("Morphing", morphing, ShutdownPriority.AUXILIARY);
         const chaos = factory.createService(health, "Chaos", () => new ChaosEngine(eventBus, this.auditService, this.sidecarManager));
         this.registry.register("Chaos", chaos, ShutdownPriority.AUXILIARY);

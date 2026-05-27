@@ -19,38 +19,73 @@ export interface ForensicRecord {
     comm: string;
     syscall: string;
     timestamp: string;
+    path?: string;
     [key: string]: unknown;
 }
 
 export class ForensicSearchTool {
     private forensicDir: string = "./volume/storage/forensics";
+    private wormLedger: string = "./volume/storage/audit/worm_ledger.log";
+    private indexPath: string = "./volume/storage/audit/forensic_index.json";
 
     async search(query: ForensicQuery): Promise<Result<ForensicRecord[]>> {
-        console.log(`[ForensicSearch] Executing query: ${JSON.stringify(query)}`);
+        const results: ForensicRecord[] = [];
 
         try {
-            const results: ForensicRecord[] = [];
+            // 1. Try to use index if available
+            const _index = await this.loadIndex();
 
-            // In a real implementation, we would use a localized index (e.g. SQLite or a custom binary index)
-            // to avoid full-volume scans of compressed WORM data.
-            // For this roadmap item, we provide the architectural skeleton.
-
+            // 2. Scan Snapshots
             const dirIter = Deno.readDir(this.forensicDir);
             for await (const entry of dirIter) {
                 if (entry.isFile && entry.name.endsWith(".json")) {
-                    const content = await Deno.readTextFile(`${this.forensicDir}/${entry.name}`);
-                    const data = JSON.parse(content) as ForensicRecord;
-
-                    if (this.matchesQuery(data, query)) {
-                        results.push(data);
-                    }
+                    await this.processFile(`${this.forensicDir}/${entry.name}`, query, results);
                 }
             }
+
+            // 3. Scan WORM Ledger
+            await this.processWormLedger(query, results);
 
             return ok(results);
         } catch (e) {
             return err(e instanceof Error ? e : new Error(String(e)));
         }
+    }
+
+    private async processFile(filePath: string, query: ForensicQuery, results: ForensicRecord[]) {
+        const content = await Deno.readTextFile(filePath);
+        try {
+            const data = JSON.parse(content) as ForensicRecord;
+            if (this.matchesQuery(data, query)) {
+                results.push(data);
+            }
+        } catch { /* skip malformed */ }
+    }
+
+    private async processWormLedger(query: ForensicQuery, results: ForensicRecord[]) {
+        try {
+            const file = await Deno.open(this.wormLedger, { read: true });
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            // Streaming read to avoid OOM on large ledgers
+            for await (const chunk of file.readable) {
+                buffer += decoder.decode(chunk, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const event = JSON.parse(line) as ForensicRecord;
+                        if (this.matchesQuery(event, query)) {
+                            results.push(event);
+                        }
+                    } catch { /* skip */ }
+                }
+            }
+            file.close();
+        } catch { /* ignore if ledger missing */ }
     }
 
     private matchesQuery(data: ForensicRecord, query: ForensicQuery): boolean {
@@ -66,9 +101,45 @@ export class ForensicSearchTool {
         return true;
     }
 
-    generateIndex(): Promise<Result<void>> {
-        // High-performance indexing logic for multi-year forensic data
-        console.log("[ForensicSearch] Generating localized index for forensic volumes...");
-        return Promise.resolve(ok(undefined));
+    private async loadIndex(): Promise<Record<string, number[]> | null> {
+        try {
+            const content = await Deno.readTextFile(this.indexPath);
+            return JSON.parse(content);
+        } catch {
+            return null;
+        }
+    }
+
+    async generateIndex(): Promise<Result<void>> {
+        const index: Record<string, number[]> = {};
+        // Simple index: Map process names (comm) to a list of PIDs seen
+        try {
+            const file = await Deno.open(this.wormLedger, { read: true });
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            for await (const chunk of file.readable) {
+                buffer += decoder.decode(chunk, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const event = JSON.parse(line) as ForensicRecord;
+                        if (event.comm && event.pid) {
+                            if (!index[event.comm]) index[event.comm] = [];
+                            if (!index[event.comm].includes(event.pid)) {
+                                index[event.comm].push(event.pid);
+                            }
+                        }
+                    } catch { /* skip */ }
+                }
+            }
+            file.close();
+            await Deno.writeTextFile(this.indexPath, JSON.stringify(index, null, 2));
+            return ok(undefined);
+        } catch (e) {
+            return err(e instanceof Error ? e : new Error(String(e)));
+        }
     }
 }

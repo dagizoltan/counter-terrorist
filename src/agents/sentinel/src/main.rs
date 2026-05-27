@@ -214,11 +214,23 @@ async fn main() -> Result<(), anyhow::Error> {
                                 let comm = std::str::from_utf8(&event.comm).unwrap_or("unknown").trim_end_matches('\0');
 
                                 if *LEARNING_MODE.lock() && (syscall == "openat" || syscall == "open") {
+                                    // SOV-P5: Learning Mode - Resolve file path
+                                    // 1. Try to read from event (if kernel populated it)
+                                    // 2. Fallback to /proc if fd is valid
+                                    let mut path = std::str::from_utf8(&event.path).unwrap_or("").trim_end_matches('\0').to_string();
+
+                                    if path.is_empty() || path == "unknown" {
+                                        path = std::fs::read_link(format!("/proc/{}/fd/{}", event.pid, event.fd))
+                                            .map(|p| p.to_string_lossy().into_owned())
+                                            .unwrap_or_else(|_| "unknown".to_string());
+                                    }
+
                                     emit_event(serde_json::json!({
                                         "type": "FS_ACCESS_EVENT",
                                         "pid": event.pid,
                                         "comm": comm,
                                         "syscall": syscall,
+                                        "path": path,
                                         "timestamp": Utc::now().to_rfc3339()
                                     })).await;
                                 }

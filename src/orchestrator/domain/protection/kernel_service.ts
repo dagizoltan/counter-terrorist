@@ -588,11 +588,22 @@ ${capStrings}
         const hasReflink = await this.checkReflinkSupport();
 
         let res;
+        let method = "copy";
         if (hasReflink) {
             res = await this.executor.execute("cp", ["-p", "--reflink=always", source, target]);
+            method = "reflink";
         } else {
-            // Fallback to standard copy if reflink is not strictly required by policy
-            res = await this.executor.execute("cp", ["-rp", source, target]);
+            // SOV-P5: Reflink-Aware Storage - Attempt Hard-link tree for efficient pseudo-COW
+            // This is better than a full copy if the filesystem doesn't support reflink but we want speed/space efficiency.
+            // Note: Modifications to original files will affect snapshots unless we ensure the app only appends.
+            res = await this.executor.execute("cp", ["-al", source, target]);
+            method = "hardlink";
+
+            if (!res.success) {
+                // Final fallback: Standard recursive copy
+                res = await this.executor.execute("cp", ["-rp", source, target]);
+                method = "copy";
+            }
         }
 
         if (!res.success) {
@@ -610,8 +621,8 @@ ${capStrings}
             type: LogType.ACTIVITY,
             severity: LogSeverity.SUCCESS,
             caller: "kernel:forensics",
-            message: `Forensic snapshot created at ${target} (${hasReflink ? "COW Reflink" : "Standard Copy"})`,
-            data: { source, target, timestamp, method: hasReflink ? "reflink" : "copy" }
+            message: `Forensic snapshot created at ${target} (Method: ${method})`,
+            data: { source, target, timestamp, method }
         });
 
         return ok(undefined);

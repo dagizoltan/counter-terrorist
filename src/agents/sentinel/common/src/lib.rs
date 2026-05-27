@@ -11,6 +11,7 @@ pub struct SyscallEvent {
     pub port: u16,
     pub family: u16,
     pub ip: [u8; 16],
+    pub path: [u8; 64],
 }
 
 #[repr(C)]

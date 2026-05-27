@@ -5,7 +5,7 @@ use aya_ebpf::{
     macros::{kprobe, map, classifier, xdp},
     maps::{PerfEventArray, HashMap, LruHashMap},
     programs::{ProbeContext, TcContext, XdpContext},
-    helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns},
+    helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns, bpf_probe_read_user_str_bytes},
 };
 
 use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, IpV6Addr, SyscallAllowKey};
@@ -253,6 +253,7 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         port: 0,
         family: 0,
         ip: [0; 16],
+        path: [0; 64],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
 
@@ -285,6 +286,7 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
         port: 0,
         family: 0,
         ip: [0; 16],
+        path: [0; 64],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -305,6 +307,7 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
             port: 0,
             family: 0,
             ip: [0; 16],
+            path: [0; 64],
         };
         unsafe { EVENTS.output(&ctx, &event, 0) };
     }
@@ -343,6 +346,7 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
         port: 0,
         family: 0,
         ip: [0; 16],
+        path: [0; 64],
     };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
@@ -358,7 +362,7 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         return 0;
     }
 
-    let event = SyscallEvent {
+    let mut event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
         syscall_id: 257,
@@ -366,7 +370,14 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         port: 0,
         family: 0,
         ip: [0; 16],
+        path: [0; 64],
     };
+
+    // SOV-P5: Learning Mode - Capture path in kernel
+    if let Some(path_ptr) = ctx.arg::<*const u8>(1) {
+        let _ = unsafe { bpf_probe_read_user_str_bytes(path_ptr, &mut event.path) };
+    }
+
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
 }

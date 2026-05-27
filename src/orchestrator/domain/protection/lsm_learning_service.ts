@@ -79,9 +79,9 @@ export class LsmLearningService extends BaseService {
             this.accessMap.set(comm, new Set());
         }
 
-        // In a real implementation, we would extract the path from the event if provided
-        // For now, we track that the process is performing FS operations.
-        this.accessMap.get(comm)!.add(event.syscall);
+        // SOV-P5: Learning Mode - Store both syscall and path for better Landlock policies
+        const entry = event.path ? `${event.syscall}:${event.path}` : event.syscall;
+        this.accessMap.get(comm)!.add(entry);
     }
 
     getReport(): Record<string, string[]> {
