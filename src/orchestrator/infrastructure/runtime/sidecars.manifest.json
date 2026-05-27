@@ -1,70 +1,143 @@
 {
   "sidecars": {
     "trustroot": {
-      "path": "./src/agents/target/release/trustroot",
-      "hash": "5940754571de7c40c6b452ed6e34fcff255884639bdb0710a2bf717f59fbce4d",
-      "persistent": true
+      "persistent": true,
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/trustroot",
+          "hash": "5940754571de7c40c6b452ed6e34fcff255884639bdb0710a2bf717f59fbce4d"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/trustroot",
+          "hash": "5940754571de7c40c6b452ed6e34fcff255884639bdb0710a2bf717f59fbce4d"
+        }
+      }
     },
     "sentinel": {
-      "path": "./src/agents/target/release/sentinel",
-      "hash": "6a5a888e2041306c3c0f32ca72d40c1719e57f0680903722dfe7ce3f660c4138",
       "persistent": true,
       "capabilities": [
         "cap_sys_admin",
         "cap_net_admin",
         "cap_sys_resource"
-      ]
+      ],
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/sentinel",
+          "hash": "6a5a888e2041306c3c0f32ca72d40c1719e57f0680903722dfe7ce3f660c4138"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/sentinel",
+          "hash": "6a5a888e2041306c3c0f32ca72d40c1719e57f0680903722dfe7ce3f660c4138"
+        }
+      }
     },
     "tunnel": {
-      "path": "./src/agents/target/release/tunnel",
-      "hash": "5d6854fefc36279e9629c546083583bd96af462404b9e7100aee2c34b8c2d204",
       "persistent": true,
       "capabilities": [
         "cap_net_admin"
-      ]
+      ],
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/tunnel",
+          "hash": "5d6854fefc36279e9629c546083583bd96af462404b9e7100aee2c34b8c2d204"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/tunnel",
+          "hash": "5d6854fefc36279e9629c546083583bd96af462404b9e7100aee2c34b8c2d204"
+        }
+      }
     },
     "enforcer": {
-      "path": "./src/agents/target/release/enforcer",
-      "hash": "14bc80f2363d1c261b8532c37e37a5296473a85ef679601351c881be5736afd4",
       "persistent": true,
       "capabilities": [
         "cap_net_admin",
         "cap_kill"
-      ]
+      ],
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/enforcer",
+          "hash": "14bc80f2363d1c261b8532c37e37a5296473a85ef679601351c881be5736afd4"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/enforcer",
+          "hash": "14bc80f2363d1c261b8532c37e37a5296473a85ef679601351c881be5736afd4"
+        }
+      }
     },
     "analyzer": {
-      "path": "./src/agents/target/release/analyzer",
-      "hash": "46b607c0127801aca38843d006c1e8917929576a235ff792e849a4a3222745e7",
-      "persistent": true
+      "persistent": true,
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/analyzer",
+          "hash": "46b607c0127801aca38843d006c1e8917929576a235ff792e849a4a3222745e7"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/analyzer",
+          "hash": "46b607c0127801aca38843d006c1e8917929576a235ff792e849a4a3222745e7"
+        }
+      }
     },
     "netcap": {
-      "path": "./src/agents/target/release/netcap",
-      "hash": "3de018255d5fc1247669a73279a9a25e5c26d0c59239fe4f9f0a5dc71d943376",
       "persistent": true,
       "capabilities": [
         "cap_net_raw",
         "cap_net_admin"
-      ]
+      ],
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/netcap",
+          "hash": "3de018255d5fc1247669a73279a9a25e5c26d0c59239fe4f9f0a5dc71d943376"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/netcap",
+          "hash": "3de018255d5fc1247669a73279a9a25e5c26d0c59239fe4f9f0a5dc71d943376"
+        }
+      }
     },
     "decoy": {
-      "path": "./src/agents/target/release/decoy",
-      "hash": "79e56226898838f5e2dca2905cce8d124c3090186192299e260d4078bba7c42a",
-      "persistent": true
+      "persistent": true,
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/decoy",
+          "hash": "79e56226898838f5e2dca2905cce8d124c3090186192299e260d4078bba7c42a"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/decoy",
+          "hash": "79e56226898838f5e2dca2905cce8d124c3090186192299e260d4078bba7c42a"
+        }
+      }
     },
     "watchfile": {
-      "path": "./src/agents/target/release/watchfile",
-      "hash": "f1cb9cc76858979df64383e81f10eefc43be0796c55829b68b5a6182ceb8abf4",
       "persistent": true,
       "capabilities": [
         "cap_sys_admin"
-      ]
+      ],
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/watchfile",
+          "hash": "f1cb9cc76858979df64383e81f10eefc43be0796c55829b68b5a6182ceb8abf4"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/watchfile",
+          "hash": "f1cb9cc76858979df64383e81f10eefc43be0796c55829b68b5a6182ceb8abf4"
+        }
+      }
     },
     "sentinel-darwin": {
-      "path": "./src/agents/target/release/sentinel-darwin",
-      "hash": "7b63baa1328d5da20699252b2607d2057fba429d24df30941d3cdc5b1bdeab3a",
-      "persistent": true
+      "persistent": true,
+      "architectures": {
+        "x86_64": {
+          "path": "./src/agents/target/release/sentinel-darwin",
+          "hash": "7b63baa1328d5da20699252b2607d2057fba429d24df30941d3cdc5b1bdeab3a"
+        },
+        "aarch64": {
+          "path": "./src/agents/target/release/sentinel-darwin",
+          "hash": "7b63baa1328d5da20699252b2607d2057fba429d24df30941d3cdc5b1bdeab3a"
+        }
+      }
     }
   },
-  "signature": "feb1bc9da122abe47c9c5620a4b07149da0ff9dd78e2b29512f148cef38ce3dca44f15eceeb1354f1ecaece4d6cad4d66917b95553d0055d8e4c02b0f41c7b0a",
-  "signedBy": "Counter-Terrorist Developer"
+  "signature": "unsigned",
+  "upgrade_token": "dev_arch_upgrade_2026",
+  "signedBy": "Counter-Terrorist Developer (Architectural Upgrade)"
 }

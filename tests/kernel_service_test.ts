@@ -32,9 +32,10 @@ class MockCommandPort implements CommandPort {
 
 Deno.test("KernelService - sysctl hardening application", async () => {
     const executor = new MockExecutor();
+    const sidecar = new MockCommandPort();
     const audit = { logEvent: async () => {}, getLogging: () => ({ log: async () => {} }) };
     const config = { getBoolean: () => true };
-    const service = new KernelService(executor as any, audit as any, config as any);
+    const service = new KernelService(executor as any, audit as any, config as any, sidecar as any);
 
     await service.start();
 

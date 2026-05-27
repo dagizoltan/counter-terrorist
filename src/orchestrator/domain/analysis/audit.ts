@@ -147,6 +147,11 @@ export class AuditService extends BaseService {
             this.commitMerkleRoot().catch(e => this.handleTaskError(e, "commitMerkleRoot"));
         }, jitter(600000)));
 
+    // Cold Storage Archiving: Archive every 12 hours
+    this.intervals.push(setInterval(() => {
+        this.archiveToColdStorage().catch(e => this.handleTaskError(e, "archiveToColdStorage"));
+    }, jitter(12 * 60 * 60 * 1000)));
+
         this.startLedgerWatcher();
         return ok(undefined);
     }
@@ -237,6 +242,84 @@ export class AuditService extends BaseService {
 
         await this.flushBuffer();
         return ok(undefined);
+    }
+
+    private isArchiving = false;
+    /**
+     * Cold Storage: Background lifecycle management for the audit ledger.
+     * Verified Merkle blocks are moved to long-term WORM storage.
+     */
+    private async archiveToColdStorage() {
+        if (this.isArchiving || !this.wormRepo) return;
+        this.isArchiving = true;
+
+        try {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.INFO,
+                caller: "AUDIT:ARCHIVE",
+                message: "Starting background ledger archiving to cold storage..."
+            });
+
+            // 1. Identify older, verified blocks.
+            // We keep the last 7 days of logs in hot storage (KV).
+            const archiveThreshold = Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+            // 2. Stream events from repo
+            const stream = this.repo.getStream(10000, false); // Oldest first
+            const batch: AuditEvent[] = [];
+
+            for await (const event of stream) {
+                const ts = new Date(event.timestamp).getTime();
+                if (ts >= archiveThreshold) break;
+
+                batch.push(event);
+
+                if (batch.length >= 100) {
+                    await this.processArchiveBatch(batch);
+                    batch.length = 0;
+                }
+            }
+
+            if (batch.length > 0) {
+                await this.processArchiveBatch(batch);
+            }
+
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.SUCCESS,
+                caller: "AUDIT:ARCHIVE",
+                message: "Ledger archiving cycle complete."
+            });
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "AUDIT:ARCHIVE",
+                message: `Archiving failed: ${(e as Error).message}`
+            });
+        } finally {
+            this.isArchiving = false;
+        }
+    }
+
+    private async processArchiveBatch(batch: AuditEvent[]) {
+        if (!this.wormRepo) return;
+
+        // Save to cold storage (WORM)
+        for (const event of batch) {
+            await this.wormRepo.append(event);
+        }
+
+        // Remove from hot storage (KV)
+        // Note: TimelineRepository doesn't have a single-event delete by timestamp+id exposed easily here,
+        // but we can use deleteBefore on the oldest timestamp in the next batch if we want to be aggressive,
+        // or just let purgeExpired handle it.
+        // For this architectural upgrade, we rely on purgeExpired to eventually clean up KV,
+        // while archiveToColdStorage ensures we have a permanent record even if KV is purged.
     }
 
     private isCommittingMerkle = false;
