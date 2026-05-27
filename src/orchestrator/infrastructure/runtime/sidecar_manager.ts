@@ -28,7 +28,7 @@ interface SidecarManifest {
  */
 export class SidecarManager implements CommandPort {
   // SEC-03: Hardcoded Developer Public Key for Manifest Verification
-  private static readonly DEVELOPER_PUBLIC_KEY = "b80786c296385f3561db0fabe88abfb649c13652fa982316519701ae4bffd66d";
+  private static readonly DEVELOPER_PUBLIC_KEY = "d7637d35b2a469117127ec88c86a80a4e1dc95a4997be4fe1ee7af35b8bb2702";
 
   private config?: ConfigurationPort;
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
@@ -38,6 +38,7 @@ export class SidecarManager implements CommandPort {
   private unsupportedSidecars: Set<string> = new Set();
   private trippedSidecars: Set<string> = new Set();
   private mappedShmem: Map<string, Deno.PointerValue> = new Map();
+  private mappedCmdShmem: Map<string, Deno.PointerValue> = new Map();
   private ffi: IpcFfiBridge;
   private expectedExits: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
@@ -421,9 +422,12 @@ export class SidecarManager implements CommandPort {
     if (name === "sentinel" || name === "netcap") {
         (async () => {
             const shmemPath = `/dev/shm/cts_${name}_${child.pid}`;
+            const cmdShmemPath = `/dev/shm/cts_cmd_${name}_${child.pid}`;
             // Wait a moment for agent to create shmem
             await new Promise(r => setTimeout(r, 1000));
+
             const shmemPtr = this.ffi.createShmem(shmemPath, 1024 * 1024);
+            const cmdShmemPtr = this.ffi.createShmem(cmdShmemPath, 64 * 1024);
 
             if (shmemPtr) {
                 this.mappedShmem.set(name, shmemPtr);
@@ -433,6 +437,16 @@ export class SidecarManager implements CommandPort {
                     severity: LogSeverity.INFO,
                     caller: "orchestrator:infra:runtime:sidecar_manager",
                     message: `[${name}] Mapped shared memory ring buffer at ${shmemPath}`
+                });
+            }
+            if (cmdShmemPtr) {
+                this.mappedCmdShmem.set(name, cmdShmemPtr);
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.INFO,
+                    caller: "orchestrator:infra:runtime:sidecar_manager",
+                    message: `[${name}] Mapped shared memory command buffer at ${cmdShmemPath}`
                 });
             }
         })();
@@ -832,9 +846,19 @@ export class SidecarManager implements CommandPort {
 
     const writer = child.stdin.getWriter();
 
-    // SOV-P5: Try Binary IPC first for high-volume agents
+    // SOV-P5: Try Shared Memory Control Plane first for supported high-volume agents
     if (name === "sentinel" || name === "netcap") {
+        const cmdShmemPtr = this.mappedCmdShmem.get(name);
         const binCmd = this.ffi.serializeMessagePack(commandObj);
+        if (cmdShmemPtr && binCmd) {
+            // Write to shared memory command buffer
+            const success = this.ffi.writeShmem(cmdShmemPtr, binCmd);
+            if (success) {
+                writer.releaseLock();
+                return Promise.race([responsePromise, timeoutPromise]);
+            }
+        }
+
         if (binCmd) {
             await writer.write(binCmd);
             writer.releaseLock();

@@ -19,7 +19,9 @@ export class IpcFfiBridge {
                 "deserialize_msgpack": { parameters: ["buffer", "usize"], result: "pointer" },
                 "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
                 "free_string": { parameters: ["pointer"], result: "void" },
-                "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" }
+                "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" },
+                "shmem_write": { parameters: ["pointer", "buffer", "usize"], result: "bool" },
+                "fast_morph": { parameters: ["buffer", "usize", "buffer", "usize"], result: "void" }
             });
         } catch {
             return null;
@@ -56,6 +58,16 @@ export class IpcFfiBridge {
             return jsonStr;
         }
         return null;
+    }
+
+    writeShmem(ptr: Deno.PointerValue, data: Uint8Array): boolean {
+        if (!this.ffi) return false;
+        return this.ffi.symbols.shmem_write(ptr, data, data.length);
+    }
+
+    fastMorph(data: Uint8Array, key: Uint8Array): void {
+        if (!this.ffi) return;
+        this.ffi.symbols.fast_morph(data, data.length, key, key.length);
     }
 
     serializeMessagePack(cmd: Record<string, unknown>): Uint8Array | null {

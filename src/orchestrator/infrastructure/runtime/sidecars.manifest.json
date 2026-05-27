@@ -137,7 +137,7 @@
       }
     }
   },
-  "signature": "unsigned",
+  "signature": "ec2a2e28e59b3c8a02022aa6b9fac96ea25adeef16ae57defdc7d252913e6e7bc7bcee378a72df75601e2d2d5b5b9c1229b52642b186e1a89941f05b5a28a004",
   "upgrade_token": "dev_arch_upgrade_2026",
-  "signedBy": "Counter-Terrorist Developer (Architectural Upgrade)"
+  "signedBy": "Counter-Terrorist Orchestrator CI/CD (Ed25519)"
 }

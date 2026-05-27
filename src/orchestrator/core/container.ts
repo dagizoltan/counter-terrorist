@@ -104,6 +104,7 @@ export interface ServiceContainer {
   metrics: any;
   mediator: EventMediator;
   behavioral: BehavioralService;
+  lsmLearning?: any;
   geoIp: GeoIpService;
   correlation: CorrelationService;
   rateLimit: RateLimitService;

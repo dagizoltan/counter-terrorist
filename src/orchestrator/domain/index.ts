@@ -20,6 +20,7 @@ export { DeceptionGridService } from "./protection/deception_grid.ts";
 export { ShadowProtocolService } from "./protection/shadow_protocol_service.ts";
 export { ShadowService } from "./protection/shadow_service.ts";
 export { AutoBlockService } from "./protection/auto_block_service.ts";
+export { LsmLearningService } from "./protection/lsm_learning_service.ts";
 
 // Analysis Domain
 export { AuditService, SystemState } from "./analysis/audit.ts";

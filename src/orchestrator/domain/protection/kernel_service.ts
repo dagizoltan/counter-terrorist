@@ -75,7 +75,7 @@ export class KernelService extends BaseService {
      * Auto-Throttling: Detects "hot" hooks and programmatically tightens access
      * or alerts the operator when kernel-side latency spikes are detected.
      */
-    private analyzeHookPerformance(stats: Record<string, { avg_ns: number, count: number }>) {
+    private async analyzeHookPerformance(stats: Record<string, { avg_ns: number, count: number }>) {
         const LATENCY_THRESHOLD_NS = 50000; // 50 microseconds
 
         for (const [hookId, data] of Object.entries(stats)) {
@@ -88,14 +88,21 @@ export class KernelService extends BaseService {
                     message: `HOT HOOK DETECTED: Hook ${hookId} is causing latency spikes (avg ${data.avg_ns}ns). Engaging adaptive throttling.`
                 });
 
-                // Auto-Throttling Logic:
-                // In a real implementation, we might send a command to sentinel to disable or downsample this hook.
-                // For now, we log the event and trigger a metric update for the UI.
+                // SOV-P5: Dynamic eBPF Adaptive Throttling
+                // Programmatically disable "hot" hooks to maintain system stability.
+                if (this.sidecarManager) {
+                    await this.sidecarManager.sendCommand("sentinel", {
+                        type: "UPDATE_HOOK_CONTROL",
+                        hook_id: parseInt(hookId),
+                        enabled: false
+                    });
+                }
+
                 if (this.eventBus) {
                     this.eventBus.emit("SIDECAR_ALERT", {
                         sidecar: "sentinel",
                         type: "PERFORMANCE_DEGRADED",
-                        message: `Hook ${hookId} latency spike: ${data.avg_ns}ns`,
+                        message: `Hook ${hookId} latency spike: ${data.avg_ns}ns. Hook has been temporarily disabled.`,
                         data: { hookId, ...data }
                     } as never);
                 }
@@ -576,33 +583,67 @@ ${capStrings}
             await this.executor.execute("mkdir", ["-p", source]);
         } catch { /* ignore */ }
 
-        // SEC-03: Hardware-Anchored Forensic Snapshot.
-        // On Linux, we use --reflink=always to ensure COW semantics.
-        // If the filesystem doesn't support it, the command fails-shut for high-assurance.
-        const res = await this.executor.execute("cp", ["-p", "--reflink=always", source, target]);
+        // SOV-P5: Reflink-Aware Storage Management
+        // Detect reflink support to choose the most efficient snapshot method.
+        const hasReflink = await this.checkReflinkSupport();
+
+        let res;
+        let method = "copy";
+        if (hasReflink) {
+            res = await this.executor.execute("cp", ["-p", "--reflink=always", source, target]);
+            method = "reflink";
+        } else {
+            // SOV-P5: Reflink-Aware Storage - Attempt Hard-link tree for efficient pseudo-COW
+            // This is better than a full copy if the filesystem doesn't support reflink but we want speed/space efficiency.
+            // Note: Modifications to original files will affect snapshots unless we ensure the app only appends.
+            res = await this.executor.execute("cp", ["-al", source, target]);
+            method = "hardlink";
+
+            if (!res.success) {
+                // Final fallback: Standard recursive copy
+                res = await this.executor.execute("cp", ["-rp", source, target]);
+                method = "copy";
+            }
+        }
 
         if (!res.success) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
+                severity: LogSeverity.ERROR,
                 caller: "KERNEL:FORENSICS",
-                message: `COW Snapshot failed: ${res.stderr}. Falling back to standard copy or skipping.`
+                message: `Forensic snapshot failed: ${res.stderr}`
             });
-            // Fallback to standard copy if reflink is not strictly required by policy
-            const fallback = await this.executor.execute("cp", ["-rp", source, target]);
-            if (!fallback.success) return err(new Error(fallback.stderr));
+            return err(new Error(res.stderr));
         }
 
         this.auditService.logEvent({
             type: LogType.ACTIVITY,
             severity: LogSeverity.SUCCESS,
             caller: "kernel:forensics",
-            message: `Atomic forensic snapshot created at ${target}`,
-            data: { source, target, timestamp }
+            message: `Forensic snapshot created at ${target} (Method: ${method})`,
+            data: { source, target, timestamp, method }
         });
 
         return ok(undefined);
+    }
+
+    private async checkReflinkSupport(): Promise<boolean> {
+        if (Deno.build.os !== "linux") return false;
+
+        // Quick probe: try to reflink a tiny file to /tmp
+        try {
+            const probeSource = "/etc/hostname";
+            const probeTarget = "/tmp/cts_reflink_probe";
+            const res = await this.executor.execute("cp", ["--reflink=always", probeSource, probeTarget]);
+            if (res.success) {
+                await Deno.remove(probeTarget).catch(() => {});
+                return true;
+            }
+        } catch {
+            // ignore
+        }
+        return false;
     }
 
     async getStatus(): Promise<Result<KernelHardeningStatus>> {

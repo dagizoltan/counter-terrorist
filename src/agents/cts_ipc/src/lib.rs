@@ -18,19 +18,28 @@ struct RingBufferHeader {
 
 pub struct IpcManager {
     shmem: Option<Arc<Mutex<ShmemWrapper>>>,
+    cmd_shmem: Option<Arc<Mutex<ShmemWrapper>>>,
 }
 
 impl IpcManager {
     pub fn new(sidecar_name: &str, size: usize) -> Self {
-        let path = format!("/dev/shm/cts_{}_{}", sidecar_name, std::process::id());
+        let event_path = format!("/dev/shm/cts_{}_{}", sidecar_name, std::process::id());
         let shmem = ShmemConf::new()
             .size(size)
-            .flink(&path)
+            .flink(&event_path)
             .create()
             .ok()
             .map(|s| Arc::new(Mutex::new(ShmemWrapper(s))));
 
-        Self { shmem }
+        let cmd_path = format!("/dev/shm/cts_cmd_{}_{}", sidecar_name, std::process::id());
+        let cmd_shmem = ShmemConf::new()
+            .size(64 * 1024) // 64KB for commands
+            .flink(&cmd_path)
+            .create()
+            .ok()
+            .map(|s| Arc::new(Mutex::new(ShmemWrapper(s))));
+
+        Self { shmem, cmd_shmem }
     }
 
     pub fn emit_event<T: Serialize>(&self, event: &T) -> bool {
@@ -59,6 +68,29 @@ impl IpcManager {
             }
         }
         false
+    }
+
+    pub fn poll_command<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
+        if let Some(shmem_arc) = &self.cmd_shmem {
+            let mut shmem_wrapper = shmem_arc.lock();
+            let slice = unsafe { shmem_wrapper.0.as_slice_mut() };
+
+            let mut len_bytes = [0u8; 4];
+            len_bytes.copy_from_slice(&slice[0..4]);
+            let current_len = u32::from_le_bytes(len_bytes) as usize;
+
+            if current_len > 0 && current_len + 8 <= slice.len() {
+                let data = &slice[8..8+current_len];
+                let cmd = rmp_serde::from_slice::<T>(data).ok();
+
+                // Clear length to signal completion
+                let zero_len = [0u8; 4];
+                slice[0..4].copy_from_slice(&zero_len);
+
+                return cmd;
+            }
+        }
+        None
     }
 }
 

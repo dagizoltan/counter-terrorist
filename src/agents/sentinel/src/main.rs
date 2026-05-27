@@ -15,6 +15,7 @@ use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+static LEARNING_MODE: Lazy<Arc<Mutex<bool>>> = Lazy::new(|| Arc::new(Mutex::new(false)));
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SidecarCommand {
@@ -29,6 +30,9 @@ struct SidecarCommand {
     path: Option<String>,
     allowed_ips: Option<Vec<String>>,
     allowed_syscalls: Option<Vec<String>>,
+    hook_id: Option<u32>,
+    enabled: Option<bool>,
+    learning_mode: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -208,6 +212,29 @@ async fn main() -> Result<(), anyhow::Error> {
                                 };
 
                                 let comm = std::str::from_utf8(&event.comm).unwrap_or("unknown").trim_end_matches('\0');
+
+                                if *LEARNING_MODE.lock() && (syscall == "openat" || syscall == "open") {
+                                    // SOV-P5: Learning Mode - Resolve file path
+                                    // 1. Try to read from event (if kernel populated it)
+                                    // 2. Fallback to /proc if fd is valid
+                                    let mut path = std::str::from_utf8(&event.path).unwrap_or("").trim_end_matches('\0').to_string();
+
+                                    if path.is_empty() || path == "unknown" {
+                                        path = std::fs::read_link(format!("/proc/{}/fd/{}", event.pid, event.fd))
+                                            .map(|p| p.to_string_lossy().into_owned())
+                                            .unwrap_or_else(|_| "unknown".to_string());
+                                    }
+
+                                    emit_event(serde_json::json!({
+                                        "type": "FS_ACCESS_EVENT",
+                                        "pid": event.pid,
+                                        "comm": comm,
+                                        "syscall": syscall,
+                                        "path": path,
+                                        "timestamp": Utc::now().to_rfc3339()
+                                    })).await;
+                                }
+
                                 emit_event(serde_json::json!({
                                     "type": "SYSCALL_EVENT",
                                     "pid": event.pid,
@@ -235,11 +262,23 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut buffer = BytesMut::with_capacity(4096);
 
     loop {
+        // SOV-P5: Shared Memory Control Plane Polling
+        if let Some(cmd) = IPC.poll_command::<SidecarCommand>() {
+            handle_command(cmd, bpf_static).await;
+        }
+
         let mut byte_buf = [0u8; 1024];
-        let n = match stdin.read(&mut byte_buf).await {
-            Ok(0) => break,
-            Ok(n) => n,
-            Err(_) => break,
+
+        // Use select to avoid blocking the main loop
+        let n = tokio::select! {
+            res = stdin.read(&mut byte_buf) => {
+                match res {
+                    Ok(0) => break,
+                    Ok(n) => n,
+                    Err(_) => break,
+                }
+            },
+            _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => 0,
         };
         buffer.extend_from_slice(&byte_buf[..n]);
 
@@ -488,6 +527,21 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
 
                             emit_response(cmd.id, true, format!("Adaptive LSM Policy applied for PID {}.", pid)).await;
                         } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    }
+                },
+                "UPDATE_HOOK_CONTROL" => {
+                    if let (Some(hook_id), Some(enabled)) = (cmd.hook_id, cmd.enabled) {
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HOOK_CONTROL").expect("HOOK_CONTROL not found")) {
+                            let val = if enabled { 1 } else { 0 };
+                            let _ = m.insert(hook_id, val, 0);
+                            emit_response(cmd.id, true, format!("Hook {} set to {}", hook_id, if enabled { "enabled" } else { "disabled" })).await;
+                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    }
+                },
+                "SET_LEARNING_MODE" => {
+                    if let Some(enabled) = cmd.learning_mode {
+                        *LEARNING_MODE.lock() = enabled;
+                        emit_response(cmd.id, true, format!("Learning Mode set to {}", enabled)).await;
                     }
                 },
                 "SHUTDOWN" => std::process::exit(0),
