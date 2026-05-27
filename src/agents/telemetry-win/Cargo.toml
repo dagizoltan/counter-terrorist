@@ -6,7 +6,8 @@ edition = "2021"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+rmp-serde = "1.1"
 tokio = { workspace = true }
 chrono = { workspace = true }
 once_cell = { workspace = true }
-# windows = "0.48" - In a real env, we'd use windows-sys for ETW APIs
+cts_ipc = { path = "../cts_ipc" }

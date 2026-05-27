@@ -417,26 +417,27 @@ export class SidecarManager implements CommandPort {
                 this.handleSidecarExit(name, status.code);
             });
 
-    // SOV-P5: Shared Memory Data Plane Ingestion
-    if (name === "sentinel" || name === "netcap") {
-        (async () => {
-            const shmemPath = `/dev/shm/cts_${name}_${child.pid}`;
-            // Wait a moment for agent to create shmem
-            await new Promise(r => setTimeout(r, 1000));
-            const shmemPtr = this.ffi.createShmem(shmemPath, 1024 * 1024);
+    // SOV-P5: Shared Memory Data Plane Ingestion (Standardized for all agents)
+    (async () => {
+        const shmemPath = `/dev/shm/cts_${name}_${child.pid}`;
+        // Wait a moment for agent to create shmem
+        await new Promise(r => setTimeout(r, 1000));
 
-            if (shmemPtr) {
-                this.mappedShmem.set(name, shmemPtr);
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.DEBUG,
-                    severity: LogSeverity.INFO,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `[${name}] Mapped shared memory ring buffer at ${shmemPath}`
-                });
-            }
-        })();
-    }
+        // Use agent-specific shmem sizing if defined, default to 1MB
+        const shmemSize = SIDECAR_REGISTRY[name]?.shmemSize || 1024 * 1024;
+        const shmemPtr = this.ffi.createShmem(shmemPath, shmemSize);
+
+        if (shmemPtr) {
+            this.mappedShmem.set(name, shmemPtr);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: `[${name}] Mapped shared memory ring buffer at ${shmemPath} (${shmemSize / 1024}KB)`
+            });
+        }
+    })();
 
             // Handle stderr for error detection
             (async () => {
@@ -629,105 +630,74 @@ export class SidecarManager implements CommandPort {
 
   private async startResponseReader(name: string, child: Deno.ChildProcess) {
     const reader = child.stdout.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    // SOV-P3: Defensive IPC Hardening
-    const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
-    const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
+    let residual = new Uint8Array(0);
 
     try {
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        // SEC-05: Stricter DoS prevention for IPC ingestion.
-        // We check the cumulative buffer size *before* decoding or appending the new chunk.
-        if (buffer.length + value.length > MAX_BUFFER_SIZE) {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `[${name}] CRITICAL: IPC buffer overflow. Eagerly dropping data to prevent OOM.`
-            });
-            buffer = "";
-            // Also truncate the current chunk to avoid spikes
-            const safeChunk = value.slice(0, Math.min(value.length, MAX_BUFFER_SIZE));
-            buffer = decoder.decode(safeChunk, { stream: true });
-        } else {
-            buffer += decoder.decode(value, { stream: true });
-        }
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        const current = new Uint8Array(residual.length + value.length);
+        current.set(residual);
+        current.set(value, residual.length);
 
-        for (const line of lines) {
-            if (line.length > MAX_LINE_LENGTH) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.WARNING,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `[${name}] Dropping over-sized IPC line (${line.length} bytes)`
-                });
-                continue;
+        let offset = 0;
+        const view = new DataView(current.buffer, current.byteOffset, current.byteLength);
+
+        while (offset < current.length) {
+            const magic = current[offset];
+
+            if (magic === 0x01) { // Binary Event/Response: [0x01][len: u32][payload: MessagePack]
+                if (offset + 5 > current.length) break;
+                const len = view.getUint32(offset + 1, true);
+                if (offset + 5 + len > current.length) break;
+
+                const payload = current.slice(offset + 5, offset + 5 + len);
+                const jsonStr = this.ffi.deserializeMessagePack(payload);
+                if (jsonStr) {
+                    this.handleIpcLine(name, jsonStr);
+                }
+                offset += 5 + len;
+            } else if (magic === 0x02) { // Shmem Update: [0x02][len: u32]
+                if (offset + 5 > current.length) break;
+                // len is currently unused for shmem triggers in cts_ipc/lib.rs, but we consume it
+                const shmemPtr = this.mappedShmem.get(name);
+                if (shmemPtr) {
+                    const jsonStr = this.ffi.readShmem(shmemPtr);
+                    if (jsonStr) {
+                        this.handleIpcLine(name, jsonStr);
+                    }
+                }
+                offset += 5;
+            } else if (magic === 0x03) { // Structured Log: [0x03][len: u32][payload: MessagePack]
+                if (offset + 5 > current.length) break;
+                const len = view.getUint32(offset + 1, true);
+                if (offset + 5 + len > current.length) break;
+
+                const payload = current.slice(offset + 5, offset + 5 + len);
+                const jsonStr = this.ffi.deserializeMessagePack(payload);
+                if (jsonStr) {
+                    try {
+                        const logData = JSON.parse(jsonStr);
+                        this.logging.log({
+                            timestamp: logData.timestamp || new Date().toISOString(),
+                            type: logData.log_type || LogType.ACTIVITY,
+                            severity: logData.severity || LogSeverity.INFO,
+                            caller: logData.caller || `${name}:main`,
+                            message: logData.message || ""
+                        });
+                    } catch { /* ignore */ }
+                }
+                offset += 5 + len;
+            } else if (magic === 0x04) { // Heartbeat: [0x04]
+                this.lastHeartbeat.set(name, Date.now());
+                offset += 1;
+            } else {
+                // Skip unknown magic to resync
+                offset++;
             }
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          // SOV-P4: Heartbeat tracking
-          if (trimmed === "HEARTBEAT" || (trimmed.startsWith("{") && trimmed.includes("\"type\":\"HEARTBEAT\""))) {
-              this.lastHeartbeat.set(name, Date.now());
-              if (trimmed === "HEARTBEAT") continue;
-          }
-
-          // SOV-P5: Shmem Update Signal
-          if (trimmed.startsWith("SHMEM_UPDATE:")) {
-              const shmemPtr = this.mappedShmem.get(name);
-              if (shmemPtr) {
-                  const jsonStr = this.ffi.readShmem(shmemPtr);
-                  if (jsonStr) {
-                      this.handleIpcLine(name, jsonStr);
-                  }
-              }
-              continue;
-          }
-
-          // New: Structured Log Ingestion
-          if (trimmed.startsWith("[LOG] ")) {
-            try {
-                const logData = JSON.parse(trimmed.substring(6));
-
-                // H-04: Limit message length from sidecars to prevent log-based DoS
-                const MAX_LOG_MSG_LENGTH = 16384; // 16KB
-                const rawMsg = String(logData.message || "");
-                const sanitizedMsg = rawMsg.length > MAX_LOG_MSG_LENGTH
-                    ? rawMsg.substring(0, MAX_LOG_MSG_LENGTH) + "... [TRUNCATED]"
-                    : rawMsg;
-
-                this.logging.log({
-                    timestamp: logData.timestamp || new Date().toISOString(),
-                    type: logData.log_type || LogType.ACTIVITY,
-                    severity: logData.severity || LogSeverity.INFO,
-                    caller: logData.caller || `${name}:main`,
-                    message: sanitizedMsg
-                });
-                // Note: We continue here if it's a pure log, but tactical events use standard JSON
-                continue;
-            } catch (e) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.ACTIVITY,
-                    severity: LogSeverity.INFO,
-                    caller: `${name}:raw_log`,
-                    message: trimmed,
-                    payload: { error: (e as Error).message }
-                });
-            }
-          }
-
-          this.handleIpcLine(name, trimmed);
         }
+        residual = current.slice(offset);
       }
     } catch (e) {
       this.logging.log({
@@ -739,9 +709,7 @@ export class SidecarManager implements CommandPort {
       });
     } finally {
       reader.releaseLock();
-      // Ensure the process entry is removed and cleanup any pending buffers
       this.persistentProcesses.delete(name);
-      buffer = "";
     }
   }
 
@@ -832,16 +800,18 @@ export class SidecarManager implements CommandPort {
 
     const writer = child.stdin.getWriter();
 
-    // SOV-P5: Try Binary IPC first for high-volume agents
-    if (name === "sentinel" || name === "netcap") {
-        const binCmd = this.ffi.serializeMessagePack(commandObj);
-        if (binCmd) {
-            await writer.write(binCmd);
-            writer.releaseLock();
-            return Promise.race([responsePromise, timeoutPromise]);
-        }
+    // SOV-P5: Standardized Binary IPC for ALL agents
+    const binCmd = this.ffi.serializeMessagePack(commandObj);
+    if (binCmd) {
+        // [length: u32][payload] protocol
+        const header = new Uint8Array(new Uint32Array([binCmd.length]).buffer);
+        await writer.write(header);
+        await writer.write(binCmd);
+        writer.releaseLock();
+        return Promise.race([responsePromise, timeoutPromise]);
     }
 
+    // Fallback should not be needed with full fleet migration, but kept for extreme safety
     await writer.write(new TextEncoder().encode(JSON.stringify(commandObj) + "\n"));
     writer.releaseLock();
 

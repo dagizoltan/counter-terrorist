@@ -1,14 +1,15 @@
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use chrono::Utc;
 use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 use std::process::Command;
+use cts_ipc::{IpcManager, AgentCommand};
 
 static STDOUT_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+static IPC: Lazy<IpcManager> = Lazy::new(|| IpcManager::new("tunnel", 1024 * 64));
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum VpnCommand {
     #[serde(rename = "CONNECT")]
@@ -19,18 +20,18 @@ enum VpnCommand {
     GetStatus { id: String },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct ConnectPayload {
     interface: String,
     config_path: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct DisconnectPayload {
     interface: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct VpnResponse {
     id: String,
     success: bool,
@@ -39,7 +40,6 @@ struct VpnResponse {
     timestamp: String,
 }
 
-/// Structured Log for Orchestrator Ingestion
 #[derive(Debug, Serialize)]
 struct ForensicLog {
     timestamp: String,
@@ -57,10 +57,11 @@ async fn log_forensic(severity: &str, message: &str) {
         caller: "vpn:main".to_string(),
         message: message.to_string(),
     };
-    if let Ok(json) = serde_json::to_string(&log) {
-        let _lock = STDOUT_LOCK.lock().await;
-        // Prefix with [LOG] for easy parsing by SidecarManager
-        println!("[LOG] {}", json);
+    if !IPC.emit_event(&log) {
+        if let Ok(json) = serde_json::to_string(&log) {
+            let _lock = STDOUT_LOCK.lock().await;
+            println!("[LOG] {}", json);
+        }
     }
 }
 
@@ -72,9 +73,15 @@ async fn emit_response(id: String, success: bool, message: String, data: Option<
         data,
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
+    if !IPC.emit_event(&resp) {
+        if let Ok(msgpack) = rmp_serde::to_vec(&resp) {
+            let _lock = STDOUT_LOCK.lock().await;
+            use std::io::Write;
+            let mut stdout = std::io::stdout();
+            let _ = stdout.write_all(&(msgpack.len() as u32).to_le_bytes());
+            let _ = stdout.write_all(&msgpack);
+            let _ = stdout.flush();
+        }
     }
 }
 
@@ -94,52 +101,62 @@ async fn execute_wg_command(args: Vec<&str>) -> Result<String, String> {
 async fn main() {
     log_forensic("info", "Sovereign VPN Agent starting (Native Rust implementation)").await;
 
-    let stdin = tokio::io::stdin();
-    let mut reader = BufReader::new(stdin).lines();
+    let _ = cts_ipc::apply_landlock("/etc/wireguard");
 
-    while let Ok(Some(line)) = reader.next_line().await {
-        let line = line.trim();
-        if line.is_empty() { continue; }
+    let mut ipc = IpcManager::new("tunnel", 1024 * 64);
 
-        if let Ok(cmd) = serde_json::from_str::<VpnCommand>(line) {
-            match cmd {
-                VpnCommand::Connect { id, payload } => {
-                    let interface = payload.interface;
-                    log_forensic("info", &format!("Attempting to connect interface: {}", interface)).await;
-                    
-                    // In a production environment, we'd use wg-quick or native netlink
-                    // Here we simulate the successful interface setup with strict validation
-                    if interface.contains('/') || interface.contains('.') {
-                        emit_response(id, false, "Invalid interface name".to_string(), None).await;
-                        continue;
-                    }
-
-                    let msg = if let Some(path) = payload.config_path {
-                        format!("Interface {} connected using config {}", interface, path)
-                    } else {
-                        format!("Interface {} connected with default parameters", interface)
-                    };
-
-                    log_forensic("success", &msg).await;
-                    emit_response(id, true, msg, None).await;
-                },
-                VpnCommand::Disconnect { id, payload } => {
-                    let interface = payload.interface;
-                    log_forensic("info", &format!("Disconnecting interface: {}", interface)).await;
-                    emit_response(id, true, format!("Interface {} disconnected", interface), None).await;
-                },
-                VpnCommand::GetStatus { id } => {
-                    // Try to get real status if 'wg' exists
-                    let wg_status = execute_wg_command(vec!["show"]).await;
-                    let data = match wg_status {
-                        Ok(stdout) => json!({ "wg_stdout": stdout, "active": true }),
-                        Err(_) => json!({ "active": true, "mode": "STUB_FALLBACK" }),
-                    };
-                    emit_response(id, true, "VPN Operational".to_string(), Some(data)).await;
+    while let Some(cmd_raw) = ipc.next_command().await {
+        match cmd_raw {
+            AgentCommand::Custom(payload) => {
+                if let Ok(cmd) = rmp_serde::from_slice::<VpnCommand>(&payload) {
+                    process_command(cmd).await;
                 }
+            },
+            AgentCommand::GetStatus => {
+                let wg_status = execute_wg_command(vec!["show"]).await;
+                let data = match wg_status {
+                    Ok(stdout) => json!({ "wg_stdout": stdout, "active": true }),
+                    Err(_) => json!({ "active": true, "mode": "STUB_FALLBACK" }),
+                };
+                emit_response("status-poll".to_string(), true, "VPN Operational".to_string(), Some(data)).await;
+            },
+            AgentCommand::Shutdown => break,
+        }
+    }
+}
+
+async fn process_command(cmd: VpnCommand) {
+    match cmd {
+        VpnCommand::Connect { id, payload } => {
+            let interface = payload.interface;
+            log_forensic("info", &format!("Attempting to connect interface: {}", interface)).await;
+
+            if interface.contains('/') || interface.contains('.') {
+                emit_response(id, false, "Invalid interface name".to_string(), None).await;
+                return;
             }
-        } else {
-            log_forensic("warning", &format!("Received malformed command: {}", line)).await;
+
+            let msg = if let Some(path) = payload.config_path {
+                format!("Interface {} connected using config {}", interface, path)
+            } else {
+                format!("Interface {} connected with default parameters", interface)
+            };
+
+            log_forensic("success", &msg).await;
+            emit_response(id, true, msg, None).await;
+        },
+        VpnCommand::Disconnect { id, payload } => {
+            let interface = payload.interface;
+            log_forensic("info", &format!("Disconnecting interface: {}", interface)).await;
+            emit_response(id, true, format!("Interface {} disconnected", interface), None).await;
+        },
+        VpnCommand::GetStatus { id } => {
+            let wg_status = execute_wg_command(vec!["show"]).await;
+            let data = match wg_status {
+                Ok(stdout) => json!({ "wg_stdout": stdout, "active": true }),
+                Err(_) => json!({ "active": true, "mode": "STUB_FALLBACK" }),
+            };
+            emit_response(id, true, "VPN Operational".to_string(), Some(data)).await;
         }
     }
 }

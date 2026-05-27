@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
 use rand::Rng;
 use tokio::net::TcpListener;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{self, AsyncReadExt, AsyncWriteExt, AsyncBufReadExt, BufReader};
 use chrono::Utc;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
+use bytes::BytesMut;
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
@@ -49,6 +50,8 @@ enum SidecarEvent {
     Status { message: String },
 }
 
+static IPC: Lazy<cts_ipc::IpcManager> = Lazy::new(|| cts_ipc::IpcManager::new("decoy", 1024 * 1024));
+
 async fn emit_event(event: SidecarEvent) {
     let resp = SidecarResponse {
         id: None,
@@ -57,10 +60,7 @@ async fn emit_event(event: SidecarEvent) {
         data: Some(serde_json::to_value(event).unwrap()),
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
-    }
+    IPC.emit_event(&resp);
 }
 
 async fn emit_response(id: String, success: bool, message: String) {
@@ -71,10 +71,7 @@ async fn emit_response(id: String, success: bool, message: String) {
         data: None,
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
-    }
+    IPC.emit_event(&resp);
 }
 
 #[derive(Clone)]
@@ -102,7 +99,6 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
         }
     };
 
-    // BUG-7.2 FIX: Implement global connection limit for this port
     let active_connections = Arc::new(Mutex::new(0usize));
     const MAX_CONNECTIONS_PER_PORT: usize = 50;
 
@@ -125,7 +121,6 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                 {
                     let mut count = conn_count.lock().await;
                     if *count >= MAX_CONNECTIONS_PER_PORT {
-                        // Silently drop if at limit to avoid resource exhaustion
                         continue;
                     }
                     *count += 1;
@@ -137,22 +132,18 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         source_ip: ip.clone(),
                     }).await;
 
-                    // Randomized Latency (frustrate scanners)
                     let base_latency = {
-                        use rand::Rng;
                         let mut rng = rand::thread_rng();
                         rng.gen_range(50..500)
                     };
                     tokio::time::sleep(tokio::time::Duration::from_millis(base_latency)).await;
 
-                    // Tarpitting Check
                     let sabotage_cfg = {
                         let s = state_clone.lock().await;
                         s.get(&port).and_then(|ls| ls.sabotage_ips.get(&ip).cloned())
                     };
 
                     if let Some(cfg) = &sabotage_cfg {
-                        // SOV-P2: Dynamic Sabotage - Timing Jitter
                         let delay = if cfg.mode == "JITTER" || cfg.mode == "DYNAMIC" {
                             let jitter = rand::thread_rng().gen_range(500..3000);
                             cfg.latency_ms + jitter
@@ -162,13 +153,11 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
                     }
 
-                    // INTERACTIVE ENGAGEMENT: Present a fake prompt and capture session data
                     let mut is_vault = false;
                     if port == 8200 {
                         is_vault = true;
                         let _ = socket.write_all(b"{\"initialized\":true,\"sealed\":false,\"version\":\"1.12.0\"}\n").await;
                     } else {
-                        // DECEPTION: Port-Aware Multi-OS Banners (H-09)
                         let banners = match port {
                             22 => vec![
                                 "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.10\n",
@@ -203,23 +192,19 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                     let mut reader = BufReader::new(socket);
                     let mut line = String::new();
                     
-                    // Capture up to 5 lines of interaction for forensic modeling
                     for i in 0..5 {
                         line.clear();
                         if let Ok(n) = reader.read_line(&mut line).await {
                             if n == 0 { break; }
                             
                             if let Some(cfg) = &sabotage_cfg {
-                                // Tarpit: Progressively slow down responses
                                 let mut delay = (i + 1) * 2000;
                                 if cfg.mode == "DYNAMIC" {
                                     delay += rand::thread_rng().gen_range(0..2000);
                                 }
                                 tokio::time::sleep(tokio::time::Duration::from_millis(delay as u64)).await;
                             } else {
-                                // Randomized Latency for responses
                                 let response_latency = {
-                                    use rand::Rng;
                                     let mut rng = rand::thread_rng();
                                     rng.gen_range(100..1000)
                                 };
@@ -233,7 +218,6 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                             }).await;
                             
                             if is_vault {
-                                // SOV-P2: Dynamic Sabotage - Error Variety
                                 let mut errors = vec![
                                     "{\"errors\":[\"permission denied\"]}\n",
                                     "{\"errors\":[\"core: sealed\"]}\n",
@@ -249,7 +233,6 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                                 let err = errors[rand::thread_rng().gen_range(0..errors.len())];
                                 let _ = reader.get_mut().write_all(err.as_bytes()).await;
                             } else {
-                                // Mimic a "Password:" prompt after login
                                 if line.contains("login") || line.len() > 0 {
                                     let _ = reader.get_mut().write_all(b"password: ").await;
                                 }
@@ -266,7 +249,6 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                     let _ = reader.get_mut().write_all(b"\nAccess Denied. Connection logged.\n").await;
                     let _ = reader.get_mut().shutdown().await;
 
-                    // Release connection slot
                     let mut count = conn_count.lock().await;
                     if *count > 0 { *count -= 1; }
                 });
@@ -279,19 +261,42 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
 #[tokio::main]
 async fn main() {
     let state: Arc<Mutex<HashMap<u16, ListenerState>>> = Arc::new(Mutex::new(HashMap::new()));
-    let mut stdin = BufReader::new(tokio::io::stdin());
-    let mut line = String::new();
+    let mut stdin = io::stdin();
+    let mut buffer = BytesMut::with_capacity(4096);
 
     emit_event(SidecarEvent::Status {
         message: "Honeypot Sovereign Protocol V3.1 (Interactive) Active".to_string(),
     }).await;
 
     loop {
-        line.clear();
-        match stdin.read_line(&mut line).await {
+        let mut byte_buf = [0u8; 1024];
+        let n = match stdin.read(&mut byte_buf).await {
             Ok(0) => break,
-            Ok(_) => {
-                if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
+            Ok(n) => n,
+            Err(_) => break,
+        };
+        buffer.extend_from_slice(&byte_buf[..n]);
+
+        while !buffer.is_empty() {
+            if let Ok(cmd) = rmp_serde::from_slice::<Command>(&buffer) {
+                handle_decoy_command(cmd, state.clone()).await;
+                buffer.clear();
+                break;
+            }
+
+            if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line_bytes = buffer.split_to(pos + 1);
+                if let Ok(cmd) = serde_json::from_slice::<Command>(&line_bytes[..pos]) {
+                    handle_decoy_command(cmd, state.clone()).await;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+async fn handle_decoy_command(cmd: Command, state: Arc<Mutex<HashMap<u16, ListenerState>>>) {
                     match cmd {
                         Command::UpdateModule { id, old_port, new_port, .. } => {
                             {
@@ -327,7 +332,6 @@ async fn main() {
                             let mut s = state.lock().await;
                             for ls in s.values_mut() {
                                 if ls.sabotage_ips.len() >= MAX_SABOTAGE_IPS && !ls.sabotage_ips.contains_key(&source_ip) {
-                                    // FIFO eviction (approximate)
                                     if let Some(first_key) = ls.sabotage_ips.keys().next().cloned() {
                                         ls.sabotage_ips.remove(&first_key);
                                     }
@@ -360,9 +364,4 @@ async fn main() {
                             emit_response(id, true, "Active".to_string()).await;
                         }
                     }
-                }
-            }
-            Err(_) => break,
-        }
-    }
 }

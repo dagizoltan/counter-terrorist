@@ -34,14 +34,16 @@ name = "analyzer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "chrono",
+ "cts_ipc",
  "dashmap",
  "hex",
- "landlock 0.4.5",
  "lru",
  "once_cell",
  "parking_lot",
  "rayon",
+ "rmp-serde",
  "serde",
  "serde_json",
  "sha2",
@@ -386,12 +388,14 @@ name = "cts_ipc"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "landlock 0.3.1",
+ "chrono",
+ "landlock",
  "log",
  "parking_lot",
  "rmp-serde",
  "serde",
  "shared_memory",
+ "tokio",
 ]
 
 [[package]]
@@ -423,11 +427,14 @@ dependencies = [
 name = "decoy"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
+ "cts_ipc",
  "inotify",
  "once_cell",
  "parking_lot",
  "rand",
+ "rmp-serde",
  "serde",
  "serde_json",
  "tokio",
@@ -474,9 +481,12 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 name = "enforcer"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
+ "cts_ipc",
  "once_cell",
  "parking_lot",
+ "rmp-serde",
  "serde",
  "serde_json",
  "sysinfo",
@@ -488,7 +498,9 @@ name = "enforcer-win"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cts_ipc",
  "once_cell",
+ "rmp-serde",
  "serde",
  "serde_json",
  "tokio",
@@ -703,17 +715,6 @@ dependencies = [
  "enumflags2",
  "libc",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "landlock"
-version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "635839550ae8b90d9fd2571460a6645dc0aec070225956ca7a2831ed31d2795d"
-dependencies = [
- "enumflags2",
- "libc",
- "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1275,7 +1276,9 @@ name = "sentinel-darwin"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cts_ipc",
  "once_cell",
+ "rmp-serde",
  "serde",
  "serde_json",
  "tokio",
@@ -1459,7 +1462,9 @@ name = "telemetry-win"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cts_ipc",
  "once_cell",
+ "rmp-serde",
  "serde",
  "serde_json",
  "tokio",
@@ -1565,11 +1570,14 @@ dependencies = [
 name = "trustroot"
 version = "0.1.0"
 dependencies = [
+ "bytes",
  "chrono",
+ "cts_ipc",
  "hex",
  "once_cell",
  "pkcs8",
  "rcgen",
+ "rmp-serde",
  "rsa",
  "serde",
  "serde_json",
@@ -1582,7 +1590,9 @@ name = "tunnel"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cts_ipc",
  "once_cell",
+ "rmp-serde",
  "serde",
  "serde_json",
  "tokio",
@@ -1668,11 +1678,14 @@ name = "watchfile"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bytes",
  "chrono",
+ "cts_ipc",
  "libc",
  "nix 0.27.1",
  "once_cell",
  "parking_lot",
+ "rmp-serde",
  "serde",
  "serde_json",
  "tokio",

@@ -4,7 +4,8 @@ use std::fs::{self, File};
 use std::path::{Path};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::io::BufRead;
-use tokio::io::{AsyncBufReadExt, BufReader as TokioBufReader};
+use tokio::io::{self, AsyncReadExt};
+use bytes::BytesMut;
 use std::sync::{Arc};
 use tokio::sync::Mutex as AsyncMutex;
 use once_cell::sync::Lazy;
@@ -12,10 +13,6 @@ use chrono::Utc;
 use sha2::{Sha256, Digest};
 use lru::LruCache;
 use parking_lot::Mutex;
-use landlock::{
-    Access, AccessFs, Ruleset, RulesetAttr, RulesetStatus,
-    ABI, PathBeneath, PathFd, RulesetCreatedAttr,
-};
 
 static STDOUT_LOCK: Lazy<Arc<AsyncMutex<()>>> = Lazy::new(|| Arc::new(AsyncMutex::new(())));
 
@@ -78,18 +75,10 @@ struct ForensicLog {
     message: String,
 }
 
+static IPC: Lazy<cts_ipc::IpcManager> = Lazy::new(|| cts_ipc::IpcManager::new("analyzer", 1024 * 1024));
+
 async fn log_forensic(severity: &str, message: &str) {
-    let log = ForensicLog {
-        timestamp: Utc::now().to_rfc3339(),
-        log_type: "activity".to_string(),
-        severity: severity.to_string(),
-        caller: "scanner:main".to_string(),
-        message: message.to_string(),
-    };
-    if let Ok(json) = serde_json::to_string(&log) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("[LOG] {}", json);
-    }
+    IPC.log::<()>(severity, message);
 }
 
 fn scan_process_memory(pid: u32) -> Vec<MemoryAnomaly> {
@@ -237,47 +226,11 @@ async fn perform_path_scan(path_str: &str) -> (bool, String, bool) {
 async fn main() -> anyhow::Result<()> {
     log_forensic("info", "Sovereign Multi-Vector Scanner Engine Active").await;
 
-    // SOV-P4: Linux Landlock Hardening
-    // We restrict the scanner to only its required volumes and system directories.
-    #[cfg(target_os = "linux")]
-    {
-        let abi = ABI::V1;
-        let access_all = AccessFs::from_all(abi);
-        let access_read = AccessFs::from_read(abi);
-
-        let mut ruleset = Ruleset::default()
-            .handle_access(access_all)?
-            .create()?;
-
-        let paths = vec![
-            ("/proc", access_all),
-            ("/sys", access_all),
-            ("/etc", access_read),
-            ("/usr", access_read),
-            ("/bin", access_read),
-            ("/lib", access_read),
-            ("/lib64", access_read),
-            ("/var/lib/cts", access_all),
-            ("./volume", access_all),
-            ("/tmp", access_all),
-        ];
-
-        for (path, access) in paths {
-            if Path::new(path).exists() {
-                if let Ok(fd) = PathFd::new(path) {
-                    ruleset = ruleset.add_rule(PathBeneath::new(fd, access))?;
-                }
-            }
-        }
-
-        let status = ruleset.restrict_self()?;
-
-        match status.ruleset {
-            RulesetStatus::FullyEnforced => log_forensic("info", "Landlock security policy fully enforced.").await,
-            RulesetStatus::PartiallyEnforced => log_forensic("warning", "Landlock security policy partially enforced.").await,
-            RulesetStatus::NotEnforced => log_forensic("warning", "Landlock security policy not enforced (Kernel too old).").await,
-        }
-    }
+    // SOV-P5: Mandated Dynamic Landlock gating
+    let _ = cts_ipc::apply_landlock("./volume");
+    let _ = cts_ipc::apply_landlock("/proc");
+    let _ = cts_ipc::apply_landlock("/sys");
+    let _ = cts_ipc::apply_landlock("/var/lib/cts");
 
     // Periodic Cache Eviction Task
     tokio::spawn(async move {
@@ -303,19 +256,43 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let mut sys = System::new_all();
-    let stdin = tokio::io::stdin();
-    let mut reader = TokioBufReader::new(stdin).lines();
+    let mut stdin = io::stdin();
+    let mut buffer = BytesMut::with_capacity(4096);
 
-    while let Ok(Some(line)) = reader.next_line().await {
-        let command: ScannerCommand = match serde_json::from_str(&line) {
-            Ok(c) => c,
-            Err(_) => continue,
+    loop {
+        let mut byte_buf = [0u8; 1024];
+        let n = match stdin.read(&mut byte_buf).await {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(_) => break,
         };
+        buffer.extend_from_slice(&byte_buf[..n]);
 
+        while !buffer.is_empty() {
+            if let Ok(command) = rmp_serde::from_slice::<ScannerCommand>(&buffer) {
+                handle_scanner_command(command, &mut sys).await;
+                buffer.clear();
+                break;
+            }
+
+            if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line_bytes = buffer.split_to(pos + 1);
+                if let Ok(command) = serde_json::from_slice::<ScannerCommand>(&line_bytes[..pos]) {
+                    handle_scanner_command(command, &mut sys).await;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn handle_scanner_command(command: ScannerCommand, sys: &mut System) {
         match command {
             ScannerCommand::MemScan { id } => {
                 log_forensic("info", "Initiating global memory-forensic audit...").await;
-                sys.refresh_processes();
+                sys.refresh_all();
                 
                 let mut all_anomalies = Vec::new();
                 for pid in sys.processes().keys() {
@@ -334,15 +311,10 @@ async fn main() -> anyhow::Result<()> {
                     memory_anomalies: if all_anomalies.is_empty() { None } else { Some(all_anomalies) },
                     target: None,
                 };
-                
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
+                IPC.emit_event(&result);
             }
             ScannerCommand::AttestKernel { id } => {
                 log_forensic("info", "Executing Kernel-Level Attestation task...").await;
-                // BUG-4.20 FIX: Implement the ATTEST_KERNEL command used by LifecycleService
-                // This command checks for kernel-level tampering (e.g. modified syscall table)
-
                 let result = ScanResponse {
                     id,
                     success: true,
@@ -352,25 +324,17 @@ async fn main() -> anyhow::Result<()> {
                     memory_anomalies: None,
                     target: None,
                 };
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
+                IPC.emit_event(&result);
             }
             ScannerCommand::RkhScan { id } => {
                 log_forensic("info", "Initiating Rootkit Vulnerability Audit...").await;
-
-                // RKH_SCAN: Specialized check for hidden directories and malicious kernel modules
                 let mut anomalies = Vec::new();
-
-                // 1. Check for common hidden malicious directories
                 let hidden_paths = vec!["/dev/shm/.hidden", "/tmp/.X11-unix/.secret", "/usr/share/.font-unix/.hidden"];
                 for path in hidden_paths {
                     if Path::new(path).exists() {
                         anomalies.push(format!("Hidden directory detected: {}", path));
                     }
                 }
-
-                // 2. Mock kernel module check
-                // In production, we'd use kmod or parse /proc/modules
 
                 let threats_found = !anomalies.is_empty();
                 let message = if threats_found {
@@ -388,9 +352,7 @@ async fn main() -> anyhow::Result<()> {
                     memory_anomalies: None,
                     target: None,
                 };
-
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
+                IPC.emit_event(&result);
             }
             ScannerCommand::ScanPath { id, path } => {
                 log_forensic("info", &format!("Starting filesystem audit for path: {}", path)).await;
@@ -405,9 +367,7 @@ async fn main() -> anyhow::Result<()> {
                     memory_anomalies: None,
                     target: None,
                 };
-
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
+                IPC.emit_event(&result);
             }
             ScannerCommand::Quarantine { id, path } => {
                 log_forensic("warning", &format!("Quarantining suspicious artifact: {}", path)).await;
@@ -430,9 +390,7 @@ async fn main() -> anyhow::Result<()> {
                     memory_anomalies: None,
                     target: Some(target_path.to_string_lossy().to_string()),
                 };
-
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
+                IPC.emit_event(&result);
             }
             ScannerCommand::SyncSignatures { id } => {
                 log_forensic("info", "Synchronizing tactical threat intelligence...").await;
@@ -445,8 +403,7 @@ async fn main() -> anyhow::Result<()> {
                     memory_anomalies: None,
                     target: None,
                 };
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
+                IPC.emit_event(&result);
             }
             ScannerCommand::GetStatus { id } => {
                 let result = ScanResponse {
@@ -458,10 +415,7 @@ async fn main() -> anyhow::Result<()> {
                     memory_anomalies: None,
                     target: None,
                 };
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
+                IPC.emit_event(&result);
             }
         }
-    }
-    Ok(())
 }

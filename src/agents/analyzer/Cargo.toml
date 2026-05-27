@@ -11,10 +11,12 @@ chrono = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 tokio = { workspace = true }
+rmp-serde = "1.1"
 rayon = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
 dashmap = "6.1.0"
 lru = "0.12"
 anyhow = { workspace = true }
-landlock = "0.4.0"
+cts_ipc = { path = "../cts_ipc" }
+bytes = "1.4"

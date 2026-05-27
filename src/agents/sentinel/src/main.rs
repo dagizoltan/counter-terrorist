@@ -1,6 +1,5 @@
 use serde::{Serialize, Deserialize};
 use chrono::Utc;
-use tokio::io::{self, AsyncReadExt};
 use std::error::Error;
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -13,6 +12,7 @@ use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr, SyscallAllowKey};
 use zerocopy::FromBytes;
 use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
+use cts_ipc::{IpcManager, AgentCommand};
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
@@ -31,7 +31,7 @@ struct SidecarCommand {
     allowed_syscalls: Option<Vec<String>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct SidecarResponse {
     id: Option<String>,
     success: bool,
@@ -42,7 +42,7 @@ struct SidecarResponse {
     timestamp: String,
 }
 
-static IPC: Lazy<cts_ipc::IpcManager> = Lazy::new(|| cts_ipc::IpcManager::new("sentinel", 1024 * 1024));
+static IPC: Lazy<IpcManager> = Lazy::new(|| IpcManager::new("sentinel", 1024 * 1024));
 
 async fn emit_response(id: Option<String>, success: bool, message: String) {
     let resp = SidecarResponse {
@@ -52,10 +52,15 @@ async fn emit_response(id: Option<String>, success: bool, message: String) {
         data: None,
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        // BUG-13: STDOUT lock to prevent corruption
-        let _lock = STDOUT_LOCK.lock();
-        println!("{}", json);
+    if !IPC.emit_event(&resp) {
+        if let Ok(msgpack) = rmp_serde::to_vec(&resp) {
+            let _lock = STDOUT_LOCK.lock();
+            use std::io::Write;
+            let mut stdout = std::io::stdout();
+            let _ = stdout.write_all(&(msgpack.len() as u32).to_le_bytes());
+            let _ = stdout.write_all(&msgpack);
+            let _ = stdout.flush();
+        }
     }
 }
 
@@ -67,13 +72,7 @@ async fn emit_event(data: serde_json::Value) {
         data: Some(data),
         timestamp: Utc::now().to_rfc3339(),
     };
-
-    if !IPC.emit_event(&resp) {
-        if let Ok(json) = serde_json::to_string(&resp) {
-            let _lock = STDOUT_LOCK.lock();
-            println!("{}", json);
-        }
-    }
+    IPC.emit_event(&resp);
 }
 
 #[cfg(target_os = "linux")]
@@ -81,18 +80,14 @@ async fn emit_event(data: serde_json::Value) {
 async fn main() -> Result<(), anyhow::Error> {
     let _ = rlimit::Resource::MEMLOCK.set(rlimit::INFINITY, rlimit::INFINITY);
 
-    // Bytecode loading logic
     #[cfg(debug_assertions)]
     let bpf_bytes = include_bytes_aligned!("../../target/bpfel-unknown-none/debug/sentinel-kernel");
     #[cfg(not(debug_assertions))]
     let bpf_bytes = include_bytes_aligned!("../../target/bpfel-unknown-none/release/sentinel-kernel");
 
-    // BUG-20: Refactor Bpf management to use safe interior mutability
-    // and 'static references for async tasks.
     let bpf_instance = match Bpf::load(bpf_bytes) {
         Ok(b) => b,
         Err(e) => {
-            // SOV-06 FIX: Provide detailed diagnostic on BPF load failure
             let mut reason = format!("Failed to load BPF: {}", e);
             if let Some(os_err) = e.source().and_then(|s: &(dyn Error + 'static)| s.downcast_ref::<std::io::Error>()) {
                 if os_err.kind() == std::io::ErrorKind::PermissionDenied {
@@ -105,10 +100,8 @@ async fn main() -> Result<(), anyhow::Error> {
             return run_dummy_mode().await;
         }
     };
-    // Leak the mutex to gain a 'static reference
     let bpf_static: &'static Mutex<Bpf> = Box::leak(Box::new(Mutex::new(bpf_instance)));
 
-    // Attach TC
     if let Some(prog) = bpf_static.lock().program_mut("tc_ingress") {
         if let Ok(tc_prog) = <&mut SchedClassifier>::try_from(prog) {
             let _ = tc_prog.load();
@@ -117,7 +110,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    // Attach KProbes
     for (name, func) in [
         ("kprobe_ptrace", "sys_ptrace"),
         ("kprobe_mmap", "sys_mmap"),
@@ -133,7 +125,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    // Attach LSM
     let btf = Btf::from_sys_fs().ok();
     if let Some(btf) = &btf {
         let mut bpf = bpf_static.lock();
@@ -167,20 +158,12 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     }
 
-    // Handle Perf Events
-    // BUG-20 FIX: Open perf buffers while holding the lock, then move the buffers
-    // into the async tasks. This avoids dangling references to the Bpf instance.
     for cpu_id in aya::util::online_cpus()? {
         let mut buf = {
             let mut bpf = bpf_static.lock();
-
-            // SECURITY: Handle lifetimes for Aya 0.12 Maps.
-            // We know that bpf_static is leaked and thus has a 'static lifetime.
-            // Using unsafe to transmute the Bpf reference to be 'static.
             let bpf_extended: &'static mut Bpf = unsafe { core::mem::transmute(&mut *bpf) };
             let map = bpf_extended.map_mut("EVENTS").expect("EVENTS map not found");
             let mut perf_array = PerfEventArray::try_from(map)?;
-
             perf_array.open(cpu_id, None)?
         };
 
@@ -192,7 +175,6 @@ async fn main() -> Result<(), anyhow::Error> {
                         for i in 0..events.read {
                             let data = &buffers[i];
                             if let Some(event) = SyscallEvent::read_from(&data[..std::mem::size_of::<SyscallEvent>()]) {
-                                // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
                                 let syscall = if cfg!(target_arch = "x86_64") {
                                     match event.syscall_id {
                                         101 => "ptrace", 9 => "mmap", 59 => "execve",
@@ -231,35 +213,19 @@ async fn main() -> Result<(), anyhow::Error> {
 
     emit_response(None, true, "eBPF Sidecar Active.".to_string()).await;
 
-    let mut stdin = io::stdin();
-    let mut buffer = BytesMut::with_capacity(4096);
+    let mut ipc = IpcManager::new("sentinel", 1024 * 1024);
 
-    loop {
-        let mut byte_buf = [0u8; 1024];
-        let n = match stdin.read(&mut byte_buf).await {
-            Ok(0) => break,
-            Ok(n) => n,
-            Err(_) => break,
-        };
-        buffer.extend_from_slice(&byte_buf[..n]);
-
-        while !buffer.is_empty() {
-            // Try MessagePack first
-            if let Ok(cmd) = rmp_serde::from_slice::<SidecarCommand>(&buffer) {
-                handle_command(cmd, bpf_static).await;
-                buffer.clear();
-                break;
-            }
-
-            // Fallback to JSON (lines)
-            if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
-                let line_bytes = buffer.split_to(pos + 1);
-                if let Ok(cmd) = serde_json::from_slice::<SidecarCommand>(&line_bytes[..pos]) {
+    while let Some(cmd_raw) = ipc.next_command().await {
+        match cmd_raw {
+            AgentCommand::Custom(payload) => {
+                if let Ok(cmd) = rmp_serde::from_slice::<SidecarCommand>(&payload) {
                     handle_command(cmd, bpf_static).await;
                 }
-            } else {
-                break;
-            }
+            },
+            AgentCommand::GetStatus => {
+                handle_command(SidecarCommand { id: None, cmd_type: "GET_STATUS".to_string(), ip: None, pid: None, comm: None, port: None, protocol: None, path: None, allowed_ips: None, allowed_syscalls: None }, bpf_static).await;
+            },
+            AgentCommand::Shutdown => break,
         }
     }
     Ok(())
@@ -416,10 +382,7 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                         data: Some(serde_json::Value::Object(stats_data)),
                         timestamp: Utc::now().to_rfc3339(),
                     };
-                    if let Ok(json) = serde_json::to_string(&resp) {
-                        let _lock = STDOUT_LOCK.lock();
-                        println!("{}", json);
-                    }
+                    IPC.emit_event(&resp);
                 },
                 "TRUST_COMM" => {
                     if let Some(comm_str) = cmd.comm {
@@ -453,9 +416,6 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                 },
                 "RESTRICT_EGRESS" => {
                     if let (Some(pid), Some(allowed)) = (cmd.pid, cmd.allowed_ips) {
-                        // SEC-05: Orchestrator Self-Enforcement.
-                        // In a real eBPF agent, this would update an eBPF map linked to a socket filter.
-                        // For this implementation, we simulate the enforcement and log the policy update.
                         emit_response(cmd.id, true, format!("Egress restricted for PID {}. Allowed IPs: {:?}", pid, allowed)).await;
                     }
                 },
@@ -480,7 +440,6 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                                 }
                             }
 
-                            // Also ensure ENFORCEMENT_POLICY bit 16 is set for this PID
                             if let Ok(mut policy_map) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
                                 let current = policy_map.get(&pid, 0).unwrap_or(0);
                                 let _ = policy_map.insert(pid, current | 0x10000, 0);
@@ -490,7 +449,6 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                         } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
                     }
                 },
-                "SHUTDOWN" => std::process::exit(0),
                 _ => {}
             }
 }
@@ -532,47 +490,24 @@ async fn dump_process_task(pid: u32, requested_path: String) -> (bool, String) {
     }
 }
 
-
-
 async fn run_dummy_mode() -> Result<(), anyhow::Error> {
     emit_response(None, true, "eBPF Sidecar Active (Dummy/Legacy Mode).".to_string()).await;
-    let mut stdin = io::stdin();
-    let mut buffer = BytesMut::with_capacity(4096);
+    let mut ipc = IpcManager::new("sentinel", 1024 * 1024);
 
-    loop {
-        let mut byte_buf = [0u8; 1024];
-        let n = match stdin.read(&mut byte_buf).await {
-            Ok(0) => break,
-            Ok(n) => n,
-            Err(_) => break,
-        };
-        buffer.extend_from_slice(&byte_buf[..n]);
-
-        while !buffer.is_empty() {
-            // Try MessagePack first
-            if let Ok(cmd) = rmp_serde::from_slice::<SidecarCommand>(&buffer) {
-                match cmd.cmd_type.as_str() {
-                    "GET_STATUS" => emit_response(cmd.id, true, "Active (Dummy)".to_string()).await,
-                    "SHUTDOWN" => std::process::exit(0),
-                    _ => { emit_response(cmd.id, false, "BPF Unavailable".to_string()).await; }
-                }
-                buffer.clear();
-                break;
-            }
-
-            // Fallback to JSON (lines)
-            if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
-                let line_bytes = buffer.split_to(pos + 1);
-                if let Ok(cmd) = serde_json::from_slice::<SidecarCommand>(&line_bytes[..pos]) {
+    while let Some(cmd_raw) = ipc.next_command().await {
+        match cmd_raw {
+            AgentCommand::Custom(payload) => {
+                if let Ok(cmd) = rmp_serde::from_slice::<SidecarCommand>(&payload) {
                     match cmd.cmd_type.as_str() {
                         "GET_STATUS" => emit_response(cmd.id, true, "Active (Dummy)".to_string()).await,
-                        "SHUTDOWN" => std::process::exit(0),
                         _ => { emit_response(cmd.id, false, "BPF Unavailable".to_string()).await; }
                     }
                 }
-            } else {
-                break;
-            }
+            },
+            AgentCommand::GetStatus => {
+                emit_response(None, true, "Active (Dummy)".to_string()).await;
+            },
+            AgentCommand::Shutdown => break,
         }
     }
     Ok(())

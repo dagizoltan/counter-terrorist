@@ -1,13 +1,14 @@
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
+use cts_ipc::{IpcManager, AgentCommand};
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+static IPC: Lazy<IpcManager> = Lazy::new(|| IpcManager::new("sentinel-darwin", 1024 * 1024));
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "type")]
 enum Command {
     BlockIp { id: String, ip: String },
@@ -19,11 +20,11 @@ enum Command {
     FlushRules { id: String },
     GetStatus { id: String },
     UpdatePolicy { id: String, blocked_paths: Vec<String> },
-    Shutdown,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Response {
+    #[serde(skip_serializing_if = "Option::is_none")]
     id: Option<String>,
     success: bool,
     message: String,
@@ -34,9 +35,15 @@ struct Response {
 
 async fn emit_response(id: Option<String>, success: bool, message: String, data: Option<serde_json::Value>) {
     let resp = Response { id, success, message, data, timestamp: Utc::now().to_rfc3339() };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
+    if !IPC.emit_event(&resp) {
+        if let Ok(msgpack) = rmp_serde::to_vec(&resp) {
+            let _lock = STDOUT_LOCK.lock().await;
+            use std::io::Write;
+            let mut stdout = std::io::stdout();
+            let _ = stdout.write_all(&(msgpack.len() as u32).to_le_bytes());
+            let _ = stdout.write_all(&msgpack);
+            let _ = stdout.flush();
+        }
     }
 }
 
@@ -53,15 +60,12 @@ async fn main() {
     let blocked_paths: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let blocked_paths_clone = Arc::clone(&blocked_paths);
 
-    // 1. Initial Handshake
     emit_response(None, true, "Sovereign ESF Agent Active (macOS Sonoma+)".to_string(), None).await;
 
-    // 2. MOCK: Endpoint Security Callback Loop
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
 
-            // Simulation of an AUTH_EXEC event
             let target_path = "/usr/bin/unsigned_binary";
             let mut is_blocked = false;
             {
@@ -88,43 +92,48 @@ async fn main() {
         }
     });
 
-    let mut stdin = BufReader::new(tokio::io::stdin()).lines();
-    while let Ok(Some(line)) = stdin.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
-            match cmd {
-                Command::BlockIp { id, ip } => {
-                    emit_response(Some(id), true, format!("IP {} blocked via ESF Network Filter", ip), None).await;
-                },
-                Command::UnblockIp { id, ip } => {
-                    emit_response(Some(id), true, format!("IP {} unblocked", ip), None).await;
-                },
-                Command::ShadowBanIp { id, ip } => {
-                    emit_response(Some(id), true, format!("IP {} shadow-banned", ip), None).await;
-                },
-                Command::AllowPort { id, port, protocol } => {
-                    emit_response(Some(id), true, format!("Port {}:{} allowed", protocol, port), None).await;
-                },
-                Command::DenyPort { id, port, protocol } => {
-                    emit_response(Some(id), true, format!("Port {}:{} denied", protocol, port), None).await;
-                },
-                Command::Lockdown { id } => {
-                    emit_response(Some(id), true, "System Lockdown Active".to_string(), None).await;
-                },
-                Command::FlushRules { id } => {
-                    emit_response(Some(id), true, "All ESF rules flushed".to_string(), None).await;
-                },
-                Command::GetStatus { id } => {
-                    emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
-                },
-                Command::UpdatePolicy { id, blocked_paths: new_paths } => {
+    let mut ipc = IpcManager::new("sentinel-darwin", 1024 * 1024);
+    while let Some(cmd_raw) = ipc.next_command().await {
+        match cmd_raw {
+            AgentCommand::Custom(payload) => {
+                if let Ok(cmd) = rmp_serde::from_slice::<Command>(&payload) {
                     let mut paths = blocked_paths.lock().await;
-                    *paths = new_paths;
-                    emit_response(Some(id), true, "Policy updated".to_string(), None).await;
-                },
-                Command::Shutdown => {
-                    std::process::exit(0);
+                    match cmd {
+                        Command::BlockIp { id, ip } => {
+                            emit_response(Some(id), true, format!("IP {} blocked via ESF Network Filter", ip), None).await;
+                        },
+                        Command::UnblockIp { id, ip } => {
+                            emit_response(Some(id), true, format!("IP {} unblocked", ip), None).await;
+                        },
+                        Command::ShadowBanIp { id, ip } => {
+                            emit_response(Some(id), true, format!("IP {} shadow-banned", ip), None).await;
+                        },
+                        Command::AllowPort { id, port, protocol } => {
+                            emit_response(Some(id), true, format!("Port {}:{} allowed", protocol, port), None).await;
+                        },
+                        Command::DenyPort { id, port, protocol } => {
+                            emit_response(Some(id), true, format!("Port {}:{} denied", protocol, port), None).await;
+                        },
+                        Command::Lockdown { id } => {
+                            emit_response(Some(id), true, "System Lockdown Active".to_string(), None).await;
+                        },
+                        Command::FlushRules { id } => {
+                            emit_response(Some(id), true, "All ESF rules flushed".to_string(), None).await;
+                        },
+                        Command::GetStatus { id } => {
+                            emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
+                        },
+                        Command::UpdatePolicy { id, blocked_paths: new_paths } => {
+                            *paths = new_paths;
+                            emit_response(Some(id), true, "Policy updated".to_string(), None).await;
+                        }
+                    }
                 }
-            }
+            },
+            AgentCommand::GetStatus => {
+                emit_response(None, true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
+            },
+            AgentCommand::Shutdown => break,
         }
     }
 }

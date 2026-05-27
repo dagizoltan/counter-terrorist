@@ -1,9 +1,10 @@
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
-use tokio::io::{self, AsyncBufReadExt, BufReader};
+use tokio::io::{self, AsyncReadExt};
 use std::sync::Arc;
 use parking_lot::Mutex;
 use once_cell::sync::Lazy;
+use bytes::{BytesMut, Buf};
 use std::os::unix::io::RawFd;
 use libc::{fanotify_init, fanotify_mark, fanotify_response, read};
 use std::fs;
@@ -38,18 +39,10 @@ struct ForensicLog {
     message: String,
 }
 
+static IPC: Lazy<cts_ipc::IpcManager> = Lazy::new(|| cts_ipc::IpcManager::new("watchfile", 1024 * 1024));
+
 async fn log_forensic(severity: &str, message: &str) {
-    let log = ForensicLog {
-        timestamp: Utc::now().to_rfc3339(),
-        log_type: "activity".to_string(),
-        severity: severity.to_string(),
-        caller: "fim:main".to_string(),
-        message: message.to_string(),
-    };
-    if let Ok(json) = serde_json::to_string(&log) {
-        let _lock = STDOUT_LOCK.lock();
-        println!("[LOG] {}", json);
-    }
+    IPC.log::<()>(severity, message);
 }
 
 fn emit_event(event: SidecarEvent) {
@@ -60,10 +53,7 @@ fn emit_event(event: SidecarEvent) {
         data: Some(serde_json::to_value(event).unwrap()),
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock();
-        println!("{}", json);
-    }
+    IPC.emit_event(&resp);
 }
 
 fn get_comm(pid: i32) -> String {
@@ -188,11 +178,37 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // SOV-P5: Mandated Dynamic Landlock gating
+    let _ = cts_ipc::apply_landlock("/etc");
+    let _ = cts_ipc::apply_landlock("/bin");
+    let _ = cts_ipc::apply_landlock("/usr/bin");
+    let _ = cts_ipc::apply_landlock("/proc");
+
     // Keep the main loop alive for stdin (even if we don't use it yet)
-    let stdin = io::stdin();
-    let mut reader = BufReader::new(stdin).lines();
-    while let Ok(Some(_line)) = reader.next_line().await {
-        // Handle commands if needed
+    let mut stdin = io::stdin();
+    let mut buffer = BytesMut::with_capacity(4096);
+
+    loop {
+        let mut byte_buf = [0u8; 1024];
+        let n = match stdin.read(&mut byte_buf).await {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(_) => break,
+        };
+        buffer.extend_from_slice(&byte_buf[..n]);
+
+        while !buffer.is_empty() {
+            if let Ok(_cmd) = rmp_serde::from_slice::<serde_json::Value>(&buffer) {
+                buffer.clear();
+                break;
+            }
+
+            if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                buffer.advance(pos + 1);
+            } else {
+                break;
+            }
+        }
     }
 
     Ok(())

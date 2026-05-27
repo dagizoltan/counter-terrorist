@@ -6,8 +6,11 @@ edition = "2021"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+rmp-serde = "1.1"
 sysinfo = { workspace = true }
 chrono = { workspace = true }
 tokio = { workspace = true }
 once_cell = { workspace = true }
 parking_lot = { workspace = true }
+cts_ipc = { path = "../cts_ipc" }
+bytes = "1.4"

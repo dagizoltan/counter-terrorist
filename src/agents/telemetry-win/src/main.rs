@@ -1,21 +1,22 @@
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
+use cts_ipc::{IpcManager, AgentCommand};
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
+static IPC: Lazy<IpcManager> = Lazy::new(|| IpcManager::new("telemetry-win", 1024 * 1024));
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "type")]
 enum Command {
     GetStatus { id: String },
-    Shutdown,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Response {
+    #[serde(skip_serializing_if = "Option::is_none")]
     id: Option<String>,
     success: bool,
     message: String,
@@ -26,9 +27,15 @@ struct Response {
 
 async fn emit_response(id: Option<String>, success: bool, message: String, data: Option<serde_json::Value>) {
     let resp = Response { id, success, message, data, timestamp: Utc::now().to_rfc3339() };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
+    if !IPC.emit_event(&resp) {
+        if let Ok(msgpack) = rmp_serde::to_vec(&resp) {
+            let _lock = STDOUT_LOCK.lock().await;
+            use std::io::Write;
+            let mut stdout = std::io::stdout();
+            let _ = stdout.write_all(&(msgpack.len() as u32).to_le_bytes());
+            let _ = stdout.write_all(&msgpack);
+            let _ = stdout.flush();
+        }
     }
 }
 
@@ -42,12 +49,8 @@ async fn emit_event(event_type: &str, data: serde_json::Value) {
 
 #[tokio::main]
 async fn main() {
-    // 1. Initial Handshake
     emit_response(None, true, "Sovereign ETW Agent Active (Windows 11)".to_string(), None).await;
 
-    // 2. MOCK: ETW Callback Loop
-    // In production, this would use `OpenTrace` and `ProcessTrace` with Kernel providers:
-    // MSNT_SystemTrace (Process, Network, Disk)
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(45)).await;
@@ -60,17 +63,22 @@ async fn main() {
         }
     });
 
-    let mut stdin = BufReader::new(tokio::io::stdin()).lines();
-    while let Ok(Some(line)) = stdin.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
-            match cmd {
-                Command::GetStatus { id } => {
-                    emit_response(Some(id), true, "Active".to_string(), None).await;
-                },
-                Command::Shutdown => {
-                    std::process::exit(0);
+    let mut ipc = IpcManager::new("telemetry-win", 1024 * 1024);
+    while let Some(cmd_raw) = ipc.next_command().await {
+        match cmd_raw {
+            AgentCommand::Custom(payload) => {
+                if let Ok(cmd) = rmp_serde::from_slice::<Command>(&payload) {
+                    match cmd {
+                        Command::GetStatus { id } => {
+                            emit_response(Some(id), true, "Active".to_string(), None).await;
+                        }
+                    }
                 }
-            }
+            },
+            AgentCommand::GetStatus => {
+                emit_response(None, true, "Active".to_string(), None).await;
+            },
+            AgentCommand::Shutdown => break,
         }
     }
 }

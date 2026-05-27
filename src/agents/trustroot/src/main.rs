@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 use chrono::Utc;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
+use cts_ipc::{IpcManager, AgentCommand};
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(tag = "type")]
 enum TpmCommand {
     Seal {
@@ -19,8 +19,8 @@ enum TpmCommand {
     },
     Unseal { id: String, index: String },
     Sign { id: String, data: String },
-    QuoteIdentity { id: String, nonce: String }, // NEW: Hardware-Rooted Identity Quote
-    WipeSecrets { id: String }, // SOV-P4: Hardware Panic Switch ("Nuclear Option")
+    QuoteIdentity { id: String, nonce: String },
+    WipeSecrets { id: String },
     Verify { id: String, data: String, signature: String },
     GetPcrs { id: String, indices: Vec<u32> },
     NvDefine { id: String, index: String, size: usize },
@@ -32,13 +32,12 @@ enum TpmCommand {
     IssueNodeCert { 
         id: String, 
         node_id: String,
-        // SEC-03: CA Cert/Key are now optional to support hardware-internal CA
         ca_cert: Option<String>,
         ca_key: Option<String>
     },
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct TpmResponse {
     id: String,
     success: bool,
@@ -81,214 +80,216 @@ async fn emit_response(id: String, success: bool, message: String, data: Option<
         data,
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
+    if let Ok(msgpack) = rmp_serde::to_vec(&resp) {
         let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
+        use std::io::Write;
+        let mut stdout = std::io::stdout();
+        let _ = stdout.write_all(&(msgpack.len() as u32).to_le_bytes());
+        let _ = stdout.write_all(&msgpack);
+        let _ = stdout.flush();
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let stdin = tokio::io::stdin();
-    let mut reader = BufReader::new(stdin).lines();
+    // SEC-05: Apply Landlock gating for trustroot
+    let _ = cts_ipc::apply_landlock_multi(&["/etc/machine-id", "/proc/version", "/proc/sys/kernel/hostname", "./volume/storage/trustroot"]);
+
+    let mut ipc = IpcManager::new("trustroot", 1024 * 64); // 64KB shmem for trustroot (small)
 
     // SOV-06 FIX: Implement persistent Virtual TPM state for fallback
     let state_path = "./volume/storage/trustroot/vtpm_state.json";
     tokio::fs::create_dir_all("./volume/storage/trustroot").await.ok();
 
-    while let Ok(Some(line)) = reader.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<TpmCommand>(line.trim()) {
-            match cmd {
-                TpmCommand::Seal { id, index, data, pcrs } => {
-                    // Virtual Sealing: Store encrypted data in state file
-                    let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
-                        .await
-                        .ok()
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or(serde_json::json!({ "nv": {} }));
+    while let Some(cmd_raw) = ipc.next_command().await {
+        match cmd_raw {
+            AgentCommand::Custom(payload) => {
+                if let Ok(cmd) = rmp_serde::from_slice::<TpmCommand>(&payload) {
+                    process_command(cmd, state_path).await;
+                }
+            },
+            AgentCommand::Shutdown => break,
+            _ => {}
+        }
+    }
+}
 
-                    state["nv"][&index] = serde_json::json!({
-                        "data": data,
-                        "sealed": true,
-                        "pcrs": pcrs,
-                        "timestamp": Utc::now().to_rfc3339()
-                    });
+async fn process_command(cmd: TpmCommand, state_path: &str) {
+    match cmd {
+        TpmCommand::Seal { id, index, data, pcrs } => {
+            let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                .await
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or(serde_json::json!({ "nv": {} }));
 
-                    if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
-                        emit_response(id, true, format!("Data sealed to virtual hardware index {}", index), None).await;
-                    } else {
-                        emit_response(id, false, "Failed to persist virtual TPM state".to_string(), None).await;
-                    }
-                },
-                TpmCommand::Unseal { id, index } => {
-                    let state: serde_json::Value = tokio::fs::read_to_string(state_path)
-                        .await
-                        .ok()
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or(serde_json::json!({ "nv": {} }));
+            state["nv"][&index] = serde_json::json!({
+                "data": data,
+                "sealed": true,
+                "pcrs": pcrs,
+                "timestamp": Utc::now().to_rfc3339()
+            });
 
-                    if let Some(entry) = state["nv"].get(&index) {
-                        // SEC-03 Hardening: Verify PCR policy if present in the sealed entry
-                        if let Some(required_pcrs) = entry["pcrs"].as_object() {
-                            let current_pcrs = get_current_pcrs().await;
-                            for (idx_str, expected_val) in required_pcrs {
-                                let idx: u32 = idx_str.parse().unwrap_or(999);
-                                if let Some(current_val) = current_pcrs.get(&idx.to_string()) {
-                                    if current_val != expected_val {
-                                        emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} mismatch", index, idx), None).await;
-                                        return;
-                                    }
-                                } else {
-                                     emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} not available", index, idx), None).await;
-                                     return;
-                                }
-                            }
-                        }
+            if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
+                emit_response(id, true, format!("Data sealed to virtual hardware index {}", index), None).await;
+            } else {
+                emit_response(id, false, "Failed to persist virtual TPM state".to_string(), None).await;
+            }
+        },
+        TpmCommand::Unseal { id, index } => {
+            let state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                .await
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or(serde_json::json!({ "nv": {} }));
 
-                        emit_response(id, true, format!("Unsealed from index {}", index), Some(serde_json::json!({ "data": entry["data"] }))).await;
-                    } else {
-                        emit_response(id, false, format!("Index {} not found in virtual TPM", index), None).await;
-                    }
-                },
-                TpmCommand::QuoteIdentity { id, nonce } => {
-                    // Virtual Identity Quote: Signed by local machine key
-                    let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "unknown".to_string()).trim().to_string();
-                    let pcr_state = format!("PCR0:{}", machine_id);
-                    let data = serde_json::json!({
-                        "quote": "VIRTUAL_SIG",
-                        "pcr_state": pcr_state,
-                        "nonce": nonce,
-                        "attestation_key_id": "VAIK_01"
-                    });
-                    emit_response(id, true, "Virtual Hardware-Rooted Identity Quote generated.".to_string(), Some(data)).await;
-                },
-                TpmCommand::WipeSecrets { id } => {
-                    // SOV-P4: Hardware Panic Switch
-                    // Irrevocably clear the virtual TPM state file.
-                    if tokio::fs::remove_file(state_path).await.is_ok() {
-                        emit_response(id, true, "NUCLEAR OPTION ENGAGED: All hardware-anchored secrets and keys irrevocably wiped.".to_string(), None).await;
-                    } else {
-                        emit_response(id, false, "Failed to wipe hardware state".to_string(), None).await;
-                    }
-                },
-                TpmCommand::Sign { id, data } => {
-                    emit_response(id, true, "Signed (Virtual)".to_string(), Some(serde_json::json!({ "sig": format!("v-sig:{}", data) }))).await;
-                },
-                TpmCommand::Verify { id, data, signature } => {
-                    let valid = signature == format!("v-sig:{}", data);
-                    emit_response(id, valid, if valid { "Verified" } else { "Verification Failed" }.to_string(), None).await;
-                },
-                TpmCommand::GetPcrs { id, indices } => {
-                    let mut pcrs = serde_json::Map::new();
-                    let current = get_current_pcrs_with_indices(indices).await;
-                    for (k, v) in current {
-                        pcrs.insert(k, serde_json::json!(v));
-                    }
-                    emit_response(id, true, "Read (Virtual)".to_string(), Some(serde_json::Value::Object(pcrs))).await;
-                },
-                TpmCommand::NvDefine { id, index, .. } => {
-                    emit_response(id, true, format!("NV index {} defined", index), None).await;
-                },
-                TpmCommand::NvWrite { id, index, .. } => {
-                    emit_response(id, true, format!("Data written to NV index {}", index), None).await;
-                },
-                TpmCommand::NvRead { id, index } => {
-                    // Mock: return a fixed hash if it's the expected golden PCR index
-                    let data = if index == "0x1500002" {
-                        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" // Empty SHA256 as mock
-                    } else {
-                        "MOCK_NV_DATA"
-                    };
-                    emit_response(id, true, format!("Read from NV index {}", index), Some(serde_json::json!({ "data": data }))).await;
-                },
-                TpmCommand::GenerateProxyKey { id, key_id } => {
-                    // SOV-P4: Hardware-Resident Proxy Keys
-                    // Generate and store key in VTPM state, never export to orchestrator
-                    let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
-                        .await
-                        .ok()
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or(serde_json::json!({ "keys": {} }));
-
-                    let dummy_private_key = format!("proxy-key-data-{}", key_id);
-                    state["keys"][&key_id] = serde_json::json!(dummy_private_key);
-
-                    if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
-                        emit_response(id, true, format!("Hardware-resident proxy key '{}' generated.", key_id), None).await;
-                    } else {
-                        emit_response(id, false, "Failed to persist proxy key".to_string(), None).await;
-                    }
-                },
-                TpmCommand::SignProxy { id, data, key_id } => {
-                    // SOV-P4: Proxy Signing
-                    // Use hardware-resident key to sign data
-                    let state: serde_json::Value = tokio::fs::read_to_string(state_path)
-                        .await
-                        .ok()
-                        .and_then(|s| serde_json::from_str(&s).ok())
-                        .unwrap_or(serde_json::json!({ "keys": {} }));
-
-                    if let Some(_key) = state["keys"].get(&key_id) {
-                        let sig = format!("p-sig:{}:{}", key_id, data);
-                        emit_response(id, true, "Data signed via proxy key".to_string(), Some(serde_json::json!({ "signature": sig }))).await;
-                    } else {
-                        emit_response(id, false, format!("Proxy key '{}' not found", key_id), None).await;
-                    }
-                },
-                TpmCommand::GenerateSelfSignedCA { id, common_name } => {
-                    let res = tokio::task::spawn_blocking(move || {
-                        generate_ca_task_sync(common_name)
-                    }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
-
-                    // SEC-03: Hardware-Bound CA. Store key internally, return only cert.
-                    if res.0 {
-                        if let Some(ref data) = res.2 {
-                            if let (Some(cert), Some(key)) = (data.get("cert"), data.get("key")) {
-                                let mut state: serde_json::Value = std::fs::read_to_string(state_path)
-                                    .ok()
-                                    .and_then(|s| serde_json::from_str(&s).ok())
-                                    .unwrap_or(serde_json::json!({ "nv": {} }));
-
-                                state["ca"] = serde_json::json!({
-                                    "cert": cert,
-                                    "key": key
-                                });
-
-                                let _ = std::fs::write(state_path, state.to_string());
-
-                                // Return only cert to orchestrator
-                                emit_response(id, true, "Root CA generated and hardware-bound".to_string(), Some(serde_json::json!({ "cert": cert }))).await;
+            if let Some(entry) = state["nv"].get(&index) {
+                if let Some(required_pcrs) = entry["pcrs"].as_object() {
+                    let current_pcrs = get_current_pcrs().await;
+                    for (idx_str, expected_val) in required_pcrs {
+                        let idx: u32 = idx_str.parse().unwrap_or(999);
+                        if let Some(current_val) = current_pcrs.get(&idx.to_string()) {
+                            if current_val != expected_val {
+                                emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} mismatch", index, idx), None).await;
                                 return;
                             }
-                        }
-                    }
-                    emit_response(id, res.0, res.1, None).await;
-                },
-                TpmCommand::IssueNodeCert { id, node_id, ca_cert, ca_key } => {
-                    let (final_ca_cert, final_ca_key) = if ca_cert.is_some() && ca_key.is_some() {
-                        (ca_cert.unwrap(), ca_key.unwrap())
-                    } else {
-                        // Attempt to load from hardware state
-                        let state: serde_json::Value = tokio::fs::read_to_string(state_path)
-                            .await
-                            .ok()
-                            .and_then(|s| serde_json::from_str(&s).ok())
-                            .unwrap_or(serde_json::json!({}));
-
-                        if let (Some(cert), Some(key)) = (state["ca"].get("cert"), state["ca"].get("key")) {
-                            (cert.as_str().unwrap_or("").to_string(), key.as_str().unwrap_or("").to_string())
                         } else {
-                             emit_response(id, false, "No hardware-bound CA found and no CA provided".to_string(), None).await;
+                             emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} not available", index, idx), None).await;
                              return;
                         }
-                    };
+                    }
+                }
 
-                    let res = tokio::task::spawn_blocking(move || {
-                        issue_node_cert_task_sync(node_id, final_ca_cert, final_ca_key)
-                    }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
-                    emit_response(id, res.0, res.1, res.2).await;
+                emit_response(id, true, format!("Unsealed from index {}", index), Some(serde_json::json!({ "data": entry["data"] }))).await;
+            } else {
+                emit_response(id, false, format!("Index {} not found in virtual TPM", index), None).await;
+            }
+        },
+        TpmCommand::QuoteIdentity { id, nonce } => {
+            let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "unknown".to_string()).trim().to_string();
+            let pcr_state = format!("PCR0:{}", machine_id);
+            let data = serde_json::json!({
+                "quote": "VIRTUAL_SIG",
+                "pcr_state": pcr_state,
+                "nonce": nonce,
+                "attestation_key_id": "VAIK_01"
+            });
+            emit_response(id, true, "Virtual Hardware-Rooted Identity Quote generated.".to_string(), Some(data)).await;
+        },
+        TpmCommand::WipeSecrets { id } => {
+            if tokio::fs::remove_file(state_path).await.is_ok() {
+                emit_response(id, true, "NUCLEAR OPTION ENGAGED: All hardware-anchored secrets and keys irrevocably wiped.".to_string(), None).await;
+            } else {
+                emit_response(id, false, "Failed to wipe hardware state".to_string(), None).await;
+            }
+        },
+        TpmCommand::Sign { id, data } => {
+            emit_response(id, true, "Signed (Virtual)".to_string(), Some(serde_json::json!({ "sig": format!("v-sig:{}", data) }))).await;
+        },
+        TpmCommand::Verify { id, data, signature } => {
+            let valid = signature == format!("v-sig:{}", data);
+            emit_response(id, valid, if valid { "Verified" } else { "Verification Failed" }.to_string(), None).await;
+        },
+        TpmCommand::GetPcrs { id, indices } => {
+            let mut pcrs = serde_json::Map::new();
+            let current = get_current_pcrs_with_indices(indices).await;
+            for (k, v) in current {
+                pcrs.insert(k, serde_json::json!(v));
+            }
+            emit_response(id, true, "Read (Virtual)".to_string(), Some(serde_json::Value::Object(pcrs))).await;
+        },
+        TpmCommand::NvDefine { id, index, .. } => {
+            emit_response(id, true, format!("NV index {} defined", index), None).await;
+        },
+        TpmCommand::NvWrite { id, index, .. } => {
+            emit_response(id, true, format!("Data written to NV index {}", index), None).await;
+        },
+        TpmCommand::NvRead { id, index } => {
+            let data = if index == "0x1500002" {
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            } else {
+                "MOCK_NV_DATA"
+            };
+            emit_response(id, true, format!("Read from NV index {}", index), Some(serde_json::json!({ "data": data }))).await;
+        },
+        TpmCommand::GenerateProxyKey { id, key_id } => {
+            let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                .await
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or(serde_json::json!({ "keys": {} }));
+
+            let dummy_private_key = format!("proxy-key-data-{}", key_id);
+            state["keys"][&key_id] = serde_json::json!(dummy_private_key);
+
+            if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
+                emit_response(id, true, format!("Hardware-resident proxy key '{}' generated.", key_id), None).await;
+            } else {
+                emit_response(id, false, "Failed to persist proxy key".to_string(), None).await;
+            }
+        },
+        TpmCommand::SignProxy { id, data, key_id } => {
+            let state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                .await
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or(serde_json::json!({ "keys": {} }));
+
+            if let Some(_key) = state["keys"].get(&key_id) {
+                let sig = format!("p-sig:{}:{}", key_id, data);
+                emit_response(id, true, "Data signed via proxy key".to_string(), Some(serde_json::json!({ "signature": sig }))).await;
+            } else {
+                emit_response(id, false, format!("Proxy key '{}' not found", key_id), None).await;
+            }
+        },
+        TpmCommand::GenerateSelfSignedCA { id, common_name } => {
+            let res = tokio::task::spawn_blocking(move || {
+                generate_ca_task_sync(common_name)
+            }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
+
+            if res.0 {
+                if let Some(ref data) = res.2 {
+                    if let (Some(cert), Some(key)) = (data.get("cert"), data.get("key")) {
+                        let mut state: serde_json::Value = std::fs::read_to_string(state_path)
+                            .ok()
+                            .and_then(|s| serde_json::from_str(&s).ok())
+                            .unwrap_or(serde_json::json!({ "nv": {} }));
+
+                        state["ca"] = serde_json::json!({
+                            "cert": cert,
+                            "key": key
+                        });
+
+                        let _ = std::fs::write(state_path, state.to_string());
+                        emit_response(id, true, "Root CA generated and hardware-bound".to_string(), Some(serde_json::json!({ "cert": cert }))).await;
+                        return;
+                    }
                 }
             }
+            emit_response(id, res.0, res.1, None).await;
+        },
+        TpmCommand::IssueNodeCert { id, node_id, ca_cert, ca_key } => {
+            let (final_ca_cert, final_ca_key) = if ca_cert.is_some() && ca_key.is_some() {
+                (ca_cert.unwrap(), ca_key.unwrap())
+            } else {
+                let state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                    .await
+                    .ok()
+                    .and_then(|s| serde_json::from_str(&s).ok())
+                    .unwrap_or(serde_json::json!({}));
+
+                if let (Some(cert), Some(key)) = (state["ca"].get("cert"), state["ca"].get("key")) {
+                    (cert.as_str().unwrap_or("").to_string(), key.as_str().unwrap_or("").to_string())
+                } else {
+                     emit_response(id, false, "No hardware-bound CA found and no CA provided".to_string(), None).await;
+                     return;
+                }
+            };
+
+            let res = tokio::task::spawn_blocking(move || {
+                issue_node_cert_task_sync(node_id, final_ca_cert, final_ca_key)
+            }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
+            emit_response(id, res.0, res.1, res.2).await;
         }
     }
 }
@@ -325,14 +326,12 @@ fn generate_ca_task_sync(common_name: String) -> (bool, String, Option<serde_jso
 fn issue_node_cert_task_sync(node_id: String, ca_cert_pem: String, ca_key_pem: String) -> (bool, String, Option<serde_json::Value>) {
     use rcgen::{Certificate, CertificateParams, KeyPair, DistinguishedName};
 
-    // 1. Generate Node Key Pair
     let node_key_pair = match KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256) {
         Ok(k) => k,
         Err(e) => return (false, format!("Node key generation failed: {}", e), None),
     };
     let node_key_pem = node_key_pair.serialize_pem();
 
-    // 2. Create Node Cert Params
     let mut params = CertificateParams::default();
     params.distinguished_name = DistinguishedName::new();
     params.distinguished_name.push(rcgen::DnType::CommonName, node_id);
@@ -340,16 +339,11 @@ fn issue_node_cert_task_sync(node_id: String, ca_cert_pem: String, ca_key_pem: S
     params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ClientAuth, rcgen::ExtendedKeyUsagePurpose::ServerAuth];
     params.key_pair = Some(node_key_pair);
 
-    // 3. Load CA Key
     let _ca_key_pair = match KeyPair::from_pem(&ca_key_pem) {
         Ok(k) => k,
         Err(e) => return (false, format!("Failed to load CA key: {}", e), None),
     };
 
-    // BUG-4.7 FIX: Improved certificate issuance.
-    // While full X.509 cross-signing in rcgen requires complex CA reconstruction,
-    // we now correctly append the CA certificate to create a valid mTLS chain
-    // and verify the CA key is loadable before proceeding.
     let cert = match Certificate::from_params(params) {
         Ok(c) => c,
         Err(e) => return (false, format!("Node cert creation failed: {}", e), None),
@@ -363,4 +357,3 @@ fn issue_node_cert_task_sync(node_id: String, ca_cert_pem: String, ca_key_pem: S
         "key": node_key_pem
     })))
 }
-

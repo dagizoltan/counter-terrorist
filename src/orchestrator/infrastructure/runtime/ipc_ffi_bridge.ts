@@ -74,4 +74,15 @@ export class IpcFfiBridge {
         this.ffi.symbols.free_buffer(msgpackPtr, len);
         return result;
     }
+
+    deserializeMessagePack(payload: Uint8Array): string | null {
+        if (!this.ffi) return null;
+        const jsonPtr = this.ffi.symbols.deserialize_msgpack(payload, payload.length);
+        if (jsonPtr) {
+            const jsonStr = Deno.UnsafePointerView.getCString(jsonPtr);
+            this.ffi.symbols.free_string(jsonPtr);
+            return jsonStr;
+        }
+        return null;
+    }
 }

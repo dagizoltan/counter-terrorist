@@ -6,7 +6,8 @@ edition = "2021"
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+rmp-serde = "1.1"
 tokio = { workspace = true }
 chrono = { workspace = true }
 once_cell = { workspace = true }
-# apple-sdk = "0.1" - In a real env, we'd use endpoint-security-sys or similar
+cts_ipc = { path = "../cts_ipc" }

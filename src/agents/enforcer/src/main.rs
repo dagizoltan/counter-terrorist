@@ -2,10 +2,11 @@ use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
 use std::process::Command;
 use chrono::Utc;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{self, AsyncReadExt};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use once_cell::sync::Lazy;
+use bytes::BytesMut;
 
 static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
@@ -41,18 +42,10 @@ struct ForensicLog {
     message: String,
 }
 
+static IPC: Lazy<cts_ipc::IpcManager> = Lazy::new(|| cts_ipc::IpcManager::new("enforcer", 1024 * 1024));
+
 async fn log_forensic(severity: &str, message: &str) {
-    let log = ForensicLog {
-        timestamp: Utc::now().to_rfc3339(),
-        log_type: "activity".to_string(),
-        severity: severity.to_string(),
-        caller: "blocker:main".to_string(),
-        message: message.to_string(),
-    };
-    if let Ok(json) = serde_json::to_string(&log) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("[LOG] {}", json);
-    }
+    IPC.log::<()>(severity, message);
 }
 
 async fn emit_response(id: String, success: bool, message: String) {
@@ -63,21 +56,50 @@ async fn emit_response(id: String, success: bool, message: String) {
         data: None,
         timestamp: Utc::now().to_rfc3339(),
     };
-    if let Ok(json) = serde_json::to_string(&resp) {
-        let _lock = STDOUT_LOCK.lock().await;
-        println!("{}", json);
-    }
+    IPC.emit_event(&resp);
 }
 
 #[tokio::main]
 async fn main() {
     log_forensic("info", "Sovereign Blocker Agent active (Hermetic Mode)").await;
 
-    let stdin = tokio::io::stdin();
-    let mut reader = BufReader::new(stdin).lines();
+    // SOV-P5: Mandated Dynamic Landlock gating
+    let _ = cts_ipc::apply_landlock("/proc");
+    let _ = cts_ipc::apply_landlock("/sys");
+    let _ = cts_ipc::apply_landlock("./volume");
 
-    while let Ok(Some(line)) = reader.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<BlockerCommand>(line.trim()) {
+    let mut stdin = io::stdin();
+    let mut buffer = BytesMut::with_capacity(4096);
+
+    loop {
+        let mut byte_buf = [0u8; 1024];
+        let n = match stdin.read(&mut byte_buf).await {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(_) => break,
+        };
+        buffer.extend_from_slice(&byte_buf[..n]);
+
+        while !buffer.is_empty() {
+            if let Ok(cmd) = rmp_serde::from_slice::<BlockerCommand>(&buffer) {
+                handle_enforcer_command(cmd).await;
+                buffer.clear();
+                break;
+            }
+
+            if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
+                let line_bytes = buffer.split_to(pos + 1);
+                if let Ok(cmd) = serde_json::from_slice::<BlockerCommand>(&line_bytes[..pos]) {
+                    handle_enforcer_command(cmd).await;
+                }
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+async fn handle_enforcer_command(cmd: BlockerCommand) {
             match cmd {
                 BlockerCommand::KillProcess { id, pid } => {
                     log_forensic("info", &format!("Executing kill on PID {}", pid)).await;
@@ -104,8 +126,6 @@ async fn main() {
                     emit_response(id, true, "Active".to_string()).await;
                 }
             }
-        }
-    }
 }
 
 async fn kill_process_task(pid: u32) -> (bool, String) {
