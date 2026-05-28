@@ -95,4 +95,40 @@ export class LsmLearningService extends BaseService {
     generateAllowlist(comm: string): string[] {
         return Array.from(this.accessMap.get(comm) || []);
     }
+
+    /**
+     * SOV-P5: Generate a Landlock profile template.
+     */
+    generateProfile(comm: string): string {
+        const entries = this.generateAllowlist(comm);
+
+        // Group by path to generate structured rules
+        const pathMap: Map<string, string[]> = new Map();
+        for (const entry of entries) {
+            const [syscall, path] = entry.split(":");
+            if (path) {
+                if (!pathMap.has(path)) pathMap.set(path, []);
+                pathMap.get(path)!.push(syscall);
+            }
+        }
+
+        const structuredRules = Array.from(pathMap.entries()).map(([path, syscalls]) => {
+            return `  path "${path}" { allow [${syscalls.join(", ")}] }`;
+        }).join("\n");
+
+        const legacyRules = entries.filter(e => !e.includes(":")).map(e => `  syscall "${e}" { allow }`).join("\n");
+
+        return `
+# Landlock Profile for ${comm} (Auto-Generated via Learning Mode)
+# Date: ${new Date().toISOString()}
+
+profile "${comm}" {
+  # Structured Path Rules
+${structuredRules}
+
+  # Generic Syscall Rules
+${legacyRules}
+}
+`.trim();
+    }
 }
