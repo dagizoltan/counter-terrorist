@@ -35,6 +35,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "cts_ipc",
  "dashmap",
  "hex",
  "landlock 0.4.5",
@@ -424,6 +425,7 @@ name = "decoy"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cts_ipc",
  "inotify",
  "once_cell",
  "parking_lot",
@@ -475,6 +477,7 @@ name = "enforcer"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "cts_ipc",
  "once_cell",
  "parking_lot",
  "serde",

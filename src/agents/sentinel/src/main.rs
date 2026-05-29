@@ -9,7 +9,7 @@ use aya::Bpf;
 use aya::maps::PerfEventArray;
 use aya::programs::{KProbe, SchedClassifier, TcAttachType, Lsm};
 use aya::{include_bytes_aligned, Btf};
-use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr, SyscallAllowKey};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr, SyscallAllowKey, RedirectionKey, RedirectionValue};
 use zerocopy::FromBytes;
 use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
@@ -30,8 +30,11 @@ struct SidecarCommand {
     path: Option<String>,
     allowed_ips: Option<Vec<String>>,
     allowed_syscalls: Option<Vec<String>>,
+    landlock_rules: Option<Vec<cts_ipc::LandlockPathRule>>,
     hook_id: Option<u32>,
     enabled: Option<bool>,
+    new_ip: Option<String>,
+    new_port: Option<u16>,
     learning_mode: Option<bool>,
 }
 
@@ -132,7 +135,7 @@ async fn main() -> Result<(), anyhow::Error> {
         if let Some(prog) = bpf_static.lock().program_mut(name) {
             if let Ok(p) = <&mut KProbe>::try_from(prog) {
                 let _ = p.load();
-                let _ = p.attach(func, 0).or_else(|_| p.attach(&format!("__x64_{}", func), 0));
+                let _ = p.attach(func, 0).or_else(|_| p.attach(format!("__x64_{}", func), 0));
             }
         }
     }
@@ -143,28 +146,28 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut bpf = bpf_static.lock();
         if let Some(prog) = bpf.program_mut("file_open") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-                if let Ok(_) = lsm_prog.load("file_open", btf) {
+                if lsm_prog.load("file_open", btf).is_ok() {
                     let _ = lsm_prog.attach();
                 }
             }
         }
         if let Some(prog) = bpf.program_mut("socket_connect") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-                if let Ok(_) = lsm_prog.load("socket_connect", btf) {
+                if lsm_prog.load("socket_connect", btf).is_ok() {
                     let _ = lsm_prog.attach();
                 }
             }
         }
         if let Some(prog) = bpf.program_mut("sb_mount") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-                if let Ok(_) = lsm_prog.load("sb_mount", btf) {
+                if lsm_prog.load("sb_mount", btf).is_ok() {
                     let _ = lsm_prog.attach();
                 }
             }
         }
         if let Some(prog) = bpf.program_mut("bprm_check_security") {
             if let Ok(lsm_prog) = <&mut Lsm>::try_from(prog) {
-                if let Ok(_) = lsm_prog.load("bprm_check_security", btf) {
+                if lsm_prog.load("bprm_check_security", btf).is_ok() {
                     let _ = lsm_prog.attach();
                 }
             }
@@ -193,8 +196,7 @@ async fn main() -> Result<(), anyhow::Error> {
             loop {
                 match buf.read_events(&mut buffers) {
                     Ok(events) => {
-                        for i in 0..events.read {
-                            let data = &buffers[i];
+                        for data in buffers.iter().take(events.read) {
                             if let Some(event) = SyscallEvent::read_from(&data[..std::mem::size_of::<SyscallEvent>()]) {
                                 // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
                                 let syscall = if cfg!(target_arch = "x86_64") {
@@ -305,7 +307,6 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 
 async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
-            let mut bpf_ref = bpf_static.lock();
             match cmd.cmd_type.as_str() {
                 "BLOCK_IP" => {
                     if let Some(ip_str) = cmd.ip {
@@ -318,10 +319,14 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                                 },
                                 std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
                             };
-                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                                let _ = m.insert(addr, 1u32, 0);
-                                emit_response(cmd.id, true, format!("XDP Blocked: {}", ip_str)).await;
-                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
+                            let res = {
+                                let mut bpf_ref = bpf_static.lock();
+                                if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                    let _ = m.insert(addr, 1u32, 0);
+                                    (true, format!("XDP Blocked: {}", ip_str))
+                                } else { (false, "XDP Map Error".to_string()) }
+                            };
+                            emit_response(cmd.id, res.0, res.1).await;
                         } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
                     }
                 },
@@ -336,10 +341,14 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                                 },
                                 std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
                             };
-                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                                let _ = m.remove(&addr);
-                                emit_response(cmd.id, true, format!("XDP Unblocked: {}", ip_str)).await;
-                            } else { emit_response(cmd.id, false, "XDP Map Error".to_string()).await; }
+                            let res = {
+                                let mut bpf_ref = bpf_static.lock();
+                                if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                                    let _ = m.remove(&addr);
+                                    (true, format!("XDP Unblocked: {}", ip_str))
+                                } else { (false, "XDP Map Error".to_string()) }
+                            };
+                            emit_response(cmd.id, res.0, res.1).await;
                         } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
                     }
                 },
@@ -354,85 +363,118 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                                 },
                                 std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
                             };
-                            if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap()) {
-                                let _ = m.insert(addr, ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
-                                emit_response(cmd.id, true, format!("Shadow Ban: {}", ip_str)).await;
-                            } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                            let res = {
+                                let mut bpf_ref = bpf_static.lock();
+                                if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, ShadowBanInfo>::try_from(bpf_ref.map_mut("SHADOW_BANS").unwrap()) {
+                                    let _ = m.insert(addr, ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0);
+                                    (true, format!("Shadow Ban: {}", ip_str))
+                                } else { (false, "Map Error".to_string()) }
+                            };
+                            emit_response(cmd.id, res.0, res.1).await;
                         } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
                     }
                 },
                 "ALLOW_PORT" => {
                     if let Some(port) = cmd.port {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
-                            let _ = m.insert(port, 1, 0);
-                            emit_response(cmd.id, true, format!("Firewall: Allowed port {}", port)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                                let _ = m.insert(port, 1, 0);
+                                (true, format!("Firewall: Allowed port {}", port))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
                     }
                 },
                 "ENFORCE_PID" => {
                     if let (Some(_pid), Some(path)) = (cmd.pid, cmd.path) {
-                        match cts_ipc::apply_landlock(&path) {
-                            Ok(_) => emit_response(cmd.id, true, format!("Landlock FS Gating applied to agent for path {}", path)).await,
-                            Err(e) => emit_response(cmd.id, false, format!("Landlock failed: {}", e)).await,
-                        }
+                        let (success, msg) = match cts_ipc::apply_landlock(&path) {
+                            Ok(_) => (true, format!("Landlock FS Gating applied to agent for path {}", path)),
+                            Err(e) => (false, format!("Landlock failed: {}", e)),
+                        };
+                        emit_response(cmd.id, success, msg).await;
                     } else if let Some(pid) = cmd.pid {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
-                            let _ = m.insert(pid, 1, 0);
-                            emit_response(cmd.id, true, format!("LSM Enforced for PID {}", pid)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                                let _ = m.insert(pid, 1, 0);
+                                (true, format!("LSM Enforced for PID {}", pid))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
                     }
                 },
                 "UNENFORCE_PID" => {
                     if let Some(pid) = cmd.pid {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
-                            let _ = m.remove(&pid);
-                            emit_response(cmd.id, true, format!("LSM Enforcement removed for PID {}", pid)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                                let _ = m.remove(&pid);
+                                (true, format!("LSM Enforcement removed for PID {}", pid))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
                     }
                 },
                 "DENY_PORT" => {
                     if let Some(port) = cmd.port {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
-                            let _ = m.remove(&port);
-                            emit_response(cmd.id, true, format!("Firewall: Denied port {}", port)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                                let _ = m.remove(&port);
+                                (true, format!("Firewall: Denied port {}", port))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
                     }
                 },
                 "LOCKDOWN" => {
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
-                        let _ = m.insert(0, 1, 0); // index 0 is lockdown flag
-                        emit_response(cmd.id, true, "LOCKDOWN engaged".to_string()).await;
-                    } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                    let res = {
+                        let mut bpf_ref = bpf_static.lock();
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
+                            let _ = m.insert(0, 1, 0); // index 0 is lockdown flag
+                            (true, "LOCKDOWN engaged".to_string())
+                        } else { (false, "Map Error".to_string()) }
+                    };
+                    emit_response(cmd.id, res.0, res.1).await;
                 },
                 "FLUSH_RULES" => {
-                    let mut success = true;
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
-                        let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
-                        for k in keys { let _ = m.remove(&k); }
-                    } else { success = false; }
-                    
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
-                        let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
-                        for k in keys { let _ = m.remove(&k); }
-                    } else { success = false; }
+                    let res = {
+                        let mut bpf_ref = bpf_static.lock();
+                        let mut success = true;
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("XDP_BLOCK_LIST").unwrap()) {
+                            let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
+                            for k in keys { let _ = m.remove(&k); }
+                        } else { success = false; }
 
-                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
-                        let _ = m.insert(0, 0, 0); // clear lockdown
-                    } else { success = false; }
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(bpf_ref.map_mut("ALLOWED_PORTS").unwrap()) {
+                            let keys: Vec<_> = m.iter().filter_map(|r| r.ok().map(|(k, _)| k)).collect();
+                            for k in keys { let _ = m.remove(&k); }
+                        } else { success = false; }
 
-                    emit_response(cmd.id, success, if success { "Rules flushed".to_string() } else { "Partial flush failure".to_string() }).await;
+                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("FIREWALL_CONFIG").unwrap()) {
+                            let _ = m.insert(0, 0, 0); // clear lockdown
+                        } else { success = false; }
+                        (success, if success { "Rules flushed".to_string() } else { "Partial flush failure".to_string() })
+                    };
+                    emit_response(cmd.id, res.0, res.1).await;
                 },
                 "HIDE_PID" => {
                     if let Some(pid) = cmd.pid {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HIDE_CONFIG").unwrap()) {
-                            let _ = m.insert(pid, 1, 0);
-                            emit_response(cmd.id, true, format!("Stealth: PID {}", pid)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HIDE_CONFIG").unwrap()) {
+                                let _ = m.insert(pid, 1, 0);
+                                (true, format!("Stealth: PID {}", pid))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
                     }
                 },
                 "GET_STATUS" => {
                     let mut stats_data = serde_json::Map::new();
                     {
+                        let mut bpf_ref = bpf_static.lock();
                         let stats_iter: Vec<_> = if let Ok(m_stats) = aya::maps::HashMap::<_, u32, u64>::try_from(bpf_ref.map_mut("HOOK_STATS").unwrap()) {
                             m_stats.iter().filter_map(|r| r.ok()).collect()
                         } else { Vec::new() };
@@ -462,14 +504,18 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                 },
                 "TRUST_COMM" => {
                     if let Some(comm_str) = cmd.comm {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 16], u8>::try_from(bpf_ref.map_mut("TRUSTED_COMM").unwrap()) {
-                            let mut comm = [0u8; 16];
-                            let bytes = comm_str.as_bytes();
-                            let len = std::cmp::min(bytes.len(), 16);
-                            comm[..len].copy_from_slice(&bytes[..len]);
-                            let _ = m.insert(comm, 1, 0);
-                            emit_response(cmd.id, true, format!("Trusted Comm: {}", comm_str)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 16], u8>::try_from(bpf_ref.map_mut("TRUSTED_COMM").unwrap()) {
+                                let mut comm = [0u8; 16];
+                                let bytes = comm_str.as_bytes();
+                                let len = std::cmp::min(bytes.len(), 16);
+                                comm[..len].copy_from_slice(&bytes[..len]);
+                                let _ = m.insert(comm, 1, 0);
+                                (true, format!("Trusted Comm: {}", comm_str))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
                     }
                 },
                 "KillProcess" => {
@@ -500,42 +546,113 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                 },
                 "LSM_SYSCALL_ALLOWLIST" => {
                     if let (Some(pid), Some(allowed)) = (cmd.pid, cmd.allowed_syscalls) {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, SyscallAllowKey, u8>::try_from(bpf_ref.map_mut("SYSCALL_ALLOWLIST").expect("SYSCALL_ALLOWLIST not found")) {
-                            for syscall_str in allowed {
-                                let syscall_id = match syscall_str.as_str() {
-                                    "ptrace" => if cfg!(target_arch = "aarch64") { 117 } else { 101 },
-                                    "mmap" => if cfg!(target_arch = "aarch64") { 222 } else { 9 },
-                                    "execve" => if cfg!(target_arch = "aarch64") { 221 } else { 59 },
-                                    "connect" => if cfg!(target_arch = "aarch64") { 203 } else { 42 },
-                                    "openat" => if cfg!(target_arch = "aarch64") { 56 } else { 257 },
-                                    "open" => if cfg!(target_arch = "aarch64") { 1024 } else { 2 },
-                                    "read" => if cfg!(target_arch = "aarch64") { 63 } else { 0 },
-                                    "write" => if cfg!(target_arch = "aarch64") { 64 } else { 1 },
-                                    "close" => if cfg!(target_arch = "aarch64") { 57 } else { 3 },
-                                    _ => syscall_str.parse::<u32>().unwrap_or(0),
-                                };
-                                if syscall_id > 0 {
-                                    let _ = m.insert(SyscallAllowKey { pid, syscall_id }, 1u8, 0);
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, SyscallAllowKey, u8>::try_from(bpf_ref.map_mut("SYSCALL_ALLOWLIST").expect("SYSCALL_ALLOWLIST not found")) {
+                                for syscall_str in allowed {
+                                    let syscall_id = match syscall_str.as_str() {
+                                        "ptrace" => if cfg!(target_arch = "aarch64") { 117 } else { 101 },
+                                        "mmap" => if cfg!(target_arch = "aarch64") { 222 } else { 9 },
+                                        "execve" => if cfg!(target_arch = "aarch64") { 221 } else { 59 },
+                                        "connect" => if cfg!(target_arch = "aarch64") { 203 } else { 42 },
+                                        "openat" => if cfg!(target_arch = "aarch64") { 56 } else { 257 },
+                                        "open" => if cfg!(target_arch = "aarch64") { 1024 } else { 2 },
+                                        "read" => if cfg!(target_arch = "aarch64") { 63 } else { 0 },
+                                        "write" => if cfg!(target_arch = "aarch64") { 64 } else { 1 },
+                                        "close" => if cfg!(target_arch = "aarch64") { 57 } else { 3 },
+                                        _ => syscall_str.parse::<u32>().unwrap_or(0),
+                                    };
+                                    if syscall_id > 0 {
+                                        let _ = m.insert(SyscallAllowKey { pid, syscall_id }, 1u8, 0);
+                                    }
                                 }
-                            }
 
-                            // Also ensure ENFORCEMENT_POLICY bit 16 is set for this PID
-                            if let Ok(mut policy_map) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
-                                let current = policy_map.get(&pid, 0).unwrap_or(0);
-                                let _ = policy_map.insert(pid, current | 0x10000, 0);
-                            }
+                                // Also ensure ENFORCEMENT_POLICY bit 16 is set for this PID
+                                if let Ok(mut policy_map) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("ENFORCEMENT_POLICY").unwrap()) {
+                                    let current = policy_map.get(&pid, 0).unwrap_or(0);
+                                    let _ = policy_map.insert(pid, current | 0x10000, 0);
+                                }
 
-                            emit_response(cmd.id, true, format!("Adaptive LSM Policy applied for PID {}.", pid)).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                                (true, format!("Adaptive LSM Policy applied for PID {}.", pid))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
                     }
                 },
                 "UPDATE_HOOK_CONTROL" => {
                     if let (Some(hook_id), Some(enabled)) = (cmd.hook_id, cmd.enabled) {
-                        if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HOOK_CONTROL").expect("HOOK_CONTROL not found")) {
-                            let val = if enabled { 1 } else { 0 };
-                            let _ = m.insert(hook_id, val, 0);
-                            emit_response(cmd.id, true, format!("Hook {} set to {}", hook_id, if enabled { "enabled" } else { "disabled" })).await;
-                        } else { emit_response(cmd.id, false, "Map Error".to_string()).await; }
+                        let res = {
+                            let mut bpf_ref = bpf_static.lock();
+                            if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(bpf_ref.map_mut("HOOK_CONTROL").expect("HOOK_CONTROL not found")) {
+                                let val = if enabled { 1 } else { 0 };
+                                let _ = m.insert(hook_id, val, 0);
+                                (true, format!("Hook {} set to {}", hook_id, if enabled { "enabled" } else { "disabled" }))
+                            } else { (false, "Map Error".to_string()) }
+                        };
+                        emit_response(cmd.id, res.0, res.1).await;
+                    }
+                },
+                "ENFORCE_LANDLOCK" => {
+                    if let Some(rules) = cmd.landlock_rules {
+                        let (success, msg) = match cts_ipc::apply_granular_landlock(&rules) {
+                            Ok(_) => (true, "Granular Landlock policies applied to sentinel process".to_string()),
+                            Err(e) => (false, format!("Landlock granular failed: {}", e)),
+                        };
+                        emit_response(cmd.id, success, msg).await;
+                    }
+                },
+                "ADD_REDIRECTION" => {
+                    if let (Some(ip_str), Some(port), Some(new_ip_str), Some(new_port)) = (cmd.ip, cmd.port, cmd.new_ip, cmd.new_port) {
+                        if let (Ok(ip), Ok(new_ip)) = (ip_str.parse::<std::net::IpAddr>(), new_ip_str.parse::<std::net::IpAddr>()) {
+                            let key = sentinel_common::RedirectionKey {
+                                dst_ip: match ip {
+                                    std::net::IpAddr::V4(v4) => { let mut a = [0u8; 16]; a[0..4].copy_from_slice(&v4.octets()); a },
+                                    std::net::IpAddr::V6(v6) => v6.octets(),
+                                },
+                                dst_port: port.to_be(),
+                                proto: 6, // TCP default
+                                _pad: [0; 5],
+                            };
+                            let val = sentinel_common::RedirectionValue {
+                                new_ip: match new_ip {
+                                    std::net::IpAddr::V4(v4) => { let mut a = [0u8; 16]; a[0..4].copy_from_slice(&v4.octets()); a },
+                                    std::net::IpAddr::V6(v6) => v6.octets(),
+                                },
+                                new_port: new_port.to_be(),
+                                _pad: [0; 6],
+                            };
+                            let res = {
+                                let mut bpf_ref = bpf_static.lock();
+                                if let Ok(mut m) = aya::maps::HashMap::<_, sentinel_common::RedirectionKey, sentinel_common::RedirectionValue>::try_from(bpf_ref.map_mut("REDIRECTIONS").unwrap()) {
+                                    let _ = m.insert(key, val, 0);
+                                    (true, format!("Redirection added: {}:{} -> {}:{}", ip_str, port, new_ip_str, new_port))
+                                } else { (false, "Map Error".to_string()) }
+                            };
+                            emit_response(cmd.id, res.0, res.1).await;
+                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
+                    }
+                },
+                "REMOVE_REDIRECTION" => {
+                    if let (Some(ip_str), Some(port)) = (cmd.ip, cmd.port) {
+                        if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+                            let key = sentinel_common::RedirectionKey {
+                                dst_ip: match ip {
+                                    std::net::IpAddr::V4(v4) => { let mut a = [0u8; 16]; a[0..4].copy_from_slice(&v4.octets()); a },
+                                    std::net::IpAddr::V6(v6) => v6.octets(),
+                                },
+                                dst_port: port.to_be(),
+                                proto: 6,
+                                _pad: [0; 5],
+                            };
+                            let res = {
+                                let mut bpf_ref = bpf_static.lock();
+                                if let Ok(mut m) = aya::maps::HashMap::<_, sentinel_common::RedirectionKey, sentinel_common::RedirectionValue>::try_from(bpf_ref.map_mut("REDIRECTIONS").unwrap()) {
+                                    let _ = m.remove(&key);
+                                    (true, format!("Redirection removed for {}:{}", ip_str, port))
+                                } else { (false, "Map Error".to_string()) }
+                            };
+                            emit_response(cmd.id, res.0, res.1).await;
+                        } else { emit_response(cmd.id, false, "Invalid IP".to_string()).await; }
                     }
                 },
                 "SET_LEARNING_MODE" => {
@@ -585,8 +702,6 @@ async fn dump_process_task(pid: u32, requested_path: String) -> (bool, String) {
         (Err(e), _) | (_, Err(e)) => (false, format!("Forensic dump failed for PID {}: {}", pid, e))
     }
 }
-
-
 
 async fn run_dummy_mode() -> Result<(), anyhow::Error> {
     emit_response(None, true, "eBPF Sidecar Active (Dummy/Legacy Mode).".to_string()).await;

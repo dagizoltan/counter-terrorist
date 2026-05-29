@@ -30,6 +30,7 @@ enum BlockerCommand {
     BlockIp { id: String, ip: String },
     UnblockIp { id: String, ip: String },
     GetStatus { id: String },
+    EnforceLandlock { id: String, rules: Vec<cts_ipc::LandlockPathRule> },
 }
 
 #[derive(Debug, Serialize)]
@@ -102,6 +103,12 @@ async fn main() {
                 },
                 BlockerCommand::GetStatus { id } => {
                     emit_response(id, true, "Active".to_string()).await;
+                },
+                BlockerCommand::EnforceLandlock { id, rules } => {
+                    match cts_ipc::apply_granular_landlock(&rules) {
+                        Ok(_) => emit_response(id, true, "Granular Landlock policies applied".to_string()).await,
+                        Err(e) => emit_response(id, false, format!("Landlock failed: {}", e)).await,
+                    }
                 }
             }
         }
