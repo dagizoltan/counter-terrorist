@@ -113,6 +113,21 @@ pub fn apply_landlock<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_landlock_rule_serialization() {
+        let rule = LandlockPathRule {
+            path: "/etc".to_string(),
+            syscalls: vec!["read".to_string(), "open".to_string()],
+        };
+        let json = serde_json::to_string(&rule).unwrap();
+        assert!(json.contains("/etc"));
+    }
+}
+
 pub fn apply_granular_landlock(rules: &[LandlockPathRule]) -> anyhow::Result<()> {
     let abi = ABI::V1;
     let mut ruleset = Ruleset::default()

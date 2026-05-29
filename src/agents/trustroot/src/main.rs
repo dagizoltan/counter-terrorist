@@ -23,8 +23,8 @@ enum TpmCommand {
     WipeSecrets { id: String }, // SOV-P4: Hardware Panic Switch ("Nuclear Option")
     Verify { id: String, data: String, signature: String },
     GetPcrs { id: String, indices: Vec<u32> },
-    NvDefine { id: String, index: String, size: usize },
-    NvWrite { id: String, index: String, data: String },
+    NvDefine { id: String, index: String, #[allow(dead_code)] size: usize },
+    NvWrite { id: String, index: String, #[allow(dead_code)] data: String },
     NvRead { id: String, index: String },
     SignProxy { id: String, data: String, key_id: String },
     GenerateProxyKey { id: String, key_id: String },

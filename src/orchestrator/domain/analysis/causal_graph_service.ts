@@ -36,9 +36,24 @@ export class CausalGraphService extends BaseService {
         const nodes = new Map<string, CausalNode>();
 
         try {
-            const searchRes = await this.searchTool.search({ pid: rootPid, searchTerm });
+            // Fetch relevant records
+            // If rootPid is provided, we fetch everything and filter for broader context
+            const searchRes = await this.searchTool.search({ searchTerm });
             if (!searchRes.success) return err(searchRes.error);
-            const records = searchRes.data;
+            let records = searchRes.data;
+
+            if (rootPid) {
+                const includedPids = new Set<number>([rootPid]);
+                // Build a set of PIDs related to the root, including children
+                // We sort by timestamp to ensure we see parents before children
+                const sortedRecords = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+                for (const r of sortedRecords) {
+                    if (r.ppid && includedPids.has(r.ppid)) {
+                        includedPids.add(r.pid);
+                    }
+                }
+                records = records.filter(r => includedPids.has(r.pid));
+            }
 
             for (const record of records) {
                 const id = this.getRecordId(record);

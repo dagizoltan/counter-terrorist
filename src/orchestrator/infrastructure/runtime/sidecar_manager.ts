@@ -7,6 +7,8 @@ import { SecretRedactor } from "@core/utils/security.ts";
 import { CircuitBreaker } from "@core/utils/resilience.ts";
 import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
 import { HeartbeatMonitor } from "./heartbeat_monitor.ts";
+import { serviceLocator } from "@core/service_locator.ts";
+import { LsmLearningService } from "@domain/protection/lsm_learning_service.ts";
 
 import { CommandPort } from "@core/ports.ts";
 
@@ -425,6 +427,42 @@ export class SidecarManager implements CommandPort {
                 this.persistentProcesses.delete(name);
                 this.handleSidecarExit(name, status.code);
             });
+
+            // SOV-P5: Apply Dynamic Landlock Policies from Learning Mode
+            if (name !== "sentinel" && serviceLocator.has("lsmLearning")) {
+                const lsm = serviceLocator.get<LsmLearningService>("lsmLearning");
+                const allowlist = lsm.generateAllowlist(name);
+                if (allowlist.length > 0) {
+                    const landlock_rules = allowlist.map(entry => {
+                        const [syscall, path] = entry.split(":");
+                        return { path, syscalls: [syscall] };
+                    }).filter(r => !!r.path);
+
+                    if (landlock_rules.length > 0) {
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.AUDIT,
+                            severity: LogSeverity.INFO,
+                            caller: "orchestrator:infra:runtime:sidecar_manager",
+                            message: `Applying learned Landlock policy to ${name} (${landlock_rules.length} rules)...`
+                        });
+
+                        // Target sidecar applies its own Landlock policy
+                        this.sendCommand(name, {
+                            type: "EnforceLandlock",
+                            rules: landlock_rules
+                        }).catch(e => {
+                            this.logging.log({
+                                timestamp: new Date().toISOString(),
+                                type: LogType.AUDIT,
+                                severity: LogSeverity.ERROR,
+                                caller: "orchestrator:infra:runtime:sidecar_manager",
+                                message: `Failed to apply Landlock to ${name}: ${e.message}`
+                            });
+                        });
+                    }
+                }
+            }
 
     // SOV-P5: Shared Memory Data Plane Ingestion
     if (name === "sentinel" || name === "netcap") {
