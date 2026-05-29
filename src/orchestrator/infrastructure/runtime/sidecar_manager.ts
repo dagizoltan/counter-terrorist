@@ -554,6 +554,8 @@ export class SidecarManager implements CommandPort {
   private async findBinary(name: string): Promise<string | null> {
     const isWindows = Deno.build.os === "windows";
     const extension = isWindows ? ".exe" : "";
+    const config = SIDECAR_REGISTRY[name];
+    const binName = config?.binaryName || name;
     
     // Support environment variable overrides for custom binary locations
     const envPath = this.config?.getEnv(`CTS_BINARY_${name.toUpperCase()}`);
@@ -561,12 +563,13 @@ export class SidecarManager implements CommandPort {
     const isDev = this.config?.getBoolean("CTS_DEV_MODE", false);
     const paths = [
       envPath,
-      `/opt/cts/bin/${name}${extension}`,
-      `/usr/local/bin/cts-${name}${extension}`,
-      `./agents/${name}${extension}`,
+      `/opt/cts/bin/${binName}${extension}`,
+      `/usr/local/bin/cts-${binName}${extension}`,
+      `./agents/${binName}${extension}`,
+      `./bin/agents/${binName}${extension}`,
       ...(isDev ? [
-        `./src/agents/target/release/${name}${extension}`,
-        `./src/agents/target/debug/${name}${extension}`,
+        `./src/agents/target/release/${binName}${extension}`,
+        `./src/agents/target/debug/${binName}${extension}`,
       ] : [])
     ].filter(Boolean) as string[];
 
@@ -1119,33 +1122,41 @@ export class SidecarManager implements CommandPort {
 
   private async calculateHash(path: string): Promise<string | null> {
     // SOV-P5: Optimized hashing via Native FFI
+    // hash_file_sha256 in cts_sec is truly streaming and SIMD-accelerated.
     const ffiHash = this.ffi.calculateHash(path);
     if (ffiHash) return ffiHash;
 
     try {
-        // Fallback to subprocess if FFI unavailable or fails
+        // Fallback to subprocess if FFI unavailable.
+        // This is still streaming at the OS level.
         const res = await this.executor.execute("sha256sum", [path]);
         if (res.success && res.stdout) {
             return res.stdout.split(" ")[0].trim();
         }
 
-        const stats = await Deno.stat(path) as Deno.FileInfo;
+        // Final JS-based fallback (last resort)
         const file = await Deno.open(path, { read: true });
         try {
-            const hashBuffer = await this.digestStream("SHA-256", file.readable, stats.size);
+            const hashBuffer = await this.digestStream("SHA-256", file.readable);
             return Array.from(new Uint8Array(hashBuffer))
                 .map(b => b.toString(16).padStart(2, "0")).join("");
         } finally {
             try { file.close(); } catch { /* already closed */ }
         }
-    } catch {
+    } catch (e) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.DEBUG,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Hash calculation failed for ${path}: ${(e as Error).message}`
+        });
         return null;
     }
   }
 
-  private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>, expectedSize?: number): Promise<ArrayBuffer> {
+  private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
       // SOV-03 FIX: Use truly streaming OS-level hashing where possible to prevent OOM.
-      // This addresses the pseudo-streaming issue identified in the audit.
       try {
           const hasher = new Deno.Command("sha256sum", {
               stdin: "piped",
@@ -1162,41 +1173,12 @@ export class SidecarManager implements CommandPort {
               return bytes.buffer as ArrayBuffer;
           }
       } catch {
-          // Fallback to in-memory only if OS command fails
+          // If sha256sum fails, we have to collect chunks for crypto.subtle.digest
+          // because WebCrypto does not support streaming hashing natively.
+          // We enforce a hard 100MB limit to prevent OOM.
       }
 
-      // SOV-06 FIX: Performance optimization for hashing fallback.
-      // We use a pre-allocated buffer if the size is known to reduce GC pressure.
       const MAX_HASH_SIZE = 100 * 1024 * 1024; // 100MB limit
-
-      if (expectedSize !== undefined && expectedSize <= MAX_HASH_SIZE) {
-          let combined = new Uint8Array(expectedSize);
-          let pos = 0;
-          const reader = stream.getReader();
-          try {
-              while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-
-                  // Handle file growth during read
-                  if (pos + value.length > combined.length) {
-                      const newCombined = new Uint8Array(Math.min(MAX_HASH_SIZE, (pos + value.length) * 2));
-                      if (pos + value.length > MAX_HASH_SIZE) throw new Error("OOM Protection: 100MB Limit");
-                      newCombined.set(combined);
-                      combined = newCombined;
-                  }
-
-                  combined.set(value, pos);
-                  pos += value.length;
-              }
-          } finally {
-              reader.releaseLock();
-          }
-          // Use a slice to handle cases where the file was smaller than expected
-          return await crypto.subtle.digest(algorithm, combined.slice(0, pos));
-      }
-
-      // Fallback if size unknown or too large (with OOM protection)
       const reader = stream.getReader();
       const chunks: Uint8Array[] = [];
       let totalLength = 0;
@@ -1205,7 +1187,9 @@ export class SidecarManager implements CommandPort {
           while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              if (totalLength + value.length > MAX_HASH_SIZE) throw new Error("OOM Protection: 100MB Limit");
+              if (totalLength + value.length > MAX_HASH_SIZE) {
+                  throw new Error(`OOM Protection: Stream exceeds ${MAX_HASH_SIZE / 1024 / 1024}MB limit.`);
+              }
               chunks.push(value);
               totalLength += value.length;
           }

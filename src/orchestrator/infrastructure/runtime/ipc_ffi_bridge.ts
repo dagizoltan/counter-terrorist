@@ -87,6 +87,7 @@ export class IpcFfiBridge {
         const view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgpackPtr, len));
         const result = new Uint8Array(view); // Copy
 
+        // SEC-05 FIX: Release native buffer to prevent memory leak
         this.ffi.symbols.free_buffer(msgpackPtr, len);
         return result;
     }

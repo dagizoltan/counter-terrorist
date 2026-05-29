@@ -77,6 +77,35 @@ export class SystemExecutor implements ExecutorPort {
     }
   });
 
+  private static readonly SCP_SCHEMA = z.array(z.string()).max(10).superRefine((args, ctx) => {
+    for (let i = 0; i < args.length; i++) {
+        const arg = args[i];
+        if (arg === "-o") {
+            const next = args[i+1];
+            if (!next || !/^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/.test(next)) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid -o value for scp" });
+            }
+            i++;
+            continue;
+        }
+        if (arg.startsWith("-") && arg !== "-o") {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized flag: ${arg}` });
+            continue;
+        }
+
+        // Local path or remote host
+        if (/^[a-z0-9/._-]+$/.test(arg)) continue;
+        if (/^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])(:.*)?$/.test(arg)) {
+            // Remote path part check for shell metacharacters
+            if (arg.includes(":") && /[;&|><`$()!]/.test(arg.split(":")[1])) {
+                 ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Security Violation: Shell metacharacters in remote path" });
+            }
+            continue;
+        }
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized argument: ${arg}` });
+    }
+  });
+
   private static readonly UFW_SCHEMA = z.array(z.string().regex(/^[0-9a-zA-Z./-]+$/)).max(5).superRefine((args, ctx) => {
       if (args.length > 0 && !/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/.test(args[0])) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid ufw command" });
@@ -90,13 +119,17 @@ export class SystemExecutor implements ExecutorPort {
           const validTypes = [
             "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS",
             "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
-            "BLOCK_SYSCALL", "LSM_POLICY", "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess"
+            "BLOCK_SYSCALL", "LSM_POLICY", "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess",
+            "LSM_SYSCALL_ALLOWLIST", "UPDATE_HOOK_CONTROL", "ADD_REDIRECTION", "REMOVE_REDIRECTION", "SET_LEARNING_MODE"
           ];
           if (!validTypes.includes(payload.type)) {
               ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Invalid sentinel command type: ${payload.type}` });
           }
           if (payload.pid && typeof payload.pid !== "number") {
               ctx.addIssue({ code: z.ZodIssueCode.custom, message: "PID must be numeric" });
+          }
+          if (payload.allowed_syscalls && !Array.isArray(payload.allowed_syscalls)) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: "allowed_syscalls must be an array" });
           }
       } catch {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid sentinel JSON payload" });
@@ -428,8 +461,9 @@ export class SystemExecutor implements ExecutorPort {
         maxArgs: 3
     },
     "scp": {
+        schema: SystemExecutor.SCP_SCHEMA,
         // SOV-06: Support IPv6 and remote paths in SCP
-        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\]):.*$/],
+        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])(:.*)?$/],
         maxArgs: 10
     },
     "ssh": {

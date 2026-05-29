@@ -668,6 +668,24 @@ export class MeshManager extends BaseService {
     return await this.broadcast(payload, true);
   }
 
+  async broadcastQuarantine(target: string): Promise<Result<void>> {
+    this.logging.log({
+        timestamp: new Date().toISOString(),
+        type: LogType.AUDIT,
+        severity: LogSeverity.WARNING,
+        caller: "orchestrator:domain:orchestration:mesh",
+        message: `Gossip: Broadcasting mesh-wide quarantine for ${target}`
+    });
+
+    const payload = {
+        type: "GOSSIP_QUARANTINE",
+        data: { target, sourceNode: this.nodeId, timestamp: Date.now() }
+    };
+
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    return await this.broadcast(payload, true);
+  }
+
   async broadcastThreatHash(hash: string, sourceNode: string): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),

@@ -222,7 +222,7 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
         }
     }
 
-    Ok(XDP_DROP)
+    Ok(XDP_PASS)
     })();
 
     let end_ns = unsafe { bpf_ktime_get_ns() };

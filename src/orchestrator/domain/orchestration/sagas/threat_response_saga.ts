@@ -139,6 +139,8 @@ export class ThreatResponseSaga {
         });
 
         if (source.includes(".")) {
+            // Mesh-wide IP Quarantine propagation
+            await this.deps.mesh.broadcastQuarantine(source);
             const res = await this.deps.firewall.blockIp(source);
             return res.success ? ok(undefined) : err(new Error(res.stderr));
         } else {
