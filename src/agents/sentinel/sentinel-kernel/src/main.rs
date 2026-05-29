@@ -8,7 +8,7 @@ use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_get_current_comm, bpf_ktime_get_ns, bpf_probe_read_user_str_bytes},
 };
 
-use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, IpV6Addr, SyscallAllowKey};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, SessionKey, SessionValue, IpV6Addr, SyscallAllowKey, RedirectionKey, RedirectionValue};
 use core::mem;
 
 const TC_ACT_OK: i32 = 0;
@@ -55,6 +55,9 @@ static mut HOOK_STATS: HashMap<u32, u64> = HashMap::with_max_entries(64, 0); // 
 
 #[map]
 static mut HOOK_COUNTS: HashMap<u32, u64> = HashMap::with_max_entries(64, 0); // Key: Hook ID, Value: Call Count
+
+#[map]
+static mut REDIRECTIONS: HashMap<RedirectionKey, RedirectionValue> = HashMap::with_max_entries(1024, 0);
 
 #[inline(always)]
 fn is_hook_enabled(hook_id: u32) -> bool {
@@ -147,6 +150,33 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
 
     if unsafe { ALLOWED_PORTS.get(&dport_host) }.is_some() {
         return Ok(XDP_PASS);
+    }
+
+    // 5. CHAMELEON REDIRECTION
+    let redir_key = RedirectionKey { dst_ip, dst_port, proto, _pad: [0; 5] };
+    if let Some(redir) = unsafe { REDIRECTIONS.get(&redir_key) } {
+        // Perform destination NAT
+        let eth_proto = u16::from_be(load::<u16>(ctx, 12)?);
+        if eth_proto == 0x0800 { // IPv4
+            let dst_offset = 30;
+            let port_offset = 36;
+
+            let mut new_ip_v4 = [0u8; 4];
+            new_ip_v4.copy_from_slice(&redir.new_ip[0..4]);
+
+            unsafe {
+                let p_dst = (ctx.data() + dst_offset) as *mut [u8; 4];
+                if (p_dst as usize + 4) <= ctx.data_end() {
+                    *p_dst = new_ip_v4;
+                }
+
+                let p_port = (ctx.data() + port_offset) as *mut u16;
+                if (p_port as usize + 2) <= ctx.data_end() {
+                    *p_port = redir.new_port;
+                }
+            }
+            return Ok(XDP_PASS);
+        }
     }
 
     Ok(XDP_DROP)

@@ -21,6 +21,7 @@ export { ShadowProtocolService } from "./protection/shadow_protocol_service.ts";
 export { ShadowService } from "./protection/shadow_service.ts";
 export { AutoBlockService } from "./protection/auto_block_service.ts";
 export { LsmLearningService } from "./protection/lsm_learning_service.ts";
+export { ChameleonService } from "./protection/chameleon_service.ts";
 
 // Analysis Domain
 export { AuditService, SystemState } from "./analysis/audit.ts";
@@ -48,6 +49,7 @@ export { LedgerService } from "./analysis/ledger_service.ts";
 export { CorrelationService } from "./analysis/correlation_service.ts";
 export { ViewModelService } from "./analysis/view_model_service.ts";
 export { IntegrityService } from "./analysis/integrity_service.ts";
+export { CausalGraphService } from "./analysis/causal_graph_service.ts";
 
 // Engine Domain
 export { MeshManager } from "./orchestration/mesh.ts";

@@ -34,6 +34,23 @@ pub struct SessionKey {
 
 #[repr(C)]
 #[derive(Clone, Copy, PartialEq, Eq, AsBytes, FromBytes, FromZeroes)]
+pub struct RedirectionKey {
+    pub dst_ip: [u8; 16],
+    pub dst_port: u16,
+    pub proto: u8,
+    pub _pad: [u8; 5],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, AsBytes, FromBytes, FromZeroes)]
+pub struct RedirectionValue {
+    pub new_ip: [u8; 16],
+    pub new_port: u16,
+    pub _pad: [u8; 6],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, AsBytes, FromBytes, FromZeroes)]
 pub struct IpV6Addr {
     pub addr: [u8; 16],
 }
@@ -64,3 +81,7 @@ unsafe impl aya::Pod for SessionValue {}
 unsafe impl aya::Pod for IpV6Addr {}
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for SyscallAllowKey {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for RedirectionKey {}
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for RedirectionValue {}

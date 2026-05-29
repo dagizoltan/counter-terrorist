@@ -40,6 +40,7 @@ enum ScannerCommand {
     Quarantine { id: String, path: String },
     SyncSignatures { id: String },
     GetStatus { id: String },
+    EnforceLandlock { id: String, rules: Vec<cts_ipc::LandlockPathRule> },
     #[serde(rename = "RKH_SCAN")]
     RkhScan { id: String },
     #[serde(rename = "ATTEST_KERNEL")]
@@ -454,6 +455,23 @@ async fn main() -> anyhow::Result<()> {
                     success: true,
                     timestamp: Utc::now().to_rfc3339(),
                     message: Some("Operational".to_string()),
+                    threats_found: None,
+                    memory_anomalies: None,
+                    target: None,
+                };
+                let _lock = STDOUT_LOCK.lock().await;
+                println!("{}", serde_json::to_string(&result).unwrap());
+            }
+            ScannerCommand::EnforceLandlock { id, rules } => {
+                let (success, message) = match cts_ipc::apply_granular_landlock(&rules) {
+                    Ok(_) => (true, Some("Granular Landlock policies applied".to_string())),
+                    Err(e) => (false, Some(format!("Landlock failed: {}", e))),
+                };
+                let result = ScanResponse {
+                    id,
+                    success,
+                    timestamp: Utc::now().to_rfc3339(),
+                    message,
                     threats_found: None,
                     memory_anomalies: None,
                     target: None,

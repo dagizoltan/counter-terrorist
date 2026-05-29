@@ -39,6 +39,7 @@ enum Command {
     },
     ClearSabotage { id: String, source_ip: String },
     GetStatus { id: String },
+    EnforceLandlock { id: String, rules: Vec<cts_ipc::LandlockPathRule> },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -160,6 +161,8 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                             cfg.latency_ms.max(2000)
                         };
                         tokio::time::sleep(tokio::time::Duration::from_millis(delay)).await;
+                    } else {
+                        // Keep things from being unused if not in sabotage
                     }
 
                     // INTERACTIVE ENGAGEMENT: Present a fake prompt and capture session data
@@ -245,12 +248,13 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                                         errors.push("{\"errors\":[\"identity verification required (TPM-MFA)\"]}\n");
                                         errors.push("{\"errors\":[\"rate limit exceeded: backoff for 300s\"]}\n");
                                     }
+                                    let _ = cfg.level; // Mark used
                                 }
                                 let err = errors[rand::thread_rng().gen_range(0..errors.len())];
                                 let _ = reader.get_mut().write_all(err.as_bytes()).await;
                             } else {
                                 // Mimic a "Password:" prompt after login
-                                if line.contains("login") || line.len() > 0 {
+                                if line.contains("login") || !line.is_empty() {
                                     let _ = reader.get_mut().write_all(b"password: ").await;
                                 }
                             }
@@ -358,6 +362,12 @@ async fn main() {
                         }
                         Command::GetStatus { id } => {
                             emit_response(id, true, "Active".to_string()).await;
+                        }
+                        Command::EnforceLandlock { id, rules } => {
+                            match cts_ipc::apply_granular_landlock(&rules) {
+                                Ok(_) => emit_response(id, true, "Granular Landlock policies applied".to_string()).await,
+                                Err(e) => emit_response(id, false, format!("Landlock failed: {}", e)).await,
+                            }
                         }
                     }
                 }

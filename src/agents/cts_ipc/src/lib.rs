@@ -1,6 +1,6 @@
 use shared_memory::*;
 use landlock::*;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::fs::File;
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -11,6 +11,7 @@ unsafe impl Send for ShmemWrapper {}
 unsafe impl Sync for ShmemWrapper {}
 
 #[repr(C)]
+#[allow(dead_code)]
 struct RingBufferHeader {
     len: u32,
     dirty: u32, // Used for threshold-based signaling
@@ -94,6 +95,12 @@ impl IpcManager {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LandlockPathRule {
+    pub path: String,
+    pub syscalls: Vec<String>,
+}
+
 pub fn apply_landlock<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     let abi = ABI::V1;
     let ruleset = Ruleset::default()
@@ -102,6 +109,57 @@ pub fn apply_landlock<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
 
     let path_handle = File::open(path)?;
     let ruleset = ruleset.add_rule(PathBeneath::new(path_handle, AccessFs::from_all(abi)))?;
+    ruleset.restrict_self()?;
+    Ok(())
+}
+
+pub fn apply_granular_landlock(rules: &[LandlockPathRule]) -> anyhow::Result<()> {
+    let abi = ABI::V1;
+    let mut ruleset = Ruleset::default()
+        .handle_access(AccessFs::from_all(abi))?
+        .create()?;
+
+    for rule in rules {
+        let mut access = BitFlags::from_flag(AccessFs::ReadFile);
+        for sc in &rule.syscalls {
+            match sc.as_str() {
+                // Mapping common syscalls/actions to Landlock AccessFs flags
+                "read" | "open" | "openat" | "stat" | "access" => {
+                    access |= AccessFs::ReadFile | AccessFs::ReadDir;
+                }
+                "write" | "truncate" | "chmod" | "chown" => {
+                    access |= AccessFs::WriteFile;
+                }
+                "execute" | "execve" => {
+                    access |= AccessFs::Execute;
+                }
+                "mkdir" | "mkdirat" => {
+                    access |= AccessFs::MakeDir;
+                }
+                "unlink" | "unlinkat" | "rmdir" => {
+                    access |= AccessFs::RemoveFile | AccessFs::RemoveDir;
+                }
+                "mknod" | "mknodat" => {
+                    access |= AccessFs::MakeChar | AccessFs::MakeBlock | AccessFs::MakeFifo | AccessFs::MakeSock;
+                }
+                "symlink" | "symlinkat" => {
+                    access |= AccessFs::MakeSym;
+                }
+                _ => {
+                    // Fallback to Read if unknown but mentioned
+                    access |= AccessFs::ReadFile;
+                }
+            }
+        }
+
+        if access.is_empty() {
+            access |= AccessFs::ReadFile;
+        }
+
+        let path_handle = File::open(&rule.path)?;
+        ruleset = ruleset.add_rule(PathBeneath::new(path_handle, access))?;
+    }
+
     ruleset.restrict_self()?;
     Ok(())
 }

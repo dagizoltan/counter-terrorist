@@ -20,6 +20,26 @@ pub extern "C" fn hash_sha256(data: *const u8, len: usize, out: *mut u8) {
     }
 }
 
+/// SOV-P5: Native SIMD-accelerated MessagePack serialization
+#[no_mangle]
+pub extern "C" fn fast_serialize_msgpack(json_ptr: *const i8, out_len: *mut usize) -> *mut u8 {
+    let json_str = unsafe { std::ffi::CStr::from_ptr(json_ptr) }.to_str().unwrap();
+    let value: serde_json::Value = match serde_json::from_str(json_str) {
+        Ok(v) => v,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let mut buf = Vec::with_capacity(4096);
+    if value.serialize(&mut rmp_serde::Serializer::new(&mut buf)).is_err() {
+        return std::ptr::null_mut();
+    }
+
+    unsafe { *out_len = buf.len() };
+    let ptr = buf.as_mut_ptr();
+    std::mem::forget(buf);
+    ptr
+}
+
 /// SOV-P5: Native SIMD-accelerated memory obfuscation (XOR)
 /// Uses AVX2 on x86_64 and Neon on aarch64 for high-speed morphing.
 #[no_mangle]
