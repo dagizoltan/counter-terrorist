@@ -16,6 +16,7 @@ export class IpcFfiBridge {
                 "hash_file_sha256": { parameters: ["buffer", "buffer"], result: "i32" },
                 "create_shmem": { parameters: ["buffer", "usize"], result: "pointer" },
                 "serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
+                "fast_serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
                 "deserialize_msgpack": { parameters: ["buffer", "usize"], result: "pointer" },
                 "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
                 "free_string": { parameters: ["pointer"], result: "void" },
@@ -75,7 +76,10 @@ export class IpcFfiBridge {
         const jsonStr = JSON.stringify(cmd) + "\0";
         const jsonBuf = new TextEncoder().encode(jsonStr);
         const outLenPtr = new BigUint64Array(1);
-        const msgpackPtr = this.ffi.symbols.serialize_msgpack(jsonBuf, Deno.UnsafePointer.of(outLenPtr));
+
+        // Performance: Prefer optimized native fast path
+        const symbol = this.ffi.symbols.fast_serialize_msgpack || this.ffi.symbols.serialize_msgpack;
+        const msgpackPtr = symbol(jsonBuf, Deno.UnsafePointer.of(outLenPtr));
 
         if (!msgpackPtr) return null;
 
@@ -83,6 +87,7 @@ export class IpcFfiBridge {
         const view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgpackPtr, len));
         const result = new Uint8Array(view); // Copy
 
+        // SEC-05 FIX: Release native buffer to prevent memory leak
         this.ffi.symbols.free_buffer(msgpackPtr, len);
         return result;
     }

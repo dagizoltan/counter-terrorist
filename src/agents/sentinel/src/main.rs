@@ -9,7 +9,7 @@ use aya::Bpf;
 use aya::maps::PerfEventArray;
 use aya::programs::{KProbe, SchedClassifier, TcAttachType, Lsm};
 use aya::{include_bytes_aligned, Btf};
-use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr, SyscallAllowKey, RedirectionKey, RedirectionValue};
+use sentinel_common::{SyscallEvent, ShadowBanInfo, IpV6Addr, SyscallAllowKey};
 use zerocopy::FromBytes;
 use bytes::BytesMut;
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
@@ -590,15 +590,6 @@ async fn handle_command(cmd: SidecarCommand, bpf_static: &'static Mutex<Bpf>) {
                             } else { (false, "Map Error".to_string()) }
                         };
                         emit_response(cmd.id, res.0, res.1).await;
-                    }
-                },
-                "ENFORCE_LANDLOCK" => {
-                    if let Some(rules) = cmd.landlock_rules {
-                        let (success, msg) = match cts_ipc::apply_granular_landlock(&rules) {
-                            Ok(_) => (true, "Granular Landlock policies applied to sentinel process".to_string()),
-                            Err(e) => (false, format!("Landlock granular failed: {}", e)),
-                        };
-                        emit_response(cmd.id, success, msg).await;
                     }
                 },
                 "ADD_REDIRECTION" => {

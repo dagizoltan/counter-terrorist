@@ -1,6 +1,7 @@
 import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 import { LogSeverity, LogType } from "@core/ports.ts";
+import { CausalGraphService, CausalNode } from "./causal_graph_service.ts";
 
 export interface DashboardMetrics {
     totalEvents: number;
@@ -30,9 +31,14 @@ export class ViewModelService extends BaseService {
     private readonly MAX_ALERTS = 50;
 
     private unsubscribers: (() => void)[] = [];
+    private causalService?: CausalGraphService;
 
     constructor() {
         super();
+    }
+
+    public setCausalService(service: CausalGraphService) {
+        this.causalService = service;
     }
 
     protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
@@ -90,5 +96,17 @@ export class ViewModelService extends BaseService {
 
     public getRecentAlerts() {
         return [...this.recentAlerts];
+    }
+
+    /**
+     * SOV-P5: Exposes the forensic causal graph for UI visualization.
+     */
+    public async getForensicCausalGraph(pid?: number, searchTerm?: string): Promise<Record<string, CausalNode>> {
+        if (!this.causalService) return {};
+        const res = await this.causalService.reconstructGraph(pid, searchTerm);
+        if (res.success) {
+            return Object.fromEntries(res.data);
+        }
+        return {};
     }
 }

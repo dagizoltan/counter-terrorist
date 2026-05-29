@@ -392,6 +392,7 @@ dependencies = [
  "parking_lot",
  "rmp-serde",
  "serde",
+ "serde_json",
  "shared_memory",
 ]
 
@@ -399,6 +400,7 @@ dependencies = [
 name = "cts_sec"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "rmp-serde",
  "serde",
  "serde_json",

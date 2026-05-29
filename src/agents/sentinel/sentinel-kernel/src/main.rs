@@ -153,6 +153,7 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
     }
 
     // 5. CHAMELEON REDIRECTION
+    // Byte Order: REDIRECTIONS map key uses network byte order (Big Endian) for port and IP.
     let redir_key = RedirectionKey { dst_ip, dst_port, proto, _pad: [0; 5] };
     if let Some(redir) = unsafe { REDIRECTIONS.get(&redir_key) } {
         // Perform destination NAT
@@ -167,19 +168,61 @@ fn try_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
             unsafe {
                 let p_dst = (ctx.data() + dst_offset) as *mut [u8; 4];
                 if (p_dst as usize + 4) <= ctx.data_end() {
+                    let old_ip = *p_dst;
                     *p_dst = new_ip_v4;
+
+                    // 1. IP Header Checksum Update (RFC 1624)
+                    let p_csum = (ctx.data() + 24) as *mut u16;
+                    if (p_csum as usize + 2) <= ctx.data_end() {
+                        let mut csum = !u16::from_be(*p_csum) as u32;
+                        for i in (0..4).step_by(2) {
+                            let old_val = u16::from_be_bytes([old_ip[i], old_ip[i+1]]) as u32;
+                            let new_val = u16::from_be_bytes([new_ip_v4[i], new_ip_v4[i+1]]) as u32;
+                            csum = csum.saturating_add(!old_val & 0xFFFF).saturating_add(new_val);
+                        }
+                        while (csum >> 16) > 0 { csum = (csum & 0xFFFF) + (csum >> 16); }
+                        *p_csum = (!csum as u16).to_be();
+                    }
+
+                    // 2. L4 Checksum Update (Pseudo-header IP change)
+                    let l4_csum_offset = if proto == 6 { 16 } else { 6 };
+                    let p_l4_csum = (ctx.data() + 34 + l4_csum_offset) as *mut u16;
+                    if (p_l4_csum as usize + 2) <= ctx.data_end() {
+                        let mut csum = !u16::from_be(*p_l4_csum) as u32;
+                        // Account for IP change in pseudo-header
+                        for i in (0..4).step_by(2) {
+                            let old_val = u16::from_be_bytes([old_ip[i], old_ip[i+1]]) as u32;
+                            let new_val = u16::from_be_bytes([new_ip_v4[i], new_ip_v4[i+1]]) as u32;
+                            csum = csum.saturating_add(!old_val & 0xFFFF).saturating_add(new_val);
+                        }
+                        while (csum >> 16) > 0 { csum = (csum & 0xFFFF) + (csum >> 16); }
+                        *p_l4_csum = (!csum as u16).to_be();
+                    }
                 }
 
                 let p_port = (ctx.data() + port_offset) as *mut u16;
                 if (p_port as usize + 2) <= ctx.data_end() {
+                    let old_port = *p_port;
                     *p_port = redir.new_port;
+
+                    // 3. L4 Checksum Update (Port change)
+                    let l4_csum_offset = if proto == 6 { 16 } else { 6 };
+                    let p_l4_csum = (ctx.data() + 34 + l4_csum_offset) as *mut u16;
+                    if (p_l4_csum as usize + 2) <= ctx.data_end() {
+                         let mut csum = !u16::from_be(*p_l4_csum) as u32;
+                         let old_val = u16::from_be(old_port) as u32;
+                         let new_val = u16::from_be(redir.new_port) as u32;
+                         csum = csum.saturating_add(!old_val & 0xFFFF).saturating_add(new_val);
+                         while (csum >> 16) > 0 { csum = (csum & 0xFFFF) + (csum >> 16); }
+                         *p_l4_csum = (!csum as u16).to_be();
+                    }
                 }
             }
             return Ok(XDP_PASS);
         }
     }
 
-    Ok(XDP_DROP)
+    Ok(XDP_PASS)
     })();
 
     let end_ns = unsafe { bpf_ktime_get_ns() };
