@@ -144,6 +144,10 @@ export class KernelService extends BaseService {
                 pid: selfPid,
                 allowed_syscalls: allowlist
             });
+
+            // SOV-P5: Implementation of "Quiet Mode" & Self-Enforcement
+            await this.initializeQuietMode();
+            await this.initializeSelfEnforcement();
         }
 
         const params = [
@@ -272,6 +276,43 @@ export class KernelService extends BaseService {
         } catch {
             return "UNKNOWN";
         }
+    }
+
+    /**
+     * SOV-P5: Implement in-kernel event suppression for trusted processes.
+     */
+    private async initializeQuietMode() {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.INFO,
+            caller: "KERNEL:QUIET",
+            message: "Engaging in-kernel Quiet Mode for trusted sidecars..."
+        });
+
+        const trustedComms = ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"];
+        for (const comm of trustedComms) {
+            await this.sidecarManager.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
+        }
+    }
+
+    /**
+     * SOV-P5: Principle of Least Privilege - Orchestrator Self-Enforcement (Egress Gating).
+     */
+    private async initializeSelfEnforcement() {
+        const gateway = typeof this.config?.getEnv === "function" ? this.config.getEnv("GATEWAY_IP") : undefined;
+        // In a real mesh, we would get these from MeshManager.
+        // For the static initialization, we use core infrastructure IPs.
+        const trustedIps = [
+            "1.1.1.1", "8.8.8.8", // DNS
+            ...(gateway ? [gateway] : [])
+        ].filter(Boolean);
+
+        await this.sidecarManager.sendCommand("sentinel", {
+            type: "RESTRICT_EGRESS",
+            pid: Deno.pid,
+            allowed_ips: trustedIps
+        }).catch(() => {});
     }
 
     /**

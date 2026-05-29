@@ -4,12 +4,15 @@ import { LoggingPort, LogSeverity, LogType, MeshAuthPort } from "../../core/port
 import { Result, ok } from "../../core/result.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { computeStreamHash } from "../../core/crypto_utils.ts";
+import { ForensicSearchTool, ForensicQuery } from "../../tools/ops/forensic_query.ts";
 
 /**
  * ForensicService
  * Handles the aggregation and packaging of security evidence for post-mortem analysis.
  */
 export class ForensicService extends BaseService {
+  private queryTool: ForensicSearchTool;
+
   constructor(
     private audit: AuditService,
     private logging: LoggingPort,
@@ -18,6 +21,7 @@ export class ForensicService extends BaseService {
     private meshAuth: MeshAuthPort
   ) {
     super();
+    this.queryTool = new ForensicSearchTool();
   }
 
   /**
@@ -176,6 +180,13 @@ export class ForensicService extends BaseService {
 
   protected override async onShutdown(): Promise<Result<void>> {
     return ok(undefined);
+  }
+
+  /**
+   * SOV-P5: Perform a forensic search across snapshots and ledger.
+   */
+  async search(query: ForensicQuery) {
+    return await this.queryTool.search(query);
   }
 
   async isolateSource(source: string, reason: string): Promise<any> {

@@ -550,27 +550,7 @@ export class SovereignApp {
         const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
         if (ebpf) {
             await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
-
-            // Performance Hardening: Implement in-kernel filtering for "Quiet Security"
-            // Skip events from the orchestrator and its trusted sidecars
-            for (const comm of ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"]) {
-                await sm.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
-            }
-
-            // SEC-05: Orchestrator Self-Enforcement (Egress Gating)
-            // Limit the Deno process to verified mesh peers and known infrastructure
-            const gateway = this.services.config.getEnv("GATEWAY_IP");
-            const trustedIps = [
-                "1.1.1.1", "8.8.8.8", // DNS
-                ...(gateway ? [gateway] : []),
-                ...this.services.mesh.getNodes().map((n: any) => n.address)
-            ].filter(Boolean);
-
-            await sm.sendCommand("sentinel", {
-                type: "RESTRICT_EGRESS",
-                pid: Deno.pid,
-                allowed_ips: trustedIps
-            }).catch(() => {});
+            // Quiet Mode and Self-Enforcement handled by KernelService.start()
         }
     }
 
