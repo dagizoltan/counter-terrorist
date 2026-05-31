@@ -94,6 +94,10 @@ export class SidecarManager implements CommandPort {
       return this.tpm;
   }
 
+  getFfi(): IpcFfiBridge {
+    return this.ffi;
+  }
+
   private async loadManifest() {
     try {
         const manifestUrl = new URL("./sidecars.manifest.json", import.meta.url);
@@ -1165,7 +1169,7 @@ export class SidecarManager implements CommandPort {
           }).spawn();
 
           const pipePromise = stream.pipeTo(hasher.stdin);
-          const [output] = await Promise.all([hasher.output(), pipePromise.catch(() => {})]);
+          const [output] = await Promise.all([hasher.output(), pipePromise.catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.DEBUG, caller: "sidecar_manager", message: `Stream pipe failure during hash: ${e.message}` }).catch(() => {}))]);
 
           if (output.success) {
               const hashHex = new TextDecoder().decode(output.stdout).split(" ")[0].trim();
@@ -1244,7 +1248,7 @@ export class SidecarManager implements CommandPort {
       const timer = setTimeout(() => {
         this.backoffTimers.delete(timer);
         if (!this.isShuttingDown) {
-            this.getPersistentSidecar(name).catch(() => {});
+            this.getPersistentSidecar(name).catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "sidecar_manager", message: `Auto-restart failed for ${name}: ${e.message}` }).catch(() => {}));
         }
       }, delay);
       this.backoffTimers.add(timer);

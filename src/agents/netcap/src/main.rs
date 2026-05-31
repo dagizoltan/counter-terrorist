@@ -168,7 +168,7 @@ async fn handle_netcap_command(cmd_val: serde_json::Value, capture_handle: Arc<M
         match cmd_type {
             "ENFORCE_PID" => {
                 if let Some(path) = cmd_val["path"].as_str() {
-                    if let Ok(_) = cts_ipc::apply_landlock(path) {
+                    if cts_ipc::apply_landlock(path).is_ok() {
                          log_forensic("info", &format!("Landlock FS Gating active for netcap on path {}", path)).await;
                     }
                 }

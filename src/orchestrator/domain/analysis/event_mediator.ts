@@ -77,7 +77,7 @@ export class EventMediator extends BaseService {
         this.eventBus = eventBusPort;
         this.behavioral = new BehavioralAnalyzer();
         if (kv) {
-            this.behavioral.setKv(kv).catch(() => {});
+            this.behavioral.setKv(kv).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Failed to set KV for behavioral: ${err.message}` }).catch(() => {}));
         }
 
         this.behavioral.setLearningMode(true);
@@ -265,7 +265,7 @@ export class EventMediator extends BaseService {
                     caller,
                     message: `File Integrity Violation: ${action} detected on ${path} by ${actor} (PID: ${pid || 'N/A'})`,
                     payload: { path, action, isCanary, actor, pid }
-                }).catch(() => {});
+                }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
 
                 this.broadcast({
                     type,
@@ -339,7 +339,7 @@ export class EventMediator extends BaseService {
                         caller: "pcap:dissector",
                         message: typeof data.message === "string" ? data.message : "Network Exfiltration Attempt Detected",
                         payload: data
-                    }).catch(() => {});
+                    }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
                 }
 
                 this.broadcast({
@@ -358,7 +358,7 @@ export class EventMediator extends BaseService {
                         caller: "pcap:exfil",
                         message: msg,
                         payload: data
-                    }).catch(() => {});
+                    }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
                     this.broadcast({ type: "EXFIL_ALERT", severity: LogSeverity.ERROR, message: msg, data });
                 }
             } else if (eventType === "SIDECAR_ALERT") {
@@ -421,7 +421,7 @@ export class EventMediator extends BaseService {
             severity: LogSeverity.ERROR,
             caller: "orchestrator:domain:analysis:event_mediator",
             message: `Error processing ${sidecar} event: ${e.message}`
-        }).catch(() => {});
+        }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
     }
 
     /**

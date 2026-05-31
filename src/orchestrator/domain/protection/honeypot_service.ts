@@ -230,7 +230,7 @@ export class HoneypotService extends BaseService {
         });
       } else {
         // Fallback for standalone/minimal mode
-        this.firewall.shadowBanIp(source_ip).catch(() => {});
+        this.firewall.shadowBanIp(source_ip).catch(e => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "honeypot", message: `Shadow ban failed for ${source_ip}: ${e.message}` }).catch(() => {}));
         this.sabotageSession(source_ip);
       }
 

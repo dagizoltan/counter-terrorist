@@ -87,7 +87,7 @@ export class FirewallManager implements FirewallPort {
       const limit = 50;
       for (let i = 0; i < ips.length; i += limit) {
         const batch = ips.slice(i, i + limit);
-        await Promise.all(batch.map(ip => this.provider.blockIp(ip).catch(() => {})));
+        await Promise.all(batch.map(ip => this.provider.blockIp(ip).catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "firewall", message: `Batch block failed for ${ip}: ${e.message}` }).catch(() => {}))));
       }
 
       loggingService.log({
@@ -156,7 +156,7 @@ export class FirewallManager implements FirewallPort {
 
     const res = await this.provider.blockIp(ip);
     if (res.success) {
-        this.verifyConnectivity().catch(() => {});
+        this.verifyConnectivity().catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "firewall", message: `Connectivity check task failed: ${e.message}` }).catch(() => {}));
     }
     return res;
   }
@@ -205,7 +205,7 @@ export class FirewallManager implements FirewallPort {
 
               // Trigger Mesh Re-discovery to ensure node identity is re-verified after connectivity restore
               if (meshManager) {
-                  meshManager.resyncNodes?.().catch(() => {});
+                  meshManager.resyncNodes?.().catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "firewall", message: `Mesh resync failed: ${e.message}` }).catch(() => {}));
               }
 
               loggingService.log({
@@ -278,7 +278,7 @@ export class FirewallManager implements FirewallPort {
 
     const res = await this.provider.shadowBanIp(ip);
     if (res.success) {
-        this.verifyConnectivity().catch(() => {});
+        this.verifyConnectivity().catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "firewall", message: `Connectivity check task failed: ${e.message}` }).catch(() => {}));
     }
     return res;
   }

@@ -265,8 +265,8 @@ async fn main() {
                     emit_response(id, res.0, res.1, None).await;
                 },
                 TpmCommand::IssueNodeCert { id, node_id, ca_cert, ca_key } => {
-                    let (final_ca_cert, final_ca_key) = if ca_cert.is_some() && ca_key.is_some() {
-                        (ca_cert.unwrap(), ca_key.unwrap())
+                    let (final_ca_cert, final_ca_key) = if let (Some(cert), Some(key)) = (ca_cert, ca_key) {
+                        (cert, key)
                     } else {
                         // Attempt to load from hardware state
                         let state: serde_json::Value = tokio::fs::read_to_string(state_path)
