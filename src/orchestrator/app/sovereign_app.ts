@@ -381,18 +381,22 @@ export class SovereignApp {
         const bus = services.eventBus;
 
         for (const service of Object.values(services)) {
-            if (service && typeof service === "object" && "setEventBus" in service && typeof (service as any).setEventBus === "function") {
-                (service as any).setEventBus(bus);
+            if (this.isBusAware(service)) {
+                service.setEventBus(bus);
             }
         }
 
         // Deep-inject into sub-infrastructure if not already covered
-        if (services.protection?.firewall && "setEventBus" in services.protection.firewall) {
-            (services.protection.firewall as any).setEventBus(bus);
+        if (this.isBusAware(services.protection?.firewall)) {
+            services.protection.firewall.setEventBus(bus);
         }
-        if (services.protection?.vpn && "setEventBus" in services.protection.vpn) {
-            (services.protection.vpn as any).setEventBus(bus);
+        if (this.isBusAware(services.protection?.vpn)) {
+            services.protection.vpn.setEventBus(bus);
         }
+    }
+
+    private isBusAware(svc: unknown): svc is { setEventBus(bus: EventBus): void } {
+        return !!svc && typeof svc === "object" && "setEventBus" in svc && typeof (svc as any).setEventBus === "function";
     }
 
     private startWatchdog(health: HealthService): WatchdogService {

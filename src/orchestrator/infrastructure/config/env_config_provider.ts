@@ -16,19 +16,19 @@ export class EnvConfigProvider implements ConfigurationPort {
   }
 
   getEnv(key: string): string | undefined {
-    const val = (this.config as any)[key];
+    const val = this.config[key as keyof AppConfig];
     return val !== undefined ? String(val) : undefined;
   }
 
   getNumber(key: string, defaultValue: number): number {
-    const val = (this.config as any)[key];
+    const val = this.config[key as keyof AppConfig];
     if (val === undefined) return defaultValue;
     return typeof val === "number" ? val : Number(val);
   }
 
   getBoolean(key: string, defaultValue: boolean): boolean {
-    const val = (this.config as any)[key];
+    const val = this.config[key as keyof AppConfig];
     if (val === undefined) return defaultValue;
-    return val === true || val === "true" || val === 1;
+    return val === true || (val as unknown) === "true" || val === 1;
   }
 }

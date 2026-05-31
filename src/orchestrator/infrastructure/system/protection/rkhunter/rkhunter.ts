@@ -13,6 +13,16 @@ export interface RkhunterResult {
     error?: string;
 }
 
+interface AnalyzerRkhResponse {
+    success: boolean;
+    data: {
+        stdout: string;
+        stderr: string;
+        exit_code?: number;
+        [key: string]: unknown;
+    };
+}
+
 export class RkhunterManager {
     private lastResult: RkhunterResult | null = null;
     public runScan: () => Promise<Result<RkhunterResult>>;
@@ -24,21 +34,30 @@ export class RkhunterManager {
     private async _runScan(): Promise<RkhunterResult> {
         try {
             // RKH_SCAN is a specialized scan type that checks for known rootkit artifacts
-            let result = await this.sidecar.sendCommand("analyzer", { type: "RKH_SCAN" }) as any;
+            const raw = await this.sidecar.sendCommand("analyzer", { type: "RKH_SCAN" });
+            const analyzerRes = raw as unknown as AnalyzerRkhResponse;
+
+            let result: RkhunterResult;
 
             // BUG-12: Rkhunter sidecar response normalization
-            if (result && result.data) {
+            if (analyzerRes && analyzerRes.data) {
                 result = {
-                    success: result.success,
-                    stdout: result.data.stdout,
-                    stderr: result.data.stderr,
-                    ...result.data
+                    success: analyzerRes.success,
+                    stdout: analyzerRes.data.stdout,
+                    stderr: analyzerRes.data.stderr,
+                    exit_code: analyzerRes.data.exit_code,
+                    error: analyzerRes.data.error as string | undefined
+                };
+            } else {
+                result = {
+                    success: analyzerRes?.success ?? false,
+                    error: "Invalid response from analyzer sidecar"
                 };
             }
 
             this.lastResult = result;
 
-            if (result && !result.success) {
+            if (!result.success) {
                 broadcast({
                     type: "AUDIT_EVENT",
                     data: {
@@ -70,13 +89,13 @@ export class RkhunterManager {
                 caller: "orchestrator:infra:system:protection:rkhunter",
                 message: `rkhunter scan failed: ${(e as Error).message}`
             });
-            const errResult = { success: false, error: (e as Error).message } as any;
+            const errResult: RkhunterResult = { success: false, error: (e as Error).message };
             this.lastResult = errResult;
             throw e;
         }
     }
 
-    getLastResult() {
+    getLastResult(): RkhunterResult | null {
         return this.lastResult;
     }
 }

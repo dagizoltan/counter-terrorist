@@ -6,6 +6,11 @@ export interface ConnectionTrace {
     delta: number;
 }
 
+export interface BehavioralBaseline {
+    syscallFrequencies: Record<string, Record<string, number>>;
+    updatedAt: number;
+}
+
 export class BehavioralAnalyzer extends BaseService {
     private traces: Map<string, ConnectionTrace[]> = new Map();
     private syscallFrequencies: Map<string, Map<string, number>> = new Map(); // comm -> syscall -> frequency
@@ -201,11 +206,11 @@ export class BehavioralAnalyzer extends BaseService {
 
     private async loadBaselines() {
         if (!this.kv) return;
-        const entry = await this.kv.get<any>(["behavioral", "baselines", "v1"]);
+        const entry = await this.kv.get<BehavioralBaseline>(["behavioral", "baselines", "v1"]);
         if (entry.value && entry.value.syscallFrequencies) {
             const data = entry.value.syscallFrequencies;
             for (const [comm, freqs] of Object.entries(data)) {
-                this.syscallFrequencies.set(comm, new Map(Object.entries(freqs as any)));
+                this.syscallFrequencies.set(comm, new Map(Object.entries(freqs)));
             }
         }
     }

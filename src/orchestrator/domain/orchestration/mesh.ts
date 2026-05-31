@@ -296,10 +296,10 @@ export class MeshManager extends BaseService {
 
   private async listenForDiscovery() {
     try {
-      // @ts-ignore: Deno.listenDatagram is unstable and may not be in all environments
-      if (typeof Deno.listenDatagram !== "function") return;
+      const listenDatagram = (Deno as any).listenDatagram;
+      if (typeof listenDatagram !== "function") return;
 
-      this.mdnsListener = Deno.listenDatagram({
+      this.mdnsListener = listenDatagram({
         port: 5353,
         hostname: "0.0.0.0",
         transport: "udp",
@@ -374,8 +374,8 @@ export class MeshManager extends BaseService {
 
   private async scanNetwork() {
     try {
-      // @ts-ignore: Deno.listenDatagram is unstable and may not be in all environments
-      if (typeof Deno.listenDatagram !== "function") return;
+      const listenDatagram = (Deno as any).listenDatagram;
+      if (typeof listenDatagram !== "function") return;
 
       const timestamp = Date.now();
       const txt = `id=${this.nodeId},port=${this.port},ts=${timestamp}`;
@@ -390,7 +390,7 @@ export class MeshManager extends BaseService {
       const announcement = `_ct-orchestrator._tcp.local|${txt}|sig=${signature}`;
       const message = new TextEncoder().encode(announcement);
 
-      const socket = Deno.listenDatagram({ port: 0, transport: "udp" });
+      const socket = listenDatagram({ port: 0, transport: "udp" });
       socket.send(message, { transport: "udp", hostname: "224.0.0.251", port: 5353 });
       socket.close();
     } catch (_e) {
