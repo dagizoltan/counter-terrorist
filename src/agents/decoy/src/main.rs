@@ -86,6 +86,7 @@ struct SabotageConfig {
 }
 
 struct ListenerState {
+    #[allow(dead_code)]
     port: u16,
     active: bool,
     sabotage_ips: HashMap<String, SabotageConfig>,

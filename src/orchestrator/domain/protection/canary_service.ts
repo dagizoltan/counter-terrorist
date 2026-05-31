@@ -1,7 +1,7 @@
 import { AuditService } from "../analysis/audit.ts";
 import { resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
-import { Result, ok, err } from "@core/result.ts";
+import { Result, ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 
 export interface CanaryToken {
@@ -176,7 +176,8 @@ export class CanaryService extends BaseService {
                     // Create the hardlink (Atomic projection)
                     await Deno.link(token.masterPath, token.projectionPath);
                 } catch (linkError) {
-                    if (linkError instanceof Deno.errors.NotSupported || (linkError as any).code === "EXDEV") {
+                    const isExDev = linkError instanceof Error && "code" in linkError && linkError.code === "EXDEV";
+                    if (linkError instanceof Deno.errors.NotSupported || isExDev) {
                         this.logging.log({
                             timestamp: new Date().toISOString(),
                             type: LogType.DEBUG,

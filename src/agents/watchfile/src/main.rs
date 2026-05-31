@@ -26,6 +26,7 @@ struct SidecarResponse {
 #[serde(tag = "type")]
 enum SidecarEvent {
     FileAlert { path: String, action: String, pid: i32, comm: String },
+    #[allow(dead_code)]
     Status { message: String },
 }
 
@@ -143,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
                     &*(buffer.as_ptr().add(offset) as *const libc::fanotify_event_metadata)
                 };
 
-                if metadata.vers != libc::FANOTIFY_METADATA_VERSION as u8 { break; }
+                if metadata.vers != libc::FANOTIFY_METADATA_VERSION { break; }
 
                 let pid = metadata.pid;
                 let comm = get_comm(pid);
@@ -165,7 +166,7 @@ async fn main() -> anyhow::Result<()> {
                 if metadata.mask & libc::FAN_OPEN_PERM != 0 {
                     let resp = fanotify_response {
                         fd: metadata.fd,
-                        response: response as u32,
+                        response,
                     };
                     unsafe {
                         libc::write(fd, &resp as *const _ as *const libc::c_void, std::mem::size_of::<fanotify_response>());

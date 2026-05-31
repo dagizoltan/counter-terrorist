@@ -94,9 +94,19 @@ export const SystemEventRegistry = {
   }),
   "METRIC_UPDATE": z.object({
     domain: z.string(),
-    data: z.unknown()
+    data: z.record(z.string(), z.unknown())
   }),
-  "AUDIT_EVENT": z.unknown(),
+  "AUDIT_EVENT": z.object({
+    id: z.string().optional(),
+    timestamp: z.string().optional(),
+    type: z.string(),
+    severity: z.string().optional(),
+    caller: z.string().optional(),
+    message: z.string(),
+    data: z.unknown().optional(),
+    hash: z.string().optional(),
+    prevHash: z.string().optional()
+  }),
   "UI_BROADCAST": z.object({
     type: z.string(),
     data: z.unknown()
@@ -113,7 +123,14 @@ export const SystemEventRegistry = {
     bytes_count: z.number().optional(),
     correlationId: z.string().optional()
   }),
-  "PACKET": z.unknown(),
+  "PACKET": z.object({
+    timestamp: z.number().optional(),
+    source: z.string().optional(),
+    destination: z.string().optional(),
+    protocol: z.string().optional(),
+    length: z.number().optional(),
+    data: z.string().optional()
+  }),
   "ALERT": GenericEventSchema,
   "ARTIFACT_FOUND": z.object({
     indicator: z.string().optional(),

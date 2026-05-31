@@ -122,8 +122,8 @@ export class SubsystemFactory {
             const service = factory();
             health.reportStatus(name, "OPERATIONAL");
             // Automatically register any Sovereign service for lifecycle management
-            if (typeof (service as any).init === "function" || typeof (service as any).shutdown === "function") {
-                this.registry.register(name, service as any);
+            if (this.isLifecycleService(service)) {
+                this.registry.register(name, service);
             }
             return service;
         } catch (e) {
@@ -145,5 +145,9 @@ export class SubsystemFactory {
                 }
             });
         }
+    }
+
+    private isLifecycleService(svc: unknown): svc is import("./base_service.ts").Service {
+        return !!svc && typeof svc === "object" && ("init" in svc || "shutdown" in svc);
     }
 }

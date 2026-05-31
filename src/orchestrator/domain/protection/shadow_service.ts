@@ -10,6 +10,12 @@ export interface ShadowEnvironment {
     startTime: number;
 }
 
+export interface HoneyState {
+    files?: Record<string, string>;
+    processes?: string[];
+    network?: Record<string, string>;
+}
+
 /**
  * ShadowService
  * Manages the "Mirror World" - deceptive isolated environments for high-confidence threats.
@@ -117,7 +123,7 @@ export class ShadowService extends BaseService {
     /**
      * Injects deceptive system state into a shadow environment.
      */
-    async injectHoneyState(shadowId: string, state: any) {
+    async injectHoneyState(_shadowId: string, _state: HoneyState) {
         // Implementation of honey-file injection into the mount namespace
     }
 

@@ -48,7 +48,7 @@ export class ProcessTracker extends BaseService {
 
     private emitMetrics() {
         if (!this.eventBus) return;
-        this.eventBus.emit("METRIC_UPDATE" as any, {
+        this.eventBus.emit("METRIC_UPDATE", {
             domain: "forensics",
             data: {
                 processCount: this.tree.size,

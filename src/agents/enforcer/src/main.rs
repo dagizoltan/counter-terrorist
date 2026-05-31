@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use sysinfo::{ProcessExt, System, SystemExt, Pid, PidExt};
-use std::process::Command;
 use chrono::Utc;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use std::sync::Arc;
@@ -27,8 +26,8 @@ enum BlockerCommand {
     KillProcess { id: String, pid: u32 },
     QuarantineProcess { id: String, pid: u32 },
     DumpProcess { id: String, pid: u32, path: String },
-    BlockIp { id: String, ip: String },
-    UnblockIp { id: String, ip: String },
+    BlockIp { id: String, #[allow(dead_code)] ip: String },
+    UnblockIp { id: String, #[allow(dead_code)] ip: String },
     GetStatus { id: String },
     EnforceLandlock { id: String, rules: Vec<cts_ipc::LandlockPathRule> },
 }

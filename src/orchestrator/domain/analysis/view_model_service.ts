@@ -1,7 +1,7 @@
 import { ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
-import { LogSeverity, LogType } from "@core/ports.ts";
 import { CausalGraphService, CausalNode } from "./causal_graph_service.ts";
+import { EventBusPort } from "@core/ports.ts";
 
 export interface DashboardMetrics {
     totalEvents: number;
@@ -10,6 +10,13 @@ export interface DashboardMetrics {
     lastAuditTimestamp: string;
     honeypotHits: number;
     systemHealth: "OPERATIONAL" | "WARNING" | "CRITICAL";
+}
+
+export interface Alert {
+    id: string;
+    timestamp: string;
+    type: string;
+    data: unknown;
 }
 
 /**
@@ -27,7 +34,7 @@ export class ViewModelService extends BaseService {
         systemHealth: "OPERATIONAL"
     };
 
-    private recentAlerts: any[] = [];
+    private recentAlerts: Alert[] = [];
     private readonly MAX_ALERTS = 50;
 
     private unsubscribers: (() => void)[] = [];
@@ -51,34 +58,34 @@ export class ViewModelService extends BaseService {
         return ok(undefined);
     }
 
-    override setEventBus(eventBus: any) {
+    override setEventBus(eventBus: EventBusPort) {
         super.setEventBus(eventBus);
 
-        this.unsubscribers.push(this.eventBus!.on("METRIC_UPDATE", (event: any) => {
-            if (event.domain === "audit") {
-                this.metrics.totalEvents = event.data.totalEvents;
+        this.unsubscribers.push(this.eventBus!.on("METRIC_UPDATE", (data) => {
+            if (data.domain === "audit") {
+                this.metrics.totalEvents = (data.data as any).totalEvents;
                 this.metrics.lastAuditTimestamp = new Date().toISOString();
-            } else if (event.domain === "honeypot") {
-                this.metrics.honeypotHits = event.data.totalHits;
-            } else if (event.domain === "mesh") {
-                this.metrics.activeNodes = event.data.activeNodes;
+            } else if (data.domain === "honeypot") {
+                this.metrics.honeypotHits = (data.data as any).totalHits;
+            } else if (data.domain === "mesh") {
+                this.metrics.activeNodes = (data.data as any).activeNodes;
             }
         }));
 
-        this.unsubscribers.push(this.eventBus!.on("THREAT", (event: any) => {
+        this.unsubscribers.push(this.eventBus!.on("THREAT", (data, event) => {
             this.metrics.threatsDetected++;
             this.addAlert("THREAT", event);
         }));
 
-        this.unsubscribers.push(this.eventBus!.on("UI_BROADCAST", (msg: any) => {
-            if (msg.type === "TACTICAL_TRIGGER") {
-                this.addAlert("TRIGGER", msg.data);
+        this.unsubscribers.push(this.eventBus!.on("UI_BROADCAST", (data) => {
+            if (data.type === "TACTICAL_TRIGGER") {
+                this.addAlert("TRIGGER", data.data);
             }
         }));
     }
 
-    private addAlert(type: string, data: any) {
-        const alert = {
+    private addAlert(type: string, data: unknown) {
+        const alert: Alert = {
             id: crypto.randomUUID(),
             timestamp: new Date().toISOString(),
             type,
@@ -94,7 +101,7 @@ export class ViewModelService extends BaseService {
         return { ...this.metrics };
     }
 
-    public getRecentAlerts() {
+    public getRecentAlerts(): Alert[] {
         return [...this.recentAlerts];
     }
 

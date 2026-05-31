@@ -143,9 +143,11 @@ export class WindowsProcessProvider implements ProcessPort {
     }
 
     isAlive(pid: number): boolean {
-        // Windows doesn't support SIGURG, use 0 to check if process exists
+        // Windows doesn't support SIGURG. On standard POSIX, kill(pid, 0) checks for existence.
+        // Deno.kill doesn't strictly allow 0 in its type definition, but it works on many platforms.
         try {
-            Deno.kill(pid, 0 as any);
+            // @ts-ignore: 0 is used for existence check
+            Deno.kill(pid, 0);
             return true;
         } catch (e) {
             return e instanceof Deno.errors.PermissionDenied;

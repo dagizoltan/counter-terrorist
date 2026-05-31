@@ -185,7 +185,7 @@ export class EventBus implements EventBusPort {
         caller: "EVENTBUS",
         message: message,
         payload: isNoise ? undefined : validatedData
-    }).catch(() => {});
+    }).catch(err => console.error(`Background task failure: ${err}`));
 
     // SOV-P3: Parallelized and Time-Limited Execution
     // BUG FIX: Use snapshots of handlers to prevent race conditions during concurrent mutations (unsubscribes)
@@ -230,7 +230,7 @@ export class EventBus implements EventBusPort {
               severity: LogSeverity.ERROR,
               caller: "EVENTBUS",
               message: `Async Handler error: ${errorMsg}`
-          }).catch(() => {});
+          }).catch(err => console.error(`Background task failure: ${err}`));
         } finally {
           if (timeoutId) clearTimeout(timeoutId);
           this.pendingHandlers.delete(wrappedPromise);
@@ -245,7 +245,7 @@ export class EventBus implements EventBusPort {
           severity: LogSeverity.ERROR,
           caller: "EVENTBUS",
           message: `Handler error: ${errorMsg}`
-      }).catch(() => {});
+      }).catch(err => console.error(`Background task failure: ${err}`));
     }
   }
 

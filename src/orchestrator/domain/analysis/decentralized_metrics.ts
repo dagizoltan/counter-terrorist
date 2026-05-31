@@ -1,22 +1,27 @@
 import { EventBus } from "./events.ts";
-import { LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";
 
+export interface MetricUpdatePayload {
+    domain: string;
+    data: Record<string, unknown>;
+}
+
 export class DecentralizedMetricsService extends BaseService {
-    private metrics: Map<string, any> = new Map();
+    private metrics: Map<string, Record<string, unknown>> = new Map();
     private interval?: number;
 
     constructor(
         eventBus: EventBus,
-        private logging: any
+        private logging: LoggingPort
     ) {
         super();
         this.setEventBus(eventBus);
 
-        this.eventBus!.on("METRIC_UPDATE", (event: any) => {
-            if (event && event.domain) {
-                this.metrics.set(event.domain, event.data);
+        this.eventBus!.on("METRIC_UPDATE", (data: MetricUpdatePayload) => {
+            if (data && data.domain) {
+                this.metrics.set(data.domain, data.data);
                 this.broadcastMetrics();
             }
         });
@@ -40,14 +45,15 @@ export class DecentralizedMetricsService extends BaseService {
         });
     }
 
-    public recordScan(results: any) {
-        this.eventBus!.emit("METRIC_UPDATE", {
+    public recordScan(results: Record<string, unknown>) {
+        if (!this.eventBus) return;
+        this.eventBus.emit("METRIC_UPDATE", {
             domain: "scans",
             data: results
         });
     }
 
-    public getLatest(): Record<string, any> | null {
+    public getLatest(): Record<string, Record<string, unknown>> | null {
         return this.metrics.size > 0 ? Object.fromEntries(this.metrics.entries()) : null;
     }
 }

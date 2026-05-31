@@ -30,6 +30,7 @@ import { loadConfig } from "@core/config_schema.ts";
 import { setMeshManager } from "@domain/orchestration/mesh.ts";
 import { setMetricsService } from "@domain/analysis/metrics_service.ts";
 import { ServiceRegistry, ShutdownPriority } from "@core/registry.ts";
+import { serviceLocator } from "@core/service_locator.ts";
 
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
@@ -120,7 +121,6 @@ export class SovereignApp {
             await this.initializeInfrastructure(configProvider, tpmManager);
         this.registry.register("Health", healthService, ShutdownPriority.CRITICAL);
 
-        const { serviceLocator } = await import("../core/service_locator.ts");
         serviceLocator.register("config", configProvider);
         serviceLocator.register("command", this.sidecarManager);
         serviceLocator.register("logging", loggingService);
@@ -174,7 +174,7 @@ export class SovereignApp {
                 severity: LogSeverity.ERROR,
                 caller: "RUNTIME",
                 message: `Unhandled Promise Rejection: ${e.reason}. Initiating fail-closed sequence.`
-            }).catch(() => {});
+            }).catch(err => console.error(`Background task failure: ${err}`));
 
             this.emergencyLockdown(`Unhandled Promise Rejection: ${e.reason}`);
         });
@@ -186,7 +186,7 @@ export class SovereignApp {
                 severity: LogSeverity.ERROR,
                 caller: "RUNTIME",
                 message: `Fatal Runtime Error: ${e.message}. Initiating fail-closed sequence.`
-            }).catch(() => {});
+            }).catch(err => console.error(`Background task failure: ${err}`));
 
             this.emergencyLockdown(`Fatal Runtime Error: ${e.message}`);
         });
@@ -379,21 +379,24 @@ export class SovereignApp {
 
     private injectEventBus(services: ServiceContainer) {
         const bus = services.eventBus;
-        if ("setEventBus" in (services.protection.firewall as FirewallPort & Service)) {
-            (services.protection.firewall as FirewallPort & Service).setEventBus?.(bus);
+
+        for (const service of Object.values(services)) {
+            if (this.isBusAware(service)) {
+                service.setEventBus(bus);
+            }
         }
-        services.mesh.setEventBus(bus);
-        services.honeypot.setEventBus(bus);
-        services.processTracker.setEventBus(bus);
-        services.kernelService.setEventBus(bus);
-        services.audit.setEventBus(bus);
-        if ("setEventBus" in (services.protection.vpn as VpnPort & Service)) {
-            (services.protection.vpn as VpnPort & Service).setEventBus?.(bus);
+
+        // Deep-inject into sub-infrastructure if not already covered
+        if (this.isBusAware(services.protection?.firewall)) {
+            services.protection.firewall.setEventBus(bus);
         }
-        services.behavioral.setEventBus(bus);
-        services.viewModel.setEventBus(bus);
-        services.mediator.setEventBus(bus);
-        services.lsmLearning?.setEventBus(bus);
+        if (this.isBusAware(services.protection?.vpn)) {
+            services.protection.vpn.setEventBus(bus);
+        }
+    }
+
+    private isBusAware(svc: unknown): svc is { setEventBus(bus: EventBus): void } {
+        return !!svc && typeof svc === "object" && "setEventBus" in svc && typeof (svc as any).setEventBus === "function";
     }
 
     private startWatchdog(health: HealthService): WatchdogService {
@@ -457,7 +460,7 @@ export class SovereignApp {
                     severity: LogSeverity.ERROR,
                     caller: "orchestrator:app:sovereign_app:fail_closed",
                     message: `FATAL: Critical sidecar '${eventPayload.sidecar ?? "unknown"}' entered crash loop. Initiating emergency lockdown.`
-                }).catch(() => {});
+                }).catch(err => console.error(`Background task failure: ${err}`));
 
                 this.emergencyLockdown(`Critical Sidecar Failure: ${eventPayload.sidecar ?? "unknown"}`);
             }
@@ -485,21 +488,21 @@ export class SovereignApp {
 
         // Background activations for non-BaseService compatible starts
         autopilot.start();
-        honeypot.start().catch(() => {});
-        canaryService.start().catch(() => {});
+        honeypot.start().catch(err => console.error(`Background task failure: ${err}`));
+        canaryService.start().catch(err => console.error(`Background task failure: ${err}`));
         
         (async () => {
             const res = await kernelService.start();
             if (res.success && this.services.config.getEnv("ENVIRONMENT") === "production") {
                 const sidecars = ["analyzer", "sentinel", "watchfile"];
                 for (const name of sidecars) {
-                    await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`).catch(() => {});
+                    await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`).catch(err => console.error(`Background task failure: ${err}`));
                 }
             }
         })();
 
-        networkDiscovery.start().catch(() => {});
-        provisioning.run().catch(() => {});
+        networkDiscovery.start().catch(err => console.error(`Background task failure: ${err}`));
+        provisioning.run().catch(err => console.error(`Background task failure: ${err}`));
         
         this.services.baseline.startMonitor();
         lifecycle.start();
@@ -549,7 +552,7 @@ export class SovereignApp {
         
         const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
         if (ebpf) {
-            await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(() => {});
+            await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(err => console.error(`Background task failure: ${err}`));
             // Quiet Mode and Self-Enforcement handled by KernelService.start()
         }
     }
@@ -587,12 +590,15 @@ export class SovereignApp {
         this.auditService.setCorrelation(correlation);
 
         const security = factory.initSecurity(protection, mesh, configProvider, health);
+        serviceLocator.register("protection", protection);
+        serviceLocator.register("behavioral", security.behavioral);
+        serviceLocator.register("honeypot", security.honeypot);
+        serviceLocator.register("shadowProtocol", security.shadowProtocol);
 
         const lsmLearning = new LsmLearningService(this.sidecarManager, loggingService);
         await lsmLearning.init();
         this.registry.register("LsmLearning", lsmLearning, ShutdownPriority.AUXILIARY);
 
-        serviceLocator.register("protection", protection);
         this.registry.register("Anonymization", security.anonymization, ShutdownPriority.NETWORK);
         this.registry.register("ShadowProtocol", security.shadowProtocol, ShutdownPriority.AUXILIARY);
         this.registry.register("Behavioral", security.behavioral, ShutdownPriority.AUXILIARY);
@@ -637,8 +643,7 @@ export class SovereignApp {
 
         const morphing = factory.createService(health, "Morphing", () => {
             const service = new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh);
-            // @ts-ignore: Access private ffi for roadmap implementation
-            service.setFfi(this.sidecarManager.ffi);
+            service.setFfi(this.sidecarManager.getFfi());
             return service;
         });
         this.registry.register("Morphing", morphing, ShutdownPriority.AUXILIARY);
@@ -718,21 +723,11 @@ export class SovereignApp {
         };
 
         // Final registration of all remaining services into locator
-        serviceLocator.register("autopilot", autopilot);
-        serviceLocator.register("shadow", shadow);
-        serviceLocator.register("covert", covert);
-        serviceLocator.register("ledger", ledger);
-        serviceLocator.register("autonomousAutopilot", autonomousAutopilot);
-        serviceLocator.register("lifecycle", lifecycle);
-        serviceLocator.register("policy", policy);
-        serviceLocator.register("provisioning", provisioning);
-        serviceLocator.register("integrity", integrity);
-        serviceLocator.register("processTracker", processTracker);
-        const { serviceLocator } = await import("../core/service_locator.ts");
-        serviceLocator.register("behavioral", security.behavioral);
-        serviceLocator.register("honeypot", security.honeypot);
-        serviceLocator.register("shadowProtocol", security.shadowProtocol);
-        serviceLocator.register("lsmLearning", lsmLearning);
+        for (const [key, service] of Object.entries(services)) {
+            if (!serviceLocator.has(key)) {
+                serviceLocator.register(key as any, service);
+            }
+        }
 
         return services;
     }
@@ -765,7 +760,7 @@ export class SovereignApp {
                 severity: LogSeverity.SUCCESS,
                 caller: "orchestrator:app:sovereign_app",
                 message: "Orchestrator successfully hardened. 36 capabilities dropped from bounding set."
-            }).catch(() => {});
+            }).catch(err => console.error(`Background task failure: ${err}`));
         } catch (e) {
             this.loggingService.log({
                 timestamp: new Date().toISOString(),
@@ -773,7 +768,7 @@ export class SovereignApp {
                 severity: LogSeverity.ERROR,
                 caller: "orchestrator:app:sovereign_app",
                 message: `Hardening Failed: ${(e as Error).message}`
-            }).catch(() => {});
+            }).catch(err => console.error(`Background task failure: ${err}`));
         }
     }
 

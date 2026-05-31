@@ -1,5 +1,5 @@
 import { BaseService } from "@core/base_service.ts";
-import { FirewallPort } from "@core/ports.ts";
+import { FirewallPort, EventBusPort } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";
 
 import { AuditService } from "./audit.ts";
@@ -11,12 +11,17 @@ interface IpHistory {
   intervals: number[];
 }
 
+export interface SuspiciousIp {
+  ip: string;
+  attempts: number;
+  lastSeen: number;
+}
+
 export class BehavioralService extends BaseService {
   private history: BoundedMap<string, IpHistory> = new BoundedMap(1000);
   private metricsInterval?: number;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
-  private readonly MAX_IPS = 1000;
 
   constructor(private firewall: FirewallPort, private audit?: AuditService) {
     super();
@@ -36,12 +41,12 @@ export class BehavioralService extends BaseService {
       return ok(undefined);
   }
 
-  override setEventBus(eventBus: any) {
+  override setEventBus(eventBus: EventBusPort) {
       this.eventBus = eventBus;
-      if (this.eventBus) this.eventBus.on("HONEYPOT", (event: any) => {
-          if (event && event.source_ip) {
-              this.analyze(event.source_ip).catch(e => {
-                  console.error(`Behavioral analysis failed for ${event.source_ip}: ${e.message}`);
+      if (this.eventBus) this.eventBus.on("HONEYPOT", (event) => {
+          if (event && (event as any).source_ip) {
+              this.analyze((event as any).source_ip).catch(e => {
+                  console.error(`Behavioral analysis failed for ${(event as any).source_ip}: ${e.message}`);
               });
           }
       });
@@ -57,8 +62,8 @@ export class BehavioralService extends BaseService {
       });
   }
   
-  getSuspiciousIps(limit: number = 100) {
-    const result = [];
+  getSuspiciousIps(limit: number = 100): SuspiciousIp[] {
+    const result: SuspiciousIp[] = [];
     const iterator = this.history.entries();
 
     for (let i = 0; i < limit; i++) {
