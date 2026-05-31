@@ -18,6 +18,9 @@ export interface BroadcastData {
   subType?: string;
   message?: string;
   data?: unknown;
+  caller?: string;
+  fromEventBus?: boolean;
+  severity?: LogSeverity;
   [key: string]: unknown;
 }
 
@@ -54,8 +57,8 @@ export function broadcast(data: BroadcastData) {
   const fromEventBus = data.caller === "EVENTBUS" || data.fromEventBus;
 
   // Publish to central event bus (Phase 3: Trigger Forensic Automation)
-  if (data.type && !fromEventBus) {
-    eventBus.publish(data.type as EventName, data.message || "", data.data as never);
+  if (data.type && !fromEventBus && isEventName(data.type)) {
+    eventBus.publish(data.type, data.message || "", data.data as any);
   }
   const message = JSON.stringify(eventToBroadcast);
 
@@ -214,4 +217,12 @@ export function createWsHandler(role: string = "viewer") {
       }
     },
   };
+}
+
+function isEventName(type: string): type is EventName {
+  const { SystemEventRegistry } = { SystemEventRegistry: (globalThis as any).SystemEventRegistry };
+  // Note: Standardize this check if schema is exported.
+  // For now, using a simple check against known strings to avoid async issues in synchronous broadcast
+  const validEvents = ["INFO", "WARN", "BLOCK", "CRITICAL", "THREAT", "HONEYPOT", "METRIC_UPDATE", "UI_BROADCAST", "NETWORK_LOG", "AUDIT_EVENT"];
+  return validEvents.includes(type);
 }
