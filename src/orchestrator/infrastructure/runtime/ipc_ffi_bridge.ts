@@ -1,30 +1,39 @@
 import { LogType, LogSeverity, LoggingPort } from "@core/ports.ts";
 
 export class IpcFfiBridge {
-    private ffi: any;
+    private ffi: Deno.DynamicLibrary<typeof IpcFfiBridge.SYMBOLS> | null;
+
+    static readonly SYMBOLS = {
+        "hash_file_sha256": { parameters: ["buffer", "buffer"], result: "i32" },
+        "create_shmem": { parameters: ["buffer", "usize"], result: "pointer" },
+        "serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
+        "fast_serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
+        "deserialize_msgpack": { parameters: ["buffer", "usize"], result: "pointer" },
+        "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
+        "free_string": { parameters: ["pointer"], result: "void" },
+        "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" },
+        "shmem_write": { parameters: ["pointer", "buffer", "usize"], result: "bool" },
+        "fast_morph": { parameters: ["buffer", "usize", "buffer", "usize"], result: "void" }
+    } as const;
 
     constructor(private logging: LoggingPort) {
         this.ffi = this.loadFfi();
     }
 
-    private loadFfi() {
+    private loadFfi(): Deno.DynamicLibrary<typeof IpcFfiBridge.SYMBOLS> | null {
         try {
             const isLinux = Deno.build.os === "linux";
             const suffix = isLinux ? "so" : "dylib";
             const libPath = `./src/agents/target/release/libcts_sec.${suffix}`;
-            return Deno.dlopen(libPath, {
-                "hash_file_sha256": { parameters: ["buffer", "buffer"], result: "i32" },
-                "create_shmem": { parameters: ["buffer", "usize"], result: "pointer" },
-                "serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
-                "fast_serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
-                "deserialize_msgpack": { parameters: ["buffer", "usize"], result: "pointer" },
-                "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
-                "free_string": { parameters: ["pointer"], result: "void" },
-                "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" },
-                "shmem_write": { parameters: ["pointer", "buffer", "usize"], result: "bool" },
-                "fast_morph": { parameters: ["buffer", "usize", "buffer", "usize"], result: "void" }
-            });
-        } catch {
+            return Deno.dlopen(libPath, IpcFfiBridge.SYMBOLS);
+        } catch (e) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.DEBUG,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:infra:runtime:ipc_ffi_bridge",
+                message: `Native FFI (libcts_sec) unavailable: ${(e as Error).message}`
+            }).catch(() => {});
             return null;
         }
     }
