@@ -46,6 +46,8 @@ export class SystemExecutor implements ExecutorPort {
 
   private static readonly PROVISIONING_REGEX = /^(chmod 600 \/etc\/cts\.env && export \$\(grep -v '\^#' \/etc\/cts\.env \| xargs -d (['"])\\n\1\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts\.log 2>&1 &)$/;
 
+  private static readonly GENERIC_ARG_REGEX = /^[a-zA-Z0-9.\/_ \-+@\[\]:=*]+$/;
+
   private static readonly SSH_SCHEMA = z.array(z.string()).max(10).superRefine((args, ctx) => {
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
@@ -57,18 +59,15 @@ export class SystemExecutor implements ExecutorPort {
             i++;
             continue;
         }
-        // Block all other flags starting with - (e.g. -F, -E, -S, -i) to prevent config bypass or log hijacking
         if (arg.startsWith("-") && arg !== "-o") {
             ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized flag: ${arg}` });
             continue;
         }
 
-        // Support standard hostnames, IPv4, and IPv6 (bracketed)
         if (/^[a-z0-9/._-]+$/.test(arg)) continue;
         if (/^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])$/.test(arg)) continue;
         if (/^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/.test(arg)) continue;
 
-        // SOV-06: Permit ProvisioningService lateral movement command sequence
         if (arg.includes("chmod 600 /etc/cts.env") && arg.includes("counter-terrorist") && arg.includes("xargs")) {
             if (SystemExecutor.PROVISIONING_REGEX.test(arg)) continue;
         }
@@ -93,10 +92,8 @@ export class SystemExecutor implements ExecutorPort {
             continue;
         }
 
-        // Local path or remote host
         if (/^[a-z0-9/._-]+$/.test(arg)) continue;
         if (/^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])(:.*)?$/.test(arg)) {
-            // Remote path part check for shell metacharacters
             if (arg.includes(":") && /[;&|><`$()!]/.test(arg.split(":")[1])) {
                  ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Security Violation: Shell metacharacters in remote path" });
             }
@@ -104,6 +101,112 @@ export class SystemExecutor implements ExecutorPort {
         }
         ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized argument: ${arg}` });
     }
+  });
+
+  private static readonly PFCTL_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9.:_-]+$/)).max(6).superRefine((args, ctx) => {
+    const validFlags = /^(-t|-T|-s|-e|-F)$/;
+    const validActions = /^(add|delete|info|all)$/;
+    for (const arg of args) {
+        if (!validFlags.test(arg) && !validActions.test(arg) && !/^[a-z_]+$/.test(arg) && !/^[0-9a-fA-F.:]+$/.test(arg)) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized pfctl argument: ${arg}` });
+        }
+    }
+  });
+
+  private static readonly LAUNCHCTL_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9.\/_-]+$/)).max(2).superRefine((args, ctx) => {
+      if (args.length > 0 && !/^(list|load|unload|start|stop)$/.test(args[0])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid launchctl action" });
+      }
+  });
+
+  private static readonly SPCTL_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9.\/_-]+$/)).max(2).superRefine((args, ctx) => {
+      if (args.length > 0 && args[0] !== "--assess") {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Only --assess allowed for spctl" });
+      }
+  });
+
+  private static readonly PS_SCHEMA = z.array(z.string().regex(/^[0-9,a-z\-]+$/)).max(4).superRefine((args, ctx) => {
+      for (const arg of args) {
+          if (arg.startsWith("-") && !/^(-p|-ax|-o)$/.test(arg)) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized ps flag: ${arg}` });
+          }
+      }
+  });
+
+  private static readonly PKTMON_SCHEMA = z.array(z.string()).max(4).superRefine((args, ctx) => {
+      for (const arg of args) {
+          if (!/^(start|stop|--etw|-p)$/.test(arg) && !/^\.\/volume\/.*\.pcap$/.test(arg)) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized pktmon argument: ${arg}` });
+          }
+      }
+  });
+
+  private static readonly NETSH_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9\-\.\/_=:]+$/)).max(10).superRefine((args, ctx) => {
+      const validActions = /^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/;
+      if (args.length > 0 && !validActions.test(args[0])) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized netsh action: ${args[0]}` });
+      }
+  });
+
+  private static readonly KILL_SCHEMA = z.array(z.string().regex(/^-?[0-9]+$/)).max(2);
+
+  private static readonly TCPDUMP_SCHEMA = z.array(z.string()).max(8).superRefine((args, ctx) => {
+      for (let i = 0; i < args.length; i++) {
+          const arg = args[i];
+          if (arg === "-i" && !/^[a-z0-9]+$/.test(args[i+1] || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid interface" });
+          if (arg === "-w" && !/^\.\/volume\/storage\/captures\/[a-zA-Z0-9._-]+\.pcap$/.test(args[i+1] || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid output file" });
+          if (arg === "-G" && !/^[0-9]+$/.test(args[i+1] || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid interval" });
+          if (arg === "-W" && args[i+1] !== "1") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid rotation count" });
+      }
+  });
+
+  private static readonly CLAMSCAN_SCHEMA = z.array(z.string()).max(5).superRefine((args, ctx) => {
+      for (const arg of args) {
+          if (arg.startsWith("-") && !/^(-r|--quiet|--no-summary)$/.test(arg)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized clamscan flag: ${arg}` });
+          if (!arg.startsWith("-") && !validatePath(arg, SystemExecutor.SYSTEM_JAILS)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized path: ${arg}` });
+      }
+  });
+
+  private static readonly CRONTAB_SCHEMA = z.array(z.string()).max(3).superRefine((args, ctx) => {
+      for (let i = 0; i < args.length; i++) {
+          if (args[i] === "-u" && !/^[a-z0-9-]+$/.test(args[i+1] || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid user" });
+          if (args[i].startsWith("-") && !/^(-l|-u)$/.test(args[i])) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized flag: ${args[i]}` });
+      }
+  });
+
+  private static readonly TC_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9\.:\/_-]+$/)).max(20);
+
+  private static readonly WG_QUICK_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
+      if (args.length > 0 && !/^(up|down)$/.test(args[0])) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid action" });
+      if (args.length > 1 && !/^(all|[a-z0-9]+)$/.test(args[1])) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid interface" });
+  });
+
+  private static readonly WG_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9+/=._-]+$/)).max(10);
+
+  private static readonly SS_SCHEMA = z.array(z.string()).max(2).superRefine((args, ctx) => {
+      for (const arg of args) {
+          if (!/^(-?[tulnpaH]+|sport = :[0-9]+)$/.test(arg)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Unauthorized ss argument: ${arg}` });
+      }
+  });
+
+  private static readonly IPTABLES_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9\.\+\-_:\/]+$/)).max(20);
+
+  private static readonly TPM2_SIGN_SCHEMA = z.array(z.string()).max(10).superRefine((args, ctx) => {
+      for (let i = 0; i < args.length; i++) {
+          if (args[i] === "-c" && !/^0x[0-9a-fx]+$/.test(args[i+1] || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid handle" });
+          if (args[i] === "-g" && !/^(sha256|sha384)$/.test(args[i+1] || "")) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid algorithm" });
+      }
+  });
+
+  private static readonly IP_SCHEMA = z.array(z.string().regex(/^[a-zA-Z0-9\._\-:\/]+$/)).max(10);
+
+  private static readonly SYSCTL_SCHEMA = z.array(z.string().regex(/^[a-z0-9._-]+(=[0-9]+)?$/)).max(2).superRefine((args, ctx) => {
+      if (args.length > 0 && !/^(-w|-n)$/.test(args[0]) && !args[0].includes("=")) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid sysctl argument" });
+  });
+
+  private static readonly OPENSSL_SCHEMA = z.array(z.string()).max(10).superRefine((args, ctx) => {
+      const validActions = /^(dgst|genrsa|rsa|req|x509)$/;
+      if (args.length > 0 && !validActions.test(args[0])) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid openssl action" });
   });
 
   private static readonly UFW_SCHEMA = z.array(z.string().regex(/^[0-9a-zA-Z./-]+$/)).max(5).superRefine((args, ctx) => {
@@ -257,272 +360,81 @@ export class SystemExecutor implements ExecutorPort {
   });
 
   /**
-   * Granular policies for sensitive commands.
+   * Exhaustive Zod schemas for whitelisted commands.
    */
   private static readonly COMMAND_POLICIES: Record<string, CommandPolicy> = {
-    "pfctl": {
-        allowedArgs: [/^(-t|-T|-s|-e|-F)$/, /^[a-z_]+$/, /^(add|delete|info|all)$/, /^[0-9a-fA-F.:]+$/],
-        maxArgs: 6
-    },
-    "launchctl": {
-        // SEC-02 Hardening: Tightened regex to exclude spaces and common shell characters
-        allowedArgs: [/^(list|load|unload|start|stop)$/, /^[a-zA-Z0-9\.\/_-]+$/],
-        maxArgs: 2
-    },
-    "spctl": {
-        // SEC-02 Hardening: Tightened regex to exclude spaces
-        allowedArgs: [/^--assess$/, /^[a-zA-Z0-9.\/_-]+$/],
-        maxArgs: 2
-    },
-    "ps": {
-        // SOV-06: Strictly allow only targeted process status queries and safe output columns
-        allowedArgs: [/^(-p|-ax|-o)$/, /^[0-9,a-z]+$/],
-        maxArgs: 4
-    },
-    "killall": {
-        allowedArgs: [/^[a-z0-9-]+$/],
-        maxArgs: 1
-    },
-    "ifconfig": {
-        allowedArgs: [/^[a-z0-9]+$/],
-        maxArgs: 1
-    },
-    "pktmon": {
-        allowedArgs: [/^(start|stop)$/, /^--etw$/, /^-p$/, /^\.\/volume\/.*\.pcap$/],
-        maxArgs: 4
-    },
+    "pfctl": { schema: SystemExecutor.PFCTL_SCHEMA },
+    "launchctl": { schema: SystemExecutor.LAUNCHCTL_SCHEMA },
+    "spctl": { schema: SystemExecutor.SPCTL_SCHEMA },
+    "ps": { schema: SystemExecutor.PS_SCHEMA },
+    "killall": { schema: z.array(z.string().regex(/^[a-z0-9-]+$/)).max(1) },
+    "ifconfig": { schema: z.array(z.string().regex(/^[a-z0-9]+$/)).max(1) },
+    "pktmon": { schema: SystemExecutor.PKTMON_SCHEMA },
     "powershell": {
         schema: SystemExecutor.POWERSHELL_SCHEMA,
-        // SOV-02 FIX: Strictly disallow shell metacharacters in PowerShell parameters
-        // Prevents chaining (&, |) and redirection (>, <)
-        allowedArgs: [/^(-Command|-EncodedCommand)$/, /^[a-zA-Z0-9\s\-\.\/_=:'"]+$/],
-        blockedStrings: ["&", "|", ";", ">", "<", "`", "$", "(", ")", "{", "}", "[", "]", "$("],
-        maxArgs: 2
+        blockedStrings: ["&", "|", ";", ">", "<", "`", "$", "(", ")", "{", "}", "[", "]", "$("]
     },
-    "netsh": {
-        allowedArgs: [/^(advfirewall|firewall|show|set|add|delete|rule|allprofiles|state)$/, /^[a-zA-Z0-9\-\.\/_=:]+$/],
-        maxArgs: 10
-    },
-    "taskkill": {
-        allowedArgs: [/^\/F$/, /^\/PID$/, /^[0-9]+$/],
-        maxArgs: 3
-    },
-    "systemctl": {
-      schema: SystemExecutor.SYSTEMCTL_SCHEMA,
-      allowedArgs: [/^(start|stop|restart|status|is-active)$/, /^(cts-.*|ufw|wireguard.*|clamav.*)$/],
-      maxArgs: 2
-    },
-    "ufw": {
-      schema: SystemExecutor.UFW_SCHEMA,
-      allowedArgs: [/^(status|enable|disable|allow|deny|delete|default|reload|reset)$/, /^[0-9a-zA-Z./]+$/],
-      maxArgs: 5
-    },
-    "kill": {
-      allowedArgs: [/^-?[0-9]+$/, /^[0-9]+$/],
-      maxArgs: 2
-    },
-    "chmod": {
-      schema: SystemExecutor.CHMOD_SCHEMA,
-      allowedArgs: [/^[0-7]{3,4}$/, /^(\.\/volume\/.*|\/etc\/systemd\/system\/cts-.*)$/],
-      maxArgs: 2
-    },
-    "mkdir": {
-      schema: SystemExecutor.MKDIR_SCHEMA,
-      allowedArgs: [/^-p$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
-      maxArgs: 2
-    },
-    "tcpdump": {
-      allowedArgs: [/^-i$/, /^[a-z0-9]+$/, /^-w$/, /^\.\/volume\/storage\/captures\/[a-zA-Z0-9._-]+\.pcap$/, /^-G$/, /^[0-9]+$/, /^-W$/, /^1$/],
-      maxArgs: 8
-    },
-    "ls": {
-      schema: SystemExecutor.LS_SCHEMA,
-      allowedArgs: [/^-la?$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
-      maxArgs: 2
-    },
-    "cp": {
-      schema: SystemExecutor.CP_SCHEMA,
-      allowedArgs: [/^--reflink=(always|auto|never)$/, /^-p$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
-      maxArgs: 3
-    },
-    "mv": {
-      schema: SystemExecutor.MV_SCHEMA,
-      allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*|\/etc\/systemd\/system\/cts-.*)$/],
-      maxArgs: 2
-    },
-    "sw_vers": {
-      allowedArgs: [/^-productVersion$/],
-      maxArgs: 1
-    },
-    "which": {
-      allowedArgs: [/^[a-z0-9-]+$/],
-      maxArgs: 1
-    },
-    "clamscan": {
-        allowedArgs: [/^(-r|--quiet|--no-summary)$/, /^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
-        maxArgs: 5
-    },
-    "sha256sum": {
-        schema: SystemExecutor.SHA256SUM_SCHEMA,
-        allowedArgs: [/^(\.\/volume\/.*|\/var\/lib\/cts\/.*)$/],
-        maxArgs: 1
-    },
-    "crontab": {
-        allowedArgs: [/^-l$/, /^-u$/, /^[a-z0-9-]+$/],
-        maxArgs: 3
-    },
-    "where": {
-        allowedArgs: [/^[a-z0-9-]+$/],
-        maxArgs: 1
-    },
-    "tc": {
-        allowedArgs: [/^(qdisc|class|filter|add|delete|dev|root|handle|parent|classid|htb|rate|ceil|prio|u32|match|ip|src|flowid|default)$/, /^[a-zA-Z0-9\.:\/_-]+$/, /^[0-9]+(kbps|mbps|gbps|ms|s)$/],
-        maxArgs: 20
-    },
-    "gcore": {
-        allowedArgs: [/^-o$/, /^(\.\/volume\/.*)$/, /^[0-9]+$/],
-        maxArgs: 3
-    },
-    "tpm2_nvdefine": {
-        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-s$/, /^[0-9]+$/],
-        maxArgs: 3
-    },
-    "tpm2_nvwrite": {
-        allowedArgs: [/^0x[0-9a-fA-F]+$/, /^-i$/, /^[a-zA-Z0-9.\/_=+\-]+$/],
-        maxArgs: 3
-    },
-    "tpm2_nvread": {
-        allowedArgs: [/^0x[0-9a-fA-F]+$/],
-        maxArgs: 1
-    },
-    "tpm2_pcrread": {
-        allowedArgs: [/^sha256:[0-9,]+$/],
-        maxArgs: 1
-    },
-    "wg-quick": {
-        allowedArgs: [/^(up|down)$/, /^(all|[a-z0-9]+)$/],
-        maxArgs: 2
-    },
-    "wg": {
-        allowedArgs: [/^(show|set|genkey|pubkey)$/, /^[a-z0-9]+$/, /^[A-Za-z0-9+/=]+$/],
-        maxArgs: 10
-    },
-    "system_profiler": {
-        allowedArgs: [/^[A-Z][a-zA-Z0-9]+DataType$/],
-        maxArgs: 5
-    },
-    "ss": {
-        // SOV-06: Limit ss to socket monitoring and local port verification
-        allowedArgs: [/^(-?[tulnpaH]+|sport = :[0-9]+)$/],
-        maxArgs: 2
-    },
-    "unshare": {
-        allowedArgs: [/^--[a-z]+$/, /^[a-z0-9/._-]+$/],
-        maxArgs: 10
-    },
-    "iptables": {
-        allowedArgs: [/^(-A|-D|-I|-L|-F|-X|-P|-N|--append|--delete|--insert|--list|--flush|--new-chain|--policy)$/, /^[A-Z]+$/, /^[a-zA-Z0-9\.\+\-_]+$/, /^-p$/, /^(tcp|udp|icmp)$/, /^--dport$/, /^[0-9]+$/, /^-j$/, /^(ACCEPT|DROP|REJECT|LOG)$/, /^[0-9a-fA-F\.:\/]+$/],
-        maxArgs: 20
-    },
-    "tpm2_sign": {
-        allowedArgs: [/^-c$/, /^[0-9a-fx]+$/, /^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
-        maxArgs: 10
-    },
-    "tpm2_hash": {
-        allowedArgs: [/^-g$/, /^(sha256|sha384)$/, /^-o$/, /^[a-z0-9/._-]+$/],
-        maxArgs: 10
-    },
-    "rkhunter": {
-        allowedArgs: [/^--check$/, /^--sk$/, /^--nocolor$/, /^--report-warnings-only$/],
-        maxArgs: 5
-    },
-    "security": {
-        allowedArgs: [/^(cms|find-identity|unlock-keychain)$/, /^-?[a-zA-Z]+$/, /^[a-zA-Z0-9/._-]+$/],
-        maxArgs: 10
-    },
-    "ip": {
-        allowedArgs: [/^(addr|link|route|neigh|show|dev|default|add|del|list)$/, /^[a-zA-Z0-9\._\-]+$/, /^[0-9a-fA-F\.:\/]+$/],
-        maxArgs: 10
-    },
-    "sysctl": {
-        allowedArgs: [/^(-w|-n)$/, /^[a-z0-9._-]+(=[0-9]+)?$/],
-        maxArgs: 2
-    },
-    "nmcli": {
-        allowedArgs: [/^(-t|-f)$/, /^[A-Z,]+$/, /^(dev|wifi|list)$/],
-        maxArgs: 10
-    },
-    "ping": {
-        allowedArgs: [/^-c$/, /^[0-9]+$/, /^-W$/, /^[0-9]+$/, /^-p$/, /^[0-9a-fA-F]+$/, /^[a-z0-9.-]+$/, /^[0-9a-fA-F.:]+$/],
-        maxArgs: 10
-    },
-    "host": {
-        allowedArgs: [/^-t$/, /^(A|AAAA|TXT|MX)$/, /^[a-zA-Z0-9.-]+$/],
-        maxArgs: 3
-    },
-    "scp": {
-        schema: SystemExecutor.SCP_SCHEMA,
-        // SOV-06: Support IPv6 and remote paths in SCP
-        allowedArgs: [/^-o$/, /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/, /^[a-z0-9/._-]+$/, /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])(:.*)?$/],
-        maxArgs: 10
-    },
+    "netsh": { schema: SystemExecutor.NETSH_SCHEMA },
+    "taskkill": { schema: z.array(z.string().regex(/^(\/F|\/PID|[0-9]+)$/)).max(3) },
+    "systemctl": { schema: SystemExecutor.SYSTEMCTL_SCHEMA },
+    "ufw": { schema: SystemExecutor.UFW_SCHEMA },
+    "kill": { schema: SystemExecutor.KILL_SCHEMA },
+    "chmod": { schema: SystemExecutor.CHMOD_SCHEMA },
+    "mkdir": { schema: SystemExecutor.MKDIR_SCHEMA },
+    "tcpdump": { schema: SystemExecutor.TCPDUMP_SCHEMA },
+    "ls": { schema: SystemExecutor.LS_SCHEMA },
+    "cp": { schema: SystemExecutor.CP_SCHEMA },
+    "mv": { schema: SystemExecutor.MV_SCHEMA },
+    "sw_vers": { schema: z.array(z.string().regex(/^-productVersion$/)).max(1) },
+    "which": { schema: z.array(z.string().regex(/^[a-z0-9-]+$/)).max(1) },
+    "clamscan": { schema: SystemExecutor.CLAMSCAN_SCHEMA },
+    "sha256sum": { schema: SystemExecutor.SHA256SUM_SCHEMA },
+    "crontab": { schema: SystemExecutor.CRONTAB_SCHEMA },
+    "where": { schema: z.array(z.string().regex(/^[a-z0-9-]+$/)).max(1) },
+    "tc": { schema: SystemExecutor.TC_SCHEMA },
+    "gcore": { schema: z.array(z.string()).max(3).superRefine((args, ctx) => {
+        if (args.length > 0 && args[0] !== "-o") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid gcore flag" });
+    }) },
+    "tpm2_nvdefine": { schema: z.array(z.string().regex(/^(0x[0-9a-fA-F]+|-s|[0-9]+)$/)).max(3) },
+    "tpm2_nvwrite": { schema: z.array(z.string().regex(/^(0x[0-9a-fA-F]+|-i|[a-zA-Z0-9.\/_=+\-]+)$/)).max(3) },
+    "tpm2_nvread": { schema: z.array(z.string().regex(/^0x[0-9a-fA-F]+$/)).max(1) },
+    "tpm2_pcrread": { schema: z.array(z.string().regex(/^sha256:[0-9,]+$/)).max(1) },
+    "wg-quick": { schema: SystemExecutor.WG_QUICK_SCHEMA },
+    "wg": { schema: SystemExecutor.WG_SCHEMA },
+    "system_profiler": { schema: z.array(z.string().regex(/^[A-Z][a-zA-Z0-9]+DataType$/)).max(5) },
+    "ss": { schema: SystemExecutor.SS_SCHEMA },
+    "unshare": { schema: z.array(z.string().regex(/^(--[a-z]+|[a-z0-9/._-]+)$/)).max(10) },
+    "iptables": { schema: SystemExecutor.IPTABLES_SCHEMA },
+    "tpm2_sign": { schema: SystemExecutor.TPM2_SIGN_SCHEMA },
+    "tpm2_hash": { schema: z.array(z.string().regex(/^(-g|sha256|sha384|-o|[a-z0-9/._-]+)$/)).max(10) },
+    "rkhunter": { schema: z.array(z.string().regex(/^(--check|--sk|--nocolor|--report-warnings-only)$/)).max(5) },
+    "security": { schema: z.array(z.string().regex(/^(cms|find-identity|unlock-keychain|-?[a-zA-Z]+|[a-z0-9/._-]+)$/i)).max(10) },
+    "ip": { schema: SystemExecutor.IP_SCHEMA },
+    "sysctl": { schema: SystemExecutor.SYSCTL_SCHEMA },
+    "nmcli": { schema: z.array(z.string().regex(/^(-t|-f|[A-Z,]+|dev|wifi|list)$/)).max(10) },
+    "ping": { schema: z.array(z.string().regex(/^(-c|[0-9]+|-W|-p|[0-9a-fA-F]+|[a-z0-9.-]+|[0-9a-fA-F.:]+)$/)).max(10) },
+    "host": { schema: z.array(z.string().regex(/^(-t|A|AAAA|TXT|MX|[a-z0-9.-]+)$/i)).max(3) },
+    "scp": { schema: SystemExecutor.SCP_SCHEMA },
     "ssh": {
         schema: SystemExecutor.SSH_SCHEMA,
-        // SOV-02 FIX: Disallow complex shell chaining and redirection in SSH commands
-        allowedArgs: [
-            /^-o$/,
-            /^(StrictHostKeyChecking=(yes|no|accept-new)|UserKnownHostsFile=[a-z0-9/._-]+)$/,
-            /^[a-z0-9/._-]+$/, // RESTORED '-': Allows hyphens in hostnames and paths
-            /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\])$/, // SOV-06 FIX: Support bracketed IPv6 in allowedArgs
-            /^(deno task start|sudo systemctl (status|start|stop|restart) (cts-.*|ufw|wireguard.*|clamav.*))$/,
-            SystemExecutor.PROVISIONING_REGEX
-        ],
-        // Tightened via blocklist instead of removing '-' from allowedArgs regex to avoid breaking hostnames
-        blockedStrings: ["&&", "||", "|", ";", ">", "<", "`", "$", "(", ")", "!", "-F", "-E", "-S", "-i"],
-        maxArgs: 10
+        blockedStrings: ["&&", "||", "|", ";", ">", "<", "`", "$", "(", ")", "!", "-F", "-E", "-S", "-i"]
     },
-    "/var/lib/cts/scripts/install_service.sh": {
-      allowedArgs: [/^\/etc\/systemd\/system\/cts-?.*\.service$/, /^[a-zA-Z0-9.\/_ \-]+$/],
-      maxArgs: 2
-    },
-    "/var/lib/cts/scripts/update_crontab.sh": {
-      allowedArgs: [/^[a-zA-Z0-9.\/_ \-\*]+$/],
-      maxArgs: 1
-    },
-    "/var/lib/cts/scripts/update_comm.sh": {
-      allowedArgs: [/^\[[a-z0-9/:]+\]$/, /^[0-9]+$/],
-      maxArgs: 2
-    },
-    "/var/lib/cts/scripts/secure_spawn.sh": {
-      allowedArgs: [/^[a-z0-9-]+$/, /^[a-zA-Z0-9./_-]+$/, /^[a-z0-9,._+]*$/],
-      maxArgs: 3
-    },
-    "openssl": {
-      allowedArgs: [/^(dgst|genrsa|rsa|req|x509)$/, /^-sha256$/, /^(-sign|-r)$/, /^-out$/, /^[a-zA-Z0-9./_-]+(\.(bin|pem|crt|key|csr|pub|sig))?$/],
-      maxArgs: 10
-    },
-    "analyzer": {
-        schema: SystemExecutor.ANALYZER_SCHEMA,
-        maxArgs: 10
-    },
-    "enforcer": { maxArgs: 10 },
-    "decoy": { maxArgs: 10 },
-    "netcap": { maxArgs: 10 },
-    "ebpf": {
-      // SEC-02 Hardening: Tightened JSON-like regex to avoid broad wildcards
-      allowedArgs: [/^\{"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID|KillProcess|QuarantineProcess|DumpProcess)"(,"[^"]+":[^,{}]+)*\}$/],
-      maxArgs: 1
-    },
-    "sentinel": { 
-      schema: SystemExecutor.SENTINEL_SCHEMA,
-      allowedArgs: [/^\{"type":\s*"(BLOCK_IP|UNBLOCK_IP|SHADOW_BAN|HIDE_PID|GET_STATUS|ALLOW_PORT|DENY_PORT|FLUSH_RULES|LOCKDOWN|SHUTDOWN|TRUST_COMM|BLOCK_SYSCALL|LSM_POLICY|ENFORCE_PID|UNENFORCE_PID|KillProcess|QuarantineProcess|DumpProcess)"(,"[^"]+":[^,{}]+)*\}$/],
-      maxArgs: 1 
-    },
-    "watchfile": { maxArgs: 10 },
-    "tunnel": { maxArgs: 10 },
-    "sentinel-darwin": { maxArgs: 10 },
-    "telemetry-win": { maxArgs: 10 },
-    "enforcer-win": { maxArgs: 10 }
+    "/var/lib/cts/scripts/install_service.sh": { schema: z.array(z.string().regex(/^(\/etc\/systemd\/system\/cts-?.*\.service|[a-zA-Z0-9.\/_ \-]+)$/)).max(2) },
+    "/var/lib/cts/scripts/update_crontab.sh": { schema: z.array(z.string().regex(/^[a-zA-Z0-9.\/_ \-\*]+$/)).max(1) },
+    "/var/lib/cts/scripts/update_comm.sh": { schema: z.array(z.string().regex(/^(\[[a-z0-9/:]+\]|[0-9]+)$/)).max(2) },
+    "/var/lib/cts/scripts/secure_spawn.sh": { schema: z.array(z.string().regex(/^[a-z0-9,._+\-/]+$/)).max(4) },
+    "openssl": { schema: SystemExecutor.OPENSSL_SCHEMA },
+    "analyzer": { schema: SystemExecutor.ANALYZER_SCHEMA },
+    "enforcer": { schema: z.array(z.string()).max(10) },
+    "decoy": { schema: z.array(z.string()).max(10) },
+    "netcap": { schema: z.array(z.string()).max(10) },
+    "ebpf": { schema: SystemExecutor.SENTINEL_SCHEMA },
+    "sentinel": { schema: SystemExecutor.SENTINEL_SCHEMA },
+    "watchfile": { schema: z.array(z.string()).max(10) },
+    "tunnel": { schema: z.array(z.string()).max(10) },
+    "sentinel-darwin": { schema: z.array(z.string()).max(10) },
+    "telemetry-win": { schema: z.array(z.string()).max(10) },
+    "enforcer-win": { schema: z.array(z.string()).max(10) }
   };
 
 
@@ -546,82 +458,28 @@ export class SystemExecutor implements ExecutorPort {
     const baseCmd = path.basename(cmd);
     const policy = SystemExecutor.COMMAND_POLICIES[cmd] || SystemExecutor.COMMAND_POLICIES[baseCmd];
 
-    // 1. Policy Existence Check
-    if (!policy) {
-      return { valid: false, reason: `No security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
+    if (!policy || !policy.schema) {
+      return { valid: false, reason: `No exhaustive Zod security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
     }
 
-    // SEC-02 Framework-level hardening: Reject shell metacharacters before processing
-    // SOV-P3: Transition to context-aware validation. Skip global check if command is strictly validated by schema.
-    if (!policy.schema) {
-        for (const arg of args) {
-            if (/[;&|><`$!]/.test(arg)) {
-                // Exceptions for JSON payloads which might contain some of these in a controlled way.
-                // We strictly reject shell-sensitive characters: ;, &, |, $, `, <, >, !
-                if (/[;&|><`$!]/.test(arg)) {
-                    // If it's a sentinel/ebpf JSON, we might allow it if it passes schema,
-                    // but let's be strict first.
-                    if (!((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
-                        return { valid: false, reason: `Security Violation: Shell metacharacter detected in command arguments.` };
-                    }
-                }
-            }
-        }
+    const result = policy.schema.safeParse(args);
+    if (!result.success) {
+        return {
+            valid: false,
+            reason: `Structured validation failed for '${baseCmd}': ${result.error.issues.map(e => e.message).join(", ")}`
+        };
     }
 
-    // 2. Structured Schema Validation (Priority)
-    if (policy.schema) {
-        const result = policy.schema.safeParse(args);
-        if (!result.success) {
-            return {
-                valid: false,
-                reason: `Structured validation failed for '${baseCmd}': ${result.error.issues.map(e => e.message).join(", ")}`
-            };
-        }
-    }
-
-    // 3. Argument Length Check
-    if (policy.maxArgs !== undefined && args.length > policy.maxArgs) {
-      return { valid: false, reason: `Too many arguments for '${baseCmd}' (max: ${policy.maxArgs})` };
-    }
-
-    // 4. Command Context
     const isPathSensitive = SystemExecutor.PATH_SENSITIVE_COMMANDS.includes(baseCmd) ||
                             SystemExecutor.PATH_SENSITIVE_COMMANDS.includes(cmd);
 
-    // 5. Individual Argument Validation
-    for (let i = 0; i < args.length; i++) {
-        const arg = args[i];
-
-        // A. Pattern Matching (Regex Whitelist)
-        if (policy.allowedArgs) {
-            const matchesAny = policy.allowedArgs.some(pattern => pattern.test(arg));
-            if (!matchesAny) {
-                return { valid: false, reason: `Argument '${arg}' at index ${i} is not allowed for '${baseCmd}' (no matching pattern)` };
-            }
-        }
-
-        // B. Structured Content Validation (Jail Enforcement)
+    for (const arg of args) {
         if (isPathSensitive) {
             const validation = this.validateSensitiveArgument(arg, baseCmd);
             if (!validation.valid) return validation;
         }
 
-        // SOV-06: If a command uses structured schema validation (SSH, SENTINEL, POWERSHELL, etc),
-        // we skip the generic 'dangerous' check for whitelisted arguments to allow complex legitimate commands.
-        const isPatternWhitelisted = policy.allowedArgs && policy.allowedArgs.some(p => p.test(arg));
-
-        if (!isPatternWhitelisted && this.isPotentiallyDangerous(arg)) {
-            // Fallback traversal check for all commands (even non-sensitive ones)
-            if (!validatePath(arg)) {
-                return { valid: false, reason: `Security Violation: Path traversal or prefix bypass detected in argument '${arg}'` };
-            }
-        }
-
-        // C. Blocklist Check
-        // SOV-P3: Explicit enforcement of blocked strings
-        // Skip check if the argument matched a specific whitelisted pattern (e.g. provisioning script)
-        if (!isPatternWhitelisted && policy.blockedStrings) {
+        if (policy.blockedStrings) {
             for (const blocked of policy.blockedStrings) {
                 if (arg.includes(blocked)) {
                     return {
@@ -629,6 +487,12 @@ export class SystemExecutor implements ExecutorPort {
                         reason: `Security Violation: Argument '${arg}' contains blocked sequence: '${blocked}'`
                     };
                 }
+            }
+        }
+
+        if (!((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
+            if (/[;&|><`$!]/.test(arg)) {
+                return { valid: false, reason: `Security Violation: Shell metacharacter detected in command arguments.` };
             }
         }
     }
