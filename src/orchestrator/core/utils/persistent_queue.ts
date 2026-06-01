@@ -30,7 +30,7 @@ export class PersistentQueue<T> {
         this.isProcessing = true;
 
         try {
-            const iter = this.kv.list<any>({ prefix: ["queue", this.name] });
+            const iter = this.kv.list<{ item: T, attempts: number, timestamp: number }>({ prefix: ["queue", this.name] });
             for await (const entry of iter) {
                 const { item, attempts } = entry.value;
 

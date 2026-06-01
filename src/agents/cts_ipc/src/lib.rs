@@ -11,6 +11,12 @@ pub struct ShmemWrapper(pub Shmem);
 unsafe impl Send for ShmemWrapper {}
 unsafe impl Sync for ShmemWrapper {}
 
+impl Drop for ShmemWrapper {
+    fn drop(&mut self) {
+        info!("Dropping shared memory segment at {:?}", self.0.get_flink_path());
+    }
+}
+
 #[repr(C)]
 #[allow(dead_code)]
 struct RingBufferHeader {
@@ -47,6 +53,10 @@ impl IpcManager {
             }
         };
 
+        if shmem.is_none() {
+            return Self { shmem: None, cmd_shmem: None };
+        }
+
         let cmd_path = format!("/dev/shm/cts_cmd_{}_{}", sidecar_name, pid);
         let cmd_shmem = ShmemConf::new()
             .size(64 * 1024) // 64KB for commands
@@ -63,6 +73,10 @@ impl IpcManager {
                 None
             }
         };
+
+        if cmd_shmem.is_none() {
+            return Self { shmem: None, cmd_shmem: None };
+        }
 
         Self { shmem, cmd_shmem }
     }

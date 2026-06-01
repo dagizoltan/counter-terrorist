@@ -44,34 +44,40 @@ async fn main() {
 
     let mut stdin = BufReader::new(tokio::io::stdin()).lines();
     while let Ok(Some(line)) = stdin.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
-            match cmd {
-                Command::AddBlockRule { id, ip, .. } => {
-                    // MOCK: WFP FwpmFilterAdd0
-                    emit_response(Some(id), true, format!("WFP Block Rule Added: {}", ip), None).await;
-                },
-                Command::RemoveBlockRule { id, ip } => {
-                    emit_response(Some(id), true, format!("WFP Block Rule Removed: {}", ip), None).await;
-                },
-                Command::AddAllowRule { id, port, protocol } => {
-                    emit_response(Some(id), true, format!("WFP Allow Rule Added: {}:{}", protocol, port), None).await;
-                },
-                Command::RemoveAllowRule { id, port, protocol } => {
-                    emit_response(Some(id), true, format!("WFP Allow Rule Removed: {}:{}", protocol, port), None).await;
-                },
-                Command::ProtectDirectory { id, path } => {
-                    // MOCK: Minifilter Directory Protection
-                    emit_response(Some(id), true, format!("Minifilter Protection engaged for: {}", path), None).await;
-                },
-                Command::GetStatus { id } => {
-                    emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "WFP/Minifilter", "rules_active": 42}))).await;
-                },
-                Command::FlushRules { id } => {
-                    emit_response(Some(id), true, "All WFP rules flushed".to_string(), None).await;
-                },
-                Command::Shutdown => {
-                    std::process::exit(0);
-                }
+        let cmd: Command = match serde_json::from_str(line.trim()) {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = emit_response(None, false, format!("Failed to parse command: {}", e), None).await;
+                continue;
+            }
+        };
+
+        match cmd {
+            Command::AddBlockRule { id, ip, .. } => {
+                // MOCK: WFP FwpmFilterAdd0
+                emit_response(Some(id), true, format!("WFP Block Rule Added: {}", ip), None).await;
+            },
+            Command::RemoveBlockRule { id, ip } => {
+                emit_response(Some(id), true, format!("WFP Block Rule Removed: {}", ip), None).await;
+            },
+            Command::AddAllowRule { id, port, protocol } => {
+                emit_response(Some(id), true, format!("WFP Allow Rule Added: {}:{}", protocol, port), None).await;
+            },
+            Command::RemoveAllowRule { id, port, protocol } => {
+                emit_response(Some(id), true, format!("WFP Allow Rule Removed: {}:{}", protocol, port), None).await;
+            },
+            Command::ProtectDirectory { id, path } => {
+                // MOCK: Minifilter Directory Protection
+                emit_response(Some(id), true, format!("Minifilter Protection engaged for: {}", path), None).await;
+            },
+            Command::GetStatus { id } => {
+                emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "WFP/Minifilter", "rules_active": 42}))).await;
+            },
+            Command::FlushRules { id } => {
+                emit_response(Some(id), true, "All WFP rules flushed".to_string(), None).await;
+            },
+            Command::Shutdown => {
+                std::process::exit(0);
             }
         }
     }

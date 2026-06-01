@@ -152,6 +152,8 @@ async fn main() -> anyhow::Result<()> {
                 let line_bytes = buffer.split_to(pos + 1);
                 if let Ok(cmd_val) = serde_json::from_slice::<serde_json::Value>(&line_bytes[..pos]) {
                     handle_netcap_command(cmd_val, capture_handle.clone()).await;
+                } else {
+                    let _ = log_forensic("error", "Failed to parse JSON command line").await;
                 }
             } else {
                 break;

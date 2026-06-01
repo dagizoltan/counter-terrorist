@@ -742,17 +742,18 @@ export class AuditService extends BaseService {
         }
     }
 
-    async getChainStatus() {
+    async getChainStatus(): Promise<{ lastHash: string; count: number; lastVerifiedHash: string }> {
         const count = await this.repo.count();
         return { lastHash: this.lastHash, count, lastVerifiedHash: this.lastVerifiedHash };
     }
 
-    async verifyChainIncremental() {
-        if (this.lastHash === this.lastVerifiedHash) return;
+    async verifyChainIncremental(): Promise<Result<void>> {
+        if (this.lastHash === this.lastVerifiedHash) return ok(undefined);
         const res = await this.verifyChain(100);
 
         if (res.valid) {
             this.lastVerifiedHash = this.lastHash;
+            return ok(undefined);
         } else {
             // AUTOMATED INTEGRITY RESPONSE
             const brokenAt = res.brokenAt;
@@ -775,8 +776,7 @@ export class AuditService extends BaseService {
                 } as never);
             }
 
-            // In a high-assurance production environment, we should consider forcing an emergency lockdown
-            // However, we emit the CRITICAL event first to let the PolicyEngine/Autopilot decide on the specific remediation.
+            return err(new Error(message));
         }
     }
 

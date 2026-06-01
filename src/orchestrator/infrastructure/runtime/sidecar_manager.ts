@@ -37,7 +37,7 @@ export class SidecarManager implements CommandPort {
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
   private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
   private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
-  private eventHandlers: Map<string, ((data: unknown) => void)[]> = new Map();
+  private eventHandlers: Map<string, ((data: SidecarResponse) => void)[]> = new Map();
   private unsupportedSidecars: Set<string> = new Set();
   private trippedSidecars: Set<string> = new Set();
   private mappedShmem: Map<string, Deno.PointerValue> = new Map();
@@ -925,12 +925,12 @@ export class SidecarManager implements CommandPort {
     return Promise.race([responsePromise, timeoutPromise]);
   }
 
-  onEvent(name: string, handler: (data: unknown) => void) {
+  onEvent(name: string, handler: (data: SidecarResponse) => void) {
     if (!this.eventHandlers.has(name)) this.eventHandlers.set(name, []);
     this.eventHandlers.get(name)!.push(handler);
   }
 
-  emitEvent(name: string, data: unknown) {
+  emitEvent(name: string, data: SidecarResponse) {
     const handlers = this.eventHandlers.get(name);
     if (handlers) {
       for (const handler of handlers) handler(data);

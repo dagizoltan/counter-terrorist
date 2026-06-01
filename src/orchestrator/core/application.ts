@@ -90,11 +90,13 @@ export async function initializeApplication(deps: ApplicationDependencies) {
   };
 }
 
+import { AuditService } from "../domain/analysis/audit.ts";
+
 export async function createDashboardStatus(
   systemStatus: { os: string; isRoot: boolean; dependencies: Record<string, boolean> },
   platformPort: PlatformPort,
   pluginRegistry: PluginRegistryPort,
-  auditService?: any,
+  auditService?: AuditService,
 ) {
   const platform = await platformPort.getPlatformInfo();
   const auditVerification = auditService ? await auditService.verifyChain(100) : { valid: true };

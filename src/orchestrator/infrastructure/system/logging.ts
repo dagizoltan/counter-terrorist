@@ -272,8 +272,7 @@ export class LoggingService implements LoggingPort {
         const toFlush = [...this.kvBuffer];
         this.kvBuffer = [];
         try {
-            // TimelineRepository supports saveMany for atomic batching
-            await (this.diagnosticRepo as any).repo.saveMany(toFlush);
+            await this.diagnosticRepo.saveMany(toFlush);
         } catch {
             this.kvBuffer = [...toFlush, ...this.kvBuffer].slice(0, 1000);
         } finally {

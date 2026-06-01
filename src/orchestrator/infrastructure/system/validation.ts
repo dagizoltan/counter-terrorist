@@ -264,9 +264,9 @@ export interface SidecarResponse {
   message?: string;
   stdout?: string;
   stderr?: string;
-  data?: unknown;
+  data?: Record<string, any>;
   timestamp?: string;
-  [key: string]: unknown;
+  event?: string;
 }
 
 export interface ScannerResponse extends SidecarResponse {
@@ -297,9 +297,8 @@ export interface PcapResponse extends SidecarResponse {
 
 export interface SidecarEvent {
   type: string;
-  data: unknown;
+  data: Record<string, any>;
   timestamp: string;
-  [key: string]: unknown;
 }
 
 // Validation functions

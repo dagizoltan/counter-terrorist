@@ -310,176 +310,167 @@ async fn main() -> anyhow::Result<()> {
     while let Ok(Some(line)) = reader.next_line().await {
         let command: ScannerCommand = match serde_json::from_str(&line) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(e) => {
+                log_forensic("error", &format!("Failed to parse command: {}", e)).await;
+                continue;
+            }
         };
 
-        match command {
-            ScannerCommand::MemScan { id } => {
-                log_forensic("info", "Initiating global memory-forensic audit...").await;
-                sys.refresh_processes();
-                
-                let mut all_anomalies = Vec::new();
-                for pid in sys.processes().keys() {
-                    let pid_u32 = pid.as_u32();
-                    if pid_u32 > 1 {
-                        all_anomalies.extend(scan_process_memory(pid_u32));
-                    }
-                }
-
-                let result = ScanResponse {
-                    id,
-                    success: true,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message: Some("Memory scan complete".to_string()),
-                    threats_found: Some(!all_anomalies.is_empty()),
-                    memory_anomalies: if all_anomalies.is_empty() { None } else { Some(all_anomalies) },
-                    target: None,
-                };
-                
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            ScannerCommand::AttestKernel { id } => {
-                log_forensic("info", "Executing Kernel-Level Attestation task...").await;
-                // BUG-4.20 FIX: Implement the ATTEST_KERNEL command used by LifecycleService
-                // This command checks for kernel-level tampering (e.g. modified syscall table)
-
-                let result = ScanResponse {
-                    id,
-                    success: true,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message: Some("Kernel attestation complete. Integrity verified.".to_string()),
-                    threats_found: Some(false),
-                    memory_anomalies: None,
-                    target: None,
-                };
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            ScannerCommand::RkhScan { id } => {
-                log_forensic("info", "Initiating Rootkit Vulnerability Audit...").await;
-
-                // RKH_SCAN: Specialized check for hidden directories and malicious kernel modules
-                let mut anomalies = Vec::new();
-
-                // 1. Check for common hidden malicious directories
-                let hidden_paths = vec!["/dev/shm/.hidden", "/tmp/.X11-unix/.secret", "/usr/share/.font-unix/.hidden"];
-                for path in hidden_paths {
-                    if Path::new(path).exists() {
-                        anomalies.push(format!("Hidden directory detected: {}", path));
-                    }
-                }
-
-                // 2. Mock kernel module check
-                // In production, we'd use kmod or parse /proc/modules
-
-                let threats_found = !anomalies.is_empty();
-                let message = if threats_found {
-                    format!("Critical Rootkit Indicators Found: {}", anomalies.join(", "))
-                } else {
-                    "No rootkit signatures detected.".to_string()
-                };
-
-                let result = ScanResponse {
-                    id,
-                    success: true,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message: Some(message),
-                    threats_found: Some(threats_found),
-                    memory_anomalies: None,
-                    target: None,
-                };
-
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            ScannerCommand::ScanPath { id, path } => {
-                log_forensic("info", &format!("Starting filesystem audit for path: {}", path)).await;
-                let (success, message, threats_found) = perform_path_scan(&path).await;
-
-                let result = ScanResponse {
-                    id,
-                    success,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message: Some(message),
-                    threats_found: Some(threats_found),
-                    memory_anomalies: None,
-                    target: None,
-                };
-
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            ScannerCommand::Quarantine { id, path } => {
-                log_forensic("warning", &format!("Quarantining suspicious artifact: {}", path)).await;
-
-                let quarantine_dir = "./volume/quarantine";
-                fs::create_dir_all(quarantine_dir).ok();
-
-                let path_obj = Path::new(&path);
-                let filename = path_obj.file_name().unwrap_or_default();
-                let target_path = Path::new(quarantine_dir).join(filename);
-
-                let success = fs::rename(&path, &target_path).is_ok();
-
-                let result = ScanResponse {
-                    id,
-                    success,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message: Some(if success { format!("Moved to quarantine: {}", target_path.display()) } else { "Quarantine failed".to_string() }),
-                    threats_found: None,
-                    memory_anomalies: None,
-                    target: Some(target_path.to_string_lossy().to_string()),
-                };
-
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            ScannerCommand::SyncSignatures { id } => {
-                log_forensic("info", "Synchronizing tactical threat intelligence...").await;
-                let result = ScanResponse {
-                    id,
-                    success: true,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message: Some("Signatures synchronized with Global Hive.".to_string()),
-                    threats_found: None,
-                    memory_anomalies: None,
-                    target: None,
-                };
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            ScannerCommand::GetStatus { id } => {
-                let result = ScanResponse {
-                    id,
-                    success: true,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message: Some("Operational".to_string()),
-                    threats_found: None,
-                    memory_anomalies: None,
-                    target: None,
-                };
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
-            ScannerCommand::EnforceLandlock { id, rules } => {
-                let (success, message) = match cts_ipc::apply_granular_landlock(&rules) {
-                    Ok(_) => (true, Some("Granular Landlock policies applied".to_string())),
-                    Err(e) => (false, Some(format!("Landlock failed: {}", e))),
-                };
-                let result = ScanResponse {
-                    id,
-                    success,
-                    timestamp: Utc::now().to_rfc3339(),
-                    message,
-                    threats_found: None,
-                    memory_anomalies: None,
-                    target: None,
-                };
-                let _lock = STDOUT_LOCK.lock().await;
-                println!("{}", serde_json::to_string(&result).unwrap());
-            }
+        let result = handle_command(command, &mut sys).await;
+        let _lock = STDOUT_LOCK.lock().await;
+        if let Ok(json) = serde_json::to_string(&result) {
+            println!("{}", json);
         }
     }
     Ok(())
+}
+
+async fn handle_command(command: ScannerCommand, sys: &mut System) -> ScanResponse {
+    match command {
+        ScannerCommand::MemScan { id } => {
+            log_forensic("info", "Initiating global memory-forensic audit...").await;
+            sys.refresh_processes();
+
+            let mut all_anomalies = Vec::new();
+            for pid in sys.processes().keys() {
+                let pid_u32 = pid.as_u32();
+                if pid_u32 > 1 {
+                    all_anomalies.extend(scan_process_memory(pid_u32));
+                }
+            }
+
+            ScanResponse {
+                id,
+                success: true,
+                timestamp: Utc::now().to_rfc3339(),
+                message: Some("Memory scan complete".to_string()),
+                threats_found: Some(!all_anomalies.is_empty()),
+                memory_anomalies: if all_anomalies.is_empty() { None } else { Some(all_anomalies) },
+                target: None,
+            }
+        }
+        ScannerCommand::AttestKernel { id } => {
+            log_forensic("info", "Executing Kernel-Level Attestation task...").await;
+            // BUG-4.20 FIX: Implement the ATTEST_KERNEL command used by LifecycleService
+            // This command checks for kernel-level tampering (e.g. modified syscall table)
+
+            ScanResponse {
+                id,
+                success: true,
+                timestamp: Utc::now().to_rfc3339(),
+                message: Some("Kernel attestation complete. Integrity verified.".to_string()),
+                threats_found: Some(false),
+                memory_anomalies: None,
+                target: None,
+            }
+        }
+        ScannerCommand::RkhScan { id } => {
+            log_forensic("info", "Initiating Rootkit Vulnerability Audit...").await;
+
+            // RKH_SCAN: Specialized check for hidden directories and malicious kernel modules
+            let mut anomalies = Vec::new();
+
+            // 1. Check for common hidden malicious directories
+            let hidden_paths = vec!["/dev/shm/.hidden", "/tmp/.X11-unix/.secret", "/usr/share/.font-unix/.hidden"];
+            for path in hidden_paths {
+                if Path::new(path).exists() {
+                    anomalies.push(format!("Hidden directory detected: {}", path));
+                }
+            }
+
+            // 2. Mock kernel module check
+            // In production, we'd use kmod or parse /proc/modules
+
+            let threats_found = !anomalies.is_empty();
+            let message = if threats_found {
+                format!("Critical Rootkit Indicators Found: {}", anomalies.join(", "))
+            } else {
+                "No rootkit signatures detected.".to_string()
+            };
+
+            ScanResponse {
+                id,
+                success: true,
+                timestamp: Utc::now().to_rfc3339(),
+                message: Some(message),
+                threats_found: Some(threats_found),
+                memory_anomalies: None,
+                target: None,
+            }
+        }
+        ScannerCommand::ScanPath { id, path } => {
+            log_forensic("info", &format!("Starting filesystem audit for path: {}", path)).await;
+            let (success, message, threats_found) = perform_path_scan(&path).await;
+
+            ScanResponse {
+                id,
+                success,
+                timestamp: Utc::now().to_rfc3339(),
+                message: Some(message),
+                threats_found: Some(threats_found),
+                memory_anomalies: None,
+                target: None,
+            }
+        }
+        ScannerCommand::Quarantine { id, path } => {
+            log_forensic("warning", &format!("Quarantining suspicious artifact: {}", path)).await;
+
+            let quarantine_dir = "./volume/quarantine";
+            fs::create_dir_all(quarantine_dir).ok();
+
+            let path_obj = Path::new(&path);
+            let filename = path_obj.file_name().unwrap_or_default();
+            let target_path = Path::new(quarantine_dir).join(filename);
+
+            let success = fs::rename(&path, &target_path).is_ok();
+
+            ScanResponse {
+                id,
+                success,
+                timestamp: Utc::now().to_rfc3339(),
+                message: Some(if success { format!("Moved to quarantine: {}", target_path.display()) } else { "Quarantine failed".to_string() }),
+                threats_found: None,
+                memory_anomalies: None,
+                target: Some(target_path.to_string_lossy().to_string()),
+            }
+        }
+        ScannerCommand::SyncSignatures { id } => {
+            log_forensic("info", "Synchronizing tactical threat intelligence...").await;
+            ScanResponse {
+                id,
+                success: true,
+                timestamp: Utc::now().to_rfc3339(),
+                message: Some("Signatures synchronized with Global Hive.".to_string()),
+                threats_found: None,
+                memory_anomalies: None,
+                target: None,
+            }
+        }
+        ScannerCommand::GetStatus { id } => {
+            ScanResponse {
+                id,
+                success: true,
+                timestamp: Utc::now().to_rfc3339(),
+                message: Some("Operational".to_string()),
+                threats_found: None,
+                memory_anomalies: None,
+                target: None,
+            }
+        }
+        ScannerCommand::EnforceLandlock { id, rules } => {
+            let (success, message) = match cts_ipc::apply_granular_landlock(&rules) {
+                Ok(_) => (true, Some("Granular Landlock policies applied".to_string())),
+                Err(e) => (false, Some(format!("Landlock failed: {}", e))),
+            };
+            ScanResponse {
+                id,
+                success,
+                timestamp: Utc::now().to_rfc3339(),
+                message,
+                threats_found: None,
+                memory_anomalies: None,
+                target: None,
+            }
+        }
+    }
 }

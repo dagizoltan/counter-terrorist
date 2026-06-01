@@ -11,6 +11,7 @@ use serde::{Serialize};
 /// * `out` must be a valid pointer to a buffer of at least 32 bytes.
 #[no_mangle]
 pub unsafe extern "C" fn hash_sha256(data: *const u8, len: usize, out: *mut u8) {
+    if data.is_null() || out.is_null() { return; }
     let input = std::slice::from_raw_parts(data, len);
 
     let mut hasher = Sha256::new();
@@ -27,6 +28,7 @@ pub unsafe extern "C" fn hash_sha256(data: *const u8, len: usize, out: *mut u8) 
 /// * The returned pointer must be freed using `free_buffer`.
 #[no_mangle]
 pub unsafe extern "C" fn fast_serialize_msgpack(json_ptr: *const i8, out_len: *mut usize) -> *mut u8 {
+    if json_ptr.is_null() || out_len.is_null() { return std::ptr::null_mut(); }
     let json_bytes = std::ffi::CStr::from_ptr(json_ptr).to_bytes();
 
     let mut buf = Vec::with_capacity(8192);
@@ -54,9 +56,9 @@ pub unsafe extern "C" fn fast_serialize_msgpack(json_ptr: *const i8, out_len: *m
 /// * `key` must be a valid pointer to at least `key_len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn fast_morph(data: *mut u8, len: usize, key: *const u8, key_len: usize) {
+    if data.is_null() || key.is_null() || key_len == 0 { return; }
     let slice = std::slice::from_raw_parts_mut(data, len);
     let key_slice = std::slice::from_raw_parts(key, key_len);
-    if key_len == 0 { return; }
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -125,6 +127,7 @@ unsafe fn xor_neon(data: &mut [u8], key: &[u8]) {
 /// * `out` must be a valid pointer to a buffer of at least 32 bytes.
 #[no_mangle]
 pub unsafe extern "C" fn hash_file_sha256(path: *const i8, out: *mut u8) -> i32 {
+    if path.is_null() || out.is_null() { return -4; }
     let path_str = match std::ffi::CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => return -1,
@@ -159,6 +162,7 @@ pub unsafe extern "C" fn hash_file_sha256(path: *const i8, out: *mut u8) -> i32 
 /// * `path` must be a valid, null-terminated C string.
 #[no_mangle]
 pub unsafe extern "C" fn create_shmem(path: *const i8, size: usize) -> *mut Shmem {
+    if path.is_null() { return std::ptr::null_mut(); }
     let path_str = match std::ffi::CStr::from_ptr(path).to_str() {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
@@ -186,7 +190,7 @@ pub unsafe extern "C" fn create_shmem(path: *const i8, size: usize) -> *mut Shme
 /// * `out_buf` must be a valid pointer to a buffer of at least `max_len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn shmem_read(shmem_ptr: *mut Shmem, out_buf: *mut u8, max_len: usize) -> i32 {
-    if shmem_ptr.is_null() { return -1; }
+    if shmem_ptr.is_null() || out_buf.is_null() { return -1; }
     let shmem = &mut *shmem_ptr;
     let slice = shmem.as_slice_mut();
 
@@ -213,7 +217,7 @@ pub unsafe extern "C" fn shmem_read(shmem_ptr: *mut Shmem, out_buf: *mut u8, max
 /// * `data` must be a valid pointer to at least `len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn shmem_write(shmem_ptr: *mut Shmem, data: *const u8, len: usize) -> bool {
-    if shmem_ptr.is_null() { return false; }
+    if shmem_ptr.is_null() || data.is_null() { return false; }
     let shmem = &mut *shmem_ptr;
     let slice = shmem.as_slice_mut();
 
@@ -239,6 +243,7 @@ pub unsafe extern "C" fn shmem_write(shmem_ptr: *mut Shmem, data: *const u8, len
 /// * `out_len` must be a valid pointer to a `usize`.
 #[no_mangle]
 pub unsafe extern "C" fn serialize_msgpack(json_ptr: *const i8, out_len: *mut usize) -> *mut u8 {
+    if json_ptr.is_null() || out_len.is_null() { return std::ptr::null_mut(); }
     let json_str = match std::ffi::CStr::from_ptr(json_ptr).to_str() {
         Ok(s) => s,
         Err(_) => return std::ptr::null_mut(),
@@ -265,6 +270,7 @@ pub unsafe extern "C" fn serialize_msgpack(json_ptr: *const i8, out_len: *mut us
 /// * `msgpack_ptr` must be a valid pointer to at least `len` bytes.
 #[no_mangle]
 pub unsafe extern "C" fn deserialize_msgpack(msgpack_ptr: *const u8, len: usize) -> *mut i8 {
+    if msgpack_ptr.is_null() { return std::ptr::null_mut(); }
     let buf = std::slice::from_raw_parts(msgpack_ptr, len);
     let value: serde_json::Value = match rmp_serde::from_slice(buf) {
         Ok(v) => v,

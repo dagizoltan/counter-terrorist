@@ -2,9 +2,9 @@ import { CommandResult, ProtectionPort } from "@core/ports.ts";
 import { createProtection } from "./index.ts";
 
 export class ProtectionAdapter implements ProtectionPort {
-  private protection: any;
+  private protection: ProtectionPort;
 
-  constructor(protection: any) {
+  constructor(protection: ProtectionPort) {
     this.protection = protection;
   }
 

@@ -1,4 +1,19 @@
 import { ServiceContainer } from "./container.ts";
+import { AuditService } from "../domain/analysis/audit.ts";
+import { HealthService } from "../domain/analysis/health_service.ts";
+import { ComplianceService } from "../domain/analysis/compliance_service.ts";
+import { PolicyEngine } from "../domain/orchestration/policy_engine.ts";
+import { LedgerService } from "../domain/analysis/ledger_service.ts";
+import { CuratedIntelService } from "../domain/analysis/curated_intel_service.ts";
+import { NewsSignalService } from "../domain/analysis/news_signal_service.ts";
+import { NetworkDiscoveryService } from "../domain/analysis/network_discovery.ts";
+import { ForensicService } from "../domain/analysis/forensic_service.ts";
+import { BehavioralService } from "../domain/analysis/behavioral_service.ts";
+import { ProtectionPort } from "./ports.ts";
+import { HoneypotService } from "../domain/protection/honeypot_service.ts";
+import { CanaryService } from "../domain/protection/canary_service.ts";
+import { AutopilotService } from "../domain/orchestration/autopilot_service.ts";
+import { PlaybookService } from "../domain/orchestration/playbook_service.ts";
 
 /**
  * Sovereign Subsystem Architecture
@@ -6,25 +21,25 @@ import { ServiceContainer } from "./container.ts";
  */
 export interface OperationalSubsystems {
   overwatch: {
-    audit: any;
-    health: any;
-    compliance: any;
-    governance: any;
-    ledger: any;
+    audit: AuditService;
+    health: HealthService;
+    compliance: ComplianceService;
+    governance: PolicyEngine;
+    ledger: LedgerService;
   };
   signal: {
-    intelligence: any;
-    news: any;
-    discovery: any;
-    forensics: any;
-    behavioral: any;
+    intelligence: CuratedIntelService;
+    news: NewsSignalService;
+    discovery: NetworkDiscoveryService;
+    forensics: ForensicService;
+    behavioral: BehavioralService;
   };
   strike: {
-    protection: any;
-    honeypot: any;
-    canary: any;
-    autopilot: any;
-    playbook: any;
+    protection: ProtectionPort;
+    honeypot: HoneypotService;
+    canary: CanaryService;
+    autopilot: AutopilotService;
+    playbook: PlaybookService;
   };
 }
 

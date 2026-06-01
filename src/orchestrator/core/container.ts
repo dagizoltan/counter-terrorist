@@ -55,7 +55,7 @@ export interface PlatformInfo {
   tag: string;
   isRoot: boolean;
   tpm?: { available: boolean; pcrs: Record<number, string> };
-  metrics?: any;
+  metrics?: Record<string, unknown>;
 }
 
 export interface ServiceContainer {
@@ -101,10 +101,10 @@ export interface ServiceContainer {
   tpm: TpmPort;
   policy: PolicyEngine;
   health: HealthService;
-  metrics: any;
+  metrics: import("../domain/analysis/metrics_service.ts").MetricsService;
   mediator: EventMediator;
   behavioral: BehavioralService;
-  lsmLearning?: any;
+  lsmLearning?: import("../domain/protection/lsm_learning_service.ts").LsmLearningService;
   geoIp: GeoIpService;
   correlation: CorrelationService;
   rateLimit: RateLimitService;

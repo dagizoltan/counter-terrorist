@@ -77,38 +77,48 @@ async fn main() {
     let mut reader = BufReader::new(stdin).lines();
 
     while let Ok(Some(line)) = reader.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<BlockerCommand>(line.trim()) {
-            match cmd {
-                BlockerCommand::KillProcess { id, pid } => {
-                    log_forensic("info", &format!("Executing kill on PID {}", pid)).await;
-                    let res = kill_process_task(pid).await;
-                    emit_response(id, res.0, res.1).await;
-                },
-                BlockerCommand::QuarantineProcess { id, pid } => {
-                    log_forensic("info", &format!("Executing quarantine on PID {}", pid)).await;
-                    let res = quarantine_process_task(pid).await;
-                    emit_response(id, res.0, res.1).await;
-                },
-                BlockerCommand::DumpProcess { id, pid, path } => {
-                    log_forensic("info", &format!("Executing memory dump on PID {} to {}", pid, path)).await;
-                    let res = dump_process_task(pid, path).await;
-                    emit_response(id, res.0, res.1).await;
-                },
-                BlockerCommand::BlockIp { id, .. } => {
-                    emit_response(id, false, "IP blocking delegated to eBPF/XDP".to_string()).await;
-                },
-                BlockerCommand::UnblockIp { id, .. } => {
-                    emit_response(id, false, "IP unblocking delegated to eBPF/XDP".to_string()).await;
-                },
-                BlockerCommand::GetStatus { id } => {
-                    emit_response(id, true, "Active".to_string()).await;
-                },
-                BlockerCommand::EnforceLandlock { id, rules } => {
-                    match cts_ipc::apply_granular_landlock(&rules) {
-                        Ok(_) => emit_response(id, true, "Granular Landlock policies applied".to_string()).await,
-                        Err(e) => emit_response(id, false, format!("Landlock failed: {}", e)).await,
-                    }
-                }
+        let cmd: BlockerCommand = match serde_json::from_str(line.trim()) {
+            Ok(c) => c,
+            Err(e) => {
+                log_forensic("error", &format!("Failed to parse command: {}", e)).await;
+                continue;
+            }
+        };
+
+        handle_command(cmd).await;
+    }
+}
+
+async fn handle_command(cmd: BlockerCommand) {
+    match cmd {
+        BlockerCommand::KillProcess { id, pid } => {
+            log_forensic("info", &format!("Executing kill on PID {}", pid)).await;
+            let res = kill_process_task(pid).await;
+            emit_response(id, res.0, res.1).await;
+        },
+        BlockerCommand::QuarantineProcess { id, pid } => {
+            log_forensic("info", &format!("Executing quarantine on PID {}", pid)).await;
+            let res = quarantine_process_task(pid).await;
+            emit_response(id, res.0, res.1).await;
+        },
+        BlockerCommand::DumpProcess { id, pid, path } => {
+            log_forensic("info", &format!("Executing memory dump on PID {} to {}", pid, path)).await;
+            let res = dump_process_task(pid, path).await;
+            emit_response(id, res.0, res.1).await;
+        },
+        BlockerCommand::BlockIp { id, .. } => {
+            emit_response(id, false, "IP blocking delegated to eBPF/XDP".to_string()).await;
+        },
+        BlockerCommand::UnblockIp { id, .. } => {
+            emit_response(id, false, "IP unblocking delegated to eBPF/XDP".to_string()).await;
+        },
+        BlockerCommand::GetStatus { id } => {
+            emit_response(id, true, "Active".to_string()).await;
+        },
+        BlockerCommand::EnforceLandlock { id, rules } => {
+            match cts_ipc::apply_granular_landlock(&rules) {
+                Ok(_) => emit_response(id, true, "Granular Landlock policies applied".to_string()).await,
+                Err(e) => emit_response(id, false, format!("Landlock failed: {}", e)).await,
             }
         }
     }

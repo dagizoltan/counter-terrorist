@@ -31,6 +31,10 @@ export class DiagnosticRepository {
     return await this.repo.getLatest(limit);
   }
 
+  async saveMany(entries: LogEntry[]): Promise<void> {
+    await this.repo.setMany(entries.map(e => ({ id: crypto.randomUUID(), data: { ...e, id: crypto.randomUUID() } })));
+  }
+
   async clear(): Promise<void> {
     const iter = this.kv.list({ prefix: ["logs"] });
     for await (const entry of iter) {
