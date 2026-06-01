@@ -90,40 +90,46 @@ async fn main() {
 
     let mut stdin = BufReader::new(tokio::io::stdin()).lines();
     while let Ok(Some(line)) = stdin.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
-            match cmd {
-                Command::BlockIp { id, ip } => {
-                    emit_response(Some(id), true, format!("IP {} blocked via ESF Network Filter", ip), None).await;
-                },
-                Command::UnblockIp { id, ip } => {
-                    emit_response(Some(id), true, format!("IP {} unblocked", ip), None).await;
-                },
-                Command::ShadowBanIp { id, ip } => {
-                    emit_response(Some(id), true, format!("IP {} shadow-banned", ip), None).await;
-                },
-                Command::AllowPort { id, port, protocol } => {
-                    emit_response(Some(id), true, format!("Port {}:{} allowed", protocol, port), None).await;
-                },
-                Command::DenyPort { id, port, protocol } => {
-                    emit_response(Some(id), true, format!("Port {}:{} denied", protocol, port), None).await;
-                },
-                Command::Lockdown { id } => {
-                    emit_response(Some(id), true, "System Lockdown Active".to_string(), None).await;
-                },
-                Command::FlushRules { id } => {
-                    emit_response(Some(id), true, "All ESF rules flushed".to_string(), None).await;
-                },
-                Command::GetStatus { id } => {
-                    emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
-                },
-                Command::UpdatePolicy { id, blocked_paths: new_paths } => {
-                    let mut paths = blocked_paths.lock().await;
-                    *paths = new_paths;
-                    emit_response(Some(id), true, "Policy updated".to_string(), None).await;
-                },
-                Command::Shutdown => {
-                    std::process::exit(0);
-                }
+        let cmd: Command = match serde_json::from_str(line.trim()) {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = emit_response(None, false, format!("Failed to parse command: {}", e), None).await;
+                continue;
+            }
+        };
+
+        match cmd {
+            Command::BlockIp { id, ip } => {
+                emit_response(Some(id), true, format!("IP {} blocked via ESF Network Filter", ip), None).await;
+            },
+            Command::UnblockIp { id, ip } => {
+                emit_response(Some(id), true, format!("IP {} unblocked", ip), None).await;
+            },
+            Command::ShadowBanIp { id, ip } => {
+                emit_response(Some(id), true, format!("IP {} shadow-banned", ip), None).await;
+            },
+            Command::AllowPort { id, port, protocol } => {
+                emit_response(Some(id), true, format!("Port {}:{} allowed", protocol, port), None).await;
+            },
+            Command::DenyPort { id, port, protocol } => {
+                emit_response(Some(id), true, format!("Port {}:{} denied", protocol, port), None).await;
+            },
+            Command::Lockdown { id } => {
+                emit_response(Some(id), true, "System Lockdown Active".to_string(), None).await;
+            },
+            Command::FlushRules { id } => {
+                emit_response(Some(id), true, "All ESF rules flushed".to_string(), None).await;
+            },
+            Command::GetStatus { id } => {
+                emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
+            },
+            Command::UpdatePolicy { id, blocked_paths: new_paths } => {
+                let mut paths = blocked_paths.lock().await;
+                *paths = new_paths;
+                emit_response(Some(id), true, "Policy updated".to_string(), None).await;
+            },
+            Command::Shutdown => {
+                std::process::exit(0);
             }
         }
     }

@@ -82,11 +82,11 @@ export class HoneypotService extends BaseService {
     this.modules.set(module.id, module);
   }
 
-  getModules() {
+  getModules(): HoneypotModule[] {
     return Array.from(this.modules.values());
   }
 
-  getModule(id: string) {
+  getModule(id: string): HoneypotModule | undefined {
     return this.modules.get(id);
   }
 
@@ -483,11 +483,11 @@ export class HoneypotService extends BaseService {
     return ok(undefined);
   }
 
-  getDecoyRoutes() {
+  getDecoyRoutes(): string[] {
     return ["/admin", "/.git/config", "/wp-config.php", "/.env", "/config.json", "/aws_credentials", "/secrets.env"];
   }
 
-  getHitCount() {
+  getHitCount(): number {
     return this.hitCount;
   }
 }

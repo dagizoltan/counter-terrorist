@@ -6,21 +6,22 @@
  * Deterministic JSON stringifier to ensure consistent hashes and signatures.
  * Sorts keys and handles nested objects and arrays.
  */
-export function canonicalStringify(obj: any): string {
+export function canonicalStringify(obj: unknown): string {
   if (obj === null || typeof obj !== "object") {
     return JSON.stringify(obj);
   }
   if (Array.isArray(obj)) {
     return "[" + obj.map(item => canonicalStringify(item)).join(",") + "]";
   }
-  const keys = Object.keys(obj).sort();
-  return "{" + keys.map(key => `${JSON.stringify(key)}:${canonicalStringify(obj[key])}`).join(",") + "}";
+  const record = obj as Record<string, unknown>;
+  const keys = Object.keys(record).sort();
+  return "{" + keys.map(key => `${JSON.stringify(key)}:${canonicalStringify(record[key])}`).join(",") + "}";
 }
 
 /**
  * Computes a SHA-256 hash of the input object using the canonical string representation.
  */
-export async function computeHash(input: any): Promise<string> {
+export async function computeHash(input: unknown): Promise<string> {
   const str = canonicalStringify(input);
   const data = new TextEncoder().encode(str);
   const hashBuffer = await crypto.subtle.digest("SHA-256", data.buffer as ArrayBuffer);
@@ -31,7 +32,7 @@ export async function computeHash(input: any): Promise<string> {
 /**
  * Signs a payload with HMAC-SHA256 using a raw secret string.
  */
-export async function signPayload(payload: any, secret: string): Promise<string> {
+export async function signPayload(payload: unknown, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyData = encoder.encode(secret);
   const key = await crypto.subtle.importKey(
@@ -90,7 +91,7 @@ export async function computeStreamHash(stream: ReadableStream<Uint8Array>): Pro
 /**
  * Verifies an HMAC-SHA256 signature for a payload.
  */
-export async function verifySignature(payload: any, signature: string, secret: string): Promise<boolean> {
+export async function verifySignature(payload: unknown, signature: string, secret: string): Promise<boolean> {
   try {
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secret);

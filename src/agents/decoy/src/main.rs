@@ -296,84 +296,94 @@ async fn main() {
         match stdin.read_line(&mut line).await {
             Ok(0) => break,
             Ok(_) => {
-                if let Ok(cmd) = serde_json::from_str::<Command>(line.trim()) {
-                    match cmd {
-                        Command::UpdateModule { id, old_port, new_port, .. } => {
-                            {
-                                let mut s = state.lock().await;
-                                if let Some(ls) = s.get_mut(&old_port) {
-                                    ls.active = false;
-                                }
-                            }
-                            let state_clone = Arc::clone(&state);
-                            state.lock().await.insert(new_port, ListenerState { port: new_port, active: true, sabotage_ips: HashMap::new() });
-                            tokio::spawn(async move {
-                                start_port_listener(new_port, state_clone).await;
-                            });
-                            emit_response(id, true, format!("Morphed port {} to {}", old_port, new_port)).await;
-                        }
-                        Command::ToggleModule { id, active, port, .. } => {
-                            if active {
-                                let state_clone = Arc::clone(&state);
-                                state.lock().await.insert(port, ListenerState { port, active: true, sabotage_ips: HashMap::new() });
-                                tokio::spawn(async move {
-                                    start_port_listener(port, state_clone).await;
-                                });
-                            } else {
-                                let mut s = state.lock().await;
-                                if let Some(ls) = s.get_mut(&port) {
-                                    ls.active = false;
-                                }
-                            }
-                            emit_response(id, true, "Toggle success".to_string()).await;
-                        }
-                        Command::Sabotage { id, source_ip, level, mode, latency_ms } => {
-                            const MAX_SABOTAGE_IPS: usize = 1000;
-                            let mut s = state.lock().await;
-                            for ls in s.values_mut() {
-                                if ls.sabotage_ips.len() >= MAX_SABOTAGE_IPS && !ls.sabotage_ips.contains_key(&source_ip) {
-                                    // FIFO eviction (approximate)
-                                    if let Some(first_key) = ls.sabotage_ips.keys().next().cloned() {
-                                        ls.sabotage_ips.remove(&first_key);
-                                    }
-                                }
-                                ls.sabotage_ips.insert(source_ip.clone(), SabotageConfig {
-                                    level: level.clone(),
-                                    mode: mode.clone(),
-                                    latency_ms,
-                                });
-                            }
-                            emit_response(id, true, format!("Dynamic Sabotage ({}) engaged for {}", mode, source_ip)).await;
-                        }
-                        Command::ClearSabotage { id, source_ip } => {
-                            let mut s = state.lock().await;
-                            for ls in s.values_mut() {
-                                ls.sabotage_ips.remove(&source_ip);
-                            }
-                            emit_response(id, true, "Sabotage cleared".to_string()).await;
-                        }
-                        Command::RemoveModule { id, port } => {
-                            let mut s = state.lock().await;
-                            if let Some(mut ls) = s.remove(&port) {
-                                ls.active = false;
-                                emit_response(id, true, format!("Module on port {} purged", port)).await;
-                            } else {
-                                emit_response(id, false, "Module not found".to_string()).await;
-                            }
-                        }
-                        Command::GetStatus { id } => {
-                            emit_response(id, true, "Active".to_string()).await;
-                        }
-                        Command::EnforceLandlock { id, rules } => {
-                            match cts_ipc::apply_granular_landlock(&rules) {
-                                Ok(_) => emit_response(id, true, "Granular Landlock policies applied".to_string()).await,
-                                Err(e) => emit_response(id, false, format!("Landlock failed: {}", e)).await,
-                            }
-                        }
+                let cmd: Command = match serde_json::from_str(line.trim()) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        let _ = emit_event(SidecarEvent::Status { message: format!("Failed to parse command: {}", e) }).await;
+                        continue;
                     }
-                }
+                };
+
+                handle_command(cmd, &state).await;
             }
             Err(_) => break,
+        }
+    }
+}
+
+async fn handle_command(cmd: Command, state: &Arc<Mutex<HashMap<u16, ListenerState>>>) {
+    match cmd {
+        Command::UpdateModule { id, old_port, new_port, .. } => {
+            {
+                let mut s = state.lock().await;
+                if let Some(ls) = s.get_mut(&old_port) {
+                    ls.active = false;
+                }
+            }
+            let state_clone = Arc::clone(state);
+            state.lock().await.insert(new_port, ListenerState { port: new_port, active: true, sabotage_ips: HashMap::new() });
+            tokio::spawn(async move {
+                start_port_listener(new_port, state_clone).await;
+            });
+            emit_response(id, true, format!("Morphed port {} to {}", old_port, new_port)).await;
+        }
+        Command::ToggleModule { id, active, port, .. } => {
+            if active {
+                let state_clone = Arc::clone(state);
+                state.lock().await.insert(port, ListenerState { port, active: true, sabotage_ips: HashMap::new() });
+                tokio::spawn(async move {
+                    start_port_listener(port, state_clone).await;
+                });
+            } else {
+                let mut s = state.lock().await;
+                if let Some(ls) = s.get_mut(&port) {
+                    ls.active = false;
+                }
+            }
+            emit_response(id, true, "Toggle success".to_string()).await;
+        }
+        Command::Sabotage { id, source_ip, level, mode, latency_ms } => {
+            const MAX_SABOTAGE_IPS: usize = 1000;
+            let mut s = state.lock().await;
+            for ls in s.values_mut() {
+                if ls.sabotage_ips.len() >= MAX_SABOTAGE_IPS && !ls.sabotage_ips.contains_key(&source_ip) {
+                    // FIFO eviction (approximate)
+                    if let Some(first_key) = ls.sabotage_ips.keys().next().cloned() {
+                        ls.sabotage_ips.remove(&first_key);
+                    }
+                }
+                ls.sabotage_ips.insert(source_ip.clone(), SabotageConfig {
+                    level: level.clone(),
+                    mode: mode.clone(),
+                    latency_ms,
+                });
+            }
+            emit_response(id, true, format!("Dynamic Sabotage ({}) engaged for {}", mode, source_ip)).await;
+        }
+        Command::ClearSabotage { id, source_ip } => {
+            let mut s = state.lock().await;
+            for ls in s.values_mut() {
+                ls.sabotage_ips.remove(&source_ip);
+            }
+            emit_response(id, true, "Sabotage cleared".to_string()).await;
+        }
+        Command::RemoveModule { id, port } => {
+            let mut s = state.lock().await;
+            if let Some(mut ls) = s.remove(&port) {
+                ls.active = false;
+                emit_response(id, true, format!("Module on port {} purged", port)).await;
+            } else {
+                emit_response(id, false, "Module not found".to_string()).await;
+            }
+        }
+        Command::GetStatus { id } => {
+            emit_response(id, true, "Active".to_string()).await;
+        }
+        Command::EnforceLandlock { id, rules } => {
+            match cts_ipc::apply_granular_landlock(&rules) {
+                Ok(_) => emit_response(id, true, "Granular Landlock policies applied".to_string()).await,
+                Err(e) => emit_response(id, false, format!("Landlock failed: {}", e)).await,
+            }
         }
     }
 }

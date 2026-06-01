@@ -101,45 +101,53 @@ async fn main() {
         let line = line.trim();
         if line.is_empty() { continue; }
 
-        if let Ok(cmd) = serde_json::from_str::<VpnCommand>(line) {
-            match cmd {
-                VpnCommand::Connect { id, payload } => {
-                    let interface = payload.interface;
-                    log_forensic("info", &format!("Attempting to connect interface: {}", interface)).await;
-                    
-                    // In a production environment, we'd use wg-quick or native netlink
-                    // Here we simulate the successful interface setup with strict validation
-                    if interface.contains('/') || interface.contains('.') {
-                        emit_response(id, false, "Invalid interface name".to_string(), None).await;
-                        continue;
-                    }
-
-                    let msg = if let Some(path) = payload.config_path {
-                        format!("Interface {} connected using config {}", interface, path)
-                    } else {
-                        format!("Interface {} connected with default parameters", interface)
-                    };
-
-                    log_forensic("success", &msg).await;
-                    emit_response(id, true, msg, None).await;
-                },
-                VpnCommand::Disconnect { id, payload } => {
-                    let interface = payload.interface;
-                    log_forensic("info", &format!("Disconnecting interface: {}", interface)).await;
-                    emit_response(id, true, format!("Interface {} disconnected", interface), None).await;
-                },
-                VpnCommand::GetStatus { id } => {
-                    // Try to get real status if 'wg' exists
-                    let wg_status = execute_wg_command(vec!["show"]).await;
-                    let data = match wg_status {
-                        Ok(stdout) => json!({ "wg_stdout": stdout, "active": true }),
-                        Err(_) => json!({ "active": true, "mode": "STUB_FALLBACK" }),
-                    };
-                    emit_response(id, true, "VPN Operational".to_string(), Some(data)).await;
-                }
+        let cmd: VpnCommand = match serde_json::from_str(line) {
+            Ok(c) => c,
+            Err(e) => {
+                log_forensic("warning", &format!("Received malformed command: {}. Error: {}", line, e)).await;
+                continue;
             }
-        } else {
-            log_forensic("warning", &format!("Received malformed command: {}", line)).await;
+        };
+
+        handle_command(cmd).await;
+    }
+}
+
+async fn handle_command(cmd: VpnCommand) {
+    match cmd {
+        VpnCommand::Connect { id, payload } => {
+            let interface = payload.interface;
+            log_forensic("info", &format!("Attempting to connect interface: {}", interface)).await;
+
+            // In a production environment, we'd use wg-quick or native netlink
+            // Here we simulate the successful interface setup with strict validation
+            if interface.contains('/') || interface.contains('.') {
+                emit_response(id, false, "Invalid interface name".to_string(), None).await;
+                return;
+            }
+
+            let msg = if let Some(path) = payload.config_path {
+                format!("Interface {} connected using config {}", interface, path)
+            } else {
+                format!("Interface {} connected with default parameters", interface)
+            };
+
+            log_forensic("success", &msg).await;
+            emit_response(id, true, msg, None).await;
+        },
+        VpnCommand::Disconnect { id, payload } => {
+            let interface = payload.interface;
+            log_forensic("info", &format!("Disconnecting interface: {}", interface)).await;
+            emit_response(id, true, format!("Interface {} disconnected", interface), None).await;
+        },
+        VpnCommand::GetStatus { id } => {
+            // Try to get real status if 'wg' exists
+            let wg_status = execute_wg_command(vec!["show"]).await;
+            let data = match wg_status {
+                Ok(stdout) => json!({ "wg_stdout": stdout, "active": true }),
+                Err(_) => json!({ "active": true, "mode": "STUB_FALLBACK" }),
+            };
+            emit_response(id, true, "VPN Operational".to_string(), Some(data)).await;
         }
     }
 }

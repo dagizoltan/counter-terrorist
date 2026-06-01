@@ -24,7 +24,7 @@ export class LifecycleService extends BaseService {
     private kv?: Deno.Kv;
     private shadowTimer?: number;
     private lkgTimer?: number;
-    private policyEngine?: any;
+    private policyEngine?: import("../orchestration/policy_engine.ts").PolicyEngine;
 
     constructor(
         private commands: CommandPort,
@@ -62,7 +62,7 @@ export class LifecycleService extends BaseService {
         this.kv = kv;
     }
 
-    public setPolicyEngine(policyEngine: any) {
+    public setPolicyEngine(policyEngine: import("../orchestration/policy_engine.ts").PolicyEngine) {
         this.policyEngine = policyEngine;
     }
 
@@ -168,7 +168,7 @@ export class LifecycleService extends BaseService {
         }, 600000); // 10 minutes
     }
 
-    public startShadowModeTimer(config: any) {
+    public startShadowModeTimer(config: import("../../core/ports.ts").ConfigurationPort) {
         const shadowDuration = config.getNumber("SHADOW_MODE_DURATION_HOURS", 24);
         this.logging.log({
             timestamp: new Date().toISOString(),

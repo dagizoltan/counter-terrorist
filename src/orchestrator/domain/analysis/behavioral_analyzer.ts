@@ -34,9 +34,10 @@ export class BehavioralAnalyzer extends BaseService {
     }
 
     protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
+        const { ok } = await import("@core/result.ts");
         // SOV-06: Background cleanup for stale behavioral data
         this.purgeInterval = setInterval(() => this.purgeStaleData(), 300000); // 5 Minutes
-        return { success: true, data: undefined };
+        return ok(undefined);
     }
 
     private purgeStaleData() {
