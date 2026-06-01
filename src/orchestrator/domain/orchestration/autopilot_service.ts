@@ -1,5 +1,8 @@
 import { AutonomousResponseEngine } from "./autonomous_response.ts";
-import { LogSeverity, LogType, MeshPort } from "@core/ports.ts";
+import {
+    LogSeverity, LogType, MeshPort, EventBusPort,
+    LoggingPort, NotificationPort, ProtectionPort
+} from "@core/ports.ts";
 import { PolicyEngine } from "./policy_engine.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
@@ -7,17 +10,17 @@ import { ThreatResponseSaga } from "./sagas/threat_response_saga.ts";
 import { Result, ok } from "@core/result.ts";
 
 export interface AutopilotDependencies {
-  eventBus: any;
-  logging: any;
-  health: any;
-  playbook: any;
-  kernelService: any;
-  processTracker: any;
-  protection: any;
-  audit: any;
-  forensicService: any;
+  eventBus: EventBusPort;
+  logging: LoggingPort;
+  health: import("../analysis/health_service.ts").HealthService;
+  playbook: import("./playbook_service.ts").PlaybookService;
+  kernelService: import("../protection/kernel_service.ts").KernelService;
+  processTracker: import("../analysis/process_tracker.ts").ProcessTracker;
+  protection: ProtectionPort;
+  audit: import("../analysis/audit.ts").AuditService;
+  forensicService: import("../analysis/forensic_service.ts").ForensicService;
   mesh: MeshPort;
-  notifications: any;
+  notifications: NotificationPort;
 }
 
 export class AutopilotService extends BaseService {
@@ -137,11 +140,9 @@ export class AutopilotService extends BaseService {
     this.unsubscribers.push(() => clearInterval(healthCheckInterval));
 
     // Keyed Listeners for domain-specific events
-    const on = (ev: string, fn: (data: any) => void) => {
-        this.unsubscribers.push(this.services!.eventBus.on(ev, fn));
-    };
+    const bus = this.services.eventBus;
 
-    on("HONEYPOT", async (data) => {
+    bus.on("HONEYPOT", async (data) => {
         await this.engine.evaluate({
             source: data.source_ip || data.ip || "unknown",
             type: "HONEYPOT_TRIGGER",
@@ -151,9 +152,9 @@ export class AutopilotService extends BaseService {
         }).catch(e => this.handleError(e, "HONEYPOT"));
     });
 
-    on("THREAT", async (data) => {
+    bus.on("THREAT", async (data) => {
         await this.engine.evaluate({
-            source: data.source_ip || data.ip || "local",
+            source: data.src_ip || data.nodeId || "local",
             type: "CANARY_TRIGGER",
             severity: 15,
             description: `Canary breadcrumb triggered: ${data.path}`,
@@ -161,17 +162,17 @@ export class AutopilotService extends BaseService {
         }).catch(e => this.handleError(e, "THREAT"));
     });
 
-    on("DRIFT_PROCESS", async (data) => {
+    bus.on("DRIFT_PROCESS", async (data) => {
         await this.engine.evaluate({
             source: "local",
             type: "FILE_TAMPERING",
             severity: 2,
-            description: `Unauthorized change detected in ${data.path || data.resource}`,
+            description: `Unauthorized change detected in ${data.path}`,
             data
         }).catch(e => this.handleError(e, "DRIFT_PROCESS"));
     });
 
-    on("EBPF_STRAY_SHELL", async (data) => {
+    bus.on("EBPF_STRAY_SHELL", async (data) => {
         await this.engine.evaluate({
             source: data.pid?.toString() || "kernel",
             type: `SUSPICIOUS_SHELL`,
@@ -181,11 +182,10 @@ export class AutopilotService extends BaseService {
         }).catch(e => this.handleError(e, "EBPF_STRAY_SHELL"));
     });
 
-    on("EBPF_CRITICAL", async (data) => {
+    bus.on("EBPF_CRITICAL", async (data) => {
         const { pid, comm, syscall, args } = data;
         
-        // 1. Behavioral Assessment
-        const anomalyResult = await this.services!.playbook.executeBehavioralAudit(pid, comm, syscall, args);
+        const anomalyResult = await this.services!.playbook.executeBehavioralAudit(pid, comm, syscall, args || []);
         
         if (anomalyResult === "BLOCK_SYSCALL") {
             await this.services!.kernelService.blockSyscall(pid, syscall);
@@ -199,7 +199,6 @@ export class AutopilotService extends BaseService {
             data
         });
 
-        // Demand Scan: Critical syscalls might indicate rootkit injection attempts
         try {
             const ghosts = await this.services!.processTracker.scanForGhosts();
             if (ghosts.length > 0) {
@@ -222,9 +221,8 @@ export class AutopilotService extends BaseService {
         }
     });
 
-    // Proactive Artifact Containment Hook
-    on("ARTIFACT_FOUND", async (data) => {
-        await this.services!.playbook.executeArtifactContainment(data.indicator, data).catch((e: Error) => this.handleError(e, "ARTIFACT_FOUND"));
+    bus.on("ARTIFACT_FOUND", async (data) => {
+        await this.services!.playbook.executeArtifactContainment(data.indicator || "unknown", data).catch((e: Error) => this.handleError(e, "ARTIFACT_FOUND"));
     });
 
     // Periodic integrity check using injected authoritative tracker

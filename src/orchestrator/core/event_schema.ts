@@ -15,8 +15,8 @@ export const HoneypotHitSchema = z.object({
 
 export const DriftDetectedSchema = z.object({
   resource: z.string().optional(),
-  expected: z.unknown().optional(),
-  actual: z.unknown().optional(),
+  expected: z.union([z.string(), z.number(), z.boolean(), z.record(z.string(), z.unknown())]).optional(),
+  actual: z.union([z.string(), z.number(), z.boolean(), z.record(z.string(), z.unknown())]).optional(),
   path: z.string().optional(),
   action: z.string().optional()
 });
@@ -62,7 +62,7 @@ export const FileDriftSchema = z.object({
 
 export const GenericEventSchema = z.object({
   message: z.string().optional(),
-  data: z.unknown().optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
   correlationId: z.string().optional(),
   fromAudit: z.boolean().optional()
 });
@@ -94,7 +94,7 @@ export const SystemEventRegistry = {
   }),
   "METRIC_UPDATE": z.object({
     domain: z.string(),
-    data: z.record(z.string(), z.unknown())
+    data: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
   }),
   "AUDIT_EVENT": z.object({
     id: z.string().optional(),
@@ -103,13 +103,13 @@ export const SystemEventRegistry = {
     severity: z.string().optional(),
     caller: z.string().optional(),
     message: z.string(),
-    data: z.unknown().optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
     hash: z.string().optional(),
     prevHash: z.string().optional()
   }),
   "UI_BROADCAST": z.object({
     type: z.string(),
-    data: z.unknown()
+    data: z.record(z.string(), z.unknown())
   }),
   "EBPF_SYSCALL": SyscallEventSchema,
   "EBPF_CRITICAL": SyscallEventSchema,

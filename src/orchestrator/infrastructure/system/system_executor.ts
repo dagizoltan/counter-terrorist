@@ -46,8 +46,6 @@ export class SystemExecutor implements ExecutorPort {
 
   private static readonly PROVISIONING_REGEX = /^(chmod 600 \/etc\/cts\.env && export \$\(grep -v '\^#' \/etc\/cts\.env \| xargs -d (['"])\\n\1\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts\.log 2>&1 &)$/;
 
-  private static readonly GENERIC_ARG_REGEX = /^[a-zA-Z0-9.\/_ \-+@\[\]:=*]+$/;
-
   private static readonly SSH_SCHEMA = z.array(z.string()).max(10).superRefine((args, ctx) => {
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
