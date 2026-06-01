@@ -63,7 +63,7 @@ export interface ApplicationStatus {
 }
 
 export interface ServiceLocatorPort {
-  register<T>(key: string, service: T): void;
+  register<K extends string, T>(key: K, service: T): void;
   get<T>(key: string): T;
   has(key: string): boolean;
 }

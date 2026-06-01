@@ -54,6 +54,8 @@ export class SovereignApp {
     private registry: ServiceRegistry = new ServiceRegistry(loggingService);
     private appManager!: ApplicationManager;
     private lifecycleManager!: LifecycleManager;
+    private hardeningManager!: HardeningManager;
+    private serviceOrchestrator!: ServiceOrchestrator;
 
     private logPilotBanner() {
         console.log(`
@@ -201,6 +203,8 @@ export class SovereignApp {
 
     private async initCore() {
         loggingService.enableGlobalIntercept();
+        this.hardeningManager = new HardeningManager(loggingService);
+
         await loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -209,7 +213,6 @@ export class SovereignApp {
             message: "Initiating Sovereign Boot Sequence (Self-Test Phase)"
         });
 
-        this.hardeningManager = new HardeningManager(loggingService);
         await this.hardeningManager.applyCamouflage();
         await load({ export: true, allowEmptyValues: true });
 

@@ -13,6 +13,7 @@ import { MeshManager } from "@domain/orchestration/mesh.ts";
 import { MeshAuthService } from "@domain/index.ts";
 import { setMeshManager } from "@domain/orchestration/mesh.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
+import { ServiceContainer } from "@core/container.ts";
 
 export class ApplicationManager {
     constructor(

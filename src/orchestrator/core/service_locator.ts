@@ -36,22 +36,22 @@ export interface ServiceMap {
   "kernelService": import("../domain/protection/kernel_service.ts").KernelService;
   "forensicService": import("../domain/analysis/forensic_service.ts").ForensicService;
   "incidents": import("../domain/analysis/incident_service.ts").IncidentService;
-  "ledger": import("../domain/analysis/ledger_service.ts").LedgerService;
   "viewModel": import("../domain/analysis/view_model_service.ts").ViewModelService;
+  "tpm": import("../infrastructure/system/protection/tpm/tpm_manager.ts").TPMManager;
 }
 
 export class ServiceLocator implements ServiceLocatorPort {
-  private services = new Map<keyof ServiceMap | string, ServiceMap[keyof ServiceMap] | any>();
+  private services = new Map<keyof ServiceMap | string, ServiceMap[keyof ServiceMap]>();
 
   register<K extends keyof ServiceMap>(key: K, service: ServiceMap[K]): void;
-  register(key: string, service: any): void;
-  register(key: string, service: any): void {
+  register<K extends string>(key: K, service: ServiceMap[keyof ServiceMap]): void;
+  register(key: string, service: ServiceMap[keyof ServiceMap]): void {
     this.services.set(key, service);
   }
 
   get<K extends keyof ServiceMap>(key: K): ServiceMap[K];
   get<T>(key: string): T;
-  get(key: string): any {
+  get(key: string): ServiceMap[keyof ServiceMap] {
     const service = this.services.get(key);
     if (!service) {
       throw new Error(`Service ${key} not registered`);

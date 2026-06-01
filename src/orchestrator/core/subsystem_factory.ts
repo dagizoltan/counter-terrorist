@@ -104,7 +104,7 @@ export class SubsystemFactory {
         return new SystemLifecycleService(this.logging, tpm, this.kv);
     }
 
-    public initOperational(health: HealthService, mesh: MeshManager, tpm: TpmPort, eventBus: EventBusPort, processTracker: ProcessTracker, security: { honeypot: import("@domain/index.ts").HoneypotService; canaryService: import("@domain/index.ts").CanaryService }, broadcast: (event: any) => void) {
+    public initOperational(health: HealthService, mesh: MeshManager, tpm: TpmPort, eventBus: EventBusPort, processTracker: ProcessTracker, security: { honeypot: import("@domain/index.ts").HoneypotService; canaryService: import("@domain/index.ts").CanaryService }, broadcast: (event: import("@interface/ws_handler.ts").BroadcastData) => void) {
         return this.operationalFactory.initOperational(health, mesh, tpm, eventBus, processTracker, security, broadcast);
     }
 
