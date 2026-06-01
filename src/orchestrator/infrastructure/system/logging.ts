@@ -1,32 +1,27 @@
 import { LoggingPort, LogSeverity, LogType, LogEntry, SyslogSeverity } from "@core/ports/logging.ts";
-import { TimelineRepository } from "../persistence/repositories/timeline_repository.ts";
 import { DiagnosticRepository } from "../persistence/diagnostic_repository.ts";
 import { broadcast } from "@interface/ws_handler.ts";
 import { SecretRedactor } from "@core/utils/security.ts";
 import { PersistentQueue } from "@core/utils/persistent_queue.ts";
+import { LogProcessor } from "./logging/LogProcessor.ts";
+import { SyslogTransport } from "./logging/SyslogTransport.ts";
 
 export { LogSeverity, LogType, SyslogSeverity };
 
-type SyslogTransport = "udp" | "tcp" | "tls";
-
 export class LoggingService implements LoggingPort {
-    private remoteHost: string | null = null;
-    private remotePort: number = 514;
-    private transport: SyslogTransport = "udp";
+    private transport: SyslogTransport | null = null;
+    private processor: LogProcessor;
     private logBuffer: string[] = [];
     private maxBufferSize = 1000;
     private isForwarding = false;
-    private tlsCaCertPath: string | null = null;
     private diagnosticRepo: DiagnosticRepository | null = null;
     private alertQueue: PersistentQueue<string> | null = null;
     private preInitBuffer: LogEntry[] = [];
     private redactor: SecretRedactor = new SecretRedactor();
-
-    /** Persistent TCP/TLS or UDP connection, reused across flushes. */
-    private persistentConn: Deno.Conn | Deno.TlsConn | Deno.DatagramConn | null = null;
     private flushIntervalId: number | null = null;
 
     constructor(kv?: Deno.Kv) {
+        this.processor = new LogProcessor(this.redactor);
         if (kv) {
             this.diagnosticRepo = new DiagnosticRepository(kv);
         }
@@ -36,18 +31,15 @@ export class LoggingService implements LoggingPort {
         if (config.secrets) {
             this.redactor.updateSecrets(config.secrets);
         }
-        this.remoteHost = config.host || null;
-        this.remotePort = config.port || 514;
-        this.transport = (config.transport as SyslogTransport) || "udp";
-        this.tlsCaCertPath = config.caPath || null;
 
-        if (this.remoteHost) {
+        if (config.host) {
+            this.transport = new SyslogTransport(config.host, config.port || 514, (config.transport as any) || "udp", config.caPath || null);
             this.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
                 severity: LogSeverity.INFO,
                 caller: "orchestrator:infra:system:logging",
-                message: `Remote syslog enabled: ${this.transport}://${this.remoteHost}:${this.remotePort}`
+                message: `Remote syslog enabled: ${config.transport}://${config.host}:${config.port || 514}`
             }).catch(() => {});
             this.startFlushInterval();
         }
@@ -139,13 +131,6 @@ export class LoggingService implements LoggingPort {
         if (!entry || typeof entry !== "object") return;
         if (!entry.message) return;
 
-        // SOV-06 SECURITY: Redact sensitive secrets from all logs before they hit any sink
-        entry.message = this.redactor.redact(entry.message);
-        if (entry.payload) {
-            entry.payload = this.redactor.redactObject(entry.payload);
-        }
-
-        // SOV-05 STABILITY: Re-entrancy guard to prevent stack overflow from recursive logging
         if (this.isLogging) {
             this.originalLog(`[LOG_RECURSION_DROPPED] ${entry.message}`);
             return;
@@ -153,62 +138,32 @@ export class LoggingService implements LoggingPort {
         this.isLogging = true;
 
         try {
-            // Sanitize core fields
-        entry.message = this.sanitize(entry.message);
-        if (entry.caller) entry.caller = this.sanitize(entry.caller);
-        
-        if (this.ignoredSources.has(entry.caller)) return;
-        for (const kw of this.ignoredKeywords) {
-            if (entry.message.includes(kw)) return;
-        }
+            const { formattedMsg, syslogMsg } = this.processor.process(entry);
+            const { type, severity = LogSeverity.INFO, caller, message } = entry;
 
-        const hostname = Deno.hostname() || "unknown";
-        const appName = "ct-orch";
-        const procId = Deno.pid;
-
-        // 3. Structured Sink: Deno KV (Diagnostic Buffer)
-        await this.writeToKv(entry);
-
-        const { timestamp, type, severity = LogSeverity.INFO, caller, message, payload } = entry;
-
-        let formattedMsg = `[${(type || LogType.GENERIC).toUpperCase()}] [${(severity || LogSeverity.INFO).toLowerCase()}] [${caller || "UNKNOWN"}] ${message}`;
-        entry.formatted = formattedMsg; // Attach to entry for downstream consumption (Audit, WS)
-
-        if (payload) {
-            try {
-                formattedMsg += ` | PAYLOAD: ${JSON.stringify(payload)}`;
-            } catch {
-                formattedMsg += ` | PAYLOAD: [Complex Object]`;
+            if (this.ignoredSources.has(caller)) return;
+            for (const kw of this.ignoredKeywords) {
+                if (message.includes(kw)) return;
             }
-        }
 
-        const severityMap: Record<LogSeverity, number> = {
-            [LogSeverity.INFO]: 6,
-            [LogSeverity.SUCCESS]: 5,
-            [LogSeverity.WARNING]: 4,
-            [LogSeverity.ERROR]: 3,
-            [LogSeverity.DEBUG]: 7
-        };
+            await this.writeToKv(entry);
 
-        const pri = (1 * 8) + (severityMap[severity] || 6);
-        const syslogMsg = `<${pri}>1 ${timestamp} ${hostname} ${appName} ${procId} - - ${formattedMsg}`;
+            if (this.transport) {
+                this.bufferLog(syslogMsg);
+            } else {
+                const colors: Record<LogSeverity, string> = {
+                    [LogSeverity.INFO]: "\x1b[36m",
+                    [LogSeverity.SUCCESS]: "\x1b[32m",
+                    [LogSeverity.WARNING]: "\x1b[33m",
+                    [LogSeverity.ERROR]: "\x1b[31m",
+                    [LogSeverity.DEBUG]: "\x1b[90m"
+                };
+                const c = colors[severity] || "\x1b[0m";
+                const reset = "\x1b[0m";
 
-        if (this.remoteHost) {
-            this.bufferLog(syslogMsg);
-        } else {
-            const colors: Record<LogSeverity, string> = {
-                [LogSeverity.INFO]: "\x1b[36m",    
-                [LogSeverity.SUCCESS]: "\x1b[32m", 
-                [LogSeverity.WARNING]: "\x1b[33m", 
-                [LogSeverity.ERROR]: "\x1b[31m",
-                [LogSeverity.DEBUG]: "\x1b[90m"
-            };
-            const c = colors[severity] || "\x1b[0m";
-            const reset = "\x1b[0m";
-            
-            // Console format: TIMESTAMP [TYPE] [SEVERITY] [CALLER] MESSAGE
-            this.originalLog(`${timestamp} ${c}[${type.toUpperCase()}] [${severity.toLowerCase()}] [${caller}]${reset} ${message}`);
-        }
+                // Console format: TIMESTAMP [TYPE] [SEVERITY] [CALLER] MESSAGE
+                this.originalLog(`${entry.timestamp} ${c}[${type.toUpperCase()}] [${severity.toLowerCase()}] [${caller}]${reset} ${message}`);
+            }
 
             // 4. Real-time Broadcast: Sink to connected UI consoles
             broadcast({
@@ -292,9 +247,6 @@ export class LoggingService implements LoggingPort {
         }, 5000);
     }
 
-    /**
-     * Terminate background intervals and close connections.
-     */
     async shutdown() {
         if (this.flushIntervalId) {
             clearInterval(this.flushIntervalId);
@@ -302,9 +254,8 @@ export class LoggingService implements LoggingPort {
         }
         await this.flushLogs();
         await this.flushKvBuffer();
-        this.closePersistentConn();
+        if (this.transport) this.transport.close();
 
-        // Restore original console if intercepted
         if (this.isIntercepting || this.isLogging) {
             console.log = this.originalLog;
             console.warn = this.originalWarn;
@@ -313,13 +264,12 @@ export class LoggingService implements LoggingPort {
     }
 
     private async flushLogs() {
-        if (this.isForwarding || !this.remoteHost) return;
+        if (this.isForwarding || !this.transport) return;
 
-        // Process retries from persistent queue first
         if (this.alertQueue) {
             await this.alertQueue.process(async (msg) => {
                 try {
-                    await this.forwardLog(msg);
+                    await this.transport!.send([msg]);
                     return true;
                 } catch {
                     return false;
@@ -334,89 +284,17 @@ export class LoggingService implements LoggingPort {
         try {
             for (const log of logsToSend) {
                 try {
-                    await this.forwardLog(log);
+                    await this.transport.send([log]);
                 } catch (e) {
-                    // If forwarding fails, push to persistent queue for retry
                     if (this.alertQueue) {
                         await this.alertQueue.enqueue(log);
                     } else {
-                        // Fallback to memory buffer if KV not ready
                         this.logBuffer.push(log);
                     }
                 }
             }
         } finally {
             this.isForwarding = false;
-        }
-    }
-
-    private async forwardLog(log: string) {
-        switch (this.transport) {
-            case "udp": await this.sendUdp([log]); break;
-            case "tcp": await this.sendTcpOrTls([log], false); break;
-            case "tls": await this.sendTcpOrTls([log], true); break;
-        }
-    }
-
-    private async sendUdp(logs: string[]) {
-        const conn = await this.getOrCreateUdpConnection();
-        const encoder = new TextEncoder();
-        for (const log of logs) {
-            await conn.send(encoder.encode(log), { hostname: this.remoteHost!, port: this.remotePort, transport: "udp" });
-        }
-    }
-
-    private getOrCreateUdpConnection(): Deno.DatagramConn {
-        if (this.persistentConn && "send" in this.persistentConn) {
-            return this.persistentConn;
-        }
-        this.closePersistentConn();
-        this.persistentConn = Deno.listenDatagram({ port: 0, transport: "udp" });
-        return this.persistentConn as Deno.DatagramConn;
-    }
-
-    private async sendTcpOrTls(logs: string[], useTls: boolean) {
-        const conn = await this.getOrCreateConnection(useTls);
-        const encoder = new TextEncoder();
-        for (const log of logs) {
-            const msgBytes = encoder.encode(log);
-            const frame = encoder.encode(`${msgBytes.length} `);
-            const combined = new Uint8Array(frame.length + msgBytes.length);
-            combined.set(frame);
-            combined.set(msgBytes, frame.length);
-            await conn.write(combined);
-        }
-    }
-
-    private async getOrCreateConnection(useTls: boolean): Promise<Deno.Conn | Deno.TlsConn> {
-        if (this.persistentConn && "write" in this.persistentConn) {
-            return this.persistentConn;
-        }
-        this.closePersistentConn();
-        if (useTls) {
-            const options: Deno.ConnectTlsOptions = { hostname: this.remoteHost!, port: this.remotePort };
-            if (this.tlsCaCertPath) {
-                try {
-                    const caCert = await Deno.readTextFile(this.tlsCaCertPath);
-                    options.caCerts = [caCert];
-                } catch (err) {
-                    this.originalError(`Failed to read CA cert for TLS logging: ${err}`);
-                }
-            }
-            this.persistentConn = await Deno.connectTls(options);
-        } else {
-            this.persistentConn = await Deno.connect({ hostname: this.remoteHost!, port: this.remotePort });
-        }
-        return this.persistentConn as Deno.Conn | Deno.TlsConn;
-    }
-
-    private closePersistentConn() {
-        if (this.persistentConn) {
-            try { this.persistentConn.close(); } catch (err) {
-                // Ignore error during close
-                void err;
-            }
-            this.persistentConn = null;
         }
     }
 }

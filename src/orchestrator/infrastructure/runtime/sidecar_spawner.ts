@@ -2,6 +2,11 @@ import { LoggingPort, LogSeverity, LogType, ConfigurationPort, ExecutorPort } fr
 import { SIDECAR_REGISTRY } from "./sidecar_registry.ts";
 
 export class SidecarSpawner {
+    private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
+    private unsupportedSidecars: Set<string> = new Set();
+    private trippedSidecars: Set<string> = new Set();
+    private spawningPromises: Map<string, Promise<Deno.ChildProcess | null>> = new Map();
+
     constructor(
         private logging: LoggingPort,
         private executor: ExecutorPort
@@ -9,6 +14,7 @@ export class SidecarSpawner {
 
     async spawn(name: string, binPath: string, env: Record<string, string>, config: ConfigurationPort): Promise<Deno.ChildProcess> {
         const isDev = config.getBoolean("CTS_DEV_MODE", false);
+        const isProduction = config.getEnv("ENVIRONMENT") === "production";
         let execPath = binPath;
 
         if (!isDev) {
@@ -16,6 +22,15 @@ export class SidecarSpawner {
             const res = await this.executor.execute("/var/lib/cts/scripts/secure_spawn.sh", [name, binPath, caps, "none"]);
             if (res.success) {
                 execPath = `/var/lib/cts/bin/${name}`;
+            } else {
+                await this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: isProduction ? LogSeverity.ERROR : LogSeverity.WARNING,
+                    caller: "orchestrator:infra:runtime:sidecar_spawner",
+                    message: `Secure spawn failed for ${name}. Falling back to insecure path.`
+                });
+                if (isProduction) throw new Error(`Security Violation: Secure spawn failed for ${name} in production.`);
             }
         }
 
@@ -44,5 +59,53 @@ export class SidecarSpawner {
         });
 
         return command.spawn();
+    }
+
+    isUnsupported(name: string): boolean {
+        return this.unsupportedSidecars.has(name);
+    }
+
+    markUnsupported(name: string) {
+        this.unsupportedSidecars.add(name);
+    }
+
+    isTripped(name: string): boolean {
+        return this.trippedSidecars.has(name);
+    }
+
+    markTripped(name: string) {
+        this.trippedSidecars.add(name);
+    }
+
+    clearTripped(name: string) {
+        this.trippedSidecars.delete(name);
+    }
+
+    getRestartInfo(name: string) {
+        return this.restartCounts.get(name) || { count: 0, lastRestart: 0 };
+    }
+
+    setRestartInfo(name: string, info: { count: number, lastRestart: number }) {
+        this.restartCounts.set(name, info);
+    }
+
+    clearRestartInfo(name: string) {
+        this.restartCounts.delete(name);
+    }
+
+    getSpawningPromise(name: string) {
+        return this.spawningPromises.get(name);
+    }
+
+    setSpawningPromise(name: string, promise: Promise<Deno.ChildProcess | null>) {
+        this.spawningPromises.set(name, promise);
+    }
+
+    clearSpawningPromise(name: string) {
+        this.spawningPromises.delete(name);
+    }
+
+    getTrippedSidecars(): string[] {
+        return Array.from(this.trippedSidecars);
     }
 }

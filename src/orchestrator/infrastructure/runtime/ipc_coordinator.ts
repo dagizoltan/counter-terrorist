@@ -1,10 +1,12 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandResult } from "@core/ports.ts";
 import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
 import { SidecarResponse } from "../system/validation.ts";
 
 export class IpcCoordinator {
     private mappedShmem: Map<string, Deno.PointerValue> = new Map();
     private mappedCmdShmem: Map<string, Deno.PointerValue> = new Map();
+    private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
+    private eventHandlers: Map<string, ((data: SidecarResponse) => void)[]> = new Map();
 
     constructor(
         private logging: LoggingPort,
@@ -36,5 +38,30 @@ export class IpcCoordinator {
     clearMappings(name: string) {
         this.mappedShmem.delete(name);
         this.mappedCmdShmem.delete(name);
+    }
+
+    addWaiter(name: string, id: string, waiter: { resolve: (data: CommandResult) => void, reject: (err: Error) => void }) {
+        if (!this.responseWaiters.has(name)) this.responseWaiters.set(name, new Map());
+        this.responseWaiters.get(name)!.set(id, waiter);
+    }
+
+    getWaiter(name: string, id: string) {
+        return this.responseWaiters.get(name)?.get(id);
+    }
+
+    removeWaiter(name: string, id: string) {
+        this.responseWaiters.get(name)?.delete(id);
+    }
+
+    onEvent(name: string, handler: (data: SidecarResponse) => void) {
+        if (!this.eventHandlers.has(name)) this.eventHandlers.set(name, []);
+        this.eventHandlers.get(name)!.push(handler);
+    }
+
+    emitEvent(name: string, data: SidecarResponse) {
+        const handlers = this.eventHandlers.get(name) || [];
+        for (const handler of handlers) {
+            handler(data);
+        }
     }
 }

@@ -7,6 +7,11 @@ import { BaseService } from "@core/base_service.ts";
 import { BroadcastData } from "@interface/ws_handler.ts";
 import { Result, ok } from "../../core/result.ts";
 
+import { SentinelIntegration } from "./mediators/SentinelIntegration.ts";
+import { FimIntegration } from "./mediators/FimIntegration.ts";
+import { NetworkIntegration } from "./mediators/NetworkIntegration.ts";
+import { ScannerIntegration } from "./mediators/ScannerIntegration.ts";
+
 type SidecarEvent = Record<string, unknown>;
 
 const unpackSidecar = (value: unknown): SidecarEvent =>
@@ -26,6 +31,10 @@ const unwrapSidecar = (value: unknown): SidecarEvent => {
  */
 export class EventMediator extends BaseService {
     private behavioral: BehavioralAnalyzer;
+    private sentinelIntegration: SentinelIntegration;
+    private fimIntegration: FimIntegration;
+    private networkIntegration: NetworkIntegration;
+    private scannerIntegration: ScannerIntegration;
     private learningTimeout: number | null = null;
 
     // Performance: High-volume event batching
@@ -79,6 +88,11 @@ export class EventMediator extends BaseService {
         if (kv) {
             this.behavioral.setKv(kv).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Failed to set KV for behavioral: ${err.message}` }).catch(() => {}));
         }
+
+        this.sentinelIntegration = new SentinelIntegration(eventBusPort, processTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
+        this.fimIntegration = new FimIntegration(eventBusPort, canaryService, logger, broadcast);
+        this.networkIntegration = new NetworkIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.networkBatch);
+        this.scannerIntegration = new ScannerIntegration(eventBusPort, logger, broadcast);
 
         this.behavioral.setLearningMode(true);
         this.learningTimeout = setTimeout(() => {
@@ -139,81 +153,8 @@ export class EventMediator extends BaseService {
         // 2. eBPF Integration
         commandPort.onEvent("sentinel", async (response: unknown) => {
             try {
-            const event = unwrapSidecar(response);
-
-            // SOV-06: Schema enforcement for IPC
-            try {
-                const { SyscallEventSchema } = await import("../../core/event_schema.ts");
-                if (event.type === "SYSCALL_EVENT") {
-                    const parsed = SyscallEventSchema.parse(event);
-                    Object.assign(event, parsed);
-                }
-            } catch (e) {
-                this.logger.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "MEDIATOR:SCHEMA",
-                    message: `Malformed EBPF event: ${(e as Error).message}`
-                });
-                return;
-            }
-
-            if (event.type === "SYSCALL_EVENT") {
-                this.syscallBatch.push(event);
-                if (this.syscallBatch.length >= this.BATCH_THRESHOLD) {
-                    this.flushBatches();
-                }
-
-                let type = "EBPF_SYSCALL";
-                let severity = LogSeverity.INFO;
-                const pid = typeof event.pid === "number" ? event.pid : 0;
-                const comm = typeof event.comm === "string" ? event.comm : "unknown";
-                const syscall = typeof event.syscall === "string" ? event.syscall : "unknown";
-
-                this.behavioral.trackSyscall(pid, comm, syscall);
-                const anomalyScore = this.behavioral.getSyscallAnomalyScore(comm, syscall);
-
-                const intent = this.behavioral.getIntentVerdict(pid);
-                if (intent) {
-                    type = "EBPF_CRITICAL";
-                    severity = LogSeverity.ERROR;
-                    event.message = `[INTENT_MATCH: ${intent.intent}] ${event.comm} sequence identified as malicious.`;
-                }
-
-                if (syscall === "ptrace" || anomalyScore > 0.5) {
-                    type = "EBPF_CRITICAL";
-                    severity = LogSeverity.ERROR;
-                }
-
-                const analysis = await this.processTracker.analyzeEvent(pid, comm);
-                if (analysis.isStrayShell) {
-                    type = "EBPF_STRAY_SHELL";
-                    severity = LogSeverity.WARNING;
-                }
-
-                // Still broadcast critical/stray shell alerts individually for real-time visibility
-                if (type !== "EBPF_SYSCALL") {
-                    this.broadcast({
-                        type,
-                        severity,
-                        message: `eBPF Alert: ${event.comm} called ${event.syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
-                        data: { ...event, anomalyScore }
-                    });
-                    this.eventBus?.emit(type as any, event as any);
-                }
-
-                if (type === "EBPF_STRAY_SHELL") {
-                    // SOV-06 FIX: Await logging for critical security alerts
-                    await this.logger.log({
-                        timestamp: new Date().toISOString(),
-                        type: LogType.AUDIT,
-                        severity: LogSeverity.WARNING,
-                        caller: "SECURITY",
-                        message: `Stray shell detected: ${event.comm} (PID: ${event.pid})`
-                    });
-                }
-            }
+                const event = unwrapSidecar(response);
+                await this.sentinelIntegration.handleEvent(event);
             } catch (e) {
                 this.handleMediatorError(e as Error, "sentinel");
             }
@@ -222,60 +163,9 @@ export class EventMediator extends BaseService {
         // 3. FIM Integration
         commandPort.onEvent("watchfile", async (response: unknown) => {
             try {
-            const event = unwrapSidecar(response);
-            let payload = unwrapSidecar(event);
-
-            // SOV-06: Schema enforcement for IPC
-            try {
-                const { FileDriftSchema } = await import("../../core/event_schema.ts");
-                if (payload?.type === "FileAlert") {
-                    payload = FileDriftSchema.parse(payload);
-                }
-            } catch (e) {
-                this.logger.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "MEDIATOR:SCHEMA",
-                    message: `Malformed FIM event: ${(e as Error).message}`
-                });
-                return;
-            }
-
-            if (payload?.type === "FileAlert") {
-                const path = typeof payload.path === "string" ? payload.path : "unknown";
-                const action = typeof payload.action === "string" ? payload.action : "unknown";
-                const comm = typeof payload.comm === "string" ? payload.comm : undefined;
-                const pid = typeof payload.pid === "number" ? payload.pid : undefined;
-                const actor = comm || "system:internal";
-                const isCanary = await this.canaryService.handleFileAccess(path, actor);
-
-                if (isCanary && action.includes("Metadata")) {
-                    return;
-                }
-
-                const type = isCanary ? LogType.AUDIT : LogType.ACTIVITY;
-                const caller = isCanary ? "decoy:canary" : "fim:observer";
-                const severity = isCanary ? LogSeverity.ERROR : LogSeverity.WARNING;
-
-                this.logger.log({
-                    timestamp: new Date().toISOString(),
-                    type,
-                    severity,
-                    caller,
-                    message: `File Integrity Violation: ${action} detected on ${path} by ${actor} (PID: ${pid || 'N/A'})`,
-                    payload: { path, action, isCanary, actor, pid }
-                }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
-
-                this.broadcast({
-                    type,
-                    severity,
-                    caller,
-                    message: `FIM Alert: ${action} on ${path} [Actor: ${actor}]`,
-                    data: payload
-                });
-                this.eventBus?.emit((isCanary ? "THREAT" : "DRIFT_PROCESS") as any, payload as any);
-            }
+                const event = unwrapSidecar(response);
+                const payload = unwrapSidecar(event);
+                await this.fimIntegration.handleEvent(payload);
             } catch (e) {
                 this.handleMediatorError(e as Error, "watchfile");
             }
@@ -284,90 +174,9 @@ export class EventMediator extends BaseService {
         // 4. PCAP Integration
         commandPort.onEvent("netcap", async (response: unknown) => {
             try {
-            const event = unwrapSidecar(response);
-            let data = unwrapSidecar(event);
-
-            // SOV-06: Schema enforcement for IPC
-            try {
-                const { NetworkLogSchema } = await import("../../core/event_schema.ts");
-                if (event.type === "NETWORK_LOG") {
-                    data = NetworkLogSchema.parse(data);
-                }
-            } catch (e) {
-                this.logger.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "MEDIATOR:SCHEMA",
-                    message: `Malformed NETWORK event: ${(e as Error).message}`
-                });
-                return;
-            }
-
-            const eventType = typeof event.type === "string" ? event.type : "";
-            const source = typeof data.source === "string" ? data.source : undefined;
-            const message = typeof data.message === "string" ? data.message : undefined;
-            const bytesCount = typeof data.bytes_count === "number" ? data.bytes_count : undefined;
-            const iface = typeof data.interface === "string" ? data.interface : undefined;
-
-            if (eventType === "PACKET" || eventType === "NETWORK_LOG" || eventType === "EXFIL_ALERT") {
-                if (eventType === "NETWORK_LOG") {
-                    this.networkBatch.push(data);
-                    if (this.networkBatch.length >= this.BATCH_THRESHOLD) {
-                        this.flushBatches();
-                    }
-                }
-
-                let severity = eventType === "EXFIL_ALERT" ? LogSeverity.ERROR : LogSeverity.INFO;
-                const type = eventType === "EXFIL_ALERT" ? LogType.AUDIT : LogType.ACTIVITY;
-
-                let botScore = 0;
-                if (eventType === "NETWORK_LOG" && source) {
-                    this.behavioral.track(source);
-                    const analysis = this.behavioral.analyze(source);
-                    botScore = analysis.botProbability;
-                    if (botScore > 0.8) {
-                        severity = LogSeverity.WARNING;
-                    }
-                }
-
-                if (event.type === "EXFIL_ALERT") {
-                    this.logger.log({
-                        timestamp: new Date().toISOString(),
-                        type,
-                        severity,
-                        caller: "pcap:dissector",
-                        message: typeof data.message === "string" ? data.message : "Network Exfiltration Attempt Detected",
-                        payload: data
-                    }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
-                }
-
-                this.broadcast({
-                    type: eventType,
-                    severity,
-                    message: message || `Packet intercepted on ${iface || 'mesh'} ${botScore > 0.8 ? '[BOT_PROBABILITY_HIGH]' : ''}`,
-                    data: { ...data, botScore }
-                });
-
-                if (eventType === "NETWORK_LOG" && bytesCount && bytesCount > 1024 * 1024 * 10) {
-                    const msg = `EXFIL_DETECTION: High volume data transfer detected from ${source || 'unknown'} (${(bytesCount / 1024 / 1024).toFixed(2)} MB)`;
-                    this.logger.log({
-                        timestamp: new Date().toISOString(),
-                        type: LogType.AUDIT,
-                        severity: LogSeverity.ERROR,
-                        caller: "pcap:exfil",
-                        message: msg,
-                        payload: data
-                    }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
-                    this.broadcast({ type: "EXFIL_ALERT", severity: LogSeverity.ERROR, message: msg, data });
-                }
-            } else if (eventType === "SIDECAR_ALERT") {
-                this.broadcast({
-                    type: "ALERT",
-                    message: message || `PCAP Agent Alert: ${eventType}`,
-                    data: data
-                });
-            }
+                const event = unwrapSidecar(response);
+                const data = unwrapSidecar(event);
+                await this.networkIntegration.handleEvent(event, data);
             } catch (e) {
                 this.handleMediatorError(e as Error, "netcap");
             }
@@ -376,30 +185,9 @@ export class EventMediator extends BaseService {
         // 5. Scanner Integration
         commandPort.onEvent("analyzer", async (response: unknown) => {
             try {
-            const event = unwrapSidecar(response);
-            const data = unwrapSidecar(event);
-            const scanType = typeof data.type === "string" ? data.type : "";
-            if (scanType === "ThreatDetected" || scanType === "RKH_SCAN_RESULT") {
-                this.broadcast({
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "scanner:rkhunter",
-                    message: `Scanner Alert: ${scanType}`,
-                    data
-                });
-
-                // SOV-06 FIX: Await logging for high-severity scanner findings
-                await this.logger.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "scanner:rkhunter",
-                    message: `CRITICAL THREAT: ${scanType} identified by analyzer sidecar.`,
-                    payload: data
-                });
-
-                this.eventBus?.emit("THREAT" as any, data as any);
-            }
+                const event = unwrapSidecar(response);
+                const data = unwrapSidecar(event);
+                await this.scannerIntegration.handleEvent(data);
             } catch (e) {
                 this.handleMediatorError(e as Error, "analyzer");
             }
