@@ -48,6 +48,8 @@ export class SovereignApp {
     private auditService!: AuditService;
     private lifecycleService!: SystemLifecycleService;
     private registry: ServiceRegistry = new ServiceRegistry(loggingService);
+    private appManager!: ApplicationManager;
+    private lifecycleManager!: LifecycleManager;
 
     private logPilotBanner() {
         console.log(`
@@ -66,44 +68,8 @@ export class SovereignApp {
         const config = loadConfig();
         const configProvider = new EnvConfigProvider(config);
 
-        // SEC-01 & SEC-02 Hardening: Fail-shut on insecure production configuration
-        if (config.ENVIRONMENT === "production") {
-            if (config.CTS_DEV_MODE) {
-                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with CTS_DEV_MODE enabled.");
-            }
-            if (config.ALLOW_HARDWARE_BYPASS) {
-                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with ALLOW_HARDWARE_BYPASS enabled.");
-            }
-            if (!config.STRICT_HARDWARE_INTEGRITY) {
-                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with STRICT_HARDWARE_INTEGRITY disabled.");
-            }
-
-            // SEC-03: Enforce Hardware-Anchored Secrets in Production
-            // We expect MESH_SECRET and API_TOKEN to be provisioned in the TPM.
-            // If they are still present as env vars, we warn; if they are MISSING from both, we fail.
-            if (Deno.env.get("MESH_SECRET") || Deno.env.get("API_TOKEN")) {
-                await loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.WARNING,
-                    caller: "orchestrator:app:sovereign_app",
-                    message: "SECURITY HYGIENE: Sensitive secrets found in environment variables. Migration to hardware TPM indices is recommended."
-                });
-            }
-        }
-
-        loggingService.setConfig({
-            host: config.SYSLOG_HOST,
-            port: config.SYSLOG_PORT,
-            transport: config.SYSLOG_TRANSPORT,
-            caPath: config.SYSLOG_CA_PATH,
-            secrets: {
-                API_TOKEN: config.API_TOKEN,
-                MESH_SECRET: config.MESH_SECRET,
-                PKI_SECRET: config.PKI_SECRET,
-                SECURE_BYPASS_TOKEN: config.SECURE_BYPASS_TOKEN
-            }
-        });
+        this.applyProductionHardening(config);
+        this.configureLogging(config);
 
         // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
         this.sidecarManager.setConfig(configProvider);
@@ -115,10 +81,13 @@ export class SovereignApp {
         this.lifecycleService = factory.initSystemLifecycle(tpmManager);
         this.registry.register("SystemLifecycle", this.lifecycleService, ShutdownPriority.CRITICAL);
 
-        await this.setupSafetyAndErrorHandlers();
+        this.appManager = new ApplicationManager(this.kv, this.sidecarManager, this.registry);
+        this.lifecycleManager = new LifecycleManager(this.lifecycleService, this.sidecarManager, this.registry, this.emergencyLockdown.bind(this));
+
+        await this.lifecycleManager.setupSafetyAndErrorHandlers();
 
         const { platformInfo, notificationService, eventBus, meshManager, healthService } =
-            await this.initializeInfrastructure(configProvider, tpmManager);
+            await this.appManager.initializeInfrastructure(configProvider, tpmManager, this.auditService, this.lifecycleService);
         this.registry.register("Health", healthService, ShutdownPriority.CRITICAL);
 
         serviceLocator.register("config", configProvider);
@@ -147,113 +116,47 @@ export class SovereignApp {
         await this.finalizeBoot(configProvider, healthService);
     }
 
-    private async setupSafetyAndErrorHandlers() {
-        // Active Safety: Crash Loop Detection / Safe Mode
-        const isSafeMode = await this.lifecycleService.checkCrashLoop();
-        if (isSafeMode) {
-             Deno.env.set("SHADOW_MODE", "true");
-             Deno.env.set("STRICT_POLICY_ENFORCEMENT", "false");
-             loggingService.log({
-                 timestamp: new Date().toISOString(),
-                 type: LogType.AUDIT,
-                 severity: LogSeverity.ERROR,
-                 caller: "orchestrator:app:sovereign_app",
-                 message: "⚠️ SAFE MODE ACTIVATED: Multiple boot failures detected. All enforcement disabled."
-             });
+    private applyProductionHardening(config: any) {
+        // SEC-01 & SEC-02 Hardening: Fail-shut on insecure production configuration
+        if (config.ENVIRONMENT === "production") {
+            if (config.CTS_DEV_MODE) {
+                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with CTS_DEV_MODE enabled.");
+            }
+            if (config.ALLOW_HARDWARE_BYPASS) {
+                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with ALLOW_HARDWARE_BYPASS enabled.");
+            }
+            if (!config.STRICT_HARDWARE_INTEGRITY) {
+                throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with STRICT_HARDWARE_INTEGRITY disabled.");
+            }
 
-             if (Deno.env.get("AUTO_RESTORE_LKG") === "true") {
-                 await this.lifecycleService.tryRestoreLkg();
-             }
+            // SEC-03: Enforce Hardware-Anchored Secrets in Production
+            // We expect MESH_SECRET and API_TOKEN to be provisioned in the TPM.
+            // If they are still present as env vars, we warn; if they are MISSING from both, we fail.
+            if (Deno.env.get("MESH_SECRET") || Deno.env.get("API_TOKEN")) {
+                loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:app:sovereign_app",
+                    message: "SECURITY HYGIENE: Sensitive secrets found in environment variables. Migration to hardware TPM indices is recommended."
+                }).catch(() => {});
+            }
         }
-
-        // SOV-P3: Global Error Handlers (Fail-Closed Hardening)
-        globalThis.addEventListener("unhandledrejection", (e) => {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "RUNTIME",
-                message: `Unhandled Promise Rejection: ${e.reason}. Initiating fail-closed sequence.`
-            }).catch(err => console.error(`Background task failure: ${err}`));
-
-            this.emergencyLockdown(`Unhandled Promise Rejection: ${e.reason}`);
-        });
-
-        globalThis.addEventListener("error", (e) => {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "RUNTIME",
-                message: `Fatal Runtime Error: ${e.message}. Initiating fail-closed sequence.`
-            }).catch(err => console.error(`Background task failure: ${err}`));
-
-            this.emergencyLockdown(`Fatal Runtime Error: ${e.message}`);
-        });
     }
 
-    private async initializeInfrastructure(configProvider: ConfigurationPort, tpmManager: TPMManager) {
-        // ── Phase 1.1: Security Lockdown Check ───────────────────────────────
-        const lockdown = await this.kv.get<{ reason: string, timestamp: string }>(["system", "lockdown"]);
-        if (lockdown.value) {
-            const data = lockdown.value;
-            await loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:app:sovereign_app:boot",
-                message: `BOOT ABORTED: System is in PERMANENT LOCKDOWN. Reason: ${data.reason}. Timestamp: ${data.timestamp}`
-            });
-            console.error("!!! CRITICAL: SYSTEM LOCKED !!!");
-            console.error(`Reason: ${data.reason}`);
-            console.error("Run 'deno run -A scripts/recover.ts' with a valid recovery token to restore access.");
-            Deno.exit(1);
-        }
-
-        const platformInfo = await getPlatformInfo(this.executor);
-
-        await bootstrap();
-        const eventBus = new EventBus(loggingService);
-        const notificationService = new NotificationService(this.kv, loggingService);
-        this.registry.register("Notifications", notificationService, ShutdownPriority.AUXILIARY);
-        const healthService = new HealthService(loggingService);
-        healthService.setSidecarManager(this.sidecarManager);
-        
-        // REPOSITORY INJECTION
-        const auditRepo = new KvAuditRepository(this.kv);
-        this.auditService = new AuditService(auditRepo, loggingService, tpmManager);
-
-        // SOV-P4: Forensic WORM Mirroring
-        const wormRepo = new WormRepository();
-        this.auditService.setWormRepository(wormRepo);
-
-        this.registry.register("Audit", this.auditService, ShutdownPriority.CRITICAL);
-        this.auditService.setConfig(configProvider);
-        const auditInitRes = await this.auditService.init();
-        if (!auditInitRes.success) {
-            await this.emergencyLockdown(`Audit Integrity Violation: ${auditInitRes.error.message}`);
-        }
-
-        // ── Phase 3: Mesh & Network ──────────────────────────────────────────
-        const meshManager = await this.initMesh(tpmManager, configProvider);
-        const meshInitRes = await meshManager.init();
-        if (!meshInitRes.success) {
-            loggingService.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:app:sovereign_app",
-                message: `Mesh initialization non-critical failure: ${meshInitRes.error.message}`
-            });
-        }
-
-        // ── Phase 4: Hardware Integrity ──────────────────────────────────────
-        const isHardwareSecure = await this.lifecycleService.verifyHardware(configProvider);
-        if (!isHardwareSecure) {
-            await this.emergencyLockdown("Hardware Integrity Violation");
-        }
-
-        return { platformInfo, notificationService, eventBus, meshManager, healthService };
+    private configureLogging(config: any) {
+        loggingService.setConfig({
+            host: config.SYSLOG_HOST,
+            port: config.SYSLOG_PORT,
+            transport: config.SYSLOG_TRANSPORT,
+            caPath: config.SYSLOG_CA_PATH,
+            secrets: {
+                API_TOKEN: config.API_TOKEN,
+                MESH_SECRET: config.MESH_SECRET,
+                PKI_SECRET: config.PKI_SECRET,
+                SECURE_BYPASS_TOKEN: config.SECURE_BYPASS_TOKEN
+            }
+        });
     }
 
     private async finalizeBoot(configProvider: ConfigurationPort, healthService: HealthService) {
@@ -264,7 +167,7 @@ export class SovereignApp {
         const port = configProvider.getNumber("PORT", 8000);
         this.checkPilotSafety(configProvider);
 
-        this.lifecycleService.registerSignalHandlers(async () => {
+        this.lifecycleManager.registerSignalHandlers(async () => {
             await this.gracefulShutdown();
         });
 
@@ -348,16 +251,6 @@ export class SovereignApp {
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
     }
 
-    private initMesh(tpm: TPMManager, config: ConfigurationPort): Promise<MeshManager> {
-        const meshAuthService = new MeshAuthService(this.kv, loggingService, config, tpm);
-        this.registry.register("MeshAuth", meshAuthService, ShutdownPriority.NETWORK);
-        const meshManager = new MeshManager(meshAuthService, loggingService, this.auditService, config);
-        this.registry.register("Mesh", meshManager, ShutdownPriority.NETWORK);
-        
-        setMeshManager(meshManager);
-        meshManager.startDiscovery();
-        return Promise.resolve(meshManager);
-    }
 
     private async initOperationalLayer(services: ServiceContainer) {
         this.web = new WebAdapter(services);
@@ -449,22 +342,7 @@ export class SovereignApp {
 
     private wireEvents() {
         this.services.mediator.wireSidecars(this.services.command);
-
-        // Fail-Closed Lifecycle: Monitor critical sidecar health
-        this.sidecarManager.onEvent("SYSTEM_ERROR", (payload) => {
-            const eventPayload = payload as { type?: string; critical?: boolean; sidecar?: string };
-            if (eventPayload.type === "SIDECAR_CRASH_LOOP" && eventPayload.critical) {
-                loggingService.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:app:sovereign_app:fail_closed",
-                    message: `FATAL: Critical sidecar '${eventPayload.sidecar ?? "unknown"}' entered crash loop. Initiating emergency lockdown.`
-                }).catch(err => console.error(`Background task failure: ${err}`));
-
-                this.emergencyLockdown(`Critical Sidecar Failure: ${eventPayload.sidecar ?? "unknown"}`);
-            }
-        });
+        this.lifecycleManager.wireEvents();
     }
 
     // Accessor for internal logging

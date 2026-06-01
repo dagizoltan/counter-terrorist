@@ -1,9 +1,11 @@
-use serde::{Deserialize, Serialize};
+mod forensics;
+
+use cts_ipc::models::{AgentCommand, AgentResponse};
+use serde::Serialize;
 use sysinfo::{PidExt, System, SystemExt};
 use std::fs::{self, File};
 use std::path::{Path};
 use std::time::{SystemTime, UNIX_EPOCH};
-use std::io::BufRead;
 use tokio::io::{AsyncBufReadExt, BufReader as TokioBufReader};
 use std::sync::{Arc};
 use tokio::sync::Mutex as AsyncMutex;
@@ -13,8 +15,8 @@ use sha2::{Sha256, Digest};
 use lru::LruCache;
 use parking_lot::Mutex;
 use landlock::{
-    Access, AccessFs, Ruleset, RulesetAttr, RulesetStatus,
-    ABI, PathBeneath, PathFd, RulesetCreatedAttr,
+    Access, AccessFs, Ruleset, RulesetStatus,
+    ABI, PathBeneath, PathFd, RulesetAttr, RulesetCreatedAttr
 };
 
 static STDOUT_LOCK: Lazy<Arc<AsyncMutex<()>>> = Lazy::new(|| Arc::new(AsyncMutex::new(())));
@@ -30,45 +32,6 @@ struct CacheEntry {
 static HASH_CACHE: Lazy<Mutex<LruCache<String, CacheEntry>>> = Lazy::new(|| {
     Mutex::new(LruCache::new(std::num::NonZeroUsize::new(MAX_CACHE_SIZE).unwrap()))
 });
-
-#[derive(Deserialize, Debug)]
-#[serde(tag = "type")]
-enum ScannerCommand {
-    #[serde(rename = "MEM_SCAN")]
-    MemScan { id: String },
-    ScanPath { id: String, path: String },
-    Quarantine { id: String, path: String },
-    SyncSignatures { id: String },
-    GetStatus { id: String },
-    EnforceLandlock { id: String, rules: Vec<cts_ipc::LandlockPathRule> },
-    #[serde(rename = "RKH_SCAN")]
-    RkhScan { id: String },
-    #[serde(rename = "ATTEST_KERNEL")]
-    AttestKernel { id: String },
-}
-
-#[derive(Serialize, Debug)]
-struct ScanResponse {
-    id: String,
-    success: bool,
-    timestamp: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    threats_found: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    memory_anomalies: Option<Vec<MemoryAnomaly>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    target: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct MemoryAnomaly {
-    pid: u32,
-    address_range: String,
-    perms: String,
-    reason: String,
-}
 
 #[derive(Debug, Serialize)]
 struct ForensicLog {
@@ -91,54 +54,6 @@ async fn log_forensic(severity: &str, message: &str) {
         let _lock = STDOUT_LOCK.lock().await;
         println!("[LOG] {}", json);
     }
-}
-
-fn scan_process_memory(pid: u32) -> Vec<MemoryAnomaly> {
-    let mut anomalies = Vec::new();
-    let maps_path = format!("/proc/{}/maps", pid);
-
-    if let Ok(file) = File::open(&maps_path) {
-        let reader = std::io::BufReader::new(file);
-        for line in reader.lines().map_while(Result::ok) {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() < 2 { continue; }
-            
-            let range = parts[0];
-            let perms = parts[1];
-
-            // RWX DETECTION: Highly suspicious for fileless malware
-            if perms.contains("rwx") {
-                anomalies.push(MemoryAnomaly {
-                    pid,
-                    address_range: range.to_string(),
-                    perms: perms.to_string(),
-                    reason: "Simultaneous RWX permissions detected (Shellcode indicator)".to_string(),
-                });
-            }
-
-            // ANOMALOUS EXEC: Executable memory not backed by a file
-            if perms.contains('x') && parts.len() < 6 {
-                anomalies.push(MemoryAnomaly {
-                    pid,
-                    address_range: range.to_string(),
-                    perms: perms.to_string(),
-                    reason: "Anonymous executable memory detected (Potential shellcode injection)".to_string(),
-                });
-            }
-
-            // SOV-P3: Deep Fileless Malware Detection
-            // Identify regions that have BOTH Executable and Writable permissions WITHOUT file backing
-            if perms.contains('x') && perms.contains('w') && parts.len() < 6 {
-                anomalies.push(MemoryAnomaly {
-                    pid,
-                    address_range: range.to_string(),
-                    perms: perms.to_string(),
-                    reason: "CRITICAL: Fileless RWX anonymous memory detected (Highly suspicious)".to_string(),
-                });
-            }
-        }
-    }
-    anomalies
 }
 
 fn hash_file(path: &Path) -> Option<String> {
@@ -308,7 +223,7 @@ async fn main() -> anyhow::Result<()> {
     let mut reader = TokioBufReader::new(stdin).lines();
 
     while let Ok(Some(line)) = reader.next_line().await {
-        let command: ScannerCommand = match serde_json::from_str(&line) {
+        let command: AgentCommand = match serde_json::from_str(&line) {
             Ok(c) => c,
             Err(e) => {
                 log_forensic("error", &format!("Failed to parse command: {}", e)).await;
@@ -325,9 +240,9 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn handle_command(command: ScannerCommand, sys: &mut System) -> ScanResponse {
+async fn handle_command(command: AgentCommand, sys: &mut System) -> AgentResponse {
     match command {
-        ScannerCommand::MemScan { id } => {
+        AgentCommand::MemScan { id } => {
             log_forensic("info", "Initiating global memory-forensic audit...").await;
             sys.refresh_processes();
 
@@ -335,119 +250,105 @@ async fn handle_command(command: ScannerCommand, sys: &mut System) -> ScanRespon
             for pid in sys.processes().keys() {
                 let pid_u32 = pid.as_u32();
                 if pid_u32 > 1 {
-                    all_anomalies.extend(scan_process_memory(pid_u32));
+                    all_anomalies.extend(forensics::scan_process_memory(pid_u32));
                 }
             }
 
-            ScanResponse {
-                id,
+            AgentResponse {
+                id: Some(id),
                 success: true,
                 timestamp: Utc::now().to_rfc3339(),
                 message: Some("Memory scan complete".to_string()),
                 threats_found: Some(!all_anomalies.is_empty()),
-                memory_anomalies: if all_anomalies.is_empty() { None } else { Some(all_anomalies) },
+                memory_anomalies: if all_anomalies.is_empty() { None } else {
+                    Some(all_anomalies.into_iter().map(|a| serde_json::to_value(a).unwrap()).collect())
+                },
                 target: None,
+                data: None,
             }
         }
-        ScannerCommand::AttestKernel { id } => {
+        AgentCommand::AttestKernel { id } => {
             log_forensic("info", "Executing Kernel-Level Attestation task...").await;
-            // BUG-4.20 FIX: Implement the ATTEST_KERNEL command used by LifecycleService
-            // This command checks for kernel-level tampering (e.g. modified syscall table)
-
-            ScanResponse {
-                id,
+            AgentResponse {
+                id: Some(id),
                 success: true,
                 timestamp: Utc::now().to_rfc3339(),
                 message: Some("Kernel attestation complete. Integrity verified.".to_string()),
                 threats_found: Some(false),
                 memory_anomalies: None,
                 target: None,
+                data: None,
             }
         }
-        ScannerCommand::RkhScan { id } => {
+        AgentCommand::RkhScan { id } => {
             log_forensic("info", "Initiating Rootkit Vulnerability Audit...").await;
-
-            // RKH_SCAN: Specialized check for hidden directories and malicious kernel modules
             let mut anomalies = Vec::new();
-
-            // 1. Check for common hidden malicious directories
             let hidden_paths = vec!["/dev/shm/.hidden", "/tmp/.X11-unix/.secret", "/usr/share/.font-unix/.hidden"];
             for path in hidden_paths {
                 if Path::new(path).exists() {
                     anomalies.push(format!("Hidden directory detected: {}", path));
                 }
             }
-
-            // 2. Mock kernel module check
-            // In production, we'd use kmod or parse /proc/modules
-
             let threats_found = !anomalies.is_empty();
-            let message = if threats_found {
-                format!("Critical Rootkit Indicators Found: {}", anomalies.join(", "))
-            } else {
-                "No rootkit signatures detected.".to_string()
-            };
-
-            ScanResponse {
-                id,
+            AgentResponse {
+                id: Some(id),
                 success: true,
                 timestamp: Utc::now().to_rfc3339(),
-                message: Some(message),
+                message: Some(if threats_found { format!("Critical Rootkit Indicators Found: {}", anomalies.join(", ")) } else { "No rootkit signatures detected.".to_string() }),
                 threats_found: Some(threats_found),
                 memory_anomalies: None,
                 target: None,
+                data: None,
             }
         }
-        ScannerCommand::ScanPath { id, path } => {
+        AgentCommand::ScanPath { id, path } => {
             log_forensic("info", &format!("Starting filesystem audit for path: {}", path)).await;
             let (success, message, threats_found) = perform_path_scan(&path).await;
-
-            ScanResponse {
-                id,
+            AgentResponse {
+                id: Some(id),
                 success,
                 timestamp: Utc::now().to_rfc3339(),
                 message: Some(message),
                 threats_found: Some(threats_found),
                 memory_anomalies: None,
                 target: None,
+                data: None,
             }
         }
-        ScannerCommand::Quarantine { id, path } => {
+        AgentCommand::Quarantine { id, path } => {
             log_forensic("warning", &format!("Quarantining suspicious artifact: {}", path)).await;
-
             let quarantine_dir = "./volume/quarantine";
             fs::create_dir_all(quarantine_dir).ok();
-
             let path_obj = Path::new(&path);
             let filename = path_obj.file_name().unwrap_or_default();
             let target_path = Path::new(quarantine_dir).join(filename);
-
             let success = fs::rename(&path, &target_path).is_ok();
-
-            ScanResponse {
-                id,
+            AgentResponse {
+                id: Some(id),
                 success,
                 timestamp: Utc::now().to_rfc3339(),
                 message: Some(if success { format!("Moved to quarantine: {}", target_path.display()) } else { "Quarantine failed".to_string() }),
                 threats_found: None,
                 memory_anomalies: None,
                 target: Some(target_path.to_string_lossy().to_string()),
+                data: None,
             }
         }
-        ScannerCommand::SyncSignatures { id } => {
+        AgentCommand::SyncSignatures { id } => {
             log_forensic("info", "Synchronizing tactical threat intelligence...").await;
-            ScanResponse {
-                id,
+            AgentResponse {
+                id: Some(id),
                 success: true,
                 timestamp: Utc::now().to_rfc3339(),
                 message: Some("Signatures synchronized with Global Hive.".to_string()),
                 threats_found: None,
                 memory_anomalies: None,
                 target: None,
+                data: None,
             }
         }
-        ScannerCommand::GetStatus { id } => {
-            ScanResponse {
+        AgentCommand::GetStatus { id } => {
+            AgentResponse {
                 id,
                 success: true,
                 timestamp: Utc::now().to_rfc3339(),
@@ -455,22 +356,35 @@ async fn handle_command(command: ScannerCommand, sys: &mut System) -> ScanRespon
                 threats_found: None,
                 memory_anomalies: None,
                 target: None,
+                data: None,
             }
         }
-        ScannerCommand::EnforceLandlock { id, rules } => {
-            let (success, message) = match cts_ipc::apply_granular_landlock(&rules) {
+        AgentCommand::EnforceLandlock { id, rules } => {
+            let rules_converted: Vec<cts_ipc::LandlockPathRule> = rules.into_iter().map(|r| cts_ipc::LandlockPathRule { path: r.path, syscalls: r.syscalls }).collect();
+            let (success, message) = match cts_ipc::apply_granular_landlock(&rules_converted) {
                 Ok(_) => (true, Some("Granular Landlock policies applied".to_string())),
                 Err(e) => (false, Some(format!("Landlock failed: {}", e))),
             };
-            ScanResponse {
-                id,
+            AgentResponse {
+                id: Some(id),
                 success,
                 timestamp: Utc::now().to_rfc3339(),
                 message,
                 threats_found: None,
                 memory_anomalies: None,
                 target: None,
+                data: None,
             }
+        }
+        _ => AgentResponse {
+            id: None,
+            success: false,
+            timestamp: Utc::now().to_rfc3339(),
+            message: Some("Unsupported command for Analyzer agent".to_string()),
+            threats_found: None,
+            memory_anomalies: None,
+            target: None,
+            data: None,
         }
     }
 }

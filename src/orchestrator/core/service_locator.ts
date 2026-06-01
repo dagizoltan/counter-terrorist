@@ -1,19 +1,19 @@
-import { ServiceLocatorPort } from "./ports.ts";
+import { ServiceLocatorPort } from "./ports/system.ts";
 
 /**
  * ServiceMap defines the registry of all services available in the Sovereign Orchestrator.
  * This provides compile-time type safety for service retrieval.
  */
 export interface ServiceMap {
-  "config": import("./ports.ts").ConfigurationPort;
+  "config": import("./ports/system.ts").ConfigurationPort;
   "command": import("../infrastructure/runtime/sidecar_manager.ts").SidecarManager;
-  "logging": import("./ports.ts").LoggingPort;
+  "logging": import("./ports/logging.ts").LoggingPort;
   "audit": import("../domain/analysis/audit.ts").AuditService;
   "eventBus": import("../domain/analysis/events.ts").EventBus;
   "notifications": import("../domain/analysis/notifications.ts").NotificationService;
   "mesh": import("../domain/orchestration/mesh.ts").MeshManager;
   "health": import("../domain/analysis/health_service.ts").HealthService;
-  "protection": import("./ports.ts").ProtectionPort;
+  "protection": import("./ports/security.ts").ProtectionPort;
   "playbook": import("../domain/orchestration/playbook_service.ts").PlaybookService;
   "autopilot": import("../domain/orchestration/autopilot_service.ts").AutopilotService;
   "shadow": import("../domain/protection/shadow_service.ts").ShadowService;
@@ -41,7 +41,7 @@ export interface ServiceMap {
 }
 
 export class ServiceLocator implements ServiceLocatorPort {
-  private services = new Map<string, any>();
+  private services = new Map<keyof ServiceMap | string, ServiceMap[keyof ServiceMap] | any>();
 
   register<K extends keyof ServiceMap>(key: K, service: ServiceMap[K]): void;
   register(key: string, service: any): void;

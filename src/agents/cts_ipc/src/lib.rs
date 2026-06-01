@@ -1,3 +1,5 @@
+pub mod models;
+
 use shared_memory::*;
 use landlock::*;
 use serde::{Serialize, Deserialize};
