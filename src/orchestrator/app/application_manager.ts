@@ -67,4 +67,57 @@ export class ApplicationManager {
         meshManager.startDiscovery();
         return Promise.resolve(meshManager);
     }
+
+    async startDaemons(services: ServiceContainer) {
+        const { command: sm, platformInfo } = services;
+        const daemons = ["decoy", "watchfile", "netcap", "analyzer", "tunnel"];
+
+        if ((platformInfo.name as string) === "linux" || platformInfo.name === "ubuntu") {
+            daemons.push("enforcer");
+        }
+
+        if (platformInfo.name === "macos") daemons.push("sentinel-darwin");
+        if (platformInfo.name === "windows") {
+            daemons.push("telemetry-win");
+            daemons.push("enforcer-win");
+        }
+
+        const { SIDECAR_REGISTRY } = await import("@infrastructure/runtime/sidecar_registry.ts");
+
+        for (const s of daemons) {
+            try {
+                const child = await sm.getPersistentSidecar(s);
+                if (!child && SIDECAR_REGISTRY[s]?.critical) {
+                    throw new Error(`Critical sidecar '${s}' failed to spawn.`);
+                }
+            } catch (e) {
+                const isCritical = SIDECAR_REGISTRY[s]?.critical;
+                await loggingService.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:app:application_manager:boot",
+                    message: `${isCritical ? "FATAL" : "CRITICAL"}: Persistent sidecar '${s}' failed to start: ${(e as Error).message}`
+                });
+
+                if (isCritical) {
+                    throw e;
+                }
+            }
+        }
+
+        const ebpf = await sm.getPersistentSidecar("sentinel").catch(() => null);
+        if (ebpf) {
+            await sm.sendCommand("sentinel", { type: "HIDE_PID", pid: Deno.pid }).catch(err => console.error(`Background task failure: ${err}`));
+        }
+    }
+
+    async seedForensics(services: ServiceContainer) {
+        const { incidents, networkLogs } = services;
+        const existing = await incidents.getIncidents();
+        if (existing.length > 0) return;
+
+        await networkLogs.log({ direction: "INBOUND", source: "185.220.101.42", destination: "LOCAL", protocol: "TCP/443", length: 512, action: "BLOCK" });
+        await incidents.reportIncident({ severity: "HIGH", title: "Suspicious Vault Access", description: "Tor exit node attempt.", source: "Network", indicators: ["185.220.101.42"] });
+    }
 }

@@ -1,5 +1,5 @@
 import { ServiceContainer, PlatformInfo } from "./container.ts";
-import { ConfigurationPort } from "./ports/system.ts";
+import { ConfigurationPort, EventBusPort, TpmPort } from "./ports.ts";
 import { ProtectionPort } from "./ports/security.ts";
 import {
     BaselineService, ProcessTracker, SessionService, ApiKeysService,
@@ -34,10 +34,16 @@ import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts
 import { ServiceRegistry } from "./registry.ts";
 import { SecuritySubsystemFactory } from "./SecuritySubsystemFactory.ts";
 import { IntelligenceSubsystemFactory } from "./IntelligenceSubsystemFactory.ts";
+import { IdentitySubsystemFactory } from "./IdentitySubsystemFactory.ts";
+import { EngineSubsystemFactory } from "./EngineSubsystemFactory.ts";
+import { OperationalSubsystemFactory } from "./OperationalSubsystemFactory.ts";
 
 export class SubsystemFactory {
     private securityFactory: SecuritySubsystemFactory;
     private intelligenceFactory: IntelligenceSubsystemFactory;
+    private identityFactory: IdentitySubsystemFactory;
+    private engineFactory: EngineSubsystemFactory;
+    private operationalFactory: OperationalSubsystemFactory;
 
     constructor(
         private kv: Deno.Kv,
@@ -49,15 +55,13 @@ export class SubsystemFactory {
     ) {
         this.securityFactory = new SecuritySubsystemFactory(logging, executor, sidecarManager, auditService, registry, this.createService.bind(this));
         this.intelligenceFactory = new IntelligenceSubsystemFactory(kv, logging, executor, auditService, this.createService.bind(this));
+        this.identityFactory = new IdentitySubsystemFactory(kv, logging, sidecarManager);
+        this.engineFactory = new EngineSubsystemFactory(sidecarManager, executor, logging);
+        this.operationalFactory = new OperationalSubsystemFactory(kv, logging, sidecarManager, executor, auditService, this.createService.bind(this));
     }
 
     initIdentity(config: EnvConfigProvider) {
-        const sessionRepo = new KvSessionRepository(this.kv);
-        const sessions = new SessionService(sessionRepo, this.logging, config.getNumber("SESSION_TTL_HOURS", 24));
-        const apiKeys = new ApiKeysService(this.kv, this.logging);
-        const rateLimit = new RateLimitService(this.kv);
-        const meshAuth = new MeshAuthService(this.kv, this.logging, config, this.sidecarManager.getTpm());
-        return { sessions, apiKeys, rateLimit, meshAuth };
+        return this.identityFactory.initIdentity(config);
     }
 
     async initProtection(platformInfo: PlatformInfo, config: EnvConfigProvider) {
@@ -81,12 +85,7 @@ export class SubsystemFactory {
     }
 
     async initEngine(correlation: CorrelationService, mesh: MeshManager) {
-        const autopilot = new AutopilotService();
-        const autonomousAutopilot = new AutonomousAutopilotService(correlation, this.sidecarManager, this.logging);
-        const lifecycle = new LifecycleService(this.sidecarManager, this.logging);
-        const provisioning = new ProvisioningService(this.sidecarManager, mesh, this.executor, this.logging);
-
-        return { autopilot, autonomousAutopilot, lifecycle, policy: autopilot.getPolicy(), correlation, provisioning };
+        return this.engineFactory.initEngine(correlation, mesh);
     }
 
     initProcessTracker(platformInfo: PlatformInfo) {
@@ -103,6 +102,10 @@ export class SubsystemFactory {
 
     initSystemLifecycle(tpm: TPMManager): SystemLifecycleService {
         return new SystemLifecycleService(this.logging, tpm, this.kv);
+    }
+
+    public initOperational(health: HealthService, mesh: MeshManager, tpm: TpmPort, eventBus: EventBusPort, processTracker: ProcessTracker, security: { honeypot: any; canaryService: any }, broadcast: (event: any) => void) {
+        return this.operationalFactory.initOperational(health, mesh, tpm, eventBus, processTracker, security, broadcast);
     }
 
     public createService<T extends object>(health: HealthService, name: string, factory: () => T): T {

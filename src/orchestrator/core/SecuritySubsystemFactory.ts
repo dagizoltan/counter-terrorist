@@ -8,6 +8,7 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
 import { HealthService } from "@domain/analysis/health_service.ts";
 import { ServiceRegistry } from "./registry.ts";
+import { MeshManager } from "@domain/orchestration/mesh.ts";
 
 export class SecuritySubsystemFactory {
     constructor(
@@ -19,7 +20,14 @@ export class SecuritySubsystemFactory {
         private createServiceDelegate: <T extends object>(health: HealthService, name: string, factory: () => T) => T
     ) {}
 
-    initSecurity(protection: ProtectionPort, mesh: any, config: ConfigurationPort, health: HealthService) {
+    initSecurity(protection: ProtectionPort, mesh: MeshManager, config: ConfigurationPort, health: HealthService): {
+        anonymization: import("@domain/index.ts").AnonymizationService;
+        shadowProtocol: import("@domain/index.ts").ShadowProtocolService;
+        behavioral: import("@domain/index.ts").BehavioralService;
+        honeypot: import("@domain/index.ts").HoneypotService;
+        canaryService: import("@domain/index.ts").CanaryService;
+        kernelService: import("@domain/index.ts").KernelService;
+    } {
         const anonymization = new AnonymizationService(protection.vpn, this.logging);
         anonymization.setFirewall(protection.firewall);
         const shadowProtocol = new ShadowProtocolService(mesh, anonymization, this.logging);
