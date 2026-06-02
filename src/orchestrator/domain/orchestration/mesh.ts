@@ -78,7 +78,6 @@ export class MeshManager extends BaseService implements MeshPort {
   ) {
     super();
     this.chaosEngine = new MeshChaosEngine(logging);
-    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -101,7 +100,7 @@ export class MeshManager extends BaseService implements MeshPort {
   }
 
   protected override async onInit(): Promise<Result<void>> {
-
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
     this.startStateWatcher();
     this.port = this.config.getNumber("PORT", 8000);
@@ -1170,7 +1169,7 @@ export class MeshManager extends BaseService implements MeshPort {
         })();
     }
 
-    const watcher = kv.watch([["mesh", "nodes"]]);
+    const watcher = (kv as any).watch([["mesh", "nodes"]], { signal: this.watcherAbortController.signal });
     try {
         for await (const [entries] of watcher) {
             const nodeData = entries.value as MeshNode[];
