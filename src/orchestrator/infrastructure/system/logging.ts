@@ -18,7 +18,7 @@ export class LoggingService implements LoggingPort {
     private alertQueue: PersistentQueue<string> | null = null;
     private preInitBuffer: LogEntry[] = [];
     private redactor: SecretRedactor = new SecretRedactor();
-    private flushIntervalId: number | null = null;
+    private flushIntervalId: any = null;
 
     constructor(kv?: Deno.Kv) {
         this.processor = new LogProcessor(this.redactor);

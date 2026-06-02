@@ -170,7 +170,7 @@ export class ServiceOrchestrator {
             services.eventBus,
             loggingService
         );
-        services.metrics = metricsService;
+        services.metrics = metricsService as any;
         this.registry.register("DecentralizedMetrics", metricsService, ShutdownPriority.AUXILIARY);
         setMetricsService(metricsService);
 

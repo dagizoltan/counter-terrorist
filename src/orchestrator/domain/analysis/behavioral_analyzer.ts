@@ -18,7 +18,7 @@ export class BehavioralAnalyzer extends BaseService {
     private syscallSequences: Map<string, string[]> = new Map(); // pid -> recent syscalls
     private isLearningMode: boolean = false;
     private kv?: Deno.Kv;
-    private purgeInterval?: number;
+    private purgeInterval?: any;
 
     // MALICIOUS INTENT PATTERNS
     private static readonly INTENT_SIGNATURES = [

@@ -4,6 +4,7 @@ import { SidecarResponse } from "../system/validation.ts";
 
 export class IpcCoordinator {
     private mappedShmem: Map<string, Deno.PointerValue> = new Map();
+    private shmemPaths: Map<string, string[]> = new Map();
     private mappedCmdShmem: Map<string, Deno.PointerValue> = new Map();
     private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
     private eventHandlers: Map<string, ((data: SidecarResponse) => void)[]> = new Map();
@@ -17,6 +18,11 @@ export class IpcCoordinator {
         if (name === "sentinel" || name === "netcap") {
             const shmemPath = `/dev/shm/cts_${name}_${pid}`;
             const cmdShmemPath = `/dev/shm/cts_cmd_${name}_${pid}`;
+
+            // Record paths for aggressive cleanup
+            if (!this.shmemPaths.has(name)) this.shmemPaths.set(name, []);
+            this.shmemPaths.get(name)!.push(shmemPath, cmdShmemPath);
+
             await new Promise(r => setTimeout(r, 1000));
 
             const shmemPtr = this.ffi.createShmem(shmemPath, 1024 * 1024);
@@ -35,9 +41,28 @@ export class IpcCoordinator {
         return this.mappedCmdShmem.get(name);
     }
 
-    clearMappings(name: string) {
+    async clearMappings(name: string) {
         this.mappedShmem.delete(name);
         this.mappedCmdShmem.delete(name);
+
+        const paths = this.shmemPaths.get(name);
+        if (paths) {
+            for (const p of paths) {
+                try {
+                    await Deno.remove(p);
+                } catch {
+                    // Ignore, file might already be removed by the sidecar or OS
+                }
+            }
+            this.shmemPaths.delete(name);
+        }
+    }
+
+    async shutdown() {
+        const names = Array.from(this.shmemPaths.keys());
+        for (const name of names) {
+            await this.clearMappings(name);
+        }
     }
 
     addWaiter(name: string, id: string, waiter: { resolve: (data: CommandResult) => void, reject: (err: Error) => void }) {

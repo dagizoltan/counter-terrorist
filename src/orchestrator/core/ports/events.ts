@@ -5,19 +5,19 @@ export type SystemEventEnvelope<T extends EventName = EventName> = {
   type: T;
   message: string;
   timestamp: string;
-  data: z.infer<EventRegistry[T]>;
+  data: any,
   correlationId?: string;
   fromAudit?: boolean;
 };
 
 export type EventHandler<T extends EventName> = (
-  data: z.infer<EventRegistry[T]>,
+  data: any,
   event: SystemEventEnvelope<T>
 ) => void | Promise<void>;
 
 export interface EventBusPort {
-  publish<T extends EventName>(type: T, message: string, data?: z.infer<EventRegistry[T]>): void;
-  emit<T extends EventName>(event: T, data: z.infer<EventRegistry[T]>): void;
+  publish<T extends EventName>(type: T, message: string, data?: any): void;
+  emit<T extends EventName>(event: T, data: any): void;
   subscribe(handler: (event: SystemEventEnvelope) => void | Promise<void>): () => void;
   unsubscribe(handler: (event: SystemEventEnvelope) => void): void;
   on<T extends EventName>(event: T, callback: EventHandler<T>): () => void;

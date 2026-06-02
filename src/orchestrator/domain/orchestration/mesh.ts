@@ -1,6 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 
-import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort, TpmPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort, TpmPort, MeshPort } from "@core/ports.ts";
 import type { AuditEvent as DomainAuditEvent } from "../analysis/audit.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
@@ -22,10 +22,10 @@ export const MeshNodeSchema = z.object({
 
 export type MeshNode = z.infer<typeof MeshNodeSchema>;
 
-export class MeshManager extends BaseService {
+export class MeshManager extends BaseService implements MeshPort {
   private nodes: Map<string, MeshNode> = new Map();
-  private discoveryInterval: number | null = null;
-  private metricsInterval: number | null = null;
+  private discoveryInterval: any = null;
+  private metricsInterval: any = null;
   private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: { cert: string, key: string } | null = null;
   private nodeId: string = "";
@@ -34,7 +34,7 @@ export class MeshManager extends BaseService {
   private meshSecret: string | undefined;
   private watcherAbortController: AbortController | null = null;
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
-  private locator?: ServiceLocatorPort;
+  declare public locator?: ServiceLocatorPort;
   private chaosEngine: MeshChaosEngine;
   private gossipCache: BloomFilter = new BloomFilter(10000, 4);
 
@@ -313,7 +313,7 @@ export class MeshManager extends BaseService {
           message: "Passive mDNS listener active"
       });
 
-      for await (const [data, addr] of this.mdnsListener) {
+      for await (const [data, addr] of this.mdnsListener!) {
         if (data.length > 2048) continue;
         const msg = new TextDecoder().decode(data);
         if (msg.includes("_ct-orchestrator._tcp.local")) {
@@ -625,7 +625,7 @@ export class MeshManager extends BaseService {
     return Array.from(this.nodes.values());
   }
 
-  isolateNode(nodeId: string): Result<void> {
+  isolateNode(nodeId: string): import("@core/result.ts").Result<void> {
     const node = this.nodes.get(nodeId);
     if (node) {
       this.nodes.delete(nodeId);
@@ -650,7 +650,7 @@ export class MeshManager extends BaseService {
     return ok(undefined);
   }
 
-  async broadcastBlock(ip: string): Promise<Result<void>> {
+  async broadcastBlock(ip: string): Promise<import("@core/result.ts").Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -664,11 +664,11 @@ export class MeshManager extends BaseService {
         data: { ip, sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload, true);
   }
 
-  async broadcastQuarantine(target: string): Promise<Result<void>> {
+  async broadcastQuarantine(target: string): Promise<import("@core/result.ts").Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -682,11 +682,11 @@ export class MeshManager extends BaseService {
         data: { target, sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload, true);
   }
 
-  async broadcastThreatHash(hash: string, sourceNode: string): Promise<Result<void>> {
+  async broadcastThreatHash(hash: string, sourceNode: string): Promise<import("@core/result.ts").Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -700,11 +700,11 @@ export class MeshManager extends BaseService {
         data: { hash, sourceNode, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload);
   }
 
-  async broadcastLockdown(): Promise<Result<void>> {
+  async broadcastLockdown(): Promise<import("@core/result.ts").Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -718,7 +718,7 @@ export class MeshManager extends BaseService {
         data: { sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload, true);
   }
 
@@ -729,7 +729,7 @@ export class MeshManager extends BaseService {
         data: event,
         fromAudit: event.fromAudit
     };
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
     this.broadcast(payload).catch(e => {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -746,7 +746,7 @@ export class MeshManager extends BaseService {
         type: "GOSSIP_AUDIT_VERIFY",
         data: { lastHash, eventCount, node: this.nodeId }
     };
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload);
+    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
     this.broadcast(payload).catch(e => {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -1085,7 +1085,7 @@ export class MeshManager extends BaseService {
   /**
    * SOV-P4: Resolves a split-brain condition by reconciling state with the mesh majority.
    */
-  async resolveSplitBrain(): Promise<Result<void>> {
+  async resolveSplitBrain(): Promise<import("@core/result.ts").Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -1189,7 +1189,7 @@ export class MeshManager extends BaseService {
     }
   }
 
-  async rotateIdentity(): Promise<Result<void>> {
+  async rotateIdentity(): Promise<import("@core/result.ts").Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,

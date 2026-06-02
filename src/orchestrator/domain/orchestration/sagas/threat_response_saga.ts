@@ -140,7 +140,7 @@ export class ThreatResponseSaga {
 
         if (source.includes(".")) {
             // Mesh-wide IP Quarantine propagation
-            await this.deps.mesh.broadcastQuarantine(source);
+            await this.deps.mesh.broadcastQuarantine?.(source);
             const res = await this.deps.firewall.blockIp(source);
             return res.success ? ok(undefined) : err(new Error(res.stderr));
         } else {
@@ -228,7 +228,7 @@ export class ThreatResponseSaga {
             if (!isNaN(pid)) {
                 // Adaptive LSM: Tighten syscall allowlist for the process
                 // In shadow mode, we allow basic I/O but block high-risk calls.
-                const res = await this.deps.firewall.sendCommand("sentinel", {
+                const res = await this.deps.firewall.sendCommand!("sentinel", {
                     type: "LSM_SYSCALL_ALLOWLIST",
                     pid,
                     allowed_syscalls: ["open", "openat", "read", "write", "close"]

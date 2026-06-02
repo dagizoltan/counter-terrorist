@@ -260,13 +260,17 @@ export interface PcapRequest extends BaseRequest {
 
 export interface SidecarResponse {
   id?: string;
-  success: boolean;
+  success?: boolean;
   message?: string;
   stdout?: string;
   stderr?: string;
   data?: Record<string, any>;
   timestamp?: string;
   event?: string;
+  type?: string;
+  sidecar?: string;
+  critical?: boolean;
+  error?: string;
 }
 
 export interface ScannerResponse extends SidecarResponse {

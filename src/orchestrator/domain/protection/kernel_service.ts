@@ -16,7 +16,7 @@ export interface KernelHardeningStatus {
 export class KernelService extends BaseService {
     private lastHardened: string = "";
     private logging: LoggingPort;
-    private metricsInterval?: number;
+    private metricsInterval?: any;
 
     constructor(
         private executor: ExecutorPort,
@@ -99,12 +99,12 @@ export class KernelService extends BaseService {
                 }
 
                 if (this.eventBus) {
-                    this.eventBus.emit("SIDECAR_ALERT", {
+                    this.eventBus.emit("SIDECAR_ALERT" as any, {
                         sidecar: "sentinel",
                         type: "PERFORMANCE_DEGRADED",
                         message: `Hook ${hookId} latency spike: ${data.avg_ns}ns. Hook has been temporarily disabled.`,
                         data: { hookId, ...data }
-                    } as never);
+                    } as any);
                 }
             }
         }

@@ -10,7 +10,7 @@ export interface MetricUpdatePayload {
 
 export class DecentralizedMetricsService extends BaseService {
     private metrics: Map<string, Record<string, unknown>> = new Map();
-    private interval?: number;
+    private interval?: any;
 
     constructor(
         eventBus: EventBus,
@@ -49,7 +49,7 @@ export class DecentralizedMetricsService extends BaseService {
         if (!this.eventBus) return;
         this.eventBus.emit("METRIC_UPDATE", {
             domain: "scans",
-            data: results
+            data: results as any
         });
     }
 

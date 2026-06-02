@@ -41,7 +41,7 @@ import { WormRepository } from "@domain/repositories/worm_repository.ts";
 
 import { ApplicationManager } from "./application_manager.ts";
 import { LifecycleManager } from "./lifecycle_manager.ts";
-import { HardeningManager } from "../infrastructure/system/HardeningManager.ts";
+import { HardeningManager } from "../infrastructure/system/hardening_manager.ts";
 import { ServiceOrchestrator } from "./service_orchestrator.ts";
 
 export class SovereignApp {

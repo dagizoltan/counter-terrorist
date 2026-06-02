@@ -12,6 +12,7 @@ export interface FirewallPort {
   unenforcePid(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
   flushRules(): Promise<CommandResult>;
+  sendCommand?(name: string, cmd: any): Promise<CommandResult>;
   getBlockedIps(): Promise<string[]>;
   allowPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
   denyPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;

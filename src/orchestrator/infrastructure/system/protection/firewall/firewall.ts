@@ -14,7 +14,7 @@ export class FirewallManager implements FirewallPort {
   private config?: ConfigurationPort;
 
   private eventBus?: EventBusPort;
-  private metricsInterval?: number;
+  private metricsInterval?: any;
 
   constructor(private provider: FirewallProvider, private networkLogs?: LoggingPort) {
       this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
@@ -45,7 +45,7 @@ export class FirewallManager implements FirewallPort {
           data: {
               blockedCount: rejectCount,
               rules: rules.length,
-              blockedIps: blockedIps.slice(0, 20),
+              blockedIps: blockedIps.slice(0, 20) as any,
               // Note: behavioral metrics should be emitted by BehavioralService
           }
       });
@@ -432,5 +432,12 @@ export class FirewallManager implements FirewallPort {
     });
     this.blockedIps.clear();
     return await this.provider.flushRules();
+  }
+
+  async sendCommand(name: string, cmd: any) {
+    if (this.provider.sendCommand) {
+        return await this.provider.sendCommand(name, cmd);
+    }
+    return { success: false, stdout: "", stderr: "Firewall provider does not support direct commands" };
   }
 }

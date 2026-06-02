@@ -33,9 +33,9 @@ export class SidecarRepository {
 
             if (data.signature && data.signature !== "unsigned") {
                 try {
-                    const publicKeyBytes = new Uint8Array(SidecarRepository.DEVELOPER_PUBLIC_KEY.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+                    const publicKeyBytes = new Uint8Array(SidecarRepository.DEVELOPER_PUBLIC_KEY.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16)));
                     const publicKey = await crypto.subtle.importKey("raw", publicKeyBytes, "Ed25519", false, ["verify"]);
-                    const signatureBytes = new Uint8Array(data.signature.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
+                    const signatureBytes = new Uint8Array(data.signature.match(/.{1,2}/g)!.map((byte: string) => parseInt(byte, 16)));
                     const dataToVerify = new TextEncoder().encode(canonicalStringify(data.sidecars));
                     signatureVerified = await crypto.subtle.verify("Ed25519", publicKey, signatureBytes, dataToVerify);
                 } catch (e) {

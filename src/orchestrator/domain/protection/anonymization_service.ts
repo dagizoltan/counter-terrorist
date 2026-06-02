@@ -25,9 +25,9 @@ export class AnonymizationService extends BaseService {
     private rotationCount: number = 0;
     private lastRotationTime: string = "NEVER";
     private mode: StealthMode = StealthMode.OFF;
-    private rotationInterval?: number;
+    private rotationInterval?: any;
 
-    private killSwitchInterval?: number;
+    private killSwitchInterval?: any;
     private firewall?: FirewallPort;
 
     constructor(

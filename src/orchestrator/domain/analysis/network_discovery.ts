@@ -28,7 +28,7 @@ export class NetworkDiscoveryService extends BaseService {
     private discovery: any;
     private selfId: string = "LOCAL_NODE";
     private mesh?: MeshPort;
-    private intervalId: number | null = null;
+    private intervalId: any = null;
     private isScanning = false;
 
     constructor(private logging: LoggingService, private executor: ExecutorPort) {

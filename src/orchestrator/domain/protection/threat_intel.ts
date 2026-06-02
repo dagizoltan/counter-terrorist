@@ -6,7 +6,7 @@ export class ThreatIntelService {
     "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
   ];
   private blacklist: Set<string> = new Set();
-  private updateInterval?: number;
+  private updateInterval?: any;
 
   constructor(
     private protection: ProtectionPort,

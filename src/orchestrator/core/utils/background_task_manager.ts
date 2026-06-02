@@ -53,7 +53,7 @@ export class BackgroundTaskManager {
     /**
      * Executes a task repeatedly with a fixed interval.
      */
-    schedule(name: string, intervalMs: number, task: () => Promise<void>): number {
+    schedule(name: string, intervalMs: number, task: () => Promise<void>): any {
         const intervalId = setInterval(() => {
             this.run(name, task);
         }, intervalMs);

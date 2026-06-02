@@ -11,6 +11,10 @@ export interface MeshPort {
   broadcastThreatHash(hash: string, sourceNode: string): Promise<import("../result.ts").Result<void>>;
   broadcastAuditEvent(event: unknown): Promise<void>;
   broadcastAuditVerification(lastHash: string, eventCount: number): Promise<void>;
+  broadcastBlock(ip: string): Promise<import("../result.ts").Result<void>>;
+  broadcastLockdown(): Promise<import("../result.ts").Result<void>>;
+  broadcastQuarantine?(source: string): Promise<import("../result.ts").Result<void>>;
+  rotateIdentity?(): Promise<import("../result.ts").Result<void>>;
   requestAuditSync(nodeId: string): Promise<void>;
 }
 

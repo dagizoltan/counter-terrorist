@@ -87,7 +87,7 @@ export class AuditService extends BaseService {
     // Merkle Integration
     private currentSessionHashes: string[] = [];
     private merkleTree: MerkleTree = new MerkleTree();
-    private locator?: ServiceLocatorPort;
+    declare public locator?: ServiceLocatorPort;
     private wormRepo: WormRepository | null = null;
 
     public setWormRepository(repo: WormRepository) {

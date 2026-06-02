@@ -29,9 +29,9 @@ export interface ServiceMap {
   "honeypot": import("../domain/protection/honeypot_service.ts").HoneypotService;
   "shadowProtocol": import("../domain/protection/shadow_protocol_service.ts").ShadowProtocolService;
   "lsmLearning": import("../domain/protection/lsm_learning_service.ts").LsmLearningService;
-  "morphing": import("../domain/orchestration/morphing_service.ts").MorphingService;
+  "morphing": import("../domain/protection/morphing_service.ts").MorphingService;
   "chaos": import("../domain/orchestration/chaos_engine.ts").ChaosEngine;
-  "supplyChain": import("../domain/orchestration/supply_chain_service.ts").SupplyChainService;
+  "supplyChain": import("../domain/analysis/supply_chain.ts").SupplyChainService;
   "canaryService": import("../domain/protection/canary_service.ts").CanaryService;
   "kernelService": import("../domain/protection/kernel_service.ts").KernelService;
   "forensicService": import("../domain/analysis/forensic_service.ts").ForensicService;

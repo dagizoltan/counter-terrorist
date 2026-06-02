@@ -638,7 +638,7 @@ export class SystemExecutor implements ExecutorPort {
     return Promise.resolve();
   }
 
-  async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult> {
+  async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult & { stdout: string; stderr: string }> {
     const baseCmd = path.basename(cmd);
     // Security: Whitelist validation
     if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
@@ -668,7 +668,7 @@ export class SystemExecutor implements ExecutorPort {
         finalArgs = ["-n", cmd, ...args];
     }
 
-    let timeoutId: number | undefined;
+    let timeoutId: any;
     let child: Deno.ChildProcess | undefined;
 
     try {

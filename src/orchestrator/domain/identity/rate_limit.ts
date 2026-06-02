@@ -19,7 +19,7 @@ export class RateLimitService extends BaseService {
   private readonly PREFIX = ["security", "ratelimit"];
   // SEC-08: In-memory tier to mitigate Deno KV lock contention
   private memoryTier: Map<string, { count: number, resetAt: number }> = new Map();
-  private syncTimer?: number;
+  private syncTimer?: any;
 
   constructor(private kv: Deno.Kv) {
       super();
@@ -117,7 +117,7 @@ export class RateLimitService extends BaseService {
             message: `RATE_LIMIT_EXCEEDED (Memory Tier): Key=${key}, Count=${state.count}`
         });
         // On violation, immediately sync to KV to enforce across nodes
-        this.syncToKv(key, state).catch(() => {});
+        this.syncToKv(key, state.count, state.resetAt).catch(() => {});
     }
 
     // 2. Return status based on memory tier.

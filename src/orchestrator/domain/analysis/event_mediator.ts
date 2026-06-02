@@ -35,13 +35,13 @@ export class EventMediator extends BaseService {
     private fimIntegration: FimIntegration;
     private networkIntegration: NetworkIntegration;
     private scannerIntegration: ScannerIntegration;
-    private learningTimeout: number | null = null;
+    private learningTimeout: any = null;
 
     // Performance: High-volume event batching
     private syscallBatch: SidecarEvent[] = [];
     private networkBatch: SidecarEvent[] = [];
     private readonly BATCH_THRESHOLD = 50;
-    private batchTimer?: number;
+    private batchTimer?: any;
 
     protected override onInit(): Promise<Result<void>> {
         return Promise.resolve(ok(undefined));
@@ -78,15 +78,16 @@ export class EventMediator extends BaseService {
         private processTracker: ProcessTracker,
         private canaryService: CanaryService,
         private broadcast: (msg: BroadcastData) => void,
-        private logger: LoggingPort,
+        logger: LoggingPort,
         private kv?: Deno.Kv
     ) {
         super();
+        this.logger = logger;
         this.setEventBus(eventBusPort);
         this.eventBus = eventBusPort;
         this.behavioral = new BehavioralAnalyzer();
         if (kv) {
-            this.behavioral.setKv(kv).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Failed to set KV for behavioral: ${err.message}` }).catch(() => {}));
+            this.behavioral.setKv(kv).catch(err => this.logger.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Failed to set KV for behavioral: ${err.message}` }).catch(() => {}));
         }
 
         this.sentinelIntegration = new SentinelIntegration(eventBusPort, processTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
@@ -209,7 +210,7 @@ export class EventMediator extends BaseService {
             severity: LogSeverity.ERROR,
             caller: "orchestrator:domain:analysis:event_mediator",
             message: `Error processing ${sidecar} event: ${e.message}`
-        }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
+        }).catch(err => this.logger.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
     }
 
     /**

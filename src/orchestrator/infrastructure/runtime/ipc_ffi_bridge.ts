@@ -52,16 +52,16 @@ export class IpcFfiBridge {
     createShmem(path: string, size: number): Deno.PointerValue | null {
         if (!this.ffi) return null;
         const pathBuf = new TextEncoder().encode(path + "\0");
-        return this.ffi.symbols.create_shmem(pathBuf, size);
+        return this.ffi.symbols.create_shmem(pathBuf, BigInt(size));
     }
 
     readShmem(ptr: Deno.PointerValue, size: number = 65536): string | null {
         if (!this.ffi) return null;
         const outBuf = new Uint8Array(size);
-        const readLen = this.ffi.symbols.shmem_read(ptr, outBuf, outBuf.length);
+        const readLen = Number(this.ffi.symbols.shmem_read(ptr, outBuf, BigInt(outBuf.length)));
         if (readLen <= 0) return null;
 
-        const jsonPtr = this.ffi.symbols.deserialize_msgpack(outBuf, readLen);
+        const jsonPtr = this.ffi.symbols.deserialize_msgpack(outBuf, BigInt(readLen));
         if (jsonPtr) {
             const jsonStr = Deno.UnsafePointerView.getCString(jsonPtr);
             this.ffi.symbols.free_string(jsonPtr);
@@ -72,12 +72,12 @@ export class IpcFfiBridge {
 
     writeShmem(ptr: Deno.PointerValue, data: Uint8Array): boolean {
         if (!this.ffi) return false;
-        return this.ffi.symbols.shmem_write(ptr, data, data.length);
+        return this.ffi.symbols.shmem_write(ptr, data as any, BigInt(data.length));
     }
 
     fastMorph(data: Uint8Array, key: Uint8Array): void {
         if (!this.ffi) return;
-        this.ffi.symbols.fast_morph(data, data.length, key, key.length);
+        this.ffi.symbols.fast_morph(data as any, BigInt(data.length), key as any, BigInt(key.length));
     }
 
     serializeMessagePack(cmd: Record<string, unknown>): Uint8Array | null {
@@ -97,7 +97,7 @@ export class IpcFfiBridge {
         const result = new Uint8Array(view); // Copy
 
         // SEC-05 FIX: Release native buffer to prevent memory leak
-        this.ffi.symbols.free_buffer(msgpackPtr, len);
+        this.ffi.symbols.free_buffer(msgpackPtr, BigInt(len));
         return result;
     }
 }

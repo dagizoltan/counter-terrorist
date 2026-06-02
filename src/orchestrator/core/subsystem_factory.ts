@@ -32,11 +32,11 @@ import { AuditService } from "@domain/analysis/audit.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { ServiceRegistry } from "./registry.ts";
-import { SecuritySubsystemFactory } from "./SecuritySubsystemFactory.ts";
-import { IntelligenceSubsystemFactory } from "./IntelligenceSubsystemFactory.ts";
-import { IdentitySubsystemFactory } from "./IdentitySubsystemFactory.ts";
-import { EngineSubsystemFactory } from "./EngineSubsystemFactory.ts";
-import { OperationalSubsystemFactory } from "./OperationalSubsystemFactory.ts";
+import { SecuritySubsystemFactory } from "./security_subsystem_factory.ts";
+import { IntelligenceSubsystemFactory } from "./intelligence_subsystem_factory.ts";
+import { IdentitySubsystemFactory } from "./identity_subsystem_factory.ts";
+import { EngineSubsystemFactory } from "./engine_subsystem_factory.ts";
+import { OperationalSubsystemFactory } from "./operational_subsystem_factory.ts";
 
 export class SubsystemFactory {
     private securityFactory: SecuritySubsystemFactory;
@@ -69,7 +69,7 @@ export class SubsystemFactory {
         const networkLog = new NetworkLogService(networkLogRepo, this.logging);
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         await rawProtection.firewall.setKv(this.kv);
-        const protection = new ProtectionAdapter(rawProtection);
+        const protection = new ProtectionAdapter(rawProtection as any);
         if ("setConfig" in rawProtection.firewall && typeof rawProtection.firewall.setConfig === "function") {
             rawProtection.firewall.setConfig(config);
         }

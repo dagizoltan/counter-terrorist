@@ -31,8 +31,8 @@ export class SidecarManager implements CommandPort {
   private cleanupHandler: (() => Promise<void>) | null = null;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
-  private rotationInterval?: number;
-  private backoffTimers: Set<number> = new Set();
+  private rotationInterval?: number | any;
+  private backoffTimers: Set<number | any> = new Set();
   private manifestPromise: Promise<void> | null = null;
 
   private tpm: TpmPort | undefined;
@@ -558,7 +558,7 @@ export class SidecarManager implements CommandPort {
     } finally {
       reader.releaseLock();
       this.persistentProcesses.delete(name);
-      this.ipc.clearMappings(name);
+      await this.ipc.clearMappings(name);
       buffer = "";
     }
   }
@@ -685,7 +685,7 @@ export class SidecarManager implements CommandPort {
         try { process.kill("SIGKILL"); } catch { /* ignore */ }
       } finally {
         this.persistentProcesses.delete(name);
-        this.ipc.clearMappings(name);
+        await this.ipc.clearMappings(name);
         setTimeout(() => this.expectedExits.delete(name), 100);
       }
     }
@@ -697,6 +697,7 @@ export class SidecarManager implements CommandPort {
     this.heartbeatMonitor.stop();
     for (const timer of this.backoffTimers) clearTimeout(timer);
     this.backoffTimers.clear();
+    await this.ipc.shutdown();
 
     if (this.cleanupHandler) {
         Deno.removeSignalListener("SIGINT", this.cleanupHandler);

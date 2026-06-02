@@ -44,24 +44,24 @@ export class OperationalSubsystemFactory {
         const lsmLearning = new LsmLearningService(this.sidecarManager, this.logging);
 
         const integrity = this.createServiceDelegate(health, "Integrity", () => {
-            const service = new IntegrityService(mesh, this.auditService, tpm, this.logging);
+            const service = new IntegrityService(mesh, this.auditService, tpm as any, this.logging);
             service.setSidecarManager(this.sidecarManager);
             return service;
         });
 
         const morphing = this.createServiceDelegate(health, "Morphing", () => {
-            const service = new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh);
+            const service = new MorphingService(security.honeypot, security.canaryService, this.auditService, mesh as any);
             service.setFfi(this.sidecarManager.getFfi());
             return service;
         });
 
-        const chaos = this.createServiceDelegate(health, "Chaos", () => new ChaosEngine(eventBus as import("@domain/analysis/events.ts").EventBus, this.auditService, this.sidecarManager));
+        const chaos = this.createServiceDelegate(health, "Chaos", () => new ChaosEngine(eventBus as any, this.auditService as any, this.sidecarManager as any));
         const supplyChain = this.createServiceDelegate(health, "SupplyChain", () => new SupplyChainService());
         const shadow = this.createServiceDelegate(health, "Shadow", () => new ShadowService(this.executor, this.logging));
         const covert = this.createServiceDelegate(health, "Covert", () => new CovertChannelService(this.executor, this.logging));
         const ledger = new LedgerService(mesh, this.logging);
         const viewModel = new ViewModelService();
-        const mediator = new EventMediator(eventBus as import("@domain/analysis/events.ts").EventBus, processTracker, security.canaryService, broadcast, this.logging, this.kv);
+        const mediator = new EventMediator(eventBus as any, processTracker, security.canaryService, broadcast, this.logging as any, this.kv);
         const baseline = new BaselineService(this.kv, this.sidecarManager, this.executor, this.logging);
         const deceptionGrid = new DeceptionGridService(security.honeypot, security.canaryService, this.logging);
 

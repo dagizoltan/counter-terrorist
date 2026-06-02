@@ -116,7 +116,7 @@ export interface SystemMetrics {
 
 export type MetricsProvider = {
     getLatest(): Record<string, any> | SystemMetrics | null;
-    recordScan(time: string, result: string): void;
+    recordScan(results: Record<string, unknown>): void;
 };
 
 export class MetricsService extends BaseService {
@@ -248,9 +248,9 @@ export class MetricsService extends BaseService {
         return this.cachedMetrics;
     }
 
-    recordScan(time: string, result: string) {
-        this.lastScanTime = time;
-        this.lastScanResult = result;
+    recordScan(results: Record<string, unknown>) {
+        this.lastScanTime = String(results.time || new Date().toISOString());
+        this.lastScanResult = String(results.result || "COMPLETE");
     }
 
     private async collectAndBroadcast() {
@@ -441,6 +441,6 @@ export function getMetricsSnapshot(): SystemMetrics | Record<string, any> | null
 
 export function recordScannerResult(time: string, result: string) {
     if (_metricsInstance) {
-        _metricsInstance.recordScan(time, result);
+        _metricsInstance.recordScan({ time, result });
     }
 }

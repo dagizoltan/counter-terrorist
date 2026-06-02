@@ -20,7 +20,7 @@ export interface Proposal {
  */
 export class GovernanceService extends BaseService {
     private proposals: Map<string, Proposal> = new Map();
-    private cleanupInterval?: number;
+    private cleanupInterval?: any;
 
     constructor(
         private mesh: MeshManager,

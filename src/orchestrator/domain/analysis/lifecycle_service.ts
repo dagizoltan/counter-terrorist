@@ -20,10 +20,10 @@ export interface ScheduledTask {
  */
 export class LifecycleService extends BaseService {
     private tasks: ScheduledTask[] = [];
-    private timerId?: number;
+    private timerId?: any;
     private kv?: Deno.Kv;
-    private shadowTimer?: number;
-    private lkgTimer?: number;
+    private shadowTimer?: any;
+    private lkgTimer?: any;
     private policyEngine?: import("../orchestration/policy_engine.ts").PolicyEngine;
 
     constructor(
