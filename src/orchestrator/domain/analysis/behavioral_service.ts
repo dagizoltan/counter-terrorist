@@ -30,7 +30,7 @@ export class BehavioralService extends BaseService {
   protected override async onInit(): Promise<Result<void>> {
 
     console.log("BehavioralService initialized");
-    this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 15000) as any;
     return ok(undefined);
   }
 
@@ -57,7 +57,7 @@ export class BehavioralService extends BaseService {
       this.eventBus.emit("METRIC_UPDATE", {
           domain: "firewall_behavioral",
           data: {
-              suspiciousIps: this.getSuspiciousIps(10)
+              suspiciousIps: this.getSuspiciousIps(10) as any
           }
       });
   }

@@ -1,4 +1,5 @@
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
 import { CorrelationService, KillChain } from "./correlation_service.ts";
 
 /**
@@ -6,14 +7,16 @@ import { CorrelationService, KillChain } from "./correlation_service.ts";
  * The autonomous response engine of the Sovereign Orchestrator.
  * Automatically executes defensive playbooks based on behavioral correlation verdicts.
  */
-export class AutonomousAutopilotService {
+export class AutonomousAutopilotService extends BaseService {
     constructor(
         private correlation: CorrelationService,
         private commands: CommandPort,
-        private logging: LoggingPort
-    ) {}
+        public override logger: LoggingPort
+    ) {
+        super();
+    }
 
-    private intervalId: number | null = null;
+    private intervalId: any = null;
 
     /**
      * Continuously monitors the correlation engine for breaches.
@@ -23,7 +26,7 @@ export class AutonomousAutopilotService {
         this.intervalId = setInterval(() => this.evaluateThreats(), 5000);
     }
 
-    public async shutdown(): Promise<import("@core/result.ts").Result<void>> {
+    public override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
         const { ok } = await import("@core/result.ts");
         if (this.intervalId) {
             clearInterval(this.intervalId);
@@ -50,7 +53,7 @@ export class AutonomousAutopilotService {
     }
 
     private async executeContainment(chain: KillChain) {
-        this.logging.log({
+        this.logger.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
             severity: LogSeverity.ERROR,
@@ -96,7 +99,7 @@ export class AutonomousAutopilotService {
             id: crypto.randomUUID()
         });
 
-        this.logging.log({
+        this.logger.log({
             timestamp: new Date().toISOString(),
             type: LogType.ACTIVITY,
             severity: LogSeverity.INFO,

@@ -39,7 +39,7 @@ export class BaselineService extends BaseService {
   private baselineFileMap = new Map<string, string>();
   private baselinePortSet = new Set<string>();
   private baselineProcessSet = new Set<string>();
-  private monitorInterval?: number;
+  private monitorInterval?: any;
 
   constructor(
     private kv: Deno.Kv,

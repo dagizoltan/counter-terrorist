@@ -2,17 +2,17 @@ import { LoggingPort, LogSeverity, LogType, EventBusPort } from "@core/ports.ts"
 import { validateEvent, EventName, EventRegistry } from "@core/event_schema.ts";
 import { z } from "npm:zod";
 
-export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT" | "METRIC_UPDATE";
+export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT" | "METRIC_UPDATE" | "SIDECAR_ALERT" | "UI_BROADCAST";
 
 export interface SystemEvent<T extends EventName = any> {
   type: T;
   message: string;
   timestamp: string;
-  data: z.infer<EventRegistry[T]>;
+  data: any;
   correlationId?: string;
 }
 
-export type Handler<T extends EventName> = (data: z.infer<EventRegistry[T]>, event: SystemEvent<T>) => void | Promise<void>;
+export type Handler<T extends EventName> = (data: any, event: SystemEvent<T>) => void | Promise<void>;
 
 export type Middleware = (event: SystemEvent, next: () => void | Promise<void>) => void | Promise<void>;
 
@@ -88,12 +88,12 @@ export class EventBus implements EventBusPort {
     return () => this.unsubscribe(callback);
   }
 
-  emit<T extends EventName>(event: T, data: z.infer<EventRegistry[T]>) {
+  emit<T extends EventName>(event: T, data: any) {
     this.publish(event, `Emitted event: ${event}`, data);
   }
 
-  publish<T extends EventName>(type: T, message: string, data?: z.infer<EventRegistry[T]>) {
-    const validatedData = validateEvent(type, data);
+  publish<T extends EventName>(type: T, message: string, data?: any) {
+    const validatedData = validateEvent(type as any, data);
     
     // SOV-06: Preserve recursion guard flags during publication
     const fromAudit = (data as any)?.fromAudit;

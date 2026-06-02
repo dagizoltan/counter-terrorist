@@ -48,7 +48,7 @@ export class CausalGraphService extends BaseService {
                 // We sort by timestamp to ensure we see parents before children
                 const sortedRecords = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
                 for (const r of sortedRecords) {
-                    if (r.ppid && includedPids.has(r.ppid)) {
+                    if (r.ppid && includedPids.has(r.ppid as any)) {
                         includedPids.add(r.pid);
                     }
                 }

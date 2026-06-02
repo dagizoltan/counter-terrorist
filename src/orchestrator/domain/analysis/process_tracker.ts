@@ -24,8 +24,9 @@ export class ProcessTracker extends BaseService {
     private shells = ["bash", "sh", "dash", "zsh", "python", "perl", "php", "ruby"];
     private suspiciousParents = ["nginx", "apache2", "node", "python", "php-fpm", "clamscan"];
 
-    private cleanupInterval?: number;
-    private metricsInterval?: number;
+    private intervalId?: any;
+    private metricsInterval?: any;
+    private cleanupInterval?: any;
 
     constructor(
         private logging: LoggingPort, 

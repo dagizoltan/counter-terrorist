@@ -13,7 +13,7 @@ export class WatchdogService extends BaseService {
     private isRunning = false;
     private restartAttempts: Map<string, number> = new Map();
     private readonly MAX_RESTART_ATTEMPTS = 3;
-    private intervalId?: number;
+    private intervalId: any = null;
 
     constructor(
         private health: HealthService,

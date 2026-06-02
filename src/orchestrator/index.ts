@@ -3,7 +3,8 @@
  * Entry point for the autonomous defense mesh.
  */
 import { SovereignApp } from "./app/sovereign_app.ts";
-import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
+import { loggingService } from "@infrastructure/system/logging.ts";
+import { LogSeverity, LogType } from "@core/ports/logging.ts";
 
 const app = new SovereignApp();
 

@@ -111,6 +111,13 @@ export const SystemEventRegistry = {
     type: z.string(),
     data: z.record(z.string(), z.unknown())
   }),
+  "SIDECAR_ALERT": z.object({
+    type: z.string(),
+    sidecar: z.string(),
+    message: z.string(),
+    critical: z.boolean().optional(),
+    data: z.record(z.string(), z.unknown()).optional()
+  }),
   "EBPF_SYSCALL": SyscallEventSchema,
   "EBPF_CRITICAL": SyscallEventSchema,
   "EBPF_STRAY_SHELL": SyscallEventSchema,
@@ -153,6 +160,13 @@ export const SystemEventRegistry = {
   }),
   "EBPF_SYSCALL_BATCH": z.array(SyscallEventSchema),
   "NETWORK_LOG_BATCH": z.array(NetworkLogSchema),
+  "SYSTEM_ERROR": z.object({
+    type: z.string(),
+    sidecar: z.string().optional(),
+    message: z.string().optional(),
+    critical: z.boolean().optional(),
+    error: z.string().optional()
+  }),
   "LEDGER_TAMPER": z.object({
     eventId: z.string().optional(),
     expected: z.string().optional(),
@@ -175,7 +189,7 @@ export enum TacticalThreatCode {
 }
 
 export type EventRegistry = typeof SystemEventRegistry;
-export type EventName = keyof EventRegistry;
+export type EventName = keyof EventRegistry | string;
 
 /**
  * Validates an event payload against its registered schema.

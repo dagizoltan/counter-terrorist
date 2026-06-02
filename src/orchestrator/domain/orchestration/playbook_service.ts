@@ -7,7 +7,7 @@ import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/vali
 import { ServiceLocatorPort } from "../../core/ports.ts";
 
 export class PlaybookService extends BaseService {
-  private locator?: ServiceLocatorPort;
+  declare public locator?: ServiceLocatorPort;
   private threatScores: Map<string, number> = new Map();
   private unsubscribers: (() => void)[] = [];
   private readonly ISOLATION_THRESHOLD = 5;
@@ -20,8 +20,8 @@ export class PlaybookService extends BaseService {
     this.locator = locator;
   }
 
-  private get eventBus(): EventBusPort | undefined {
-    return this.locator?.get<EventBusPort>("eventBus");
+  public get eventBusDelegate(): any {
+    return this.locator?.get<any>("eventBus");
   }
 
   private get protection(): ProtectionPort | undefined {
@@ -46,7 +46,7 @@ export class PlaybookService extends BaseService {
     return this.locator.get<import("../analysis/behavioral_service.ts").BehavioralService>("behavioral");
   }
 
-  protected override onInit(..._args: unknown[]): Promise<Result<void>> {
+  protected override onInit(): Promise<Result<void>> {
     if (!this.locator) return Promise.resolve(ok(undefined));
 
     this.logging.log({
@@ -57,7 +57,7 @@ export class PlaybookService extends BaseService {
         message: "Initializing Automated Response Engine via Service Locator"
     });
 
-    const eventBus = this.eventBus;
+    const eventBus = this.eventBusDelegate;
     if (!eventBus) {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -70,7 +70,7 @@ export class PlaybookService extends BaseService {
     }
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
-    this.unsubscribers.push(eventBus.on("HONEYPOT", async (payload) => {
+    this.unsubscribers.push(eventBus.on("HONEYPOT", async (payload: any) => {
       if (payload.type !== "PortAccess") return;
       const port = typeof payload.port === "number" ? payload.port : Number(payload.port);
       const source_ip = typeof payload.source_ip === "string" ? payload.source_ip : undefined;
@@ -142,7 +142,7 @@ export class PlaybookService extends BaseService {
     ));
 
     // FIM Playbook: High-priority notification on critical file change
-    this.unsubscribers.push(eventBus.on("DRIFT_PROCESS", async (payload) => {
+    this.unsubscribers.push(eventBus.on("DRIFT_PROCESS", async (payload: any) => {
       if (!payload.path || !payload.action) return;
       const path = payload.path;
       const action = payload.action;
@@ -163,7 +163,7 @@ export class PlaybookService extends BaseService {
     }));
 
     // eBPF Playbook: Monitor suspicious syscalls and quarantine
-    this.unsubscribers.push(eventBus.on("EBPF_CRITICAL", async (payload) => {
+    this.unsubscribers.push(eventBus.on("EBPF_CRITICAL", async (payload: any) => {
       if (!payload.comm || !payload.syscall) return;
       const pid = payload.pid ?? NaN;
       const comm = payload.comm;
@@ -206,7 +206,7 @@ export class PlaybookService extends BaseService {
     }));
 
     // Mesh Playbook: Monitor node threat levels
-    this.unsubscribers.push(eventBus.on("THREAT", (payload) => {
+    this.unsubscribers.push(eventBus.on("THREAT", (payload: any) => {
       const nodeId = payload.nodeId ?? "local";
       const severity = payload.severity;
       const path = payload.path;
@@ -216,13 +216,13 @@ export class PlaybookService extends BaseService {
     }));
 
     // Artifact Playbook: Proactive Quarantine & Containment
-    this.unsubscribers.push(eventBus.on("ARTIFACT_FOUND", async (payload) => {
+    this.unsubscribers.push(eventBus.on("ARTIFACT_FOUND", async (payload: any) => {
        if (!payload.indicator) return;
        await this.executeArtifactContainment(payload.indicator, payload);
     }));
 
     // Cross-Platform Playbook Hooks
-    this.unsubscribers.push(eventBus.on("ES_EXEC", (payload) => {
+    this.unsubscribers.push(eventBus.on("ES_EXEC", (payload: any) => {
         if (!payload.path) return;
         const path = payload.path;
         const signing_id = payload.signing_id;
@@ -238,7 +238,7 @@ export class PlaybookService extends BaseService {
         }
     }));
 
-    this.unsubscribers.push(eventBus.on("ETW_PROCESS", (payload) => {
+    this.unsubscribers.push(eventBus.on("ETW_PROCESS", (payload: any) => {
         if (!payload.command_line) return;
         const process_name = payload.process_name;
         const command_line = payload.command_line;
@@ -274,7 +274,7 @@ export class PlaybookService extends BaseService {
       // 1. Proactive Quarantine (If path is known or globally applicable)
       // In a real environment, the agent would search and move.
       if (typeof metadata.path === "string") {
-          await this.protection.antivirus.quarantine(metadata.path);
+          await this.protection?.antivirus?.quarantine(metadata.path);
       }
 
       // 2. Mesh Isolation (OpSec baseline)

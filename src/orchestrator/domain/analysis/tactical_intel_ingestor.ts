@@ -30,7 +30,7 @@ export class TacticalIntelIngestor extends BaseService {
         super();
     }
 
-    private intervalId: number | null = null;
+    private intervalId: any = null;
 
     protected override async onInit(): Promise<Result<void>> {
         await this.start();

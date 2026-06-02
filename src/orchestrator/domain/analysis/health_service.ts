@@ -20,7 +20,7 @@ export class HealthService extends BaseService {
     private states: Map<string, SubsystemHealth> = new Map();
     private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
-    private intervals: number[] = [];
+    private intervals: any[] = [];
     private serviceRegistry: Map<string, BaseService> = new Map();
 
     protected override onInit(): Promise<Result<void>> {
@@ -37,7 +37,7 @@ export class HealthService extends BaseService {
 
     private sidecarManager?: CommandPort;
 
-    constructor(private logger: LoggingPort) {
+    constructor(public override logger: LoggingPort) {
         super();
         // Default quotas for agents
         this.sidecarQuotas.set("sentinel", { cpu: 5.0, memory: 64 * 1024 * 1024 });
@@ -66,7 +66,7 @@ export class HealthService extends BaseService {
                 domain: "system_health",
                 data: {
                     status: this.getGlobalSeverity(),
-                    subsystems: this.getAllStatuses(),
+                    subsystems: this.getAllStatuses() as any,
                     fullyOperational: this.isFullyOperational()
                 }
             });

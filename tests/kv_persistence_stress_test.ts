@@ -54,14 +54,21 @@ Deno.test("KV Persistence Stress: Batched writes under contention", async () => 
     }
 
     // AuditService uses a queue and async processing.
-    // Wait for queue processing to finish.
+    // Wait for queue processing, buffering, and flushing to finish.
     let attempts = 0;
-    while (((auditService as any).logQueue.length > 0 || (auditService as any).isProcessingQueue) && attempts < 50) {
+    while (((auditService as any).logQueue.length > 0 ||
+            (auditService as any).isProcessingQueue ||
+            (auditService as any).auditBuffer.length > 0 ||
+            (auditService as any).isFlushing) && attempts < 100) {
         await delay(100);
+        // If it's not flushing but there is stuff in the buffer, try to kick it
+        if (!(auditService as any).isFlushing && (auditService as any).auditBuffer.length > 0) {
+            (auditService as any).flushBuffer().catch(() => {});
+        }
         attempts++;
     }
 
-    // Force final flush
+    // Final check/flush
     await (auditService as any).flushBuffer();
 
     console.log(`Stress Test: Logged ${repo.events.length} / ${totalEvents} events`);

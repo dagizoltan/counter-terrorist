@@ -15,7 +15,9 @@ export interface Service {
  * Optional Base class for services that provides default implementations.
  */
 export abstract class BaseService implements Service {
-    protected eventBus?: EventBusPort;
+    public eventBus?: EventBusPort;
+    public logger!: import("./ports/logging.ts").LoggingPort;
+    public locator?: import("./ports/system.ts").ServiceLocatorPort;
     protected initialized = false;
     protected initPromise: Promise<Result<void>> | null = null;
 

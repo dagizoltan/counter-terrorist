@@ -1,57 +1,38 @@
 import { isAllowedSidecar, SidecarResponse, validateRequest, validateResponse, SidecarName } from "../system/validation.ts";
 import { SystemExecutor } from "../system/system_executor.ts";
-import { CommandResult, LoggingPort, LogSeverity, LogType, ConfigurationPort, TpmPort } from "@core/ports.ts";
+import { CommandResult, LoggingPort, LogSeverity, LogType, ConfigurationPort, TpmPort, CommandPort } from "@core/ports.ts";
 import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS } from "./sidecar_registry.ts";
-import { canonicalStringify } from "@core/crypto_utils.ts";
 import { SecretRedactor } from "@core/utils/security.ts";
 import { CircuitBreaker } from "@core/utils/resilience.ts";
 import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
 import { HeartbeatMonitor } from "./heartbeat_monitor.ts";
 import { serviceLocator } from "@core/service_locator.ts";
 import { LsmLearningService } from "@domain/protection/lsm_learning_service.ts";
-
-import { CommandPort } from "@core/ports.ts";
-
-interface SidecarManifest {
-    sidecars: Record<string, {
-        persistent?: boolean;
-        capabilities?: string[];
-        architectures: Record<string, {
-            path: string;
-            hash: string;
-        }>;
-    }>;
-    signature?: string;
-    upgrade_token?: string;
-    signedBy?: string;
-}
+import { SidecarRepository } from "./sidecar_repository.ts";
+import { IntegrityManager } from "./integrity_manager.ts";
+import { SidecarSpawner } from "./sidecar_spawner.ts";
+import { IpcCoordinator } from "./ipc_coordinator.ts";
 
 /**
  * Manages persistent Rust sidecars.
  */
 export class SidecarManager implements CommandPort {
-  // SEC-03: Hardcoded Developer Public Key for Manifest Verification
-  private static readonly DEVELOPER_PUBLIC_KEY = "d7637d35b2a469117127ec88c86a80a4e1dc95a4997be4fe1ee7af35b8bb2702";
-
   private config?: ConfigurationPort;
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
-  private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
-  private responseWaiters: Map<string, Map<string, { resolve: (data: CommandResult) => void, reject: (err: Error) => void }>> = new Map();
-  private eventHandlers: Map<string, ((data: SidecarResponse) => void)[]> = new Map();
-  private unsupportedSidecars: Set<string> = new Set();
-  private trippedSidecars: Set<string> = new Set();
-  private mappedShmem: Map<string, Deno.PointerValue> = new Map();
-  private mappedCmdShmem: Map<string, Deno.PointerValue> = new Map();
+
   private ffi: IpcFfiBridge;
+  private repository: SidecarRepository;
+  private integrity: IntegrityManager;
+  private spawner: SidecarSpawner;
+  private ipc: IpcCoordinator;
+
   private expectedExits: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
   private cleanupHandler: (() => Promise<void>) | null = null;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
-  private rotationInterval?: number;
-  private backoffTimers: Set<number> = new Set();
-
-  private manifest: SidecarManifest | null = null;
+  private rotationInterval?: number | any;
+  private backoffTimers: Set<number | any> = new Set();
   private manifestPromise: Promise<void> | null = null;
 
   private tpm: TpmPort | undefined;
@@ -61,6 +42,11 @@ export class SidecarManager implements CommandPort {
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.ffi = new IpcFfiBridge(logging);
+    this.repository = new SidecarRepository(logging);
+    this.integrity = new IntegrityManager(logging, executor, this.ffi);
+    this.spawner = new SidecarSpawner(logging, executor);
+    this.ipc = new IpcCoordinator(logging, this.ffi);
+
     this.heartbeatMonitor = new HeartbeatMonitor(logging, (name) => {
         this.emitEvent("SYSTEM_ERROR", {
             type: "SIDECAR_CRASH_LOOP",
@@ -75,7 +61,9 @@ export class SidecarManager implements CommandPort {
   public init() {
     this.startRotationLoop();
     this.heartbeatMonitor.start(() => Array.from(this.persistentProcesses.keys()));
-    this.manifestPromise = this.loadManifest();
+    if (this.config) {
+        this.manifestPromise = this.repository.loadManifest(this.config);
+    }
   }
 
   setConfig(config: ConfigurationPort) {
@@ -98,96 +86,6 @@ export class SidecarManager implements CommandPort {
     return this.ffi;
   }
 
-  private async loadManifest() {
-    try {
-        const manifestUrl = new URL("./sidecars.manifest.json", import.meta.url);
-        const content = await Deno.readTextFile(manifestUrl);
-        const data = JSON.parse(content);
-
-        const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
-
-        // SEC-03: Enforce Signed Manifest via Ed25519 (Developer Key)
-        let signatureVerified = false;
-        if (data.signature && data.signature !== "unsigned") {
-            try {
-                const publicKeyBytes = new Uint8Array(SidecarManager.DEVELOPER_PUBLIC_KEY.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
-                const publicKey = await crypto.subtle.importKey(
-                    "raw",
-                    publicKeyBytes,
-                    "Ed25519",
-                    false,
-                    ["verify"]
-                );
-
-                const signatureBytes = new Uint8Array(data.signature.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
-                const dataToVerify = new TextEncoder().encode(canonicalStringify(data.sidecars));
-
-                signatureVerified = await crypto.subtle.verify(
-                    "Ed25519",
-                    publicKey,
-                    signatureBytes,
-                    dataToVerify
-                );
-            } catch (e) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `Crypto error during manifest verification: ${(e as Error).message}`
-                });
-            }
-        }
-
-        if (signatureVerified) {
-            this.manifest = data;
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.SUCCESS,
-                caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Authoritative Multi-Arch Manifest Hardware-Verified via Ed25519. Signed by: ${data.signedBy || "Developer"}`
-            });
-        } else if (data.upgrade_token) {
-            // SOV-P5: Robust Manifest Upgrade Lifecycle
-            // Instead of a string placeholder, we use a transient upgrade token.
-            // In production, this would be a hardware-backed one-time token.
-            this.manifest = data;
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Authoritative Manifest Upgrade in Progress. Token: ${data.upgrade_token.slice(0, 8)}…`
-            });
-            if (isProduction && !this.verifyUpgradeToken(data.upgrade_token)) {
-                throw new Error("Production Lockdown: Invalid or expired Manifest Upgrade Token.");
-            }
-        } else {
-            this.manifest = data;
-            const msg = (data.signature && data.signature !== "unsigned") ? "Sidecar manifest signature verification FAILED!" : "Manifest is UNSIGNED.";
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: isProduction ? LogSeverity.ERROR : LogSeverity.WARNING,
-                caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `${msg} Production lockdown enforced.`
-            });
-            if (isProduction) throw new Error(`Production Lockdown: ${msg}`);
-        }
-    } catch (e) {
-        if (this.logging) {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.AUDIT,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:infra:runtime:sidecar_manager",
-                message: `Manifest unavailable or invalid: ${(e as Error).message}`
-            });
-        }
-        if (this.config?.getEnv("ENVIRONMENT") === "production") throw e;
-    }
-  }
 
   /**
    * Periodically rotates all active sidecars to neutralize memory-resident exploits.
@@ -210,11 +108,12 @@ export class SidecarManager implements CommandPort {
   }
 
   private async rotateSidecar(name: string) {
-    const config = SIDECAR_REGISTRY[name];
-    const binPath = `./bin/agents/${config.binaryName || name}`;
+    if (!this.config) return;
+    const sidecarConfig = SIDECAR_REGISTRY[name];
+    const binPath = `./bin/agents/${sidecarConfig.binaryName || name}`;
     
     // 1. Forced re-healing from Golden Repository
-    const healed = await this.verifyAndHeal(name, binPath, true); 
+    const healed = await this.integrity.verifyAndHeal(name, binPath, this.repository.getManifest(), this.config, true);
     
     if (healed) {
         // 2. Graceful restart
@@ -250,7 +149,6 @@ export class SidecarManager implements CommandPort {
       for (const name of Array.from(this.persistentProcesses.keys())) {
         await this.stopSidecar(name);
       }
-      // Deno.exit(0); // Removing explicit exit as it might interfere with Deno's own cleanup
     };
 
     Deno.addSignalListener("SIGINT", this.cleanupHandler);
@@ -259,6 +157,7 @@ export class SidecarManager implements CommandPort {
   }
 
   async runSidecar(name: string, args: string[] = []): Promise<CommandResult> {
+    if (!this.config) return { success: false, stdout: "", stderr: "Configuration not set" };
     if (!isAllowedSidecar(name)) {
       return { success: false, stdout: "", stderr: `Sidecar '${name}' is not in the allowlist.` };
     }
@@ -267,7 +166,7 @@ export class SidecarManager implements CommandPort {
       return { success: false, stdout: "", stderr: `Sidecar '${name}' is a persistent daemon. Use getPersistentSidecar() instead.` };
     }
 
-    const binPath = await this.findBinary(name);
+    const binPath = await this.repository.findBinary(name, this.config);
     if (!binPath) {
       return { success: false, stdout: "", stderr: `Sidecar binary '${name}' not found.` };
     }
@@ -287,14 +186,12 @@ export class SidecarManager implements CommandPort {
     return this.executor.execute(binPath, args);
   }
 
-  private spawningPromises: Map<string, Promise<Deno.ChildProcess | null>> = new Map();
-
   async getPersistentSidecar(name: string): Promise<Deno.ChildProcess | null> {
     await this.manifestPromise;
     if (!isAllowedSidecar(name)) throw new Error(`Sidecar '${name}' is not in the allowlist.`);
-    if (this.unsupportedSidecars.has(name)) return null;
+    if (this.spawner.isUnsupported(name)) return null;
 
-    if (this.trippedSidecars.has(name)) {
+    if (this.spawner.isTripped(name)) {
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -309,109 +206,42 @@ export class SidecarManager implements CommandPort {
     if (this.persistentProcesses.has(name)) return this.persistentProcesses.get(name)!;
 
     // If currently spawning, wait for the existing promise
-    if (this.spawningPromises.has(name)) {
-        return await this.spawningPromises.get(name)!;
+    const existingSpawn = this.spawner.getSpawningPromise(name);
+    if (existingSpawn) {
+        return await existingSpawn;
     }
 
     // Initiate spawn with a lock
     const spawnPromise = (async () => {
         try {
+            if (!this.config) return null;
             this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.INFO, caller: "orchestrator:infra:runtime:sidecar_manager", message: `Attempting to spawn: ${name}` });
-            const binPath = await this.findBinary(name);
+            const binPath = await this.repository.findBinary(name, this.config);
             if (!binPath) {
                 this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "orchestrator:infra:runtime:sidecar_manager", message: `Binary not found for: ${name}` });
                 this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_NOT_FOUND", sidecar: name });
                 return null;
             }
 
-            const isDev = this.config?.getBoolean("CTS_DEV_MODE", false);
+            const isDev = this.config.getBoolean("CTS_DEV_MODE", false);
             
-            // ENHANCEMENT: Transition to Linux Capabilities (setcap)
-            // Removes dependency on sudo -n for sidecar execution
-            // We use secure_spawn.sh to move the binary to a secure directory BEFORE verification/execution to mitigate TOCTOU
-            // NOTE: In DEV_MODE we execute in-place to avoid requiring root-owned /var/lib/cts permissions
-            let execPath = binPath;
-
+            // SOV-03 FIX: Verify integrity and heal before spawn
             if (!isDev) {
-                const caps = this.getCapabilities(name) || "";
-                const spawnScript = await this.findScript("secure_spawn.sh");
-                const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
-
-                if (spawnScript) {
-                    const arch = Deno.build.arch;
-                    const expectedHash = this.manifest?.sidecars?.[name]?.architectures[arch]?.hash || "none";
-                    const res = await this.executor.execute(spawnScript, [name, binPath, caps, expectedHash]);
-                    if (res.success) {
-                        execPath = `/var/lib/cts/bin/${name}`;
-                    } else if (isProduction) {
-                        throw new Error(`Production Lockdown: Failed to secure sidecar '${name}' via secure_spawn.sh`);
-                    }
-                } else {
-                    const errorMsg = "CRITICAL: secure_spawn.sh not found. Sidecar deployment blocked for security.";
-                    this.logging.log({
-                        timestamp: new Date().toISOString(),
-                        type: LogType.GENERIC,
-                        severity: LogSeverity.ERROR,
-                        caller: "orchestrator:infra:runtime:sidecar_manager",
-                        message: errorMsg
-                    });
-                    if (isProduction) throw new Error(errorMsg);
-                }
-            }
-
-            // SOV-03 FIX: Verify integrity STRICTLY on the final destination binary
-            // This mitigates TOCTOU by ensuring we verify the file that is now in a root-owned directory.
-            if (!isDev) {
-              const isHealthy = await this.verifyAndHeal(name, execPath);
+              const isHealthy = await this.integrity.verifyAndHeal(name, binPath, this.repository.getManifest(), this.config);
               if (!isHealthy) {
                   this.logging.log({
                       timestamp: new Date().toISOString(),
                       type: LogType.AUDIT,
                       severity: LogSeverity.ERROR,
                       caller: "orchestrator:infra:runtime:sidecar_manager",
-                      message: `CRITICAL: Sidecar ${name} integrity check failed at secure location and self-healing was unsuccessful.`
+                      message: `CRITICAL: Sidecar ${name} integrity check failed.`
                   });
                   return null;
               }
             }
 
             const env = await this.getSidecarEnv(name);
-
-            // Active Safety: Implement Cgroups v2 Resource Isolation for All Sidecars
-            // On Linux, we use systemd-run for CPU/Memory constraints if running as root.
-            const isLinux = Deno.build.os === "linux";
-            let finalExec = execPath;
-            let finalArgs: string[] = [];
-
-            if (isLinux && Deno.uid() === 0) {
-                // Standard Constraints: 25% CPU, 512MB RAM
-                finalExec = "systemd-run";
-                finalArgs = [
-                    "--scope",
-                    "--quiet",
-                    "-p", "CPUQuota=25%",
-                    "-p", "MemoryMax=512M",
-                    "-p", "MemorySwapMax=0",
-                    execPath
-                ];
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.DEBUG,
-                    severity: LogSeverity.INFO,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `Resource Throttling (Cgroups v2) active for ${name} (CPU: 25%, MEM: 512MB)`
-                });
-            }
-
-            const command = new Deno.Command(finalExec, {
-                args: finalArgs,
-                stdin: "piped",
-                stdout: "piped",
-                stderr: "piped",
-                env
-            });
-
-            const child = command.spawn();
+            const child = await this.spawner.spawn(name, binPath, env, this.config);
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.ACTIVITY,
@@ -470,36 +300,15 @@ export class SidecarManager implements CommandPort {
 
     // SOV-P5: Shared Memory Data Plane Ingestion
     if (name === "sentinel" || name === "netcap") {
-        (async () => {
-            const shmemPath = `/dev/shm/cts_${name}_${child.pid}`;
-            const cmdShmemPath = `/dev/shm/cts_cmd_${name}_${child.pid}`;
-            // Wait a moment for agent to create shmem
-            await new Promise(r => setTimeout(r, 1000));
-
-            const shmemPtr = this.ffi.createShmem(shmemPath, 1024 * 1024);
-            const cmdShmemPtr = this.ffi.createShmem(cmdShmemPath, 64 * 1024);
-
-            if (shmemPtr) {
-                this.mappedShmem.set(name, shmemPtr);
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.DEBUG,
-                    severity: LogSeverity.INFO,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `[${name}] Mapped shared memory ring buffer at ${shmemPath}`
-                });
-            }
-            if (cmdShmemPtr) {
-                this.mappedCmdShmem.set(name, cmdShmemPtr);
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.DEBUG,
-                    severity: LogSeverity.INFO,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `[${name}] Mapped shared memory command buffer at ${cmdShmemPath}`
-                });
-            }
-        })();
+        this.ipc.setupSharedMemory(name, child.pid).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: `Failed to map shmem for ${name}: ${e.message}`
+            });
+        });
     }
 
             // Handle stderr for error detection
@@ -519,7 +328,7 @@ export class SidecarManager implements CommandPort {
                                 message: msg.trim()
                             });
                             if (msg.includes("UNSUPPORTED_OS")) {
-                                this.unsupportedSidecars.add(name);
+                                this.spawner.markUnsupported(name);
                                 this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_UNSUPPORTED", sidecar: name });
                             }
                             if (msg.includes("PANIC") || msg.includes("error:")) {
@@ -547,58 +356,21 @@ export class SidecarManager implements CommandPort {
             this.emitEvent("SYSTEM_ERROR", { type: "SIDECAR_SPAWN_FAILED", sidecar: name, error: (e as Error).message });
             return null;
         } finally {
-            this.spawningPromises.delete(name);
+            this.spawner.clearSpawningPromise(name);
         }
     })();
 
-    this.spawningPromises.set(name, spawnPromise);
+    this.spawner.setSpawningPromise(name, spawnPromise);
     return await spawnPromise;
   }
 
-  private async findBinary(name: string): Promise<string | null> {
-    const isWindows = Deno.build.os === "windows";
-    const extension = isWindows ? ".exe" : "";
-    const config = SIDECAR_REGISTRY[name];
-    const binName = config?.binaryName || name;
-    
-    // Support environment variable overrides for custom binary locations
-    const envPath = this.config?.getEnv(`CTS_BINARY_${name.toUpperCase()}`);
-    
-    const isDev = this.config?.getBoolean("CTS_DEV_MODE", false);
-    const paths = [
-      envPath,
-      `/opt/cts/bin/${binName}${extension}`,
-      `/usr/local/bin/cts-${binName}${extension}`,
-      `./agents/${binName}${extension}`,
-      `./bin/agents/${binName}${extension}`,
-      ...(isDev ? [
-        `./src/agents/target/release/${binName}${extension}`,
-        `./src/agents/target/debug/${binName}${extension}`,
-      ] : [])
-    ].filter(Boolean) as string[];
-
-    for (const p of paths) {
-      if (!p) continue;
-      try {
-        const info = await Deno.stat(p);
-        if (!info.isFile) continue;
-        return await Deno.realPath(p);
-      } catch (_e) {
-        // Silent fail for stat
-      }
-    }
-    this.logging.log({ timestamp: new Date().toISOString(), type: LogType.DEBUG, severity: LogSeverity.ERROR, caller: "orchestrator:infra:runtime:sidecar_manager", message: `Could not find binary for ${name} in any searched path.` });
-    return null;
-  }
-
   isRunning(name: string): boolean {
-    return this.persistentProcesses.has(name) && !this.unsupportedSidecars.has(name);
+    return this.persistentProcesses.has(name) && !this.spawner.isUnsupported(name);
   }
 
   private handleIpcLine(name: string, trimmed: string) {
           try {
             // SOV-P4: Robust IPC Recursion Depth & Complexity Limiter
-            // Ignores brackets within string literals to prevent false positives.
             const MAX_DEPTH = 8;
             let depth = 0;
             let maxSeenDepth = 0;
@@ -642,7 +414,6 @@ export class SidecarManager implements CommandPort {
                 return;
             }
 
-            // SOV-06 SECURITY: Redact sensitive payloads from IPC before they are processed or logged
             const redactedLine = this.redactor.redact(trimmed);
             const data = JSON.parse(redactedLine) as SidecarResponse;
 
@@ -657,30 +428,20 @@ export class SidecarManager implements CommandPort {
               return;
             }
 
-            if (data.id && this.responseWaiters.has(name)) {
-              const waiters = this.responseWaiters.get(name)!;
-              const waiter = waiters.get(data.id);
+            if (data.id) {
+              const waiter = this.ipc.getWaiter(name, data.id);
               if (waiter) {
                 waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
 
                 // BUG-4.22 FIX: Also emit to event handlers even if it was a direct response
-                // This ensures Autopilot/Mediator can see results of manual scans/commands
-                const handlers = this.eventHandlers.get(name) || [];
-                for (const handler of handlers) {
-                  handler(data);
-                }
-
-                waiters.delete(data.id);
+                this.ipc.emitEvent(name, data);
+                this.ipc.removeWaiter(name, data.id);
                 return;
               }
             }
 
-            const handlers = this.eventHandlers.get(name) || [];
-            for (const handler of handlers) {
-              handler(data);
-            }
+            this.ipc.emitEvent(name, data);
           } catch (e) {
-            // H-08: Log malformed IPC output for forensic analysis in pilots
             if (trimmed.length > 0) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
@@ -699,7 +460,6 @@ export class SidecarManager implements CommandPort {
     const decoder = new TextDecoder();
     let buffer = "";
 
-    // SOV-P3: Defensive IPC Hardening
     const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10MB
     const MAX_LINE_LENGTH = 1024 * 1024; // 1MB
 
@@ -708,8 +468,6 @@ export class SidecarManager implements CommandPort {
         const { value, done } = await reader.read();
         if (done) break;
 
-        // SEC-05: Stricter DoS prevention for IPC ingestion.
-        // We check the cumulative buffer size *before* decoding or appending the new chunk.
         if (buffer.length + value.length > MAX_BUFFER_SIZE) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
@@ -719,7 +477,6 @@ export class SidecarManager implements CommandPort {
                 message: `[${name}] CRITICAL: IPC buffer overflow. Eagerly dropping data to prevent OOM.`
             });
             buffer = "";
-            // Also truncate the current chunk to avoid spikes
             const safeChunk = value.slice(0, Math.min(value.length, MAX_BUFFER_SIZE));
             buffer = decoder.decode(safeChunk, { stream: true });
         } else {
@@ -742,15 +499,13 @@ export class SidecarManager implements CommandPort {
           const trimmed = line.trim();
           if (!trimmed) continue;
 
-          // SOV-P4: Heartbeat tracking
           if (trimmed === "HEARTBEAT" || (trimmed.startsWith("{") && trimmed.includes("\"type\":\"HEARTBEAT\""))) {
               this.heartbeatMonitor.recordHeartbeat(name);
               if (trimmed === "HEARTBEAT") continue;
           }
 
-          // SOV-P5: Shmem Update Signal
           if (trimmed.startsWith("SHMEM_UPDATE:")) {
-              const shmemPtr = this.mappedShmem.get(name);
+              const shmemPtr = this.ipc.getShmemPtr(name);
               if (shmemPtr) {
                   const jsonStr = this.ffi.readShmem(shmemPtr);
                   if (jsonStr) {
@@ -760,13 +515,10 @@ export class SidecarManager implements CommandPort {
               continue;
           }
 
-          // New: Structured Log Ingestion
           if (trimmed.startsWith("[LOG] ")) {
             try {
                 const logData = JSON.parse(trimmed.substring(6));
-
-                // H-04: Limit message length from sidecars to prevent log-based DoS
-                const MAX_LOG_MSG_LENGTH = 16384; // 16KB
+                const MAX_LOG_MSG_LENGTH = 16384;
                 const rawMsg = String(logData.message || "");
                 const sanitizedMsg = rawMsg.length > MAX_LOG_MSG_LENGTH
                     ? rawMsg.substring(0, MAX_LOG_MSG_LENGTH) + "... [TRUNCATED]"
@@ -779,7 +531,6 @@ export class SidecarManager implements CommandPort {
                     caller: logData.caller || `${name}:main`,
                     message: sanitizedMsg
                 });
-                // Note: We continue here if it's a pure log, but tactical events use standard JSON
                 continue;
             } catch (e) {
                 this.logging.log({
@@ -806,24 +557,10 @@ export class SidecarManager implements CommandPort {
       });
     } finally {
       reader.releaseLock();
-      // Ensure the process entry is removed and cleanup any pending buffers
       this.persistentProcesses.delete(name);
+      await this.ipc.clearMappings(name);
       buffer = "";
     }
-  }
-
-  private async findScript(name: string): Promise<string | null> {
-    const paths = [
-        `/var/lib/cts/scripts/${name}`,
-        `./scripts/${name}`
-    ];
-    for (const p of paths) {
-        try {
-            const info = await Deno.stat(p);
-            if (info.isFile) return await Deno.realPath(p);
-        } catch { /* ignore */ }
-    }
-    return null;
   }
 
   private async getSidecarEnv(name: string): Promise<Record<string, string>> {
@@ -880,15 +617,12 @@ export class SidecarManager implements CommandPort {
     }
 
     const responsePromise = new Promise<CommandResult>((resolve, reject) => {
-      if (!this.responseWaiters.has(name)) this.responseWaiters.set(name, new Map());
-      this.responseWaiters.get(name)!.set(id, { resolve, reject });
+      this.ipc.addWaiter(name, id, { resolve, reject });
     });
 
     const timeoutPromise = new Promise<CommandResult>((resolve) => {
       setTimeout(() => {
-        if (this.responseWaiters.has(name)) this.responseWaiters.set(name, new Map());
-        const waiters = this.responseWaiters.get(name);
-        if (waiters) waiters.delete(id);
+        this.ipc.removeWaiter(name, id);
         resolve({ 
           success: false, 
           stdout: "", 
@@ -899,12 +633,10 @@ export class SidecarManager implements CommandPort {
 
     const writer = child.stdin.getWriter();
 
-    // SOV-P5: Try Shared Memory Control Plane first for supported high-volume agents
     if (name === "sentinel" || name === "netcap") {
-        const cmdShmemPtr = this.mappedCmdShmem.get(name);
+        const cmdShmemPtr = this.ipc.getCmdShmemPtr(name);
         const binCmd = this.ffi.serializeMessagePack(commandObj);
         if (cmdShmemPtr && binCmd) {
-            // Write to shared memory command buffer
             const success = this.ffi.writeShmem(cmdShmemPtr, binCmd);
             if (success) {
                 writer.releaseLock();
@@ -926,15 +658,11 @@ export class SidecarManager implements CommandPort {
   }
 
   onEvent(name: string, handler: (data: SidecarResponse) => void) {
-    if (!this.eventHandlers.has(name)) this.eventHandlers.set(name, []);
-    this.eventHandlers.get(name)!.push(handler);
+    this.ipc.onEvent(name, handler);
   }
 
   emitEvent(name: string, data: SidecarResponse) {
-    const handlers = this.eventHandlers.get(name);
-    if (handlers) {
-      for (const handler of handlers) handler(data);
-    }
+    this.ipc.emitEvent(name, data);
   }
 
   async restartSidecar(name: string): Promise<void> {
@@ -948,23 +676,16 @@ export class SidecarManager implements CommandPort {
       this.expectedExits.add(name);
       try {
         process.kill("SIGTERM");
-        
-        // Wait for exit with 2s timeout
         const timeout = setTimeout(() => {
           try { process.kill("SIGKILL"); } catch { /* ignore */ }
         }, 2000);
-        
         await process.status;
         clearTimeout(timeout);
       } catch {
-        try {
-           process.kill("SIGKILL");
-        } catch {
-           // Process already dead
-        }
+        try { process.kill("SIGKILL"); } catch { /* ignore */ }
       } finally {
         this.persistentProcesses.delete(name);
-        // We keep it in expectedExits for a short moment to let the event loop catch up
+        await this.ipc.clearMappings(name);
         setTimeout(() => this.expectedExits.delete(name), 100);
       }
     }
@@ -976,6 +697,7 @@ export class SidecarManager implements CommandPort {
     this.heartbeatMonitor.stop();
     for (const timer of this.backoffTimers) clearTimeout(timer);
     this.backoffTimers.clear();
+    await this.ipc.shutdown();
 
     if (this.cleanupHandler) {
         Deno.removeSignalListener("SIGINT", this.cleanupHandler);
@@ -1002,239 +724,41 @@ export class SidecarManager implements CommandPort {
     return process ? process.pid : null;
   }
 
-  /**
-   * SOV-P4: External trigger for integrity verification and healing.
-   */
   async triggerHeal(name: string): Promise<boolean> {
-      const config = SIDECAR_REGISTRY[name];
-      const isDev = this.config?.getBoolean("CTS_DEV_MODE", false);
-      const binPath = isDev ? await this.findBinary(name) : `/var/lib/cts/bin/${name}`;
+      if (!this.config) return false;
+      const isDev = this.config.getBoolean("CTS_DEV_MODE", false);
+      const binPath = isDev ? await this.repository.findBinary(name, this.config) : `/var/lib/cts/bin/${name}`;
 
       if (!binPath) return false;
-      return await this.verifyAndHeal(name, binPath, true);
+      return await this.integrity.verifyAndHeal(name, binPath, this.repository.getManifest(), this.config, true);
   }
 
   getTrippedSidecars(): string[] {
-      return Array.from(this.trippedSidecars);
+      return this.spawner.getTrippedSidecars();
   }
-
-  private getCapabilities(name: string): string | undefined {
-    // BUG-4.5 FIX: Use SIDECAR_REGISTRY for capability mapping to allow new sidecars to work
-    return SIDECAR_REGISTRY[name]?.capabilities;
-  }
-
-  private async verifyAndHeal(name: string, binPath: string, force: boolean = false): Promise<boolean> {
-    // SOV-03: Verify integrity on the final path to mitigate TOCTOU
-    const currentHash = await this.calculateHash(binPath);
-    if (!currentHash && !force) return false;
-
-    // Authoritative check against Signed Manifest
-    const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
-    const isDevMode = this.config?.getBoolean("CTS_DEV_MODE", false);
-    const arch = Deno.build.arch;
-    const manifestHash = this.manifest?.sidecars?.[name]?.architectures[arch]?.hash;
-    const envHash = this.config?.getEnv(`CTS_HASH_${name.toUpperCase()}`);
-    const goldenHash = isProduction ? manifestHash : (manifestHash || envHash);
-    const isUnsignedManifest = !!this.manifest && (!this.manifest.signature || this.manifest.signature === "unsigned");
-
-    // BUG-05: Make manifest mandatory in production
-    if (isProduction && !manifestHash) {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: `CRITICAL: No manifest entry for ${name} in production. Failing closed.`
-        });
-        return false;
-    }
-
-    if (!force && (!goldenHash || currentHash === goldenHash)) {
-        return true;
-    }
-
-    if (isProduction && isUnsignedManifest) {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: `CRITICAL SECURITY VIOLATION: Sidecar manifest for ${name} is UNSIGNED in production. Failing closed.`
-        });
-        return false;
-    }
-
-    if (isDevMode && isUnsignedManifest && goldenHash && currentHash !== goldenHash) {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.WARNING,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: `Unsigned development manifest mismatch for ${name}. Accepting local binary hash ${currentHash?.slice(0, 8) || "UNKNOWN"} in dev mode.`
-        });
-        return true;
-    }
-
-    this.logging.log({
-        timestamp: new Date().toISOString(),
-        type: LogType.AUDIT,
-        severity: LogSeverity.WARNING,
-        caller: "orchestrator:infra:runtime:sidecar_manager",
-        message: `Integrity Mismatch for ${name}! Expected: ${goldenHash?.slice(0, 8) || "UNKNOWN"}, Actual: ${currentHash?.slice(0, 8) || "UNKNOWN"}. Attempting resurrection...`
-    });
-
-    // SELF-HEALING: Attempt to rotate from golden repository
-    try {
-        const goldenRepo = `./volume/storage/agents/golden/${name}`;
-        const goldenStat = await Deno.stat(goldenRepo).catch(() => null);
-        
-        if (goldenStat?.isFile) {
-            // SOV-03 FIX: Use privileged SystemExecutor to restore the file
-            // Deno.copyFile would fail on root-owned /var/lib/cts/bin files if the orchestrator is unprivileged.
-            await this.executor.execute("cp", ["-p", goldenRepo, binPath]);
-            const healedHash = await this.calculateHash(binPath);
-            
-            if (healedHash === goldenHash) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.SUCCESS,
-                    caller: "orchestrator:infra:runtime:sidecar_manager",
-                    message: `Successfully healed sidecar ${name}. Integrity restored.`
-                });
-                return true;
-            }
-        }
-    } catch (e) {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.ERROR,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: `Healing failed for ${name}: ${(e as Error).message}`
-        });
-    }
-
-    return false;
-  }
-
-  private verifyUpgradeToken(token: string): boolean {
-      // Logic to verify the transient upgrade token against TPM/ENV
-      const envToken = this.config?.getEnv("CTS_MANIFEST_UPGRADE_TOKEN");
-      return !!envToken && token === envToken;
-  }
-
-  private async calculateHash(path: string): Promise<string | null> {
-    // SOV-P5: Optimized hashing via Native FFI
-    // hash_file_sha256 in cts_sec is truly streaming and SIMD-accelerated.
-    const ffiHash = this.ffi.calculateHash(path);
-    if (ffiHash) return ffiHash;
-
-    try {
-        // Fallback to subprocess if FFI unavailable.
-        // This is still streaming at the OS level.
-        const res = await this.executor.execute("sha256sum", [path]);
-        if (res.success && res.stdout) {
-            return res.stdout.split(" ")[0].trim();
-        }
-
-        // Final JS-based fallback (last resort)
-        const file = await Deno.open(path, { read: true });
-        try {
-            const hashBuffer = await this.digestStream("SHA-256", file.readable);
-            return Array.from(new Uint8Array(hashBuffer))
-                .map(b => b.toString(16).padStart(2, "0")).join("");
-        } finally {
-            try { file.close(); } catch { /* already closed */ }
-        }
-    } catch (e) {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.DEBUG,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: `Hash calculation failed for ${path}: ${(e as Error).message}`
-        });
-        return null;
-    }
-  }
-
-  private async digestStream(algorithm: string, stream: ReadableStream<Uint8Array>): Promise<ArrayBuffer> {
-      // SOV-03 FIX: Use truly streaming OS-level hashing where possible to prevent OOM.
-      try {
-          const hasher = new Deno.Command("sha256sum", {
-              stdin: "piped",
-              stdout: "piped",
-              stderr: "null",
-          }).spawn();
-
-          const pipePromise = stream.pipeTo(hasher.stdin);
-          const [output] = await Promise.all([hasher.output(), pipePromise.catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.DEBUG, caller: "sidecar_manager", message: `Stream pipe failure during hash: ${e.message}` }).catch(() => {}))]);
-
-          if (output.success) {
-              const hashHex = new TextDecoder().decode(output.stdout).split(" ")[0].trim();
-              const bytes = new Uint8Array(hashHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
-              return bytes.buffer as ArrayBuffer;
-          }
-      } catch {
-          // If sha256sum fails, we have to collect chunks for crypto.subtle.digest
-          // because WebCrypto does not support streaming hashing natively.
-          // We enforce a hard 100MB limit to prevent OOM.
-      }
-
-      const MAX_HASH_SIZE = 100 * 1024 * 1024; // 100MB limit
-      const reader = stream.getReader();
-      const chunks: Uint8Array[] = [];
-      let totalLength = 0;
-
-      try {
-          while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              if (totalLength + value.length > MAX_HASH_SIZE) {
-                  throw new Error(`OOM Protection: Stream exceeds ${MAX_HASH_SIZE / 1024 / 1024}MB limit.`);
-              }
-              chunks.push(value);
-              totalLength += value.length;
-          }
-      } finally {
-          reader.releaseLock();
-      }
-
-      const combined = new Uint8Array(totalLength);
-      let pos = 0;
-      for (const chunk of chunks) {
-          combined.set(chunk, pos);
-          pos += chunk.length;
-      }
-      return await crypto.subtle.digest(algorithm, combined);
-  }
-
 
   private handleSidecarExit(name: string, exitCode: number) {
     if (exitCode === 0 || this.isShuttingDown || this.expectedExits.has(name)) {
         this.expectedExits.delete(name);
         return;
     }
-    if (this.unsupportedSidecars.has(name)) return;
+    if (this.spawner.isUnsupported(name)) return;
 
     const now = Date.now();
-    const restartInfo = this.restartCounts.get(name) || { count: 0, lastRestart: 0 };
+    const restartInfo = this.spawner.getRestartInfo(name);
 
-    // Reset counter if the process was stable for more than 5 minutes
     if (now - restartInfo.lastRestart > 300000) {
         restartInfo.count = 0;
     }
 
     const MAX_RETRY_ATTEMPTS = 5;
-    const COOLOFF_WINDOW = 600000; // 10 minutes
+    const COOLOFF_WINDOW = 600000;
 
     if (restartInfo.count < MAX_RETRY_ATTEMPTS) {
       restartInfo.count++;
       restartInfo.lastRestart = now;
-      this.restartCounts.set(name, restartInfo);
+      this.spawner.setRestartInfo(name, restartInfo);
 
-      // Exponential backoff: 1s, 2s, 4s, 8s, 16s...
       const delay = Math.pow(2, restartInfo.count - 1) * 1000;
 
       this.logging.log({
@@ -1248,12 +772,12 @@ export class SidecarManager implements CommandPort {
       const timer = setTimeout(() => {
         this.backoffTimers.delete(timer);
         if (!this.isShuttingDown) {
-            this.getPersistentSidecar(name).catch(e => loggingService.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "sidecar_manager", message: `Auto-restart failed for ${name}: ${e.message}` }).catch(() => {}));
+            this.getPersistentSidecar(name).catch(e => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "sidecar_manager", message: `Auto-restart failed for ${name}: ${e.message}` }));
         }
       }, delay);
       this.backoffTimers.add(timer);
     } else {
-      this.trippedSidecars.add(name);
+      this.spawner.markTripped(name);
       const isCritical = SIDECAR_REGISTRY[name]?.critical || false;
       const msg = `${isCritical ? "FATAL" : "CRITICAL"}: Sidecar ${name} entered crash loop. Circuit breaker active for ${COOLOFF_WINDOW / 1000}s.`;
 
@@ -1271,11 +795,10 @@ export class SidecarManager implements CommandPort {
           critical: isCritical
       });
 
-      // Circuit Breaker: Reset after cooloff period with jitter (H-06)
-      const jitter = Math.floor(Math.random() * 30000); // 30s jitter
+      const jitter = Math.floor(Math.random() * 30000);
       const resetTimer = setTimeout(() => {
-          this.trippedSidecars.delete(name);
-          this.restartCounts.delete(name);
+          this.spawner.clearTripped(name);
+          this.spawner.clearRestartInfo(name);
           this.backoffTimers.delete(resetTimer);
           this.logging.log({
               timestamp: new Date().toISOString(),

@@ -28,7 +28,7 @@ export class AutonomousResponseEngine extends BaseService {
     private scores: BoundedMap<string, number> = new BoundedMap(500);
     private history: BoundedMap<string, ThreatEvent[]> = new BoundedMap(500);
     private activeRemediations: BoundedMap<string, { tier: RemediationTier, timestamp: string, reason: string }> = new BoundedMap(500);
-    private decayInterval?: number;
+    private decayInterval?: any;
 
     private readonly MAX_HISTORY_PER_SOURCE = 20;
 

@@ -11,7 +11,7 @@ import { Result, ok } from "@core/result.ts";
  * Implements the "Dead Man's Switch" and "Self-Healing Filesystem".
  */
 export class IntegrityService extends BaseService {
-    private checkIntervalId?: number;
+    private checkIntervalId?: any;
     private sidecarManager?: CommandPort & { triggerHeal(name: string): Promise<boolean> };
 
     constructor(

@@ -1,5 +1,6 @@
 import { ServiceContainer, PlatformInfo } from "./container.ts";
-import { ConfigurationPort, ProtectionPort } from "./ports.ts";
+import { ConfigurationPort, EventBusPort, TpmPort } from "./ports.ts";
+import { ProtectionPort } from "./ports/security.ts";
 import {
     BaselineService, ProcessTracker, SessionService, ApiKeysService,
     EventBus, MeshAuthService, ForensicService, MeshManager,
@@ -22,7 +23,7 @@ import { KvNetworkLogRepository } from "@infrastructure/persistence/kv/kv_networ
 import { createProtection } from "@infrastructure/system/protection/index.ts";
 import { ProtectionAdapter } from "@infrastructure/system/protection/protection_adapter.ts";
 import { LinuxProcessProvider, MacOSProcessProvider, WindowsProcessProvider } from "@infrastructure/system/process_provider.ts";
-import { LoggingPort, LogType, LogSeverity } from "./ports.ts";
+import { LoggingPort, LogType, LogSeverity } from "./ports/logging.ts";
 import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
 import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
@@ -31,8 +32,19 @@ import { AuditService } from "@domain/analysis/audit.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { ServiceRegistry } from "./registry.ts";
+import { SecuritySubsystemFactory } from "./security_subsystem_factory.ts";
+import { IntelligenceSubsystemFactory } from "./intelligence_subsystem_factory.ts";
+import { IdentitySubsystemFactory } from "./identity_subsystem_factory.ts";
+import { EngineSubsystemFactory } from "./engine_subsystem_factory.ts";
+import { OperationalSubsystemFactory } from "./operational_subsystem_factory.ts";
 
 export class SubsystemFactory {
+    private securityFactory: SecuritySubsystemFactory;
+    private intelligenceFactory: IntelligenceSubsystemFactory;
+    private identityFactory: IdentitySubsystemFactory;
+    private engineFactory: EngineSubsystemFactory;
+    private operationalFactory: OperationalSubsystemFactory;
+
     constructor(
         private kv: Deno.Kv,
         private logging: LoggingPort,
@@ -40,15 +52,16 @@ export class SubsystemFactory {
         private sidecarManager: SidecarManager,
         private auditService: AuditService,
         private registry: ServiceRegistry
-    ) {}
+    ) {
+        this.securityFactory = new SecuritySubsystemFactory(logging, executor, sidecarManager, auditService, registry, this.createService.bind(this));
+        this.intelligenceFactory = new IntelligenceSubsystemFactory(kv, logging, executor, auditService, this.createService.bind(this));
+        this.identityFactory = new IdentitySubsystemFactory(kv, logging, sidecarManager);
+        this.engineFactory = new EngineSubsystemFactory(sidecarManager, executor, logging);
+        this.operationalFactory = new OperationalSubsystemFactory(kv, logging, sidecarManager, executor, auditService, this.createService.bind(this));
+    }
 
     initIdentity(config: EnvConfigProvider) {
-        const sessionRepo = new KvSessionRepository(this.kv);
-        const sessions = new SessionService(sessionRepo, this.logging, config.getNumber("SESSION_TTL_HOURS", 24));
-        const apiKeys = new ApiKeysService(this.kv, this.logging);
-        const rateLimit = new RateLimitService(this.kv);
-        const meshAuth = new MeshAuthService(this.kv, this.logging, config, this.sidecarManager.getTpm());
-        return { sessions, apiKeys, rateLimit, meshAuth };
+        return this.identityFactory.initIdentity(config);
     }
 
     async initProtection(platformInfo: PlatformInfo, config: EnvConfigProvider) {
@@ -56,7 +69,7 @@ export class SubsystemFactory {
         const networkLog = new NetworkLogService(networkLogRepo, this.logging);
         const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
         await rawProtection.firewall.setKv(this.kv);
-        const protection = new ProtectionAdapter(rawProtection);
+        const protection = new ProtectionAdapter(rawProtection as any);
         if ("setConfig" in rawProtection.firewall && typeof rawProtection.firewall.setConfig === "function") {
             rawProtection.firewall.setConfig(config);
         }
@@ -64,41 +77,15 @@ export class SubsystemFactory {
     }
 
     initSecurity(protection: ProtectionPort, mesh: MeshManager, config: ConfigurationPort, health: HealthService) {
-        const anonymization = new AnonymizationService(protection.vpn, this.logging);
-        anonymization.setFirewall(protection.firewall);
-        const shadowProtocol = new ShadowProtocolService(mesh, anonymization, this.logging);
-        const behavioral = new BehavioralService(protection.firewall, this.auditService);
-        const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, this.logging);
-
-        const canaryService = this.createService(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging));
-        const kernelService = new KernelService(this.executor, this.auditService, config, this.sidecarManager, this.sidecarManager.getTpm());
-
-        return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };
+        return this.securityFactory.initSecurity(protection, mesh, config, health);
     }
 
     initIntelligence(protection: ProtectionPort, processTracker: ProcessTracker, health: HealthService, config: ConfigurationPort, mesh: MeshManager, meshAuth: MeshAuthService) {
-        const geoIp = this.createService(health, "GeoIP", () => new GeoIpService(this.logging));
-        const forensicService = this.createService(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, meshAuth));
-        const curatedIntel = this.createService(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, geoIp));
-        const news = this.createService(health, "News", () => new NewsSignalService(this.logging));
-        const networkDiscovery = this.createService(health, "NetworkDiscovery", () => {
-            const svc = new NetworkDiscoveryService(this.logging, this.executor);
-            svc.setMesh(mesh);
-            return svc;
-        });
-        const incidents = this.createService(health, "Incidents", () => new IncidentService(this.kv, this.logging));
-        const compliance = this.createService(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
-
-        return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
+        return this.intelligenceFactory.initIntelligence(protection, processTracker, health, config, mesh, meshAuth);
     }
 
     async initEngine(correlation: CorrelationService, mesh: MeshManager) {
-        const autopilot = new AutopilotService();
-        const autonomousAutopilot = new AutonomousAutopilotService(correlation, this.sidecarManager, this.logging);
-        const lifecycle = new LifecycleService(this.sidecarManager, this.logging);
-        const provisioning = new ProvisioningService(this.sidecarManager, mesh, this.executor, this.logging);
-
-        return { autopilot, autonomousAutopilot, lifecycle, policy: autopilot.getPolicy(), correlation, provisioning };
+        return this.engineFactory.initEngine(correlation, mesh);
     }
 
     initProcessTracker(platformInfo: PlatformInfo) {
@@ -115,6 +102,10 @@ export class SubsystemFactory {
 
     initSystemLifecycle(tpm: TPMManager): SystemLifecycleService {
         return new SystemLifecycleService(this.logging, tpm, this.kv);
+    }
+
+    public initOperational(health: HealthService, mesh: MeshManager, tpm: TpmPort, eventBus: EventBusPort, processTracker: ProcessTracker, security: { honeypot: import("@domain/index.ts").HoneypotService; canaryService: import("@domain/index.ts").CanaryService }, broadcast: (event: import("@interface/ws_handler.ts").BroadcastData) => void) {
+        return this.operationalFactory.initOperational(health, mesh, tpm, eventBus, processTracker, security, broadcast);
     }
 
     public createService<T extends object>(health: HealthService, name: string, factory: () => T): T {

@@ -7,6 +7,7 @@ import { MerkleTree } from "@core/merkle.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { ServiceLocatorPort } from "../../core/ports.ts";
 import { WormRepository } from "../repositories/worm_repository.ts";
+import { BackgroundTaskManager } from "../../core/utils/background_task_manager.ts";
 
 export interface ActorContext {
     id: string;
@@ -80,12 +81,13 @@ export class AuditService extends BaseService {
 
     private auditBuffer: AuditEvent[] = [];
     private intervals: number[] = [];
+    private taskManager: BackgroundTaskManager;
     private watcherAbortController: AbortController | null = null;
 
     // Merkle Integration
     private currentSessionHashes: string[] = [];
     private merkleTree: MerkleTree = new MerkleTree();
-    private locator?: ServiceLocatorPort;
+    declare public locator?: ServiceLocatorPort;
     private wormRepo: WormRepository | null = null;
 
     public setWormRepository(repo: WormRepository) {
@@ -108,11 +110,10 @@ export class AuditService extends BaseService {
             maxAgeDays: 90,
             maxEvents: 10000,
         };
-
+        this.taskManager = new BackgroundTaskManager(logging);
     }
 
     protected override async onInit(): Promise<Result<void>> {
-
         const restoreRes = await this.restoreChainHead();
         if (!restoreRes.success) {
             return restoreRes;
@@ -120,37 +121,24 @@ export class AuditService extends BaseService {
 
         const jitter = (ms: number) => ms + (Math.random() * 5000);
 
-        this.intervals.push(setInterval(() => {
-            this.purgeExpired().catch(e => this.handleTaskError(e, "purgeExpired"));
-        }, jitter(60 * 60 * 1000)));
-        this.intervals.push(setInterval(() => {
-            this.emitMetrics().catch(e => this.handleTaskError(e, "emitMetrics"));
-        }, jitter(30000)));
-        this.intervals.push(setInterval(() => {
-            (async () => {
-                if (this.mesh) {
-                    const status = await this.getChainStatus();
-                    this.mesh.broadcastAuditVerification(status.lastHash, status.count);
-                }
-            })().catch(e => this.handleTaskError(e, "broadcastAuditVerification"));
-        }, jitter(5 * 60 * 1000)));
+        this.intervals.push(this.taskManager.schedule("purgeExpired", jitter(60 * 60 * 1000), () => this.purgeExpired()));
+        this.intervals.push(this.taskManager.schedule("emitMetrics", jitter(30000), () => this.emitMetrics()));
 
-        this.intervals.push(setInterval(() => {
-            this.verifyChainIncremental().catch(e => this.handleTaskError(e, "verifyChainIncremental"));
-        }, jitter(60 * 1000)));
-        this.intervals.push(setInterval(() => {
-            this.flushBuffer().catch(e => this.handleTaskError(e, "flushBuffer"));
-        }, 1000)); // PERFORMANCE: Faster flush for better interactivity
+        this.intervals.push(this.taskManager.schedule("broadcastAuditVerification", jitter(5 * 60 * 1000), async () => {
+            if (this.mesh) {
+                const status = await this.getChainStatus();
+                await this.mesh.broadcastAuditVerification(status.lastHash, status.count);
+            }
+        }));
 
-        // Merkle Root Commitment: Commit root every 10 minutes
-        this.intervals.push(setInterval(() => {
-            this.commitMerkleRoot().catch(e => this.handleTaskError(e, "commitMerkleRoot"));
-        }, jitter(600000)));
+        this.intervals.push(this.taskManager.schedule("verifyChainIncremental", jitter(60 * 1000), async () => {
+            await this.verifyChainIncremental();
+        }));
 
-    // Cold Storage Archiving: Archive every 12 hours
-    this.intervals.push(setInterval(() => {
-        this.archiveToColdStorage().catch(e => this.handleTaskError(e, "archiveToColdStorage"));
-    }, jitter(12 * 60 * 60 * 1000)));
+        this.intervals.push(this.taskManager.schedule("flushBuffer", 1000, () => this.flushBuffer()));
+
+        this.intervals.push(this.taskManager.schedule("commitMerkleRoot", jitter(600000), () => this.commitMerkleRoot()));
+        this.intervals.push(this.taskManager.schedule("archiveToColdStorage", jitter(12 * 60 * 60 * 1000), () => this.archiveToColdStorage()));
 
         this.startLedgerWatcher();
         return ok(undefined);

@@ -20,7 +20,7 @@ export interface CanaryToken {
 export class CanaryService extends BaseService {
     private tokens: CanaryToken[] = [];
     private readonly MASTER_DIR = "./volume/deception/bait";
-    private agingIntervalId?: number;
+    private agingIntervalId?: any;
 
     constructor(
         private auditService: AuditService, 

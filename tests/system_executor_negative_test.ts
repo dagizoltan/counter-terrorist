@@ -42,8 +42,8 @@ Deno.test("SystemExecutor - Path traversal detection", async () => {
 Deno.test("SystemExecutor - Too many arguments", async () => {
     const executor = new SystemExecutor();
 
-    // which allows 1 arg
+    // which allows 1 arg via Zod max(1)
     const result = await executor.execute("which", ["ls", "grep"]);
     assertEquals(result.success, false);
-    assertEquals(result.stderr.includes("Security Violation: Too many arguments for 'which' (max: 1)"), true);
+    assertEquals(result.stderr.includes("Structured validation failed for 'which'"), true);
 });

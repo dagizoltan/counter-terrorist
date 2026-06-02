@@ -30,7 +30,7 @@ export interface Protection {
 export function createProtection(
   sidecar: SidecarManager,
   executor: SystemExecutor,
-  platformInfo: PlatformInfo,
+  platformInfo: any,
   networkLogs: any,
 ): Protection {
   const firewall = createFirewallManager(sidecar, executor, platformInfo, networkLogs);

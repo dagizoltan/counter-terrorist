@@ -31,7 +31,7 @@ export { WatchdogService } from "./analysis/watchdog_service.ts";
 export { EventMediator } from "./analysis/event_mediator.ts";
 export { ProcessTracker } from "./analysis/process_tracker.ts";
 export { BaselineService } from "./analysis/baseline.ts";
-export { MetricsService } from "./analysis/metrics_service.ts";
+export { MetricsService, setMetricsService } from "./analysis/metrics_service.ts";
 export { DecentralizedMetricsService } from "./analysis/decentralized_metrics.ts";
 export { SupplyChainService } from "./analysis/supply_chain.ts";
 export { NotificationService } from "./analysis/notifications.ts";
@@ -49,6 +49,8 @@ export { LedgerService } from "./analysis/ledger_service.ts";
 export { CorrelationService } from "./analysis/correlation_service.ts";
 export { ViewModelService } from "./analysis/view_model_service.ts";
 export { IntegrityService } from "./analysis/integrity_service.ts";
+export { AutonomousAutopilotService } from "./analysis/autonomous_autopilot_service.ts";
+export { LifecycleService } from "./analysis/lifecycle_service.ts";
 export { CausalGraphService } from "./analysis/causal_graph_service.ts";
 
 // Engine Domain
