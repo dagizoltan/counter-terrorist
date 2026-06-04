@@ -73,7 +73,7 @@ export class SentinelIntegration {
                     message: `eBPF Alert: ${event.comm} called ${event.syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
                     data: { ...event, anomalyScore }
                 });
-                this.eventBus.emit(type as any, event as any);
+                await this.eventBus.emit(type as any, event as any);
             }
 
             if (type === "EBPF_STRAY_SHELL") {

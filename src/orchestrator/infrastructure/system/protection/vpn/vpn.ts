@@ -19,7 +19,7 @@ export class VpnManager {
 
   private async emitMetrics() {
     if (!this.eventBus) return;
-    this.eventBus.emit("METRIC_UPDATE", {
+    await this.eventBus.emit("METRIC_UPDATE", {
       domain: "vpn",
       data: {
         active: await this.isConnected(),

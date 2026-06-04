@@ -60,9 +60,9 @@ export class HealthService extends BaseService {
         }
     }
 
-    private emitMetrics() {
+    private async emitMetrics() {
         if (this.eventBus) {
-            this.eventBus.emit("METRIC_UPDATE", {
+            await this.eventBus.emit("METRIC_UPDATE", {
                 domain: "system_health",
                 data: {
                     status: this.getGlobalSeverity(),

@@ -7,7 +7,7 @@ export interface MeshPort {
   getNodeId(): string;
   getActiveNodeCount(): number;
   getNodes(): unknown[];
-  isolateNode(nodeId: string): import("../result.ts").Result<void>;
+  isolateNode(nodeId: string): Promise<import("../result.ts").Result<void>>;
   broadcastThreatHash(hash: string, sourceNode: string): Promise<import("../result.ts").Result<void>>;
   broadcastAuditEvent(event: unknown): Promise<void>;
   broadcastAuditVerification(lastHash: string, eventCount: number): Promise<void>;

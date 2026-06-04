@@ -133,6 +133,9 @@ Deno.test("HoneypotService - Handle PortAccess Event", async () => {
     // Simulate event from sidecar
     sidecar.emitEvent("decoy", { data: { type: "PortAccess", source_ip: "1.2.3.4", port: 22 } });
 
+    // Give async handlers a moment to execute
+    await new Promise(r => setTimeout(r, 100));
+
     // Verify logging and forensics
     assertEquals(logging.logs.some(l => l.message.includes("Tactical Trigger")), true);
     assertEquals(pcap.calls.some(c => c.method === "startCapture" && c.filter.includes("1.2.3.4")), true);

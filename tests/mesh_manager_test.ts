@@ -45,15 +45,15 @@ Deno.test("MeshManager - Node registration and isolation", async () => {
         hostname: "peer-2",
         address: "10.0.0.2",
         port: 8000,
-        lastSeen: Date.now(),
+        lastSeen: Date.now() - 1000,
         verified: true
     };
 
-    manager.registerNode(node);
+    await manager.registerNode(node);
     assertEquals(manager.getNodes().length, 1);
     assertEquals(manager.getActiveNodeCount(), 1);
 
-    manager.isolateNode("node-2");
+    await manager.isolateNode("node-2");
     assertEquals(manager.getNodes().length, 0);
 
     await manager.shutdown();
@@ -68,8 +68,8 @@ Deno.test("MeshManager - Consensus logic", async () => {
     await manager.init();
 
     // Register 2 verified nodes
-    manager.registerNode({ id: "n1", hostname: "h1", address: "10.0.0.1", port: 8000, lastSeen: Date.now(), verified: true });
-    manager.registerNode({ id: "n2", hostname: "h2", address: "10.0.0.2", port: 8000, lastSeen: Date.now(), verified: true });
+    await manager.registerNode({ id: "n1", hostname: "h1", address: "10.0.0.1", port: 8000, lastSeen: Date.now() - 1000, verified: true });
+    await manager.registerNode({ id: "n2", hostname: "h2", address: "10.0.0.2", port: 8000, lastSeen: Date.now() - 1000, verified: true });
 
     // Mock sendSync for approval
     const sendSyncStub = stub(manager as any, "sendSync", (node: any) => {

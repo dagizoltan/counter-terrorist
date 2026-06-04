@@ -10,6 +10,8 @@ import { z } from "zod";
 import { ServiceLocatorPort } from "../../core/ports.ts";
 import { MeshChaosEngine } from "./chaos_engine.ts";
 import { BloomFilter } from "../../core/cache.ts";
+import { MeshGossipManager } from "./mesh/gossip_manager.ts";
+import { MeshConsensusManager } from "./mesh/consensus_manager.ts";
 
 export const MeshNodeSchema = z.object({
   id: z.string(),
@@ -33,10 +35,10 @@ export class MeshManager extends BaseService implements MeshPort {
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
   private watcherAbortController: AbortController | null = null;
-  private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   declare public locator?: ServiceLocatorPort;
   private chaosEngine: MeshChaosEngine;
-  private gossipCache: BloomFilter = new BloomFilter(10000, 4);
+  private gossip!: MeshGossipManager;
+  private consensus!: MeshConsensusManager;
 
   public setLocator(locator: ServiceLocatorPort) {
     this.locator = locator;
@@ -78,6 +80,7 @@ export class MeshManager extends BaseService implements MeshPort {
   ) {
     super();
     this.chaosEngine = new MeshChaosEngine(logging);
+    // gossip and consensus initialized in onInit to ensure nodeId is set
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,
@@ -87,9 +90,9 @@ export class MeshManager extends BaseService implements MeshPort {
     });
   }
 
-  private emitMetrics() {
+  private async emitMetrics() {
     if (!this.eventBus) return;
-    this.eventBus.emit("METRIC_UPDATE", {
+    await this.eventBus.emit("METRIC_UPDATE", {
       domain: "mesh",
       data: {
         activeNodes: Array.from(this.nodes.values()).filter(n => (Date.now() - n.lastSeen) < 60000).length,
@@ -102,6 +105,8 @@ export class MeshManager extends BaseService implements MeshPort {
   protected override async onInit(): Promise<Result<void>> {
     this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
+    this.gossip = new MeshGossipManager(this.logging, this);
+    this.consensus = new MeshConsensusManager(this.logging, this.config, this);
     this.startStateWatcher();
     this.port = this.config.getNumber("PORT", 8000);
     this.meshSecret = this.config.getEnv("MESH_SECRET");
@@ -490,7 +495,7 @@ export class MeshManager extends BaseService implements MeshPort {
       }
       if (body.success && body.nodeId) {
         node.verified = true;
-        this.registerNode(node);
+        await this.registerNode(node);
         this.logging.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -512,7 +517,7 @@ export class MeshManager extends BaseService implements MeshPort {
     }
   }
 
-  registerNode(node: MeshNode) {
+  async registerNode(node: MeshNode) {
     const validation = MeshNodeSchema.safeParse(node);
     if (!validation.success) {
         this.logging.log({
@@ -536,7 +541,7 @@ export class MeshManager extends BaseService implements MeshPort {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `New node registered: ${node.hostname} (${node.address}:${node.port}) [verified=${node.verified}]`
       });
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
             type: LogType.AUDIT,
@@ -551,80 +556,20 @@ export class MeshManager extends BaseService implements MeshPort {
 
   async broadcast(payload: Record<string, unknown>, priority: boolean = false): Promise<Result<void>> {
     this.ensureReady();
-
-    // SOV-P5: Gossip Deduplication via Bloom Filter
-    const payloadHash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(payload)))
-        .then(b => Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join(''));
-
-    if (this.gossipCache.has(payloadHash)) return ok(undefined);
-    this.gossipCache.add(payloadHash);
-
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => {
         if (!n.verified) return false;
         if (this.chaosEngine.shouldPartition(n.id)) return false;
         return true;
     });
 
-    const MAX_GOSSIP_CONCURRENCY = 16;
-    const batches = [];
-    for (let i = 0; i < verifiedNodes.length; i += MAX_GOSSIP_CONCURRENCY) {
-        batches.push(verifiedNodes.slice(i, i + MAX_GOSSIP_CONCURRENCY));
-    }
-
-    for (const [batchIndex, batch] of batches.entries()) {
-        const batchResults = await Promise.allSettled(batch.map(async (node, nodeIndex) => {
-            if (!priority) {
-                const jitter = (batchIndex * MAX_GOSSIP_CONCURRENCY + nodeIndex) * 100;
-                await new Promise(r => setTimeout(r, jitter));
-            }
-
-            // SOV-05 STABILITY: Circuit Breaker for each node to prevent hanging the gossip chain
-            let breaker = this.circuitBreakers.get(node.id);
-            if (!breaker) {
-                breaker = new CircuitBreaker({ failureThreshold: 3, resetTimeoutMs: 60000 });
-                this.circuitBreakers.set(node.id, breaker);
-            }
-
-            const gossipRes = await breaker.execute(() => retry(() => this.sendSync(node, payload), {
-                maxAttempts: priority ? 3 : 1,
-                baseDelayMs: 200
-            }).then(res => {
-                if (!res.success) throw res.error;
-                return res.data;
-            }));
-
-            if (!gossipRes.success) {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.WARNING,
-                    caller: "orchestrator:domain:orchestration:mesh",
-                    message: `Gossip failure to ${node.hostname}: ${gossipRes.error.message}`
-                });
-            }
-        }));
-
-        // SOV-06 HARDENING: Ensure all batch errors are logged to avoid unhandled rejections
-        for (const res of batchResults) {
-            if (res.status === "rejected") {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:orchestration:mesh:batch",
-                    message: `Unexpected error in gossip batch: ${res.reason}`
-                });
-            }
-        }
-    }
-    return ok(undefined);
+    return await this.gossip.broadcast(payload, verifiedNodes, priority);
   }
 
   getNodes(): MeshNode[] {
     return Array.from(this.nodes.values());
   }
 
-  isolateNode(nodeId: string): import("@core/result.ts").Result<void> {
+  async isolateNode(nodeId: string): Promise<import("@core/result.ts").Result<void>> {
     const node = this.nodes.get(nodeId);
     if (node) {
       this.nodes.delete(nodeId);
@@ -635,7 +580,7 @@ export class MeshManager extends BaseService implements MeshPort {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `ISOLATED NODE: ${node.hostname} (${nodeId}) revoked from mesh due to security policy.`
       });
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
             type: LogType.AUDIT,
@@ -663,7 +608,7 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { ip, sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload, true);
   }
 
@@ -681,7 +626,7 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { target, sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload, true);
   }
 
@@ -699,7 +644,7 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { hash, sourceNode, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload);
   }
 
@@ -717,7 +662,7 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
     return await this.broadcast(payload, true);
   }
 
@@ -728,7 +673,7 @@ export class MeshManager extends BaseService implements MeshPort {
         data: event,
         fromAudit: event.fromAudit
     };
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
     this.broadcast(payload).catch(e => {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -745,7 +690,7 @@ export class MeshManager extends BaseService implements MeshPort {
         type: "GOSSIP_AUDIT_VERIFY",
         data: { lastHash, eventCount, node: this.nodeId }
     };
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
     this.broadcast(payload).catch(e => {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -841,94 +786,7 @@ export class MeshManager extends BaseService implements MeshPort {
   }
 
   async requestQuorumCommand(action: string, data: unknown): Promise<boolean> {
-      const activeCount = this.getActiveNodeCount();
-      if (this.config?.getEnv("SINGLE_NODE") === "true" || activeCount === 0) {
-          this.logging.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.AUDIT,
-              severity: LogSeverity.INFO,
-              caller: "orchestrator:domain:orchestration:mesh:quorum",
-              message: `SINGLE_NODE mode: Auto-approving quorum for action: ${action}`
-          });
-          return true;
-      }
-
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.AUDIT,
-          severity: LogSeverity.INFO,
-          caller: "orchestrator:domain:orchestration:mesh:quorum",
-          message: `Requesting mesh consensus (BFT model) for action: ${action}`
-      });
-
-      const verifiedNodes = Array.from(this.nodes.values()).filter(n => n.verified && (Date.now() - n.lastSeen) < 600000);
-      const N = verifiedNodes.length + 1;
-
-      // SOV-P4: BFT Threshold (2f + 1) where N >= 3f + 1
-      // For N < 4, we use simple majority as fallback
-      const threshold = N >= 4
-          ? Math.floor((2 * N) / 3) + 1
-          : Math.floor(N / 2) + 1;
-
-      if (N < threshold) {
-          this.logging.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.AUDIT,
-              severity: LogSeverity.ERROR,
-              caller: "orchestrator:domain:orchestration:mesh:quorum",
-              message: `Consensus impossible. Active nodes (${N}) < Threshold (${threshold}).`
-          });
-          return false;
-      }
-
-      let approvals = 1; // Self approval
-      const requestPayload = { action, data, requester: this.nodeId, timestamp: Date.now() };
-
-      for (const node of verifiedNodes) {
-          try {
-              const res = await this.sendSync(node, {
-                  type: "CONSENSUS_REQUEST",
-                  payload: requestPayload,
-                  signature: await this.signPayload(requestPayload)
-              }) as Record<string, unknown>;
-
-              if (res && res.approved && res.signature) {
-                  // SEC-05: Verify Byzantine Signature
-                  const isValid = await this.verifySignature(res.payload, res.signature as string, node.id);
-                  if (isValid) {
-                      approvals++;
-                  } else {
-                      this.logging.log({
-                          timestamp: new Date().toISOString(),
-                          type: LogType.AUDIT,
-                          severity: LogSeverity.ERROR,
-                          caller: "MESH:QUORUM",
-                          message: `REJECTED traitorous signature from node ${node.id} for ${action}`
-                      });
-                  }
-              }
-          } catch (_e) {
-              this.logging.log({
-                  timestamp: new Date().toISOString(),
-                  type: LogType.GENERIC,
-                  severity: LogSeverity.WARNING,
-                  caller: "orchestrator:domain:orchestration:mesh:quorum",
-                  message: `Node ${node.hostname} unreachable or denied.`
-              });
-          }
-
-          if (approvals >= threshold) break;
-      }
-      
-      const success = approvals >= threshold;
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.AUDIT,
-          severity: success ? LogSeverity.INFO : LogSeverity.WARNING,
-          caller: "orchestrator:domain:orchestration:mesh:quorum",
-          message: `Result for ${action}: ${success ? "APPROVED" : "DENIED"} (${approvals}/${threshold})`
-      });
-      return success;
+      return await this.consensus.requestQuorumCommand(action, data, Array.from(this.nodes.values()));
   }
 
   async signPayload(payload: unknown): Promise<string> {
@@ -1176,7 +1034,7 @@ export class MeshManager extends BaseService implements MeshPort {
             if (nodeData && Array.isArray(nodeData)) {
                 for (const node of nodeData) {
                     if (node.id !== this.nodeId) {
-                        this.registerNode(node);
+                        await this.registerNode(node);
                     }
                 }
             }
@@ -1218,7 +1076,7 @@ export class MeshManager extends BaseService implements MeshPort {
         message: `Identity Rotation Complete: ${oldId} -> ${this.nodeId}`
     });
     
-        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+        if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
             type: "UI_MESSAGE",
             data: {
                 message: "Security Mesh Identity Phased",

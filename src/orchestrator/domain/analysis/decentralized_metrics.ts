@@ -37,17 +37,17 @@ export class DecentralizedMetricsService extends BaseService {
         return ok(undefined);
     }
 
-    private broadcastMetrics() {
+    private async broadcastMetrics() {
         if (!this.eventBus) return;
-        this.eventBus.emit("UI_BROADCAST", {
+        await this.eventBus.emit("UI_BROADCAST", {
             type: "METRICS_SUMMARY",
             data: Object.fromEntries(this.metrics.entries())
         });
     }
 
-    public recordScan(results: Record<string, unknown>) {
+    public async recordScan(results: Record<string, unknown>) {
         if (!this.eventBus) return;
-        this.eventBus.emit("METRIC_UPDATE", {
+        await this.eventBus.emit("METRIC_UPDATE", {
             domain: "scans",
             data: results as any
         });

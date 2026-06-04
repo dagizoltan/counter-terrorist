@@ -60,7 +60,7 @@ export class FimIntegration {
                 message: `FIM Alert: ${action} on ${path} [Actor: ${actor}]`,
                 data: payload
             });
-            this.eventBus.emit((isCanary ? "THREAT" : "DRIFT_PROCESS") as any, payload as any);
+            await this.eventBus.emit((isCanary ? "THREAT" : "DRIFT_PROCESS") as any, payload as any);
         }
     }
 }

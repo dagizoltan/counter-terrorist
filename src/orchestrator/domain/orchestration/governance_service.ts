@@ -82,7 +82,7 @@ export class GovernanceService extends BaseService {
             message: `New Proposal ${id.slice(0,8)}: ${type} targeting ${target}`
         });
 
-        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+        if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
             type: "GOV_PROPOSAL",
             data: {
                 id,
@@ -126,7 +126,7 @@ export class GovernanceService extends BaseService {
             message: `Received Proposal ${payload.id.slice(0,8)} from ${payload.proposer}. Policy Decision: ${approved ? 'APPROVED' : 'REJECTED'}`
         });
 
-        if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+        if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
             type: "GOV_VOTE",
             data: {
                 id: payload.id,
@@ -230,7 +230,7 @@ export class GovernanceService extends BaseService {
                 });
                 // Apply strict firewall rules immediately
                 await this.protection.firewall.lockdown().catch(() => {});
-                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+                if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
                     type: "AUDIT_EVENT", 
                     data: { 
                         type: LogType.AUDIT, 
@@ -250,7 +250,7 @@ export class GovernanceService extends BaseService {
                     message: `Executing ACTIVE_SABOTAGE against target: ${proposal.target}`
                 });
                 await this.protection.firewall.blockIp(proposal.target);
-                if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+                if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
                     type: "AUDIT_EVENT", 
                     data: { 
                         type: LogType.AUDIT, 

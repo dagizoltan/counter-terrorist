@@ -88,11 +88,11 @@ export class EventBus implements EventBusPort {
     return () => this.unsubscribe(callback);
   }
 
-  emit<T extends EventName>(event: T, data: any) {
-    this.publish(event, `Emitted event: ${event}`, data);
+  async emit<T extends EventName>(event: T, data: any): Promise<void> {
+    await this.publish(event, `Emitted event: ${event}`, data);
   }
 
-  publish<T extends EventName>(type: T, message: string, data?: any) {
+  async publish<T extends EventName>(type: T, message: string, data?: any): Promise<void> {
     const validatedData = validateEvent(type as any, data);
     
     // SOV-06: Preserve recursion guard flags during publication
@@ -110,7 +110,9 @@ export class EventBus implements EventBusPort {
 
     // SOV-P2: Execute Middleware Chain
     if (this.middleware.length > 0) {
-        this.runMiddleware(0, event).catch(e => {
+        try {
+            await this.runMiddleware(0, event);
+        } catch (e) {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
@@ -119,12 +121,12 @@ export class EventBus implements EventBusPort {
                 message: `Middleware chain failed: ${e instanceof Error ? e.message : String(e)}`
             });
             // CRITICAL FIX: Ensure event still flows even if middleware chain crashes
-            this.finalizePublish(event, event.data);
-        });
+            await this.finalizePublish(event, event.data);
+        }
         return;
     }
 
-    this.finalizePublish(event, validatedData);
+    await this.finalizePublish(event, validatedData);
   }
 
   private async runMiddleware(index: number, event: SystemEvent) {
@@ -160,7 +162,7 @@ export class EventBus implements EventBusPort {
     }
   }
 
-  private finalizePublish(event: SystemEvent, validatedData: any) {
+  private async finalizePublish(event: SystemEvent, validatedData: any) {
     const type = event.type as string;
     const message = event.message;
 
@@ -195,15 +197,17 @@ export class EventBus implements EventBusPort {
     if (allHandlers.length === 0 && typeHandlers.length === 0) return;
 
     // Execute in parallel with 2s timeout
+    const executions = [];
     for (const h of allHandlers) {
-        this.safelyExecute(() => h(event), 2000);
+        executions.push(this.safelyExecute(() => h(event), 2000));
     }
     for (const h of typeHandlers) {
-        this.safelyExecute(() => h(validatedData, event), 2000);
+        executions.push(this.safelyExecute(() => h(validatedData, event), 2000));
     }
+    await Promise.all(executions);
   }
 
-  private safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000) {
+  private async safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000): Promise<void> {
     try {
       const res = fn();
       if (!(res instanceof Promise)) return; // PERFORMANCE: Avoid microtask overhead for sync handlers
@@ -214,7 +218,7 @@ export class EventBus implements EventBusPort {
       });
       this.pendingHandlers.add(wrappedPromise);
 
-      (async () => {
+      try {
         let timeoutId: any;
         try {
           const timeoutPromise = new Promise((_, reject) => {
@@ -236,7 +240,9 @@ export class EventBus implements EventBusPort {
           this.pendingHandlers.delete(wrappedPromise);
           if (resolveRef) (resolveRef as () => void)();
         }
-      })();
+      } catch (e) {
+          // Inner async error handling
+      }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
       this.logging.log({

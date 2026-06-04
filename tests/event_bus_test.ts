@@ -32,7 +32,7 @@ class MockLogging implements LoggingPort {
   shutdown(): Promise<void> { return Promise.resolve(); }
 }
 
-Deno.test("EventBus.subscribe and publish", () => {
+Deno.test("EventBus.subscribe and publish", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   const events: SystemEvent<any>[] = [];
@@ -42,7 +42,7 @@ Deno.test("EventBus.subscribe and publish", () => {
   });
 
   const testData = { message: "Test message", data: { key: "value" } };
-  eventBus.publish("INFO", "Test message", testData);
+  await eventBus.publish("INFO", "Test message", testData);
 
   assertEquals(events.length, 1);
   assertEquals(events[0].type, "INFO");
@@ -52,7 +52,7 @@ Deno.test("EventBus.subscribe and publish", () => {
   assertEquals(typeof events[0].correlationId, "string");
 });
 
-Deno.test("EventBus.on (keyed subscription)", () => {
+Deno.test("EventBus.on (keyed subscription)", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   const receivedData: any[] = [];
@@ -61,8 +61,8 @@ Deno.test("EventBus.on (keyed subscription)", () => {
     receivedData.push(data);
   });
 
-  eventBus.publish("INFO", "Info msg", { message: "Info msg", data: { foo: "bar" } });
-  eventBus.publish("WARN", "Warn msg", { message: "Warn msg", data: { skip: "me" } });
+  await eventBus.publish("INFO", "Info msg", { message: "Info msg", data: { foo: "bar" } });
+  await eventBus.publish("WARN", "Warn msg", { message: "Warn msg", data: { skip: "me" } });
 
   assertEquals(receivedData.length, 1);
   const data = receivedData[0] as any;
@@ -71,57 +71,57 @@ Deno.test("EventBus.on (keyed subscription)", () => {
   assertEquals(typeof data.correlationId, "string");
 });
 
-Deno.test("EventBus.unsubscribe (general)", () => {
+Deno.test("EventBus.unsubscribe (general)", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   let count = 0;
   const handler = () => { count++; };
 
   const unsub = eventBus.subscribe(handler);
-  eventBus.publish("INFO", "msg 1", { message: "msg 1" });
+  await eventBus.publish("INFO", "msg 1", { message: "msg 1" });
   assertEquals(count, 1);
 
   unsub();
-  eventBus.publish("INFO", "msg 2", { message: "msg 2" });
+  await eventBus.publish("INFO", "msg 2", { message: "msg 2" });
   assertEquals(count, 1);
 
   // Manual unsubscribe
   const handler2 = () => { count++; };
   eventBus.subscribe(handler2);
-  eventBus.publish("INFO", "msg 3", { message: "msg 3" });
+  await eventBus.publish("INFO", "msg 3", { message: "msg 3" });
   assertEquals(count, 2);
 
   eventBus.unsubscribe(handler2);
-  eventBus.publish("INFO", "msg 4", { message: "msg 4" });
+  await eventBus.publish("INFO", "msg 4", { message: "msg 4" });
   assertEquals(count, 2);
 });
 
-Deno.test("EventBus.unsubscribe (keyed)", () => {
+Deno.test("EventBus.unsubscribe (keyed)", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   let count = 0;
   const handler = () => { count++; };
 
   const unsub = eventBus.on("INFO", handler);
-  eventBus.publish("INFO", "msg 1", { message: "msg 1" });
+  await eventBus.publish("INFO", "msg 1", { message: "msg 1" });
   assertEquals(count, 1);
 
   unsub();
-  eventBus.publish("INFO", "msg 2", { message: "msg 2" });
+  await eventBus.publish("INFO", "msg 2", { message: "msg 2" });
   assertEquals(count, 1);
 
   // Manual unsubscribe
   const handler2 = () => { count++; };
   eventBus.on("WARN", handler2);
-  eventBus.publish("WARN", "msg 3", { message: "msg 3" });
+  await eventBus.publish("WARN", "msg 3", { message: "msg 3" });
   assertEquals(count, 2);
 
   eventBus.unsubscribe(handler2);
-  eventBus.publish("WARN", "msg 4", { message: "msg 4" });
+  await eventBus.publish("WARN", "msg 4", { message: "msg 4" });
   assertEquals(count, 2);
 });
 
-Deno.test("EventBus.unsubscribe should remove from all registrations", () => {
+Deno.test("EventBus.unsubscribe should remove from all registrations", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   let count = 0;
@@ -131,17 +131,17 @@ Deno.test("EventBus.unsubscribe should remove from all registrations", () => {
   eventBus.on("WARN", handler);
   eventBus.subscribe(handler);
 
-  eventBus.publish("INFO", "msg 1", { message: "msg 1" }); // +2 (on INFO and subscribe)
-  eventBus.publish("WARN", "msg 2", { message: "msg 2" }); // +2 (on WARN and subscribe)
+  await eventBus.publish("INFO", "msg 1", { message: "msg 1" }); // +2 (on INFO and subscribe)
+  await eventBus.publish("WARN", "msg 2", { message: "msg 2" }); // +2 (on WARN and subscribe)
   assertEquals(count, 4);
 
   eventBus.unsubscribe(handler);
-  eventBus.publish("INFO", "msg 3", { message: "msg 3" });
-  eventBus.publish("WARN", "msg 4", { message: "msg 4" });
+  await eventBus.publish("INFO", "msg 3", { message: "msg 3" });
+  await eventBus.publish("WARN", "msg 4", { message: "msg 4" });
   assertEquals(count, 4);
 });
 
-Deno.test("EventBus.emit alias", () => {
+Deno.test("EventBus.emit alias", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   let received: any = null;
@@ -150,22 +150,22 @@ Deno.test("EventBus.emit alias", () => {
     received = data;
   });
 
-  eventBus.emit("ALERT", { message: "Alert!", data: { hello: "world" } });
+  await eventBus.emit("ALERT", { message: "Alert!", data: { hello: "world" } });
   const data = received as any;
   assertEquals(data.data.hello, "world");
   assertEquals(data.fromEventBus, true);
   assertEquals(typeof data.correlationId, "string");
 });
 
-Deno.test("EventBus severity mapping", () => {
+Deno.test("EventBus severity mapping", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
 
-  eventBus.publish("CRITICAL", "Critical error", { message: "crit" });
-  eventBus.publish("BLOCK", "Blocked action", { message: "block" });
-  eventBus.publish("WARN", "Warning message", { message: "warn" });
-  eventBus.publish("DRIFT_PROCESS", "Process drift", { path: "/", action: "mod" });
-  eventBus.publish("INFO", "Info message", { message: "info" });
+  await eventBus.publish("CRITICAL", "Critical error", { message: "crit" });
+  await eventBus.publish("BLOCK", "Blocked action", { message: "block" });
+  await eventBus.publish("WARN", "Warning message", { message: "warn" });
+  await eventBus.publish("DRIFT_PROCESS", "Process drift", { path: "/", action: "mod" });
+  await eventBus.publish("INFO", "Info message", { message: "info" });
 
   assertEquals(mockLogging.logs.length, 5);
   assertEquals(mockLogging.logs[0].severity, LogSeverity.ERROR);
@@ -175,7 +175,7 @@ Deno.test("EventBus severity mapping", () => {
   assertEquals(mockLogging.logs[4].severity, LogSeverity.INFO);
 });
 
-Deno.test("EventBus handler error isolation", () => {
+Deno.test("EventBus handler error isolation", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   let handlerCalled = false;
@@ -189,7 +189,7 @@ Deno.test("EventBus handler error isolation", () => {
   });
 
   // This should not throw and should call the second handler
-  eventBus.publish("INFO", "Test error isolation", { message: "iso" });
+  await eventBus.publish("INFO", "Test error isolation", { message: "iso" });
 
   assertEquals(handlerCalled, true);
 });
@@ -203,7 +203,7 @@ Deno.test("EventBus logs handler errors", async () => {
     throw error;
   });
 
-  eventBus.publish("INFO", "Test error logging", { message: "log" });
+  await eventBus.publish("INFO", "Test error logging", { message: "log" });
 
   // Wait for promise-based logging to complete
   await new Promise(resolve => setTimeout(resolve, 50));
@@ -214,7 +214,7 @@ Deno.test("EventBus logs handler errors", async () => {
   assertEquals(errorLog?.message.includes("Test handler error"), true);
 });
 
-Deno.test("EventBus edge cases", () => {
+Deno.test("EventBus edge cases", async () => {
   const mockLogging = new MockLogging();
   const eventBus = new EventBus(mockLogging);
   const events: SystemEvent<any>[] = [];
@@ -223,20 +223,20 @@ Deno.test("EventBus edge cases", () => {
 
   // Undefined data should fail validation now
   try {
-    eventBus.publish("INFO", "No data", undefined as any);
+    await eventBus.publish("INFO", "No data", undefined as any);
   } catch (e) {
     assertEquals(e instanceof Error, true);
   }
 
   // Empty message
-  eventBus.publish("INFO", "", { message: "" });
+  await eventBus.publish("INFO", "", { message: "" });
   assertEquals(events[0].message, "");
 
   // Multiple subscribers of different types
   let keyedCount = 0;
   eventBus.on("INFO", () => { keyedCount++; });
 
-  eventBus.publish("INFO", "Both", { message: "Both" });
+  await eventBus.publish("INFO", "Both", { message: "Both" });
   assertEquals(events.length, 2); // 1 for first success, second threw error above
   assertEquals(keyedCount, 1);
 });

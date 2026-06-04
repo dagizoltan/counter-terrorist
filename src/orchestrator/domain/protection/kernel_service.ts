@@ -57,7 +57,7 @@ export class KernelService extends BaseService {
         if (!this.eventBus) return;
         const statusRes = await this.getStatus();
         const status = statusRes.success ? statusRes.data : {};
-        this.eventBus.emit("METRIC_UPDATE", {
+        await this.eventBus.emit("METRIC_UPDATE", {
             domain: "kernel",
             data: status
         });
@@ -99,7 +99,7 @@ export class KernelService extends BaseService {
                 }
 
                 if (this.eventBus) {
-                    this.eventBus.emit("SIDECAR_ALERT" as any, {
+                    await this.eventBus.emit("SIDECAR_ALERT" as any, {
                         sidecar: "sentinel",
                         type: "PERFORMANCE_DEGRADED",
                         message: `Hook ${hookId} latency spike: ${data.avg_ns}ns. Hook has been temporarily disabled.`,

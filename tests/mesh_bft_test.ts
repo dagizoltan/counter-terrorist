@@ -44,14 +44,16 @@ Deno.test("MeshManager: BFT Consensus logic", async () => {
         new MockConfig()
     );
 
+    await mesh.init();
+
     // Mock registerNode to add nodes manually
     for (let i = 0; i < 3; i++) {
-        mesh.registerNode({
+        await mesh.registerNode({
             id: `node-${i}`,
             hostname: `node-${i}`,
             address: `10.0.0.${i}`,
             port: 8000,
-            lastSeen: Date.now(),
+            lastSeen: Date.now() - 1000,
             verified: true
         });
     }

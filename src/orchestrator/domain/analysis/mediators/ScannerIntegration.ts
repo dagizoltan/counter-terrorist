@@ -29,7 +29,7 @@ export class ScannerIntegration {
                 payload: data
             });
 
-            this.eventBus.emit("THREAT" as any, data as any);
+            await this.eventBus.emit("THREAT" as any, data as any);
         }
     }
 }
