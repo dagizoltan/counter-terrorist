@@ -49,28 +49,17 @@ export async function initializeApplication(deps: ApplicationDependencies) {
   serviceLocator.register("baseline", deps.baseline);
 
   // Automated Forensic Response
+  const { BackgroundTaskManager } = await import("./utils/background_task_manager.ts");
+  const forensicTaskManager = new BackgroundTaskManager(deps.logging);
+
   deps.eventBus.subscribe(async (event) => {
     if (event.type === "CRITICAL") {
-        try {
+        forensicTaskManager.run("critical_pcap_capture", async () => {
             const res = await deps.protection.pcap.startCapture("any", 60, `intrusion_${Date.now()}.pcap`);
             if (!res.success) {
-                deps.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:core:application:forensics",
-                    message: `CRITICAL: Automated PCAP capture failed: ${res.stderr}`
-                });
+                throw new Error(`PCAP capture failed: ${res.stderr}`);
             }
-        } catch (err) {
-            deps.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:core:application:forensics",
-                message: `Unexpected PCAP error during forensic response: ${err instanceof Error ? err.message : String(err)}`
-            });
-        }
+        });
     }
   });
 

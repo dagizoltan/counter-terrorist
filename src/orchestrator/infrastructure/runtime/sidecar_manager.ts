@@ -34,6 +34,7 @@ export class SidecarManager implements CommandPort {
   private rotationInterval?: number | any;
   private backoffTimers: Set<number | any> = new Set();
   private manifestPromise: Promise<void> | null = null;
+  private initialized = false;
 
   private tpm: TpmPort | undefined;
   private redactor: SecretRedactor = new SecretRedactor();
@@ -59,6 +60,9 @@ export class SidecarManager implements CommandPort {
   }
 
   public init() {
+    if (this.initialized) return;
+    this.initialized = true;
+
     this.startRotationLoop();
     this.heartbeatMonitor.start(() => Array.from(this.persistentProcesses.keys()));
     if (this.config) {
@@ -89,22 +93,30 @@ export class SidecarManager implements CommandPort {
 
   /**
    * Periodically rotates all active sidecars to neutralize memory-resident exploits.
+   * Introduces jitter to prevent synchronized load across mesh nodes.
    */
   private startRotationLoop() {
     const ROTATION_INTERVAL = 6 * 60 * 60 * 1000; // 6 Hours
-    this.rotationInterval = setInterval(async () => {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.ACTIVITY,
-            severity: LogSeverity.INFO,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: "CYCLIC ROTATION TRIGGERED: Re-verifying and refreshing all agent binaries..."
-        });
+    const initialJitter = Math.floor(Math.random() * 30 * 60 * 1000); // 0-30 min jitter
 
-        for (const name of Array.from(this.persistentProcesses.keys())) {
-            await this.rotateSidecar(name);
-        }
-    }, ROTATION_INTERVAL);
+    const rotationTimer = setTimeout(() => {
+        this.backoffTimers.delete(rotationTimer);
+        this.rotationInterval = setInterval(async () => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.ACTIVITY,
+                severity: LogSeverity.INFO,
+                caller: "orchestrator:infra:runtime:sidecar_manager",
+                message: "CYCLIC ROTATION TRIGGERED: Re-verifying and refreshing all agent binaries..."
+            });
+
+            for (const name of Array.from(this.persistentProcesses.keys())) {
+                await this.rotateSidecar(name);
+            }
+        }, ROTATION_INTERVAL);
+    }, initialJitter);
+
+    this.backoffTimers.add(rotationTimer);
   }
 
   private async rotateSidecar(name: string) {
@@ -693,7 +705,11 @@ export class SidecarManager implements CommandPort {
 
   async shutdown(): Promise<void> {
     this.isShuttingDown = true;
-    if (this.rotationInterval) clearInterval(this.rotationInterval);
+    this.initialized = false;
+    if (this.rotationInterval) {
+        clearInterval(this.rotationInterval);
+        this.rotationInterval = undefined;
+    }
     this.heartbeatMonitor.stop();
     for (const timer of this.backoffTimers) clearTimeout(timer);
     this.backoffTimers.clear();
