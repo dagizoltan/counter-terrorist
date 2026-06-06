@@ -104,12 +104,17 @@ export class GovernanceService extends BaseService {
     /**
      * Handles an incoming proposal from the mesh.
      */
-    async handleProposal(payload: any) {
+    async handleProposal(payload: { id: string; proposer: string; type: Proposal["type"]; target: string; payload: any }) {
         if (this.proposals.has(payload.id)) return;
 
         const proposal: Proposal = {
-            ...payload,
+            id: payload.id,
+            proposer: payload.proposer,
+            type: payload.type,
+            target: payload.target,
+            payload: payload.payload,
             votes: new Map(),
+            timestamp: Date.now(),
             executed: false
         };
 
@@ -174,7 +179,7 @@ export class GovernanceService extends BaseService {
     /**
      * Handles an incoming vote for a proposal.
      */
-    async handleVote(payload: any) {
+    async handleVote(payload: { id: string; voter: string; approved: boolean }) {
         const proposal = this.proposals.get(payload.id);
         if (!proposal || proposal.executed) return;
 
