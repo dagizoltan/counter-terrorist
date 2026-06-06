@@ -5,7 +5,7 @@ import {
     BaselineService, ProcessTracker, SessionService, ApiKeysService,
     EventBus, MeshAuthService, ForensicService, MeshManager,
     DecentralizedMetricsService,
-    PlaybookService, BehavioralService, MetricsService,
+    PlaybookService, BehavioralService,
     ShadowProtocolService, GeoIpService, AnonymizationService,
     CuratedIntelService, DeceptionGridService, MorphingService,
     ChaosEngine, SupplyChainService, HoneypotService,

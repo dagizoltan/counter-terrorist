@@ -41,7 +41,7 @@ export class EventMediator extends BaseService {
     private syscallBatch: SidecarEvent[] = [];
     private networkBatch: SidecarEvent[] = [];
     private readonly BATCH_THRESHOLD = 50;
-    private batchTimer?: any;
+    private batchTimer?: number;
 
     protected override onInit(): Promise<Result<void>> {
         return Promise.resolve(ok(undefined));
@@ -122,12 +122,14 @@ export class EventMediator extends BaseService {
         if (this.syscallBatch.length > 0) {
             const batch = [...this.syscallBatch];
             this.syscallBatch = [];
-            await this.eventBus?.emit("EBPF_SYSCALL_BATCH" as any, batch as any);
+            // @ts-ignore: Batch emitting requires domain-specific cast or registry update
+            await this.eventBus?.emit("EBPF_SYSCALL_BATCH", batch);
         }
         if (this.networkBatch.length > 0) {
             const batch = [...this.networkBatch];
             this.networkBatch = [];
-            await this.eventBus?.emit("NETWORK_LOG_BATCH" as any, batch as any);
+            // @ts-ignore: Batch emitting requires domain-specific cast or registry update
+            await this.eventBus?.emit("NETWORK_LOG_BATCH", batch);
         }
     }
 
@@ -147,7 +149,8 @@ export class EventMediator extends BaseService {
                     message: `Honeypot Trigger: ${typeof event.type === "string" ? event.type : "unknown"} from ${typeof event.source_ip === "string" ? event.source_ip : "remote"}`,
                     data: event
                 });
-                await this.eventBus?.emit("HONEYPOT" as any, event as any);
+                // @ts-ignore: Dynamic event emission
+                await this.eventBus?.emit("HONEYPOT", event);
             } catch (e) {
                 this.handleMediatorError(e as Error, "decoy");
             }

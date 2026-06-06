@@ -269,12 +269,15 @@ export class KernelService extends BaseService {
         }
     }
 
-    private async readSysctl(param: string): Promise<string> {
+    private async readSysctl(param: string): Promise<Result<string>> {
         try {
             const result = await this.executor.execute("sysctl", ["-n", param]);
-            return result.stdout.trim();
-        } catch {
-            return "UNKNOWN";
+            if (!result.success) {
+                return err(new Error(`sysctl read failed: ${result.stderr}`));
+            }
+            return ok(result.stdout.trim());
+        } catch (e) {
+            return err(e instanceof Error ? e : new Error(String(e)));
         }
     }
 
@@ -688,7 +691,7 @@ ${capStrings}
     }
 
     async getStatus(): Promise<Result<KernelHardeningStatus>> {
-        const [aslrVal, syncookiesVal, rpFilterVal, timestampsVal, srcRouteVal, icmpBroadVal] = await Promise.all([
+        const results = await Promise.all([
             this.readSysctl("kernel.randomize_va_space"),
             this.readSysctl("net.ipv4.tcp_syncookies"),
             this.readSysctl("net.ipv4.conf.all.rp_filter"),
@@ -696,6 +699,14 @@ ${capStrings}
             this.readSysctl("net.ipv4.conf.all.accept_source_route"),
             this.readSysctl("net.ipv4.icmp_echo_ignore_broadcasts"),
         ]);
+
+        const values = results.map(r => r.success ? r.data : "UNKNOWN");
+        const [aslrVal, syncookiesVal, rpFilterVal, timestampsVal, srcRouteVal, icmpBroadVal] = values;
+
+        // If all essential sysctls failed, return error
+        if (values.every(v => v === "UNKNOWN")) {
+            return err(new Error("Failed to read any kernel sysctl parameters"));
+        }
 
         return ok({
             aslr: aslrVal === "2" ? "STRICT" : aslrVal === "1" ? "PARTIAL" : aslrVal === "0" ? "DISABLED" : "UNKNOWN",

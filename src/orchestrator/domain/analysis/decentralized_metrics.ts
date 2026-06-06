@@ -45,11 +45,11 @@ export class DecentralizedMetricsService extends BaseService {
         });
     }
 
-    public async recordScan(results: Record<string, unknown>) {
+    public async recordScan(results: Record<string, string | number | boolean | null>) {
         if (!this.eventBus) return;
         await this.eventBus.emit("METRIC_UPDATE", {
             domain: "scans",
-            data: results as any
+            data: results
         });
     }
 
