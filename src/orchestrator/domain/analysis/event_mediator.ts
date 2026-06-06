@@ -37,10 +37,11 @@ export class EventMediator extends BaseService {
     private scannerIntegration: ScannerIntegration;
     private learningTimeout: any = null;
 
-    // Performance: High-volume event batching
+    // Performance: High-volume event batching & Backpressure Throttling
     private syscallBatch: SidecarEvent[] = [];
     private networkBatch: SidecarEvent[] = [];
     private readonly BATCH_THRESHOLD = 50;
+    private readonly MAX_QUEUE_DEPTH = 1000;
     private batchTimer?: number;
 
     protected override onInit(): Promise<Result<void>> {
@@ -120,14 +121,13 @@ export class EventMediator extends BaseService {
 
     private async flushBatches() {
         if (this.syscallBatch.length > 0) {
-            const batch = [...this.syscallBatch];
-            this.syscallBatch = [];
+            // SOV-06 Hardening: Limit batch size to prevent orchestrator loop blocking
+            const batch = this.syscallBatch.splice(0, this.MAX_QUEUE_DEPTH);
             // @ts-ignore: Batch emitting requires domain-specific cast or registry update
             await this.eventBus?.emit("EBPF_SYSCALL_BATCH", batch);
         }
         if (this.networkBatch.length > 0) {
-            const batch = [...this.networkBatch];
-            this.networkBatch = [];
+            const batch = this.networkBatch.splice(0, this.MAX_QUEUE_DEPTH);
             // @ts-ignore: Batch emitting requires domain-specific cast or registry update
             await this.eventBus?.emit("NETWORK_LOG_BATCH", batch);
         }
@@ -159,6 +159,12 @@ export class EventMediator extends BaseService {
         // 2. eBPF Integration
         commandPort.onEvent("sentinel", async (response: unknown) => {
             try {
+                // SOV-06 Hardening: Load-shedding during telemetry flood
+                if (this.syscallBatch.length > this.MAX_QUEUE_DEPTH) {
+                    this.handleThrottling("sentinel");
+                    return;
+                }
+
                 const event = unwrapSidecar(response);
                 await this.sentinelIntegration.handleEvent(event);
             } catch (e) {
@@ -180,6 +186,12 @@ export class EventMediator extends BaseService {
         // 4. PCAP Integration
         commandPort.onEvent("netcap", async (response: unknown) => {
             try {
+                // SOV-06 Hardening: Load-shedding during network telemetry flood
+                if (this.networkBatch.length > this.MAX_QUEUE_DEPTH) {
+                    this.handleThrottling("netcap");
+                    return;
+                }
+
                 const event = unwrapSidecar(response);
                 const data = unwrapSidecar(event);
                 await this.networkIntegration.handleEvent(event, data);
@@ -216,6 +228,22 @@ export class EventMediator extends BaseService {
             caller: "orchestrator:domain:analysis:event_mediator",
             message: `Error processing ${sidecar} event: ${e.message}`
         }).catch(err => this.logger.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
+    }
+
+    private lastThrottleLog = 0;
+    private handleThrottling(sidecar: string) {
+        const now = Date.now();
+        // Ratelimit throttle logs to once every 10 seconds
+        if (now - this.lastThrottleLog > 10000) {
+            this.lastThrottleLog = now;
+            this.logger.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "EVENT_MEDIATOR:BACKPRESSURE",
+                message: `CRITICAL: High telemetry volume detected from ${sidecar}. Engaging load-shedding to prevent OOM.`
+            }).catch(() => {});
+        }
     }
 
     /**
