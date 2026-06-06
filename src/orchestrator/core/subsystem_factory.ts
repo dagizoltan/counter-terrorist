@@ -21,6 +21,7 @@ import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts
 import { KvSessionRepository } from "@infrastructure/persistence/kv/kv_session_repository.ts";
 import { KvNetworkLogRepository } from "@infrastructure/persistence/kv/kv_network_log_repository.ts";
 import { createProtection } from "@infrastructure/system/protection/index.ts";
+import { PlatformInfo as InfraPlatformInfo } from "@infrastructure/system/platform.ts";
 import { ProtectionAdapter } from "@infrastructure/system/protection/protection_adapter.ts";
 import { LinuxProcessProvider, MacOSProcessProvider, WindowsProcessProvider } from "@infrastructure/system/process_provider.ts";
 import { LoggingPort, LogType, LogSeverity } from "./ports/logging.ts";
@@ -67,9 +68,9 @@ export class SubsystemFactory {
     async initProtection(platformInfo: PlatformInfo, config: EnvConfigProvider) {
         const networkLogRepo = new KvNetworkLogRepository(this.kv);
         const networkLog = new NetworkLogService(networkLogRepo, this.logging);
-        const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo, networkLog);
+        const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo as unknown as InfraPlatformInfo, networkLog);
         await rawProtection.firewall.setKv(this.kv);
-        const protection = new ProtectionAdapter(rawProtection as any);
+        const protection = new ProtectionAdapter(rawProtection);
         if ("setConfig" in rawProtection.firewall && typeof rawProtection.firewall.setConfig === "function") {
             rawProtection.firewall.setConfig(config);
         }

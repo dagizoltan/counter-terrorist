@@ -1,4 +1,4 @@
-import { CommandResult, ProtectionPort, AntivirusPort } from "@core/ports.ts";
+import { CommandResult, ProtectionPort, AntivirusPort, FirewallPort, VpnPort, PersistencePort, PcapPort, RkhunterPort } from "@core/ports.ts";
 import { createProtection } from "./index.ts";
 
 export class ProtectionAdapter implements ProtectionPort {
@@ -8,27 +8,27 @@ export class ProtectionAdapter implements ProtectionPort {
     this.protection = protection;
   }
 
-  get firewall(): any {
+  get firewall(): FirewallPort {
     return this.protection.firewall;
   }
 
-  get vpn(): any {
+  get vpn(): VpnPort {
     return this.protection.vpn;
   }
 
   get antivirus(): AntivirusPort {
-    return this.protection.antivirus as any;
+    return this.protection.antivirus;
   }
 
-  get persistence(): any {
+  get persistence(): PersistencePort {
     return this.protection.persistence;
   }
 
-  get pcap(): any {
+  get pcap(): PcapPort {
     return this.protection.pcap;
   }
 
-  get rkhunter(): any {
+  get rkhunter(): RkhunterPort {
     return this.protection.rkhunter;
   }
 
@@ -36,7 +36,7 @@ export class ProtectionAdapter implements ProtectionPort {
     return await this.protection.lockdown();
   }
 
-  async sendCommand(name: string, cmd: any): Promise<CommandResult> {
+  async sendCommand(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult> {
     if (this.protection.firewall.sendCommand) {
         return await this.protection.firewall.sendCommand(name, cmd);
     }

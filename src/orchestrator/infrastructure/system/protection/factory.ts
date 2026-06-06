@@ -1,5 +1,6 @@
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { LoggingPort } from "../../../core/ports/logging.ts";
 import { PlatformInfo } from "../platform.ts";
 import { AntivirusManager } from "./antivirus/antivirus.ts";
 import { FirewallManager } from "./firewall/firewall.ts";
@@ -22,7 +23,7 @@ import { MacosPersistenceProvider } from "./persistence/providers/macos_persiste
 import { MacosPcapProvider } from "./pcap/providers/macos_pcap.ts";
 import { MacosAntivirusProvider } from "./antivirus/providers/macos_antivirus.ts";
 
-export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo, networkLogs: any): FirewallManager {
+export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo, networkLogs: LoggingPort): FirewallManager {
   if (platform.name === "windows") {
     return new FirewallManager(new WindowsFirewallProvider(sidecar), networkLogs);
   }

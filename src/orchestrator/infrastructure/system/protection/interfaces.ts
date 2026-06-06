@@ -4,7 +4,7 @@ export interface FirewallProvider {
   blockIp(ip: string): Promise<CommandResult>;
   shadowBanIp(ip: string): Promise<CommandResult>;
   unblockIp(ip: string): Promise<CommandResult>;
-  sendCommand?(name: string, cmd: any): Promise<CommandResult>;
+  sendCommand?(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult>;
   killProcess(pid: number): Promise<CommandResult>;
   quarantineProcess(pid: number): Promise<CommandResult>;
   enforcePid(pid: number): Promise<CommandResult>;

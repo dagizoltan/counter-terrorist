@@ -434,7 +434,7 @@ export class FirewallManager implements FirewallPort {
     return await this.provider.flushRules();
   }
 
-  async sendCommand(name: string, cmd: any) {
+  async sendCommand(name: string, cmd: string | Record<string, unknown>) {
     if (this.provider.sendCommand) {
         return await this.provider.sendCommand(name, cmd);
     }

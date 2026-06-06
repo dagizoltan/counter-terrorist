@@ -50,15 +50,15 @@ export class HardeningManager {
         }
     }
 
-    async applyProductionHardening(config: any) {
-        if (config.ENVIRONMENT === "production") {
-            if (config.CTS_DEV_MODE) {
+    async applyProductionHardening(config: ConfigurationPort) {
+        if (config.getEnv("ENVIRONMENT") === "production") {
+            if (config.getBoolean("CTS_DEV_MODE", false)) {
                 throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with CTS_DEV_MODE enabled.");
             }
-            if (config.ALLOW_HARDWARE_BYPASS) {
+            if (config.getBoolean("ALLOW_HARDWARE_BYPASS", false)) {
                 throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with ALLOW_HARDWARE_BYPASS enabled.");
             }
-            if (!config.STRICT_HARDWARE_INTEGRITY) {
+            if (!config.getBoolean("STRICT_HARDWARE_INTEGRITY", true)) {
                 throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with STRICT_HARDWARE_INTEGRITY disabled.");
             }
 

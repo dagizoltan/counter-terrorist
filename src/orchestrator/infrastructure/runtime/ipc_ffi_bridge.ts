@@ -52,7 +52,8 @@ export class IpcFfiBridge {
     createShmem(path: string, size: number): Deno.PointerValue | null {
         if (!this.ffi) return null;
         const pathBuf = new TextEncoder().encode(path + "\0");
-        return this.ffi.symbols.create_shmem(pathBuf, BigInt(size));
+        const ptr = this.ffi.symbols.create_shmem(pathBuf, BigInt(size));
+        return ptr || null;
     }
 
     readShmem(ptr: Deno.PointerValue, size: number = 65536): string | null {
@@ -71,7 +72,7 @@ export class IpcFfiBridge {
     }
 
     writeShmem(ptr: Deno.PointerValue, data: Uint8Array): boolean {
-        if (!this.ffi) return false;
+        if (!this.ffi || !ptr) return false;
         return this.ffi.symbols.shmem_write(ptr, data as any, BigInt(data.length));
     }
 
