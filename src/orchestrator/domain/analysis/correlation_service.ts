@@ -102,29 +102,53 @@ export class CorrelationService extends BaseService {
 
     private extractSubjects(event: AuditEvent): { type: CorrelationNode["type"], value: string }[] {
         const subjects: { type: CorrelationNode["type"], value: string }[] = [];
-        if (typeof event.data?.ip === "string") subjects.push({ type: "IP", value: event.data.ip });
-        if (typeof event.data?.pid === "number") subjects.push({ type: "PROCESS", value: `pid:${event.data.pid}` });
+        const data = event.data || {};
+
+        // 1. Network Subjects
+        if (typeof data.ip === "string") subjects.push({ type: "IP", value: data.ip });
+        if (typeof data.remote_ip === "string") subjects.push({ type: "IP", value: data.remote_ip });
         if (event.actor?.ip) subjects.push({ type: "IP", value: event.actor.ip });
-        return subjects;
+
+        // 2. Process Subjects
+        if (typeof data.pid === "number") subjects.push({ type: "PROCESS", value: `pid:${data.pid}` });
+        if (typeof data.comm === "string") subjects.push({ type: "PROCESS", value: `comm:${data.comm}` });
+
+        // 3. Artifact Subjects
+        if (typeof data.path === "string") subjects.push({ type: "ARTIFACT", value: data.path });
+        if (typeof data.file_path === "string") subjects.push({ type: "ARTIFACT", value: data.file_path });
+        if (typeof data.hash === "string") subjects.push({ type: "ARTIFACT", value: `sha256:${data.hash}` });
+
+        // Deduplicate and return
+        const seen = new Set<string>();
+        return subjects.filter(s => {
+            const key = `${s.type}:${s.value}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     }
 
     private calculateRisk(event: AuditEvent): number {
         const type = event.type;
         const msg = (event.message || "").toUpperCase();
+        const data = event.data || {};
 
         if (type === "SYSCALL_EVENT" || type === "SECURITY") {
-            const syscall = event.data?.syscall;
+            const syscall = data.syscall;
             if (syscall === "ptrace") return 35;
             if (syscall === "memfd_create") return 30;
             if (syscall === "execve") {
-                const comm = (event.data?.comm as string) || "";
-                if (["nc", "netcat", "ncat", "curl", "wget", "sh", "bash"].includes(comm)) return 25;
+                const comm = String(data.comm || "").toLowerCase();
+                if (["nc", "netcat", "ncat", "curl", "wget", "sh", "bash", "python", "perl"].includes(comm)) return 25;
             }
+            if (syscall === "finit_module" || syscall === "init_module") return 40; // Kernel rootkit attempt
         }
 
         if (type === "EXFIL_ALERT") return 40;
         if (type === "CANARY_TRIGGER") return 50;
-        if (type === "FILE_ALERT" && msg.includes("DENIED")) return 45; // NEW: Active Fanotify Block
+        if (type === "FILE_ALERT" && msg.includes("DENIED")) return 45;
+        if (type === "MALWARE_DETECTION" || type === "ROOTKIT_DETECTION") return 60;
+        if (type === "HONEYPOT_TRIGGER") return 40;
 
         return 1;
     }
@@ -179,13 +203,32 @@ export class CorrelationService extends BaseService {
             if (!chain.stages[stage].some(n => n.id === node.id)) chain.stages[stage].push(node);
         };
 
-        if (type === "SCAN_RESULT") add("reconnaissance");
-        if (data.syscall === "execve" && ["nc", "curl"].includes(data.comm as string)) add("weaponization");
-        if (type === "HONEYPOT" || type === "CANARY_TRIGGER") add("delivery");
-        if (data.syscall === "ptrace" || data.syscall === "memfd_create") add("exploitation");
-        if (type === "FILE_ALERT" && msg.includes("DENIED")) add("installation");
-        if (type === "EXFIL_ALERT") add("commandAndControl");
-        if (msg.includes("EXFIL") || type === "SELF_DESTRUCT") add("actionsOnObjectives");
+        const comm = String(data.comm || "").toLowerCase();
+        const syscall = String(data.syscall || "").toLowerCase();
+
+        // 1. Reconnaissance
+        if (type === "SCAN_RESULT" || type === "NETWORK_DISCOVERY") add("reconnaissance");
+
+        // 2. Weaponization
+        if (syscall === "execve" && ["nc", "curl", "wget", "python"].includes(comm)) add("weaponization");
+        if (type === "MALWARE_DETECTION") add("weaponization");
+
+        // 3. Delivery
+        if (type === "HONEYPOT_TRIGGER" || type === "CANARY_TRIGGER" || type === "PHISHING_DETECTION") add("delivery");
+
+        // 4. Exploitation
+        if (syscall === "ptrace" || syscall === "memfd_create" || syscall === "unshare") add("exploitation");
+        if (type === "EXPLOIT_PAYLOAD") add("exploitation");
+
+        // 5. Installation
+        if ((type === "FILE_ALERT" && msg.includes("DENIED")) || type === "PERSISTENCE_DETECTION") add("installation");
+        if (syscall === "finit_module" || syscall === "init_module") add("installation");
+
+        // 6. Command and Control (C2)
+        if (type === "EXFIL_ALERT" || type === "BEHAVIORAL_ANOMALY" && msg.includes("BEACON")) add("commandAndControl");
+
+        // 7. Actions on Objectives
+        if (msg.includes("EXFIL") || type === "SELF_DESTRUCT" || type === "RANSOMWARE_TRIGGER") add("actionsOnObjectives");
     }
 
     getKillChains(): KillChain[] {

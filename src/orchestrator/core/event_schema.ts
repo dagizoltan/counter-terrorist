@@ -111,6 +111,8 @@ export const SystemEventRegistry = {
     type: z.string(),
     data: z.record(z.string(), z.unknown())
   }),
+  "AUDIT_BROADCAST": z.any(),
+  "AUDIT_VERIFICATION": z.any(),
   "SIDECAR_ALERT": z.object({
     type: z.string(),
     sidecar: z.string(),

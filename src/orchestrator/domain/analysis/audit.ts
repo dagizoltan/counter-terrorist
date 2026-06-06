@@ -127,7 +127,7 @@ export class AuditService extends BaseService {
         this.intervals.push(this.taskManager.schedule("broadcastAuditVerification", jitter(5 * 60 * 1000), async () => {
             if (this.eventBus) {
                 const status = await this.getChainStatus();
-                await this.eventBus.publish("AUDIT_VERIFICATION", {
+                await this.eventBus.publish("AUDIT_VERIFICATION", "Audit Verification Broadcast", {
                     lastHash: status.lastHash,
                     eventCount: status.count
                 });
@@ -138,10 +138,9 @@ export class AuditService extends BaseService {
             await this.verifyChainIncremental();
         }));
 
-        this.intervals.push(this.taskManager.schedule("flushBuffer", 1000, () => this.flushBuffer()));
-
-        this.intervals.push(this.taskManager.schedule("commitMerkleRoot", jitter(600000), () => this.commitMerkleRoot()));
-        this.intervals.push(this.taskManager.schedule("archiveToColdStorage", jitter(12 * 60 * 60 * 1000), () => this.archiveToColdStorage()));
+        this.intervals.push(this.taskManager.schedule("commitMerkleRoot", jitter(600000), async () => { await this.commitMerkleRoot(); }));
+        this.intervals.push(this.taskManager.schedule("archiveToColdStorage", jitter(12 * 60 * 60 * 1000), async () => { await this.archiveToColdStorage(); }));
+        this.intervals.push(this.taskManager.schedule("flushBuffer", 1000, async () => { await this.flushBuffer(); }));
 
         this.startLedgerWatcher();
         return ok(undefined);
@@ -376,10 +375,10 @@ export class AuditService extends BaseService {
 
             // SEC-05: Anchor the root across the mesh
             if (this.eventBus) {
-                this.eventBus.publish("AUDIT_VERIFICATION", {
+                this.eventBus.publish("AUDIT_VERIFICATION", "Merkle verification", {
                     lastHash: root,
                     eventCount: hashesToCommit.length
-                }).catch(e => {
+                }).catch((e: any) => {
                     this.safeLogAuditError("Failed to broadcast Merkle verification", e);
                 });
             }
@@ -654,7 +653,7 @@ export class AuditService extends BaseService {
                         }).catch(err => this.safeLogAuditError("Background task failure", err));
 
                         if (this.eventBus && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
-                            this.eventBus.publish("AUDIT_BROADCAST", auditEvent).catch(e => {
+                            this.eventBus.publish("AUDIT_BROADCAST", "Audit Broadcast", auditEvent).catch((e: any) => {
                                 this.logging.log({
                                     timestamp: new Date().toISOString(),
                                     type: LogType.GENERIC,
@@ -722,7 +721,7 @@ export class AuditService extends BaseService {
 
         try {
             await this.repo.saveMany(toFlush);
-        } catch (e) {
+        } catch (e: any) {
             this.auditBuffer.unshift(...toFlush);
             this.logging.log({
                 timestamp: new Date().toISOString(),

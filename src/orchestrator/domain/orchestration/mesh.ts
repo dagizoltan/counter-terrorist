@@ -26,8 +26,8 @@ export type MeshNode = z.infer<typeof MeshNodeSchema>;
 
 export class MeshManager extends BaseService implements MeshPort {
   private nodes: Map<string, MeshNode> = new Map();
-  private discoveryInterval: any = null;
-  private metricsInterval: any = null;
+  private discoveryInterval: number | null = null;
+  private metricsInterval: number | null = null;
   private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: { cert: string, key: string } | null = null;
   private nodeId: string = "";
@@ -42,6 +42,10 @@ export class MeshManager extends BaseService implements MeshPort {
 
   public setLocator(locator: ServiceLocatorPort) {
     this.locator = locator;
+  }
+
+  public async sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<any> {
+    return await this.sendSyncInternal(node, payload);
   }
 
   protected override onShutdown(): Promise<Result<void>> {
@@ -103,11 +107,11 @@ export class MeshManager extends BaseService implements MeshPort {
   }
 
   protected override async onInit(): Promise<Result<void>> {
-    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000) as any;
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
 
     if (this.eventBus) {
-        this.eventBus.on("AUDIT_BROADCAST", (data: any) => {
+        this.eventBus.on("AUDIT_BROADCAST", (data: DomainAuditEvent) => {
             this.broadcastAuditEvent(data).catch(e => {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
@@ -118,7 +122,7 @@ export class MeshManager extends BaseService implements MeshPort {
                 }).catch(() => console.error("Mesh logging failed"));
             });
         });
-        this.eventBus.on("AUDIT_VERIFICATION", (data: any) => {
+        this.eventBus.on("AUDIT_VERIFICATION", (data: { lastHash: string, eventCount: number }) => {
             this.broadcastAuditVerification(data.lastHash, data.eventCount).catch(e => {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
@@ -144,11 +148,11 @@ export class MeshManager extends BaseService implements MeshPort {
 
       if (tpmMode) {
           const res = await this.meshAuth.generateProxyNodeCert(this.nodeId);
-          if (!res.success) throw new Error(`MeshAuth generateProxyNodeCert failed: ${String((res.error as any)?.message || res.error)}`);
+          if (!res.success) throw new Error(`MeshAuth generateProxyNodeCert failed: ${String(res.error)}`);
           nodeCert = { cert: res.data.cert, key: "HW_PROXY" };
       } else {
           const res = await this.meshAuth.generateNodeCert(this.nodeId);
-          if (!res.success) throw new Error(`MeshAuth generateNodeCert failed: ${String((res.error as any)?.message || res.error)}`);
+          if (!res.success) throw new Error(`MeshAuth generateNodeCert failed: ${String(res.error)}`);
           nodeCert = res.data;
       }
 
@@ -226,7 +230,7 @@ export class MeshManager extends BaseService implements MeshPort {
         this.discoverSubnet();
         this.scanNetwork();
         this.resolveSplitBrain(); // Periodic split-brain check
-    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + (Math.random() * 5000));
+    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + (Math.random() * 5000)) as any;
   }
 
   private async discoverSubnet() {
@@ -325,7 +329,8 @@ export class MeshManager extends BaseService implements MeshPort {
 
   private async listenForDiscovery() {
     try {
-      const listenDatagram = (Deno as any).listenDatagram;
+      // @ts-ignore: Deno.listenDatagram is unstable
+      const listenDatagram = (Deno.listenDatagram).bind(Deno);
       if (typeof listenDatagram !== "function") return;
 
       this.mdnsListener = listenDatagram({
@@ -403,7 +408,8 @@ export class MeshManager extends BaseService implements MeshPort {
 
   private async scanNetwork() {
     try {
-      const listenDatagram = (Deno as any).listenDatagram;
+      // @ts-ignore: Deno.listenDatagram is unstable
+      const listenDatagram = (Deno.listenDatagram).bind(Deno);
       if (typeof listenDatagram !== "function") return;
 
       const timestamp = Date.now();
@@ -633,7 +639,10 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { ip, sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
+        type: "THREAT_ALERT",
+        data: payload
+    });
     return await this.broadcast(payload, true);
   }
 
@@ -651,7 +660,10 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { target, sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
+        type: "THREAT_ALERT",
+        data: payload
+    });
     return await this.broadcast(payload, true);
   }
 
@@ -669,7 +681,10 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { hash, sourceNode, timestamp: Date.now() }
     };
 
-    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
+        type: "THREAT_ALERT",
+        data: payload
+    });
     return await this.broadcast(payload);
   }
 
@@ -687,7 +702,10 @@ export class MeshManager extends BaseService implements MeshPort {
         data: { sourceNode: this.nodeId, timestamp: Date.now() }
     };
 
-    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
+        type: "CRITICAL_SYSTEM_EVENT",
+        data: payload
+    });
     return await this.broadcast(payload, true);
   }
 
@@ -698,7 +716,10 @@ export class MeshManager extends BaseService implements MeshPort {
         data: event,
         fromAudit: event.fromAudit
     };
-    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
+        type: "AUDIT_EVENT",
+        data: payload
+    });
     this.broadcast(payload).catch(e => {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -715,7 +736,10 @@ export class MeshManager extends BaseService implements MeshPort {
         type: "GOSSIP_AUDIT_VERIFY",
         data: { lastHash, eventCount, node: this.nodeId }
     };
-    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", payload as any);
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
+        type: "AUDIT_EVENT",
+        data: payload
+    });
     this.broadcast(payload).catch(e => {
         this.logging.log({
             timestamp: new Date().toISOString(),
@@ -742,17 +766,17 @@ export class MeshManager extends BaseService implements MeshPort {
             });
 
             // Differential Sync: Send our last hash to get only what's missing
-            const res = await this.sendSync(node, {
+            const res = await this.sendSyncInternal(node, {
                 type: "MERKLE_CATCH_UP",
                 lastKnownHash: localStatus.lastHash,
                 nodeId: this.nodeId
             }) as Record<string, unknown>;
             
             if (res && res.events && Array.isArray(res.events)) {
-                if (res.proof) {
+                if (res.proof && typeof res.proof === "object") {
                     // SEC-05: Verify Merkle proof of the catch-up batch
                     const { MerkleTree } = await import("../../core/merkle.ts");
-                    const proof = res.proof as any;
+                    const proof = res.proof as { root: string; leaf: string; index: number; proof: string[] };
                     const isValid = await MerkleTree.verify(proof.root, proof.leaf, proof.index, proof.proof);
 
                     if (!isValid) {
@@ -770,8 +794,8 @@ export class MeshManager extends BaseService implements MeshPort {
                 await this.audit.syncEvents(res.events as DomainAuditEvent[]);
             } else if (res && res.full_sync_required) {
                 // Fallback to full snapshot if hashes have diverged too far
-                const fullRes = await this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId }) as any;
-                if (fullRes?.kv_snapshot) {
+                const fullRes = await this.sendSyncInternal(node, { type: "FETCH_STATE", nodeId: this.nodeId });
+                if (fullRes && typeof fullRes === "object" && Array.isArray(fullRes.kv_snapshot)) {
                     await this.audit.syncEvents(fullRes.kv_snapshot as DomainAuditEvent[]);
                 }
             }
@@ -863,7 +887,7 @@ export class MeshManager extends BaseService implements MeshPort {
 
     for (const node of verifiedNodes) {
         try {
-            const res = await this.sendSync(node, { 
+            const res = await this.sendSyncInternal(node, {
                 type: "REQUEST_APPROVAL", 
                 payload: requestPayload,
                 signature 
@@ -898,7 +922,7 @@ export class MeshManager extends BaseService implements MeshPort {
     return success;
   }
 
-  private async sendSync(node: MeshNode, payload: Record<string, unknown>) {
+  private async sendSyncInternal(node: MeshNode, payload: Record<string, unknown>): Promise<any> {
     if (!this.httpClient) await this.init();
 
     const client = this.httpClient!;
@@ -983,8 +1007,8 @@ export class MeshManager extends BaseService implements MeshPort {
     const roots = new Map<string, number>();
     for (const node of verifiedNodes) {
         try {
-            const res = await this.sendSync(node, { type: "GET_AUDIT_STATUS" }) as any;
-            if (res && res.lastHash) {
+            const res = await this.sendSyncInternal(node, { type: "GET_AUDIT_STATUS" });
+            if (res && typeof res === "object" && typeof res.lastHash === "string") {
                 roots.set(res.lastHash, (roots.get(res.lastHash) || 0) + 1);
             }
         } catch { /* ignore */ }
@@ -1018,12 +1042,17 @@ export class MeshManager extends BaseService implements MeshPort {
         });
 
         // Trigger reconciliation from a node that has the majority root
-        const targetNode = verifiedNodes.find(async n => {
+        // find doesn't support async, so we'll use a loop
+        let targetNode: MeshNode | undefined;
+        for (const n of verifiedNodes) {
             try {
-                const res = await this.sendSync(n, { type: "GET_AUDIT_STATUS" }) as any;
-                return res?.lastHash === majorityRoot;
-            } catch { return false; }
-        });
+                const res = await this.sendSyncInternal(n, { type: "GET_AUDIT_STATUS" });
+                if (res && typeof res === "object" && res.lastHash === majorityRoot) {
+                    targetNode = n;
+                    break;
+                }
+            } catch { /* ignore */ }
+        }
 
         if (targetNode) {
             await this.requestAuditSync(targetNode.id);
@@ -1040,7 +1069,8 @@ export class MeshManager extends BaseService implements MeshPort {
     this.watcherAbortController = new AbortController();
 
     // SEC-03: Ensure MESH_SECRET is sealed to hardware on boot if it came from environment
-    const tpm = (this.config as any).tpm as TpmPort | undefined;
+    // @ts-ignore: tpm might be extended on config
+    const tpm = this.config.tpm as TpmPort | undefined;
     const meshSecret = this.config.getEnv("MESH_SECRET");
     if (tpm && meshSecret) {
         (async () => {
@@ -1052,7 +1082,8 @@ export class MeshManager extends BaseService implements MeshPort {
         })();
     }
 
-    const watcher = (kv as any).watch([["mesh", "nodes"]], { signal: this.watcherAbortController.signal });
+    // @ts-ignore: kv.watch is unstable
+    const watcher = kv.watch([["mesh", "nodes"]], { signal: this.watcherAbortController.signal });
     try {
         for await (const [entries] of watcher) {
             const nodeData = entries.value as MeshNode[];
@@ -1150,7 +1181,7 @@ export class MeshManager extends BaseService implements MeshPort {
   async requestAuditSync(nodeId: string) {
       const node = this.nodes.get(nodeId);
       if (node && node.verified) {
-          this.sendSync(node, { type: "FETCH_STATE", nodeId: this.nodeId }).catch(e => {
+          this.sendSyncInternal(node, { type: "FETCH_STATE", nodeId: this.nodeId }).catch(e => {
               this.logging.log({
                   timestamp: new Date().toISOString(),
                   type: LogType.GENERIC,

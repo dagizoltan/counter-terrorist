@@ -116,7 +116,7 @@ export class EventMediator extends BaseService {
         });
 
         // Periodic batch flush
-        this.batchTimer = setInterval(() => this.flushBatches(), 1000);
+        this.batchTimer = setInterval(() => this.flushBatches(), 1000) as any;
     }
 
     private async flushBatches() {
