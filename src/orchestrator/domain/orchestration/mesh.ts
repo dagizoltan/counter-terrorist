@@ -105,6 +105,31 @@ export class MeshManager extends BaseService implements MeshPort {
   protected override async onInit(): Promise<Result<void>> {
     this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
+
+    if (this.eventBus) {
+        this.eventBus.on("AUDIT_BROADCAST", (data: any) => {
+            this.broadcastAuditEvent(data).catch(e => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "MESH:AUDIT_SYNC",
+                    message: `Async audit broadcast failed: ${e.message}`
+                }).catch(() => console.error("Mesh logging failed"));
+            });
+        });
+        this.eventBus.on("AUDIT_VERIFICATION", (data: any) => {
+            this.broadcastAuditVerification(data.lastHash, data.eventCount).catch(e => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "MESH:AUDIT_SYNC",
+                    message: `Async audit verification broadcast failed: ${e.message}`
+                }).catch(() => console.error("Mesh logging failed"));
+            });
+        });
+    }
     this.gossip = new MeshGossipManager(this.logging, this);
     this.consensus = new MeshConsensusManager(this.logging, this.config, this);
     this.startStateWatcher();

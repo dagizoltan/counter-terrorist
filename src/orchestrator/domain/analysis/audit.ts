@@ -125,9 +125,12 @@ export class AuditService extends BaseService {
         this.intervals.push(this.taskManager.schedule("emitMetrics", jitter(30000), () => this.emitMetrics()));
 
         this.intervals.push(this.taskManager.schedule("broadcastAuditVerification", jitter(5 * 60 * 1000), async () => {
-            if (this.mesh) {
+            if (this.eventBus) {
                 const status = await this.getChainStatus();
-                await this.mesh.broadcastAuditVerification(status.lastHash, status.count);
+                await this.eventBus.publish("AUDIT_VERIFICATION", {
+                    lastHash: status.lastHash,
+                    eventCount: status.count
+                });
             }
         }));
 
@@ -311,6 +314,24 @@ export class AuditService extends BaseService {
     }
 
     private isCommittingMerkle = false;
+    private safeLogAuditError(message: string, error: Error) {
+        // SOV-05 STABILITY: Avoid infinite recursion by checking if the logger is already in a failure state
+        // We log to console as a last resort for audit failures
+        console.error(`[AUDIT_FATAL] ${message}: ${error.message}`);
+
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.ERROR,
+            caller: "AUDIT:FATAL",
+            message: `${message}: ${error.message}`,
+            fromAudit: true // CRITICAL: Prevent AuditService from trying to log this event to the ledger
+        }).catch(() => {
+            // Absolute last resort
+            console.error("Audit logging itself failed and cannot be recovered.");
+        });
+    }
+
     private async commitMerkleRoot() {
         if (this.currentSessionHashes.length === 0 || this.isCommittingMerkle) return;
 
@@ -354,15 +375,12 @@ export class AuditService extends BaseService {
             });
 
             // SEC-05: Anchor the root across the mesh
-            if (this.mesh) {
-                this.mesh.broadcastAuditVerification(root, hashesToCommit.length).catch(e => {
-                    this.logging.log({
-                        timestamp: new Date().toISOString(),
-                        type: LogType.GENERIC,
-                        severity: LogSeverity.WARNING,
-                        caller: "AUDIT:MERKLE",
-                        message: `Failed to broadcast Merkle verification: ${e.message}`
-                    }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+            if (this.eventBus) {
+                this.eventBus.publish("AUDIT_VERIFICATION", {
+                    lastHash: root,
+                    eventCount: hashesToCommit.length
+                }).catch(e => {
+                    this.safeLogAuditError("Failed to broadcast Merkle verification", e);
                 });
             }
         } catch (e) {
@@ -517,7 +535,7 @@ export class AuditService extends BaseService {
                     caller: "orchestrator:domain:analysis:audit",
                     message: `Rejected synced audit event ${event.id} due to checksum mismatch`,
                     payload: { expectedHash, actualHash: event.hash }
-                }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+                }).catch(err => this.safeLogAuditError("Background task failure", err));
                 continue;
             }
 
@@ -529,7 +547,7 @@ export class AuditService extends BaseService {
                     caller: "orchestrator:domain:analysis:audit",
                     message: `Rejected synced audit event ${event.id} due to chain gap: expected prevHash ${this.lastHash}`,
                     payload: { eventPrevHash: event.prevHash }
-                }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+                }).catch(err => this.safeLogAuditError("Background task failure", err));
                 continue;
             }
 
@@ -563,13 +581,7 @@ export class AuditService extends BaseService {
         this.logQueue.push(event);
         if (!this.isProcessingQueue) {
             this.processQueue().catch((err) => {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.GENERIC,
-                    severity: LogSeverity.ERROR,
-                    caller: "orchestrator:domain:analysis:audit",
-                    message: `Audit processing failed: ${err instanceof Error ? err.message : String(err)}`
-                }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+                this.safeLogAuditError("Audit processing failed", err);
             });
         }
     }
@@ -626,7 +638,7 @@ export class AuditService extends BaseService {
                             // SOV-06 STABILITY: Bound Merkle Tree Memory to prevent OOM during high-activity incidents
                             const MAX_MERKLE_BUFFER = 5000;
                             if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
-                                this.commitMerkleRoot().catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background Merkle commitment failure: ${err.message}` }).catch(() => {}));
+                                this.commitMerkleRoot().catch(err => this.safeLogAuditError("Background Merkle commitment failure", err));
                             }
                         }
 
@@ -639,29 +651,23 @@ export class AuditService extends BaseService {
                             message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
                             payload: auditEvent.data,
                             fromAudit: true
-                        }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+                        }).catch(err => this.safeLogAuditError("Background task failure", err));
 
-                        if (this.mesh && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
-                            this.mesh.broadcastAuditEvent(auditEvent as unknown as AuditBroadcastPayload).catch(e => {
+                        if (this.eventBus && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
+                            this.eventBus.publish("AUDIT_BROADCAST", auditEvent).catch(e => {
                                 this.logging.log({
                                     timestamp: new Date().toISOString(),
                                     type: LogType.GENERIC,
                                     severity: LogSeverity.WARNING,
                                     caller: "AUDIT:MESH",
                                     message: `Failed to broadcast audit event: ${e.message}`
-                                }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+                                }).catch(err => this.safeLogAuditError("Background broadcast failure", err));
                             });
                         }
 
                         if (this.correlation) {
                             this.correlation.processEvent(auditEvent).catch(e => {
-                                this.logging.log({
-                                    timestamp: new Date().toISOString(),
-                                    type: LogType.GENERIC,
-                                    severity: LogSeverity.WARNING,
-                                    caller: "AUDIT:CORRELATION",
-                                    message: `Failed to process correlation for event ${auditEvent.id}: ${e.message}`
-                                }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+                                this.safeLogAuditError(`Failed to process correlation for event ${auditEvent.id}`, e);
                             });
                         }
 
@@ -699,7 +705,7 @@ export class AuditService extends BaseService {
             severity: LogSeverity.ERROR,
             caller: "orchestrator:domain:analysis:audit",
             message: `Background task '${task}' failed: ${e.message}`
-        }).catch(err => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "audit", message: `Background task failure: ${err.message}` }).catch(() => {}));
+        }).catch(err => this.safeLogAuditError("Background task failure", err));
 
         if (this.locator?.has("health")) {
             const health = this.locator.get<any>("health");
