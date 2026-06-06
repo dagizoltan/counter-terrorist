@@ -33,7 +33,7 @@ export class IpcFfiBridge {
                 severity: LogSeverity.WARNING,
                 caller: "orchestrator:infra:runtime:ipc_ffi_bridge",
                 message: `Native FFI (libcts_sec) unavailable: ${(e as Error).message}`
-            }).catch(() => {});
+            }).catch(() => console.error("Native FFI unavailable and logging failed"));
             return null;
         }
     }

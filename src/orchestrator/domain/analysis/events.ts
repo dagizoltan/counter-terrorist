@@ -208,50 +208,38 @@ export class EventBus implements EventBusPort {
   }
 
   private async safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000): Promise<void> {
-    try {
-      const res = fn();
-      if (!(res instanceof Promise)) return; // PERFORMANCE: Avoid microtask overhead for sync handlers
-
-      let resolveRef: (() => void) | null = null;
-      const wrappedPromise = new Promise<void>((resolve) => {
-        resolveRef = resolve;
-      });
-      this.pendingHandlers.add(wrappedPromise);
-
-      try {
-        let timeoutId: any;
+    const handlerPromise = (async () => {
         try {
-          const timeoutPromise = new Promise((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error(`Handler timeout after ${timeoutMs}ms`)), timeoutMs);
-          });
+            const res = fn();
+            if (!(res instanceof Promise)) return;
 
-          await Promise.race([res, timeoutPromise]);
+            let timeoutId: any;
+            try {
+                const timeoutPromise = new Promise((_, reject) => {
+                    timeoutId = setTimeout(() => reject(new Error(`Handler timeout after ${timeoutMs}ms`)), timeoutMs);
+                });
+
+                await Promise.race([res, timeoutPromise]);
+            } finally {
+                if (timeoutId) clearTimeout(timeoutId);
+            }
         } catch (e) {
-          const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
-          this.logging.log({
-              timestamp: new Date().toISOString(),
-              type: LogType.GENERIC,
-              severity: LogSeverity.ERROR,
-              caller: "EVENTBUS",
-              message: `Async Handler error: ${errorMsg}`
-          }).catch(err => console.error(`Background task failure: ${err}`));
-        } finally {
-          if (timeoutId) clearTimeout(timeoutId);
-          this.pendingHandlers.delete(wrappedPromise);
-          if (resolveRef) (resolveRef as () => void)();
+            const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "EVENTBUS",
+                message: `Handler error: ${errorMsg}`
+            }).catch(err => console.error(`CRITICAL: EventBus logging failed: ${err}`));
         }
-      } catch (e) {
-          // Inner async error handling
-      }
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.stack || e.message : String(e);
-      this.logging.log({
-          timestamp: new Date().toISOString(),
-          type: LogType.GENERIC,
-          severity: LogSeverity.ERROR,
-          caller: "EVENTBUS",
-          message: `Handler error: ${errorMsg}`
-      }).catch(err => console.error(`Background task failure: ${err}`));
+    })();
+
+    this.pendingHandlers.add(handlerPromise);
+    try {
+        await handlerPromise;
+    } finally {
+        this.pendingHandlers.delete(handlerPromise);
     }
   }
 

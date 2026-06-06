@@ -23,7 +23,19 @@ export class IpcCoordinator {
             if (!this.shmemPaths.has(name)) this.shmemPaths.set(name, []);
             this.shmemPaths.get(name)!.push(shmemPath, cmdShmemPath);
 
-            await new Promise(r => setTimeout(r, 1000));
+            // SOV-05 STABILITY: Adaptive retry for shmem segment readiness
+            let attempts = 0;
+            const maxAttempts = 20;
+            while (attempts < maxAttempts) {
+                try {
+                    await Deno.stat(shmemPath);
+                    await Deno.stat(cmdShmemPath);
+                    break;
+                } catch {
+                    attempts++;
+                    await new Promise(r => setTimeout(r, 50));
+                }
+            }
 
             const shmemPtr = this.ffi.createShmem(shmemPath, 1024 * 1024);
             const cmdShmemPtr = this.ffi.createShmem(cmdShmemPath, 64 * 1024);
