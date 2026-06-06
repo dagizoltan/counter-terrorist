@@ -208,7 +208,7 @@ export class BaselineService extends BaseService {
         caller: "orchestrator:domain:analysis:baseline",
         message: "New system baseline established."
     });
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
       type: "AUDIT_EVENT",
       data: {
           type: LogType.ACTIVITY,
@@ -275,7 +275,7 @@ export class BaselineService extends BaseService {
           caller: "orchestrator:domain:analysis:baseline",
           message: `Port drift detected: ${newPorts.join(", ")}`
       });
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
         type: "DRIFT_PORT",
         data: {
           message: `Drift Detected: ${newPorts.length} new listening ports!`,
@@ -293,7 +293,7 @@ export class BaselineService extends BaseService {
             message: `Process drift: ${p.name} (PID: ${p.pid}, Path: ${p.exe_path}, Hash: ${p.hash})`
         });
       });
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
         type: "DRIFT_PROCESS",
         data: {
           message: `Drift Detected: ${newProcs.length} new/modified processes found.`,
@@ -312,7 +312,7 @@ export class BaselineService extends BaseService {
                 caller: "orchestrator:domain:analysis:baseline",
                 message: `CRITICAL FILE DRIFT: ${criticalChanges.map(f => f.path).join(", ")}`
             });
-            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+            if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
                 type: "AUDIT_EVENT",
                 data: {
                     type: LogType.AUDIT,
@@ -330,7 +330,7 @@ export class BaselineService extends BaseService {
                 caller: "orchestrator:domain:analysis:baseline",
                 message: `Filesystem drift: ${changedFiles.length} files modified.`
             });
-            if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+            if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
                 type: "DRIFT_FILE",
                 data: {
                   message: `Drift Detected: ${changedFiles.length} files modified in sensitive directories.`,

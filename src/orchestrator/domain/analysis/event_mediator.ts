@@ -118,14 +118,16 @@ export class EventMediator extends BaseService {
         this.batchTimer = setInterval(() => this.flushBatches(), 1000);
     }
 
-    private flushBatches() {
+    private async flushBatches() {
         if (this.syscallBatch.length > 0) {
-            this.eventBus?.emit("EBPF_SYSCALL_BATCH" as any, [...this.syscallBatch] as any);
+            const batch = [...this.syscallBatch];
             this.syscallBatch = [];
+            await this.eventBus?.emit("EBPF_SYSCALL_BATCH" as any, batch as any);
         }
         if (this.networkBatch.length > 0) {
-            this.eventBus?.emit("NETWORK_LOG_BATCH" as any, [...this.networkBatch] as any);
+            const batch = [...this.networkBatch];
             this.networkBatch = [];
+            await this.eventBus?.emit("NETWORK_LOG_BATCH" as any, batch as any);
         }
     }
 
@@ -134,7 +136,7 @@ export class EventMediator extends BaseService {
      */
     wireSidecars(commandPort: CommandPort) {
         // 1. Honeypot Integration
-        commandPort.onEvent("decoy", (response: unknown) => {
+        commandPort.onEvent("decoy", async (response: unknown) => {
             try {
                 const payload = (typeof response === "object" && response !== null ? response as SidecarEvent : {} as SidecarEvent);
                 const event = (payload.data as SidecarEvent) ?? payload;
@@ -145,7 +147,7 @@ export class EventMediator extends BaseService {
                     message: `Honeypot Trigger: ${typeof event.type === "string" ? event.type : "unknown"} from ${typeof event.source_ip === "string" ? event.source_ip : "remote"}`,
                     data: event
                 });
-                this.eventBus?.emit("HONEYPOT" as any, event as any);
+                await this.eventBus?.emit("HONEYPOT" as any, event as any);
             } catch (e) {
                 this.handleMediatorError(e as Error, "decoy");
             }

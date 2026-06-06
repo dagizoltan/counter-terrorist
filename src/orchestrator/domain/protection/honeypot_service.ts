@@ -162,9 +162,9 @@ export class HoneypotService extends BaseService {
     this.eventBus = eventBus;
   }
 
-  private emitMetrics() {
+  private async emitMetrics() {
     if (!this.eventBus) return;
-    this.eventBus.emit("METRIC_UPDATE", {
+    await this.eventBus.emit("METRIC_UPDATE", {
       domain: "honeypot",
       data: {
         activeDecoys: Array.from(this.modules.values()).filter(m => m.active).length,
@@ -209,7 +209,7 @@ export class HoneypotService extends BaseService {
           payload: { source_ip, port, hitCount: this.hitCount, module: module?.name }
       });
 
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
         type: "TACTICAL_TRIGGER",
         data: {
           type: "HONEYPOT_HIT",
@@ -222,7 +222,7 @@ export class HoneypotService extends BaseService {
 
       // DECOUPLING: Emit pure event for cross-domain orchestration
       if (this.eventBus) {
-        this.eventBus.emit("HONEYPOT", {
+        await this.eventBus.emit("HONEYPOT", {
             type: "PortAccess",
             source_ip,
             port,
@@ -282,7 +282,7 @@ export class HoneypotService extends BaseService {
         payload: { source_ip, route, hitCount: this.hitCount }
     });
 
-    if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
       type: "TACTICAL_TRIGGER",
       data: {
         type: "WEB_DECOY_HIT",
@@ -461,7 +461,7 @@ export class HoneypotService extends BaseService {
           message: `DECEPTION MORPH: ${module.name} port rotation from ${oldPort} to ${newPort}`
       });
 
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
           type: LogType.AUDIT,

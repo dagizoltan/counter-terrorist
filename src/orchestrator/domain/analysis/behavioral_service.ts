@@ -52,9 +52,9 @@ export class BehavioralService extends BaseService {
       });
   }
 
-  private emitMetrics() {
+  private async emitMetrics() {
       if (!this.eventBus) return;
-      this.eventBus.emit("METRIC_UPDATE", {
+      await this.eventBus.emit("METRIC_UPDATE", {
           domain: "firewall_behavioral",
           data: {
               suspiciousIps: this.getSuspiciousIps(10) as any
@@ -119,7 +119,7 @@ export class BehavioralService extends BaseService {
         });
       }
 
-      if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+      if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
         type: "AUDIT_EVENT",
         data: {
           type: "activity",
@@ -178,7 +178,7 @@ export class BehavioralService extends BaseService {
          });
        }
 
-       if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+       if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
           type: "AUDIT_EVENT",
           data: {
             type: "security",
@@ -206,7 +206,7 @@ export class BehavioralService extends BaseService {
             });
           }
 
-          if (this.eventBus) this.eventBus.emit("UI_BROADCAST", {
+          if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", {
             type: "AUDIT_EVENT",
             data: {
               type: "forensic",

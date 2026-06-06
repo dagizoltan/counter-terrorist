@@ -40,7 +40,7 @@ export class FirewallManager implements FirewallPort {
       const rules = status.stdout?.split('\n').filter((l: string) => l.trim()) || [];
       const rejectCount = (status.stdout?.match(/REJECT|DROP|DENY/g) || []).length;
 
-      this.eventBus.emit("METRIC_UPDATE", {
+      await this.eventBus.emit("METRIC_UPDATE", {
           domain: "firewall",
           data: {
               blockedCount: rejectCount,

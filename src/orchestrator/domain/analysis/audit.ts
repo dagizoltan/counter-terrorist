@@ -195,7 +195,7 @@ export class AuditService extends BaseService {
     private async emitMetrics() {
         if (!this.eventBus) return;
         const status = await this.getChainStatus();
-        this.eventBus.emit("METRIC_UPDATE", {
+        await this.eventBus.emit("METRIC_UPDATE", {
             domain: "audit",
             data: {
                 chainVerified: true,
@@ -464,7 +464,7 @@ export class AuditService extends BaseService {
                     this.state = SystemState.FORENSIC_RESTRICTED;
 
                     if (this.eventBus) {
-                        this.eventBus.emit("CRITICAL", {
+                        await this.eventBus.emit("CRITICAL", {
                             message: "Audit Chain Integrity Violation during boot sequence.",
                             source: "AuditService:boot",
                             type: "LEDGER_TAMPER",
@@ -756,7 +756,7 @@ export class AuditService extends BaseService {
             });
 
             if (this.eventBus) {
-                this.eventBus.emit("CRITICAL", {
+                await this.eventBus.emit("CRITICAL", {
                     message,
                     source: "AuditService",
                     type: "LEDGER_TAMPER",
