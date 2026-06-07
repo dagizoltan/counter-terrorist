@@ -61,9 +61,28 @@ export class IpcCoordinator {
         if (paths) {
             for (const p of paths) {
                 try {
-                    await Deno.remove(p);
-                } catch {
-                    // Ignore, file might already be removed by the sidecar or OS
+                    // SOV-06 HARDENING: Force remove shared memory segments to prevent leaks
+                    // We check for existence first to avoid noise, but try/catch protects against race conditions.
+                    const stats = await Deno.stat(p).catch(() => null);
+                    if (stats) {
+                        await Deno.remove(p);
+                        this.logging.log({
+                            timestamp: new Date().toISOString(),
+                            type: LogType.DEBUG,
+                            severity: LogSeverity.INFO,
+                            caller: "orchestrator:infra:runtime:ipc_coordinator",
+                            message: `Unlinked shared memory segment: ${p}`
+                        }).catch(() => {});
+                    }
+                } catch (e) {
+                    // SOV-06: Log failure to cleanup but don't block
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.DEBUG,
+                        severity: LogSeverity.WARNING,
+                        caller: "orchestrator:infra:runtime:ipc_coordinator",
+                        message: `Failed to unlink shmem segment ${p}: ${(e as Error).message}`
+                    }).catch(() => {});
                 }
             }
             this.shmemPaths.delete(name);

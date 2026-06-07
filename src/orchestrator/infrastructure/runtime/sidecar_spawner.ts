@@ -13,6 +13,20 @@ export class SidecarSpawner {
     ) {}
 
     async spawn(name: string, binPath: string, env: Record<string, string>, config: ConfigurationPort): Promise<Deno.ChildProcess> {
+        // SEC-06 Hardening: Ensure binary exists and is executable before attempting spawn
+        try {
+            const stat = await Deno.stat(binPath);
+            if (!stat.isFile) throw new Error(`Not a file: ${binPath}`);
+            // Check for execution bit on Unix
+            if (Deno.build.os !== "windows" && stat.mode) {
+                if (!(stat.mode & 0o111)) {
+                    throw new Error(`Binary not executable: ${binPath}`);
+                }
+            }
+        } catch (e) {
+            throw new Error(`Pre-spawn validation failed for ${name} at ${binPath}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+
         const isDev = config.getBoolean("CTS_DEV_MODE", false);
         const isProduction = config.getEnv("ENVIRONMENT") === "production";
         let execPath = binPath;
@@ -39,13 +53,18 @@ export class SidecarSpawner {
         let finalArgs: string[] = [];
 
         if (isLinux && Deno.uid() === 0) {
+            const sidecarConfig = SIDECAR_REGISTRY[name];
+            const cpuQuota = sidecarConfig?.resources?.cpu || "25%";
+            const memoryMax = sidecarConfig?.resources?.memory || "512M";
+
             finalExec = "systemd-run";
             finalArgs = [
                 "--scope",
                 "--quiet",
-                "-p", "CPUQuota=25%",
-                "-p", "MemoryMax=512M",
+                "-p", `CPUQuota=${cpuQuota}`,
+                "-p", `MemoryMax=${memoryMax}`,
                 "-p", "MemorySwapMax=0",
+                "-p", "TasksMax=100",
                 execPath
             ];
         }

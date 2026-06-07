@@ -20,6 +20,11 @@ export interface PlatformInfo {
 
 const WINDOWS_TAG = "windows_11";
 
+export const PLATFORM_TOOLS = [
+  "pfctl", "launchctl", "sw_vers", "spctl", "ifconfig", "killall", "ps",
+  "netsh", "taskkill", "pktmon", "powershell", "security"
+];
+
 function normalizeVersion(version: string): string {
   return version.trim().replace(/[^0-9.]/g, "");
 }

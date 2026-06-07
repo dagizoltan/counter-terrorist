@@ -100,15 +100,15 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Handle Perf Events
-    // BUG-20 FIX: Open perf buffers while holding the lock, then move the buffers
-    // into the async tasks. This avoids dangling references to the Bpf instance.
+    // SOV-06 Hardening: Open perf buffers while holding the lock.
+    // We use a leaked static reference to extend the lifetime for the async tasks.
     for cpu_id in aya::util::online_cpus()? {
         let mut buf = {
             let mut bpf = bpf_static.lock();
 
-            // SECURITY: Handle lifetimes for Aya 0.12 Maps.
-            // We know that bpf_static is leaked and thus has a 'static lifetime.
-            // Using unsafe to transmute the Bpf reference to be 'static.
+            // Safety: bpf_static is leaked and thus the underlying Bpf instance has a 'static lifetime.
+            // We transmute the guard-bound reference to 'static to allow moving maps into async tasks.
+            // The Mutex still ensures exclusive access during the open() call.
             let bpf_extended: &'static mut Bpf = unsafe { core::mem::transmute(&mut *bpf) };
             let map = bpf_extended.map_mut("EVENTS").expect("EVENTS map not found");
             let mut perf_array = PerfEventArray::try_from(map)?;

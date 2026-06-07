@@ -20,8 +20,8 @@ export class PlaybookService extends BaseService {
     this.locator = locator;
   }
 
-  public get eventBusDelegate(): any {
-    return this.locator?.get<any>("eventBus");
+  public get eventBusDelegate(): EventBusPort | undefined {
+    return this.locator?.get<EventBusPort>("eventBus");
   }
 
   private get protection(): ProtectionPort | undefined {
@@ -70,7 +70,7 @@ export class PlaybookService extends BaseService {
     }
 
     // Honeypot Playbook: Auto-block any IP that connects to honey ports
-    this.unsubscribers.push(eventBus.on("HONEYPOT", async (payload: any) => {
+    this.unsubscribers.push(eventBus.on("HONEYPOT", async (payload: { type: string, port: number | string, source_ip: string }) => {
       if (payload.type !== "PortAccess") return;
       const port = typeof payload.port === "number" ? payload.port : Number(payload.port);
       const source_ip = typeof payload.source_ip === "string" ? payload.source_ip : undefined;
@@ -142,7 +142,7 @@ export class PlaybookService extends BaseService {
     ));
 
     // FIM Playbook: High-priority notification on critical file change
-    this.unsubscribers.push(eventBus.on("DRIFT_PROCESS", async (payload: any) => {
+    this.unsubscribers.push(eventBus.on("DRIFT_PROCESS", async (payload: { path: string, action: string }) => {
       if (!payload.path || !payload.action) return;
       const path = payload.path;
       const action = payload.action;
@@ -163,7 +163,7 @@ export class PlaybookService extends BaseService {
     }));
 
     // eBPF Playbook: Monitor suspicious syscalls and quarantine
-    this.unsubscribers.push(eventBus.on("EBPF_CRITICAL", async (payload: any) => {
+    this.unsubscribers.push(eventBus.on("EBPF_CRITICAL", async (payload: { comm: string, syscall: string, pid?: number }) => {
       if (!payload.comm || !payload.syscall) return;
       const pid = payload.pid ?? NaN;
       const comm = payload.comm;
@@ -206,7 +206,7 @@ export class PlaybookService extends BaseService {
     }));
 
     // Mesh Playbook: Monitor node threat levels
-    this.unsubscribers.push(eventBus.on("THREAT", (payload: any) => {
+    this.unsubscribers.push(eventBus.on("THREAT", (payload: { nodeId?: string, severity: string, path?: string }) => {
       const nodeId = payload.nodeId ?? "local";
       const severity = payload.severity;
       const path = payload.path;
@@ -216,13 +216,13 @@ export class PlaybookService extends BaseService {
     }));
 
     // Artifact Playbook: Proactive Quarantine & Containment
-    this.unsubscribers.push(eventBus.on("ARTIFACT_FOUND", async (payload: any) => {
+    this.unsubscribers.push(eventBus.on("ARTIFACT_FOUND", async (payload: { indicator: string, [key: string]: unknown }) => {
        if (!payload.indicator) return;
        await this.executeArtifactContainment(payload.indicator, payload);
     }));
 
     // Cross-Platform Playbook Hooks
-    this.unsubscribers.push(eventBus.on("ES_EXEC", (payload: any) => {
+    this.unsubscribers.push(eventBus.on("ES_EXEC", (payload: { path: string, signing_id?: string }) => {
         if (!payload.path) return;
         const path = payload.path;
         const signing_id = payload.signing_id;
@@ -238,7 +238,7 @@ export class PlaybookService extends BaseService {
         }
     }));
 
-    this.unsubscribers.push(eventBus.on("ETW_PROCESS", (payload: any) => {
+    this.unsubscribers.push(eventBus.on("ETW_PROCESS", (payload: { command_line: string, process_name?: string }) => {
         if (!payload.command_line) return;
         const process_name = payload.process_name;
         const command_line = payload.command_line;

@@ -101,7 +101,7 @@ export interface ServiceContainer {
   tpm: TpmPort;
   policy: PolicyEngine;
   health: HealthService;
-  metrics: import("../domain/analysis/metrics_service.ts").MetricsService;
+  metrics: import("../domain/analysis/decentralized_metrics.ts").DecentralizedMetricsService;
   mediator: EventMediator;
   behavioral: BehavioralService;
   lsmLearning?: import("../domain/protection/lsm_learning_service.ts").LsmLearningService;

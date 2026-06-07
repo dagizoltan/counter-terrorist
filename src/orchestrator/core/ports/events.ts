@@ -16,8 +16,8 @@ export type EventHandler<T extends EventName> = (
 ) => void | Promise<void>;
 
 export interface EventBusPort {
-  publish<T extends EventName>(type: T, message: string, data?: any): void;
-  emit<T extends EventName>(event: T, data: any): void;
+  publish<T extends EventName>(type: T, message: string, data?: any): Promise<void>;
+  emit<T extends EventName>(event: T, data: any): Promise<void>;
   subscribe(handler: (event: SystemEventEnvelope) => void | Promise<void>): () => void;
   unsubscribe(handler: (event: SystemEventEnvelope) => void): void;
   on<T extends EventName>(event: T, callback: EventHandler<T>): () => void;

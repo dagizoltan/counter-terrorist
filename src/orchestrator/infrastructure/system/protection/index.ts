@@ -1,5 +1,6 @@
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
+import { LoggingPort } from "../../../core/ports/logging.ts";
 import { PlatformInfo } from "../platform.ts";
 import {
   createAntivirusManager,
@@ -30,8 +31,8 @@ export interface Protection {
 export function createProtection(
   sidecar: SidecarManager,
   executor: SystemExecutor,
-  platformInfo: any,
-  networkLogs: any,
+  platformInfo: PlatformInfo,
+  networkLogs: LoggingPort,
 ): Protection {
   const firewall = createFirewallManager(sidecar, executor, platformInfo, networkLogs);
   return {

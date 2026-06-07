@@ -12,6 +12,7 @@ import { SidecarRepository } from "./sidecar_repository.ts";
 import { IntegrityManager } from "./integrity_manager.ts";
 import { SidecarSpawner } from "./sidecar_spawner.ts";
 import { IpcCoordinator } from "./ipc_coordinator.ts";
+import { SidecarRotator } from "./sidecar_rotator.ts";
 
 /**
  * Manages persistent Rust sidecars.
@@ -25,6 +26,7 @@ export class SidecarManager implements CommandPort {
   private integrity: IntegrityManager;
   private spawner: SidecarSpawner;
   private ipc: IpcCoordinator;
+  private rotator: SidecarRotator;
 
   private expectedExits: Set<string> = new Set();
   private cleanupRegistered: boolean = false;
@@ -34,6 +36,7 @@ export class SidecarManager implements CommandPort {
   private rotationInterval?: number | any;
   private backoffTimers: Set<number | any> = new Set();
   private manifestPromise: Promise<void> | null = null;
+  private initialized = false;
 
   private tpm: TpmPort | undefined;
   private redactor: SecretRedactor = new SecretRedactor();
@@ -46,6 +49,10 @@ export class SidecarManager implements CommandPort {
     this.integrity = new IntegrityManager(logging, executor, this.ffi);
     this.spawner = new SidecarSpawner(logging, executor);
     this.ipc = new IpcCoordinator(logging, this.ffi);
+    this.rotator = new SidecarRotator(logging, this.integrity, this.repository, {
+        stopSidecar: (name) => this.stopSidecar(name),
+        getPersistentSidecar: (name) => this.getPersistentSidecar(name)
+    });
 
     this.heartbeatMonitor = new HeartbeatMonitor(logging, (name) => {
         this.emitEvent("SYSTEM_ERROR", {
@@ -59,6 +66,9 @@ export class SidecarManager implements CommandPort {
   }
 
   public init() {
+    if (this.initialized) return;
+    this.initialized = true;
+
     this.startRotationLoop();
     this.heartbeatMonitor.start(() => Array.from(this.persistentProcesses.keys()));
     if (this.config) {
@@ -89,45 +99,21 @@ export class SidecarManager implements CommandPort {
 
   /**
    * Periodically rotates all active sidecars to neutralize memory-resident exploits.
+   * Introduces jitter to prevent synchronized load across mesh nodes.
    */
   private startRotationLoop() {
     const ROTATION_INTERVAL = 6 * 60 * 60 * 1000; // 6 Hours
-    this.rotationInterval = setInterval(async () => {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.ACTIVITY,
-            severity: LogSeverity.INFO,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: "CYCLIC ROTATION TRIGGERED: Re-verifying and refreshing all agent binaries..."
-        });
+    const initialJitter = Math.floor(Math.random() * 30 * 60 * 1000); // 0-30 min jitter
 
-        for (const name of Array.from(this.persistentProcesses.keys())) {
-            await this.rotateSidecar(name);
-        }
-    }, ROTATION_INTERVAL);
-  }
+    const rotationTimer = setTimeout(() => {
+        this.backoffTimers.delete(rotationTimer);
+        this.rotationInterval = setInterval(async () => {
+            if (!this.config) return;
+            await this.rotator.rotateAll(Array.from(this.persistentProcesses.keys()), this.config);
+        }, ROTATION_INTERVAL);
+    }, initialJitter);
 
-  private async rotateSidecar(name: string) {
-    if (!this.config) return;
-    const sidecarConfig = SIDECAR_REGISTRY[name];
-    const binPath = `./bin/agents/${sidecarConfig.binaryName || name}`;
-    
-    // 1. Forced re-healing from Golden Repository
-    const healed = await this.integrity.verifyAndHeal(name, binPath, this.repository.getManifest(), this.config, true);
-    
-    if (healed) {
-        // 2. Graceful restart
-        await this.stopSidecar(name);
-        await this.getPersistentSidecar(name);
-        
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.ACTIVITY,
-            severity: LogSeverity.SUCCESS,
-            caller: "orchestrator:infra:runtime:sidecar_manager",
-            message: `Agent ${name} rotated and re-spawned from Golden Baseline.`
-        });
-    }
+    this.backoffTimers.add(rotationTimer);
   }
 
   getExecutor(): SystemExecutor {
@@ -693,7 +679,11 @@ export class SidecarManager implements CommandPort {
 
   async shutdown(): Promise<void> {
     this.isShuttingDown = true;
-    if (this.rotationInterval) clearInterval(this.rotationInterval);
+    this.initialized = false;
+    if (this.rotationInterval) {
+        clearInterval(this.rotationInterval);
+        this.rotationInterval = undefined;
+    }
     this.heartbeatMonitor.stop();
     for (const timer of this.backoffTimers) clearTimeout(timer);
     this.backoffTimers.clear();

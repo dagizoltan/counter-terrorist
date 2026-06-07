@@ -6,6 +6,10 @@ export interface SidecarConfig {
     critical?: boolean;
     binaryName?: string;
     capabilities?: string;
+    resources?: {
+        cpu?: string;
+        memory?: string;
+    };
 }
 
 export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
@@ -38,7 +42,8 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         description: "Threat analysis agent for malware scanning, rootkit detection, and signature-based file inspection.",
         persistent: true,
         privileged: false,
-        binaryName: "analyzer"
+        binaryName: "analyzer",
+        resources: { cpu: "40%", memory: "1024M" }
     },
     decoy: {
         name: "decoy",
@@ -54,7 +59,8 @@ export const SIDECAR_REGISTRY: Record<string, SidecarConfig> = {
         privileged: true,
         critical: true,
         binaryName: "sentinel",
-        capabilities: "cap_sys_admin,cap_net_admin,cap_sys_resource+ep"
+        capabilities: "cap_sys_admin,cap_net_admin,cap_sys_resource+ep",
+        resources: { cpu: "15%", memory: "256M" }
     },
     watchfile: {
         name: "watchfile",

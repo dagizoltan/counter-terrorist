@@ -111,8 +111,11 @@ impl IpcManager {
 
         // Atomic-like commit: only write if current_len is 0 (buffer consumed)
         if current_len == 0 {
-            if buf.len() + 8 <= slice.len() {
+            // SOV-06 Hardening: Explicit bounds check to prevent memory corruption
+            if buf.len() > 0 && buf.len() + 8 <= slice.len() {
                 let len = (buf.len() as u32).to_le_bytes();
+
+                // Safety: We verified that buf.len() + 8 <= slice.len()
                 slice[8..8+buf.len()].copy_from_slice(&buf);
 
                 // Write length last to commit the record
@@ -124,7 +127,7 @@ impl IpcManager {
                 debug!("Emitted event of size {}", buf.len());
                 return true;
             } else {
-                warn!("Event too large for shared memory buffer ({} > {})", buf.len(), slice.len() - 8);
+                warn!("Event invalid size or too large for shared memory buffer ({} bytes, limit: {})", buf.len(), slice.len() - 8);
             }
         } else {
             // Buffer saturation - orchestrator is not keeping up
@@ -153,6 +156,7 @@ impl IpcManager {
         let current_len = u32::from_le_bytes(len_bytes) as usize;
 
         if current_len > 0 {
+            // SOV-06 Hardening: Explicit bounds check to prevent out-of-bounds access on corrupted headers
             if current_len + 8 <= slice.len() {
                 let data = &slice[8..8+current_len];
                 let cmd = match rmp_serde::from_slice::<T>(data) {

@@ -12,7 +12,7 @@ export interface FirewallPort {
   unenforcePid(pid: number): Promise<CommandResult>;
   getStatus(): Promise<CommandResult>;
   flushRules(): Promise<CommandResult>;
-  sendCommand?(name: string, cmd: any): Promise<CommandResult>;
+  sendCommand?(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult>;
   getBlockedIps(): Promise<string[]>;
   allowPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
   denyPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
@@ -26,11 +26,13 @@ export interface VpnPort {
   getStatus(): Promise<unknown>;
 }
 
+import { Result } from "../result.ts";
+
 export interface AntivirusPort {
   getStatus(): Promise<unknown>;
-  scanPath(path: string): Promise<{ success: boolean; threatsFound: boolean; message: string; details?: string }>;
-  quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }>;
-  syncSignatures(): Promise<CommandResult>;
+  scanPath(path: string): Promise<Result<{ success: boolean; threatsFound: boolean; message: string; details?: string }>>;
+  quarantine(path: string): Promise<Result<{ success: boolean; message: string; target?: string }>>;
+  syncSignatures(): Promise<Result<CommandResult>>;
 }
 
 export interface PersistencePort {
@@ -43,7 +45,7 @@ export interface PcapPort {
 }
 
 export interface RkhunterPort {
-  runScan(): Promise<{ success: boolean; exit_code?: number; stdout?: string; stderr?: string; error?: string }>;
+  runScan(): Promise<Result<{ success: boolean; exit_code?: number; stdout?: string; stderr?: string; error?: string }>>;
   getLastResult(): unknown;
 }
 

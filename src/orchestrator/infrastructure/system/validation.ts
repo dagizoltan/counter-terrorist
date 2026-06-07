@@ -3,6 +3,7 @@
  */
 import { normalize } from "@std/path";
 import { BloomFilter } from "../../core/cache.ts";
+import { z } from "zod";
 
 export const IP_REGEX = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/;
 
@@ -366,113 +367,162 @@ export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
 
 const SCANNER_JAIL = ["/home/", "/var/www/", "./volume/", "/var/lib/cts/", "/tmp/"];
 
-export function validateRequest(sidecar: SidecarName, req: Record<string, any>): boolean {
-  if (!req || typeof req !== "object" || typeof req.type !== "string") return false;
+// Shared Zod Primitives
+const IdSchema = z.string().optional();
+const PidSchema = z.number().int().positive();
+const PortSchema = z.number().int().min(1).max(65535);
+const IpSchema = z.string().refine(isValidIP, { message: "Invalid IP address" });
+const NonCriticalIpSchema = IpSchema.refine(ip => !isCriticalInfrastructure(ip), { message: "Cannot block critical infrastructure" });
+const PathSchema = (jail?: string[]) => z.string().refine(p => validatePath(p, jail), { message: "Invalid or prohibited filesystem path" });
+const InterfaceSchema = z.string().regex(INTERFACE_NAME_REGEX);
 
-  switch (sidecar) {
-    case "analyzer":
-      if (!["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"].includes(req.type)) return false;
-      if (req.type === "DIR_SCAN" || req.type === "ScanPath" || req.type === "Quarantine") {
-        if (req.path) {
-          if (!validatePath(req.path, SCANNER_JAIL)) return false;
-        }
-        if (req.paths) {
-          if (!Array.isArray(req.paths)) return false;
-          if (!req.paths.every((p: string) => validatePath(p, SCANNER_JAIL))) return false;
-        }
-      }
-      return true;
-    case "enforcer": {
-      if (!["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus"].includes(req.type as string)) return false;
-      if ((req.type === "KillProcess" || req.type === "QuarantineProcess" || req.type === "DumpProcess") && typeof req.pid !== "number") return false;
-      const targetIp = req.ip as string;
-      if ((req.type === "BlockIp" || req.type === "UnblockIp") && !isValidIP(targetIp || "")) return false;
-      if (req.type === "BlockIp" && isCriticalInfrastructure(targetIp || "")) return false;
-      if (req.type === "DumpProcess" && req.path && !validatePath(req.path as string)) return false;
-      return true;
-    }
-    case "netcap":
-      if (!["StartCapture", "StopCapture", "GetStatus"].includes(req.type)) return false;
-      if (req.type === "StartCapture") {
-        if (req.interface && typeof req.interface !== "string") return false;
-        if (req.interface && !INTERFACE_NAME_REGEX.test(req.interface)) return false;
-        if (req.duration && typeof req.duration !== "number") return false;
-        if (req.duration && req.duration > 3600) return false;
-        if (req.filename && typeof req.filename !== "string") return false;
-        if (req.filename) {
-          const basename = req.filename.split("/").pop()?.split("\\").pop() || "";
-          if (!SAFE_FILENAME_REGEX.test(basename)) return false;
-        }
-      }
-      return true;
-    case "decoy":
-      if (!["ToggleModule", "UpdateModule", "Sabotage", "GetStatus"].includes(req.type)) return false;
-      if (req.type === "ToggleModule" || req.type === "UpdateModule") {
-        if (typeof req.module !== "string") return false;
-        if (typeof req.port !== "number" && typeof req.newPort !== "number") return false;
-      }
-      if (req.type === "Sabotage" && typeof req.source_ip !== "string") return false;
-      return true;
-    case "watchfile": {
-      if (!["WatchPath", "UnwatchPath", "GetStatus"].includes(req.type as string)) return false;
-      const targetPath = req.path as string;
-      if ((req.type === "WatchPath" || req.type === "UnwatchPath") && typeof targetPath !== "string") return false;
-      return true;
-    }
-    case "sentinel": {
-      const ebpfTypes = [
+const AnalyzerRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"]),
+    path: PathSchema(SCANNER_JAIL).optional(),
+    paths: z.array(PathSchema(SCANNER_JAIL)).optional()
+});
+
+const EnforcerRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus"]),
+    pid: PidSchema.optional(),
+    ip: IpSchema.optional(),
+    path: PathSchema().optional()
+}).refine(data => {
+    if (["KillProcess", "QuarantineProcess", "DumpProcess"].includes(data.type) && data.pid === undefined) return false;
+    if (data.type === "BlockIp" && (data.ip === undefined || isCriticalInfrastructure(data.ip))) return false;
+    if (data.type === "UnblockIp" && data.ip === undefined) return false;
+    return true;
+}, { message: "Missing required fields for enforcer command" });
+
+const NetcapRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["StartCapture", "StopCapture", "GetStatus"]),
+    interface: InterfaceSchema.optional(),
+    duration: z.number().min(1).max(3600).optional(),
+    filename: z.string().optional().refine(f => {
+        if (!f) return true;
+        const basename = f.split("/").pop()?.split("\\").pop() || "";
+        return SAFE_FILENAME_REGEX.test(basename);
+    }, { message: "Unsafe PCAP filename" })
+});
+
+const DecoyRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["ToggleModule", "UpdateModule", "Sabotage", "GetStatus"]),
+    module: z.string().optional(),
+    port: PortSchema.optional(),
+    newPort: PortSchema.optional(),
+    source_ip: IpSchema.optional()
+});
+
+const WatchfileRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["WatchPath", "UnwatchPath", "GetStatus"]),
+    path: PathSchema().optional()
+});
+
+const SentinelRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum([
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
         "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
         "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess"
-      ];
-      if (!ebpfTypes.includes(req.type)) return false;
-      if ((req.type === "BLOCK_IP" || req.type === "UNBLOCK_IP" || req.type === "SHADOW_BAN") && !isValidIP(req.ip || "")) return false;
-      if (req.type === "BLOCK_IP" && isCriticalInfrastructure(req.ip || "")) return false;
-      if (req.type === "TRUST_COMM" && typeof req.comm !== "string") return false;
-      if ((req.type === "HIDE_PID" || req.type === "ENFORCE_PID" || req.type === "UNENFORCE_PID" || req.type === "KillProcess" || req.type === "QuarantineProcess" || req.type === "DumpProcess") && typeof req.pid !== "number") return false;
-      if ((req.type === "ALLOW_PORT" || req.type === "DENY_PORT") && typeof req.port !== "number") return false;
-      if (req.type === "DumpProcess" && req.path && !validatePath(req.path)) return false;
-      return true;
-    }
-    case "trustroot":
-      if (!["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert"].includes(req.type)) return false;
-      return true;
-    case "tunnel":
-      if (!["CONNECT", "DISCONNECT", "GET_STATUS"].includes(req.type)) return false;
-      return true;
-    case "sentinel-darwin": {
-      const esfTypes = [
+    ]),
+    ip: IpSchema.optional(),
+    pid: PidSchema.optional(),
+    port: PortSchema.optional(),
+    comm: z.string().optional(),
+    path: PathSchema().optional()
+}).refine(data => {
+    if (data.type === "BLOCK_IP" && (data.ip === undefined || isCriticalInfrastructure(data.ip))) return false;
+    if (["UNBLOCK_IP", "SHADOW_BAN"].includes(data.type) && data.ip === undefined) return false;
+    if (["HIDE_PID", "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess"].includes(data.type) && data.pid === undefined) return false;
+    if (["ALLOW_PORT", "DENY_PORT"].includes(data.type) && data.port === undefined) return false;
+    if (data.type === "TRUST_COMM" && data.comm === undefined) return false;
+    return true;
+}, { message: "Missing required fields for sentinel command" });
+
+const TrustrootRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert"])
+});
+
+const TunnelRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["CONNECT", "DISCONNECT", "GET_STATUS"])
+});
+
+const SentinelDarwinRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum([
         "BlockIp", "UnblockIp", "ShadowBanIp", "AllowPort", "DenyPort",
         "Lockdown", "FlushRules", "GetStatus", "UpdatePolicy"
-      ];
-      if (!esfTypes.includes(req.type)) return false;
-      if ((req.type === "BlockIp" || req.type === "UnblockIp" || req.type === "ShadowBanIp") && !isValidIP(req.ip || "")) return false;
-      if (req.type === "BlockIp" && isCriticalInfrastructure(req.ip || "")) return false;
-      if ((req.type === "AllowPort" || req.type === "DenyPort") && typeof req.port !== "number") return false;
-      return true;
-    }
-    case "enforcer-win": {
-      const wfpTypes = [
+    ]),
+    ip: IpSchema.optional(),
+    port: PortSchema.optional()
+}).refine(data => {
+    if (data.type === "BlockIp" && (data.ip === undefined || isCriticalInfrastructure(data.ip))) return false;
+    if (["UnblockIp", "ShadowBanIp"].includes(data.type) && data.ip === undefined) return false;
+    if (["AllowPort", "DenyPort"].includes(data.type) && data.port === undefined) return false;
+    return true;
+});
+
+const EnforcerWinRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum([
         "AddBlockRule", "RemoveBlockRule", "AddAllowRule", "RemoveAllowRule",
         "ProtectDirectory", "GetStatus", "FlushRules"
-      ];
-      if (!wfpTypes.includes(req.type)) return false;
-      if ((req.type === "AddBlockRule" || req.type === "RemoveBlockRule") && !isValidIP(req.ip || "")) return false;
-      if (req.type === "AddBlockRule" && isCriticalInfrastructure(req.ip || "")) return false;
-      if ((req.type === "AddAllowRule" || req.type === "RemoveAllowRule") && typeof req.port !== "number") return false;
-      return true;
-    }
-    default:
-      return false; // Unknown sidecars are rejected by default
-  }
+    ]),
+    ip: IpSchema.optional(),
+    port: PortSchema.optional()
+}).refine(data => {
+    if (data.type === "AddBlockRule" && (data.ip === undefined || isCriticalInfrastructure(data.ip))) return false;
+    if (data.type === "RemoveBlockRule" && data.ip === undefined) return false;
+    if (["AddAllowRule", "RemoveAllowRule"].includes(data.type) && data.port === undefined) return false;
+    return true;
+});
+
+const REQUEST_SCHEMAS: Record<SidecarName, z.ZodSchema> = {
+    analyzer: AnalyzerRequestSchema,
+    enforcer: EnforcerRequestSchema,
+    netcap: NetcapRequestSchema,
+    decoy: DecoyRequestSchema,
+    watchfile: WatchfileRequestSchema,
+    sentinel: SentinelRequestSchema,
+    trustroot: TrustrootRequestSchema,
+    tunnel: TunnelRequestSchema,
+    "sentinel-darwin": SentinelDarwinRequestSchema,
+    "enforcer-win": EnforcerWinRequestSchema,
+    firewall: z.any(), // Not implemented yet
+    "telemetry-win": z.any(), // Not implemented yet
+    mesh: z.any()
+};
+
+export const SidecarResponseSchema = z.object({
+    id: IdSchema,
+    success: z.boolean().optional(),
+    message: z.string().optional(),
+    stdout: z.string().optional(),
+    stderr: z.string().optional(),
+    data: z.record(z.string(), z.any()).optional(),
+    timestamp: z.string().optional(),
+    event: z.string().optional(),
+    type: z.string().optional(),
+    sidecar: z.string().optional(),
+    critical: z.boolean().optional(),
+    error: z.string().optional()
+});
+
+export function validateRequest(sidecar: SidecarName, req: Record<string, any>): boolean {
+    const schema = REQUEST_SCHEMAS[sidecar];
+    if (!schema) return false;
+    return schema.safeParse(req).success;
 }
 
 export function validateResponse(_sidecar: SidecarName, res: SidecarResponse): boolean {
-  // If it's an event payload, allow it without the success field
-  if (res.event) return true;
-
-  if (typeof res.success !== "boolean") return false;
-
-  // Additional sidecar-specific response validation can be added here
-  return true;
+    // If it's an event payload, allow it without the success field
+    if (res.event) return true;
+    return SidecarResponseSchema.safeParse(res).success && typeof res.success === "boolean";
 }

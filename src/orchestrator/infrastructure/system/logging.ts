@@ -18,7 +18,7 @@ export class LoggingService implements LoggingPort {
     private alertQueue: PersistentQueue<string> | null = null;
     private preInitBuffer: LogEntry[] = [];
     private redactor: SecretRedactor = new SecretRedactor();
-    private flushIntervalId: any = null;
+    private flushIntervalId: number | null = null;
 
     constructor(kv?: Deno.Kv) {
         this.processor = new LogProcessor(this.redactor);
@@ -243,8 +243,8 @@ export class LoggingService implements LoggingPort {
     private startFlushInterval() {
         this.flushIntervalId = setInterval(() => {
             this.flushLogs();
-            this.flushKvBuffer();
-        }, 5000);
+            this.flushKvBuffer().catch(() => {});
+        }, 5000) as any;
     }
 
     async shutdown() {
