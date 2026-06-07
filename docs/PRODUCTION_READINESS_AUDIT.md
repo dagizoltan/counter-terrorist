@@ -63,7 +63,28 @@ The system utilizes a modern, triple-tier architecture:
 - [ ] **[L] Dashboard Resilience:** Transition UI from polling to reactive push notifications.
 - [ ] **[L] Supply Chain:** Integrate automated SBOM generation for Deno imports and Rust crates.
 
-## 6. Verdict
+## 6. Code Hygiene & Technical Debt (Partial Implementations)
+
+During the reverse-engineering phase, several "Simplified" or "Mock" implementations were identified that provide the appearance of functionality but lack production-grade rigor.
+
+### 6.1 Platform-Specific Sidecar Mocks
+*   **macOS ESF Agent:** The `sentinel-darwin` agent is currently a stub. The Endpoint Security Framework (ESF) callback loop only "simulates" events and does not interface with the actual macOS kernel extension (`com.apple.endpoint-security`).
+*   **Windows WFP/Minifilter Agent:** The `enforcer-win` agent utilizes `MOCK` comments for core logic (`FwpmFilterAdd0`, `Minifilter Directory Protection`). These must be replaced with real C-FFI calls to the Windows Filtering Platform and Filter Manager.
+*   **Impact:** Cross-platform support is currently "Marketing Only" and provides zero real protection on non-Linux systems.
+
+### 6.2 Forensic Proof Limitations
+*   **Merkle Tree Depth:** The `AuditService.getMerkleProof` method is hardcoded to only check the last 100 events. In a high-traffic environment, an event could easily "fall off" the proof-able window within minutes.
+*   **Merkle Construction:** The logic in `merkle.ts` and `AuditService` is described as "Simplified." It lacks the persistence of intermediate nodes, meaning a full tree re-calculation is required for proofs, which scales poorly (O(n)).
+
+### 6.3 Intelligence & Attribution Hygiene
+*   **GeoIP Determinism:** The `GeoIpService` operates in `PROVISIONAL_DETERMINISTIC_MODE`. It uses a deterministic hash of the IP to "fake" country and ASN data.
+*   **Impact:** While this ensures consistent UI displays without external API calls (good for OpSec), it provides zero actual tactical intelligence. A production deployment requires a real local `.mmdb` sidecar.
+
+### 6.4 Schema Validation Gaps
+*   **Incomplete Zod Schemas:** Several sidecars (notably `firewall` and `telemetry-win`) utilize `z.any()` in `validation.ts`.
+*   **Impact:** This bypasses the structural integrity checks designed to prevent IPC payload smuggling, re-introducing risks of malformed data crashing the orchestrator or agents.
+
+## 7. Verdict
 **Current Status:** **READY FOR PILOT.**
 The architecture is fundamentally sound and the hardening implemented in Milestone 4 is impressive. However, it is **NOT PROD-GRADE** until the TOCTOU spawning risk and the hardware-dependency hard-failing (TPM) are addressed. These gaps represent the primary difference between a "Security Tool" and "High-Assurance Sovereign Infrastructure."
 
