@@ -427,24 +427,80 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Risk:** This leads to **Duplicate Audit Entries** and "Chain Break" errors during subsequent verifications, as the same event appears twice with different `prevHash` contexts in the linear chain.
 *   **Requirement:** Implement **Transactional Idempotency** for batch persistence or utilize unique KV keys that prevent duplicate insertion.
 
-## 21. Final High-Assurance Gaps
+## 21. Ultimate High-Assurance Technical Findings
 
-### 21.1 Non-Constant-Time TPM Signature Verification
+### 21.1 Hardcoded Health Metrics (False Sense of Security)
+*   **Finding:** `AuditService.ts` contains an `emitMetrics` method that hardcodes `chainVerified: true` in its payload.
+*   **Security Risk:** The system reports a "Healthy" status for the audit chain to the dashboard and mesh peers without actually performing the verification at that moment. This could mask a background tampering event, giving administrators a false sense of ledger integrity.
+*   **Requirement:** Metrics must reflect the **Latest Real-Time Verification Result** stored in the service state.
+
+### 21.2 Premature Success Reporting in Deception
+*   **Finding:** `decoy/main.rs` reports "Toggle success" to the orchestrator *before* the asynchronous `start_port_listener` task has successfully bound the socket.
+*   **Operational Risk:** If the port binding fails (e.g., due to a collision or lack of `CAP_NET_BIND_SERVICE`), the orchestrator will proceed to open the firewall and report the module as "ACTIVE" in the UI, even though the trap is functionally dead.
+*   **Requirement:** Implement **Two-Way Handshaking**. The sidecar task must confirm successful binding before the IPC response is sent.
+
+### 21.3 Large-Scale Forensic Bundle OOM
+*   **Finding:** `ForensicService.ts` gathers all audit logs, process trees, and metadata into a single JavaScript object before stringifying it for signing.
+*   **Impact:** On a busy node with 10,000+ events and thousands of processes, the `bundleData` object can exceed hundreds of megabytes. Processing this on the Deno heap will trigger an Out-of-Memory (OOM) crash during the `JSON.stringify` or `crypto.subtle.sign` phases.
+*   **Requirement:** Implement **Streaming Forensic Serialization** to an on-disk buffer or utilize a dedicated forensic sidecar for signing.
+
+### 21.4 Brittle Kernel Stat Parsing
+*   **Finding:** `LinuxProcessProvider.ts` parses `/proc/{pid}/stat` using simple `indexOf` and `split(" ")`.
+*   **Impact:** Process names (`comm`) in Linux can contain spaces and parentheses. A malicious process named `(bash ) rm -rf /` will break the provider's field-offset calculations, leading to incorrect PPID mapping or service crashes.
+*   **Requirement:** Utilize a robust **Stat-Field Regex** or a dedicated procfs parsing library.
+
+## 22. Final High-Assurance Gaps
+
+### 22.1 Non-Constant-Time TPM Signature Verification
 *   **Finding:** `MeshManager.verifySignature` in `TPM_RESIDENT_IDENTITY` mode performs a direct string comparison (`signature === ...`) for proxy signatures.
 *   **Security Risk:** While these are proxy signatures, the use of non-constant-time comparison introduces a **Timing Side-Channel**. An attacker observing mesh handshakes could potentially brute-force valid signatures by measuring response latencies.
 *   **Requirement:** Enforce **`secureCompare`** for ALL signature and token verifications, regardless of identity mode.
 
-### 21.2 Missing TLS Protocol Hardening
+### 22.2 Missing TLS Protocol Hardening
 *   **Finding:** `WebAdapter.ts` utilizes `Deno.serve` with a certificate but does not specify allowed TLS versions or cipher suites.
 *   **Security Risk:** The orchestrator may negotiate weak legacy protocols (e.g., TLS 1.0/1.1) or vulnerable ciphers with older agents or browsers, increasing the risk of decryption or protocol downgrade attacks.
 *   **Requirement:** Enforce **TLS 1.3 Only** with a high-assurance cipher suite whitelist (e.g., AES-256-GCM-SHA384).
 
-### 21.3 Unbounded Session Transcript Memory
+### 22.3 Unbounded Session Transcript Memory
 *   **Finding:** `HoneypotService.ts` captures and stores full "Session transcripts" from attackers in memory before emitting them to the audit chain.
 *   **Operational Risk:** A slow-drip attacker sending megabytes of garbage data to a decoy port (e.g. 22 or 3389) could slowly exhaust the orchestrator's heap memory, leading to a "Silent OOM" crash.
 *   **Requirement:** Implement **Streaming Transcript Processing** with hard byte-limits (e.g., max 16KB per session).
 
-## 22. Verdict
+## 23. Micro-Architectural Logic Gaps
+
+### 23.1 Non-Deterministic Gossip Deduplication
+*   **Finding:** `MeshGossipManager.ts` utilizes `JSON.stringify` to compute the payload hash for its Bloom Filter deduplication cache.
+*   **Impact:** `JSON.stringify` is non-deterministic regarding object key order. Two identical gossip messages with different key ordering will produce different hashes, bypassing the cache and causing redundant network traffic and potential re-processing loops.
+*   **Requirement:** Utilize **`canonicalStringify`** for all hash computations.
+
+### 23.2 Incomplete Tail-Only Verification
+*   **Finding:** `AuditService.verifyChainIncremental` hardcodes a limit of 100 events.
+*   **Impact:** If more than 100 events are generated between verification cycles (e.g., during a high-frequency attack), the "incremental" check will only verify the tail of the chain and will never reach the previously verified head. This leaves a "Verification Gap" where tampered events could remain undetected in the middle of the chain.
+*   **Requirement:** Implement **True Incremental Verification** that continues backward until it intersects with the `lastVerifiedHash`.
+
+### 23.3 Overlapping Deception Cycles
+*   **Finding:** `HoneypotService.ts` utilizes `setInterval` for port morphing without a re-entrancy guard.
+*   **Operational Risk:** If a morphing cycle hangs (e.g., awaiting an `iptables` lock), subsequent intervals will trigger overlapping morph attempts, leading to inconsistent firewall states and potential decoy service exhaustion.
+*   **Requirement:** Utilize **Sequential Scheduling** or a boolean `isMorphing` guard.
+
+## 24. Concurrency & Persistence technical Debt
+
+### 24.1 Non-Atomic File Persistence (State Corruption)
+*   **Finding:** Critical state files, including `vtpm_state.json` (Virtual TPM) and `worm_ledger.log` (WORM Audit), are managed via standard `Deno.readTextFile` and `Deno.writeTextFile` / `append` operations.
+*   **Impact:** If the orchestrator crashes or loses power during a write/append operation, these files can be left in a truncated or corrupted state. For the virtual TPM, this results in immediate loss of all "hardware-bound" secrets.
+*   **Requirement:** Implement **Atomic File Updates** using a "Write-to-Temp-and-Rename" pattern with `fsync` to ensure durability.
+
+### 24.2 Weak Global Context Access
+*   **Finding:** `ws_handler.ts` utilizes `(globalThis as any).SystemEventRegistry` for dynamic type checking.
+*   **Code Hygiene:** Relying on `globalThis` for core security logic is fragile and bypasses the structured dependency injection (Service Container) used elsewhere. It can lead to "Silent Type Bypasses" if the registry is not initialized in the correct order.
+*   **Requirement:** Strictly utilize the **EventBus Registry Port** for all event validation.
+
+### 24.3 Unbounded Probe Accumulation
+*   **Finding:** `MeshManager.ts` subnet discovery spawns multiple `probeNode` promises within a `setInterval` loop.
+*   **Operational Risk:** While individual probes have a 2s timeout, the overall `discoverSubnet` cycle is not gated. On extremely congested or malicious networks where probes "hang" in a pending state, the orchestrator will continue to spawn new probes every 5 seconds, leading to a "Promise Explosion" and eventual OOM.
+*   **Requirement:** Implement **Lifecycle Gating** for the discovery loop (i.e., do not start a new scan until the previous one has fully timed out or completed).
+
+## 25. Verdict
 **Current Status:** **READY FOR PILOT.**
 The architecture is fundamentally sound and the hardening implemented in Milestone 4 is impressive. However, it is **NOT PROD-GRADE** until the TOCTOU spawning risk and the hardware-dependency hard-failing (TPM) are addressed. These gaps represent the primary difference between a "Security Tool" and "High-Assurance Sovereign Infrastructure."
 
