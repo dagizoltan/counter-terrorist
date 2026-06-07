@@ -261,7 +261,29 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Impact:** A single slow handler (e.g., a webhook notification or a heavy DB write) will delay the finalization of the event publish cycle for *all* other subscribers, including high-priority autonomous response units.
 *   **Requirement:** Transition to a **Parallel Worker Pool** with per-subscriber priority levels to ensure critical remediations are never blocked by auxiliary logging.
 
-## 13. Verdict
+## 13. Code Hygiene & High-Fidelity Debt
+
+### 13.1 Distributed Consistency Gaps (Atomic KV)
+*   **Finding:** The generic `KvRepository.ts` used for API keys, sessions, and baseline tracking utilizes `kv.set()` without atomic version checks (`kv.atomic().check()`).
+*   **Impact:** In a multi-node mesh environment or under high concurrent load, "Last-Write-Wins" behavior will lead to data corruption or lost updates (e.g., rotating a key on two nodes simultaneously).
+*   **Requirement:** Enforce **Optimistic Concurrency Control (OCC)** across all repository write operations.
+
+### 13.2 Excessive Type-Safety Bypasses
+*   **Finding:** The orchestrator core contains **297+ usages of the `any` keyword**, particularly in the `web` and `domain` layers.
+*   **Impact:** This significantly degrades the benefits of using TypeScript and the Deno sandbox. It allows runtime errors (e.g. `cannot read property of undefined`) to creep into critical security paths that should have been caught during development.
+*   **Requirement:** Conduct a **Zero-Any Type Hardening** sprint to replace all bypasses with strict Zod-inferred types or interfaces.
+
+### 13.3 Unpaginated Durable Queues
+*   **Finding:** `PersistentQueue.ts` (used for remote syslog alerts) iterates through the entire KV prefix during its `process()` cycle without pagination.
+*   **Operational Risk:** During a high-severity incident generating thousands of alerts, the orchestrator may experience memory exhaustion (OOM) or a "Locked Event Loop" while trying to load the entire queue into memory at once.
+*   **Requirement:** Implement **Stream-Based Processing** with a fixed page size (e.g., 50 items).
+
+### 13.4 Fragile Log-Intercept Re-entrancy
+*   **Finding:** `LoggingService` intercepts `console.log/warn/error` globally. While it has a simple boolean re-entrancy guard (`isLogging`), it is not robust against asynchronous recursion.
+*   **Impact:** If a background task triggered by a log entry (like a webhook) subsequently calls `console.log`, and the guard has been reset, the system can enter a complex recursive loop or corrupt the internal log buffer.
+*   **Requirement:** Implement a **Stack-Aware Re-entrancy Guard** or utilize a dedicated non-intercepted logging channel for internal service telemetry.
+
+## 14. Verdict
 **Current Status:** **READY FOR PILOT.**
 The architecture is fundamentally sound and the hardening implemented in Milestone 4 is impressive. However, it is **NOT PROD-GRADE** until the TOCTOU spawning risk and the hardware-dependency hard-failing (TPM) are addressed. These gaps represent the primary difference between a "Security Tool" and "High-Assurance Sovereign Infrastructure."
 
