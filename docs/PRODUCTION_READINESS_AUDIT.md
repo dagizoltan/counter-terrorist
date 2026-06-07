@@ -84,7 +84,43 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Incomplete Zod Schemas:** Several sidecars (notably `firewall` and `telemetry-win`) utilize `z.any()` in `validation.ts`.
 *   **Impact:** This bypasses the structural integrity checks designed to prevent IPC payload smuggling, re-introducing risks of malformed data crashing the orchestrator or agents.
 
-## 7. Verdict
+## 7. Advanced Technical Findings (Deep-Code Audit)
+
+### 7.1 Audit Buffer Saturation (Forensic DoS)
+*   **Finding:** `AuditService.ts` implements a hard limit of 5,000 events for its internal log queue. When this limit is reached, non-critical events are dropped.
+*   **Risk:** An attacker could flood the system with high-frequency, seemingly harmless events (e.g., triggering GeoIP lookups or UI refreshes) to saturate the buffer and "mask" their actual malicious activity from being recorded in the ledger.
+
+### 7.2 Fragile Linux Capability Pruning
+*   **Finding:** `capabilities.ts` utilizes a hardcoded list of capability IDs (magic numbers) to drop via `prctl`.
+*   **Risk:** Capability IDs are kernel-dependent. Hardcoding them (e.g., up to ID 40) is fragile. Newer Ubuntu LTS kernels (26.04+) may introduce new capabilities that are not covered by this list, leading to an unintentionally privileged orchestrator runtime.
+*   **Recommendation:** Dynamically discover the maximum capability ID supported by the running kernel via `/proc/sys/kernel/cap_last_cap`.
+
+### 7.3 Distributed Rate Limit Convergence Window
+*   **Finding:** `RateLimitService.ts` uses an in-memory tier that syncs to Deno KV every 5 seconds.
+*   **Risk:** In a coordinated attack across multiple mesh nodes, an attacker can burst up to (N * Limit) requests every 5 seconds before the distributed state converges. For high-assurance production, this window is too wide.
+*   **Requirement:** Transition to a **Synchronous Write-Through** or **Adaptive Jitter Sync** for high-severity rate limit events (like failed logins).
+
+### 7.4 Brittle Quorum for Small Clusters (N=2)
+*   **Finding:** The BFT threshold logic in `MeshConsensusManager.ts` requires 100% agreement for a 2-node cluster (N=2).
+*   **Risk:** If one node goes offline or experiences a network hiccup, the remaining node is rendered incapable of executing any quorum-protected actions (e.g., `LOCKDOWN`).
+*   **Requirement:** Implement a **Dynamic Threshold** policy that allows fallback to local-only signatures if the cluster size falls below a healthy quorum minimum, signed as "DEGRADED_LOCAL".
+
+### 7.5 Unencrypted Shared Memory (Post-Exploitation Leakage)
+*   **Finding:** Sidecar IPC utilizes `/dev/shm` segments (`cts_*`) to pass high-frequency telemetry.
+*   **Risk:** These memory segments are currently plaintext. While file permissions are restricted, a secondary local exploit (e.g., a memory-scraping tool or another compromised local service) could read forensic events, process maps, or syscall logs directly from shared memory without interacting with the orchestrator.
+*   **Requirement:** Implement **SIMD-accelerated Obfuscation** or **Shared Secret XORing** for all data written to shared memory buffers.
+
+### 7.6 Fragile Supply-Chain Intelligence
+*   **Finding:** `SupplyChainService.ts` relies on manual string splitting and regex to parse `Cargo.toml` files for dependency scanning.
+*   **Risk:** This is highly fragile. Legitimate but unusual TOML structures (e.g., inline tables, multi-line strings, or workspace inheritance) will cause the SBOM generator to miss critical dependencies, leading to a false sense of "SECURE" status for vulnerable components.
+*   **Requirement:** Utilize a proper **TOML Parser** for both TypeScript (Deno) and any companion Rust analysis tools.
+
+### 7.7 Hardcoded Remediation Targets
+*   **Finding:** `ShadowService.ts` contains hardcoded IPTables redirection for Port 22 (SSH) only.
+*   **Risk:** The "Mirror World" deception is currently a single-protocol prototype. An attacker using any other vector (HTTP, DB, RDP) will bypass the shadow containment entirely.
+*   **Requirement:** Transition to a **Protocol-Agnostic Proxy** or dynamic redirection rules based on the detected `BehavioralAnalyzer` attack vector.
+
+## 8. Verdict
 **Current Status:** **READY FOR PILOT.**
 The architecture is fundamentally sound and the hardening implemented in Milestone 4 is impressive. However, it is **NOT PROD-GRADE** until the TOCTOU spawning risk and the hardware-dependency hard-failing (TPM) are addressed. These gaps represent the primary difference between a "Security Tool" and "High-Assurance Sovereign Infrastructure."
 
