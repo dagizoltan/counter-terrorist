@@ -283,7 +283,111 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Impact:** If a background task triggered by a log entry (like a webhook) subsequently calls `console.log`, and the guard has been reset, the system can enter a complex recursive loop or corrupt the internal log buffer.
 *   **Requirement:** Implement a **Stack-Aware Re-entrancy Guard** or utilize a dedicated non-intercepted logging channel for internal service telemetry.
 
-## 14. Verdict
+## 14. Ultimate High-Fidelity Gaps
+
+### 14.1 Path Validation Symlink Bypass
+*   **Finding:** `validation.ts` performs path normalization and traversal checks but does not explicitly verify the **Symlink Target**.
+*   **Risk:** An attacker with write access to an allowed directory (e.g., `/tmp/`) could create a symlink to a sensitive file (e.g., `/etc/shadow`). If an orchestrator command like `sha256sum` or `cp` is then called on that path, the `validatePath` check will pass the symlink itself, while the underlying system command will follow the link and expose the sensitive target.
+*   **Requirement:** Enforce **O_NOFOLLOW** for all sidecar operations or use `Deno.lstat` to explicitly verify and reject symlink paths.
+
+### 14.2 Unauthenticated Ledger Chain Injection
+*   **Finding:** `AuditService.syncEvents` accepts remote events and verifies the hash chain. However, it allows the `prevHash` to be set to "TRUNCATED".
+*   **Risk:** An attacker mimicking a mesh peer could inject an entirely fabricated "Genesis" chain fragment by marking the first event as "TRUNCATED". If accepted, this fabricates history and can be used to "overwrite" the local view of past security events.
+*   **Requirement:** Restrict "TRUNCATED" fragment acceptance to **Explicit Boot-Time Sync** only, verified by mesh consensus.
+
+### 14.3 Subnet Scan Task Leakage
+*   **Finding:** `MeshManager.discoverSubnet` utilizes `setInterval` for scanning but does not track the lifecycle of the internal `probeNode` promises.
+*   **Operational Risk:** In unstable network conditions, thousands of "hanging" probe tasks could accumulate over days, eventually exhausting Deno's worker thread pool or local file descriptors (sockets), leading to a slow system crash.
+*   **Requirement:** Implement a **Global Task Registry** with hard-timeouts and concurrency limits for all mesh discovery operations.
+
+### 14.4 Periodic Detection Blackouts
+*   **Finding:** `BehavioralAnalyzer.ts` performs a global `.clear()` on its syscall sequences every 60 minutes.
+*   **Impact:** For 15 minutes after every hour, the system loses its "Context Memory" for all active processes. An attacker who times their sequence of malicious syscalls to cross the hour boundary will bypass the `Intent Modeling` signatures entirely.
+*   **Requirement:** Implement **Per-Process TTLs** and rolling buffer clearing instead of global flushes.
+
+### 14.5 Weak PRNG for Deception (Predictability)
+*   **Finding:** `HoneypotService.ts` and `MeshManager.ts` utilize `Math.random()` for port selection, padding, and jitter.
+*   **Risk:** `Math.random()` is not cryptographically secure. An adversary observing multiple mesh transitions or honeypot rotations could potentially predict the next "random" state (e.g., the next decoy port), allowing them to pre-position their attacks.
+*   **Requirement:** Transition all tactical randomness to **`crypto.getRandomValues()`**.
+
+### 14.6 Sidecar PID Visibility (Namespace Leakage)
+*   **Finding:** `SidecarSpawner.ts` utilizes `systemd-run` for resource limits but does not enable PID namespacing.
+*   **Security Risk:** Every sidecar agent can "see" the process tree of all other agents and the orchestrator itself. If the `decoy` agent (the most exposed) is compromised, the attacker can use `/proc` to map the orchestrator's memory layout or monitor its activity, facilitating a multi-stage escape.
+*   **Requirement:** Enforce **`PrivatePIDs=yes`** and **`ProtectProc=invisible`** in the sidecar systemd-run configuration.
+
+### 14.7 CSRF Token Exposure (XSS-to-CSRF)
+*   **Finding:** The Hono/React dashboard embeds the session's CSRF token in a `<meta name="csrf-token">` tag.
+*   **Security Risk:** While this facilitates easy access for the frontend `fetch` calls, it means any successful XSS attack can instantly read the CSRF token and perform authenticated mutation requests (e.g., "Isolate Self" or "Wipe Logs") on behalf of the administrator.
+*   **Requirement:** Transition to **Cookie-Based Double-Submit** where the token is not accessible via JavaScript (using a separate `__Host-` prefixed cookie) or use the **Synchronizer Token Pattern** with strictly limited scope.
+
+## 15. Privilege Management Technical Debt
+
+### 15.1 Incomplete Capability Dropping (Bounding vs Effective)
+*   **Finding:** `HardeningManager.ts` drops capabilities from the **Bounding Set** via `prctl(PR_CAPBSET_DROP)`.
+*   **Impact:** While this prevents the process from ever regaining these capabilities (e.g. via `execve` of a setuid binary), it does **not** remove them from the **Effective** or **Permitted** sets of the currently running Deno process. The orchestrator remains highly privileged (e.g., retaining `CAP_SYS_ADMIN`) for its entire lifecycle, violating the Principle of Least Privilege.
+*   **Requirement:** Utilize `capset` to explicitly drop capabilities from the **Effective** and **Permitted** sets immediately after initialization.
+
+### 15.2 Insecure IPC "Trusted" Command Assumption
+*   **Finding:** `sentinel/main.rs` implements a "Quiet Mode" where it ignores syscalls from "trusted" process names (e.g. `deno`, `enforcer`).
+*   **Security Risk:** Process names (`comm`) are not a secure security boundary. An attacker who achieves code execution can easily rename their malicious process to `deno` or `enforcer` (as the orchestrator itself does for camouflage) to bypass all eBPF-based syscall monitoring.
+*   **Requirement:** Transition to **Path-based** or **Cgroup-based** trust verification, ensuring that only binaries with verified hashes are treated as "trusted."
+
+## 16. Rust Agent Safety & Stability Findings
+
+### 15.1 Sidecar Panic Vectors (.unwrap usage)
+*   **Finding:** Native Rust agents (particularly `analyzer`, `decoy`, and `sentinel`) utilize `.unwrap()` in critical paths, such as LRU cache initialization, timestamp calculation, and JSON serialization.
+*   **Risk:** If a system call unexpectedly fails (e.g. clock drift during `duration_since`) or memory is constrained, the agent will experience a full process panic and crash. This leads to immediate loss of visibility and remediation capabilities for that node.
+*   **Requirement:** Enforce a **"No-Unwrap" Policy**. Use `expect()` with detailed error messages or, preferably, proper `Result` propagation with graceful error handling.
+
+### 15.2 Unsafe Memory Transmutation
+*   **Finding:** `sentinel/main.rs` utilizes `unsafe { core::mem::transmute(&mut *bpf) }` to extend the lifetime of BPF maps to `'static` for move into `tokio` tasks.
+*   **Impact:** While functionally required for the current version of the Aya crate when combined with asynchronous tasks, this pattern bypasses Rust's borrow checker. If the underlying `bpf_static` mutex is ever dropped or re-initialized incorrectly, it will lead to **Use-After-Free** or **Memory Corruption** at the kernel/userspace boundary.
+*   **Requirement:** Transition to a more robust lifetime management pattern or utilize `Arc<Mutex<Bpf>>` exclusively without transmutation if possible.
+
+## 16. Code Hygiene & Environmental Leakage
+
+### 16.1 Environmental Dependency Leakage
+*   **Finding:** Several core services (e.g. `ProvisioningService`, `validation.ts`, `PolicyEngine`) utilize `Deno.env.get()` directly in their business logic rather than receiving validated configuration from the `ConfigurationPort`.
+*   **Impact:** This hides external dependencies, makes unit testing difficult, and violates the "Twelve-Factor App" principles. It also risks runtime failures if an environment variable is missing but was not checked by `loadConfig` at boot time.
+*   **Requirement:** **Centralize all environment access** into `loadConfig` and pass settings through the `ServiceContainer`.
+
+## 17. Runtime & Platform Technical Debt
+
+### 17.1 Runtime Instability (Deno Unstable APIs)
+*   **Finding:** The system relies critically on `--unstable-kv` and other unstable Deno features (e.g., `Deno.listenDatagram`).
+*   **Impact:** Any breaking change in the Deno runtime's KV or networking implementation before stabilization could render the orchestrator non-functional or corrupt the forensic ledger.
+*   **Requirement:** Implement a **Persistence Abstraction Layer** that allows for a fallback to a stable database (e.g., SQLite or PostgreSQL) if Deno KV stability is compromised.
+
+### 17.2 Loose WebSocket CSP Policy
+*   **Finding:** The Content Security Policy (CSP) in `security.ts` specifies `connect-src 'self' ws: wss:;`.
+*   **Security Risk:** This is overly permissive. It allows the browser dashboard to initiate WebSocket connections to *any* external server. An attacker who gains XSS could use this to exfiltrate session data or CSRF tokens to an attacker-controlled endpoint via WebSockets, bypassing standard `fetch` protections.
+*   **Requirement:** Restrict `connect-src` to the **Orchestrator's Absolute URL** and specific mesh peer addresses.
+
+## 18. Platform & Lifecycle High-Assurance Gaps
+
+### 18.1 Telemetry-Flood Orchestrator Saturation
+*   **Finding:** `EventMediator.ts` implement batching but the batching is triggered by a 1-second interval or a 50-event threshold.
+*   **Operational Risk:** During a high-frequency attack (e.g. 100k syscalls/sec), the `EventMediator` will attempt to process 1,000 events (the `MAX_QUEUE_DEPTH`) every second. This processing happens on the main Deno event loop.
+*   **Impact:** A telemetry flood will "steal" CPU cycles from critical components like `SidecarManager` (heartbeats) and `MeshManager` (gossip), potentially causing the orchestrator to lose control of its agents or mesh peers while busy processing logs.
+*   **Requirement:** Implement **Off-Main-Thread Telemetry Dissection** using Deno Workers.
+
+### 18.2 Platform-Specific Hardening Gaps
+*   **Finding:** `HardeningManager.ts` and `capabilities.ts` are almost entirely Linux-focused.
+*   **Impact:** On macOS and Windows, the orchestrator runs with standard user/admin privileges without any corresponding "Capability Pruning" or "LSM-like" isolation (e.g. App Sandbox or Windows AppContainer).
+*   **Risk:** An orchestrator compromise on a non-Linux platform provides much broader system access than on Linux.
+*   **Requirement:** Implement **Cross-Platform Sandboxing** (e.g. `sandbox-exec` on macOS and `AppContainer` on Windows).
+
+### 18.3 Inconsistent Rotation Source Protection
+*   **Finding:** `SidecarRotator.ts` heals agents from the "Golden" directory but specifies a hardcoded relative path: `./bin/agents/`.
+*   **Security Risk:** If the orchestrator is started from an incorrect working directory, it may fail to find the golden binaries or, worse, re-verify and execute binaries from a user-writable path, bypassing the root-protected jail protections.
+*   **Requirement:** Enforce **Absolute Path Resolution** for all "Golden" and "Jail" operations.
+
+### 18.4 Non-Atomic Queue Failure Handling
+*   **Finding:** `PersistentQueue.ts` failure handling (`handleFailure`) performs a `kv.delete(oldKey)` followed by a `kv.set(dlqKey)`.
+*   **Impact:** This is non-atomic. If the orchestrator crashes between the delete and the set, a critical security alert is permanently lost.
+*   **Requirement:** Utilize **`kv.atomic()`** to ensure failure transitions (Retry vs. Dead-Letter) are transactional.
+
+## 19. Verdict
 **Current Status:** **READY FOR PILOT.**
 The architecture is fundamentally sound and the hardening implemented in Milestone 4 is impressive. However, it is **NOT PROD-GRADE** until the TOCTOU spawning risk and the hardware-dependency hard-failing (TPM) are addressed. These gaps represent the primary difference between a "Security Tool" and "High-Assurance Sovereign Infrastructure."
 
