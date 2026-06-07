@@ -70,6 +70,10 @@ type AuditBroadcastPayload = Parameters<MeshManager["broadcastAuditEvent"]>[0];
  * Hardware-rooted immutable ledger logic.
  * Decoupled from persistence via AuditRepository.
  */
+/**
+ * AuditService implements a hardware-rooted immutable ledger for all security events.
+ * It ensures chain integrity through cryptographic hashing and TPM-based signing.
+ */
 export class AuditService extends BaseService {
     private lastHash: string = "GENESIS";
     private lastVerifiedHash: string = "GENESIS";
@@ -208,7 +212,7 @@ export class AuditService extends BaseService {
     }
 
     protected override async onShutdown(): Promise<Result<void>> {
-        // SOV-05 STABILITY: Ensure all intervals and timers are cleared to prevent hanging
+        // STABILITY: Ensure all intervals and timers are cleared to prevent hanging
         for (const id of this.intervals) clearInterval(id);
         this.intervals = [];
 
@@ -217,7 +221,7 @@ export class AuditService extends BaseService {
             this.watcherAbortController = null;
         }
 
-        // SOV-05 STABILITY: Drain queue first so currentSessionHashes is populated before Merkle commitment
+        // STABILITY: Drain queue first so currentSessionHashes is populated before Merkle commitment
         const start = Date.now();
         while ((this.logQueue.length > 0 || this.isProcessingQueue) && (Date.now() - start < 5000)) {
             await new Promise(r => setTimeout(r, 100));
@@ -314,7 +318,7 @@ export class AuditService extends BaseService {
 
     private isCommittingMerkle = false;
     private safeLogAuditError(message: string, error: Error) {
-        // SOV-05 STABILITY: Avoid infinite recursion by checking if the logger is already in a failure state
+        // STABILITY: Avoid infinite recursion by checking if the logger is already in a failure state
         // We log to console as a last resort for audit failures
         console.error(`[AUDIT_FATAL] ${message}: ${error.message}`);
 
@@ -352,7 +356,7 @@ export class AuditService extends BaseService {
 
         this.isCommittingMerkle = true;
 
-        // SOV-06 FIX: Optimized Queue-Swap Pattern
+        // Optimized Queue-Swap Pattern
         // Swap out the current buffer immediately to ensure no events are lost
         // during the asynchronous Merkle root calculation.
         const hashesToCommit = [...this.currentSessionHashes];
@@ -477,7 +481,7 @@ export class AuditService extends BaseService {
                         caller: "orchestrator:domain:analysis:audit",
                         message: errorMsg
                     });
-                    // SOV-06: Immediate transition to restricted mode AND system lockdown if tampering is detected on boot.
+                    // Immediate transition to restricted mode AND system lockdown if tampering is detected on boot.
                     this.state = SystemState.FORENSIC_RESTRICTED;
 
                     if (this.eventBus) {
@@ -555,9 +559,15 @@ export class AuditService extends BaseService {
         }
     }
 
+    /**
+     * Appends a new event to the audit ledger.
+     * Automatically handles hashing, signing, and background persistence.
+     *
+     * @param event The event data to log
+     */
     logEvent(event: Omit<AuditEvent, "id" | "timestamp" | "hash" | "prevHash"> & { timestamp?: string, correlationId?: string, fromAudit?: boolean }) {
         this.ensureReady();
-        // SOV-05 STABILITY: Immediate drop if event is from audit itself to prevent recursion
+        // STABILITY: Immediate drop if event is from audit itself to prevent recursion
         if (event.fromAudit) return;
 
         if (this.state === SystemState.FORENSIC_RESTRICTED &&
@@ -630,11 +640,11 @@ export class AuditService extends BaseService {
                         this.lastHash = hash;
 
                         if (event.type !== "MERKLE_COMMIT") {
-                            // SOV-P5: Incremental Merkle Update
+                            // Incremental Merkle Update
                             await this.merkleTree.addLeaf(hash);
                             this.currentSessionHashes.push(hash);
 
-                            // SOV-06 STABILITY: Bound Merkle Tree Memory to prevent OOM during high-activity incidents
+                            // STABILITY: Bound Merkle Tree Memory to prevent OOM during high-activity incidents
                             const MAX_MERKLE_BUFFER = 5000;
                             if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
                                 this.commitMerkleRoot().catch(err => this.safeLogAuditError("Background Merkle commitment failure", err));
@@ -650,17 +660,13 @@ export class AuditService extends BaseService {
                             message: `${auditEvent.type}: ${auditEvent.message} (Actor: ${auditEvent.actor?.id || "SYSTEM"})`,
                             payload: auditEvent.data,
                             fromAudit: true
-                        }).catch(err => this.safeLogAuditError("Background task failure", err));
+                        }).catch(err => {
+                            console.error(`[AUDIT:LOG_FAIL] ${err.message}`);
+                        });
 
                         if (this.eventBus && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
                             this.eventBus.publish("AUDIT_BROADCAST", "Audit Broadcast", auditEvent).catch((e: any) => {
-                                this.logging.log({
-                                    timestamp: new Date().toISOString(),
-                                    type: LogType.GENERIC,
-                                    severity: LogSeverity.WARNING,
-                                    caller: "AUDIT:MESH",
-                                    message: `Failed to broadcast audit event: ${e.message}`
-                                }).catch(err => this.safeLogAuditError("Background broadcast failure", err));
+                                this.safeLogAuditError("Failed to broadcast audit event", e);
                             });
                         }
 
@@ -723,13 +729,8 @@ export class AuditService extends BaseService {
             await this.repo.saveMany(toFlush);
         } catch (e: any) {
             this.auditBuffer.unshift(...toFlush);
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "orchestrator:domain:analysis:audit",
-                message: `Failed to flush audit batch: ${(e as Error).message}`
-            });
+            const error = e instanceof Error ? e : new Error(String(e));
+            this.safeLogAuditError("Failed to flush audit batch", error);
         } finally {
             this.isFlushing = false;
         }
@@ -850,11 +851,11 @@ export class AuditService extends BaseService {
     }
 
     private async purgeExpired() {
-        // SOV-05 STABILITY: Comprehensive retention enforcement.
+        // STABILITY: Comprehensive retention enforcement.
         const cutoffTimestamp = Date.now() - (this.retentionConfig.maxAgeDays * 24 * 60 * 60 * 1000);
 
         try {
-            // SOV-06: STREAMING RETENTION (Forward Scan)
+            // STREAMING RETENTION (Forward Scan)
             // We scan from oldest to newest to find the last expired event.
             // This ensures we always find the earliest valid "Genesis" boundary.
             const stream = this.repo.getStream(10000, false);

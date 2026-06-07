@@ -20,7 +20,7 @@ export const ConfigSchema = z.object({
   API_TOKEN: SecuritySecret,
   MESH_SECRET: SecuritySecret,
   // SECURITY: Avoid wildcard '*' in production. Explicitly whitelist tactical dashboard origins.
-  // BUG-8.2 FIX: Enforce production safety by defaulting to self if not provided
+  // Enforce production safety by defaulting to self if not provided
   ALLOWED_ORIGINS: z.string().default("self"),
   TLS_CERT_PATH: z.string().optional(),
   TLS_KEY_PATH: z.string().optional(),

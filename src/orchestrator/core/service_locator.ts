@@ -15,7 +15,6 @@ export interface ServiceMap {
   "health": import("../domain/analysis/health_service.ts").HealthService;
   "protection": import("./ports/security.ts").ProtectionPort;
   "playbook": import("../domain/orchestration/playbook_service.ts").PlaybookService;
-  "autopilot": import("../domain/orchestration/autopilot_service.ts").AutopilotService;
   "shadow": import("../domain/protection/shadow_service.ts").ShadowService;
   "covert": import("../domain/orchestration/covert_service.ts").CovertChannelService;
   "ledger": import("../domain/analysis/ledger_service.ts").LedgerService;
@@ -38,6 +37,24 @@ export interface ServiceMap {
   "incidents": import("../domain/analysis/incident_service.ts").IncidentService;
   "viewModel": import("../domain/analysis/view_model_service.ts").ViewModelService;
   "tpm": import("../infrastructure/system/protection/tpm/tpm_manager.ts").TPMManager;
+  "compliance": import("../domain/analysis/compliance_service.ts").ComplianceService;
+  "baseline": import("../domain/analysis/baseline.ts").BaselineService;
+  "deceptionGrid": import("../domain/protection/deception_grid.ts").DeceptionGridService;
+  "geoIp": import("../domain/analysis/geoip_service.ts").GeoIpService;
+  "correlation": import("../domain/analysis/correlation_service.ts").CorrelationService;
+  "metrics": import("../domain/analysis/decentralized_metrics.ts").DecentralizedMetricsService;
+  "autopilot": import("../domain/orchestration/autopilot_service.ts").AutopilotService;
+  "mediator": import("../domain/analysis/event_mediator.ts").EventMediator;
+  "curatedIntel": import("../domain/analysis/curated_intel_service.ts").CuratedIntelService;
+  "threatIntel": import("../domain/analysis/curated_intel_service.ts").CuratedIntelService | import("../domain/analysis/tactical_intel_ingestor.ts").TacticalIntelIngestor;
+  "rateLimit": import("../domain/identity/rate_limit.ts").RateLimitService;
+  "sessions": import("../domain/identity/session.ts").SessionService;
+  "apiKeys": import("../domain/identity/api_keys.ts").ApiKeysService;
+  "meshAuth": import("../domain/identity/mesh_auth.ts").MeshAuthService;
+  "anonymization": import("../domain/protection/anonymization_service.ts").AnonymizationService;
+  "networkLogs": import("../domain/analysis/network_log_service.ts").NetworkLogService;
+  "news": import("../domain/analysis/news_signal_service.ts").NewsSignalService;
+  "networkDiscovery": import("../domain/analysis/network_discovery.ts").NetworkDiscoveryService;
 }
 
 export class ServiceLocator implements ServiceLocatorPort {

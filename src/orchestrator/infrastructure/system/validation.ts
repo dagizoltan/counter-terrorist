@@ -191,7 +191,7 @@ export function validatePath(p: string, jailPrefixes?: string[]): boolean {
   // 1. URL Decode to catch encoded bypasses (e.g. %2e%2e, %252e%252e)
   let decoded = p;
   try {
-    // BUG-4.22 FIX: Limit decoding iterations to prevent CPU-based DoS
+    // Limit decoding iterations to prevent CPU-based DoS
     let previous;
     let iterations = 0;
     do {

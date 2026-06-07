@@ -55,19 +55,19 @@ export class UbuntuFirewallProvider implements FirewallProvider {
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    // BUG-8.7 FIX: Prevent self-kill or PID 1 kill
+    // Prevent self-kill or PID 1 kill
     if (pid <= 1 || pid === Deno.pid) {
         return { success: false, stdout: "", stderr: "Security Violation: Cannot kill system critical process or orchestrator." };
     }
     if (this.isSentinelAvailable()) {
       return await this.sidecar.sendCommand("sentinel", { type: "KillProcess", pid });
     }
-    // BUG-4.14 FIX: Ensure arguments are strings and validated
+    // Ensure arguments are strings and validated
     return await this.executor.execute("kill", ["-9", pid.toString()]);
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    // BUG-8.7 FIX: Prevent self-quarantine or PID 1 quarantine
+    // Prevent self-quarantine or PID 1 quarantine
     if (pid <= 1 || pid === Deno.pid) {
         return { success: false, stdout: "", stderr: "Security Violation: Cannot quarantine system critical process or orchestrator." };
     }
@@ -75,7 +75,7 @@ export class UbuntuFirewallProvider implements FirewallProvider {
       return await this.sidecar.sendCommand("sentinel", { type: "QuarantineProcess", pid });
     }
     // SIGSTOP for quarantine
-    // BUG-4.14 FIX: Use numeric signals for kill command consistency
+    // Use numeric signals for kill command consistency
     return await this.executor.execute("kill", ["-19", pid.toString()]);
   }
 

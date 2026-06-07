@@ -19,12 +19,12 @@ export class WindowsFirewallProvider implements FirewallProvider {
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    // BUG-8.8 FIX: Use enforcer-win for process control
+    // Use enforcer-win for process control
     return await this.sidecar.sendCommand("enforcer-win", { type: "KillProcess", pid });
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    // BUG-8.8 FIX: Use enforcer-win for process control
+    // Use enforcer-win for process control
     return await this.sidecar.sendCommand("enforcer-win", { type: "QuarantineProcess", pid });
   }
 

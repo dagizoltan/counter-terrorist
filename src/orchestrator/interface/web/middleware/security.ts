@@ -86,7 +86,7 @@ export class SecurityMiddleware {
       const path = c.req.path;
       const ip = this.getClientIp(c);
 
-      if (this.services.threatIntel.getBlacklist().has(ip)) {
+      if ((this.services.threatIntel as import("../../../domain/analysis/curated_intel_service.ts").CuratedIntelService).getBlacklist?.().has(ip)) {
         loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,

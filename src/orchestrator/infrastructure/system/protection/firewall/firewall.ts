@@ -53,7 +53,7 @@ export class FirewallManager implements FirewallPort {
 
   async setKv(kv: Deno.Kv) {
     this.kv = kv;
-    // BUG-8.1 FIX: Avoid full list operation on start to prevent boot delay
+    // Avoid full list operation on start to prevent boot delay
     const iter = kv.list<unknown>({ prefix: ["enforcement"] }, { limit: 1000 });
     const ips: string[] = [];
     for await (const res of iter) {

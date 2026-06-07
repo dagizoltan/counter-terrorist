@@ -99,18 +99,20 @@ export class AutonomousResponseEngine extends BaseService {
         }
     }
 
+    /**
+     * Periodically reduces threat scores to allow for host recovery.
+     */
     private decayScores() {
-        for (const [source, score] of this.scores.entries()) {
-            // Slowly decay score
+        // Iterate over a snapshot of entries to safely handle deletions
+        for (const [source, score] of Array.from(this.scores.entries())) {
             const newScore = Math.max(0, score - 1);
 
             if (newScore === 0) {
-                // BUG-33: Fully clear state for sources that have recovered
                 this.scores.delete(source);
                 this.history.delete(source);
                 this.activeRemediations.delete(source);
 
-                this.services.logging?.log({
+                this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.ACTIVITY,
                     severity: LogSeverity.INFO,

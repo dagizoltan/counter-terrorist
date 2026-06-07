@@ -151,7 +151,7 @@ export class HoneypotService extends BaseService {
                 severity: LogSeverity.ERROR,
                 caller: "orchestrator:domain:protection:honeypot:morph",
                 message: `Periodic morphing failed: ${e.message}`
-            }).catch(() => {});
+            });
         });
     }, 600000); // Every 10 minutes
     this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
@@ -230,8 +230,14 @@ export class HoneypotService extends BaseService {
         });
       } else {
         // Fallback for standalone/minimal mode
-        this.firewall.shadowBanIp(source_ip).catch(e => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "honeypot", message: `Shadow ban failed for ${source_ip}: ${e.message}` }).catch(() => {}));
-        this.sabotageSession(source_ip);
+        this.firewall.shadowBanIp(source_ip).catch(e => this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "honeypot",
+            message: `Shadow ban failed for ${source_ip}: ${e.message}`
+        }));
+        this.sabotageSession(source_ip).catch(() => {});
       }
 
       // Automated Forensics: Start capture for the attacker's traffic
@@ -245,7 +251,7 @@ export class HoneypotService extends BaseService {
           severity: LogSeverity.WARNING,
           caller: "orchestrator:domain:protection:honeypot_service",
           message: `Honeypot forensic capture failed for ${source_ip}: ${err instanceof Error ? err.message : String(err)}`
-        }).catch(() => {});
+        });
       }
     } else if (payload.type === "SessionData") {
       const { port, source_ip, data } = payload;
@@ -317,7 +323,7 @@ export class HoneypotService extends BaseService {
         message: `Initiating Breaker Protocol against ${source_ip} (Level: ${level})`
     });
 
-    // SOV-P2: Adaptive Sabotage Strategies
+    // Adaptive Sabotage Strategies
     let mode = "JITTER";
     let latency_ms = 2000;
 
@@ -378,7 +384,7 @@ export class HoneypotService extends BaseService {
         }
 
         if (!protectedPorts.includes(newPort) && !Array.from(this.modules.values()).some(m => m.port === newPort)) {
-            // BUG-04: Verify port is not in use by other system services
+            // Verify port is not in use by other system services
             const res = await this.sidecarManager.getExecutor().execute("ss", ["-Hlnt", `sport = :${newPort}`]);
             if (res.success && res.stdout.trim() === "") {
                 portAvailable = true;
@@ -399,7 +405,7 @@ export class HoneypotService extends BaseService {
 
       if (!portAvailable) continue;
 
-      // BUG-4.1 FIX: Port morphing race condition
+      // Port morphing race condition
       // Update sidecar BEFORE opening firewall to ensure listener is ready
       // We explicitly AWAIT the successful binding in the sidecar before modifying infrastructure
       const updateRes = await this.sidecarManager.sendCommand("decoy", {

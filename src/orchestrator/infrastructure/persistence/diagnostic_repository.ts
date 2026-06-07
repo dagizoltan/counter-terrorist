@@ -17,7 +17,7 @@ export class DiagnosticRepository {
     const id = crypto.randomUUID();
     const data = { ...entry, id };
     
-    // BUG-5.8 FIX: Atomically set data and increment counter in a single transaction
+    // Atomically set data and increment counter in a single transaction
     const ts = new Date(entry.timestamp).getTime();
     const res = await this.kv.atomic()
       .set(["logs", ts, id], data, { expireIn: this.DEFAULT_TTL })

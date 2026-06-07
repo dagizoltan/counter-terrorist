@@ -39,7 +39,7 @@ export class RkhunterManager {
 
             let result: RkhunterResult;
 
-            // BUG-12: Rkhunter sidecar response normalization
+            // Rkhunter sidecar response normalization
             if (analyzerRes && analyzerRes.data) {
                 result = {
                     success: analyzerRes.success,

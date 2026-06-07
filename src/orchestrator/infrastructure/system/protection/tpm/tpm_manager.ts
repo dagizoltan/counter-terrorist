@@ -189,7 +189,7 @@ export class TPMManager implements TpmPort {
         // macOS SEP Integration: Use the 'security' tool to leverage Secure Enclave (if configured)
         // This is a bridge to the native Apple SEP keychain
         try {
-            // SOV-06 FIX: Real hardware-rooted signing via macOS 'security' tool
+            // Real hardware-rooted signing via macOS 'security' tool
             // We use CMS signing with the CTS_IDENTITY certificate which should be backed by SEP.
             const res = await this.sidecar.getExecutor().execute("security", ["cms", "-S", "-Z", "CTS_IDENTITY", "-i", btoa(data)]);
             if (res.success && res.stdout.trim().length > 0) return `SEP_SIG:${res.stdout.trim()}`;
@@ -202,7 +202,7 @@ export class TPMManager implements TpmPort {
     private async signWithNCrypt(data: string): Promise<string> {
         // Windows NCrypt Integration: Use PowerShell to bridge to NCrypt.Storage provider
         try {
-            // SOV-06 FIX: Real hardware-rooted signing via Windows NCrypt.Storage
+            // Real hardware-rooted signing via Windows NCrypt.Storage
             // Bridged through PowerShell to interact with the native Windows Crypto API.
             const b64Data = btoa(data);
             const res = await this.sidecar.getExecutor().execute("powershell", [

@@ -93,7 +93,7 @@ export class PluginManager extends BaseService {
   }
 
   async startAll(): Promise<{ name: string; success: boolean; error?: string }[]> {
-    // BUG-6.5 FIX: Start plugins in parallel with timeouts to avoid boot blocking
+    // Start plugins in parallel with timeouts to avoid boot blocking
     const startPromises = Array.from(this.plugins.values()).map(async (plugin) => {
       try {
         await Promise.race([
@@ -117,7 +117,7 @@ export class PluginManager extends BaseService {
             caller: "orchestrator:domain:orchestration:plugin_manager",
             message: `Failed to start plugin ${plugin.name}: ${error}`
         });
-        // BUG-11.3: Start failure is implicitly reflected by the plugin's own status()
+        // Start failure is implicitly reflected by the plugin's own status()
         // since we didn't await successfully.
         return { name: plugin.name, success: false, error };
       }
@@ -142,7 +142,7 @@ export class PluginManager extends BaseService {
     }
     this.workers.clear();
 
-    // BUG-6.5 FIX: Stop plugins in parallel with timeouts
+    // Stop plugins in parallel with timeouts
     const stopPromises = Array.from(this.plugins.values()).map(async (plugin) => {
       try {
         await Promise.race([

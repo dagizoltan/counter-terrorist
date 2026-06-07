@@ -18,12 +18,12 @@ export class MacosFirewallProvider implements FirewallProvider {
   }
 
   async killProcess(pid: number): Promise<CommandResult> {
-    // BUG-8.8 FIX: Use sentinel-darwin for process control
+    // Use sentinel-darwin for process control
     return await this.sidecar.sendCommand("sentinel-darwin", { type: "KillProcess", pid });
   }
 
   async quarantineProcess(pid: number): Promise<CommandResult> {
-    // BUG-8.8 FIX: Use sentinel-darwin for process control
+    // Use sentinel-darwin for process control
     return await this.sidecar.sendCommand("sentinel-darwin", { type: "QuarantineProcess", pid });
   }
 

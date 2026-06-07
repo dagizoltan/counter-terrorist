@@ -91,7 +91,7 @@ export class NewsSignalService extends BaseService {
         
         for (const feed of this.feeds) {
             const res = await this.breaker.execute(async () => {
-                // BUG-4.18 FIX: Use a streaming fetch with a size limit to prevent memory exhaustion
+                // Use a streaming fetch with a size limit to prevent memory exhaustion
                 const response = await fetch(feed.url);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 

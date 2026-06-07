@@ -17,6 +17,10 @@ import { SidecarRotator } from "./sidecar_rotator.ts";
 /**
  * Manages persistent Rust sidecars.
  */
+/**
+ * SidecarManager handles the lifecycle and IPC of persistent Rust agents.
+ * It manages process spawning, health monitoring, and secure shared-memory communication.
+ */
 export class SidecarManager implements CommandPort {
   private config?: ConfigurationPort;
   private persistentProcesses: Map<string, Deno.ChildProcess> = new Map();
@@ -211,7 +215,7 @@ export class SidecarManager implements CommandPort {
 
             const isDev = this.config.getBoolean("CTS_DEV_MODE", false);
             
-            // SOV-03 FIX: Verify integrity and heal before spawn
+            // Verify integrity and heal before spawn
             if (!isDev) {
               const isHealthy = await this.integrity.verifyAndHeal(name, binPath, this.repository.getManifest(), this.config);
               if (!isHealthy) {
@@ -248,7 +252,7 @@ export class SidecarManager implements CommandPort {
                 this.handleSidecarExit(name, status.code);
             });
 
-            // SOV-P5: Apply Dynamic Landlock Policies from Learning Mode
+            // Apply Dynamic Landlock Policies from Learning Mode
             if (name !== "sentinel" && serviceLocator.has("lsmLearning")) {
                 const lsm = serviceLocator.get<LsmLearningService>("lsmLearning");
                 const allowlist = lsm.generateAllowlist(name);
@@ -284,7 +288,7 @@ export class SidecarManager implements CommandPort {
                 }
             }
 
-    // SOV-P5: Shared Memory Data Plane Ingestion
+    // Shared Memory Data Plane Ingestion
     if (name === "sentinel" || name === "netcap") {
         this.ipc.setupSharedMemory(name, child.pid).catch(e => {
             this.logging.log({
@@ -356,7 +360,7 @@ export class SidecarManager implements CommandPort {
 
   private handleIpcLine(name: string, trimmed: string) {
           try {
-            // SOV-P4: Robust IPC Recursion Depth & Complexity Limiter
+            // Robust IPC Recursion Depth & Complexity Limiter
             const MAX_DEPTH = 8;
             let depth = 0;
             let maxSeenDepth = 0;
@@ -419,7 +423,7 @@ export class SidecarManager implements CommandPort {
               if (waiter) {
                 waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
 
-                // BUG-4.22 FIX: Also emit to event handlers even if it was a direct response
+                // Also emit to event handlers even if it was a direct response
                 this.ipc.emitEvent(name, data);
                 this.ipc.removeWaiter(name, data.id);
                 return;
@@ -571,6 +575,13 @@ export class SidecarManager implements CommandPort {
   }
 
 
+  /**
+   * Sends a control-plane command to a specific sidecar.
+   * Utilizes shared memory for high-performance data planes if available.
+   *
+   * @param name Sidecar identifier
+   * @param cmd Command string or structured object
+   */
   async sendCommand(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult> {
     let breaker = this.circuitBreakers.get(name);
     if (!breaker) {
@@ -762,7 +773,13 @@ export class SidecarManager implements CommandPort {
       const timer = setTimeout(() => {
         this.backoffTimers.delete(timer);
         if (!this.isShuttingDown) {
-            this.getPersistentSidecar(name).catch(e => this.logging.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "sidecar_manager", message: `Auto-restart failed for ${name}: ${e.message}` }));
+            this.getPersistentSidecar(name).catch(e => this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "sidecar_manager",
+                message: `Auto-restart failed for ${name}: ${e.message}`
+            }));
         }
       }, delay);
       this.backoffTimers.add(timer);
