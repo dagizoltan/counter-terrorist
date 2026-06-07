@@ -387,7 +387,64 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Impact:** This is non-atomic. If the orchestrator crashes between the delete and the set, a critical security alert is permanently lost.
 *   **Requirement:** Utilize **`kv.atomic()`** to ensure failure transitions (Retry vs. Dead-Letter) are transactional.
 
-## 19. Verdict
+## 19. Ultimate Orchestration Vulnerabilities
+
+### 19.1 SystemExecutor Bypass (Direct Command Spawning)
+*   **Finding:** `KernelService.ts` (specifically `camouflage`, `snapshotForensics`, and `initializeSelfEnforcement`) utilize `Deno.Command` and `Deno.writeTextFile` directly on `/proc/` and system paths instead of routing through the `SystemExecutor`.
+*   **Security Risk:** This completely bypasses the regex-based validation, path jailing, and capability dropping enforced by `SystemExecutor`. If a logic error in `KernelService` is exploited, an attacker can execute arbitrary system commands or write to unauthorized kernel interfaces.
+*   **Requirement:** Enforce **Mandatory Mediation**. All system-level interactions must utilize the `SystemExecutor` port.
+
+### 19.2 Sensitive Token Leakage in URLs
+*   **Finding:** `web_adapter.tsx` and the `BlockingLog.js` frontend initiate WebSocket connections using a `token` query parameter: `/api/ws/events?token=CSRF_TOKEN`.
+*   **Security Risk:** Query parameters are frequently logged by reverse proxies, load balancers, and browser history. This pattern leaks highly sensitive session/CSRF tokens into plain-text log files, facilitating session hijacking.
+*   **Requirement:** Transition WebSocket authentication to **Cookie-Based** or the **`Sec-WebSocket-Protocol`** header.
+
+### 19.3 DOM-based XSS in Telemetry UI
+*   **Finding:** `BlockingLog.js` utilizes `this.innerHTML` to render high-frequency log entries.
+*   **Security Risk:** While some fields are escaped, the overall row and detail HTML is constructed via template strings. If an attacker can inject a malicious payload into a log field that is not perfectly sanitized (e.g., a "Message" or "Caller" name containing a payload), they can achieve DOM-based XSS when an administrator views the dashboard.
+*   **Requirement:** Transition to **DOM Sanitization APIs** or a reactive framework (like Preact/React) that utilizes `textContent` by default.
+
+### 19.4 Fragmented Configuration State
+*   **Finding:** `ProvisioningService.ts` and `validation.ts` utilize `Deno.env.get()` directly in their business logic for critical secrets like `MESH_SECRET`.
+*   **Code Hygiene:** This creates a "Split Brain" configuration where `loadConfig` at boot time does not represent the actual operational parameters of the system.
+*   **Requirement:** **Centralize all environment access** into the `ConfigurationPort` and enforce usage across all domain services.
+
+## 20. Advanced Resilience & Edge Cases
+
+### 20.1 Sidecar/Orchestrator IPC Race (Startup)
+*   **Finding:** `SidecarManager.ts` calls `setupSharedMemory` asynchronously *after* the sidecar process has already been spawned.
+*   **Risk:** If a high-performance sidecar (like `sentinel`) attempts to write telemetry to shared memory immediately upon startup, it may find the segment unmapped or the fllink missing, leading to an immediate agent crash or data loss before the orchestrator is ready.
+*   **Requirement:** Implement **Pre-Spawn Mapping**. The orchestrator should create and map the shmem segments *before* spawning the child process.
+
+### 20.2 Uncancellable Audit Verification
+*   **Finding:** `AuditService.verifyChain` implements a potentially long-running async stream iteration but does not accept an `AbortSignal`.
+*   **Operational Risk:** If a "Full Chain" verification is triggered on a large ledger, it cannot be gracefully cancelled. This can lead to resource exhaustion or blocked shutdown sequences if the verification task hangs on a slow KV store.
+*   **Requirement:** Enforce **AbortSignal Propagation** for all long-running audit and forensic tasks.
+
+### 20.3 Non-Idempotent Audit Retries
+*   **Finding:** `AuditService.flushBuffer` prepends failed batches back to the `auditBuffer` for retry.
+*   **Impact:** If the `repo.saveMany` call partially succeeded (e.g., saved 50 out of 100 events before an error), the retry logic will attempt to save all 100 again.
+*   **Risk:** This leads to **Duplicate Audit Entries** and "Chain Break" errors during subsequent verifications, as the same event appears twice with different `prevHash` contexts in the linear chain.
+*   **Requirement:** Implement **Transactional Idempotency** for batch persistence or utilize unique KV keys that prevent duplicate insertion.
+
+## 21. Final High-Assurance Gaps
+
+### 21.1 Non-Constant-Time TPM Signature Verification
+*   **Finding:** `MeshManager.verifySignature` in `TPM_RESIDENT_IDENTITY` mode performs a direct string comparison (`signature === ...`) for proxy signatures.
+*   **Security Risk:** While these are proxy signatures, the use of non-constant-time comparison introduces a **Timing Side-Channel**. An attacker observing mesh handshakes could potentially brute-force valid signatures by measuring response latencies.
+*   **Requirement:** Enforce **`secureCompare`** for ALL signature and token verifications, regardless of identity mode.
+
+### 21.2 Missing TLS Protocol Hardening
+*   **Finding:** `WebAdapter.ts` utilizes `Deno.serve` with a certificate but does not specify allowed TLS versions or cipher suites.
+*   **Security Risk:** The orchestrator may negotiate weak legacy protocols (e.g., TLS 1.0/1.1) or vulnerable ciphers with older agents or browsers, increasing the risk of decryption or protocol downgrade attacks.
+*   **Requirement:** Enforce **TLS 1.3 Only** with a high-assurance cipher suite whitelist (e.g., AES-256-GCM-SHA384).
+
+### 21.3 Unbounded Session Transcript Memory
+*   **Finding:** `HoneypotService.ts` captures and stores full "Session transcripts" from attackers in memory before emitting them to the audit chain.
+*   **Operational Risk:** A slow-drip attacker sending megabytes of garbage data to a decoy port (e.g. 22 or 3389) could slowly exhaust the orchestrator's heap memory, leading to a "Silent OOM" crash.
+*   **Requirement:** Implement **Streaming Transcript Processing** with hard byte-limits (e.g., max 16KB per session).
+
+## 22. Verdict
 **Current Status:** **READY FOR PILOT.**
 The architecture is fundamentally sound and the hardening implemented in Milestone 4 is impressive. However, it is **NOT PROD-GRADE** until the TOCTOU spawning risk and the hardware-dependency hard-failing (TPM) are addressed. These gaps represent the primary difference between a "Security Tool" and "High-Assurance Sovereign Infrastructure."
 
