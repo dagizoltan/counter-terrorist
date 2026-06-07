@@ -9,6 +9,7 @@ export class IpcFfiBridge {
         "serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
         "fast_serialize_msgpack": { parameters: ["buffer", "pointer"], result: "pointer" },
         "deserialize_msgpack": { parameters: ["buffer", "usize"], result: "pointer" },
+        "create_sealed_memfd": { parameters: ["buffer", "buffer", "usize"], result: "i32" },
         "free_buffer": { parameters: ["pointer", "usize"], result: "void" },
         "free_string": { parameters: ["pointer"], result: "void" },
         "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" },
@@ -56,11 +57,16 @@ export class IpcFfiBridge {
         return ptr || null;
     }
 
-    readShmem(ptr: Deno.PointerValue, size: number = 65536): string | null {
+    readShmem(ptr: Deno.PointerValue, size: number = 65536, obfuscationKey?: Uint8Array): string | null {
         if (!this.ffi) return null;
         const outBuf = new Uint8Array(size);
         const readLen = Number(this.ffi.symbols.shmem_read(ptr, outBuf, BigInt(outBuf.length)));
         if (readLen <= 0) return null;
+
+        // SEC-03: Shared Memory IPC Hardening - SIMD-accelerated Obfuscation
+        if (obfuscationKey && obfuscationKey.length > 0) {
+            this.fastMorph(outBuf.subarray(0, readLen), obfuscationKey);
+        }
 
         const jsonPtr = this.ffi.symbols.deserialize_msgpack(outBuf, BigInt(readLen));
         if (jsonPtr) {
@@ -71,14 +77,30 @@ export class IpcFfiBridge {
         return null;
     }
 
-    writeShmem(ptr: Deno.PointerValue, data: Uint8Array): boolean {
+    writeShmem(ptr: Deno.PointerValue, data: Uint8Array, obfuscationKey?: Uint8Array): boolean {
         if (!this.ffi || !ptr) return false;
+
+        // SEC-03: Shared Memory IPC Hardening - SIMD-accelerated Obfuscation
+        if (obfuscationKey && obfuscationKey.length > 0) {
+            const masked = new Uint8Array(data);
+            this.fastMorph(masked, obfuscationKey);
+            return this.ffi.symbols.shmem_write(ptr, masked as any, BigInt(masked.length));
+        }
+
         return this.ffi.symbols.shmem_write(ptr, data as any, BigInt(data.length));
     }
 
     fastMorph(data: Uint8Array, key: Uint8Array): void {
         if (!this.ffi) return;
         this.ffi.symbols.fast_morph(data as any, BigInt(data.length), key as any, BigInt(key.length));
+    }
+
+    createSealedMemfd(name: string, data: Uint8Array): number {
+        if (!this.ffi) return -1;
+        const nameBuf = new TextEncoder().encode(name + "\0");
+        // Convert potentially SharedArrayBuffer-backed Uint8Array to regular Uint8Array for FFI compatibility
+        const buffer = new Uint8Array(data);
+        return this.ffi.symbols.create_sealed_memfd(nameBuf, buffer, BigInt(buffer.length));
     }
 
     serializeMessagePack(cmd: Record<string, unknown>): Uint8Array | null {

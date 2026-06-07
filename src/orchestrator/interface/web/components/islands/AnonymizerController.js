@@ -16,7 +16,7 @@ class AnonymizerController extends HTMLElement {
     if (csrfToken) {
         url.searchParams.set('token', csrfToken);
     }
-    const ws = new SharedWebSocket(url.toString());
+    const ws = new SharedWebSocket();
 
     ws.onmessage = (event) => {
       try {
@@ -101,12 +101,25 @@ class AnonymizerController extends HTMLElement {
     const container = document.getElementById('anon-logs');
     if (!container || this.logs.length === 0) return;
 
-    container.innerHTML = this.logs.map(log => `
-      <div class="flex gap-4 items-start animate-in fade-in slide-in-from-left-2 duration-300">
-        <span class="mono-xs text-slate-600 font-bold shrink-0">${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
-        <span class="mono-xs font-bold text-slate-400 uppercase tracking-tight">${log.message}</span>
-      </div>
-    `).join('');
+    // SEC-03: DOM-based XSS Hardening.
+    // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
+    container.innerHTML = '';
+    this.logs.forEach(log => {
+      const logEl = document.createElement('div');
+      logEl.className = "flex gap-4 items-start animate-in fade-in slide-in-from-left-2 duration-300";
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = "mono-xs text-slate-600 font-bold shrink-0";
+      timeSpan.textContent = new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+      const msgSpan = document.createElement('span');
+      msgSpan.className = "mono-xs font-bold text-slate-400 uppercase tracking-tight";
+      msgSpan.textContent = log.message;
+
+      logEl.appendChild(timeSpan);
+      logEl.appendChild(msgSpan);
+      container.appendChild(logEl);
+    });
   }
 
   async setMode(mode) {

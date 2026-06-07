@@ -62,9 +62,9 @@ class PcapAgent extends HTMLElement {
   connectWS() {
     const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-    const url = `${protocol}//${globalThis.location.host}/api/ws/events${csrf ? `?token=${csrf}` : ''}`;
+    const url = `${protocol}//${globalThis.location.host}/api/ws/events${csrf ? `` : ''}`;
     
-    this._ws = new SharedWebSocket(url);
+    this._ws = new SharedWebSocket();
 
     this._ws.onmessage = (event) => {
       try {

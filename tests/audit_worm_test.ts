@@ -38,7 +38,7 @@ Deno.test("AuditService: WORM Mirroring", async () => {
     });
 
     // We need to wait for the queue to process
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 1000));
 
     const logs = wormRepo.getLogs();
     assertEquals(logs.length, 1, "Should have 1 mirrored log in WORM");

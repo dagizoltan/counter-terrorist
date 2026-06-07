@@ -55,11 +55,11 @@ The system utilizes a modern, triple-tier architecture:
 
 ## 5. Production Readiness Checklist (The "Last Mile")
 
-- [ ] **[H] Binary Sovereignty:** Replace shell-based spawning with `memfd_create` execution.
-- [ ] **[H] Hardware Binding:** Enforce physical TPM 2.0 in production mode.
-- [ ] **[M] Mesh Stealth:** Implement authenticated discovery signatures.
+- [x] **[H] Binary Sovereignty:** Replace shell-based spawning with `memfd_create` execution. (REMEDIATED)
+- [x] **[H] Hardware Binding:** Enforce physical TPM 2.0 in production mode. (REMEDIATED)
+- [x] **[M] Mesh Stealth:** Implement authenticated discovery signatures. (REMEDIATED)
 - [ ] **[M] Memory Safety:** Stabilize FFI via ring-buffer data planes.
-- [ ] **[M] Forensic Persistence:** Implement remote immutable log streaming (WORM).
+- [x] **[M] Forensic Persistence:** Implement remote immutable log streaming (WORM). (REMEDIATED)
 - [ ] **[L] Dashboard Resilience:** Transition UI from polling to reactive push notifications.
 - [ ] **[L] Supply Chain:** Integrate automated SBOM generation for Deno imports and Rust crates.
 

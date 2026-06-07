@@ -48,7 +48,7 @@ class MeshHeatmap extends HTMLElement {
   initWebSocket() {
     const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    this.ws = new SharedWebSocket(`${protocol}//${location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    this.ws = new SharedWebSocket();
     this.ws.onmessage = (msg) => {
       try {
         const event = JSON.parse(msg.data);

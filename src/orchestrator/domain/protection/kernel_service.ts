@@ -235,7 +235,8 @@ export class KernelService extends BaseService {
                 }
             } else {
                 const commPath = `/proc/${selfPid}/comm`;
-                await Deno.writeTextFile(commPath, targetName);
+                // SEC-06 Hardening: Mandatory mediation through SystemExecutor for all system writes
+                await this.executor.execute("sh", ["-c", `echo '${targetName}' > ${commPath}`]);
                 usedFallback = true;
             }
 
@@ -260,10 +261,10 @@ export class KernelService extends BaseService {
         }
     }
 
-    private async pathExists(path: string): Promise<boolean> {
+    private async pathExists(pathArg: string): Promise<boolean> {
         try {
-            const stat = await Deno.stat(path);
-            return stat && stat.isFile ? true : false;
+            const res = await this.executor.execute("ls", [pathArg]);
+            return res.success;
         } catch {
             return false;
         }
@@ -574,9 +575,9 @@ ${capStrings}
             const randomSuffix = crypto.randomUUID().slice(0, 8);
             tempFile = `${secureTempDir}/cts-profile-${name}-${randomSuffix}.profile`;
 
-            // Use privileged move/copy from a secure string if possible, or ensure restricted perms
-            await Deno.writeTextFile(tempFile, profile);
-            await Deno.chmod(tempFile, 0o600);
+            // SEC-06 Hardening: Mandatory mediation through SystemExecutor for all system writes
+            await this.executor.execute("sh", ["-c", `echo '${profile.replace(/'/g, "'\\''")}' > ${tempFile}`]);
+            await this.executor.execute("chmod", ["600", tempFile]);
 
             // Deploy profile via privileged SystemExecutor
             const cpRes = await this.executor.execute("cp", [tempFile, `/etc/apparmor.d/${profileName}`]);
@@ -605,7 +606,7 @@ ${capStrings}
             return err(error);
         } finally {
             if (tempFile) {
-                try { await Deno.remove(tempFile); } catch {}
+                try { await this.executor.execute("rm", ["-f", tempFile]); } catch {}
             }
         }
     }
@@ -683,10 +684,10 @@ ${capStrings}
         // Quick probe: try to reflink a tiny file to /tmp
         try {
             const probeSource = "/etc/hostname";
-            const probeTarget = "/tmp/cts_reflink_probe";
+            const probeTarget = "/var/lib/cts/tmp/cts_reflink_probe";
             const res = await this.executor.execute("cp", ["--reflink=always", probeSource, probeTarget]);
             if (res.success) {
-                await Deno.remove(probeTarget).catch(() => {});
+                await this.executor.execute("rm", ["-f", probeTarget]);
                 return true;
             }
         } catch {

@@ -26,7 +26,7 @@ class FimAgent extends HTMLElement {
   connectWS() {
     const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new SharedWebSocket();
 
     ws.onmessage = (event) => {
       try {
@@ -62,35 +62,66 @@ class FimAgent extends HTMLElement {
       return;
     }
 
-    container.innerHTML = this.alerts.map(alert => {
+    // SEC-03: DOM-based XSS Hardening.
+    // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
+    container.innerHTML = '';
+    this.alerts.forEach(alert => {
       const isCritical = ['MODIFY', 'DELETE', 'UNLINK'].includes(alert.action?.toUpperCase());
       const color = isCritical ? 'var(--danger)' : 'var(--warning)';
 
-      return `
-        <div class="p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors" 
-             style="border-left: 4px solid ${color}">
-          <div class="flex justify-between items-center mb-3">
-             <div class="flex items-center gap-4">
-                <span class="mono-xs font-black uppercase tracking-widest ${isCritical ? 'text-danger' : 'text-warning'}">
-                  ${globalThis.escapeHTML(alert.action || 'MODIFY')}
-                </span>
-                <span class="dot ${isCritical ? 'danger' : 'warning'}" style="width: 4px; height: 4px;"></span>
-                <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest">Integrity_Violation</span>
-             </div>
-             <span class="mono-xs text-slate-600 font-bold">${new Date().toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
-          </div>
-          <div class="flex items-start gap-4">
-             <div class="mono-sm font-bold text-slate-400 uppercase tracking-tight break-all leading-relaxed">
-               ${globalThis.escapeHTML(alert.path)}
-             </div>
-          </div>
-          <div class="mt-4 flex gap-4">
-             <div class="status-pill ${isCritical ? 'danger' : 'warning'} py-1 px-3 text-[8px] font-black uppercase tracking-widest">UNAUTHORIZED_ACCESS</div>
-             <div class="status-pill py-1 px-3 text-[8px] font-black uppercase tracking-widest border border-white/5 text-slate-500">SHA-256_MISMATCH</div>
-          </div>
-        </div>
+      const alertEl = document.createElement('div');
+      alertEl.className = "p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors";
+      alertEl.style.borderLeft = `4px solid ${color}`;
+
+      const topRow = document.createElement('div');
+      topRow.className = "flex justify-between items-center mb-3";
+
+      const leftPart = document.createElement('div');
+      leftPart.className = "flex items-center gap-4";
+
+      const actionSpan = document.createElement('span');
+      actionSpan.className = `mono-xs font-black uppercase tracking-widest ${isCritical ? 'text-danger' : 'text-warning'}`;
+      actionSpan.textContent = alert.action || 'MODIFY';
+
+      const dot = document.createElement('span');
+      dot.className = `dot ${isCritical ? 'danger' : 'warning'}`;
+      dot.style.width = '4px';
+      dot.style.height = '4px';
+
+      const violationSpan = document.createElement('span');
+      violationSpan.className = "mono-xs text-slate-700 font-bold uppercase tracking-widest";
+      violationSpan.textContent = "Integrity_Violation";
+
+      leftPart.appendChild(actionSpan);
+      leftPart.appendChild(dot);
+      leftPart.appendChild(violationSpan);
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = "mono-xs text-slate-600 font-bold";
+      timeSpan.textContent = new Date().toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+      topRow.appendChild(leftPart);
+      topRow.appendChild(timeSpan);
+
+      const pathRow = document.createElement('div');
+      pathRow.className = "flex items-start gap-4";
+      const pathDiv = document.createElement('div');
+      pathDiv.className = "mono-sm font-bold text-slate-400 uppercase tracking-tight break-all leading-relaxed";
+      pathDiv.textContent = alert.path;
+      pathRow.appendChild(pathDiv);
+
+      const footer = document.createElement('div');
+      footer.className = "mt-4 flex gap-4";
+      footer.innerHTML = `
+         <div class="status-pill ${isCritical ? 'danger' : 'warning'} py-1 px-3 text-[8px] font-black uppercase tracking-widest">UNAUTHORIZED_ACCESS</div>
+         <div class="status-pill py-1 px-3 text-[8px] font-black uppercase tracking-widest border border-white/5 text-slate-500">SHA-256_MISMATCH</div>
       `;
-    }).join('');
+
+      alertEl.appendChild(topRow);
+      alertEl.appendChild(pathRow);
+      alertEl.appendChild(footer);
+      container.appendChild(alertEl);
+    });
   }
 }
 

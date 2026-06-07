@@ -97,7 +97,7 @@ class BlockingLog extends HTMLElement {
   connect() {
     const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const socket = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const socket = new SharedWebSocket();
     
     socket.onmessage = (event) => {
       try {
@@ -138,69 +138,78 @@ class BlockingLog extends HTMLElement {
     
     div.className = `flex flex-col border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors group cursor-pointer`;
     
-    // The main row
-    const rowHtml = `
-      <div class="flex items-center gap-4 py-3 px-6 relative overflow-hidden">
-        <div class="absolute inset-y-0 left-0 w-1 ${severityColor} opacity-30 group-hover:opacity-100 transition-opacity"></div>
-        
-        <!-- 01 Timestamp -->
-        <div class="w-36 flex-shrink-0 mono text-[9px] font-black text-slate-500 tabular-nums">
-          <span>${dateStr}</span>
-          <span class="ml-2 text-slate-400">${timeStr}<span class="text-slate-600">.${msStr}</span></span>
-        </div>
+    // SEC-03: DOM-based XSS Hardening.
+    // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
+    const row = document.createElement('div');
+    row.className = "flex items-center gap-4 py-3 px-6 relative overflow-hidden";
 
-        <!-- 02 Type -->
-        <div class="w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest text-slate-400">
-          ${globalThis.escapeHTML(type)}
-        </div>
-        
-        <!-- 02b Caller -->
-        <div class="w-40 flex-shrink-0 mono text-[9px] font-black text-slate-500 truncate uppercase tracking-tight">
-          ${globalThis.escapeHTML(log.caller || 'SYSTEM')}
-        </div>
+    const indicator = document.createElement('div');
+    indicator.className = `absolute inset-y-0 left-0 w-1 ${severityColor} opacity-30 group-hover:opacity-100 transition-opacity`;
+    row.appendChild(indicator);
 
-        <!-- 03 Severity -->
-        <div class="w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest ${severityTextClass}">
-          ${globalThis.escapeHTML(severity)}
-        </div>
+    const tsEl = document.createElement('div');
+    tsEl.className = "w-36 flex-shrink-0 mono text-[9px] font-black text-slate-500 tabular-nums";
+    tsEl.innerHTML = `<span>${dateStr}</span><span class="ml-2 text-slate-400">${timeStr}<span class="text-slate-600">.${msStr}</span></span>`;
+    row.appendChild(tsEl);
 
-        <!-- 04 Message -->
-        <div class="flex-grow min-w-0 text-[10px] font-medium text-slate-300 tracking-wide truncate">
-          ${globalThis.escapeHTML(log.message || '---')}
-        </div>
+    const typeEl = document.createElement('div');
+    typeEl.className = "w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest text-slate-400";
+    typeEl.textContent = type;
+    row.appendChild(typeEl);
 
-        <!-- Expand Icon -->
-        <div class="flex-shrink-0 opacity-20 group-hover:opacity-100 transition-opacity">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="transform transition-transform duration-300 arrow-icon">
-            <path d="m6 9 6 6 6-6"/>
-          </svg>
-        </div>
-      </div>
-    `;
+    const callerEl = document.createElement('div');
+    callerEl.className = "w-40 flex-shrink-0 mono text-[9px] font-black text-slate-500 truncate uppercase tracking-tight";
+    callerEl.textContent = log.caller || 'SYSTEM';
+    row.appendChild(callerEl);
 
-    // The detail (expanded) section
-    const detailHtml = `
-      <div class="log-detail hidden px-12 pb-6 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-        <div class="bg-black/40 border border-white/5 rounded-xl p-4 overflow-x-auto custom-scrollbar">
-          ${log.data?.intent ? `
-          <div class="mb-4 p-3 bg-danger/10 border border-danger/20 rounded-lg">
-             <div class="flex items-center gap-2 mb-1">
+    const sevEl = document.createElement('div');
+    sevEl.className = `w-24 flex-shrink-0 mono text-[9px] font-black uppercase tracking-widest ${severityTextClass}`;
+    sevEl.textContent = severity;
+    row.appendChild(sevEl);
+
+    const msgEl = document.createElement('div');
+    msgEl.className = "flex-grow min-w-0 text-[10px] font-medium text-slate-300 tracking-wide truncate";
+    msgEl.textContent = log.message || '---';
+    row.appendChild(msgEl);
+
+    const iconEl = document.createElement('div');
+    iconEl.className = "flex-shrink-0 opacity-20 group-hover:opacity-100 transition-opacity";
+    iconEl.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="transform transition-transform duration-300 arrow-icon"><path d="m6 9 6 6 6-6"/></svg>`;
+    row.appendChild(iconEl);
+
+    const detail = document.createElement('div');
+    detail.className = "log-detail hidden px-12 pb-6 pt-2 animate-in fade-in slide-in-from-top-2 duration-300";
+
+    const detailInner = document.createElement('div');
+    detailInner.className = "bg-black/40 border border-white/5 rounded-xl p-4 overflow-x-auto custom-scrollbar";
+
+    if (log.data?.intent) {
+        const intentEl = document.createElement('div');
+        intentEl.className = "mb-4 p-3 bg-danger/10 border border-danger/20 rounded-lg";
+        intentEl.innerHTML = `
+            <div class="flex items-center gap-2 mb-1">
                 <div class="w-1.5 h-1.5 bg-danger rounded-full animate-pulse"></div>
                 <span class="mono text-[9px] font-black text-danger uppercase tracking-widest">Behavioral_Intent_Verdict</span>
-             </div>
-             <div class="mono text-[10px] text-slate-300 uppercase font-bold">Intent: <span class="text-danger">${globalThis.escapeHTML(log.data.intent)}</span> // Confidence: <span class="text-white">${(log.data.score * 100).toFixed(0)}%</span></div>
-          </div>
-          ` : ''}
-          <div class="flex items-center gap-2 mb-3">
-             <div class="w-1 h-3 bg-primary/40 rounded-full"></div>
-             <span class="mono text-[8px] font-black text-slate-500 uppercase tracking-widest">Extended_Payload</span>
-          </div>
-          <pre class="mono text-[8.5px] text-primary/80 leading-relaxed whitespace-pre-wrap">${globalThis.escapeHTML(JSON.stringify(log.payload || log, null, 2))}</pre>
-        </div>
-      </div>
-    `;
+            </div>
+            <div class="mono text-[10px] text-slate-300 uppercase font-bold">Intent: <span class="text-danger">${globalThis.escapeHTML(log.data.intent)}</span> // Confidence: <span class="text-white">${(log.data.score * 100).toFixed(0)}%</span></div>
+        `;
+        detailInner.appendChild(intentEl);
+    }
 
-    div.innerHTML = rowHtml + detailHtml;
+    const payloadHeader = document.createElement('div');
+    payloadHeader.className = "flex items-center gap-2 mb-3";
+    payloadHeader.innerHTML = `<div class="w-1 h-3 bg-primary/40 rounded-full"></div><span class="mono-xs font-black text-slate-500 uppercase tracking-widest">Extended_Payload</span>`;
+    detailInner.appendChild(payloadHeader);
+
+    const pre = document.createElement('pre');
+    pre.className = "mono text-[8.5px] text-primary/80 leading-relaxed whitespace-pre-wrap";
+    pre.textContent = JSON.stringify(log.payload || log, null, 2);
+    detailInner.appendChild(pre);
+
+    detail.appendChild(detailInner);
+
+    div.appendChild(row);
+    div.appendChild(detail);
 
     // Toggle logic
     div.onclick = () => {

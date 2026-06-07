@@ -84,26 +84,70 @@ class WebhookManager extends HTMLElement {
         return;
       }
 
-      container.innerHTML = (webhooks || []).map(wh => `
-        <div class="t-panel glass-panel flex justify-between items-center group transition-all hover:border-white/10 p-6 mb-4 last:mb-0">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-4 mb-3">
-              <span class="mono text-[10px] font-black uppercase tracking-widest text-white">${globalThis.escapeHTML(wh.name)}</span>
-              <span class="px-2 py-0.5 text-[8px] font-black uppercase mono tracking-widest rounded" style="background:var(--primary-glow); color:var(--primary);">${globalThis.escapeHTML(wh.type)}</span>
-              <span class="px-2 py-0.5 text-[8px] font-black uppercase mono tracking-widest rounded" style="background:${wh.enabled ? 'var(--success-glow)' : 'var(--danger-glow)'}; color:${wh.enabled ? 'var(--success)' : 'var(--danger)'};">
-                ${wh.enabled ? 'ACTIVE' : 'DISABLED'}
-              </span>
-            </div>
-            <p class="text-[9px] text-slate-500 font-mono truncate max-w-lg italic opacity-60">${globalThis.escapeHTML(wh.url)}</p>
-          </div>
-          <button onclick="const csrf=document.querySelector('meta[name=\\'csrf-token\\']')?.content;fetch('/api/notifications/${globalThis.escapeHTML(wh.id)}',{method:'DELETE',headers:{'X-CT-Token':csrf}}).then(()=>document.querySelector('webhook-manager').loadWebhooks())"
-                  class="t-btn danger opacity-0 group-hover:opacity-100 transition-opacity" style="padding: 0.5rem 1rem; font-size: 8px;">
-            Remove
-          </button>
-        </div>
-      `).join('');
+      // SEC-03: DOM-based XSS Hardening.
+      // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
+      container.innerHTML = '';
+      (webhooks || []).forEach(wh => {
+        const whEl = document.createElement('div');
+        whEl.className = "t-panel glass-panel flex justify-between items-center group transition-all hover:border-white/10 p-6 mb-4 last:mb-0";
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = "flex-1 min-w-0";
+
+        const topRow = document.createElement('div');
+        topRow.className = "flex items-center gap-4 mb-3";
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = "mono text-[10px] font-black uppercase tracking-widest text-white";
+        nameSpan.textContent = wh.name;
+
+        const typeSpan = document.createElement('span');
+        typeSpan.className = "px-2 py-0.5 text-[8px] font-black uppercase mono tracking-widest rounded";
+        typeSpan.style.background = 'var(--primary-glow)';
+        typeSpan.style.color = 'var(--primary)';
+        typeSpan.textContent = wh.type;
+
+        const statusSpan = document.createElement('span');
+        statusSpan.className = "px-2 py-0.5 text-[8px] font-black uppercase mono tracking-widest rounded";
+        statusSpan.style.background = wh.enabled ? 'var(--success-glow)' : 'var(--danger-glow)';
+        statusSpan.style.color = wh.enabled ? 'var(--success)' : 'var(--danger)';
+        statusSpan.textContent = wh.enabled ? 'ACTIVE' : 'DISABLED';
+
+        topRow.appendChild(nameSpan);
+        topRow.appendChild(typeSpan);
+        topRow.appendChild(statusSpan);
+
+        const urlP = document.createElement('p');
+        urlP.className = "text-[9px] text-slate-500 font-mono truncate max-w-lg italic opacity-60";
+        urlP.textContent = wh.url;
+
+        infoDiv.appendChild(topRow);
+        infoDiv.appendChild(urlP);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = "t-btn danger opacity-0 group-hover:opacity-100 transition-opacity";
+        removeBtn.style.padding = "0.5rem 1rem";
+        removeBtn.style.fontSize = "8px";
+        removeBtn.textContent = "Remove";
+        removeBtn.onclick = () => {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
+            fetch(`/api/notifications/${encodeURIComponent(wh.id)}`, {
+                method: 'DELETE',
+                headers: { 'X-CT-Token': csrf }
+            }).then(() => this.loadWebhooks());
+        };
+
+        whEl.appendChild(infoDiv);
+        whEl.appendChild(removeBtn);
+        container.appendChild(whEl);
+      });
     } catch (e) {
-      container.innerHTML = `<p class="mono text-[9px] font-black uppercase text-center" style="color:var(--danger);">Sync_Failed: ${globalThis.escapeHTML(e.message)}</p>`;
+      container.innerHTML = '';
+      const errorP = document.createElement('p');
+      errorP.className = "mono text-[9px] font-black uppercase text-center";
+      errorP.style.color = 'var(--danger)';
+      errorP.textContent = `Sync_Failed: ${e.message}`;
+      container.appendChild(errorP);
     }
   }
 }

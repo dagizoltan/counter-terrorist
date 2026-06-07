@@ -22,7 +22,7 @@ class AlertOverlay extends HTMLElement {
         if (csrfToken) {
             url.searchParams.set('token', csrfToken);
         }
-        const socket = new SharedWebSocket(url.toString());
+        const socket = new SharedWebSocket();
         
         socket.onmessage = (event) => {
             try {
@@ -61,6 +61,8 @@ class AlertOverlay extends HTMLElement {
 
         const typeLabel = this.type.replace(/_/g, ' ').toUpperCase();
 
+        // SEC-03: DOM-based XSS Hardening.
+        // The overlay template remains static, but we ensure dynamic labels are properly text-contained.
         this.innerHTML = `
             <div class="fixed inset-0 z-[10002] pointer-events-none overflow-hidden ">
                 <!-- 1. Global Red Pulsing Border -->
@@ -78,11 +80,11 @@ class AlertOverlay extends HTMLElement {
                                 <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                             </div>
                             <div>
-                                <h1 class="text-7xl font-black italic tracking-tighter uppercase mb-3">System ${typeLabel} Initiated</h1>
+                                <h1 id="alert-title" class="text-7xl font-black italic tracking-tighter uppercase mb-3"></h1>
                                 <p class="mono text-2xl font-bold opacity-90 uppercase tracking-[0.4em]">Consensus Reached // Enforcement Active // All Channels Locked</p>
                             </div>
                         </div>
-                        <button onclick="this.closest('alert-overlay').dismiss()" class="t-btn bg-white text-danger border-none px-12 py-6 text-2xl font-black hover:bg-slate-100 transition-all hover:scale-105">Acknowledge</button>
+                        <button id="alert-dismiss" class="t-btn bg-white text-danger border-none px-12 py-6 text-2xl font-black hover:bg-slate-100 transition-all hover:scale-105">Acknowledge</button>
                     </div>
                 </div>
 
@@ -92,6 +94,9 @@ class AlertOverlay extends HTMLElement {
                 </div>
             </div>
         `;
+
+        this.querySelector('#alert-title').textContent = `System ${typeLabel} Initiated`;
+        this.querySelector('#alert-dismiss').onclick = () => this.dismiss();
     }
 
     dismiss() {

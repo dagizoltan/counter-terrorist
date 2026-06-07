@@ -20,7 +20,7 @@ class AgentCardIsland extends HTMLElement {
         url.searchParams.set('token', csrfToken);
     }
 
-    const ws = new SharedWebSocket(url.toString());
+    const ws = new SharedWebSocket();
 
     ws.onmessage = (event) => {
       try {

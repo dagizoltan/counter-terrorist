@@ -35,6 +35,7 @@ export class MeshManager extends BaseService implements MeshPort {
   private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: { cert: string, key: string } | null = null;
   private nodeId: string = "";
+  private discoveryId: string = "";
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
@@ -143,6 +144,13 @@ export class MeshManager extends BaseService implements MeshPort {
     this.startStateWatcher();
     this.port = this.config.getNumber("PORT", 8000);
     this.meshSecret = this.config.getEnv("MESH_SECRET");
+
+    if (this.meshSecret) {
+        const { computeHash } = await import("../../core/crypto_utils.ts");
+        this.discoveryId = await computeHash(`${this.nodeId}:${this.meshSecret}`);
+    } else {
+        this.discoveryId = this.nodeId;
+    }
 
     try {
       // SOV-P4: Hardware-Resident Identity
@@ -291,7 +299,16 @@ export class MeshManager extends BaseService implements MeshPort {
     }
 
     try {
-      const url = `https://${address}:${this.port}/api/mesh/ping`;
+      const timestamp = Date.now();
+      let signature = "unsigned";
+
+      // SEC-05: Authenticated Probing to prevent reconnaissance
+      if (this.meshSecret) {
+          const { signPayload } = await import("../../core/crypto_utils.ts");
+          signature = await signPayload({ target: address, ts: timestamp }, this.meshSecret);
+      }
+
+      const url = `https://${address}:${this.port}/api/mesh/ping?ts=${timestamp}&sig=${signature}`;
       const res = await fetch(url, { 
         client: this.httpClient,
         signal: AbortSignal.timeout(2000) 
@@ -355,7 +372,8 @@ export class MeshManager extends BaseService implements MeshPort {
         if (data.length > 2048) continue;
         const msg = new TextDecoder().decode(data);
         if (msg.includes("_ct-orchestrator._tcp.local")) {
-           const idMatch = msg.match(/id=([^,|]+)/);
+           const oidMatch = msg.match(/oid=([^,|]+)/);
+           const idMatch = msg.match(/id=([^,|]+)/) || oidMatch; // Support legacy or obfuscated
            const portMatch = msg.match(/port=(\d+)/);
            const tsMatch = msg.match(/ts=(\d+)/);
            const sigMatch = msg.match(/sig=([^|]+)/);
@@ -386,10 +404,10 @@ export class MeshManager extends BaseService implements MeshPort {
                 }
              }
 
-             if (id !== this.nodeId) {
+             if (id !== this.discoveryId && id !== this.nodeId) {
                this.validateAndRegisterNode({
                  id,
-                 hostname: id,
+                 hostname: "discovered-peer",
                  address,
                  port,
                  lastSeen: Date.now(),
@@ -417,15 +435,20 @@ export class MeshManager extends BaseService implements MeshPort {
       if (typeof listenDatagram !== "function") return;
 
       const timestamp = Date.now();
-      const txt = `id=${this.nodeId},port=${this.port},ts=${timestamp}`;
 
-      // SEC-05: Authenticated Discovery via HMAC-mDNS
+      // SEC-05: Authenticated Discovery - Identity Obfuscation
+      // Instead of plaintext ID, we broadcast an HMAC of the ID to prevent easy mapping.
+      let discoveryId = this.nodeId;
       let signature = "unsigned";
+
       if (this.meshSecret) {
-          const { signPayload } = await import("../../core/crypto_utils.ts");
+          const { signPayload, computeHash } = await import("../../core/crypto_utils.ts");
+          // Obfuscate Node ID in public broadcast
+          discoveryId = await computeHash(`${this.nodeId}:${this.meshSecret}`);
           signature = await signPayload({ id: this.nodeId, port: this.port, ts: timestamp }, this.meshSecret);
       }
 
+      const txt = `oid=${discoveryId},port=${this.port},ts=${timestamp}`;
       const announcement = `_ct-orchestrator._tcp.local|${txt}|sig=${signature}`;
       const message = new TextEncoder().encode(announcement);
 
@@ -518,7 +541,9 @@ export class MeshManager extends BaseService implements MeshPort {
       // To strictly enforce SAN, we'd typically need access to the underlying connection cert.
       // As a framework-level remediation, we ensure the returned nodeId matches the identity
       // and rely on mTLS CA enforcement.
-      if (body.nodeId !== node.id) {
+      // NOTE: We allow a mismatch IF node.id is the discovery hash, which we then update.
+      const isDiscoveryHash = this.meshSecret && node.id.length === 64;
+      if (body.nodeId !== node.id && !isDiscoveryHash) {
           throw new Error(`Node ID mismatch: expected ${node.id}, got ${body.nodeId}`);
       }
       
@@ -529,6 +554,12 @@ export class MeshManager extends BaseService implements MeshPort {
           }
       }
       if (body.success && body.nodeId) {
+        // Update to real Node ID if it was a discovery hash
+        if (node.id !== body.nodeId) {
+            this.nodes.delete(node.id);
+            node.id = body.nodeId;
+            node.hostname = body.nodeId;
+        }
         node.verified = true;
         await this.registerNode(node);
         this.logging.log({

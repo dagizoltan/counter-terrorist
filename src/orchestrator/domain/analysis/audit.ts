@@ -201,10 +201,16 @@ export class AuditService extends BaseService {
     private async emitMetrics() {
         if (!this.eventBus) return;
         const status = await this.getChainStatus();
+
+        // SEC-03: Audit Metrics Integrity.
+        // Metrics now reflect the actual real-time verification state of the ledger chain
+        // rather than a hardcoded 'true' value.
+        const isVerified = this.lastHash === this.lastVerifiedHash && this.lastVerifiedHash !== "GENESIS";
+
         await this.eventBus.emit("METRIC_UPDATE", {
             domain: "audit",
             data: {
-                chainVerified: true,
+                chainVerified: isVerified,
                 totalEvents: status.count,
                 hardwareVerified: !!this.tpm
             }
@@ -303,10 +309,33 @@ export class AuditService extends BaseService {
     private async processArchiveBatch(batch: AuditEvent[]) {
         if (!this.wormRepo) return;
 
-        // Save to cold storage (WORM)
+        // SEC-05: Transactional Forensic Archiving.
+        // Ensure successful WORM commitment before identifying the boundary for KV truncation.
+        let successCount = 0;
         for (const event of batch) {
-            await this.wormRepo.append(event);
+            try {
+                await this.wormRepo.append(event);
+                successCount++;
+            } catch (e) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "AUDIT:ARCHIVE",
+                    message: `Failed to commit event ${event.id} to WORM storage: ${(e as Error).message}`
+                });
+                // If any event in the batch fails archival, we MUST NOT truncate KV yet.
+                throw e;
+            }
         }
+
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "AUDIT:ARCHIVE",
+            message: `Successfully archived batch of ${successCount} events to WORM.`
+        });
 
         // Remove from hot storage (KV)
         // Note: TimelineRepository doesn't have a single-event delete by timestamp+id exposed easily here,

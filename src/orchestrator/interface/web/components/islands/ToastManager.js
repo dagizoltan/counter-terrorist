@@ -42,18 +42,30 @@ class ToastManager extends HTMLElement {
     }
 
     render() {
-        this.innerHTML = `
-            <div class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 max-w-sm">
-                ${this.toasts.map(toast => `
-                    <div class="flex items-center gap-4 p-4 rounded-xl border backdrop-blur-xl animate-in slide-in-from-right-8 fade-in duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.4)] ${this.getBgClass(toast.type)}">
-                        <div class="shrink-0 p-2 rounded-full bg-black/40 border border-white/5">
-                            ${this.getIcon(toast.type)}
-                        </div>
-                        <p class="mono-xs font-bold text-slate-200 tracking-wide uppercase leading-tight">${globalThis.escapeHTML(toast.message)}</p>
-                    </div>
-                `).join('')}
-            </div>
-        `;
+        // SEC-03: DOM-based XSS Hardening.
+        // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
+        this.innerHTML = '';
+        const wrapper = document.createElement('div');
+        wrapper.className = "fixed bottom-6 right-6 z-[100] flex flex-col gap-3 max-w-sm";
+
+        this.toasts.forEach(toast => {
+            const toastEl = document.createElement('div');
+            toastEl.className = `flex items-center gap-4 p-4 rounded-xl border backdrop-blur-xl animate-in slide-in-from-right-8 fade-in duration-300 shadow-[0_4px_24px_rgba(0,0,0,0.4)] ${this.getBgClass(toast.type)}`;
+
+            const iconDiv = document.createElement('div');
+            iconDiv.className = "shrink-0 p-2 rounded-full bg-black/40 border border-white/5";
+            iconDiv.innerHTML = this.getIcon(toast.type);
+
+            const p = document.createElement('p');
+            p.className = "mono-xs font-bold text-slate-200 tracking-wide uppercase leading-tight";
+            p.textContent = toast.message;
+
+            toastEl.appendChild(iconDiv);
+            toastEl.appendChild(p);
+            wrapper.appendChild(toastEl);
+        });
+
+        this.appendChild(wrapper);
     }
 }
 

@@ -22,10 +22,22 @@ export class WormRepository {
     }
 
     async append(event: AuditEvent): Promise<void> {
-        // SOV-P4: WORM Persistence
-        // We append to a local file in O_APPEND mode to simulate a write-once sink.
+        // SEC-05: WORM Persistence Hardening.
+        // We append to a local file in O_APPEND mode and explicitly fsync to ensure durability
+        // before the orchestrator considers the forensic evidence "persistent."
         const line = JSON.stringify(event) + "\n";
-        await Deno.writeTextFile(this.wormPath, line, { append: true });
+        const encoded = new TextEncoder().encode(line);
+
+        try {
+            const file = await Deno.open(this.wormPath, { append: true, create: true, write: true });
+            await file.write(encoded);
+            // Ensure data is physically committed to the disk substrate
+            await file.sync();
+            file.close();
+        } catch (e) {
+            throw new Error(`WORM persistence failure: ${(e as Error).message}`);
+        }
+
         this.logs.push(event);
     }
 
