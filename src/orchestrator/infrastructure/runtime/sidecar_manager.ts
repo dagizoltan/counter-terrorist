@@ -43,6 +43,7 @@ export class SidecarManager implements CommandPort {
   private initialized = false;
 
   private tpm: TpmPort | undefined;
+  private obfuscationKey: Uint8Array | null = null;
   private redactor: SecretRedactor = new SecretRedactor();
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   private heartbeatMonitor: HeartbeatMonitor;
@@ -51,7 +52,7 @@ export class SidecarManager implements CommandPort {
     this.ffi = new IpcFfiBridge(logging);
     this.repository = new SidecarRepository(logging);
     this.integrity = new IntegrityManager(logging, executor, this.ffi);
-    this.spawner = new SidecarSpawner(logging, executor);
+    this.spawner = new SidecarSpawner(logging, executor, this.ffi);
     this.ipc = new IpcCoordinator(logging, this.ffi);
     this.rotator = new SidecarRotator(logging, this.integrity, this.repository, {
         stopSidecar: (name) => this.stopSidecar(name),
@@ -86,6 +87,11 @@ export class SidecarManager implements CommandPort {
       MESH_SECRET: config.getEnv("MESH_SECRET"),
       API_TOKEN: config.getToken()
     });
+
+    const meshSecret = config.getEnv("MESH_SECRET");
+    if (meshSecret) {
+        this.obfuscationKey = new TextEncoder().encode(meshSecret);
+    }
   }
 
   setTpm(tpm: TpmPort) {
@@ -497,7 +503,7 @@ export class SidecarManager implements CommandPort {
           if (trimmed.startsWith("SHMEM_UPDATE:")) {
               const shmemPtr = this.ipc.getShmemPtr(name);
               if (shmemPtr) {
-                  const jsonStr = this.ffi.readShmem(shmemPtr);
+                  const jsonStr = this.ffi.readShmem(shmemPtr, 65536, this.obfuscationKey || undefined);
                   if (jsonStr) {
                       this.handleIpcLine(name, jsonStr);
                   }
@@ -567,6 +573,11 @@ export class SidecarManager implements CommandPort {
         env["CTS_IFACE"] = this.defaultInterface;
     }
 
+    const meshSecret = this.config?.getEnv("MESH_SECRET");
+    if (meshSecret) {
+        env["CTS_MESH_SECRET"] = meshSecret;
+    }
+
     if (name === "netcap") {
         env["CTS_CAPTURE_DIR"] = "./volume/storage/captures";
     }
@@ -634,7 +645,7 @@ export class SidecarManager implements CommandPort {
         const cmdShmemPtr = this.ipc.getCmdShmemPtr(name);
         const binCmd = this.ffi.serializeMessagePack(commandObj);
         if (cmdShmemPtr && binCmd) {
-            const success = this.ffi.writeShmem(cmdShmemPtr, binCmd);
+            const success = this.ffi.writeShmem(cmdShmemPtr, binCmd, this.obfuscationKey || undefined);
             if (success) {
                 writer.releaseLock();
                 return Promise.race([responsePromise, timeoutPromise]);

@@ -1,8 +1,10 @@
 class WsManager {
     constructor() {
         this.protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // SEC-06 Hardening: Remove token from query parameters.
+        // WebSocket now utilizes HttpOnly session cookies or the 'Sec-WebSocket-Protocol' sub-protocol if needed.
         this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        this.url = `${this.protocol}//${globalThis.location.host}/api/ws/events${this.csrfToken ? `?token=${this.csrfToken}` : ''}`;
+        this.url = `${this.protocol}//${globalThis.location.host}/api/ws/events`;
         this.listeners = new Set();
         this.ws = null;
         this.reconnectTimer = null;
@@ -14,7 +16,10 @@ class WsManager {
             this.ws.onclose = null;
             this.ws.close();
         }
-        this.ws = new WebSocket(this.url);
+
+        // Pass token via sub-protocol to avoid query param leakage
+        const protocols = this.csrfToken ? [`cts-auth-${this.csrfToken}`] : [];
+        this.ws = new WebSocket(this.url, protocols);
         
         this.ws.onmessage = (event) => {
             for (const listener of this.listeners) {
@@ -73,7 +78,7 @@ if (!globalThis.SovereignWS) {
 }
 
 globalThis.SharedWebSocket = class SharedWebSocket {
-    constructor(url) {
+    constructor() {
         this.url = url; // Ignored, we use the multiplexed URL
         this.onmessage = null;
         this.onopen = null;

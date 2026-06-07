@@ -31,6 +31,7 @@ struct RingBufferHeader {
 pub struct IpcManager {
     shmem: Option<Arc<Mutex<ShmemWrapper>>>,
     cmd_shmem: Option<Arc<Mutex<ShmemWrapper>>>,
+    obfuscation_key: Option<Vec<u8>>,
 }
 
 impl IpcManager {
@@ -80,7 +81,11 @@ impl IpcManager {
             return Self { shmem: None, cmd_shmem: None };
         }
 
-        Self { shmem, cmd_shmem }
+        let obfuscation_key = std::env::var("CTS_MESH_SECRET")
+            .ok()
+            .map(|s| s.as_bytes().to_vec());
+
+        Self { shmem, cmd_shmem, obfuscation_key }
     }
 
     /// Emits a serialized event into the shared memory buffer.
@@ -113,6 +118,15 @@ impl IpcManager {
         if current_len == 0 {
             // SOV-06 Hardening: Explicit bounds check to prevent memory corruption
             if buf.len() > 0 && buf.len() + 8 <= slice.len() {
+                // SEC-03: Shared Memory IPC Hardening - Multi-Byte XOR Obfuscation
+                if let Some(key) = &self.obfuscation_key {
+                    if !key.is_empty() {
+                        for i in 0..buf.len() {
+                            buf[i] ^= key[i % key.len()];
+                        }
+                    }
+                }
+
                 let len = (buf.len() as u32).to_le_bytes();
 
                 // Safety: We verified that buf.len() + 8 <= slice.len()
@@ -158,8 +172,18 @@ impl IpcManager {
         if current_len > 0 {
             // SOV-06 Hardening: Explicit bounds check to prevent out-of-bounds access on corrupted headers
             if current_len + 8 <= slice.len() {
-                let data = &slice[8..8+current_len];
-                let cmd = match rmp_serde::from_slice::<T>(data) {
+                let mut data = slice[8..8+current_len].to_vec();
+
+                // SEC-03: Shared Memory IPC Hardening - Multi-Byte XOR Obfuscation
+                if let Some(key) = &self.obfuscation_key {
+                    if !key.is_empty() {
+                        for i in 0..data.len() {
+                            data[i] ^= key[i % key.len()];
+                        }
+                    }
+                }
+
+                let cmd = match rmp_serde::from_slice::<T>(&data) {
                     Ok(c) => {
                         debug!("Received command of size {}", current_len);
                         Some(c)

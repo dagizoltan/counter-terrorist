@@ -83,7 +83,7 @@ class ThreatMap extends HTMLElement {
   connectWS() {
     const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new SharedWebSocket();
 
     ws.onmessage = (event) => {
       try {

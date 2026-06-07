@@ -81,7 +81,7 @@ class EbpfAgent extends HTMLElement {
   connectWS() {
     const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket(`${protocol}//${globalThis.location.host}/api/ws/events${csrfToken ? `?token=${csrfToken}` : ''}`);
+    const ws = new SharedWebSocket();
 
     ws.onmessage = (event) => {
       try {
@@ -198,36 +198,71 @@ class EbpfAgent extends HTMLElement {
       return;
     }
  
+    // SEC-03: DOM-based XSS Hardening.
+    // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
+
     // Live Stream: Detailed per-event telemetry
-    container.innerHTML = this.logs.map(log => {
+    container.innerHTML = '';
+    this.logs.forEach(log => {
       const isCritical = log.type === 'DRIFT_PROCESS' || log.type === 'EBPF_CRITICAL' || log.message?.toLowerCase().includes('unauthorized');
       const pid = log.data?.pid || log.data?.target_pid || '';
       const typeLabel = (log.type || '').replace('EBPF_', '');
- 
-      return `
-        <div class="p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group relative transition-colors" 
-             style="border-left: 4px solid ${isCritical ? 'var(--danger)' : 'transparent'}">
-          <div class="flex justify-between items-center mb-2">
-             <div class="flex items-center gap-3">
-                <span class="status-pill ${isCritical ? 'danger' : 'neutral'} text-[8px]">
-                  ${globalThis.escapeHTML(typeLabel)}
-                </span>
-                <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest text-[9px]">Syscall_Intercept</span>
-             </div>
-             <span class="mono-xs text-slate-600 font-bold">${new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
-          </div>
-          <div class="mono-sm font-bold ${isCritical ? 'text-danger' : 'text-slate-400'} uppercase tracking-tight leading-tight mb-3">
-            ${globalThis.escapeHTML(log.message)}
-            ${log.data?.anomalyScore > 0.5 ? `<span class="text-[8px] px-2 py-0.5 bg-danger/20 text-danger rounded border border-danger/30 font-black ml-4">NEURAL_ANOMALY_${(log.data.anomalyScore*100).toFixed(0)}%</span>` : ''}
-          </div>
-          ${isCritical && pid ? `
-            <div class="flex gap-4">
-               <button data-purge-pid="${globalThis.escapeHTML(pid)}" class="t-btn danger !py-1 !px-3 text-[8px] font-black uppercase tracking-widest rounded transition-colors">PURGE_PID_${pid}</button>
-            </div>
-          ` : ''}
-        </div>
-      `;
-    }).join('');
+
+      const logEl = document.createElement('div');
+      logEl.className = "p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group relative transition-colors";
+      logEl.style.borderLeft = `4px solid ${isCritical ? 'var(--danger)' : 'transparent'}`;
+
+      const topRow = document.createElement('div');
+      topRow.className = "flex justify-between items-center mb-2";
+
+      const leftPart = document.createElement('div');
+      leftPart.className = "flex items-center gap-3";
+
+      const statusPill = document.createElement('span');
+      statusPill.className = `status-pill ${isCritical ? 'danger' : 'neutral'} text-[8px]`;
+      statusPill.textContent = typeLabel;
+
+      const interceptSpan = document.createElement('span');
+      interceptSpan.className = "mono-xs text-slate-600 font-bold uppercase tracking-widest text-[9px]";
+      interceptSpan.textContent = "Syscall_Intercept";
+
+      leftPart.appendChild(statusPill);
+      leftPart.appendChild(interceptSpan);
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = "mono-xs text-slate-600 font-bold";
+      timeSpan.textContent = new Date(log.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+      topRow.appendChild(leftPart);
+      topRow.appendChild(timeSpan);
+
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `mono-sm font-bold ${isCritical ? 'text-danger' : 'text-slate-400'} uppercase tracking-tight leading-tight mb-3`;
+      msgDiv.textContent = log.message;
+
+      if (log.data?.anomalyScore > 0.5) {
+          const anomalySpan = document.createElement('span');
+          anomalySpan.className = "text-[8px] px-2 py-0.5 bg-danger/20 text-danger rounded border border-danger/30 font-black ml-4";
+          anomalySpan.textContent = `NEURAL_ANOMALY_${(log.data.anomalyScore*100).toFixed(0)}%`;
+          msgDiv.appendChild(anomalySpan);
+      }
+
+      logEl.appendChild(topRow);
+      logEl.appendChild(msgDiv);
+
+      if (isCritical && pid) {
+          const btnRow = document.createElement('div');
+          btnRow.className = "flex gap-4";
+          const purgeBtn = document.createElement('button');
+          purgeBtn.dataset.purgePid = pid;
+          purgeBtn.className = "t-btn danger !py-1 !px-3 text-[8px] font-black uppercase tracking-widest rounded transition-colors";
+          purgeBtn.textContent = `PURGE_PID_${pid}`;
+          btnRow.appendChild(purgeBtn);
+          logEl.appendChild(btnRow);
+      }
+
+      container.appendChild(logEl);
+    });
  
     // Ledger Table: Forensic summary of only CRITICAL/DRIFT events to avoid duplication
     const forensicLogs = this.logs.filter(log => log.type === 'DRIFT_PROCESS' || log.type === 'EBPF_CRITICAL' || log.message?.toLowerCase().includes('unauthorized'));
@@ -235,29 +270,53 @@ class EbpfAgent extends HTMLElement {
     if (forensicLogs.length === 0) {
       ledger.innerHTML = `<tr><td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Listening_For_Critical_Violations...</td></tr>`;
     } else {
-      ledger.innerHTML = forensicLogs.map(log => {
+      ledger.innerHTML = '';
+      forensicLogs.forEach(log => {
          const pid = log.data?.pid || log.data?.target_pid || 'N/A';
          const typeLabel = (log.type || '').replace('EBPF_', '');
          const isCritical = log.type === 'DRIFT_PROCESS' || log.type === 'EBPF_CRITICAL';
    
-         return `
-           <tr class="hover:bg-white/[0.02] transition-colors">
-              <td class="p-4 mono-xs text-slate-500 font-bold">${new Date(log.timestamp).toLocaleTimeString()}</td>
-              <td class="p-4">
-                 <span class="status-pill ${isCritical ? 'danger' : 'neutral'} !px-3 !py-0.5 text-[8px]">
-                    ${globalThis.escapeHTML(typeLabel)}
-                 </span>
-              </td>
-              <td class="p-4 mono-xs text-slate-400 font-black">PID: ${pid}</td>
-              <td class="p-4 mono-xs text-slate-300 font-bold uppercase tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(log.message)}</td>
-              <td class="p-4 text-right">
-                 ${pid !== 'N/A' ? `
-                   <button data-purge-pid="${globalThis.escapeHTML(pid)}" class="mono-xs text-danger hover:text-white transition-colors uppercase font-black">PURGE</button>
-                 ` : '---'}
-              </td>
-           </tr>
-         `;
-      }).join('');
+         const tr = document.createElement('tr');
+         tr.className = "hover:bg-white/[0.02] transition-colors";
+
+         const timeTd = document.createElement('td');
+         timeTd.className = "p-4 mono-xs text-slate-500 font-bold";
+         timeTd.textContent = new Date(log.timestamp).toLocaleTimeString();
+
+         const typeTd = document.createElement('td');
+         typeTd.className = "p-4";
+         const typePill = document.createElement('span');
+         typePill.className = `status-pill ${isCritical ? 'danger' : 'neutral'} !px-3 !py-0.5 text-[8px]`;
+         typePill.textContent = typeLabel;
+         typeTd.appendChild(typePill);
+
+         const sourceTd = document.createElement('td');
+         sourceTd.className = "p-4 mono-xs text-slate-400 font-black";
+         sourceTd.textContent = `PID: ${pid}`;
+
+         const msgTd = document.createElement('td');
+         msgTd.className = "p-4 mono-xs text-slate-300 font-bold uppercase tracking-tight truncate max-w-[200px]";
+         msgTd.textContent = log.message;
+
+         const actionTd = document.createElement('td');
+         actionTd.className = "p-4 text-right";
+         if (pid !== 'N/A') {
+             const purgeBtn = document.createElement('button');
+             purgeBtn.dataset.purgePid = pid;
+             purgeBtn.className = "mono-xs text-danger hover:text-white transition-colors uppercase font-black";
+             purgeBtn.textContent = "PURGE";
+             actionTd.appendChild(purgeBtn);
+         } else {
+             actionTd.textContent = "---";
+         }
+
+         tr.appendChild(timeTd);
+         tr.appendChild(typeTd);
+         tr.appendChild(sourceTd);
+         tr.appendChild(msgTd);
+         tr.appendChild(actionTd);
+         ledger.appendChild(tr);
+      });
     }
  
     if (!this._clickHandler) {

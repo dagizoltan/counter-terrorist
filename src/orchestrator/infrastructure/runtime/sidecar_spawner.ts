@@ -1,5 +1,6 @@
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort, ExecutorPort } from "@core/ports.ts";
 import { SIDECAR_REGISTRY } from "./sidecar_registry.ts";
+import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
 
 export class SidecarSpawner {
     private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();
@@ -9,7 +10,8 @@ export class SidecarSpawner {
 
     constructor(
         private logging: LoggingPort,
-        private executor: ExecutorPort
+        private executor: ExecutorPort,
+        private ffi: IpcFfiBridge
     ) {}
 
     async spawn(name: string, binPath: string, env: Record<string, string>, config: ConfigurationPort): Promise<Deno.ChildProcess> {
@@ -52,6 +54,36 @@ export class SidecarSpawner {
         let finalExec = execPath;
         let finalArgs: string[] = [];
 
+        // SOV-P1: Binary Sovereignty - Sealed Memfd Execution
+        // If on Linux and NOT in dev mode, we load the binary into memory and execute via /proc/self/fd/N
+        if (isLinux && !isDev) {
+            try {
+                const binData = await Deno.readFile(execPath);
+                const fd = this.ffi.createSealedMemfd(`cts-agent-${name}`, binData);
+                if (fd >= 0) {
+                    // SEC-06 Hardening: Use absolute PID-scoped FD path to ensure the correct memory-file is executed
+                    execPath = `/proc/${Deno.pid}/fd/${fd}`;
+                    finalExec = execPath;
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.SUCCESS,
+                        caller: "orchestrator:infra:runtime:sidecar_spawner",
+                        message: `Binary Sovereignty: Executing ${name} from sealed memfd (fd=${fd})`
+                    });
+                }
+            } catch (e) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:sidecar_spawner",
+                    message: `Memfd execution failed for ${name}: ${e instanceof Error ? e.message : String(e)}. Falling back to disk.`
+                });
+            }
+        }
+
+        // SEC-06 Hardening: Hybrid Resource Gating & Binary Sovereignty
         if (isLinux && Deno.uid() === 0) {
             const sidecarConfig = SIDECAR_REGISTRY[name];
             const cpuQuota = sidecarConfig?.resources?.cpu || "25%";
@@ -65,7 +97,7 @@ export class SidecarSpawner {
                 "-p", `MemoryMax=${memoryMax}`,
                 "-p", "MemorySwapMax=0",
                 "-p", "TasksMax=100",
-                execPath
+                execPath // This will use /proc/self/fd/N if memfd was successful
             ];
         }
 

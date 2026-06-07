@@ -115,6 +115,11 @@ export class WebAdapter implements WebPort {
     await registerRoutes(this.app, this.services, this.security, statusAggregator);
 
     this.app.get("/api/ws/events", upgradeWebSocket(async (c) => {
+      // SEC-06 Hardening: Sub-protocol Authentication Fallback
+      // Browsers cannot send headers with WebSocket, so we allow the token in the Sec-WebSocket-Protocol.
+      const protocols = c.req.header("Sec-WebSocket-Protocol")?.split(",").map(p => p.trim()) || [];
+      const subProtocolToken = protocols.find(p => p.startsWith("cts-auth-"))?.replace("cts-auth-", "");
+
       // BUG-30: CSWSH Protection (Origin & Host Validation)
       const origin = c.req.header("Origin");
       const host = c.req.header("Host");
@@ -140,7 +145,9 @@ export class WebAdapter implements WebPort {
 
       let role: string | null = null;
       
-      const token = c.req.query("token") || c.req.header("Authorization")?.replace("Bearer ", "");
+      // SEC-06 Hardening: Remove token from query parameters to prevent leakage in logs.
+      // We now strictly enforce Authorization header, Secure Session Cookie, or Sub-Protocol token.
+      const token = subProtocolToken || c.req.header("Authorization")?.replace("Bearer ", "");
       if (token) {
         role = await this.isTokenValid(token);
       }

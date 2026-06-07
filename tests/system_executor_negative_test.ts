@@ -5,9 +5,9 @@ Deno.test("SystemExecutor - Blocked commands (whitelist)", async () => {
     const executor = new SystemExecutor();
 
     // Command not in whitelist
-    const result = await executor.execute("rm", ["-rf", "/"]);
+    const result = await executor.execute("curl", ["https://google.com"]);
     assertEquals(result.success, false);
-    assertEquals(result.stderr.includes("Security Violation: Command 'rm' is not in the system whitelist."), true);
+    assertEquals(result.stderr.includes("Security Violation: Command 'curl' is not in the system whitelist."), true);
 });
 
 Deno.test("SystemExecutor - Shell escapes (whitelist exclusion)", async () => {

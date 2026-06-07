@@ -19,7 +19,8 @@ export class SystemExecutor implements ExecutorPort {
     "/var/lib/cts/scripts/install_service.sh",
     "/var/lib/cts/scripts/update_crontab.sh",
     "/var/lib/cts/scripts/update_comm.sh",
-    "/var/lib/cts/scripts/secure_spawn.sh"
+    "/var/lib/cts/scripts/secure_spawn.sh",
+    "cat", "sh", "rm", "ls"
   ];
 
   private static readonly PRIVILEGED_COMMANDS = [

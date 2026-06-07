@@ -1,8 +1,9 @@
 use sha2::{Sha256, Digest};
 use std::fs::File;
-use std::io::{Read, BufReader};
+use std::io::{Read, BufReader, Write};
 use shared_memory::*;
 use serde::{Serialize};
+use std::os::unix::io::AsRawFd;
 
 /// Computes SHA256 hash of the input data.
 ///
@@ -309,6 +310,54 @@ pub unsafe extern "C" fn free_buffer(ptr: *mut u8, len: usize) {
     if !ptr.is_null() {
         let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len));
     }
+}
+
+/// SOV-P1: Binary Sovereignty - Execution from Memory
+/// Creates a sealed memfd and loads the provided binary data into it.
+/// Returns the file descriptor or -1 on failure.
+///
+/// # Safety
+/// * `name` must be a valid, null-terminated C string.
+/// * `data` must be a valid pointer to at least `len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn create_sealed_memfd(name: *const i8, data: *const u8, len: usize) -> i32 {
+    if name.is_null() || data.is_null() || len == 0 { return -1; }
+
+    let name_str = match std::ffi::CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => return -1,
+    };
+
+    // libc Constants for memfd_create and fcntl
+    const MFD_CLOEXEC: u32 = 0x0001;
+    const MFD_ALLOW_SEALING: u32 = 0x0002;
+    const F_ADD_SEALS: i32 = 1033;
+    const F_SEAL_SEAL: i32 = 0x0001;
+    const F_SEAL_SHRINK: i32 = 0x0002;
+    const F_SEAL_GROW: i32 = 0x0004;
+    const F_SEAL_WRITE: i32 = 0x0008;
+
+    // 1. Create anonymous memory file
+    let fd = libc::syscall(libc::SYS_memfd_create, name.cast::<libc::c_char>(), MFD_CLOEXEC | MFD_ALLOW_SEALING) as i32;
+    if fd < 0 { return -1; }
+
+    let mut file = std::fs::File::from(std::os::unix::io::OwnedFd::from_raw_fd(fd));
+
+    // 2. Load binary data
+    let data_slice = std::slice::from_raw_parts(data, len);
+    if file.write_all(data_slice).is_err() {
+        return -1;
+    }
+
+    // 3. Seal the file to prevent modifications
+    let seals = F_SEAL_SEAL | F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_WRITE;
+    if libc::fcntl(fd, F_ADD_SEALS, seals) < 0 {
+        return -1;
+    }
+
+    // 4. Return the raw FD (ownership transferred to orchestrator)
+    std::mem::forget(file);
+    fd
 }
 
 #[cfg(test)]

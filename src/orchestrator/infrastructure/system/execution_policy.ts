@@ -16,9 +16,11 @@ export const SYSTEM_JAILS = [
     "./volume/",
     "/var/lib/cts/",
     "/etc/systemd/system/cts-",
+    "/etc/apparmor.d/",
     "/home/",
     "/var/www/",
-    "/tmp/"
+    "/tmp/",
+    "/proc/"
 ];
 
 const PROVISIONING_REGEX = /^(chmod 600 \/etc\/cts\.env && export \$\(grep -v '\^#' \/etc\/cts\.env \| xargs -d (['"])\\n\1\) && \/usr\/local\/bin\/counter-terrorist > \/var\/log\/cts\.log 2>&1 &)$/;
@@ -396,6 +398,26 @@ export const COMMAND_POLICIES: Record<string, CommandPolicy> = {
   "/var/lib/cts/scripts/update_crontab.sh": { schema: z.array(z.string().regex(/^[a-zA-Z0-9.\/_ \-\*]+$/)).max(1) },
   "/var/lib/cts/scripts/update_comm.sh": { schema: z.array(z.string().regex(/^(\[[a-z0-9/:]+\]|[0-9]+)$/)).max(2) },
   "/var/lib/cts/scripts/secure_spawn.sh": { schema: z.array(z.string().regex(/^[a-z0-9,._+\-/]+$/)).max(4) },
+  "cat": { schema: z.array(z.string().regex(/^[a-zA-Z0-9_\/.\-]+$/)).max(1) },
+  "sh": { schema: z.array(z.string()).max(2).superRefine((args, ctx) => {
+      if (args[0] !== "-c") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Only sh -c is allowed" });
+      const command = args[1] || "";
+      // SEC-06 Hardening: Refined shell regex to allow escaped single quotes in profiles
+      const isCommUpdate = /^echo '[^']+' > \/proc\/[0-9]+\/comm$/.test(command);
+      const isProfileWrite = /^echo '(.|\n)*' > \/var\/lib\/cts\/tmp\/cts-profile-[a-z0-9-]+\.profile$/.test(command);
+      if (!isCommUpdate && !isProfileWrite) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Unauthorized sh command pattern" });
+      }
+  })},
+  "rm": { schema: z.array(z.string()).max(2).superRefine((args, ctx) => {
+      const paths = args.filter(a => !a.startsWith("-"));
+      for (const p of paths) {
+          if (p === "/var/lib/cts/tmp/cts_reflink_probe") continue;
+          if (!p.startsWith("/var/lib/cts/tmp/cts-profile-") || !p.endsWith(".profile")) {
+               ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Unauthorized rm path" });
+          }
+      }
+  })},
   "openssl": { schema: OPENSSL_SCHEMA },
   "analyzer": { schema: ANALYZER_SCHEMA },
   "enforcer": { schema: z.array(z.string()).max(10) },

@@ -73,17 +73,33 @@ export class TPMManager implements TpmPort {
     }
 
     async getPcrs(indices: number[] = [0, 1, 7]): Promise<Record<number, string>> {
+        const isProduction = Deno.env.get("ENVIRONMENT") === "production";
+        const allowBypass = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true";
+
+        // SEC-03 Hardening: Hard-fail if hardware is bypassed in production
+        if (isProduction && allowBypass) {
+            const msg = "CRITICAL SECURITY VIOLATION: Hardware TPM bypass (ALLOW_HARDWARE_BYPASS) detected in PRODUCTION mode. Terminating for safety.";
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:infra:system:protection:tpm",
+                message: msg
+            });
+            throw new Error(msg);
+        }
+
         try {
             const res = await this.sidecar.sendCommand("trustroot", { type: "GetPcrs", indices });
             if (res.success) return res.data as Record<number, string>;
 
-            // If sidecar fails but we are in bypass mode, return mock data
-            if (Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true") {
+            // If sidecar fails but we are in bypass mode (Non-Prod only), return mock data
+            if (allowBypass) {
                 return indices.reduce((acc, idx) => ({ ...acc, [idx]: "MOCK_PCR_DATA" }), {});
             }
             throw new Error(`Failed to read PCRs: ${res.stderr}`);
         } catch (e) {
-            if (Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true") {
+            if (allowBypass) {
                 return indices.reduce((acc, idx) => ({ ...acc, [idx]: "MOCK_PCR_DATA" }), {});
             }
             throw e;

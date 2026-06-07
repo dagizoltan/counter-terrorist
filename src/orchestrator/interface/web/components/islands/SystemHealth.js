@@ -42,32 +42,63 @@ class SystemHealth extends HTMLElement {
       return;
     }
 
+    // SEC-03: DOM-based XSS Hardening.
+    // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
     this.innerHTML = `
       <div class="space-y-6">
         <div class="flex justify-between items-center mb-8 p-6 bg-black/60 border border-white/5 rounded-2xl backdrop-blur-xl">
            <span class="mono-xs text-slate-400 font-black uppercase tracking-widest">Global Integrity</span>
-           <span class="status-pill ${globalThis.escapeHTML(severity.toLowerCase())} !px-6 !py-2 text-[10px] tracking-[0.2em]">${globalThis.escapeHTML(severity)}</span>
+           <span id="global-severity" class="status-pill !px-6 !py-2 text-[10px] tracking-[0.2em]"></span>
         </div>
         
-        <div class="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-3">
-          ${subsystems.map(s => {
-            const name = globalThis.escapeHTML(s.name).replace(/_/g, ' ');
-            return `
-              <div class="flex justify-between items-center p-5 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-white/[0.05] group transition-all">
-                 <div class="flex items-center gap-5">
-                    <div class="w-2 h-2 rounded-full ${this.getSeverityColor(s.status).replace('text-', 'bg-')} shadow-[0_0_8px_currentColor]"></div>
-                    <span class="mono-xs font-black text-slate-300 uppercase tracking-widest">${name}</span>
-                 </div>
-                 <div class="flex flex-col items-end gap-1">
-                    <span class="mono-xs font-black ${this.getSeverityColor(s.status)} tracking-widest">${globalThis.escapeHTML(s.status)}</span>
-                    ${s.error ? `<span class="text-[8px] text-danger/80 font-mono truncate max-w-[150px] italic" title="${globalThis.escapeHTML(s.error)}">${globalThis.escapeHTML(s.error)}</span>` : ''}
-                 </div>
-              </div>
-            `;
-          }).join('')}
+        <div id="subsystem-grid" class="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-3">
         </div>
       </div>
     `;
+
+    const sevEl = this.querySelector('#global-severity');
+    sevEl.classList.add(severity.toLowerCase());
+    sevEl.textContent = severity;
+
+    const grid = this.querySelector('#subsystem-grid');
+    subsystems.forEach(s => {
+        const item = document.createElement('div');
+        item.className = "flex justify-between items-center p-5 bg-white/[0.02] border border-white/5 rounded-xl hover:bg-white/[0.05] group transition-all";
+
+        const left = document.createElement('div');
+        left.className = "flex items-center gap-5";
+
+        const dot = document.createElement('div');
+        dot.className = `w-2 h-2 rounded-full ${this.getSeverityColor(s.status).replace('text-', 'bg-')} shadow-[0_0_8px_currentColor]`;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = "mono-xs font-black text-slate-300 uppercase tracking-widest";
+        nameSpan.textContent = s.name.replace(/_/g, ' ');
+
+        left.appendChild(dot);
+        left.appendChild(nameSpan);
+
+        const right = document.createElement('div');
+        right.className = "flex flex-col items-end gap-1";
+
+        const statusSpan = document.createElement('span');
+        statusSpan.className = `mono-xs font-black ${this.getSeverityColor(s.status)} tracking-widest`;
+        statusSpan.textContent = s.status;
+
+        right.appendChild(statusSpan);
+
+        if (s.error) {
+            const errorSpan = document.createElement('span');
+            errorSpan.className = "text-[8px] text-danger/80 font-mono truncate max-w-[150px] italic";
+            errorSpan.title = s.error;
+            errorSpan.textContent = s.error;
+            right.appendChild(errorSpan);
+        }
+
+        item.appendChild(left);
+        item.appendChild(right);
+        grid.appendChild(item);
+    });
   }
 }
 

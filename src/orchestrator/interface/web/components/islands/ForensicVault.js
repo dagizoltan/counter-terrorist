@@ -59,6 +59,8 @@ class ForensicVault extends HTMLElement {
   }
 
   render() {
+    // SEC-03: DOM-based XSS Hardening.
+    // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
     this.innerHTML = `
       <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden shadow-2xl flex flex-col border-t-2 border-primary/10">
         <header class="p-8 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
@@ -67,11 +69,11 @@ class ForensicVault extends HTMLElement {
               <span class="mono text-[7px] text-slate-600 uppercase italic">Immutable Evidence Chain // Root-Protected Storage</span>
            </div>
            <div class="flex gap-4">
-              <button onclick="this.closest('forensic-vault').generateBundle()" class="t-btn !py-2 !px-6 ${this.bundling ? 'opacity-50 pointer-events-none' : ''}">
+              <button id="btn-bundle" class="t-btn !py-2 !px-6 ${this.bundling ? 'opacity-50 pointer-events-none' : ''}">
                  <svg class="${this.bundling ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                  <span class="mono text-[9px] font-black uppercase tracking-widest ml-2">Create_Signed_Bundle</span>
               </button>
-              <button onclick="this.closest('forensic-vault').fetchArtifacts()" class="t-btn !py-2 !px-6 ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
+              <button id="btn-refresh" class="t-btn !py-2 !px-6 ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
                  <svg class="${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                  <span class="mono text-[9px] font-black uppercase tracking-widest ml-2">Refresh_Ledger</span>
               </button>
@@ -89,37 +91,69 @@ class ForensicVault extends HTMLElement {
                     <th class="p-4 w-[10%] mono text-slate-500 font-black uppercase text-right">Actions</th>
                  </tr>
               </thead>
-              <tbody class="divide-y divide-white/5">
-                 ${this.artifacts.length === 0 && !this.loading ? `
-                    <tr><td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Vault_Empty // No_Active_Breach_Data</td></tr>
-                 ` : this.artifacts.map(a => `
-                    <tr class="hover:bg-white/[0.02] transition-colors group">
-                       <td class="p-4 truncate">
-                          <span class="mono text-[10px] text-white font-bold tabular-nums">${globalThis.escapeHTML(a.name)}</span>
-                       </td>
-                       <td class="p-4">
-                          <span class="status-pill ${a.type === 'NETWORK_CAPTURE' ? 'primary' : 'warning'} !px-3 !py-0.5 text-[8px]">
-                             ${a.type}
-                          </span>
-                       </td>
-                       <td class="p-4">
-                          <span class="mono text-[10px] text-slate-400 tabular-nums">${(a.size / 1024 / 1024).toFixed(2)} MB</span>
-                       </td>
-                       <td class="p-4">
-                          <span class="mono text-[10px] text-slate-500 font-bold">
-                             ${new Date(a.mtime).toLocaleString('en-GB', {hour12:false})}
-                          </span>
-                       </td>
-                       <td class="p-4 text-right">
-                          <a href="/api/reports/forensics/download/${globalThis.escapeHTML(a.name)}" class="mono-xs text-primary hover:text-white transition-colors uppercase font-black" download>Download</a>
-                       </td>
-                    </tr>
-                 `).join('')}
+              <tbody id="artifact-list" class="divide-y divide-white/5">
               </tbody>
            </table>
         </div>
       </div>
     `;
+
+    this.querySelector('#btn-bundle').onclick = () => this.generateBundle();
+    this.querySelector('#btn-refresh').onclick = () => this.fetchArtifacts();
+
+    const tbody = this.querySelector('#artifact-list');
+    if (this.artifacts.length === 0 && !this.loading) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Vault_Empty // No_Active_Breach_Data</td></tr>`;
+    } else {
+        this.artifacts.forEach(a => {
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-white/[0.02] transition-colors group";
+
+            const nameTd = document.createElement('td');
+            nameTd.className = "p-4 truncate";
+            const nameSpan = document.createElement('span');
+            nameSpan.className = "mono text-[10px] text-white font-bold tabular-nums";
+            nameSpan.textContent = a.name;
+            nameTd.appendChild(nameSpan);
+
+            const typeTd = document.createElement('td');
+            typeTd.className = "p-4";
+            const typeSpan = document.createElement('span');
+            typeSpan.className = `status-pill ${a.type === 'NETWORK_CAPTURE' ? 'primary' : 'warning'} !px-3 !py-0.5 text-[8px]`;
+            typeSpan.textContent = a.type;
+            typeTd.appendChild(typeSpan);
+
+            const sizeTd = document.createElement('td');
+            sizeTd.className = "p-4";
+            const sizeSpan = document.createElement('span');
+            sizeSpan.className = "mono text-[10px] text-slate-400 tabular-nums";
+            sizeSpan.textContent = `${(a.size / 1024 / 1024).toFixed(2)} MB`;
+            sizeTd.appendChild(sizeSpan);
+
+            const timeTd = document.createElement('td');
+            timeTd.className = "p-4";
+            const timeSpan = document.createElement('span');
+            timeSpan.className = "mono text-[10px] text-slate-500 font-bold";
+            timeSpan.textContent = new Date(a.mtime).toLocaleString('en-GB', {hour12:false});
+            timeTd.appendChild(timeSpan);
+
+            const actionTd = document.createElement('td');
+            actionTd.className = "p-4 text-right";
+            const downloadLink = document.createElement('a');
+            downloadLink.href = `/api/reports/forensics/download/${encodeURIComponent(a.name)}`;
+            downloadLink.className = "mono-xs text-primary hover:text-white transition-colors uppercase font-black";
+            downloadLink.setAttribute('download', '');
+            downloadLink.textContent = "Download";
+            actionTd.appendChild(downloadLink);
+
+            tr.appendChild(nameTd);
+            tr.appendChild(typeTd);
+            tr.appendChild(sizeTd);
+            tr.appendChild(timeTd);
+            tr.appendChild(actionTd);
+            tbody.appendChild(tr);
+        });
+    }
   }
 }
 

@@ -47,7 +47,7 @@ class MiniLog extends HTMLElement {
         url.searchParams.set('token', csrfToken);
     }
 
-    this._ws = new SharedWebSocket(url.toString());
+    this._ws = new SharedWebSocket();
     const ws = this._ws;
 
     ws.onmessage = (event) => {
@@ -107,65 +107,98 @@ class MiniLog extends HTMLElement {
       return;
     }
 
-    this.innerHTML = `
-      <div class="space-y-1 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar pr-2">
-        ${this.logs.map(log => {
-          let rawType = (log.type || 'generic').toLowerCase();
-          
-          // Map legacy types to mandated taxonomy
-          if (rawType === 'block' || rawType === 'alert' || rawType === 'critical') rawType = 'audit';
-          if (rawType === 'warning' || rawType === 'info' || rawType === 'success') rawType = 'activity';
-          if (!['audit', 'activity', 'generic', 'debug'].includes(rawType)) rawType = 'generic';
+    // SEC-03: DOM-based XSS Hardening.
+    // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
+    this.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.className = "space-y-1 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar pr-2";
 
-          const type = rawType.toUpperCase().slice(0, 8);
-          const severity = (log.severity || 'info').toLowerCase();
-          const caller = (log.caller || 'SYSTEM').toUpperCase().slice(0, 18);
-          const date = new Date(log.timestamp || Date.now());
-          const timeStr = date.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-          
-          const severityTextClass = this.getSeverityClass(severity);
-          const typeColorClass = this.getTypeColorClass(type);
-          
-          return `
-            <div class="flex flex-col border-b border-white/[0.02] hover:bg-white/[0.05] transition-colors group cursor-pointer overflow-hidden">
-              <!-- Ultra-Compact Single Row -->
-              <div class="flex items-center gap-2 py-1 px-2 relative h-6">
-                <div class="absolute inset-y-0 left-0 w-0.5 ${this.getSeverityBgClass(severity)} opacity-40 group-hover:opacity-100"></div>
-                
-                <span class="flex-shrink-0 mono text-[6.5px] font-black uppercase tracking-tighter ${typeColorClass} w-8">
-                  ${globalThis.escapeHTML(type.slice(0, 4))}
-                </span>
+    this.logs.forEach(log => {
+      let rawType = (log.type || 'generic').toLowerCase();
 
-                <span class="flex-shrink-0 mono text-[6.5px] font-bold uppercase tracking-tighter ${severityTextClass} w-6">
-                  ${globalThis.escapeHTML(severity.slice(0, 3))}
-                </span>
+      // Map legacy types to mandated taxonomy
+      if (rawType === 'block' || rawType === 'alert' || rawType === 'critical') rawType = 'audit';
+      if (rawType === 'warning' || rawType === 'info' || rawType === 'success') rawType = 'activity';
+      if (!['audit', 'activity', 'generic', 'debug'].includes(rawType)) rawType = 'generic';
 
-                <span class="flex-shrink-0 mono text-[6.5px] text-slate-500 font-bold uppercase truncate tracking-tighter w-16 opacity-60">
-                  ${globalThis.escapeHTML(caller.slice(0, 10))}
-                </span>
+      const type = rawType.toUpperCase().slice(0, 8);
+      const severity = (log.severity || 'info').toLowerCase();
+      const caller = (log.caller || 'SYSTEM').toUpperCase().slice(0, 18);
+      const date = new Date(log.timestamp || Date.now());
+      const timeStr = date.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-                <span class="flex-grow min-w-0 text-[7.5px] text-slate-300 font-medium truncate tracking-tight">
-                  ${globalThis.escapeHTML(log.message || '---')}
-                </span>
- 
-                <span class="flex-shrink-0 mono text-[6.5px] font-black text-slate-600 tabular-nums">
-                  ${timeStr}
-                </span>
-              </div>
-  
-              <!-- Expanded Payload (Hidden) -->
-              <div class="message-detail hidden px-4 py-3 bg-black/60 border-t border-white/5">
-                <div class="mono text-[8px] text-primary/90 leading-relaxed bg-black/40 p-3 rounded-lg border border-white/5">
-                  <div class="text-slate-500 mb-2 uppercase tracking-widest border-b border-white/5 pb-1">Full_Forensic_Message</div>
-                  ${globalThis.escapeHTML(log.message || '---')}
-                  ${log.payload ? `<div class="mt-2 pt-2 border-t border-white/5 text-[7px] text-slate-500 uppercase">Payload: ${JSON.stringify(log.payload)}</div>` : ''}
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    `;
+      const severityTextClass = this.getSeverityClass(severity);
+      const typeColorClass = this.getTypeColorClass(type);
+
+      const logEl = document.createElement('div');
+      logEl.className = "flex flex-col border-b border-white/[0.02] hover:bg-white/[0.05] transition-colors group cursor-pointer overflow-hidden";
+
+      const row = document.createElement('div');
+      row.className = "flex items-center gap-2 py-1 px-2 relative h-6";
+
+      const indicator = document.createElement('div');
+      indicator.className = `absolute inset-y-0 left-0 w-0.5 ${this.getSeverityBgClass(severity)} opacity-40 group-hover:opacity-100`;
+      row.appendChild(indicator);
+
+      const typeSpan = document.createElement('span');
+      typeSpan.className = `flex-shrink-0 mono text-[6.5px] font-black uppercase tracking-tighter ${typeColorClass} w-8`;
+      typeSpan.textContent = type.slice(0, 4);
+      row.appendChild(typeSpan);
+
+      const sevSpan = document.createElement('span');
+      sevSpan.className = `flex-shrink-0 mono text-[6.5px] font-bold uppercase tracking-tighter ${severityTextClass} w-6`;
+      sevSpan.textContent = severity.slice(0, 3);
+      row.appendChild(sevSpan);
+
+      const callerSpan = document.createElement('span');
+      callerSpan.className = "flex-shrink-0 mono text-[6.5px] text-slate-500 font-bold uppercase truncate tracking-tighter w-16 opacity-60";
+      callerSpan.textContent = caller.slice(0, 10);
+      row.appendChild(callerSpan);
+
+      const msgSpan = document.createElement('span');
+      msgSpan.className = "flex-grow min-w-0 text-[7.5px] text-slate-300 font-medium truncate tracking-tight";
+      msgSpan.textContent = log.message || '---';
+      row.appendChild(msgSpan);
+
+      const timeSpan = document.createElement('span');
+      timeSpan.className = "flex-shrink-0 mono text-[6.5px] font-black text-slate-600 tabular-nums";
+      timeSpan.textContent = timeStr;
+      row.appendChild(timeSpan);
+
+      const detail = document.createElement('div');
+      detail.className = "message-detail hidden px-4 py-3 bg-black/60 border-t border-white/5";
+
+      const detailInner = document.createElement('div');
+      detailInner.className = "mono text-[8px] text-primary/90 leading-relaxed bg-black/40 p-3 rounded-lg border border-white/5";
+
+      const detailHeader = document.createElement('div');
+      detailHeader.className = "text-slate-500 mb-2 uppercase tracking-widest border-b border-white/5 pb-1";
+      detailHeader.textContent = "Full_Forensic_Message";
+      detailInner.appendChild(detailHeader);
+
+      const detailMsg = document.createElement('div');
+      detailMsg.textContent = log.message || '---';
+      detailInner.appendChild(detailMsg);
+
+      if (log.payload) {
+          const payloadDiv = document.createElement('div');
+          payloadDiv.className = "mt-2 pt-2 border-t border-white/5 text-[7px] text-slate-500 uppercase";
+          payloadDiv.textContent = `Payload: ${JSON.stringify(log.payload)}`;
+          detailInner.appendChild(payloadDiv);
+      }
+
+      detail.appendChild(detailInner);
+      logEl.appendChild(row);
+      logEl.appendChild(detail);
+
+      logEl.onclick = () => {
+          detail.classList.toggle('hidden');
+      };
+
+      wrapper.appendChild(logEl);
+    });
+
+    this.appendChild(wrapper);
 
     // Attach click listeners for accordion
     this.querySelectorAll('.group').forEach(el => {
