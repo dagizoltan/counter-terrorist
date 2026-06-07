@@ -8,6 +8,7 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use std::path::Path;
 use log::{info, error, debug, warn};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 pub struct ShmemWrapper(pub Shmem);
 unsafe impl Send for ShmemWrapper {}
@@ -19,11 +20,92 @@ impl Drop for ShmemWrapper {
     }
 }
 
-#[repr(C)]
-#[allow(dead_code)]
-struct RingBufferHeader {
-    len: u32,
-    dirty: u32, // Used for threshold-based signaling
+/// SOV-M4: Zero-Copy Lock-Free Ring Buffer implementation for high-performance telemetry.
+/// Layout:
+/// [0..4]   head (AtomicU32) - Written by Producer
+/// [4..8]   tail (AtomicU32) - Written by Consumer
+/// [8..12]  capacity (u32)
+/// [12..16] reserved
+/// [16..]   data
+pub struct IpcRingBuffer<'a> {
+    head: &'a AtomicU32,
+    tail: &'a AtomicU32,
+    capacity: u32,
+    data: &'a mut [u8],
+}
+
+impl<'a> IpcRingBuffer<'a> {
+    pub fn new(slice: &'a mut [u8]) -> Option<Self> {
+        if slice.len() < 32 { return None; }
+
+        let capacity = (slice.len() - 16) as u32;
+        let (header, data) = slice.split_at_mut(16);
+
+        let head = unsafe { &*(header.as_ptr() as *const AtomicU32) };
+        let tail = unsafe { &*(header.as_ptr().add(4) as *const AtomicU32) };
+
+        // Initialize capacity if it's zero (first time)
+        unsafe {
+            let cap_ptr = header.as_mut_ptr().add(8) as *mut u32;
+            if *cap_ptr == 0 {
+                *cap_ptr = capacity;
+            }
+        }
+
+        Some(Self { head, tail, capacity, data })
+    }
+
+    pub fn push(&mut self, msg: &[u8]) -> bool {
+        let msg_len = msg.len() as u32;
+        let total_len = 4 + msg_len;
+
+        // Safety: ensure capacity can at least hold one message header and skip marker
+        if self.capacity < 8 || total_len > self.capacity - 4 { return false; }
+
+        let head = self.head.load(Ordering::Acquire);
+        let tail = self.tail.load(Ordering::Acquire);
+
+        // head and tail are relative to the start of the data section (offset 16)
+        let used = if head >= tail {
+            head - tail
+        } else {
+            self.capacity - (tail - head)
+        };
+
+        // We leave 1 byte empty to distinguish full/empty
+        let free_space = self.capacity - used - 1;
+
+        if free_space < total_len {
+            return false;
+        }
+
+        // Check if we need to wrap around to keep message contiguous
+        if head + total_len + 4 > self.capacity {
+            // Can we fit it at the beginning?
+            // tail must be far enough from 0.
+            // We use Acquire/Release to ensure we see the latest tail.
+            if tail > total_len {
+                // Write skip marker at current head
+                let skip_marker = 0xFFFFFFFFu32.to_le_bytes();
+                self.data[head as usize..head as usize + 4].copy_from_slice(&skip_marker);
+
+                // Write message at start
+                self.data[0..4].copy_from_slice(&msg_len.to_le_bytes());
+                self.data[4..4+msg_len as usize].copy_from_slice(msg);
+                self.head.store(total_len, Ordering::Release);
+                return true;
+            } else {
+                return false; // Buffer full/fragmented
+            }
+        }
+
+        // Normal write
+        self.data[head as usize..head as usize + 4].copy_from_slice(&msg_len.to_le_bytes());
+        self.data[head as usize + 4..head as usize + 4 + msg_len as usize].copy_from_slice(msg);
+        self.head.store(head + total_len, Ordering::Release);
+
+        true
+    }
 }
 
 /// IpcManager handles shared memory communication between the orchestrator and sidecars.
@@ -50,14 +132,20 @@ impl IpcManager {
                 info!("Created telemetry shared memory at {} (size: {})", event_path, size);
                 Some(Arc::new(Mutex::new(ShmemWrapper(s))))
             }
-            Err(e) => {
-                error!("Failed to create telemetry shared memory at {}: {:?}", event_path, e);
-                None
+            Err(_) => {
+                // Try to open existing
+                match ShmemConf::new().flink(&event_path).open() {
+                    Ok(s) => Some(Arc::new(Mutex::new(ShmemWrapper(s)))),
+                    Err(e) => {
+                        error!("Failed to create/open telemetry shared memory at {}: {:?}", event_path, e);
+                        None
+                    }
+                }
             }
         };
 
         if shmem.is_none() {
-            return Self { shmem: None, cmd_shmem: None };
+            return Self { shmem: None, cmd_shmem: None, obfuscation_key: None };
         }
 
         let cmd_path = format!("/dev/shm/cts_cmd_{}_{}", sidecar_name, pid);
@@ -71,15 +159,16 @@ impl IpcManager {
                 info!("Created command shared memory at {}", cmd_path);
                 Some(Arc::new(Mutex::new(ShmemWrapper(s))))
             }
-            Err(e) => {
-                error!("Failed to create command shared memory at {}: {:?}", cmd_path, e);
-                None
+            Err(_) => {
+                match ShmemConf::new().flink(&cmd_path).open() {
+                    Ok(s) => Some(Arc::new(Mutex::new(ShmemWrapper(s)))),
+                    Err(e) => {
+                        error!("Failed to create/open command shared memory at {}: {:?}", cmd_path, e);
+                        None
+                    }
+                }
             }
         };
-
-        if cmd_shmem.is_none() {
-            return Self { shmem: None, cmd_shmem: None };
-        }
 
         let obfuscation_key = std::env::var("CTS_MESH_SECRET")
             .ok()
@@ -88,8 +177,7 @@ impl IpcManager {
         Self { shmem, cmd_shmem, obfuscation_key }
     }
 
-    /// Emits a serialized event into the shared memory buffer.
-    /// Uses MessagePack for efficient binary serialization.
+    /// Emits a serialized event into the shared memory buffer using the Ring Buffer.
     pub fn emit_event<T: Serialize>(&self, event: &T) -> bool {
         let shmem_arc = match &self.shmem {
             Some(s) => s,
@@ -102,56 +190,35 @@ impl IpcManager {
             return false;
         }
 
+        // SEC-03: Shared Memory IPC Hardening - Multi-Byte XOR Obfuscation
+        if let Some(key) = &self.obfuscation_key {
+            if !key.is_empty() {
+                for i in 0..buf.len() {
+                    buf[i] ^= key[i % key.len()];
+                }
+            }
+        }
+
         let mut shmem_wrapper = shmem_arc.lock();
         let slice = unsafe { shmem_wrapper.0.as_slice_mut() };
 
-        if slice.len() < 8 {
-            error!("Shared memory buffer too small");
-            return false;
-        }
-
-        let mut len_bytes = [0u8; 4];
-        len_bytes.copy_from_slice(&slice[0..4]);
-        let current_len = u32::from_le_bytes(len_bytes);
-
-        // Atomic-like commit: only write if current_len is 0 (buffer consumed)
-        if current_len == 0 {
-            // SOV-06 Hardening: Explicit bounds check to prevent memory corruption
-            if buf.len() > 0 && buf.len() + 8 <= slice.len() {
-                // SEC-03: Shared Memory IPC Hardening - Multi-Byte XOR Obfuscation
-                if let Some(key) = &self.obfuscation_key {
-                    if !key.is_empty() {
-                        for i in 0..buf.len() {
-                            buf[i] ^= key[i % key.len()];
-                        }
-                    }
-                }
-
-                let len = (buf.len() as u32).to_le_bytes();
-
-                // Safety: We verified that buf.len() + 8 <= slice.len()
-                slice[8..8+buf.len()].copy_from_slice(&buf);
-
-                // Write length last to commit the record
-                slice[0..4].copy_from_slice(&len);
-
+        if let Some(mut ring) = IpcRingBuffer::new(slice) {
+            if ring.push(&buf) {
                 // SOV-P5: Threshold-based signaling optimization
-                // We signal via stdout to wake up the orchestrator's event loop
                 println!("SHMEM_UPDATE:{}", buf.len());
                 debug!("Emitted event of size {}", buf.len());
                 return true;
             } else {
-                warn!("Event invalid size or too large for shared memory buffer ({} bytes, limit: {})", buf.len(), slice.len() - 8);
+                debug!("Shared memory ring buffer saturated, dropping event");
             }
-        } else {
-            // Buffer saturation - orchestrator is not keeping up
-            debug!("Shared memory buffer saturated, dropping event");
         }
+
         false
     }
 
     /// Polls for a command from the orchestrator.
     /// Returns the deserialized command if available.
+    /// Commands still use the legacy single-slot mechanism for simplicity as they are low frequency.
     pub fn poll_command<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
         let shmem_arc = match &self.cmd_shmem {
             Some(s) => s,
@@ -242,6 +309,64 @@ mod tests {
         };
         let json = serde_json::to_string(&rule).unwrap();
         assert!(json.contains("/etc"));
+    }
+
+    #[test]
+    fn test_ring_buffer_basic() {
+        let mut buf = [0u8; 128];
+        let mut ring = IpcRingBuffer::new(&mut buf).unwrap();
+
+        assert!(ring.push(b"hello"));
+        assert!(ring.push(b"world"));
+
+        let head = ring.head.load(Ordering::Relaxed);
+        assert!(head > 0);
+    }
+
+    #[test]
+    fn test_ring_buffer_wrap_around() {
+        // 16 bytes header + 64 bytes data = 80 bytes total
+        let mut buf = [0u8; 80];
+        let mut ring = IpcRingBuffer::new(&mut buf).unwrap();
+
+        // capacity is 64.
+        // We push 12 bytes (4 header + 8 data)
+        assert!(ring.push(b"12345678")); // head = 12
+        assert!(ring.push(b"12345678")); // head = 24
+        assert!(ring.push(b"12345678")); // head = 36
+        assert!(ring.push(b"12345678")); // head = 48
+
+        // head is 48. Next push 12 bytes. 48 + 12 + 4 = 64.
+        // If we push something now, it will wrap because head + 12 + 4 > 64 is FALSE, wait.
+        // head + 12 + 4 = 64. 64 is NOT > 64.
+        // So it fits without wrapping if we use head + total_len + 4 > capacity.
+
+        assert!(ring.push(b"12345678")); // head = 60
+
+        // Now head is 60. Next push 12 bytes. 60 + 12 + 4 = 76 > 64. MUST WRAP.
+
+        // Consumer "reads" 24 bytes
+        ring.tail.store(24, Ordering::Release);
+
+        assert!(ring.push(b"WRAP!!!!"));
+        assert_eq!(ring.head.load(Ordering::Relaxed), 12);
+    }
+
+    #[test]
+    fn test_ring_buffer_oob_prevention() {
+        let mut buf = [0u8; 32]; // 16 header + 16 data
+        let mut ring = IpcRingBuffer::new(&mut buf).unwrap();
+
+        // Capacity is 16.
+        // Try to push something that barely fits
+        // msg_len = 4, total_len = 8. 8 + 4 = 12. 12 < 16.
+        assert!(ring.push(b"1234"));
+
+        // head is now 8. Next push: msg_len = 4, total_len = 8.
+        // 8 + 8 + 4 = 20 > 16. Wraps?
+        // tail is 0. 0 is not > 8. Cannot wrap.
+        // Should fail.
+        assert!(!ring.push(b"5678"));
     }
 }
 

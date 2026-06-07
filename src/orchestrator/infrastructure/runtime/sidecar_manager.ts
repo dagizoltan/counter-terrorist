@@ -503,8 +503,9 @@ export class SidecarManager implements CommandPort {
           if (trimmed.startsWith("SHMEM_UPDATE:")) {
               const shmemPtr = this.ipc.getShmemPtr(name);
               if (shmemPtr) {
-                  const jsonStr = this.ffi.readShmem(shmemPtr, 65536, this.obfuscationKey || undefined);
-                  if (jsonStr) {
+                  // SOV-M4: Pull all available messages from the ring buffer
+                  let jsonStr;
+                  while ((jsonStr = this.ffi.pullRingEvent(shmemPtr, this.obfuscationKey || undefined)) !== null) {
                       this.handleIpcLine(name, jsonStr);
                   }
               }

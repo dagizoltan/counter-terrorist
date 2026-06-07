@@ -3,12 +3,13 @@ export interface Dependency {
     version: string;
     license: string;
     status: 'SECURE' | 'VULNERABLE' | 'UNKNOWN';
-    feature: 'ORCHESTRATOR' | 'EBPF' | 'FIM' | 'FIREWALL' | 'DECEPTION' | 'NETWORK';
+    feature: 'ORCHESTRATOR' | 'EBPF' | 'FIM' | 'FIREWALL' | 'DECEPTION' | 'NETWORK' | 'CORE' | 'TPM';
     cve?: string;
 }
 
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";
+import { parse as parseToml } from "@std/toml";
 
 /**
  * SupplyChainService
@@ -44,51 +45,31 @@ export class SupplyChainService extends BaseService {
             console.error("Failed to parse deno.lock:", e);
         }
 
-        // 2. Parse Rust Agent Dependencies (Simplified scan)
-        const agents = ["sentinel", "watchfile", "enforcer", "decoy", "netcap"];
+        // 2. Parse Rust Agent Dependencies (Robust TOML scan)
+        const agents = ["sentinel", "watchfile", "enforcer", "decoy", "netcap", "trustroot", "tunnel", "cts_ipc", "cts_sec"];
         for (const agent of agents) {
             try {
                 const path = `./src/agents/${agent}/Cargo.toml`;
                 const content = await Deno.readTextFile(path);
-                // BUG-5.9 FIX: Improved TOML parsing for dependencies
-                // Use a more robust approach to handle various TOML dependency formats
-                const lines = content.split("\n");
-                let inDeps = false;
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith("[dependencies]") || trimmed.startsWith("[dev-dependencies]") || trimmed.startsWith("[build-dependencies]")) {
-                        inDeps = true;
-                        continue;
-                    }
-                    if (trimmed.startsWith("[") && inDeps) {
-                        inDeps = false;
-                        continue;
-                    }
-                    if (inDeps && trimmed.includes("=")) {
-                        const parts = trimmed.split("=");
-                        const name = parts[0].trim();
-                        let verRaw = parts.slice(1).join("=").trim();
+                const toml = parseToml(content) as any;
 
-                        // Handle table format: name = { version = "1.0", features = [...] }
-                        if (verRaw.startsWith("{")) {
-                            const verMatch = verRaw.match(/version\s*=\s*"(.*?)"/);
-                            if (verMatch) {
-                                verRaw = verMatch[1];
-                            } else {
-                                verRaw = "workspace"; // likely workspace inheritance
+                const sections = ["dependencies", "dev-dependencies", "build-dependencies"];
+                for (const section of sections) {
+                    if (toml[section]) {
+                        for (const [name, info] of Object.entries(toml[section])) {
+                            let version = "unknown";
+                            if (typeof info === "string") {
+                                version = info;
+                            } else if (typeof info === "object" && info !== null) {
+                                version = (info as any).version || "workspace";
                             }
-                        } else {
-                            // Handle string format: name = "1.0"
-                            verRaw = verRaw.replace(/"/g, "");
-                        }
 
-                        if (name) {
                             this.dependencies.push({
                                 name,
-                                version: verRaw,
-                                license: "MIT",
+                                version,
+                                license: "MIT/Apache-2.0",
                                 status: "SECURE",
-                                feature: agent.toUpperCase() as any
+                                feature: this.mapAgentToFeature(agent)
                             });
                         }
                     }
@@ -102,7 +83,23 @@ export class SupplyChainService extends BaseService {
                 { name: "hono", version: "v4.3.7", license: "MIT", status: "SECURE", feature: "ORCHESTRATOR" }
             ];
         }
+
+        // Automated SBOM generation on init
+        await this.generateSbom();
+
         return ok(undefined);
+    }
+
+    private mapAgentToFeature(agent: string): Dependency['feature'] {
+        switch (agent) {
+            case 'sentinel': return 'EBPF';
+            case 'watchfile': return 'FIM';
+            case 'enforcer': return 'FIREWALL';
+            case 'decoy': return 'DECEPTION';
+            case 'netcap': return 'NETWORK';
+            case 'trustroot': return 'TPM';
+            default: return 'CORE';
+        }
     }
 
     protected override async onShutdown(): Promise<Result<void>> {
@@ -121,5 +118,45 @@ export class SupplyChainService extends BaseService {
         if (this.dependencies.length === 0) return 100;
         const secure = this.dependencies.filter(d => d.status === 'SECURE').length;
         return Math.round((secure / this.dependencies.length) * 100);
+    }
+
+    /**
+     * SOV-L1: Automated SBOM Generation
+     * Outputs a machine-readable SBOM in CycloneDX-like JSON format.
+     */
+    async generateSbom(): Promise<string> {
+        const sbom = {
+            bomFormat: "CycloneDX",
+            specVersion: "1.5",
+            serialNumber: `urn:uuid:${crypto.randomUUID()}`,
+            version: 1,
+            metadata: {
+                timestamp: new Date().toISOString(),
+                component: {
+                    name: "Sovereign-Orchestrator",
+                    version: "1.0.0-PROD",
+                    type: "application"
+                }
+            },
+            components: this.dependencies.map(dep => ({
+                name: dep.name,
+                version: dep.version,
+                type: "library",
+                licenses: [{ license: { name: dep.license } }],
+                properties: [
+                    { name: "sovereign:feature", value: dep.feature },
+                    { name: "sovereign:status", value: dep.status }
+                ]
+            }))
+        };
+
+        const content = JSON.stringify(sbom, null, 2);
+        try {
+            await Deno.writeTextFile("./volume/storage/sbom.json", content);
+        } catch {
+            // Fallback for environments without volume
+            await Deno.writeTextFile("sbom.json", content);
+        }
+        return content;
     }
 }

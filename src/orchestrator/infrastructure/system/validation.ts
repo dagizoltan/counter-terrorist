@@ -376,6 +376,15 @@ const NonCriticalIpSchema = IpSchema.refine(ip => !isCriticalInfrastructure(ip),
 const PathSchema = (jail?: string[]) => z.string().refine(p => validatePath(p, jail), { message: "Invalid or prohibited filesystem path" });
 const InterfaceSchema = z.string().regex(INTERFACE_NAME_REGEX);
 
+const AuditEventSchema = z.object({
+    type: z.string(),
+    message: z.string(),
+    timestamp: z.string().optional(),
+    data: z.record(z.string(), z.any()).optional(),
+    severity: z.string().optional(),
+    caller: z.string().optional()
+});
+
 const AnalyzerRequestSchema = z.object({
     id: IdSchema,
     type: z.enum(["SCAN", "DIR_SCAN", "RKH_SCAN", "QUIT", "MEM_SCAN", "ScanPath", "Quarantine", "SyncSignatures", "GetStatus"]),
@@ -484,6 +493,47 @@ const EnforcerWinRequestSchema = z.object({
     return true;
 });
 
+const FirewallRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["KillProcess", "BlockIp", "UnblockIp", "QuarantineProcess", "DumpProcess", "GetStatus", "FlushRules", "Lockdown", "AllowPort", "DenyPort"]),
+    pid: PidSchema.optional(),
+    ip: IpSchema.optional(),
+    port: PortSchema.optional(),
+    protocol: z.enum(["tcp", "udp"]).optional()
+}).refine(data => {
+    if (["KillProcess", "QuarantineProcess", "DumpProcess"].includes(data.type) && data.pid === undefined) return false;
+    if (["BlockIp", "UnblockIp"].includes(data.type) && data.ip === undefined) return false;
+    if (["AllowPort", "DenyPort"].includes(data.type) && data.port === undefined) return false;
+    return true;
+});
+
+const TelemetryWinRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum(["GetStatus", "Shutdown"])
+});
+
+const MeshRequestSchema = z.object({
+    id: IdSchema,
+    type: z.enum([
+        "GOSSIP_BLOCK", "GOSSIP_THREAT_HASH", "GOSSIP_AUDIT", "GOSSIP_LOCKDOWN",
+        "GOSSIP_AUDIT_VERIFY", "MERKLE_CATCH_UP", "FETCH_STATE", "REQUEST_APPROVAL",
+        "GET_AUDIT_STATUS", "GET_STATUS"
+    ]),
+    ip: IpSchema.optional(),
+    hash: z.string().optional(),
+    events: z.array(AuditEventSchema).optional(),
+    sourceNode: z.string().optional(),
+    lastKnownHash: z.string().optional(),
+    nodeId: z.string().optional(),
+    payload: z.object({
+        action: z.string(),
+        data: z.any().optional(),
+        nodeId: z.string(),
+        timestamp: z.number()
+    }).optional(),
+    signature: z.string().optional()
+});
+
 const REQUEST_SCHEMAS: Record<SidecarName, z.ZodSchema> = {
     analyzer: AnalyzerRequestSchema,
     enforcer: EnforcerRequestSchema,
@@ -495,9 +545,9 @@ const REQUEST_SCHEMAS: Record<SidecarName, z.ZodSchema> = {
     tunnel: TunnelRequestSchema,
     "sentinel-darwin": SentinelDarwinRequestSchema,
     "enforcer-win": EnforcerWinRequestSchema,
-    firewall: z.any(), // Not implemented yet
-    "telemetry-win": z.any(), // Not implemented yet
-    mesh: z.any()
+    firewall: FirewallRequestSchema,
+    "telemetry-win": TelemetryWinRequestSchema,
+    mesh: MeshRequestSchema
 };
 
 export const SidecarResponseSchema = z.object({
