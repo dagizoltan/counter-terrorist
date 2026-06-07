@@ -206,17 +206,17 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Technical Debt:** This is extremely fragile. If the Rust agent changes its output format slightly (e.g., adding a timestamp or changing a prefix), mesh-wide threat intelligence sharing will silently break.
 *   **Requirement:** Standardize on a **Structured JSON Response** for all agent intelligence, utilizing the `data` field for machine-readable identifiers.
 
-### 10.5 High-Risk Lateral Propagation (Root SSH)
+### 10.6 High-Risk Lateral Propagation (Root SSH)
 *   **Finding:** `ProvisioningService.ts` implements lateral movement by hardcoding the `root` user for SSH and SCP commands.
 *   **Security Risk:** Requiring root SSH access across the entire mesh is a "Gold Mine" for attackers. If a single orchestrator is compromised, the attacker has immediate, unvetted root access to the entire cluster.
 *   **Requirement:** Implement **Unprivileged Provisioning** using `sudo` with specific command whitelists or a dedicated `cts-provisioner` user.
 
-### 10.6 Insecure Temporary Secret Lifecycle
+### 10.7 Insecure Temporary Secret Lifecycle
 *   **Finding:** `ProvisioningService.ts` creates a temporary file to store `MESH_SECRET` and `API_TOKEN` before transferring them to a new node.
 *   **Security Risk:** Although `chmod 600` is applied, the file exists on the host disk in `/tmp`. A concurrent process could potentially read the secrets via a TOCTOU race or by exploiting the temporary directory before the chmod is applied.
 *   **Requirement:** Use **In-Memory Pipe Streaming** or **Environment Injection** directly via the SSH command line to avoid writing sensitive credentials to the host disk.
 
-### 10.7 Sidecar "Silent Death" (Exit Code 0)
+### 10.8 Sidecar "Silent Death" (Exit Code 0)
 *   **Finding:** `SidecarManager.ts` only triggers the circuit-breaker and auto-restart logic if a sidecar exits with a non-zero code.
 *   **Operational Risk:** An attacker who achieves code execution within a sidecar (e.g. `analyzer`) could simply call `exit(0)`. The orchestrator will log it as a "Normal Exit" and delete the process from its tracking map without attempting a restart, effectively blinding that security module indefinitely.
 *   **Requirement:** Treat **ALL unexpected exits** of persistent daemons as critical failures requiring immediate restart and integrity verification.
@@ -236,27 +236,27 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 
 ## 12. Operational Resilience Findings
 
-### 11.1 Unprotected "Golden" Repository
+### 12.1 Unprotected "Golden" Repository
 *   **Finding:** `IntegrityManager.ts` heals sidecars from a local directory: `./volume/storage/agents/golden/`.
 *   **Risk:** This "Golden Baseline" is stored on the same disk and within the same privilege domain as the orchestrator. If an attacker gains write access to this directory, they can poison the "Healing" process, ensuring that every time a sidecar is "repaired," it is actually re-infected with the attacker's persistent backdoor.
 *   **Requirement:** The Golden Repository must be **Hardware-Protected** (e.g., stored in a read-only partition or verified against a TPM-sealed hash before every use).
 
-### 11.2 Honeypot Port Selection Race
+### 12.2 Honeypot Port Selection Race
 *   **Finding:** `HoneypotService.ts` utilizes `ss` to check for port availability before rotation, but there is a race condition between the `ss` check and the decoy agent actually binding the port.
 *   **Impact:** If a legitimate system service binds to the port in that micro-window, the decoy agent will fail to start, or the firewall will redirect legitimate traffic to a non-existent decoy, causing intermittent service failures.
 *   **Requirement:** Implement **Atomic Binding**. The sidecar should attempt to bind first and report success/failure back to the orchestrator before any firewall changes occur.
 
-### 11.3 Brittle Emergency Lockdown Sequence
+### 12.3 Brittle Emergency Lockdown Sequence
 *   **Finding:** `SovereignApp.ts` implements an `emergencyLockdown` that immediately exits the process after sending a single `LOCKDOWN` command.
 *   **Impact:** The orchestrator does not wait for mesh-wide acknowledgment or ensure that the local `sentinel` has actually committed the rules to the kernel. This "Fire and Forget" lockdown can fail silently if the agent is busy or shared memory is saturated.
 *   **Requirement:** Implement **Synchronous Lockdown Acknowledgment** with a mandatory 5-second "Final Audit Flush" before process termination.
 
-### 11.4 Syslog Framing Injection
+### 12.4 Syslog Framing Injection
 *   **Finding:** `LogProcessor.ts` performs basic ANSI/newline sanitization but does not explicitly prevent attackers from injecting fake syslog headers into the `message` field.
 *   **Risk:** By crafting a message that includes a valid RFC5424 header, an attacker could spoof the "Origin Node" or "Severity" of an event when viewed in a remote SIEM, leading to forensic redirection or false alerts.
 *   **Requirement:** Utilize **Structured Syslog (JSON/CEF)** for all remote transports instead of free-text framing.
 
-### 11.5 Event Bus Sequential Bottlenecks
+### 12.5 Event Bus Sequential Bottlenecks
 *   **Finding:** `EventBus.ts` executes all handlers for a given event type sequentially within a single `Promise.all` block.
 *   **Impact:** A single slow handler (e.g., a webhook notification or a heavy DB write) will delay the finalization of the event publish cycle for *all* other subscribers, including high-priority autonomous response units.
 *   **Requirement:** Transition to a **Parallel Worker Pool** with per-subscriber priority levels to ensure critical remediations are never blocked by auxiliary logging.
@@ -334,38 +334,38 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 
 ## 16. Rust Agent Safety & Stability Findings
 
-### 15.1 Sidecar Panic Vectors (.unwrap usage)
+### 16.1 Sidecar Panic Vectors (.unwrap usage)
 *   **Finding:** Native Rust agents (particularly `analyzer`, `decoy`, and `sentinel`) utilize `.unwrap()` in critical paths, such as LRU cache initialization, timestamp calculation, and JSON serialization.
 *   **Risk:** If a system call unexpectedly fails (e.g. clock drift during `duration_since`) or memory is constrained, the agent will experience a full process panic and crash. This leads to immediate loss of visibility and remediation capabilities for that node.
 *   **Requirement:** Enforce a **"No-Unwrap" Policy**. Use `expect()` with detailed error messages or, preferably, proper `Result` propagation with graceful error handling.
 
-### 15.2 Unsafe Memory Transmutation
+### 16.2 Unsafe Memory Transmutation
 *   **Finding:** `sentinel/main.rs` utilizes `unsafe { core::mem::transmute(&mut *bpf) }` to extend the lifetime of BPF maps to `'static` for move into `tokio` tasks.
 *   **Impact:** While functionally required for the current version of the Aya crate when combined with asynchronous tasks, this pattern bypasses Rust's borrow checker. If the underlying `bpf_static` mutex is ever dropped or re-initialized incorrectly, it will lead to **Use-After-Free** or **Memory Corruption** at the kernel/userspace boundary.
 *   **Requirement:** Transition to a more robust lifetime management pattern or utilize `Arc<Mutex<Bpf>>` exclusively without transmutation if possible.
 
-## 16. Code Hygiene & Environmental Leakage
+## 17. Code Hygiene & Environmental Leakage
 
-### 16.1 Environmental Dependency Leakage
+### 17.1 Environmental Dependency Leakage
 *   **Finding:** Several core services (e.g. `ProvisioningService`, `validation.ts`, `PolicyEngine`) utilize `Deno.env.get()` directly in their business logic rather than receiving validated configuration from the `ConfigurationPort`.
 *   **Impact:** This hides external dependencies, makes unit testing difficult, and violates the "Twelve-Factor App" principles. It also risks runtime failures if an environment variable is missing but was not checked by `loadConfig` at boot time.
 *   **Requirement:** **Centralize all environment access** into `loadConfig` and pass settings through the `ServiceContainer`.
 
-## 17. Runtime & Platform Technical Debt
+## 18. Runtime & Platform Technical Debt
 
-### 17.1 Runtime Instability (Deno Unstable APIs)
+### 18.1 Runtime Instability (Deno Unstable APIs)
 *   **Finding:** The system relies critically on `--unstable-kv` and other unstable Deno features (e.g., `Deno.listenDatagram`).
 *   **Impact:** Any breaking change in the Deno runtime's KV or networking implementation before stabilization could render the orchestrator non-functional or corrupt the forensic ledger.
 *   **Requirement:** Implement a **Persistence Abstraction Layer** that allows for a fallback to a stable database (e.g., SQLite or PostgreSQL) if Deno KV stability is compromised.
 
-### 17.2 Loose WebSocket CSP Policy
+### 18.2 Loose WebSocket CSP Policy
 *   **Finding:** The Content Security Policy (CSP) in `security.ts` specifies `connect-src 'self' ws: wss:;`.
 *   **Security Risk:** This is overly permissive. It allows the browser dashboard to initiate WebSocket connections to *any* external server. An attacker who gains XSS could use this to exfiltrate session data or CSRF tokens to an attacker-controlled endpoint via WebSockets, bypassing standard `fetch` protections.
 *   **Requirement:** Restrict `connect-src` to the **Orchestrator's Absolute URL** and specific mesh peer addresses.
 
-## 18. Platform & Lifecycle High-Assurance Gaps
+## 19. Platform & Lifecycle High-Assurance Gaps
 
-### 18.1 Telemetry-Flood Orchestrator Saturation
+### 19.1 Telemetry-Flood Orchestrator Saturation
 *   **Finding:** `EventMediator.ts` implement batching but the batching is triggered by a 1-second interval or a 50-event threshold.
 *   **Operational Risk:** During a high-frequency attack (e.g. 100k syscalls/sec), the `EventMediator` will attempt to process 1,000 events (the `MAX_QUEUE_DEPTH`) every second. This processing happens on the main Deno event loop.
 *   **Impact:** A telemetry flood will "steal" CPU cycles from critical components like `SidecarManager` (heartbeats) and `MeshManager` (gossip), potentially causing the orchestrator to lose control of its agents or mesh peers while busy processing logs.
@@ -387,9 +387,9 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Impact:** This is non-atomic. If the orchestrator crashes between the delete and the set, a critical security alert is permanently lost.
 *   **Requirement:** Utilize **`kv.atomic()`** to ensure failure transitions (Retry vs. Dead-Letter) are transactional.
 
-## 19. Ultimate Orchestration Vulnerabilities
+## 20. Ultimate Orchestration Vulnerabilities
 
-### 19.1 SystemExecutor Bypass (Direct Command Spawning)
+### 20.1 SystemExecutor Bypass (Direct Command Spawning)
 *   **Finding:** `KernelService.ts` (specifically `camouflage`, `snapshotForensics`, and `initializeSelfEnforcement`) utilize `Deno.Command` and `Deno.writeTextFile` directly on `/proc/` and system paths instead of routing through the `SystemExecutor`.
 *   **Security Risk:** This completely bypasses the regex-based validation, path jailing, and capability dropping enforced by `SystemExecutor`. If a logic error in `KernelService` is exploited, an attacker can execute arbitrary system commands or write to unauthorized kernel interfaces.
 *   **Requirement:** Enforce **Mandatory Mediation**. All system-level interactions must utilize the `SystemExecutor` port.
@@ -409,9 +409,9 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Code Hygiene:** This creates a "Split Brain" configuration where `loadConfig` at boot time does not represent the actual operational parameters of the system.
 *   **Requirement:** **Centralize all environment access** into the `ConfigurationPort` and enforce usage across all domain services.
 
-## 20. Advanced Resilience & Edge Cases
+## 21. Advanced Resilience & Edge Cases
 
-### 20.1 Sidecar/Orchestrator IPC Race (Startup)
+### 21.1 Sidecar/Orchestrator IPC Race (Startup)
 *   **Finding:** `SidecarManager.ts` calls `setupSharedMemory` asynchronously *after* the sidecar process has already been spawned.
 *   **Risk:** If a high-performance sidecar (like `sentinel`) attempts to write telemetry to shared memory immediately upon startup, it may find the segment unmapped or the fllink missing, leading to an immediate agent crash or data loss before the orchestrator is ready.
 *   **Requirement:** Implement **Pre-Spawn Mapping**. The orchestrator should create and map the shmem segments *before* spawning the child process.
@@ -427,9 +427,9 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Risk:** This leads to **Duplicate Audit Entries** and "Chain Break" errors during subsequent verifications, as the same event appears twice with different `prevHash` contexts in the linear chain.
 *   **Requirement:** Implement **Transactional Idempotency** for batch persistence or utilize unique KV keys that prevent duplicate insertion.
 
-## 21. Ultimate High-Assurance Technical Findings
+## 22. Ultimate High-Assurance Technical Findings
 
-### 21.1 Hardcoded Health Metrics (False Sense of Security)
+### 22.1 Hardcoded Health Metrics (False Sense of Security)
 *   **Finding:** `AuditService.ts` contains an `emitMetrics` method that hardcodes `chainVerified: true` in its payload.
 *   **Security Risk:** The system reports a "Healthy" status for the audit chain to the dashboard and mesh peers without actually performing the verification at that moment. This could mask a background tampering event, giving administrators a false sense of ledger integrity.
 *   **Requirement:** Metrics must reflect the **Latest Real-Time Verification Result** stored in the service state.
@@ -449,9 +449,9 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Impact:** Process names (`comm`) in Linux can contain spaces and parentheses. A malicious process named `(bash ) rm -rf /` will break the provider's field-offset calculations, leading to incorrect PPID mapping or service crashes.
 *   **Requirement:** Utilize a robust **Stat-Field Regex** or a dedicated procfs parsing library.
 
-## 22. Final High-Assurance Gaps
+## 23. Final High-Assurance Gaps
 
-### 22.1 Non-Constant-Time TPM Signature Verification
+### 23.1 Non-Constant-Time TPM Signature Verification
 *   **Finding:** `MeshManager.verifySignature` in `TPM_RESIDENT_IDENTITY` mode performs a direct string comparison (`signature === ...`) for proxy signatures.
 *   **Security Risk:** While these are proxy signatures, the use of non-constant-time comparison introduces a **Timing Side-Channel**. An attacker observing mesh handshakes could potentially brute-force valid signatures by measuring response latencies.
 *   **Requirement:** Enforce **`secureCompare`** for ALL signature and token verifications, regardless of identity mode.
@@ -466,9 +466,9 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Operational Risk:** A slow-drip attacker sending megabytes of garbage data to a decoy port (e.g. 22 or 3389) could slowly exhaust the orchestrator's heap memory, leading to a "Silent OOM" crash.
 *   **Requirement:** Implement **Streaming Transcript Processing** with hard byte-limits (e.g., max 16KB per session).
 
-## 23. Micro-Architectural Logic Gaps
+## 24. Micro-Architectural Logic Gaps
 
-### 23.1 Non-Deterministic Gossip Deduplication
+### 24.1 Non-Deterministic Gossip Deduplication
 *   **Finding:** `MeshGossipManager.ts` utilizes `JSON.stringify` to compute the payload hash for its Bloom Filter deduplication cache.
 *   **Impact:** `JSON.stringify` is non-deterministic regarding object key order. Two identical gossip messages with different key ordering will produce different hashes, bypassing the cache and causing redundant network traffic and potential re-processing loops.
 *   **Requirement:** Utilize **`canonicalStringify`** for all hash computations.
@@ -483,9 +483,9 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Operational Risk:** If a morphing cycle hangs (e.g., awaiting an `iptables` lock), subsequent intervals will trigger overlapping morph attempts, leading to inconsistent firewall states and potential decoy service exhaustion.
 *   **Requirement:** Utilize **Sequential Scheduling** or a boolean `isMorphing` guard.
 
-## 24. Concurrency & Persistence technical Debt
+## 25. Concurrency & Persistence Technical Debt
 
-### 24.1 Non-Atomic File Persistence (State Corruption)
+### 25.1 Non-Atomic File Persistence (State Corruption)
 *   **Finding:** Critical state files, including `vtpm_state.json` (Virtual TPM) and `worm_ledger.log` (WORM Audit), are managed via standard `Deno.readTextFile` and `Deno.writeTextFile` / `append` operations.
 *   **Impact:** If the orchestrator crashes or loses power during a write/append operation, these files can be left in a truncated or corrupted state. For the virtual TPM, this results in immediate loss of all "hardware-bound" secrets.
 *   **Requirement:** Implement **Atomic File Updates** using a "Write-to-Temp-and-Rename" pattern with `fsync` to ensure durability.
@@ -500,7 +500,26 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 *   **Operational Risk:** While individual probes have a 2s timeout, the overall `discoverSubnet` cycle is not gated. On extremely congested or malicious networks where probes "hang" in a pending state, the orchestrator will continue to spawn new probes every 5 seconds, leading to a "Promise Explosion" and eventual OOM.
 *   **Requirement:** Implement **Lifecycle Gating** for the discovery loop (i.e., do not start a new scan until the previous one has fully timed out or completed).
 
-## 25. Verdict
+## 26. Strategy for Absolute Verification & Code Coverage
+To achieve "Production-Grade" status, the following verification methodology MUST be enforced:
+
+### 25.1 Fuzzing Orchestrator IPC
+*   **Action:** Implement a Deno-based fuzzer for the IPC shared memory and WebSocket channels.
+*   **Goal:** Ensure that malformed, oversized, or out-of-order MessagePack/JSON payloads cannot crash the orchestrator or agents.
+
+### 25.2 Property-Based Testing (PBT)
+*   **Action:** Utilize `fast-check` in Deno to verify the idempotency and correctness of the Audit Ledger and Mesh Consensus logic.
+*   **Goal:** Prove that the hash-chain remains valid across 10,000+ random event permutations.
+
+### 25.3 100% Branch Coverage Gate
+*   **Action:** Enforce a hard CI/CD gate requiring 100% test coverage for the `core/domain` and `infrastructure/security` directories.
+*   **Goal:** Eliminate "Dark Code" paths that could harbor dormant logic bombs or unhandled edge cases.
+
+### 25.4 TLA+ Formal Specification
+*   **Action:** Model the Mesh Consensus (View-Stamp Strategy) and Sidecar Lifecycle in TLA+.
+*   **Goal:** Mathematically prove the absence of deadlocks and race conditions in the distributed state machine.
+
+## 27. Verdict
 **Current Status:** **READY FOR PILOT.**
 The architecture is fundamentally sound and the hardening implemented in Milestone 4 is impressive. However, it is **NOT PROD-GRADE** until the TOCTOU spawning risk and the hardware-dependency hard-failing (TPM) are addressed. These gaps represent the primary difference between a "Security Tool" and "High-Assurance Sovereign Infrastructure."
 
