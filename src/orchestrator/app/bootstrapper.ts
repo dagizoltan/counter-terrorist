@@ -40,7 +40,7 @@ export async function checkDependency(executor: SystemExecutor, cmd: string): Pr
 
 export async function bootstrap(): Promise<SystemStatus> {
   const executor = new SystemExecutor();
-  // BUG-9.1 FIX: Parallelize bootstrap checks to avoid linear delays
+  // Parallelize bootstrap checks to avoid linear delays
   const platformPromise = getPlatformInfo(executor);
   const os = Deno.build.os;
   const isRoot = os === "windows" ? true : (Deno.uid?.() === 0); // Simplified for Windows

@@ -35,7 +35,7 @@ export class BehavioralAnalyzer extends BaseService {
 
     protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
         const { ok } = await import("@core/result.ts");
-        // SOV-06: Background cleanup for stale behavioral data
+        // Background cleanup for stale behavioral data
         this.purgeInterval = setInterval(() => this.purgeStaleData(), 300000); // 5 Minutes
         return ok(undefined);
     }
@@ -105,13 +105,13 @@ export class BehavioralAnalyzer extends BaseService {
         const mean = deltas.reduce((a, b) => a + b, 0) / deltas.length;
         const variance = deltas.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / deltas.length;
         
-        // BUG-2.3 FIX: Refined entropy heuristic
+        // Refined entropy heuristic
         // Use a more dynamic normalization based on mean delta to handle high-latency human traffic.
         // Guard against zero variance for perfect regular traffic
         const normalizationFactor = Math.max(1000, mean * 2);
         let currentEntropy = variance === 0 ? 0 : Math.min(variance / normalizationFactor, 1);
 
-        // SOV-05 STABILITY: Guard against NaN/Infinity in calculations
+        // STABILITY: Guard against NaN/Infinity in calculations
         if (isNaN(currentEntropy) || !isFinite(currentEntropy)) {
             currentEntropy = 1.0; // Assume normal/high entropy on calculation failure
         }
@@ -229,7 +229,7 @@ export class BehavioralAnalyzer extends BaseService {
         const total = Array.from(freqMap.values()).reduce((a, b) => a + b, 0);
         const count = freqMap.get(syscall) || 0;
 
-        // SOV-05 STABILITY: Guard against division by zero
+        // STABILITY: Guard against division by zero
         if (total === 0) return 0;
 
         // Apply Laplacian smoothing (Add-one smoothing) for small samples

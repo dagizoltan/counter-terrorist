@@ -37,7 +37,7 @@ export class ProcessTracker extends BaseService {
     }
 
     protected override async onInit(): Promise<Result<void>> {
-        // BUG-4.6 FIX: Automated tree cleanup to prevent memory leak
+        // Automated tree cleanup to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanup(), 300000); // Every 5 minutes
         this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
         return ok(undefined);
@@ -92,7 +92,7 @@ export class ProcessTracker extends BaseService {
     }
 
     async analyzeEvent(pid: number, comm: string): Promise<{ isStrayShell: boolean; reason?: string; ppid?: number }> {
-        // BUG-2.2 FIX: Robust parent lookup to handle race conditions where parent exits mid-analysis
+        // Robust parent lookup to handle race conditions where parent exits mid-analysis
         const [stats, activePids] = await Promise.all([
             this.processProvider.getProcessInfo(pid),
             (async () => {

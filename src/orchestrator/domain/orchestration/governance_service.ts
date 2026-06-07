@@ -3,13 +3,19 @@ import { MeshManager } from "./mesh.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 
+export interface Vote {
+    voter: string;
+    approved: boolean;
+    timestamp: number;
+}
+
 export interface Proposal {
     id: string;
     proposer: string;
     type: "LOCKDOWN" | "IDENTITY_ROTATE" | "ACTIVE_SABOTAGE";
     target: string;
     payload: any;
-    votes: Map<string, boolean>;
+    votes: Vote[];
     timestamp: number;
     executed: boolean;
 }
@@ -31,7 +37,7 @@ export class GovernanceService extends BaseService {
     }
 
     protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
-        // BUG-4.24 FIX: Periodically cleanup expired proposals to prevent memory leak
+        // Periodically cleanup expired proposals to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanupProposals(), 3600000); // 1 hour
         return { success: true, data: undefined };
     }
@@ -65,13 +71,17 @@ export class GovernanceService extends BaseService {
             type,
             target,
             payload,
-            votes: new Map(),
+            votes: [],
             timestamp: Date.now(),
             executed: false
         };
 
         // Self-vote
-        proposal.votes.set(this.mesh.getNodeId(), true);
+        proposal.votes.push({
+            voter: this.mesh.getNodeId(),
+            approved: true,
+            timestamp: Date.now()
+        });
         this.proposals.set(id, proposal);
 
         this.logging.log({
@@ -113,7 +123,7 @@ export class GovernanceService extends BaseService {
             type: payload.type,
             target: payload.target,
             payload: payload.payload,
-            votes: new Map(),
+            votes: [],
             timestamp: Date.now(),
             executed: false
         };
@@ -183,7 +193,15 @@ export class GovernanceService extends BaseService {
         const proposal = this.proposals.get(payload.id);
         if (!proposal || proposal.executed) return;
 
-        proposal.votes.set(payload.voter, payload.approved);
+        // Use atomic-like update for votes array
+        const existingIndex = proposal.votes.findIndex(v => v.voter === payload.voter);
+        const vote = { voter: payload.voter, approved: payload.approved, timestamp: Date.now() };
+
+        if (existingIndex >= 0) {
+            proposal.votes[existingIndex] = vote;
+        } else {
+            proposal.votes.push(vote);
+        }
 
         // Check for Quorum
         const activeNodes = this.mesh.getActiveNodeCount() + 1; // +1 for self
@@ -202,8 +220,7 @@ export class GovernanceService extends BaseService {
         }
 
         const quorumSize = Math.floor(activeNodes / 2) + 1;
-        
-        const approveCount = Array.from(proposal.votes.values()).filter(v => v).length;
+        const approveCount = proposal.votes.filter(v => v.approved).length;
 
         if (approveCount >= quorumSize) {
             await this.executeProposal(proposal);

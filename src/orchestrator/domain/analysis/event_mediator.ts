@@ -88,7 +88,13 @@ export class EventMediator extends BaseService {
         this.eventBus = eventBusPort;
         this.behavioral = new BehavioralAnalyzer();
         if (kv) {
-            this.behavioral.setKv(kv).catch(err => this.logger.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Failed to set KV for behavioral: ${err.message}` }).catch(() => {}));
+            this.behavioral.setKv(kv).catch(err => this.logger.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "event_mediator",
+                message: `Failed to set KV for behavioral: ${err.message}`
+            }));
         }
 
         this.sentinelIntegration = new SentinelIntegration(eventBusPort, processTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
@@ -220,14 +226,22 @@ export class EventMediator extends BaseService {
         });
     }
 
+    /**
+     * Standardized error handling for mediator event processing.
+     */
     private handleMediatorError(e: Error, sidecar: string) {
+        const timestamp = new Date().toISOString();
+        const message = `Error processing ${sidecar} event: ${e.message}`;
+
         this.logger.log({
-            timestamp: new Date().toISOString(),
+            timestamp,
             type: LogType.GENERIC,
             severity: LogSeverity.ERROR,
             caller: "orchestrator:domain:analysis:event_mediator",
-            message: `Error processing ${sidecar} event: ${e.message}`
-        }).catch(err => this.logger.log({ timestamp: new Date().toISOString(), type: LogType.GENERIC, severity: LogSeverity.ERROR, caller: "event_mediator", message: `Background task failure: ${err.message}` }).catch(() => {}));
+            message
+        }).catch(err => {
+            console.error(`[MEDIATOR:LOG_FAIL] ${err.message} (Original: ${message})`);
+        });
     }
 
     private lastThrottleLog = 0;
@@ -242,7 +256,9 @@ export class EventMediator extends BaseService {
                 severity: LogSeverity.WARNING,
                 caller: "EVENT_MEDIATOR:BACKPRESSURE",
                 message: `CRITICAL: High telemetry volume detected from ${sidecar}. Engaging load-shedding to prevent OOM.`
-            }).catch(() => {});
+            }).catch(err => {
+                console.error(`[MEDIATOR:THROTTLE_FAIL] ${err.message}`);
+            });
         }
     }
 

@@ -74,7 +74,7 @@ export class SovereignApp {
         const config = loadConfig();
         const configProvider = new EnvConfigProvider(config);
 
-        await this.hardeningManager.applyProductionHardening(config);
+        await this.hardeningManager.applyProductionHardening(configProvider);
         this.configureLogging(config);
 
         // ── Phase 2: Fundamental Infrastructure ───────────────────────────────

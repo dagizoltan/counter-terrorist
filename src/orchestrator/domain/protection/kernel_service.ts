@@ -559,17 +559,22 @@ ${capStrings}
 }
 `.trim();
 
-        // SOV-06 HARDENING: Use secure root-owned directory for temporary files to prevent TOCTOU symlink attacks
+        // Use secure root-owned directory for temporary files to prevent TOCTOU symlink attacks
         const secureTempDir = "/var/lib/cts/tmp";
         try {
-            await this.executor.execute("mkdir", ["-p", secureTempDir]);
-        } catch { /* ignore if already exists */ }
+            const mkdirRes = await this.executor.execute("mkdir", ["-p", secureTempDir]);
+            if (mkdirRes.success) {
+                await this.executor.execute("chmod", ["700", secureTempDir]);
+                await this.executor.execute("chown", ["root:root", secureTempDir]);
+            }
+        } catch { /* ignore if already exists and we lack perms */ }
 
         let tempFile = "";
         try {
             const randomSuffix = crypto.randomUUID().slice(0, 8);
             tempFile = `${secureTempDir}/cts-profile-${name}-${randomSuffix}.profile`;
 
+            // Use privileged move/copy from a secure string if possible, or ensure restricted perms
             await Deno.writeTextFile(tempFile, profile);
             await Deno.chmod(tempFile, 0o600);
 

@@ -100,27 +100,30 @@ export class BoundedMap<K, V> {
 
     // --- Iterators ---
 
+    /**
+     * Snapshots the keys to allow safe iteration even if the map is modified
+     * during iteration (e.g. elements deleted during a decay cycle).
+     */
     *entries(): IterableIterator<[K, V]> {
-        let current = this.head;
-        while (current) {
-            yield [current.key, current.value];
-            current = current.next;
+        const keys = Array.from(this.cache.keys());
+        for (const key of keys) {
+            const node = this.cache.get(key);
+            if (node) yield [key, node.value];
         }
     }
 
     *values(): IterableIterator<V> {
-        let current = this.head;
-        while (current) {
-            yield current.value;
-            current = current.next;
+        const keys = Array.from(this.cache.keys());
+        for (const key of keys) {
+            const node = this.cache.get(key);
+            if (node) yield node.value;
         }
     }
 
     *keys(): IterableIterator<K> {
-        let current = this.head;
-        while (current) {
-            yield current.key;
-            current = current.next;
+        const keys = Array.from(this.cache.keys());
+        for (const key of keys) {
+            if (this.cache.has(key)) yield key;
         }
     }
 }

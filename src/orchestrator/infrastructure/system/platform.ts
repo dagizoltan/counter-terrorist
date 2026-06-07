@@ -82,7 +82,7 @@ async function getMetrics(executor?: SystemExecutor): Promise<PlatformInfo["metr
 
     const hostname = Deno.hostname();
 
-    // BUG-5.3 FIX: Implement real disk metrics
+    // Implement real disk metrics
     let disk = { total: 0, free: 0, used: 0 };
     if (executor) {
         const { success, stdout } = await executor.execute("df", ["--block-size=1", "/"]);

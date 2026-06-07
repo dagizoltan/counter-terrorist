@@ -24,6 +24,10 @@ export const MeshNodeSchema = z.object({
 
 export type MeshNode = z.infer<typeof MeshNodeSchema>;
 
+/**
+ * MeshManager coordinates the zero-config security mesh.
+ * Handles node discovery, mTLS identity management, and cross-node gossip.
+ */
 export class MeshManager extends BaseService implements MeshPort {
   private nodes: Map<string, MeshNode> = new Map();
   private discoveryInterval: number | null = null;
@@ -585,6 +589,12 @@ export class MeshManager extends BaseService implements MeshPort {
     }
   }
 
+  /**
+   * Broadcasts a payload to all verified mesh nodes using the gossip protocol.
+   *
+   * @param payload Data to broadcast
+   * @param priority If true, the message will bypass normal gossip queues
+   */
   async broadcast(payload: Record<string, unknown>, priority: boolean = false): Promise<Result<void>> {
     this.ensureReady();
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => {
