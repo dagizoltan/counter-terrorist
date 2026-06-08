@@ -1,0 +1,2062 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:ab81176e-1d14-4360-88e1-b3b5be353498",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-06-08T01:12:18.625Z",
+    "component": {
+      "name": "Sovereign-Orchestrator",
+      "version": "1.0.0-PROD",
+      "type": "application"
+    }
+  },
+  "components": [
+    {
+      "name": "jsr:@std/assert@0.224",
+      "version": "0.224.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "jsr:@std/collections@^1.0.0-rc.1",
+      "version": "1.2.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "jsr:@std/dotenv@0.224",
+      "version": "0.224.2",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "jsr:@std/fmt@0.224",
+      "version": "0.224.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "jsr:@std/internal@0.224",
+      "version": "0.224.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "jsr:@std/path@0.224",
+      "version": "0.224.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "jsr:@std/toml@0.224",
+      "version": "0.224.1",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "fast-check",
+      "version": "4.8.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "zod",
+      "version": "4.4.2",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "zod",
+      "version": "4.4.2",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "ORCHESTRATOR"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "zerocopy",
+      "version": "0.7",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "tokio",
+      "version": "1",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "rmp-serde",
+      "version": "1.1",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "chrono",
+      "version": "0.4",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "anyhow",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "env_logger",
+      "version": "0.10",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "log",
+      "version": "0.4",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "bytes",
+      "version": "1.11",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "1.18",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "parking_lot",
+      "version": "0.12",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "sysinfo",
+      "version": "0.29",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "cts_ipc",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "EBPF"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "tokio",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "parking_lot",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "chrono",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "libc",
+      "version": "0.2",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "nix",
+      "version": "0.27",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "anyhow",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "cts_ipc",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "sysinfo",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "chrono",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "tokio",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "parking_lot",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "FIREWALL"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "cts_ipc",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "tokio",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "parking_lot",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "chrono",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "inotify",
+      "version": "0.10",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "rand",
+      "version": "0.8",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "DECEPTION"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "rmp-serde",
+      "version": "1.1",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "tokio",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "parking_lot",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "chrono",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "socket2",
+      "version": "0.5",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "anyhow",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "nix",
+      "version": "0.27",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "libc",
+      "version": "0.2",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "bytes",
+      "version": "1.4",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "cts_ipc",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "NETWORK"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "tokio",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "chrono",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "rcgen",
+      "version": "0.11",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "rsa",
+      "version": "0.9",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "pkcs8",
+      "version": "0.10",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "sha2",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "hex",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "TPM"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "tokio",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "chrono",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "once_cell",
+      "version": "workspace",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "shared_memory",
+      "version": "0.12",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "landlock",
+      "version": "0.3",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "rmp-serde",
+      "version": "1.1",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "anyhow",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "parking_lot",
+      "version": "0.12",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "log",
+      "version": "0.4",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "hex",
+      "version": "0.4",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "sha2",
+      "version": "0.10",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "shared_memory",
+      "version": "0.12",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "rmp-serde",
+      "version": "1.1",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    },
+    {
+      "name": "libc",
+      "version": "0.2",
+      "type": "library",
+      "licenses": [
+        {
+          "license": {
+            "name": "MIT/Apache-2.0"
+          }
+        }
+      ],
+      "properties": [
+        {
+          "name": "sovereign:feature",
+          "value": "CORE"
+        },
+        {
+          "name": "sovereign:status",
+          "value": "SECURE"
+        }
+      ]
+    }
+  ]
+}

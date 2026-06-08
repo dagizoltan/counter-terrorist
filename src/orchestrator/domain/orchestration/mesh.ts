@@ -12,6 +12,7 @@ import { MeshChaosEngine } from "./chaos_engine.ts";
 import { BloomFilter } from "../../core/cache.ts";
 import { MeshGossipManager } from "./mesh/gossip_manager.ts";
 import { MeshConsensusManager } from "./mesh/consensus_manager.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export const MeshNodeSchema = z.object({
   id: z.string(),
@@ -236,13 +237,13 @@ export class MeshManager extends BaseService implements MeshPort {
 
     setTimeout(() => {
         this.discoverSubnet().catch(() => {});
-    }, 2000 + Math.random() * 3000);
+    }, 2000 + secureRandomInt(0, 3000));
     
     this.discoveryInterval = setInterval(() => {
         this.discoverSubnet();
         this.scanNetwork();
         this.resolveSplitBrain(); // Periodic split-brain check
-    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + (Math.random() * 5000)) as any;
+    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + secureRandomInt(0, 5000)) as any;
   }
 
   private async discoverSubnet() {
@@ -275,7 +276,7 @@ export class MeshManager extends BaseService implements MeshPort {
             await Promise.all(probes);
             probes.length = 0;
             // Increased jitter for stealth and stability
-            await new Promise(r => setTimeout(r, 500 + Math.random() * 1500));
+            await new Promise(r => setTimeout(r, 500 + secureRandomInt(0, 1500)));
         }
       }
       await Promise.all(probes);
@@ -285,7 +286,7 @@ export class MeshManager extends BaseService implements MeshPort {
   private async probeNode(address: string) {
     if (!this.httpClient) return;
 
-    // SOV-06 HARDENING: Explicitly block loopback and cloud-metadata addresses from active probing
+    // SOV-06 HARDENING: Explicit block loopback and cloud-metadata addresses from active probing
     const { isValidIP } = await import("@infrastructure/system/validation.ts");
     const isLoopback = address === "127.0.0.1" || address === "::1" || address.startsWith("127.");
     const isMetadata = address === "169.254.169.254" || address.startsWith("169.254.");
@@ -986,8 +987,9 @@ export class MeshManager extends BaseService implements MeshPort {
         "Upgrade-Insecure-Requests": "1"
     };
 
-    const paddingLength = Math.floor(Math.random() * 256);
-    const padding = Array.from({ length: paddingLength }, () => Math.random().toString(36)[2]).join('');
+    const paddingLength = secureRandomInt(0, 255);
+    const paddingChars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    const padding = Array.from({ length: paddingLength }, () => paddingChars[secureRandomInt(0, paddingChars.length - 1)]).join('');
 
     const paddedPayload = {
       ...payload,
@@ -999,7 +1001,7 @@ export class MeshManager extends BaseService implements MeshPort {
       headers["X-Mesh-Signature"] = signature;
     }
 
-    const jitter = Math.floor(Math.random() * 800); 
+    const jitter = secureRandomInt(0, 800);
     await new Promise(r => setTimeout(r, jitter));
 
     const res = await this.chaosEngine.applyChaos(() => fetch(url, {

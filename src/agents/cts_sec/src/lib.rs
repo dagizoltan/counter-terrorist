@@ -3,7 +3,8 @@ use std::fs::File;
 use std::io::{Read, BufReader, Write};
 use shared_memory::*;
 use serde::{Serialize};
-use std::os::unix::io::AsRawFd;
+use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 /// Computes SHA256 hash of the input data.
 ///
@@ -184,7 +185,7 @@ pub unsafe extern "C" fn create_shmem(path: *const i8, size: usize) -> *mut Shme
     }
 }
 
-/// Reads data from a shared memory segment.
+/// Reads data from a shared memory segment. (Legacy Single-Slot)
 ///
 /// # Safety
 /// * `shmem_ptr` must be a valid pointer to a `Shmem` instance.
@@ -209,6 +210,107 @@ pub unsafe extern "C" fn shmem_read(shmem_ptr: *mut Shmem, out_buf: *mut u8, max
     std::ptr::copy_nonoverlapping(zero_len.as_ptr(), slice.as_mut_ptr(), 4);
 
     len as i32
+}
+
+/// SOV-M4: Zero-Copy Ring Buffer Pull
+/// Returns a pointer to the next message and its length.
+/// Returns 0 if no message is available.
+///
+/// # Safety
+/// * `shmem_ptr` must be a valid pointer to a `Shmem` instance.
+/// * `out_len` must be a valid pointer to a `u32`.
+#[no_mangle]
+pub unsafe extern "C" fn shmem_ring_pull(shmem_ptr: *mut Shmem, out_len: *mut u32) -> *const u8 {
+    if shmem_ptr.is_null() || out_len.is_null() { return std::ptr::null(); }
+    let shmem = &mut *shmem_ptr;
+    let slice = shmem.as_slice_mut();
+    if slice.len() < 32 { return std::ptr::null(); }
+
+    let head_ptr = slice.as_ptr() as *const AtomicU32;
+    let tail_ptr = slice.as_ptr().add(4) as *const AtomicU32;
+    let cap_ptr = slice.as_ptr().add(8) as *const u32;
+
+    let head = (*head_ptr).load(Ordering::Acquire);
+    let tail = (*tail_ptr).load(Ordering::Acquire);
+    let capacity = *cap_ptr;
+
+    if head == tail { return std::ptr::null(); }
+
+    let data_offset = 16;
+
+    // Safety check: ensure current tail + 4 is within capacity
+    if tail + 4 > capacity { return std::ptr::null(); }
+
+    let mut len_bytes = [0u8; 4];
+    len_bytes.copy_from_slice(&slice[data_offset + tail as usize..data_offset + tail as usize + 4]);
+    let mut msg_len = u32::from_le_bytes(len_bytes);
+
+    let mut effective_tail = tail;
+
+    if msg_len == 0xFFFFFFFF {
+        // Skip to beginning
+        effective_tail = 0;
+        // Safety check: ensure capacity can hold another header at start
+        if capacity < 4 { return std::ptr::null(); }
+        len_bytes.copy_from_slice(&slice[data_offset..data_offset + 4]);
+        msg_len = u32::from_le_bytes(len_bytes);
+
+        if msg_len == 0 || msg_len == 0xFFFFFFFF {
+            return std::ptr::null();
+        }
+    }
+
+    if msg_len == 0 || msg_len > capacity - 4 || effective_tail + 4 + msg_len > capacity {
+        return std::ptr::null();
+    }
+
+    *out_len = msg_len;
+    slice.as_ptr().add(data_offset + effective_tail as usize + 4)
+}
+
+/// SOV-M4: Zero-Copy Ring Buffer Commit
+/// Advances the tail pointer after processing a message.
+///
+/// # Safety
+/// * `shmem_ptr` must be a valid pointer to a `Shmem` instance.
+#[no_mangle]
+pub unsafe extern "C" fn shmem_ring_commit(shmem_ptr: *mut Shmem) {
+    if shmem_ptr.is_null() { return; }
+    let shmem = &mut *shmem_ptr;
+    let slice = shmem.as_slice_mut();
+    if slice.len() < 32 { return; }
+
+    let head_ptr = slice.as_ptr() as *const AtomicU32;
+    let tail_ptr = slice.as_ptr().add(4) as *const AtomicU32;
+    let cap_ptr = slice.as_ptr().add(8) as *const u32;
+
+    let head = (*head_ptr).load(Ordering::Acquire);
+    let tail = (*tail_ptr).load(Ordering::Acquire);
+    let capacity = *cap_ptr;
+
+    if head == tail { return; }
+
+    let data_offset = 16;
+
+    if tail + 4 > capacity { return; }
+
+    let mut len_bytes = [0u8; 4];
+    len_bytes.copy_from_slice(&slice[data_offset + tail as usize..data_offset + tail as usize + 4]);
+    let msg_len = u32::from_le_bytes(len_bytes);
+
+    if msg_len == 0xFFFFFFFF {
+        // Skip marker, jump to 0 and commit first message there
+        if capacity < 4 { return; }
+        len_bytes.copy_from_slice(&slice[data_offset..data_offset + 4]);
+        let wrapped_msg_len = u32::from_le_bytes(len_bytes);
+        if wrapped_msg_len != 0 && wrapped_msg_len != 0xFFFFFFFF && 4 + wrapped_msg_len <= capacity {
+            (*tail_ptr).store(4 + wrapped_msg_len, Ordering::Release);
+        }
+    } else {
+        if tail + 4 + msg_len <= capacity {
+            (*tail_ptr).store(tail + 4 + msg_len, Ordering::Release);
+        }
+    }
 }
 
 /// Writes data to a shared memory segment.
@@ -323,11 +425,6 @@ pub unsafe extern "C" fn free_buffer(ptr: *mut u8, len: usize) {
 pub unsafe extern "C" fn create_sealed_memfd(name: *const i8, data: *const u8, len: usize) -> i32 {
     if name.is_null() || data.is_null() || len == 0 { return -1; }
 
-    let name_str = match std::ffi::CStr::from_ptr(name).to_str() {
-        Ok(s) => s,
-        Err(_) => return -1,
-    };
-
     // libc Constants for memfd_create and fcntl
     const MFD_CLOEXEC: u32 = 0x0001;
     const MFD_ALLOW_SEALING: u32 = 0x0002;
@@ -341,7 +438,7 @@ pub unsafe extern "C" fn create_sealed_memfd(name: *const i8, data: *const u8, l
     let fd = libc::syscall(libc::SYS_memfd_create, name.cast::<libc::c_char>(), MFD_CLOEXEC | MFD_ALLOW_SEALING) as i32;
     if fd < 0 { return -1; }
 
-    let mut file = std::fs::File::from(std::os::unix::io::OwnedFd::from_raw_fd(fd));
+    let mut file = std::fs::File::from(OwnedFd::from_raw_fd(fd));
 
     // 2. Load binary data
     let data_slice = std::slice::from_raw_parts(data, len);

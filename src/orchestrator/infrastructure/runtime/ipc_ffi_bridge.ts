@@ -14,6 +14,8 @@ export class IpcFfiBridge {
         "free_string": { parameters: ["pointer"], result: "void" },
         "shmem_read": { parameters: ["pointer", "buffer", "usize"], result: "i32" },
         "shmem_write": { parameters: ["pointer", "buffer", "usize"], result: "bool" },
+        "shmem_ring_pull": { parameters: ["pointer", "pointer"], result: "pointer" },
+        "shmem_ring_commit": { parameters: ["pointer"], result: "void" },
         "fast_morph": { parameters: ["buffer", "usize", "buffer", "usize"], result: "void" }
     } as const;
 
@@ -74,6 +76,42 @@ export class IpcFfiBridge {
             this.ffi.symbols.free_string(jsonPtr);
             return jsonStr;
         }
+        return null;
+    }
+
+    /**
+     * SOV-M4: Zero-Copy Ring Buffer Pull
+     */
+    pullRingEvent(ptr: Deno.PointerValue, obfuscationKey?: Uint8Array): string | null {
+        if (!this.ffi || !ptr) return null;
+        const outLenPtr = new Uint32Array(1);
+        const msgPtr = this.ffi.symbols.shmem_ring_pull(ptr, Deno.UnsafePointer.of(outLenPtr));
+
+        if (!msgPtr) return null;
+
+        const len = outLenPtr[0];
+        if (len === 0) return null;
+
+        // Create a view directly into shared memory (Zero-Copy)
+        const view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgPtr, len));
+
+        // Obfuscation must be done on a copy if we want to keep shared memory "clean"
+        // OR we can do it in-place if we don't mind (it's XOR).
+        // Since we commit after this, in-place is fine.
+        if (obfuscationKey && obfuscationKey.length > 0) {
+            this.fastMorph(view, obfuscationKey);
+        }
+
+        const jsonPtr = this.ffi.symbols.deserialize_msgpack(view, BigInt(len));
+        if (jsonPtr) {
+            const jsonStr = Deno.UnsafePointerView.getCString(jsonPtr);
+            this.ffi.symbols.free_string(jsonPtr);
+
+            // Commit only after successful deserialization
+            this.ffi.symbols.shmem_ring_commit(ptr);
+            return jsonStr;
+        }
+
         return null;
     }
 

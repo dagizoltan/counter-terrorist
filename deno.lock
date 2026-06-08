@@ -2,10 +2,12 @@
   "version": "5",
   "specifiers": {
     "jsr:@std/assert@0.224": "0.224.0",
+    "jsr:@std/collections@^1.0.0-rc.1": "1.2.0",
     "jsr:@std/dotenv@0.224": "0.224.2",
     "jsr:@std/fmt@0.224": "0.224.0",
     "jsr:@std/internal@0.224": "0.224.0",
     "jsr:@std/path@0.224": "0.224.0",
+    "jsr:@std/toml@0.224": "0.224.1",
     "npm:fast-check@*": "4.8.0",
     "npm:zod@*": "4.4.2",
     "npm:zod@^4.4.1": "4.4.2"
@@ -17,6 +19,9 @@
         "jsr:@std/fmt",
         "jsr:@std/internal"
       ]
+    },
+    "@std/collections@1.2.0": {
+      "integrity": "47627a21d3a13138b77fd0e4d790ba9d2e603c3510b686cde6b132fe9aa98a88"
     },
     "@std/dotenv@0.224.2": {
       "integrity": "29081695357e4534696c9e986b2560be29c141ccf52daa32b6c20ff5b5c64ab9"
@@ -34,6 +39,12 @@
       "integrity": "55bca6361e5a6d158b9380e82d4981d82d338ec587de02951e2b7c3a24910ee6",
       "dependencies": [
         "jsr:@std/assert"
+      ]
+    },
+    "@std/toml@0.224.1": {
+      "integrity": "c364b9ca3b18207223c4e2a1f652ef2970ff80967f7575ddf89b6b0565a17148",
+      "dependencies": [
+        "jsr:@std/collections"
       ]
     }
   },
@@ -295,6 +306,7 @@
       "jsr:@std/assert@0.224",
       "jsr:@std/dotenv@0.224",
       "jsr:@std/path@0.224",
+      "jsr:@std/toml@0.224",
       "npm:zod@^4.4.1"
     ]
   }

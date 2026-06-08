@@ -5,17 +5,36 @@
 /**
  * Deterministic JSON stringifier to ensure consistent hashes and signatures.
  * Sorts keys and handles nested objects and arrays.
+ *
+ * SOV-M5: Hardened against JSON Bombs with recursion depth and breadth limits.
  */
-export function canonicalStringify(obj: unknown): string {
+export function canonicalStringify(obj: unknown, depth = 0): string {
+  const MAX_DEPTH = 10;
+  const MAX_BREADTH = 100;
+
+  if (depth > MAX_DEPTH) {
+    throw new Error(`Serialization Error: Max recursion depth (${MAX_DEPTH}) exceeded.`);
+  }
+
   if (obj === null || typeof obj !== "object") {
     return JSON.stringify(obj);
   }
+
   if (Array.isArray(obj)) {
-    return "[" + obj.map(item => canonicalStringify(item)).join(",") + "]";
+    if (obj.length > MAX_BREADTH) {
+        throw new Error(`Serialization Error: Max array breadth (${MAX_BREADTH}) exceeded.`);
+    }
+    return "[" + obj.map(item => canonicalStringify(item, depth + 1)).join(",") + "]";
   }
+
   const record = obj as Record<string, unknown>;
   const keys = Object.keys(record).sort();
-  return "{" + keys.map(key => `${JSON.stringify(key)}:${canonicalStringify(record[key])}`).join(",") + "}";
+
+  if (keys.length > MAX_BREADTH) {
+      throw new Error(`Serialization Error: Max object breadth (${MAX_BREADTH}) exceeded.`);
+  }
+
+  return "{" + keys.map(key => `${JSON.stringify(key)}:${canonicalStringify(record[key], depth + 1)}`).join(",") + "}";
 }
 
 /**
@@ -114,4 +133,23 @@ export async function verifySignature(payload: unknown, signature: string, secre
   } catch {
     return false;
   }
+}
+
+/**
+ * Generates a cryptographically secure random integer in a range [min, max].
+ */
+export function secureRandomInt(min: number, max: number): number {
+    const range = max - min + 1;
+    const array = new Uint32Array(1);
+    crypto.getRandomValues(array);
+    return min + (array[0] % range);
+}
+
+/**
+ * Generates a cryptographically secure random boolean.
+ */
+export function secureRandomBool(): boolean {
+    const array = new Uint8Array(1);
+    crypto.getRandomValues(array);
+    return array[0] > 127;
 }

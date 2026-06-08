@@ -2,6 +2,7 @@ import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType, CommandPort, FirewallPort, PcapPort, EventBusPort } from "@core/ports.ts";
 import { SystemEvent } from "@domain/analysis/events.ts";
 import { Result, ok, err } from "@core/result.ts";
+import { secureRandomInt, secureRandomBool } from "../../core/crypto_utils.ts";
 
 export interface HoneypotModule {
   id: string;
@@ -330,7 +331,7 @@ export class HoneypotService extends BaseService {
     if (level === "CRITICAL") {
         mode = "DYNAMIC";
         latency_ms = 5000;
-    } else if (Math.random() > 0.5) {
+    } else if (secureRandomBool()) {
         mode = "ERRORS";
     }
     
@@ -376,11 +377,11 @@ export class HoneypotService extends BaseService {
         attempts++;
         // Preference for common but usually unused ports for better camouflage
         const camouflagePorts = [111, 515, 1024, 2049, 4000, 5000, 9000];
-        const useCamouflage = Math.random() > 0.5;
+        const useCamouflage = secureRandomBool();
         if (useCamouflage) {
-           newPort = camouflagePorts[Math.floor(Math.random() * camouflagePorts.length)];
+           newPort = camouflagePorts[secureRandomInt(0, camouflagePorts.length - 1)];
         } else {
-           newPort = Math.floor(Math.random() * (65535 - 1024) + 1024);
+           newPort = secureRandomInt(1024, 65535);
         }
 
         if (!protectedPorts.includes(newPort) && !Array.from(this.modules.values()).some(m => m.port === newPort)) {
