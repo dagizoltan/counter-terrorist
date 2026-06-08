@@ -1236,6 +1236,10 @@ export class MeshManager extends BaseService implements MeshPort {
       }
   }
 
+  getKv(): Deno.Kv | undefined {
+      return (this.config as ConfigurationPort & { kv?: Deno.Kv }).kv;
+  }
+
   private isIpAllowed(ip: string, allowedRanges: string): boolean {
       const ranges = allowedRanges.split(",").map(r => r.trim());
       for (const range of ranges) {

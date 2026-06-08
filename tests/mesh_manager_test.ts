@@ -24,7 +24,7 @@ class MockMeshAuth implements MeshAuthPort {
 }
 
 class MockConfig implements ConfigurationPort {
-    kv = { watch: () => ({ [Symbol.asyncIterator]: async function*() {} }) };
+    kv = null;
     getToken(): string | undefined { return "token"; }
     getMeshSecret(): string | undefined { return "secret"; }
     getEnv(key: string): string | undefined { return key === "SINGLE_NODE" ? "false" : undefined; }
@@ -77,7 +77,7 @@ Deno.test("MeshManager - Consensus logic", async () => {
             return Promise.resolve({
                 approved: true,
                 payload: { action: "TEST_ACTION" },
-                signature: "p-sig:node-key-n0:{\"action\":\"TEST_ACTION\"}"
+                signature: "v-sig"
             });
         }
         if (node.id === "n2") return Promise.resolve({ approved: false });

@@ -13,11 +13,6 @@ export interface ScheduledTask {
     jitterMs?: number;
 }
 
-/**
- * LifecycleService (Sovereign Cron)
- * Manages the periodic execution of defensive tasks across the agent mesh.
- * Replaces host-level cron/systemd-timers for a truly distro-less posture.
- */
 export class LifecycleService extends BaseService {
     private tasks: ScheduledTask[] = [];
     private customTasks: (() => Promise<void>)[] = [];
@@ -27,77 +22,81 @@ export class LifecycleService extends BaseService {
     private lkgTimer?: any;
     private policyEngine?: import("../orchestration/policy_engine.ts").PolicyEngine;
 
-    constructor(
-        private commands: CommandPort,
-        private logging: LoggingPort
-    ) {
+    constructor(private commands: CommandPort, private logging: LoggingPort) {
         super();
         this.initializeDefaultTasks();
     }
 
     private initializeDefaultTasks() {
-        this.tasks.push({
-            id: "kernel-attestation",
-            agent: "analyzer",
-            command: "ATTEST_KERNEL",
-            intervalMs: 300000, // 5 Minutes
-            jitterMs: 30000
-        });
-
-        this.tasks.push({
-            id: "file-integrity-baseline",
-            agent: "watchfile",
-            command: "GetStatus",
-            intervalMs: 600000, // 10 Minutes
-        });
-
-        this.tasks.push({
-            id: "pcap-health-check",
-            agent: "netcap",
-            command: "GetStatus",
-            intervalMs: 60000, // 1 Minute
-        });
+        this.tasks.push({ id: "kernel-attestation", agent: "analyzer", command: "ATTEST_KERNEL", intervalMs: 300000, jitterMs: 30000 });
+        this.tasks.push({ id: "file-integrity-baseline", agent: "watchfile", command: "GetStatus", intervalMs: 600000 });
+        this.tasks.push({ id: "pcap-health-check", agent: "netcap", command: "GetStatus", intervalMs: 60000 });
     }
 
     public setKv(kv: Deno.Kv) {
         this.kv = kv;
+        this.scheduleLkgSnapshot();
     }
-
     public setPolicyEngine(policyEngine: import("../orchestration/policy_engine.ts").PolicyEngine) {
         this.policyEngine = policyEngine;
+        this.scheduleShadowModeCheck();
     }
-
     public start() {
         if (this.timerId) return;
-        
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.ACTIVITY,
-            severity: LogSeverity.INFO,
-            caller: "LIFECYCLE",
-            message: "Sovereign Lifecycle Engine (Native Cron) active."
-        });
-
-        this.timerId = setInterval(() => this.tick(), 10000); // Check every 10s
+        this.timerId = setInterval(() => this.tick(), 10000);
     }
 
-    protected override async onInit(): Promise<Result<void>> {
-        return ok(undefined);
+    private scheduleShadowModeCheck() {
+        if (this.shadowTimer) clearInterval(this.shadowTimer);
+        this.shadowTimer = setInterval(() => {
+            if (this.policyEngine?.isShadowMode()) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.WARNING,
+                    caller: "LIFECYCLE:SHADOW",
+                    message: "REMINDER: System remains in SHADOW MODE. Active enforcement is disabled."
+                });
+            }
+        }, 3600000); // Hourly reminder
     }
 
+    private scheduleLkgSnapshot() {
+        if (this.lkgTimer) clearInterval(this.lkgTimer);
+        this.lkgTimer = setInterval(async () => {
+            if (!this.kv) return;
+            try {
+                const iter = this.kv.list({ prefix: [] });
+                let count = 0;
+                let batch = this.kv.atomic();
+                for await (const entry of iter) {
+                    if (entry.key[0] === "lkg") continue;
+                    batch.set(["lkg", ...entry.key], entry.value);
+                    count++;
+                    if (count % 100 === 0) {
+                        await batch.commit();
+                        batch = this.kv.atomic();
+                    }
+                }
+                await batch.commit();
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.ACTIVITY,
+                    severity: LogSeverity.INFO,
+                    caller: "LIFECYCLE:LKG",
+                    message: `Last Known Good snapshot created (${count} keys).`
+                });
+            } catch (e) {
+                console.error("LKG snapshot failed:", e);
+            }
+        }, 43200000); // 12 hours
+    }
+
+    protected override async onInit(): Promise<Result<void>> { return ok(undefined); }
     protected override async onShutdown(): Promise<Result<void>> {
-        if (this.timerId) {
-            clearInterval(this.timerId);
-            this.timerId = undefined;
-        }
-        if (this.shadowTimer) {
-            clearTimeout(this.shadowTimer);
-            this.shadowTimer = undefined;
-        }
-        if (this.lkgTimer) {
-            clearTimeout(this.lkgTimer);
-            this.lkgTimer = undefined;
-        }
+        if (this.timerId) clearInterval(this.timerId);
+        if (this.shadowTimer) clearInterval(this.shadowTimer);
+        if (this.lkgTimer) clearInterval(this.lkgTimer);
         return ok(undefined);
     }
 
@@ -106,7 +105,6 @@ export class LifecycleService extends BaseService {
         for (const task of this.tasks) {
             const lastRun = task.lastRun || 0;
             const jitter = task.jitterMs ? (Math.random() * task.jitterMs) : 0;
-            
             if (now - lastRun >= (task.intervalMs + jitter)) {
                 task.lastRun = now;
                 await this.executeTask(task);
@@ -119,104 +117,14 @@ export class LifecycleService extends BaseService {
 
     private async executeTask(task: ScheduledTask) {
         try {
-            await this.commands.sendCommand(task.agent, {
-                type: task.command,
-                payload: task.payload || {},
-                id: crypto.randomUUID()
-            });
-
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.DEBUG,
-                severity: LogSeverity.INFO,
-                caller: "LIFECYCLE",
-                message: `Scheduled task executed: ${task.id} on agent ${task.agent}`
-            });
+            await this.commands.sendCommand(task.agent, { type: task.command, payload: task.payload || {}, id: crypto.randomUUID() });
         } catch (error) {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.ACTIVITY,
-                severity: LogSeverity.WARNING,
-                caller: "LIFECYCLE",
-                message: `Task execution failed: ${task.id} - ${error}`
-            });
+            this.logging.log({ timestamp: new Date().toISOString(), type: LogType.ACTIVITY, severity: LogSeverity.WARNING, caller: "LIFECYCLE", message: `Task failed: ${task.id} - ${error}` });
         }
     }
 
-    public scheduleLkgSnapshot() {
-        if (!this.kv) return;
-
-        // Take a "Last Known Good" snapshot after 10 minutes of stability
-        if (this.lkgTimer) clearTimeout(this.lkgTimer);
-        this.lkgTimer = setTimeout(async () => {
-            try {
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.ACTIVITY,
-                    severity: LogSeverity.INFO,
-                    caller: "LIFECYCLE:LKG",
-                    message: "System stable for 10m. Committing Last Known Good (LKG) snapshot..."
-                });
-
-                const criticalPrefixes = [["enforcement"], ["system", "config"], ["mesh", "identity"]];
-                for (const prefix of criticalPrefixes) {
-                    const iter = this.kv!.list({ prefix });
-                    for await (const entry of iter) {
-                        const lkgKey = ["lkg", ...entry.key];
-                        await this.kv!.set(lkgKey, entry.value);
-                    }
-                }
-            } catch (e) {
-                console.error(`LKG Snapshot failed: ${e}`);
-            }
-        }, 600000); // 10 minutes
-    }
-
-    public startShadowModeTimer(config: import("../../core/ports.ts").ConfigurationPort) {
-        const shadowDuration = config.getNumber("SHADOW_MODE_DURATION_HOURS", 24);
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.INFO,
-            caller: "LIFECYCLE:SHADOW",
-            message: `Shadow Mode active for ${shadowDuration} hours. S-Grade blocks are simulated.`
-        });
-
-        this.shadowTimer = setTimeout(() => {
-            if (this.policyEngine && this.policyEngine.isShadowMode()) {
-                this.policyEngine.setShadowMode(false);
-                this.logging.log({
-                    timestamp: new Date().toISOString(),
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.SUCCESS,
-                    caller: "LIFECYCLE:SHADOW",
-                    message: "Shadow Mode expired. System is now ARMED and enforcing S-Grade blocks."
-                });
-            }
-        }, shadowDuration * 60 * 60 * 1000);
-    }
-
-    public addCustomTask(task: () => Promise<void>) {
-        this.customTasks.push(task);
-    }
-
-    /**
-     * Phase 3 Enhancement: Dynamic Key Rotation
-     * Triggers a key rotation event across the defensive mesh.
-     */
+    public addCustomTask(task: () => Promise<void>) { this.customTasks.push(task); }
     public async rotateSovereignKeys() {
-        this.logging.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.INFO,
-            caller: "LIFECYCLE",
-            message: "Initiating Periodic Key Rotation for mTLS and VPN interfaces."
-        });
-
-        // 1. Signal VPN Agent to generate new keys
         await this.commands.sendCommand("tunnel", { type: "RotateKeys", id: crypto.randomUUID() });
-        
-        // 2. Signal Mesh Agent to rotate mTLS identity
-        // await this.commands.sendCommand("mesh", { type: "RotateIdentity", id: crypto.randomUUID() });
     }
 }

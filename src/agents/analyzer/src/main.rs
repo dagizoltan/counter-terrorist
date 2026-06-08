@@ -30,7 +30,7 @@ struct CacheEntry {
     timestamp: u64,
 }
 static HASH_CACHE: Lazy<Mutex<LruCache<String, CacheEntry>>> = Lazy::new(|| {
-    let size = std::num::NonZeroUsize::new(MAX_CACHE_SIZE).unwrap_or(std::num::NonZeroUsize::new(1000).unwrap());
+    let size = std::num::NonZeroUsize::new(MAX_CACHE_SIZE).unwrap_or(std::num::NonZeroUsize::new(1000).expect("MAX_CACHE_SIZE must be > 0"));
     Mutex::new(LruCache::new(size))
 });
 

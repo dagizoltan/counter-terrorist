@@ -10,6 +10,7 @@ export interface Repository<T> {
 
 /**
  * Base implementation using Deno KV.
+ * Audit 13.1: Enforces Optimistic Concurrency Control (OCC) for distributed consistency.
  */
 export class KvRepository<T> implements Repository<T> {
   protected static isReadOnly = false;
@@ -37,7 +38,7 @@ export class KvRepository<T> implements Repository<T> {
   async set(id: string, data: T): Promise<void> {
     this.checkWritePermission();
     let attempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 5;
 
     while (attempts < maxAttempts) {
         const entry = await this.kv.get<T>([this.prefix, id]);
@@ -49,16 +50,17 @@ export class KvRepository<T> implements Repository<T> {
         if (result.ok) return;
         attempts++;
         if (attempts < maxAttempts) {
-            await new Promise(r => setTimeout(r, Math.random() * 100 * attempts));
+            // Randomized exponential backoff to reduce contention
+            await new Promise(r => setTimeout(r, Math.random() * 50 * Math.pow(2, attempts)));
         }
     }
-    throw new Error(`Failed to set [${this.prefix}, ${id}] after ${maxAttempts} attempts due to write conflict (OCC).`);
+    throw new Error(`OCC Write Conflict: Failed to set [${this.prefix}, ${id}] after ${maxAttempts} attempts.`);
   }
 
   async delete(id: string): Promise<void> {
     this.checkWritePermission();
     let attempts = 0;
-    const maxAttempts = 3;
+    const maxAttempts = 5;
 
     while (attempts < maxAttempts) {
         const entry = await this.kv.get<T>([this.prefix, id]);
@@ -70,17 +72,34 @@ export class KvRepository<T> implements Repository<T> {
         if (result.ok) return;
         attempts++;
         if (attempts < maxAttempts) {
-            await new Promise(r => setTimeout(r, Math.random() * 100 * attempts));
+            await new Promise(r => setTimeout(r, Math.random() * 50 * Math.pow(2, attempts)));
         }
     }
-    throw new Error(`Failed to delete [${this.prefix}, ${id}] after ${maxAttempts} attempts due to write conflict (OCC).`);
+    throw new Error(`OCC Write Conflict: Failed to delete [${this.prefix}, ${id}] after ${maxAttempts} attempts.`);
+  }
+
+  /**
+   * Audit 9.2: Implementing True Pagination for large datasets.
+   * Returns an async generator to avoid OOM on boot-time hydration.
+   */
+  async *listPaginated(batchSize = 100): AsyncIterable<T> {
+    let cursor: string | undefined = undefined;
+    while (true) {
+        const iter = this.kv.list<T>({ prefix: [this.prefix] }, { limit: batchSize, cursor });
+        let count = 0;
+        for await (const entry of iter) {
+            yield entry.value;
+            count++;
+        }
+        cursor = iter.cursor;
+        if (!cursor || count < batchSize) break;
+    }
   }
 
   async list(): Promise<T[]> {
-    const iter = this.kv.list<T>({ prefix: [this.prefix] });
     const items: T[] = [];
-    for await (const entry of iter) {
-      items.push(entry.value);
+    for await (const item of this.listPaginated(500)) {
+        items.push(item);
     }
     return items;
   }
