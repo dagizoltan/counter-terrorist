@@ -1,6 +1,7 @@
 import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface ChaosConfig {
     latencyMs?: { min: number; max: number };
@@ -92,20 +93,23 @@ export class MeshChaosEngine extends BaseService {
         if (!this.active) return await fn();
 
         // 1. Simulate Packet Loss
-        if (this.config.packetLossRate && Math.random() < this.config.packetLossRate) {
-            this.logging.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.DEBUG,
-                severity: LogSeverity.DEBUG,
-                caller: "MESH:CHAOS",
-                message: "Simulated packet loss: dropping operation."
-            });
-            throw new Error("CHAOS: Packet dropped");
+        if (this.config.packetLossRate) {
+            const roll = secureRandomInt(0, 1000) / 1000;
+            if (roll < this.config.packetLossRate) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.DEBUG,
+                    severity: LogSeverity.DEBUG,
+                    caller: "MESH:CHAOS",
+                    message: "Simulated packet loss: dropping operation."
+                });
+                throw new Error("CHAOS: Packet dropped");
+            }
         }
 
         // 2. Simulate Latency
         if (this.config.latencyMs) {
-            const delay = Math.floor(Math.random() * (this.config.latencyMs.max - this.config.latencyMs.min + 1) + this.config.latencyMs.min);
+            const delay = secureRandomInt(this.config.latencyMs.min, this.config.latencyMs.max);
             await new Promise(r => setTimeout(r, delay));
         }
 

@@ -1,7 +1,7 @@
 /**
  * Centralized validation logic for security orchestrator.
  */
-import { normalize } from "@std/path";
+import { normalize, join, resolve, dirname } from "@std/path";
 import { BloomFilter } from "../../core/cache.ts";
 import { z } from "zod";
 
@@ -184,6 +184,8 @@ export function isAllowedSidecar(name: string): name is SidecarName {
 /**
  * Validates a filesystem path to prevent traversal and prefix bypass.
  * Ensures the path is within allowed boundaries if a jail is provided.
+ *
+ * SOV-M6: Harden against symlink jailbreaks (Audit 14.1).
  */
 export function validatePath(p: string, jailPrefixes?: string[]): boolean {
   if (typeof p !== "string" || p.length === 0) return false;
@@ -217,17 +219,41 @@ export function validatePath(p: string, jailPrefixes?: string[]): boolean {
     return false;
   }
 
+  // 4. Harden against symlink jailbreaks (Audit 14.1)
+  // We resolve the real path and ensure it's still within the jail.
+  let realPath: string;
+  try {
+      // Use Deno.realPathSync to resolve all symlinks
+      realPath = Deno.realPathSync(normalized);
+  } catch {
+      // If file doesn't exist, we must still resolve the directory hierarchy to catch symlink escapes.
+      // e.g. /jail/evil_link/new_file where evil_link -> /etc
+      try {
+          const dir = dirname(normalized);
+          const realDir = Deno.realPathSync(dir);
+          realPath = join(realDir, normalized.split(/[\\/]/).pop() || "");
+      } catch {
+          // Both file and parent dir don't exist, fallback to absolute resolve.
+          // This is high-risk but better than nothing.
+          realPath = resolve(normalized);
+      }
+  }
+
   if (jailPrefixes && jailPrefixes.length > 0) {
     const isInside = jailPrefixes.some(jail => {
-        const normalizedJail = normalize(jail.endsWith("/") ? jail : jail + "/");
-        const normalizedP = normalize(normalized.endsWith("/") ? normalized : normalized + "/");
-        return normalizedP.startsWith(normalizedJail);
+        const normalizedJail = resolve(jail);
+        const resolvedP = resolve(realPath);
+
+        // Ensure both ends with slash for prefix check
+        const jailBoundary = normalizedJail.endsWith("/") ? normalizedJail : normalizedJail + "/";
+        const pathToCheck = resolvedP.endsWith("/") ? resolvedP : resolvedP + "/";
+
+        return pathToCheck.startsWith(jailBoundary);
     });
     if (!isInside) return false;
   }
 
   // B-09: Refined boundary check to prevent prefix bypass (e.g. /tmp-malicious)
-  // Even if no jail is provided, we should ensure the path is safe
   if (normalized.includes("..")) return false;
 
   return true;
@@ -380,7 +406,7 @@ const AuditEventSchema = z.object({
     type: z.string(),
     message: z.string(),
     timestamp: z.string().optional(),
-    data: z.record(z.string(), z.any()).optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
     severity: z.string().optional(),
     caller: z.string().optional()
 });
@@ -527,7 +553,7 @@ const MeshRequestSchema = z.object({
     nodeId: z.string().optional(),
     payload: z.object({
         action: z.string(),
-        data: z.any().optional(),
+        data: z.record(z.string(), z.unknown()).optional(),
         nodeId: z.string(),
         timestamp: z.number()
     }).optional(),
@@ -556,7 +582,7 @@ export const SidecarResponseSchema = z.object({
     message: z.string().optional(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
-    data: z.record(z.string(), z.any()).optional(),
+    data: z.record(z.string(), z.unknown()).optional(),
     timestamp: z.string().optional(),
     event: z.string().optional(),
     type: z.string().optional(),
