@@ -36,12 +36,44 @@ export class KvRepository<T> implements Repository<T> {
 
   async set(id: string, data: T): Promise<void> {
     this.checkWritePermission();
-    await this.kv.set([this.prefix, id], data);
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+        const entry = await this.kv.get<T>([this.prefix, id]);
+        const result = await this.kv.atomic()
+            .check(entry)
+            .set([this.prefix, id], data)
+            .commit();
+
+        if (result.ok) return;
+        attempts++;
+        if (attempts < maxAttempts) {
+            await new Promise(r => setTimeout(r, Math.random() * 100 * attempts));
+        }
+    }
+    throw new Error(`Failed to set [${this.prefix}, ${id}] after ${maxAttempts} attempts due to write conflict (OCC).`);
   }
 
   async delete(id: string): Promise<void> {
     this.checkWritePermission();
-    await this.kv.delete([this.prefix, id]);
+    let attempts = 0;
+    const maxAttempts = 3;
+
+    while (attempts < maxAttempts) {
+        const entry = await this.kv.get<T>([this.prefix, id]);
+        const result = await this.kv.atomic()
+            .check(entry)
+            .delete([this.prefix, id])
+            .commit();
+
+        if (result.ok) return;
+        attempts++;
+        if (attempts < maxAttempts) {
+            await new Promise(r => setTimeout(r, Math.random() * 100 * attempts));
+        }
+    }
+    throw new Error(`Failed to delete [${this.prefix}, ${id}] after ${maxAttempts} attempts due to write conflict (OCC).`);
   }
 
   async list(): Promise<T[]> {

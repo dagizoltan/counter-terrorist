@@ -95,20 +95,46 @@ export class ForensicService extends BaseService {
         });
     }
 
-    const bundle = {
-        ...bundleData,
-        signature,
-        signer: "MeshRootCA"
-    };
+    const bundlePath = `./volume/storage/forensics/bundle_${bundleData.id}.json`;
+    const file = await Deno.open(bundlePath, { write: true, create: true, truncate: true });
+    const encoder = new TextEncoder();
 
-    const bundleJson = JSON.stringify(bundle);
-    const bundlePath = `./volume/storage/forensics/bundle_${bundle.id}.json`;
-    await Deno.writeTextFile(bundlePath, bundleJson);
+    try {
+        await file.write(encoder.encode("{\n"));
+        await file.write(encoder.encode(`  "version": "1.3",\n`));
+        await file.write(encoder.encode(`  "id": ${JSON.stringify(bundleData.id)},\n`));
+        await file.write(encoder.encode(`  "timestamp": ${JSON.stringify(bundleData.timestamp)},\n`));
+        await file.write(encoder.encode(`  "node": ${JSON.stringify(bundleData.node)},\n`));
+        await file.write(encoder.encode(`  "data": {\n`));
+
+        // Stream Logs
+        await file.write(encoder.encode(`    "logs": [\n`));
+        for (let i = 0; i < logs.length; i++) {
+            await file.write(encoder.encode(`      ${JSON.stringify(logs[i])}${i < logs.length - 1 ? "," : ""}\n`));
+        }
+        await file.write(encoder.encode(`    ],\n`));
+
+        // Stream Process Tree
+        await file.write(encoder.encode(`    "processTree": [\n`));
+        for (let i = 0; i < processTree.length; i++) {
+            await file.write(encoder.encode(`      ${JSON.stringify(processTree[i])}${i < processTree.length - 1 ? "," : ""}\n`));
+        }
+        await file.write(encoder.encode(`    ],\n`));
+        await file.write(encoder.encode(`    "networkSnapshot": []\n`));
+        await file.write(encoder.encode(`  },\n`));
+        await file.write(encoder.encode(`  "signature": ${JSON.stringify(signature)},\n`));
+        await file.write(encoder.encode(`  "signer": "MeshRootCA"\n`));
+        await file.write(encoder.encode("}\n"));
+    } finally {
+        file.close();
+    }
+
+    const finalStat = await Deno.stat(bundlePath);
 
     await this.audit.logEvent({
         type: "SUCCESS",
-        message: `Forensic Evidence Bundle Generated: ${bundle.id}`,
-        data: { bundleId: bundle.id, size: JSON.stringify(bundle).length }
+        message: `Forensic Evidence Bundle Generated: ${bundleData.id}`,
+        data: { bundleId: bundleData.id, size: finalStat.size }
     });
 
     this.logging.log({

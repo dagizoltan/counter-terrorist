@@ -20,6 +20,7 @@ export interface ScheduledTask {
  */
 export class LifecycleService extends BaseService {
     private tasks: ScheduledTask[] = [];
+    private customTasks: (() => Promise<void>)[] = [];
     private timerId?: any;
     private kv?: Deno.Kv;
     private shadowTimer?: any;
@@ -111,6 +112,9 @@ export class LifecycleService extends BaseService {
                 await this.executeTask(task);
             }
         }
+        for (const ct of this.customTasks) {
+            await ct().catch(e => console.error(`Custom lifecycle task failed: ${e}`));
+        }
     }
 
     private async executeTask(task: ScheduledTask) {
@@ -190,6 +194,10 @@ export class LifecycleService extends BaseService {
                 });
             }
         }, shadowDuration * 60 * 60 * 1000);
+    }
+
+    public addCustomTask(task: () => Promise<void>) {
+        this.customTasks.push(task);
     }
 
     /**

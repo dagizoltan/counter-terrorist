@@ -110,7 +110,13 @@ async fn main() -> Result<(), anyhow::Error> {
             // We transmute the guard-bound reference to 'static to allow moving maps into async tasks.
             // The Mutex still ensures exclusive access during the open() call.
             let bpf_extended: &'static mut Bpf = unsafe { core::mem::transmute(&mut *bpf) };
-            let map = bpf_extended.map_mut("EVENTS").expect("EVENTS map not found");
+            let map = match bpf_extended.map_mut("EVENTS") {
+                Some(m) => m,
+                None => {
+                    emit_response(None, false, "EVENTS map not found. Falling back to dummy mode.".to_string()).await;
+                    return run_dummy_mode().await;
+                }
+            };
             let mut perf_array = PerfEventArray::try_from(map)?;
 
             perf_array.open(cpu_id, None)?
