@@ -132,13 +132,23 @@ async fn main() -> Result<(), anyhow::Error> {
                                 // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
                                 let syscall = if cfg!(target_arch = "x86_64") {
                                     match event.syscall_id {
-                                        101 => "ptrace", 9 => "mmap", 59 => "execve",
-                                        42 => "connect", 257 => "openat", _ => "unknown"
+                                        0 => "read", 1 => "write", 2 => "open", 3 => "close",
+                                        9 => "mmap", 10 => "mprotect", 11 => "munmap", 13 => "rt_sigaction",
+                                        21 => "access", 41 => "socket", 42 => "connect", 43 => "accept",
+                                        56 => "clone", 57 => "fork", 58 => "vfork", 59 => "execve", 60 => "exit",
+                                        62 => "kill", 101 => "ptrace", 157 => "prctl", 202 => "futex",
+                                        257 => "openat", 319 => "memfd_create", 321 => "bpf", 322 => "execveat",
+                                        _ => "unknown"
                                     }
                                 } else if cfg!(target_arch = "aarch64") {
                                     match event.syscall_id {
-                                        117 => "ptrace", 222 => "mmap", 221 => "execve",
-                                        203 => "connect", 56 => "openat", _ => "unknown"
+                                        63 => "read", 64 => "write", 56 => "openat", 57 => "close",
+                                        222 => "mmap", 226 => "mprotect", 215 => "munmap", 134 => "rt_sigaction",
+                                        48 => "faccessat", 198 => "socket", 203 => "connect", 202 => "accept",
+                                        220 => "clone", 1079 => "fork", 1071 => "vfork", 221 => "execve", 93 => "exit",
+                                        129 => "kill", 117 => "ptrace", 167 => "prctl", 98 => "futex",
+                                        279 => "memfd_create", 280 => "bpf", 281 => "execveat",
+                                        _ => "unknown"
                                     }
                                 } else {
                                     "unknown"

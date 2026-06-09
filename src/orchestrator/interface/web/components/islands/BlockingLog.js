@@ -149,7 +149,21 @@ class BlockingLog extends HTMLElement {
 
     const tsEl = document.createElement('div');
     tsEl.className = "w-36 flex-shrink-0 mono text-[9px] font-black text-slate-500 tabular-nums";
-    tsEl.innerHTML = `<span>${dateStr}</span><span class="ml-2 text-slate-400">${timeStr}<span class="text-slate-600">.${msStr}</span></span>`;
+
+    const dateSpan = document.createElement('span');
+    dateSpan.textContent = dateStr;
+    tsEl.appendChild(dateSpan);
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = "ml-2 text-slate-400";
+    timeSpan.textContent = timeStr;
+
+    const msSpan = document.createElement('span');
+    msSpan.className = "text-slate-600";
+    msSpan.textContent = `.${msStr}`;
+    timeSpan.appendChild(msSpan);
+
+    tsEl.appendChild(timeSpan);
     row.appendChild(tsEl);
 
     const typeEl = document.createElement('div');
@@ -186,19 +200,53 @@ class BlockingLog extends HTMLElement {
     if (log.data?.intent) {
         const intentEl = document.createElement('div');
         intentEl.className = "mb-4 p-3 bg-danger/10 border border-danger/20 rounded-lg";
-        intentEl.innerHTML = `
-            <div class="flex items-center gap-2 mb-1">
-                <div class="w-1.5 h-1.5 bg-danger rounded-full animate-pulse"></div>
-                <span class="mono text-[9px] font-black text-danger uppercase tracking-widest">Behavioral_Intent_Verdict</span>
-            </div>
-            <div class="mono text-[10px] text-slate-300 uppercase font-bold">Intent: <span class="text-danger">${globalThis.escapeHTML(log.data.intent)}</span> // Confidence: <span class="text-white">${(log.data.score * 100).toFixed(0)}%</span></div>
-        `;
+
+        const intentHeader = document.createElement('div');
+        intentHeader.className = "flex items-center gap-2 mb-1";
+
+        const dot = document.createElement('div');
+        dot.className = "w-1.5 h-1.5 bg-danger rounded-full animate-pulse";
+        intentHeader.appendChild(dot);
+
+        const label = document.createElement('span');
+        label.className = "mono text-[9px] font-black text-danger uppercase tracking-widest";
+        label.textContent = "Behavioral_Intent_Verdict";
+        intentHeader.appendChild(label);
+
+        intentEl.appendChild(intentHeader);
+
+        const intentBody = document.createElement('div');
+        intentBody.className = "mono text-[10px] text-slate-300 uppercase font-bold";
+        intentBody.appendChild(document.createTextNode("Intent: "));
+
+        const intentVal = document.createElement('span');
+        intentVal.className = "text-danger";
+        intentVal.textContent = log.data.intent;
+        intentBody.appendChild(intentVal);
+
+        intentBody.appendChild(document.createTextNode(" // Confidence: "));
+
+        const confVal = document.createElement('span');
+        confVal.className = "text-white";
+        confVal.textContent = `${(log.data.score * 100).toFixed(0)}%`;
+        intentBody.appendChild(confVal);
+
+        intentEl.appendChild(intentBody);
         detailInner.appendChild(intentEl);
     }
 
     const payloadHeader = document.createElement('div');
     payloadHeader.className = "flex items-center gap-2 mb-3";
-    payloadHeader.innerHTML = `<div class="w-1 h-3 bg-primary/40 rounded-full"></div><span class="mono-xs font-black text-slate-500 uppercase tracking-widest">Extended_Payload</span>`;
+
+    const decoration = document.createElement('div');
+    decoration.className = "w-1 h-3 bg-primary/40 rounded-full";
+    payloadHeader.appendChild(decoration);
+
+    const payloadLabel = document.createElement('span');
+    payloadLabel.className = "mono-xs font-black text-slate-500 uppercase tracking-widest";
+    payloadLabel.textContent = "Extended_Payload";
+    payloadHeader.appendChild(payloadLabel);
+
     detailInner.appendChild(payloadHeader);
 
     const pre = document.createElement('pre');

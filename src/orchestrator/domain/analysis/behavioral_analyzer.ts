@@ -15,7 +15,7 @@ export class BehavioralAnalyzer extends BaseService {
     private traces: Map<string, ConnectionTrace[]> = new Map();
     private syscallFrequencies: Map<string, Map<string, number>> = new Map(); // comm -> syscall -> frequency
     private slidingWindow: Map<string, number[]> = new Map(); // ip -> window of entropy scores
-    private syscallSequences: Map<string, string[]> = new Map(); // pid -> recent syscalls
+    private syscallSequences: Map<string, { syscalls: string[], lastUpdate: number }> = new Map(); // pid -> { syscalls, lastUpdate }
     private isLearningMode: boolean = false;
     private kv?: Deno.Kv;
     private purgeInterval?: any;
@@ -59,12 +59,11 @@ export class BehavioralAnalyzer extends BaseService {
         const SEQUENCE_TTL = 900000; // 15 Minutes
         // (traces already purged above)
 
-        // For syscall sequences, we don't have timestamps per syscall,
-        // so we just clear everything that hasn't been updated if we had timestamps.
-        // As a fallback, we clear sequences if the corresponding comm frequency map is tiny
-        // or just periodically flush all sequences to prevent stale intent matching on reused PIDs.
-        if (now % 3600000 < 300000) { // Once an hour
-            this.syscallSequences.clear();
+        // Purge syscall sequences (PID reuse mitigation)
+        for (const [pid, data] of this.syscallSequences.entries()) {
+            if (now - data.lastUpdate > SEQUENCE_TTL) {
+                this.syscallSequences.delete(pid);
+            }
         }
     }
 
@@ -141,16 +140,18 @@ export class BehavioralAnalyzer extends BaseService {
 
         // 2. Sequence Tracking (Intent Modeling)
         const pidStr = pid.toString();
-        const sequence = this.syscallSequences.get(pidStr) || [];
-        sequence.push(syscall);
-        if (sequence.length > 10) sequence.shift();
-        this.syscallSequences.set(pidStr, sequence);
+        const data = this.syscallSequences.get(pidStr) || { syscalls: [], lastUpdate: Date.now() };
+        data.syscalls.push(syscall);
+        if (data.syscalls.length > 10) data.syscalls.shift();
+        data.lastUpdate = Date.now();
+        this.syscallSequences.set(pidStr, data);
     }
 
     getIntentVerdict(pid: number): { intent: string, score: number } | null {
-        const sequence = this.syscallSequences.get(pid.toString());
-        if (!sequence) return null;
+        const data = this.syscallSequences.get(pid.toString());
+        if (!data) return null;
 
+        const sequence = data.syscalls;
         const MAX_NOISE = 2;
 
         for (const sig of BehavioralAnalyzer.INTENT_SIGNATURES) {

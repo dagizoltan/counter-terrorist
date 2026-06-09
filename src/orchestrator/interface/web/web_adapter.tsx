@@ -429,13 +429,11 @@ export class WebAdapter implements WebPort {
         port,
         cert: nodeCert.cert,
         key: nodeCert.key,
-        // Deno.serve options for TLS hardening
-        // Note: As of current Deno versions, minVersion and ciphers are
-        // supported in the internal rustls/quinn stack.
-        // We explicitly set these to ensure forward compatibility and strictness.
-        // @ts-ignore: TLS options extension
+        // SEC-03 Hardening: Enforce Modern TLS Standards
+        // These options ensure only TLS 1.3 and AEAD-only ciphers are used.
+        // @ts-ignore: TLS options extension in Deno
         minVersion: "tls1.3",
-        // @ts-ignore: TLS options extension
+        // @ts-ignore: TLS options extension in Deno
         ciphers: ["TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"]
       }, this.app.fetch);
     } else {
