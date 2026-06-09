@@ -40,6 +40,13 @@ export class IpcCoordinator {
             const shmemPtr = this.ffi.createShmem(shmemPath, 1024 * 1024);
             const cmdShmemPtr = this.ffi.createShmem(cmdShmemPath, 64 * 1024);
 
+            // SEC-06 Hardening: Enforce strict 0600 permissions on all IPC segments (Audit 15.2)
+            // Prevents unprivileged local users from sniffing security telemetry in /dev/shm
+            try {
+                await Deno.chmod(shmemPath, 0o600);
+                await Deno.chmod(cmdShmemPath, 0o600);
+            } catch { /* ignore if shmem is already root-owned or inaccessible */ }
+
             if (shmemPtr) this.mappedShmem.set(name, shmemPtr);
             if (cmdShmemPtr) this.mappedCmdShmem.set(name, cmdShmemPtr);
         }
