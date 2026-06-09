@@ -29,6 +29,9 @@ export class WormRepository {
         const encoded = new TextEncoder().encode(line);
 
         try {
+            // For append-only WORM ledger, we use O_APPEND and fsync.
+            // Atomic write-and-rename is less suitable for append-only logs unless we rewrite the whole file,
+            // but for WORM we prioritize durability of each append.
             const file = await Deno.open(this.wormPath, { append: true, create: true, write: true });
             await file.write(encoded);
             // Ensure data is physically committed to the disk substrate
@@ -39,6 +42,24 @@ export class WormRepository {
         }
 
         this.logs.push(event);
+    }
+
+    /**
+     * SEC-05 Hardening: Atomic State Persistence.
+     * Used for full-file state updates to prevent corruption during power loss.
+     */
+    async saveAtomic(content: string): Promise<void> {
+        const tempPath = `${this.wormPath}.tmp.${crypto.randomUUID()}`;
+        try {
+            await Deno.writeTextFile(tempPath, content);
+            const file = await Deno.open(tempPath, { read: true });
+            await file.sync();
+            file.close();
+            await Deno.rename(tempPath, this.wormPath);
+        } catch (e) {
+            try { await Deno.remove(tempPath); } catch { /* ignore */ }
+            throw new Error(`Atomic persistence failure: ${(e as Error).message}`);
+        }
     }
 
     async verifyIntegrity(): Promise<boolean> {

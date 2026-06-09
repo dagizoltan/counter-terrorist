@@ -346,6 +346,8 @@ export class SidecarManager implements CommandPort {
             })();
 
             this.persistentProcesses.set(name, child);
+            // Record initial heartbeat to start monitoring immediately
+            this.heartbeatMonitor.recordHeartbeat(name);
             this.startResponseReader(name, child);
             return child;
         } catch (e) {
@@ -751,9 +753,22 @@ export class SidecarManager implements CommandPort {
   }
 
   private handleSidecarExit(name: string, exitCode: number) {
-    if (exitCode === 0 || this.isShuttingDown || this.expectedExits.has(name)) {
+    // SOV-M5 Hardening: Treat code 0 as a failure for persistent sidecars to prevent silent disablement
+    const isExpected = this.isShuttingDown || this.expectedExits.has(name);
+
+    if (isExpected) {
         this.expectedExits.delete(name);
         return;
+    }
+
+    if (exitCode === 0) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Sidecar ${name} exited with code 0 (Success) unexpectedly. Persistent agents should not exit. Restarting...`
+        });
     }
     if (this.spawner.isUnsupported(name)) return;
 
