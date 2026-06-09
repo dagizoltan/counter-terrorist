@@ -63,7 +63,7 @@ export class ForensicArtifactLifecycleManager extends BaseService {
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "FORENSICS:QUOTA",
-                message: `Quota enforcement failed: ${e.message}`
+                message: `Quota enforcement failed: ${(e as Error).message}`
             });
         }
     }

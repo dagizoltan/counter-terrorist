@@ -1,9 +1,9 @@
 import { AuditService } from "./audit.ts";
 import { BaseService } from "@core/base_service.ts";
-import { LoggingPort, LogSeverity, LogType, MeshAuthPort } from "../../core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, MeshAuthPort, ConfigurationPort } from "../../core/ports.ts";
 import { Result, ok } from "../../core/result.ts";
 import { ProcessTracker } from "./process_tracker.ts";
-import { computeStreamHash } from "../../core/crypto_utils.ts";
+import { computeStreamHash, computeHash } from "../../core/crypto_utils.ts";
 import { ForensicArtifactLifecycleManager } from "./forensic_lifecycle.ts";
 import { ForensicSearchTool, ForensicQuery } from "../../tools/ops/forensic_query.ts";
 
@@ -13,7 +13,7 @@ import { ForensicSearchTool, ForensicQuery } from "../../tools/ops/forensic_quer
  */
 export class ForensicService extends BaseService {
   private queryTool: ForensicSearchTool;
-  private lifecycleManager: ForensicArtifactLifecycleManager;
+  private lifecycleManager?: ForensicArtifactLifecycleManager;
 
   constructor(
     private audit: AuditService,
@@ -21,11 +21,14 @@ export class ForensicService extends BaseService {
     private kv: Deno.Kv,
     private processTracker: ProcessTracker,
     private meshAuth: MeshAuthPort,
-    config: ConfigurationPort
+    private config: ConfigurationPort
   ) {
     super();
     this.queryTool = new ForensicSearchTool();
-    this.lifecycleManager = new ForensicArtifactLifecycleManager(logging, config);
+  }
+
+  public setLifecycleManager(mgr: ForensicArtifactLifecycleManager) {
+      this.lifecycleManager = mgr;
   }
 
   /**
@@ -37,6 +40,7 @@ export class ForensicService extends BaseService {
     const timestamp = new Date().toISOString();
     const node = Deno.hostname();
     const bundlePath = `./volume/storage/forensics/bundle_${bundleId}.json`;
+    let aggregateHash = "unknown";
 
     this.logging.log({
         timestamp: new Date().toISOString(),
@@ -52,6 +56,9 @@ export class ForensicService extends BaseService {
     const file = await Deno.open(bundlePath, { write: true, create: true, truncate: true });
     const encoder = new TextEncoder();
 
+    // SEC-FIX: Compute evidence hash during streaming to ensure cryptographic integrity
+    const hashBuffer: string[] = [];
+
     try {
         await file.write(encoder.encode("{\n"));
         await file.write(encoder.encode(`  "version": "1.4",\n`));
@@ -64,7 +71,9 @@ export class ForensicService extends BaseService {
         await file.write(encoder.encode(`    "logs": [\n`));
         const logs = await this.audit.getRecentEvents(limit);
         for (let i = 0; i < logs.length; i++) {
-            await file.write(encoder.encode(`      ${JSON.stringify(logs[i])}${i < logs.length - 1 ? "," : ""}\n`));
+            const logStr = JSON.stringify(logs[i]);
+            hashBuffer.push(await computeHash(logStr));
+            await file.write(encoder.encode(`      ${logStr}${i < logs.length - 1 ? "," : ""}\n`));
         }
         await file.write(encoder.encode(`    ],\n`));
 
@@ -72,34 +81,23 @@ export class ForensicService extends BaseService {
         await file.write(encoder.encode(`    "processTree": [\n`));
         const processTree = this.processTracker.getTree();
         for (let i = 0; i < processTree.length; i++) {
-            await file.write(encoder.encode(`      ${JSON.stringify(processTree[i])}${i < processTree.length - 1 ? "," : ""}\n`));
+            const procStr = JSON.stringify(processTree[i]);
+            hashBuffer.push(await computeHash(procStr));
+            await file.write(encoder.encode(`      ${procStr}${i < processTree.length - 1 ? "," : ""}\n`));
         }
         await file.write(encoder.encode(`    ],\n`));
         await file.write(encoder.encode(`    "networkSnapshot": []\n`));
         await file.write(encoder.encode(`  },\n`));
 
-        // 3. Cryptographic Signing (Synchronous for now on gathered data to maintain security parity)
-        // BUG-FIX: Restored evidence signing removed during streaming refactor.
+        // 3. Robust Cryptographic Signing
+        // Signs the aggregate hash of all evidence components to ensure total bundle integrity.
+        aggregateHash = await computeHash(hashBuffer.join(":"));
         let signature = null;
         try {
             const caRes = await this.meshAuth.getRootCA();
             if (caRes.success) {
-                const ca = caRes.data as { cert: string; key: string };
-                const signingPayload = JSON.stringify({ bundleId, timestamp, node, logCount: logs.length });
-                const signingData = encoder.encode(signingPayload);
-
-                const keyData = ca.key.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\n/g, "");
-                const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0));
-                const privateKey = await crypto.subtle.importKey(
-                    "pkcs8",
-                    binaryKey,
-                    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-                    false,
-                    ["sign"]
-                );
-
-                const sigBuffer = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", privateKey, signingData);
-                signature = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)));
+                const res = await this.meshAuth.signWithNodeKey(node, aggregateHash);
+                if (res.success) signature = res.data;
             }
         } catch (e) {
             this.logging.log({
@@ -112,6 +110,7 @@ export class ForensicService extends BaseService {
         }
 
         await file.write(encoder.encode(`  "signature": ${JSON.stringify(signature)},\n`));
+        await file.write(encoder.encode(`  "evidenceHash": ${JSON.stringify(aggregateHash)},\n`));
         await file.write(encoder.encode(`  "signer": "MeshRootCA"\n`));
         await file.write(encoder.encode("}\n"));
     } finally {
@@ -121,15 +120,17 @@ export class ForensicService extends BaseService {
     const finalStat = await Deno.stat(bundlePath);
 
     // Audit 10.3: Enforce quotas after bundle generation
-    await this.lifecycleManager.enforceQuota();
+    if (this.lifecycleManager) {
+        await this.lifecycleManager.enforceQuota();
+    }
 
     await this.audit.logEvent({
         type: "SUCCESS",
         message: `Forensic Evidence Bundle Generated (Streaming): ${bundleId}`,
-        data: { bundleId, size: finalStat.size }
+        data: { bundleId, size: finalStat.size, hash: aggregateHash }
     });
 
-    return { bundleId, path: bundlePath, size: finalStat.size };
+    return { bundleId, path: bundlePath, size: finalStat.size, hash: aggregateHash };
   }
 
   /**
@@ -200,7 +201,7 @@ export class ForensicService extends BaseService {
     return await this.queryTool.search(query);
   }
 
-  async isolateSource(source: string, reason: string): Promise<any> {
+  async isolateSource(source: string, reason: string): Promise<{ success: boolean; message: string }> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,

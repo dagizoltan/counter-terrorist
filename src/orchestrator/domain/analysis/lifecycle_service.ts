@@ -1,5 +1,5 @@
 import { BaseService } from "@core/base_service.ts";
-import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, CommandPort, ConfigurationPort } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 
@@ -61,7 +61,11 @@ export class LifecycleService extends BaseService {
         }, 3600000); // Hourly reminder
     }
 
-    private scheduleLkgSnapshot() {
+    public startShadowModeTimer(config: ConfigurationPort) {
+        this.scheduleShadowModeCheck();
+    }
+
+    public scheduleLkgSnapshot() {
         if (this.lkgTimer) clearInterval(this.lkgTimer);
         this.lkgTimer = setInterval(async () => {
             if (!this.kv) return;

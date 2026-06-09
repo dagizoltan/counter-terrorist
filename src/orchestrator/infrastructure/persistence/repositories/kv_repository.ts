@@ -85,7 +85,7 @@ export class KvRepository<T> implements Repository<T> {
   async *listPaginated(batchSize = 100): AsyncIterable<T> {
     let cursor: string | undefined = undefined;
     while (true) {
-        const iter = this.kv.list<T>({ prefix: [this.prefix] }, { limit: batchSize, cursor });
+        const iter: Deno.KvListIterator<T> = this.kv.list<T>({ prefix: [this.prefix] }, { limit: batchSize, cursor });
         let count = 0;
         for await (const entry of iter) {
             yield entry.value;
