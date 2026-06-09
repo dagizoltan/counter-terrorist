@@ -13,7 +13,7 @@ export const handlerFactory = (services: ServiceContainer) => async (c: Context)
       if (!isValid) {
           return c.json({ error: "Unauthorized Probe" }, 401);
       }
-  } else if (Deno.env.get("ENVIRONMENT") === "production") {
+  } else if (services.config.getEnv("ENVIRONMENT") === "production") {
       // In production, anonymous pings are strictly forbidden to prevent network reconnaissance.
       return c.json({ error: "Authentication Required" }, 401);
   }

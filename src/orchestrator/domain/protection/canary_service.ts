@@ -25,7 +25,8 @@ export class CanaryService extends BaseService {
     constructor(
         private auditService: AuditService, 
         private sidecar: CommandPort,
-        private logging: LoggingPort
+        private logging: LoggingPort,
+        private config?: import("../../core/ports/system.ts").ConfigurationPort
     ) {
         super();
         const baitFiles = [
@@ -46,7 +47,7 @@ export class CanaryService extends BaseService {
     }
 
     private isProduction() {
-        return Deno.env.get("ENVIRONMENT") === "production";
+        return this.config?.getEnv("ENVIRONMENT") === "production";
     }
 
     async registerToken(token: { id: string, path: string, desc: string }) {

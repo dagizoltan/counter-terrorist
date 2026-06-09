@@ -7,7 +7,10 @@ import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
  * Uses the Orchestrator's Root of Trust (TPM) to sign updates.
  */
 export class SignatureService {
-    constructor(private executor: SystemExecutor) {}
+    constructor(
+        private executor: SystemExecutor,
+        private config?: import("../../core/ports/system.ts").ConfigurationPort
+    ) {}
 
     /**
      * Signs a binary or signature file for distribution to sidecar agents.
@@ -22,7 +25,7 @@ export class SignatureService {
         });
 
         // Simulate TPM signing if hardware bypass is enabled
-        const bypass = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true";
+        const bypass = this.config?.getBoolean("ALLOW_HARDWARE_BYPASS", false);
         if (bypass) {
             // Software-based fallback using OpenSSL
             const result = await this.executor.execute("openssl", [

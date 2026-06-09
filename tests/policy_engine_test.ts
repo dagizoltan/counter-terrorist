@@ -14,7 +14,8 @@ class MockLoggingPort implements LoggingPort {
 
 Deno.test("PolicyEngine - Evaluation thresholds", () => {
     const logger = new MockLoggingPort();
-    const policy = new PolicyEngine(logger, {
+    const config = { getEnv: () => undefined } as any;
+    const policy = new PolicyEngine(logger, config, {
         thresholds: [
             { score: 10, action: "WATCH", description: "W" },
             { score: 50, action: "BLOCK", description: "B" },
@@ -30,7 +31,8 @@ Deno.test("PolicyEngine - Evaluation thresholds", () => {
 
 Deno.test("PolicyEngine - Shadow mode and updates", () => {
     const logger = new MockLoggingPort();
-    const policy = new PolicyEngine(logger);
+    const config = { getEnv: () => undefined } as any;
+    const policy = new PolicyEngine(logger, config);
 
     policy.setShadowMode(true);
     assertEquals(policy.isShadowMode(), true);

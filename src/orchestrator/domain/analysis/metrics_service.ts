@@ -146,6 +146,7 @@ export class MetricsService extends BaseService {
         private anonymization: AnonymizationService,
         private geoIp: GeoIpService,
         private broadcast: BroadcastFunction,
+        private config: import("../../core/ports/system.ts").ConfigurationPort,
         private tacticalIntel?: TacticalIntelService,
         private news?: NewsSignalService,
         private networkDiscovery?: NetworkDiscoveryService,
@@ -397,7 +398,7 @@ export class MetricsService extends BaseService {
                 },
                 policy: {
                     version: "1.2.0",
-                    mode: Deno.env.get("STRICT_POLICY_ENFORCEMENT") === "true" ? "STRICT" : "ADAPTIVE",
+                    mode: this.config.getEnv("STRICT_POLICY_ENFORCEMENT") === "true" ? "STRICT" : "ADAPTIVE",
                     remediations: this.autopilot?.getTacticalIntelligence().length ?? 0
                 },
                 health: {

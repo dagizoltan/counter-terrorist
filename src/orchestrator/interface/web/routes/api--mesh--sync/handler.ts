@@ -29,7 +29,7 @@ export const handlerFactory = (services: ServiceContainer) => async (c: Context)
           });
           return c.json({ error: "Invalid signature" }, 401);
       }
-  } else if (Deno.env.get("MESH_SECRET")) {
+  } else if (services.config.getEnv("MESH_SECRET")) {
       return c.json({ error: "Missing required mesh signature" }, 401);
   }
 
