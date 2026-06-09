@@ -19,7 +19,7 @@ export class DecentralizedMetricsService extends BaseService {
         super();
         this.setEventBus(eventBus);
 
-        this.eventBus!.on("METRIC_UPDATE", (dataObj: unknown) => { const data = dataObj as MetricUpdatePayload;
+        this.eventBus!.on("METRIC_UPDATE", (data: MetricUpdatePayload) => {
             if (data && data.domain) {
                 this.metrics.set(data.domain, data.data);
                 this.broadcastMetrics();

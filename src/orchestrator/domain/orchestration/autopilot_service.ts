@@ -71,7 +71,7 @@ export class AutopilotService extends BaseService {
 
   private isStarted = false;
   private lureProcess: Deno.ChildProcess | null = null;
-  private intervalId: number | null = null;
+  private intervalId: any = null;
   private unsubscribers: (() => void)[] = [];
 
     protected override onShutdown(): Promise<Result<void>> {
@@ -125,7 +125,7 @@ export class AutopilotService extends BaseService {
         });
     }
 
-    const healthCheckInterval = (setInterval(() => {
+    const healthCheckInterval = setInterval(() => {
         if (!this.isStarted || !this.services) {
             clearInterval(healthCheckInterval);
             return;
@@ -136,16 +136,15 @@ export class AutopilotService extends BaseService {
         } else {
             if (this.services.health) this.services.health.reportStatus("Lure", "FAILED", "Lure process is not running or has exited");
         }
-    }, 30000) as any) as number;
+    }, 30000);
     this.unsubscribers.push(() => clearInterval(healthCheckInterval));
 
     // Keyed Listeners for domain-specific events
     const bus = this.services.eventBus;
 
-    bus.on("HONEYPOT", async (dataObj) => {
-        const data = dataObj as any;
+    bus.on("HONEYPOT", async (data) => {
         await this.engine.evaluate({
-            source: data.source_ip || data.ip || "unknown",
+            source: data.source_ip || (data as any).ip || "unknown",
             type: "HONEYPOT_TRIGGER",
             severity: 2,
             description: `Accessed honey-port ${data.port}`,
@@ -153,8 +152,7 @@ export class AutopilotService extends BaseService {
         }).catch(e => this.handleError(e, "HONEYPOT"));
     });
 
-    bus.on("THREAT", async (dataObj) => {
-        const data = dataObj as any;
+    bus.on("THREAT", async (data) => {
         await this.engine.evaluate({
             source: data.src_ip || data.nodeId || "local",
             type: "CANARY_TRIGGER",
@@ -164,8 +162,7 @@ export class AutopilotService extends BaseService {
         }).catch(e => this.handleError(e, "THREAT"));
     });
 
-    bus.on("DRIFT_PROCESS", async (dataObj) => {
-        const data = dataObj as any;
+    bus.on("DRIFT_PROCESS", async (data) => {
         await this.engine.evaluate({
             source: "local",
             type: "FILE_TAMPERING",
@@ -175,8 +172,7 @@ export class AutopilotService extends BaseService {
         }).catch(e => this.handleError(e, "DRIFT_PROCESS"));
     });
 
-    bus.on("EBPF_STRAY_SHELL", async (dataObj) => {
-        const data = dataObj as any;
+    bus.on("EBPF_STRAY_SHELL", async (data) => {
         await this.engine.evaluate({
             source: data.pid?.toString() || "kernel",
             type: `SUSPICIOUS_SHELL`,
@@ -186,8 +182,7 @@ export class AutopilotService extends BaseService {
         }).catch(e => this.handleError(e, "EBPF_STRAY_SHELL"));
     });
 
-    bus.on("EBPF_CRITICAL", async (dataObj) => {
-        const data = dataObj as any;
+    bus.on("EBPF_CRITICAL", async (data) => {
         const { pid, comm, syscall, args } = data;
         
         const anomalyResult = await this.services!.playbook.executeBehavioralAudit(pid, comm, syscall, args || []) as any;
@@ -226,13 +221,12 @@ export class AutopilotService extends BaseService {
         }
     });
 
-    bus.on("ARTIFACT_FOUND", async (dataObj) => {
-        const data = dataObj as any;
+    bus.on("ARTIFACT_FOUND", async (data) => {
         await this.services!.playbook.executeArtifactContainment(data.indicator || "unknown", data).catch((e: Error) => this.handleError(e, "ARTIFACT_FOUND"));
     });
 
     // Periodic integrity check using injected authoritative tracker
-    const ghostInterval = (setInterval(async () => {
+    const ghostInterval = setInterval(async () => {
         if (!this.isStarted || !this.services) {
             clearInterval(ghostInterval);
             return;
@@ -251,7 +245,7 @@ export class AutopilotService extends BaseService {
         } catch (e) {
             this.handleError(e as Error, "PERIODIC_GHOST_SCAN");
         }
-    }, 60000) as any) as number;
+    }, 60000);
     this.unsubscribers.push(() => clearInterval(ghostInterval));
   }
 

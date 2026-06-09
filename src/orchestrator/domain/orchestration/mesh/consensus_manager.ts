@@ -120,7 +120,7 @@ export class MeshConsensusManager {
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
                     caller: "MESH:QUORUM",
-                    message: `Async vote delivery failed for node ${node.id}: ${(e as Error).message}`
+                    message: `Async vote delivery failed for node ${node.id}: ${e.message}`
                 });
             }
         });
@@ -164,7 +164,7 @@ export class MeshConsensusManager {
                         type: LogType.GENERIC,
                         severity: LogSeverity.ERROR,
                         caller: "MESH:QUORUM:WATCH",
-                        message: `Consensus watcher failed: ${(e as Error).message}`
+                        message: `Consensus watcher failed: ${e.message}`
                     });
                     resolve(false);
                 }

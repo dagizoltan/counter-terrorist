@@ -1,30 +1,24 @@
-import type { EventName } from "@core/event_schema.ts";
+import { z } from "npm:zod";
+import type { EventName, EventRegistry } from "@core/event_schema.ts";
 
-export enum EventPriority {
-    CRITICAL = 0,
-    HIGH = 1,
-    NORMAL = 2,
-    LOW = 3
-}
-
-export type SystemEventEnvelope<T extends EventName = string> = {
+export type SystemEventEnvelope<T extends EventName = EventName> = {
   type: T;
   message: string;
   timestamp: string;
-  data: unknown;
+  data: any,
   correlationId?: string;
   fromAudit?: boolean;
 };
 
 export type EventHandler<T extends EventName> = (
-  data: unknown,
+  data: any,
   event: SystemEventEnvelope<T>
 ) => void | Promise<void>;
 
 export interface EventBusPort {
-  publish<T extends EventName>(type: T, message: string, data?: unknown): Promise<void>;
-  emit<T extends EventName>(event: T, data: unknown): Promise<void>;
-  subscribe(handler: (event: SystemEventEnvelope<string>) => void | Promise<void>, priority?: EventPriority): () => void;
-  unsubscribe(handler: (event: SystemEventEnvelope<string>) => void): void;
-  on<T extends EventName>(event: T, callback: EventHandler<T>, priority?: EventPriority): () => void;
+  publish<T extends EventName>(type: T, message: string, data?: any): Promise<void>;
+  emit<T extends EventName>(event: T, data: any): Promise<void>;
+  subscribe(handler: (event: SystemEventEnvelope) => void | Promise<void>): () => void;
+  unsubscribe(handler: (event: SystemEventEnvelope) => void): void;
+  on<T extends EventName>(event: T, callback: EventHandler<T>): () => void;
 }

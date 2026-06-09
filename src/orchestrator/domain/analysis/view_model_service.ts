@@ -61,26 +61,24 @@ export class ViewModelService extends BaseService {
     override setEventBus(eventBus: EventBusPort) {
         super.setEventBus(eventBus);
 
-        this.unsubscribers.push(this.eventBus!.on("METRIC_UPDATE", (dataObj) => {
-            const data = dataObj as any;
-            if (data && data.domain === "audit") {
-                this.metrics.totalEvents = data.data?.totalEvents as number || 0;
+        this.unsubscribers.push(this.eventBus!.on("METRIC_UPDATE", (data) => {
+            if (data.domain === "audit") {
+                this.metrics.totalEvents = (data.data as any).totalEvents;
                 this.metrics.lastAuditTimestamp = new Date().toISOString();
-            } else if (data && data.domain === "honeypot") {
-                this.metrics.honeypotHits = data.data?.totalHits as number || 0;
-            } else if (data && data.domain === "mesh") {
-                this.metrics.activeNodes = data.data?.activeNodes as number || 1;
+            } else if (data.domain === "honeypot") {
+                this.metrics.honeypotHits = (data.data as any).totalHits;
+            } else if (data.domain === "mesh") {
+                this.metrics.activeNodes = (data.data as any).activeNodes;
             }
         }));
 
-        this.unsubscribers.push(this.eventBus!.on("THREAT", (_data, event) => {
+        this.unsubscribers.push(this.eventBus!.on("THREAT", (data, event) => {
             this.metrics.threatsDetected++;
             this.addAlert("THREAT", event);
         }));
 
-        this.unsubscribers.push(this.eventBus!.on("UI_BROADCAST", (dataObj) => {
-            const data = dataObj as any;
-            if (data && data.type === "TACTICAL_TRIGGER") {
+        this.unsubscribers.push(this.eventBus!.on("UI_BROADCAST", (data) => {
+            if (data.type === "TACTICAL_TRIGGER") {
                 this.addAlert("TRIGGER", data.data);
             }
         }));

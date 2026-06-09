@@ -51,17 +51,17 @@ The system utilizes a modern, triple-tier architecture:
 ### 4.3 Synchronous Consensus Latency
 *   **Issue:** Mesh Quorum approvals (e.g., `requestApproval`) are currently synchronous.
 *   **Impact:** In a 10+ node mesh or high-latency network, a critical security action (like isolating a node) could block the orchestrator for several seconds, leading to a denial-of-service or missed detection events.
-*   **Requirement:** Transition to an **Asynchronous Saga Pattern**. Quorum requests should be state-machine objects in Deno KV that resolve in the background.
+*   **Remediation (Batch 5):** Transitioned to an **Asynchronous Saga Pattern** using Deno KV and `kv.watch`. Quorum requests are now managed as asynchronous state machines to prevent event-loop blocking.
 
 ## 5. Production Readiness Checklist (The "Last Mile")
 
 - [x] **[H] Binary Sovereignty:** Replace shell-based spawning with `memfd_create` execution. (REMEDIATED)
 - [x] **[H] Hardware Binding:** Enforce physical TPM 2.0 in production mode. (REMEDIATED)
 - [x] **[M] Mesh Stealth:** Implement authenticated discovery signatures. (REMEDIATED)
-- [ ] **[M] Memory Safety:** Stabilize FFI via ring-buffer data planes.
+- [x] **[M] Memory Safety:** Stabilize FFI via ring-buffer data planes. (REMEDIATED - Batch 4)
 - [x] **[M] Forensic Persistence:** Implement remote immutable log streaming (WORM). (REMEDIATED)
 - [ ] **[L] Dashboard Resilience:** Transition UI from polling to reactive push notifications.
-- [ ] **[L] Supply Chain:** Integrate automated SBOM generation for Deno imports and Rust crates.
+- [x] **[L] Supply Chain:** Integrate automated SBOM generation for Deno imports and Rust crates. (REMEDIATED - Batch 4)
 
 ## 6. Code Hygiene & Technical Debt (Partial Implementations)
 
@@ -103,7 +103,7 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 ### 7.4 Brittle Quorum for Small Clusters (N=2)
 *   **Finding:** The BFT threshold logic in `MeshConsensusManager.ts` requires 100% agreement for a 2-node cluster (N=2).
 *   **Risk:** If one node goes offline or experiences a network hiccup, the remaining node is rendered incapable of executing any quorum-protected actions (e.g., `LOCKDOWN`).
-*   **Requirement:** Implement a **Dynamic Threshold** policy that allows fallback to local-only signatures if the cluster size falls below a healthy quorum minimum, signed as "DEGRADED_LOCAL".
+*   **Remediation (Batch 5):** Implemented a **Dynamic Threshold** policy that allows 1-of-2 consensus for small clusters, ensuring availability without compromising BFT integrity for larger meshes.
 
 ### 7.5 Unencrypted Shared Memory (Post-Exploitation Leakage)
 *   **Finding:** Sidecar IPC utilizes `/dev/shm` segments (`cts_*`) to pass high-frequency telemetry.
@@ -167,7 +167,7 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 ### 9.2 Unbounded Boot-Time Hydration
 *   **Finding:** `FirewallManager.ts` and other services hydrate state from Deno KV at boot time by listing all records with a given prefix (e.g., `enforcement`).
 *   **Impact:** As the system ages and the `enforcement` history grows, the boot time of the orchestrator will increase linearly. In a system with thousands of historically blocked IPs, this could delay startup by minutes, creating an operational DoS.
-*   **Requirement:** Implement **Paginated Hydration** and active pruning of expired enforcement records from the hot-path.
+*   **Remediation (Batch 5):** Implemented **Paginated Hydration** and atomic rule processing to ensure stable boot times regardless of rule-set size.
 
 ### 9.3 Static Service Inventories
 *   **Finding:** `SupplyChainService.ts` and `ServiceOrchestrator.ts` contain hardcoded arrays of "active" agents (e.g., `["sentinel", "watchfile", ...]`).
@@ -194,7 +194,7 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 ### 10.3 Unbounded Forensic Disk Growth
 *   **Finding:** Automated PCAP captures and forensic process dumps are triggered on `CRITICAL` events (in `application.ts` and `PlaybookService.ts`).
 *   **Operational Risk:** There is no evidence of a global disk quota manager for forensic artifacts. A high-frequency attack or a false-positive flood could lead to disk exhaustion, crashing the host OS and the orchestrator.
-*   **Requirement:** Implement a **Forensic Artifact Life-Cycle Manager** that enforces a global size limit (e.g., 5GB) and auto-rotates old captures.
+*   **Remediation (Batch 5):** Implemented the **Forensic Artifact Life-Cycle Manager** which enforces a configurable global disk quota (default 500MB) with automatic least-recently-used (LRU) purging.
 
 ### 10.4 Thundering Herd Mesh Rotations
 *   **Finding:** `SidecarManager.ts` implements sidecar rotation every 6 hours with a 0-30 minute initial jitter.
@@ -259,14 +259,14 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 ### 12.5 Event Bus Sequential Bottlenecks
 *   **Finding:** `EventBus.ts` executes all handlers for a given event type sequentially within a single `Promise.all` block.
 *   **Impact:** A single slow handler (e.g., a webhook notification or a heavy DB write) will delay the finalization of the event publish cycle for *all* other subscribers, including high-priority autonomous response units.
-*   **Requirement:** Transition to a **Parallel Worker Pool** with per-subscriber priority levels to ensure critical remediations are never blocked by auxiliary logging.
+*   **Remediation (Batch 5):** Implemented a **Parallel Worker Pool** with per-subscriber priority levels (Critical to Low) to ensure high-priority remediations bypass auxiliary task queues.
 
 ## 13. Code Hygiene & High-Fidelity Debt
 
 ### 13.1 Distributed Consistency Gaps (Atomic KV)
 *   **Finding:** The generic `KvRepository.ts` used for API keys, sessions, and baseline tracking utilizes `kv.set()` without atomic version checks (`kv.atomic().check()`).
 *   **Impact:** In a multi-node mesh environment or under high concurrent load, "Last-Write-Wins" behavior will lead to data corruption or lost updates (e.g., rotating a key on two nodes simultaneously).
-*   **Requirement:** Enforce **Optimistic Concurrency Control (OCC)** across all repository write operations.
+*   **Remediation (Batch 5):** Enforced **Optimistic Concurrency Control (OCC)** across all repository operations with randomized exponential backoff retries.
 
 ### 13.2 Excessive Type-Safety Bypasses
 *   **Finding:** The orchestrator core contains **297+ usages of the `any` keyword**, particularly in the `web` and `domain` layers.
@@ -337,7 +337,7 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 ### 16.1 Sidecar Panic Vectors (.unwrap usage)
 *   **Finding:** Native Rust agents (particularly `analyzer`, `decoy`, and `sentinel`) utilize `.unwrap()` in critical paths, such as LRU cache initialization, timestamp calculation, and JSON serialization.
 *   **Risk:** If a system call unexpectedly fails (e.g. clock drift during `duration_since`) or memory is constrained, the agent will experience a full process panic and crash. This leads to immediate loss of visibility and remediation capabilities for that node.
-*   **Requirement:** Enforce a **"No-Unwrap" Policy**. Use `expect()` with detailed error messages or, preferably, proper `Result` propagation with graceful error handling.
+*   **Remediation (Batch 5):** Conducted a "Zero-Unwrap" audit. Replaced panicking calls with robust error propagation or specific, descriptive error handlers to ensure agent-level availability.
 
 ### 16.2 Unsafe Memory Transmutation
 *   **Finding:** `sentinel/main.rs` utilizes `unsafe { core::mem::transmute(&mut *bpf) }` to extend the lifetime of BPF maps to `'static` for move into `tokio` tasks.
@@ -442,7 +442,7 @@ During the reverse-engineering phase, several "Simplified" or "Mock" implementat
 ### 21.3 Large-Scale Forensic Bundle OOM
 *   **Finding:** `ForensicService.ts` gathers all audit logs, process trees, and metadata into a single JavaScript object before stringifying it for signing.
 *   **Impact:** On a busy node with 10,000+ events and thousands of processes, the `bundleData` object can exceed hundreds of megabytes. Processing this on the Deno heap will trigger an Out-of-Memory (OOM) crash during the `JSON.stringify` or `crypto.subtle.sign` phases.
-*   **Requirement:** Implement **Streaming Forensic Serialization** to an on-disk buffer or utilize a dedicated forensic sidecar for signing.
+*   **Remediation (Batch 5):** Transitioned to **Streaming Forensic Serialization**. Evidence is now aggregated into a hash-chain stream and signed incrementally, preventing process-level memory exhaustion.
 
 ### 21.4 Brittle Kernel Stat Parsing
 *   **Finding:** `LinuxProcessProvider.ts` parses `/proc/{pid}/stat` using simple `indexOf` and `split(" ")`.

@@ -4,10 +4,12 @@ import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort, Tpm
 import type { AuditEvent as DomainAuditEvent } from "../analysis/audit.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
+import { retry, CircuitBreaker } from "../../core/utils/resilience.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { z } from "zod";
 import { ServiceLocatorPort } from "../../core/ports.ts";
 import { MeshChaosEngine } from "./chaos_engine.ts";
+import { BloomFilter } from "../../core/cache.ts";
 import { MeshGossipManager } from "./mesh/gossip_manager.ts";
 import { MeshConsensusManager } from "./mesh/consensus_manager.ts";
 import { secureRandomInt } from "../../core/crypto_utils.ts";
@@ -115,8 +117,7 @@ export class MeshManager extends BaseService implements MeshPort {
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
 
     if (this.eventBus) {
-        this.eventBus.on("AUDIT_BROADCAST", (dataObj: unknown) => {
-            const data = dataObj as DomainAuditEvent;
+        this.eventBus.on("AUDIT_BROADCAST", (data: DomainAuditEvent) => {
             this.broadcastAuditEvent(data).catch(e => {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
@@ -127,8 +128,7 @@ export class MeshManager extends BaseService implements MeshPort {
                 }).catch(() => console.error("Mesh logging failed"));
             });
         });
-        this.eventBus.on("AUDIT_VERIFICATION", (dataObj: unknown) => {
-            const data = dataObj as { lastHash: string, eventCount: number };
+        this.eventBus.on("AUDIT_VERIFICATION", (data: { lastHash: string, eventCount: number }) => {
             this.broadcastAuditVerification(data.lastHash, data.eventCount).catch(e => {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
