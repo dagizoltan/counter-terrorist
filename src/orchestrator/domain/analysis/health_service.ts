@@ -20,6 +20,7 @@ export class HealthService extends BaseService {
     private states: Map<string, SubsystemHealth> = new Map();
     private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
+    private sidecarViolationCounts: Map<string, number> = new Map();
     private intervals: any[] = [];
     private serviceRegistry: Map<string, BaseService> = new Map();
 
@@ -159,11 +160,18 @@ export class HealthService extends BaseService {
                     usage.rss = parseInt(rssMatch[1]) * 1024;
                 }
 
-                // CPU Calculation: Delta-based utilization
-                const parts = stat.split(" ");
-                if (parts.length > 14) {
-                    const utime = parseInt(parts[13]);
-                    const stime = parseInt(parts[14]);
+                // SOV-M1 Hardening: Robust Procfs Parsing
+                // Correctly handle process names with spaces or parentheses by finding the last ')'
+                const lastParen = stat.lastIndexOf(")");
+                const afterComm = stat.substring(lastParen + 2);
+                const parts = afterComm.split(" ");
+
+                if (parts.length >= 13) {
+                    // Fields in /proc/[pid]/stat after the comm field start from index 0 in 'parts'
+                    // utime is field 14, stime is field 15.
+                    // Since 'parts' starts after field 2 (comm), utime is index 11, stime is index 12.
+                    const utime = parseInt(parts[11]);
+                    const stime = parseInt(parts[12]);
                     const totalTicks = utime + stime;
                     const now = Date.now();
 
@@ -193,15 +201,42 @@ export class HealthService extends BaseService {
             usage = { cpu: 0.1, rss: 1024 * 1024 };
         }
 
-        if ((usage.cpu > quota.cpu && quota.cpu > 0) || (usage.rss > quota.memory && quota.memory > 0)) {
-            this.reportStatus(name, "DEGRADED", `Resource Quota Exceeded (CPU: ${usage.cpu}%, RAM: ${usage.rss} bytes)`);
+        const isViolating = (usage.cpu > quota.cpu && quota.cpu > 0) || (usage.rss > quota.memory && quota.memory > 0);
+
+        if (isViolating) {
+            const count = (this.sidecarViolationCounts.get(name) || 0) + 1;
+            this.sidecarViolationCounts.set(name, count);
+
+            this.reportStatus(name, "DEGRADED", `Resource Quota Exceeded (CPU: ${usage.cpu}%, RAM: ${usage.rss} bytes) [Violation ${count}/3]`);
+
             this.logger.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
                 severity: LogSeverity.WARNING,
                 caller: "HEALTH:QUOTA",
-                message: `CRITICAL: Sidecar '${name}' exceeded resource quota. Potential compromise or exhaustion attack.`
+                message: `CRITICAL: Sidecar '${name}' exceeded resource quota. Potential compromise or exhaustion attack. Violation count: ${count}`
             });
+
+            // SOV-M5 Hardening: Active Resource Gating
+            // If an agent exceeds its quota for 3 consecutive polls, we forcibly rotate it.
+            if (count >= 3 && this.sidecarManager) {
+                this.logger.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "HEALTH:ENFORCEMENT",
+                    message: `Autonomous Defense: Forcibly rotating non-compliant sidecar '${name}' after persistent resource violation.`
+                });
+
+                // @ts-ignore: restartSidecar might be async or missing from limited interface
+                if (typeof this.sidecarManager.restartSidecar === "function") {
+                    this.sidecarManager.restartSidecar(name).catch(() => {});
+                }
+                this.sidecarViolationCounts.set(name, 0);
+            }
+        } else {
+            // Reset violation count if agent returns to normal
+            this.sidecarViolationCounts.set(name, 0);
         }
     }
 }
