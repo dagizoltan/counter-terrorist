@@ -72,7 +72,7 @@ export class SecurityMiddleware {
     const forwardedFor = c.req.header("X-Forwarded-For");
 
     if (forwardedFor) {
-        const trustedProxies = Deno.env.get("TRUSTED_PROXIES")?.split(",").map(p => p.trim()) || [];
+        const trustedProxies = this.services.config.getEnv("TRUSTED_PROXIES")?.split(",").map(p => p.trim()) || [];
         if (directIp && trustedProxies.includes(directIp)) {
             return forwardedFor.split(",")[0]?.trim() || directIp;
         }

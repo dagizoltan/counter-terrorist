@@ -29,14 +29,15 @@ export class PolicyEngine extends BaseService {
 
     constructor(
         private logging: LoggingPort,
+        private config: import("../../core/ports/system.ts").ConfigurationPort,
         initialPolicy?: Partial<SecurityPolicy>
     ) {
         super();
         // Default Sovereign Policy
         this.policy = {
             version: "1.2.0",
-            strictMode: Deno.env.get("STRICT_POLICY_ENFORCEMENT") === "true",
-            shadowMode: Deno.env.get("SHADOW_MODE") !== "false", // Default to true for safety
+            strictMode: config.getEnv("STRICT_POLICY_ENFORCEMENT") === "true",
+            shadowMode: config.getEnv("SHADOW_MODE") !== "false", // Default to true for safety
             defaultAction: "LOG",
             thresholds: [
                 { score: 10, action: "WATCH", description: "Increase forensic sampling rate" },

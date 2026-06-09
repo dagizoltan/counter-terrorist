@@ -26,7 +26,8 @@ class MockThreatResponseSaga extends ThreatResponseSaga {
 Deno.test("AutonomousResponseEngine - Scoring and Escalation", async () => {
     const logger = new MockLoggingPort();
     const saga = new MockThreatResponseSaga();
-    const policy = new PolicyEngine(logger, {
+    const config = { getEnv: () => undefined } as any;
+    const policy = new PolicyEngine(logger, config, {
         shadowMode: false,
         thresholds: [
             { score: 5, action: "WATCH", description: "WATCH" },
@@ -66,7 +67,8 @@ Deno.test("AutonomousResponseEngine - Scoring and Escalation", async () => {
 Deno.test("AutonomousResponseEngine - Score Decay", async () => {
     const logger = new MockLoggingPort();
     const saga = new MockThreatResponseSaga();
-    const policy = new PolicyEngine(logger);
+    const config = { getEnv: () => undefined } as any;
+    const policy = new PolicyEngine(logger, config);
     const engine = new AutonomousResponseEngine(saga, policy, logger);
 
     try {
@@ -95,7 +97,8 @@ Deno.test("AutonomousResponseEngine - Score Decay", async () => {
 Deno.test("AutonomousResponseEngine - State Exhaustion Protection", async () => {
     const logger = new MockLoggingPort();
     const saga = new MockThreatResponseSaga();
-    const policy = new PolicyEngine(logger);
+    const config = { getEnv: () => undefined } as any;
+    const policy = new PolicyEngine(logger, config);
     const engine = new AutonomousResponseEngine(saga, policy, logger);
 
     try {

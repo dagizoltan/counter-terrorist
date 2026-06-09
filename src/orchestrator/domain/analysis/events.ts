@@ -189,22 +189,35 @@ export class EventBus implements EventBusPort {
         payload: isNoise ? undefined : validatedData
     }).catch(err => console.error(`Background task failure: ${err}`));
 
-    // SOV-P3: Parallelized and Time-Limited Execution
-    // BUG FIX: Use snapshots of handlers to prevent race conditions during concurrent mutations (unsubscribes)
+    // SOV-P3: Prioritized Parallelized and Time-Limited Execution
+    // SEC-03 Hardening: Prioritize critical security events to bypass background noise
     const allHandlers = [...this.handlers];
     const typeHandlers = [...(this.keyedListeners.get(type as EventName) || [])];
 
     if (allHandlers.length === 0 && typeHandlers.length === 0) return;
 
-    // Execute in parallel with 2s timeout
+    const isHighPriority = type === "CRITICAL" || type === "EMERGENCY" || type === "EXFIL_ALERT" || type === "THREAT";
+
+    // Execute in parallel with 2s timeout (shorter for high priority to fail fast and retry/escalate)
+    const timeoutMs = isHighPriority ? 1000 : 2000;
     const executions = [];
+
     for (const h of allHandlers) {
-        executions.push(this.safelyExecute(() => h(event), 2000));
+        executions.push(this.safelyExecute(() => h(event), timeoutMs));
     }
     for (const h of typeHandlers) {
-        executions.push(this.safelyExecute(() => h(validatedData, event), 2000));
+        executions.push(this.safelyExecute(() => h(validatedData, event), timeoutMs));
     }
-    await Promise.all(executions);
+
+    if (isHighPriority) {
+        // Await high priority immediately to ensure deterministic response order
+        await Promise.all(executions);
+    } else {
+        // Fire and track for non-critical noise
+        Promise.all(executions).catch(err => {
+            console.error(`Background event execution failure: ${err}`);
+        });
+    }
   }
 
   private async safelyExecute(fn: () => void | Promise<void>, timeoutMs: number = 5000): Promise<void> {

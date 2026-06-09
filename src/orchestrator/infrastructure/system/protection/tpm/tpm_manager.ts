@@ -11,24 +11,25 @@ export class TPMManager implements TpmPort {
 
     constructor(
         private sidecar: SidecarManager,
-        private logging: LoggingPort
+        private logging: LoggingPort,
+        private config?: ConfigurationPort
     ) {}
 
     /**
      * Map secret names to unique TPM NVRAM indices to avoid collisions (BUG-8.5 FIX)
      */
-    private getIndexForSecret(name: string): string {
-        const mapping: Record<string, string> = {
-            "MESH_SECRET": "0x1500001",
-            "GOLDEN_PCR_HASH": "0x1500002",
-            "PKI_SECRET": "0x1500003",
-            "API_TOKEN": "0x1500004"
+    private getIndexForSecret(name: string): { index: string, auth?: string } {
+        const mapping: Record<string, { index: string, auth: string }> = {
+            "MESH_SECRET": { index: "0x1500001", auth: "cts-mesh-nv-key" },
+            "GOLDEN_PCR_HASH": { index: "0x1500002", auth: "cts-pcr-nv-key" },
+            "PKI_SECRET": { index: "0x1500003", auth: "cts-pki-nv-key" },
+            "API_TOKEN": { index: "0x1500004", auth: "cts-token-nv-key" }
         };
-        const index = mapping[name];
-        if (!index) {
+        const entry = mapping[name];
+        if (!entry) {
             throw new Error(`TPM Error: No NVRAM index defined for secret '${name}'. Collision prevention active.`);
         }
-        return index;
+        return entry;
     }
 
     async sealSecret(secretName: string, data: string, pcrs?: Record<number, string>) {
@@ -40,8 +41,8 @@ export class TPMManager implements TpmPort {
             message: `Sealing mesh secret '${secretName}' into hardware (PCR-Bound: ${!!pcrs})...`
         });
         
-        const index = this.getIndexForSecret(secretName);
-        const res = await this.sidecar.sendCommand("trustroot", { type: "Seal", index, data, pcrs });
+        const { index, auth } = this.getIndexForSecret(secretName);
+        const res = await this.sidecar.sendCommand("trustroot", { type: "Seal", index, data, auth, pcrs });
         
         if (!res.success) {
             this.logging.log({
@@ -55,8 +56,8 @@ export class TPMManager implements TpmPort {
     }
 
     async unsealSecret(secretName: string): Promise<string | null> {
-        const index = this.getIndexForSecret(secretName);
-        const res = await this.sidecar.sendCommand("trustroot", { type: "Unseal", index });
+        const { index, auth } = this.getIndexForSecret(secretName);
+        const res = await this.sidecar.sendCommand("trustroot", { type: "Unseal", index, auth });
         
         if (res.success && res.data?.data) {
             this.logging.log({
@@ -73,8 +74,8 @@ export class TPMManager implements TpmPort {
     }
 
     async getPcrs(indices: number[] = [0, 1, 7]): Promise<Record<number, string>> {
-        const isProduction = Deno.env.get("ENVIRONMENT") === "production";
-        const allowBypass = Deno.env.get("ALLOW_HARDWARE_BYPASS") === "true";
+        const isProduction = this.config?.getEnv("ENVIRONMENT") === "production";
+        const allowBypass = this.config?.getBoolean("ALLOW_HARDWARE_BYPASS", false);
 
         // SEC-03 Hardening: Hard-fail if hardware is bypassed in production
         if (isProduction && allowBypass) {
@@ -118,8 +119,12 @@ export class TPMManager implements TpmPort {
         
         const currentPcrs = await this.getPcrs();
         
+        // SEC-06 Hardening: Use config for machine ID instead of direct env
+        const machineId = this.config?.getEnv("MACHINE_ID") || "unknown";
+
         // 1. Attempt to fetch Golden Hash from TPM NVRAM (Highest Trust)
-        const nvGoldenHash = await this.nvRead("0x1500002");
+        const { index, auth } = this.getIndexForSecret("GOLDEN_PCR_HASH");
+        const nvGoldenHash = await this.nvRead(index, auth);
         if (nvGoldenHash) {
             const currentHash = await this.computePcrHash(currentPcrs);
             if (currentHash === nvGoldenHash) {
@@ -211,7 +216,7 @@ export class TPMManager implements TpmPort {
             if (res.success && res.stdout.trim().length > 0) return `SEP_SIG:${res.stdout.trim()}`;
         } catch { /* fallback */ }
 
-        const machineId = Deno.env.get("MACHINE_ID") || "unknown";
+        const machineId = this.config?.getEnv("MACHINE_ID") || "unknown";
         return `SEP_V_SIG:${btoa(data + machineId).slice(0, 32)}`;
     }
 
@@ -228,7 +233,7 @@ export class TPMManager implements TpmPort {
             if (res.success && res.stdout.trim().length > 0) return `NCRYPT_SIG:${res.stdout.trim()}`;
         } catch { /* fallback */ }
 
-        const machineId = Deno.env.get("MACHINE_ID") || "unknown";
+        const machineId = this.config?.getEnv("MACHINE_ID") || "unknown";
         return `NCRYPT_V_SIG:${btoa(data + machineId).slice(0, 32)}`;
     }
 
@@ -237,16 +242,16 @@ export class TPMManager implements TpmPort {
         return Promise.resolve(signature.startsWith("SEP_SIG:") || signature.startsWith("NCRYPT_SIG:"));
     }
 
-    async nvDefine(index: string, size: number) {
-        return await this.sidecar.sendCommand("trustroot", { type: "NvDefine", index, size });
+    async nvDefine(index: string, size: number, auth?: string) {
+        return await this.sidecar.sendCommand("trustroot", { type: "NvDefine", index, size, auth });
     }
 
-    async nvWrite(index: string, data: string) {
-        return await this.sidecar.sendCommand("trustroot", { type: "NvWrite", index, data });
+    async nvWrite(index: string, data: string, auth?: string) {
+        return await this.sidecar.sendCommand("trustroot", { type: "NvWrite", index, data, auth });
     }
 
-    async nvRead(index: string): Promise<string | null> {
-        const res = await this.sidecar.sendCommand("trustroot", { type: "NvRead", index });
+    async nvRead(index: string, auth?: string): Promise<string | null> {
+        const res = await this.sidecar.sendCommand("trustroot", { type: "NvRead", index, auth });
         if (res.success && res.data?.data) {
             return res.data.data;
         }
@@ -303,9 +308,9 @@ export class TPMManager implements TpmPort {
         const currentPcrs = await this.getPcrs(indices);
         const pcrHash = await this.computePcrHash(currentPcrs);
 
-        const index = "0x1500002"; // Reserved for Golden PCR Hash
-        await this.nvDefine(index, 64);
-        const res = await this.nvWrite(index, pcrHash);
+        const { index, auth } = this.getIndexForSecret("GOLDEN_PCR_HASH");
+        await this.nvDefine(index, 64, auth);
+        const res = await this.nvWrite(index, pcrHash, auth);
 
         if (res.success) {
             this.logging.log({

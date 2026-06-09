@@ -346,6 +346,8 @@ export class SidecarManager implements CommandPort {
             })();
 
             this.persistentProcesses.set(name, child);
+            // Record initial heartbeat to start monitoring immediately
+            this.heartbeatMonitor.recordHeartbeat(name);
             this.startResponseReader(name, child);
             return child;
         } catch (e) {
@@ -629,15 +631,29 @@ export class SidecarManager implements CommandPort {
       this.ipc.addWaiter(name, id, { resolve, reject });
     });
 
+    // SEC-05 Hardening: Tiered IPC Timeouts (Audit 10.2)
+    // High-priority remediation commands have aggressive timeouts to prevent orchestrator blocking
+    // and trigger rapid agent health evaluation/restart if they stall.
+    const type = commandObj.type as string;
+    const isHighPriority = ["KillProcess", "BlockIp", "QuarantineProcess", "DumpProcess", "LOCKDOWN", "ENFORCE_PID"].includes(type);
+    const timeoutMs = isHighPriority ? 5000 : 60000;
+
     const timeoutPromise = new Promise<CommandResult>((resolve) => {
       setTimeout(() => {
         this.ipc.removeWaiter(name, id);
+        this.logging.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.ERROR,
+          caller: "orchestrator:infra:runtime:sidecar_manager",
+          message: `CRITICAL: Command ${type} to sidecar ${name} timed out after ${timeoutMs}ms. Potential agent stall.`
+        });
         resolve({ 
           success: false, 
           stdout: "", 
-          stderr: `Command ${commandObj.type} to ${name} timed out after 60s` 
+          stderr: `Command ${type} to ${name} timed out after ${timeoutMs}ms`
         });
-      }, 60000);
+      }, timeoutMs);
     });
 
     const writer = child.stdin.getWriter();
@@ -751,9 +767,22 @@ export class SidecarManager implements CommandPort {
   }
 
   private handleSidecarExit(name: string, exitCode: number) {
-    if (exitCode === 0 || this.isShuttingDown || this.expectedExits.has(name)) {
+    // SOV-M5 Hardening: Treat code 0 as a failure for persistent sidecars to prevent silent disablement
+    const isExpected = this.isShuttingDown || this.expectedExits.has(name);
+
+    if (isExpected) {
         this.expectedExits.delete(name);
         return;
+    }
+
+    if (exitCode === 0) {
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:infra:runtime:sidecar_manager",
+            message: `Sidecar ${name} exited with code 0 (Success) unexpectedly. Persistent agents should not exit. Restarting...`
+        });
     }
     if (this.spawner.isUnsupported(name)) return;
 

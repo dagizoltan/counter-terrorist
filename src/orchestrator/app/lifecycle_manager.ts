@@ -9,7 +9,8 @@ export class LifecycleManager {
         private lifecycleService: SystemLifecycleService,
         private sidecarManager: SidecarManager,
         private _registry: ServiceRegistry,
-        private emergencyLockdownDelegate: (reason: string) => Promise<void>
+        private emergencyLockdownDelegate: (reason: string) => Promise<void>,
+        private config?: import("../core/ports/system.ts").ConfigurationPort
     ) {}
 
     async setupSafetyAndErrorHandlers() {
@@ -25,7 +26,7 @@ export class LifecycleManager {
                  message: "⚠️ SAFE MODE ACTIVATED: Multiple boot failures detected. All enforcement disabled."
              });
 
-             if (Deno.env.get("AUTO_RESTORE_LKG") === "true") {
+             if (this.config?.getEnv("AUTO_RESTORE_LKG") === "true") {
                  await this.lifecycleService.tryRestoreLkg();
              }
         }

@@ -11,7 +11,8 @@ import { Result, ok } from "../../core/result.ts";
 export class CovertChannelService extends BaseService {
     constructor(
         private executor: SystemExecutor,
-        private logging: LoggingPort
+        private logging: LoggingPort,
+        private config?: import("../../core/ports/system.ts").ConfigurationPort
     ) {
         super();
     }
@@ -48,7 +49,7 @@ export class CovertChannelService extends BaseService {
      * This uses the DNS query itself to leak/receive mesh alerts.
      */
     async signalViaDNS(subdomain: string) {
-        const meshDomain = Deno.env.get("MESH_DOMAIN") || `cts-mesh.internal`;
+        const meshDomain = this.config?.getEnv("MESH_DOMAIN") || `cts-mesh.internal`;
         const target = `${subdomain}.${meshDomain}`;
         
         this.logging.log({

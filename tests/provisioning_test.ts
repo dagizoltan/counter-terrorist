@@ -14,8 +14,9 @@ Deno.test("ProvisioningService - discoverTargets", async () => {
     const mesh = {} as any;
     const executor = {} as any;
     const logging = { log: () => {} } as any;
+    const config = { getEnv: (k: string) => undefined, getBoolean: () => false, getToken: () => undefined } as any;
 
-    const service = new ProvisioningService(sidecar, mesh, executor, logging);
+    const service = new ProvisioningService(sidecar, mesh, executor, logging, config);
     await service.discoverTargets();
 
     // Verify targets were added
@@ -31,17 +32,16 @@ Deno.test("ProvisioningService - aborts if secrets missing", async () => {
     const executor = {} as any;
     let logs: any[] = [];
     const logging = { log: (e: any) => logs.push(e) } as any;
+    const config = { getEnv: (k: string) => undefined, getBoolean: () => false, getToken: () => undefined } as any;
 
-    const service = new ProvisioningService(sidecar, mesh, executor, logging);
-
-    Deno.env.delete("MESH_SECRET");
+    const service = new ProvisioningService(sidecar, mesh, executor, logging, config);
 
     // We need to trick it into having a target
     // Since targets is private, we'll call discoverTargets with a mock
     const mockSidecar = {
         runSidecar: async () => ({ success: true, data: [{ ip: "1.1.1.1", port: 22 }] })
     };
-    const service2 = new ProvisioningService(mockSidecar as any, mesh, executor, logging);
+    const service2 = new ProvisioningService(mockSidecar as any, mesh, executor, logging, config);
     await service2.discoverTargets();
     await service2.provisionTarget("1.1.1.1");
 
@@ -55,10 +55,13 @@ Deno.test("ProvisioningService - shutdown stops loop", async () => {
     const mesh = {} as any;
     const executor = {} as any;
     const logging = { log: () => {} } as any;
+    const config = {
+        getEnv: (k: string) => k === "PROVISIONING_ENABLED" ? "true" : undefined,
+        getBoolean: () => false,
+        getToken: () => undefined
+    } as any;
 
-    const service = new ProvisioningService(sidecar, mesh, executor, logging);
-
-    Deno.env.set("PROVISIONING_ENABLED", "true");
+    const service = new ProvisioningService(sidecar, mesh, executor, logging, config);
 
     const runPromise = service.run();
 

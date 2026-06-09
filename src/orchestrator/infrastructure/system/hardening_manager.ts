@@ -62,7 +62,7 @@ export class HardeningManager {
                 throw new Error("CRITICAL SECURITY VIOLATION: Application cannot start in PRODUCTION with STRICT_HARDWARE_INTEGRITY disabled.");
             }
 
-            if (Deno.env.get("MESH_SECRET") || Deno.env.get("API_TOKEN")) {
+            if (config.getEnv("MESH_SECRET") || config.getEnv("API_TOKEN")) {
                 await this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.AUDIT,

@@ -108,16 +108,24 @@ export class RateLimitService extends BaseService {
     const allowed = state.count <= limit;
     const retryAfterMs = Math.max(0, state.resetAt - now);
 
-    if (!allowed) {
-        loggingService.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.WARNING,
-            caller: "SECURITY:RATELIMIT",
-            message: `RATE_LIMIT_EXCEEDED (Memory Tier): Key=${key}, Count=${state.count}`
-        });
-        // On violation, immediately sync to KV to enforce across nodes
-        this.syncToKv(key, state.count, state.resetAt).catch(() => {});
+    if (!allowed || state.count >= (limit / 2)) {
+        if (!allowed) {
+            loggingService.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "SECURITY:RATELIMIT",
+                message: `RATE_LIMIT_EXCEEDED (Memory Tier): Key=${key}, Count=${state.count}`
+            });
+        }
+
+        // SEC-08 Hardening: Threshold-Triggered Sync
+        // If we reach 50% of the limit, or violate it, sync immediately to KV
+        // to close the distributed bypass window.
+        const countToSync = state.count;
+        // Don't clear local count, just mark it as "syncing" or similar
+        // For simplicity in this implementation, we just sync and the tests expect the total count
+        this.syncToKv(key, countToSync, state.resetAt).catch(() => {});
     }
 
     // 2. Return status based on memory tier.

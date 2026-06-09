@@ -18,7 +18,8 @@ export class IntegrityService extends BaseService {
         private mesh: MeshManager,
         private audit: AuditService,
         private tpm: TPMManager,
-        private logging: LoggingPort
+        private logging: LoggingPort,
+        private config?: import("../../core/ports/system.ts").ConfigurationPort
     ) {
         super();
     }
@@ -98,7 +99,7 @@ export class IntegrityService extends BaseService {
         
         // 1. Shred local secrets
         // BUG-4.17 FIX: Move .env instead of deleting to allow manual recovery in non-production.
-        if (Deno.env.get("ENVIRONMENT") === "production") {
+        if (this.config?.getEnv("ENVIRONMENT") === "production") {
             await Deno.remove("./.env").catch(() => {});
             await Deno.remove("./volume/pki", { recursive: true }).catch(() => {});
         } else {

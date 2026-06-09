@@ -97,6 +97,13 @@ export class SidecarSpawner {
                 "-p", `MemoryMax=${memoryMax}`,
                 "-p", "MemorySwapMax=0",
                 "-p", "TasksMax=100",
+                // SOV-M6 Hardening: Sidecar PID Namespace Isolation (Audit 16.2)
+                // Hides host processes and restricts /proc visibility for the agent.
+                "-p", "ProtectProc=invisible",
+                "-p", "ProcSubset=pid",
+                "-p", "PrivateTmp=yes",
+                "-p", "PrivateDevices=yes",
+                "-p", "NoNewPrivileges=yes",
                 execPath // This will use /proc/self/fd/N if memfd was successful
             ];
         }

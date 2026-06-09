@@ -571,6 +571,43 @@ export class AuditService extends BaseService {
                 continue;
             }
 
+            // SEC-03: Signed Truncation Boundary Verification
+            // If the event marks a new chain head (prevHash: TRUNCATED), it MUST be a CHECKPOINT with a valid hardware signature.
+            if (event.prevHash === "TRUNCATED" && event.type !== "CHECKPOINT") {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:domain:analysis:audit",
+                    message: `Rejected unverified chain truncation for event ${event.id}. Remote nodes must provide a signed CHECKPOINT to reset the chain head.`
+                }).catch(err => this.safeLogAuditError("Background task failure", err));
+                continue;
+            }
+
+            if (event.type === "CHECKPOINT" && event.prevHash === "TRUNCATED" && this.tpm) {
+                if (!event.hwSignature) {
+                     this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:domain:analysis:audit",
+                        message: `Rejected unsigned CHECKPOINT ${event.id} as a truncation boundary.`
+                    }).catch(err => this.safeLogAuditError("Background task failure", err));
+                    continue;
+                }
+                const isValid = await this.tpm.verify(event.hash, event.hwSignature);
+                if (!isValid) {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:domain:analysis:audit",
+                        message: `Rejected CHECKPOINT ${event.id} with INVALID hardware signature.`
+                    }).catch(err => this.safeLogAuditError("Background task failure", err));
+                    continue;
+                }
+            }
+
             if (event.prevHash !== this.lastHash && event.prevHash !== "TRUNCATED") {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
