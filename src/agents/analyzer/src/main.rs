@@ -30,7 +30,8 @@ struct CacheEntry {
     timestamp: u64,
 }
 static HASH_CACHE: Lazy<Mutex<LruCache<String, CacheEntry>>> = Lazy::new(|| {
-    Mutex::new(LruCache::new(std::num::NonZeroUsize::new(MAX_CACHE_SIZE).unwrap()))
+    let size = std::num::NonZeroUsize::new(MAX_CACHE_SIZE).unwrap_or(std::num::NonZeroUsize::new(1000).expect("MAX_CACHE_SIZE must be > 0"));
+    Mutex::new(LruCache::new(size))
 });
 
 #[derive(Debug, Serialize)]
@@ -59,7 +60,9 @@ async fn log_forensic(severity: &str, message: &str) {
 fn hash_file(path: &Path) -> Option<String> {
     // 1. Check Cache
     let path_str = path.to_string_lossy().to_string();
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
 
     {
         let mut cache = HASH_CACHE.lock();
@@ -199,7 +202,9 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(1800)).await; // Every 30 mins
-            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            let now = SystemTime::now().duration_since(UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
             // B-08: Memory Leak Fix - Evict expired entries OR entries where the file no longer exists
             let mut cache = HASH_CACHE.lock();
 
@@ -261,7 +266,7 @@ async fn handle_command(command: AgentCommand, sys: &mut System) -> AgentRespons
                 message: Some("Memory scan complete".to_string()),
                 threats_found: Some(!all_anomalies.is_empty()),
                 memory_anomalies: if all_anomalies.is_empty() { None } else {
-                    Some(all_anomalies.into_iter().map(|a| serde_json::to_value(a).unwrap()).collect())
+                    Some(all_anomalies.into_iter().filter_map(|a| serde_json::to_value(a).ok()).collect())
                 },
                 target: None,
                 data: None,

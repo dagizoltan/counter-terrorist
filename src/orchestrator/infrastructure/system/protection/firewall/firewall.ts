@@ -53,8 +53,9 @@ export class FirewallManager implements FirewallPort {
 
   async setKv(kv: Deno.Kv) {
     this.kv = kv;
-    // Avoid full list operation on start to prevent boot delay
-    const iter = kv.list<unknown>({ prefix: ["enforcement"] }, { limit: 1000 });
+    // Audit 9.2: Implementing True Paginated Hydration to prevent boot-time DoS.
+    // Iterating over the full KV prefix 'enforcement' via the async iterator.
+    const iter = kv.list<unknown>({ prefix: ["enforcement"] });
     const ips: string[] = [];
     for await (const res of iter) {
       const ip = res.key[1] as string;

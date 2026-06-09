@@ -51,11 +51,14 @@ enum SidecarEvent {
 }
 
 async fn emit_event(event: SidecarEvent) {
+    let data = serde_json::to_value(event).ok();
+    if data.is_none() { return; }
+
     let resp = SidecarResponse {
         id: None,
         success: true,
         message: None,
-        data: Some(serde_json::to_value(event).unwrap()),
+        data,
         timestamp: Utc::now().to_rfc3339(),
     };
     if let Ok(json) = serde_json::to_string(&resp) {

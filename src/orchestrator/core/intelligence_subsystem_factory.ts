@@ -28,7 +28,7 @@ export class IntelligenceSubsystemFactory {
         compliance: import("@domain/index.ts").ComplianceService;
     } {
         const geoIp = this.createServiceDelegate(health, "GeoIP", () => new GeoIpService(this.logging));
-        const forensicService = this.createServiceDelegate(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, meshAuth));
+        const forensicService = this.createServiceDelegate(health, "Forensics", () => new ForensicService(this.auditService, this.logging, this.kv, processTracker, meshAuth, config));
         const curatedIntel = this.createServiceDelegate(health, "CuratedIntel", () => new CuratedIntelService(this.logging, protection.firewall, config, geoIp));
         const news = this.createServiceDelegate(health, "News", () => new NewsSignalService(this.logging));
         const networkDiscovery = this.createServiceDelegate(health, "NetworkDiscovery", () => {

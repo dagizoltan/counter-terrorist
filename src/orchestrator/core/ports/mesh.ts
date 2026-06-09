@@ -16,6 +16,7 @@ export interface MeshPort {
   broadcastQuarantine?(source: string): Promise<import("../result.ts").Result<void>>;
   rotateIdentity?(): Promise<import("../result.ts").Result<void>>;
   requestAuditSync(nodeId: string): Promise<void>;
+  getKv?(): Deno.Kv | undefined;
 }
 
 export interface MeshAuthPort {

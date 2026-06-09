@@ -1,3 +1,4 @@
+import { ForensicArtifactLifecycleManager } from "@domain/analysis/forensic_lifecycle.ts";
 import { ServiceContainer, PlatformInfo } from "@core/container.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
@@ -79,6 +80,8 @@ export class ServiceOrchestrator {
         health.registerService("lifecycle", lifecycle);
         health.registerService("policy", policy);
 
+        const forensicLifecycle = new ForensicArtifactLifecycleManager(loggingService, "./volume/storage/forensics", configProvider.getNumber("FORENSIC_DISK_QUOTA_MB", 500));
+         lifecycle.addCustomTask(() => forensicLifecycle.enforceQuota());
         const operational = factory.initOperational(health, mesh, tpm, eventBus, processTracker, security, broadcast);
         this.registry.register("Integrity", operational.integrity, ShutdownPriority.CRITICAL);
         this.registry.register("Morphing", operational.morphing, ShutdownPriority.AUXILIARY);
