@@ -214,7 +214,7 @@ export class MeshManager extends BaseService implements MeshPort {
   startDiscovery() {
     if (this.discoveryInterval) return;
 
-    if (this.config?.getEnv("SINGLE_NODE") === "true" || Deno.env.get("SINGLE_NODE") === "true") {
+    if (this.config?.getEnv("SINGLE_NODE") === "true") {
       this.logging.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,

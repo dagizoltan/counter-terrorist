@@ -14,18 +14,19 @@ enum TpmCommand {
         id: String,
         index: String,
         data: String,
+        auth: Option<String>,
         #[serde(default)]
         pcrs: Option<std::collections::HashMap<u32, String>>
     },
-    Unseal { id: String, index: String },
+    Unseal { id: String, index: String, auth: Option<String> },
     Sign { id: String, data: String },
     QuoteIdentity { id: String, nonce: String }, // NEW: Hardware-Rooted Identity Quote
     WipeSecrets { id: String }, // SOV-P4: Hardware Panic Switch ("Nuclear Option")
     Verify { id: String, data: String, signature: String },
     GetPcrs { id: String, indices: Vec<u32> },
-    NvDefine { id: String, index: String, #[allow(dead_code)] size: usize },
-    NvWrite { id: String, index: String, #[allow(dead_code)] data: String },
-    NvRead { id: String, index: String },
+    NvDefine { id: String, index: String, size: usize, auth: Option<String> },
+    NvWrite { id: String, index: String, data: String, auth: Option<String> },
+    NvRead { id: String, index: String, auth: Option<String> },
     SignProxy { id: String, data: String, key_id: String },
     GenerateProxyKey { id: String, key_id: String },
     GenerateSelfSignedCA { id: String, common_name: String },
@@ -99,7 +100,7 @@ async fn main() {
     while let Ok(Some(line)) = reader.next_line().await {
         if let Ok(cmd) = serde_json::from_str::<TpmCommand>(line.trim()) {
             match cmd {
-                TpmCommand::Seal { id, index, data, pcrs } => {
+                TpmCommand::Seal { id, index, data, auth, pcrs } => {
                     // Virtual Sealing: Store encrypted data in state file
                     let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
                         .await
@@ -110,6 +111,7 @@ async fn main() {
                     state["nv"][&index] = serde_json::json!({
                         "data": data,
                         "sealed": true,
+                        "auth": auth,
                         "pcrs": pcrs,
                         "timestamp": Utc::now().to_rfc3339()
                     });
@@ -120,7 +122,7 @@ async fn main() {
                         emit_response(id, false, "Failed to persist virtual TPM state".to_string(), None).await;
                     }
                 },
-                TpmCommand::Unseal { id, index } => {
+                TpmCommand::Unseal { id, index, auth } => {
                     let state: serde_json::Value = tokio::fs::read_to_string(state_path)
                         .await
                         .ok()
@@ -128,21 +130,33 @@ async fn main() {
                         .unwrap_or(serde_json::json!({ "nv": {} }));
 
                     if let Some(entry) = state["nv"].get(&index) {
+                        // SEC-03: Verify Authorization
+                        if let Some(stored_auth) = entry["auth"].as_str() {
+                            if auth.as_deref() != Some(stored_auth) {
+                                emit_response(id, false, "TPM Authorization Failed: Invalid NVRAM password".to_string(), None).await;
+                                continue;
+                            }
+                        }
+
                         // SEC-03 Hardening: Verify PCR policy if present in the sealed entry
                         if let Some(required_pcrs) = entry["pcrs"].as_object() {
                             let current_pcrs = get_current_pcrs().await;
+                            let mut policy_failed = false;
                             for (idx_str, expected_val) in required_pcrs {
                                 let idx: u32 = idx_str.parse().unwrap_or(999);
                                 if let Some(current_val) = current_pcrs.get(&idx.to_string()) {
                                     if current_val != expected_val {
                                         emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} mismatch", index, idx), None).await;
-                                        return;
+                                        policy_failed = true;
+                                        break;
                                     }
                                 } else {
                                      emit_response(id, false, format!("PCR Policy Violation for index {}: PCR {} not available", index, idx), None).await;
-                                     return;
+                                     policy_failed = true;
+                                     break;
                                 }
                             }
+                            if policy_failed { continue; }
                         }
 
                         emit_response(id, true, format!("Unsealed from index {}", index), Some(serde_json::json!({ "data": entry["data"] }))).await;
@@ -186,20 +200,82 @@ async fn main() {
                     }
                     emit_response(id, true, "Read (Virtual)".to_string(), Some(serde_json::Value::Object(pcrs))).await;
                 },
-                TpmCommand::NvDefine { id, index, .. } => {
-                    emit_response(id, true, format!("NV index {} defined", index), None).await;
-                },
-                TpmCommand::NvWrite { id, index, .. } => {
-                    emit_response(id, true, format!("Data written to NV index {}", index), None).await;
-                },
-                TpmCommand::NvRead { id, index } => {
-                    // Mock: return a fixed hash if it's the expected golden PCR index
-                    let data = if index == "0x1500002" {
-                        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" // Empty SHA256 as mock
+                TpmCommand::NvDefine { id, index, size, auth } => {
+                    let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                        .await
+                        .ok()
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                        .unwrap_or(serde_json::json!({ "nv": {} }));
+
+                    state["nv"][&index] = serde_json::json!({
+                        "size": size,
+                        "auth": auth,
+                        "data": "",
+                        "defined": true,
+                        "timestamp": Utc::now().to_rfc3339()
+                    });
+
+                    if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
+                        emit_response(id, true, format!("NV index {} defined with authorization", index), None).await;
                     } else {
-                        "MOCK_NV_DATA"
-                    };
-                    emit_response(id, true, format!("Read from NV index {}", index), Some(serde_json::json!({ "data": data }))).await;
+                        emit_response(id, false, "Failed to persist NV definition".to_string(), None).await;
+                    }
+                },
+                TpmCommand::NvWrite { id, index, data, auth } => {
+                    let mut state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                        .await
+                        .ok()
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                        .unwrap_or(serde_json::json!({ "nv": {} }));
+
+                    if let Some(entry) = state["nv"].get_mut(&index) {
+                        // SEC-03: Verify Authorization
+                        if let Some(stored_auth) = entry["auth"].as_str() {
+                            if auth.as_deref() != Some(stored_auth) {
+                                emit_response(id, false, "TPM Authorization Failed: Invalid NVRAM password".to_string(), None).await;
+                                return;
+                            }
+                        }
+
+                        entry["data"] = serde_json::json!(data);
+                        entry["timestamp"] = serde_json::json!(Utc::now().to_rfc3339());
+
+                        if tokio::fs::write(state_path, state.to_string()).await.is_ok() {
+                            emit_response(id, true, format!("Data written to NV index {}", index), None).await;
+                        } else {
+                            emit_response(id, false, "Failed to persist NV write".to_string(), None).await;
+                        }
+                    } else {
+                        emit_response(id, false, format!("NV index {} not defined", index), None).await;
+                    }
+                },
+                TpmCommand::NvRead { id, index, auth } => {
+                    let state: serde_json::Value = tokio::fs::read_to_string(state_path)
+                        .await
+                        .ok()
+                        .and_then(|s| serde_json::from_str(&s).ok())
+                        .unwrap_or(serde_json::json!({ "nv": {} }));
+
+                    if let Some(entry) = state["nv"].get(&index) {
+                        // SEC-03: Verify Authorization
+                        if let Some(stored_auth) = entry["auth"].as_str() {
+                            if auth.as_deref() != Some(stored_auth) {
+                                emit_response(id, false, "TPM Authorization Failed: Invalid NVRAM password".to_string(), None).await;
+                                return;
+                            }
+                        }
+
+                        let data = entry["data"].as_str().unwrap_or("");
+                        emit_response(id, true, format!("Read from NV index {}", index), Some(serde_json::json!({ "data": data }))).await;
+                    } else {
+                        // Compatibility fallback for golden hash PCR index
+                        if index == "0x1500002" {
+                            let data = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+                            emit_response(id, true, "Read from legacy NV index".to_string(), Some(serde_json::json!({ "data": data }))).await;
+                        } else {
+                            emit_response(id, false, format!("NV index {} not found", index), None).await;
+                        }
+                    }
                 },
                 TpmCommand::GenerateProxyKey { id, key_id } => {
                     // SOV-P4: Hardware-Resident Proxy Keys
@@ -279,7 +355,7 @@ async fn main() {
                             (cert.as_str().unwrap_or("").to_string(), key.as_str().unwrap_or("").to_string())
                         } else {
                              emit_response(id, false, "No hardware-bound CA found and no CA provided".to_string(), None).await;
-                             return;
+                             continue;
                         }
                     };
 

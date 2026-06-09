@@ -191,7 +191,7 @@ export class WebAdapter implements WebPort {
     return {
       ...baseStatus,
       ...metrics,
-      safeMode: Deno.env.get("SHADOW_MODE") === "true" && Deno.env.get("STRICT_POLICY_ENFORCEMENT") === "false",
+      safeMode: this.services.config.getEnv("SHADOW_MODE") === "true" && this.services.config.getEnv("STRICT_POLICY_ENFORCEMENT") === "false",
       trippedSidecars: (this.services.command as any).getTrippedSidecars?.() || [],
       audit: {
         ...metrics.audit,
@@ -408,7 +408,7 @@ export class WebAdapter implements WebPort {
   async start(port: number = 8000): Promise<void> {
     await this.initialize();
 
-    const useHttps = this.meshAuth && Deno.env.get("DISABLE_HTTPS") !== "true";
+    const useHttps = this.meshAuth && this.services.config.getEnv("DISABLE_HTTPS") !== "true";
 
     if (useHttps && this.meshAuth) {
       const result = await this.meshAuth.generateNodeCert(Deno.hostname());

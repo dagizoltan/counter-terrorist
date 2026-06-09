@@ -26,6 +26,7 @@ export function isCriticalInfrastructure(ip: string): boolean {
   // 1. Fast Bloom Filter check (probabilistic)
   if (!infrastructureCache.has(ip)) {
       // Dynamic check for Gateway IP which might change
+      // SEC-06 Hardening: Mediated access via Deno.env as validation is static
       const gateway = Deno.env.get("GATEWAY_IP");
       if (gateway && ip === gateway) return true;
       return false;
