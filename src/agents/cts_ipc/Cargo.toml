@@ -12,3 +12,6 @@ rmp-serde = "1.1"
 anyhow = "1.0"
 parking_lot = "0.12"
 log = "0.4"
+ed25519-dalek = { workspace = true }
+rand = { workspace = true }
+hex = { workspace = true }

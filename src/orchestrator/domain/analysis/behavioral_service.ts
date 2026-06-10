@@ -19,7 +19,7 @@ export interface SuspiciousIp {
 
 export class BehavioralService extends BaseService {
   private history: BoundedMap<string, IpHistory> = new BoundedMap(1000);
-  private metricsInterval?: number;
+  private metricsInterval?: number | any;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
 
@@ -43,10 +43,11 @@ export class BehavioralService extends BaseService {
 
   override setEventBus(eventBus: EventBusPort) {
       this.eventBus = eventBus;
-      if (this.eventBus) this.eventBus.on("HONEYPOT", (event) => {
-          if (event && (event as any).source_ip) {
-              this.analyze((event as any).source_ip).catch(e => {
-                  console.error(`Behavioral analysis failed for ${(event as any).source_ip}: ${e.message}`);
+      if (this.eventBus) this.eventBus.on("HONEYPOT", (data) => {
+          const sourceIp = (data as Record<string, unknown>)?.source_ip as string | undefined;
+          if (sourceIp) {
+              this.analyze(sourceIp).catch(e => {
+                  console.error(`Behavioral analysis failed for ${sourceIp}: ${e.message}`);
               });
           }
       });
@@ -54,11 +55,18 @@ export class BehavioralService extends BaseService {
 
   private async emitMetrics() {
       if (!this.eventBus) return;
+
+      const suspiciousIps = this.getSuspiciousIps(10);
+      const metricsData: Record<string, string | number | boolean | null> = {};
+
+      suspiciousIps.forEach((item, idx) => {
+          metricsData[`suspicious_ip_${idx}`] = item.ip;
+          metricsData[`suspicious_ip_${idx}_attempts`] = item.attempts;
+      });
+
       await this.eventBus.emit("METRIC_UPDATE", {
           domain: "firewall_behavioral",
-          data: {
-              suspiciousIps: this.getSuspiciousIps(10) as any
-          }
+          data: metricsData
       });
   }
   

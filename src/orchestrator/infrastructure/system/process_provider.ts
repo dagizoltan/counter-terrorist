@@ -49,6 +49,7 @@ export class LinuxProcessProvider implements ProcessPort {
 
 export class MacOSProcessProvider implements ProcessPort {
     private cache: Map<number, { info: ProcessInfo, ts: number }> = new Map();
+    private listCache?: { pids: number[], ts: number };
 
     async getProcessInfo(pid: number): Promise<ProcessInfo | null> {
         const cached = this.cache.get(pid);
@@ -77,16 +78,26 @@ export class MacOSProcessProvider implements ProcessPort {
     }
 
     async *listProcesses(): AsyncIterable<number> {
+        if (this.listCache && (Date.now() - this.listCache.ts) < 2000) {
+            for (const pid of this.listCache.pids) yield pid;
+            return;
+        }
+
         const command = new Deno.Command("ps", {
             args: ["-ax", "-o", "pid"],
             stdout: "piped",
         });
         const { stdout } = await command.output();
         const lines = new TextDecoder().decode(stdout).split("\n").slice(1);
+        const pids: number[] = [];
         for (const line of lines) {
             const pid = parseInt(line.trim());
-            if (!isNaN(pid)) yield pid;
+            if (!isNaN(pid)) {
+                pids.push(pid);
+                yield pid;
+            }
         }
+        this.listCache = { pids, ts: Date.now() };
     }
 
     isAlive(pid: number): boolean {
@@ -105,6 +116,7 @@ export class MacOSProcessProvider implements ProcessPort {
 
 export class WindowsProcessProvider implements ProcessPort {
     private cache: Map<number, { info: ProcessInfo, ts: number }> = new Map();
+    private listCache?: { pids: number[], ts: number };
 
     async getProcessInfo(pid: number): Promise<ProcessInfo | null> {
         const cached = this.cache.get(pid);
@@ -130,16 +142,26 @@ export class WindowsProcessProvider implements ProcessPort {
     }
 
     async *listProcesses(): AsyncIterable<number> {
+        if (this.listCache && (Date.now() - this.listCache.ts) < 2000) {
+            for (const pid of this.listCache.pids) yield pid;
+            return;
+        }
+
         const command = new Deno.Command("powershell", {
             args: ["-Command", "Get-Process | Select-Object -ExpandProperty Id"],
             stdout: "piped",
         });
         const { stdout } = await command.output();
-        const pids = new TextDecoder().decode(stdout).split("\n");
-        for (const line of pids) {
+        const lines = new TextDecoder().decode(stdout).split("\n");
+        const pids: number[] = [];
+        for (const line of lines) {
             const pid = parseInt(line.trim());
-            if (!isNaN(pid)) yield pid;
+            if (!isNaN(pid)) {
+                pids.push(pid);
+                yield pid;
+            }
         }
+        this.listCache = { pids, ts: Date.now() };
     }
 
     isAlive(pid: number): boolean {

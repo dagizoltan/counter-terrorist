@@ -12,10 +12,10 @@ export class SentinelIntegration {
         private logger: LoggingPort,
         private broadcast: (msg: BroadcastData) => void,
         private flushBatches: () => void,
-        private syscallBatch: any[]
+        private syscallBatch: Record<string, unknown>[]
     ) {}
 
-    async handleEvent(event: any) {
+    async handleEvent(event: Record<string, unknown>) {
         try {
             const { SyscallEventSchema } = await import("../../../core/event_schema.ts");
             if (event.type === "SYSCALL_EVENT") {
@@ -70,10 +70,10 @@ export class SentinelIntegration {
                 this.broadcast({
                     type,
                     severity,
-                    message: `eBPF Alert: ${event.comm} called ${event.syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
+                    message: `eBPF Alert: ${comm} called ${syscall} [Anomaly: ${anomalyScore.toFixed(2)}]`,
                     data: { ...event, anomalyScore }
                 });
-                await this.eventBus.emit(type as any, event as any);
+                await this.eventBus.emit(type, event);
             }
 
             if (type === "EBPF_STRAY_SHELL") {

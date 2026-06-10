@@ -3,7 +3,8 @@ export enum LogSeverity {
   SUCCESS = "success",
   WARNING = "warning",
   ERROR = "error",
-  DEBUG = "debug"
+  DEBUG = "debug",
+  CRITICAL = "critical"
 }
 
 export enum SyslogSeverity {

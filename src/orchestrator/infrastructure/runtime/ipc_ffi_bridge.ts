@@ -16,7 +16,8 @@ export class IpcFfiBridge {
         "shmem_write": { parameters: ["pointer", "buffer", "usize"], result: "bool" },
         "shmem_ring_pull": { parameters: ["pointer", "pointer"], result: "pointer" },
         "shmem_ring_commit": { parameters: ["pointer"], result: "void" },
-        "fast_morph": { parameters: ["buffer", "usize", "buffer", "usize"], result: "void" }
+        "fast_morph": { parameters: ["buffer", "usize", "buffer", "usize"], result: "void" },
+        "verify_ed25519": { parameters: ["buffer", "buffer", "buffer", "usize"], result: "bool" }
     } as const;
 
     constructor(private logging: LoggingPort) {
@@ -82,24 +83,52 @@ export class IpcFfiBridge {
     /**
      * SOV-M4: Zero-Copy Ring Buffer Pull
      */
-    pullRingEvent(ptr: Deno.PointerValue, obfuscationKey?: Uint8Array): string | null {
+    pullRingEvent(ptr: Deno.PointerValue, obfuscationKey?: Uint8Array, agentPublicKey?: Uint8Array): string | null {
         if (!this.ffi || !ptr) return null;
         const outLenPtr = new Uint32Array(1);
         const msgPtr = this.ffi.symbols.shmem_ring_pull(ptr, Deno.UnsafePointer.of(outLenPtr));
 
         if (!msgPtr) return null;
 
-        const len = outLenPtr[0];
+        let len = outLenPtr[0];
         if (len === 0) return null;
 
         // Create a view directly into shared memory (Zero-Copy)
-        const view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgPtr, len));
+        let view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgPtr, len));
 
-        // Obfuscation must be done on a copy if we want to keep shared memory "clean"
-        // OR we can do it in-place if we don't mind (it's XOR).
-        // Since we commit after this, in-place is fine.
+        // SEC-03: Shared Memory IPC Hardening - SIMD-accelerated Obfuscation
         if (obfuscationKey && obfuscationKey.length > 0) {
             this.fastMorph(view, obfuscationKey);
+        }
+
+        // SOV-P5: Telemetry Signing Verification
+        // If we have a public key for this agent, verify the 64-byte signature prepended to the message.
+        if (agentPublicKey && agentPublicKey.length === 32 && len > 64) {
+            const signature = view.slice(0, 64);
+            const payload = view.slice(64);
+
+            const isAuthentic = this.ffi.symbols.verify_ed25519(
+                agentPublicKey,
+                signature,
+                payload,
+                BigInt(payload.length)
+            );
+
+            if (!isAuthentic) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.AUDIT,
+                    severity: LogSeverity.CRITICAL,
+                    caller: "orchestrator:infra:runtime:ipc_ffi_bridge",
+                    message: "SECURITY VIOLATION: Invalid telemetry signature detected in shared memory! Rejecting spoofed event."
+                }).catch(() => {});
+                this.ffi.symbols.shmem_ring_commit(ptr);
+                return null;
+            }
+
+            // Advance view/len to skip signature for deserialization
+            view = payload;
+            len -= 64;
         }
 
         const jsonPtr = this.ffi.symbols.deserialize_msgpack(view, BigInt(len));

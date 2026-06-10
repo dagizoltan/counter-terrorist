@@ -9,7 +9,7 @@ export class ScannerIntegration {
         private broadcast: (msg: BroadcastData) => void
     ) {}
 
-    async handleEvent(data: any) {
+    async handleEvent(data: Record<string, unknown>) {
         const scanType = typeof data.type === "string" ? data.type : "";
         if (scanType === "ThreatDetected" || scanType === "RKH_SCAN_RESULT") {
             this.broadcast({
@@ -29,7 +29,7 @@ export class ScannerIntegration {
                 payload: data
             });
 
-            await this.eventBus.emit("THREAT" as any, data as any);
+            await this.eventBus.emit("THREAT", data);
         }
     }
 }

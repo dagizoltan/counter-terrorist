@@ -1,6 +1,4 @@
 import { EventBus } from "./events.ts";
-import { ProcessTracker } from "./process_tracker.ts";
-import { CanaryService } from "../protection/canary_service.ts";
 import { BehavioralAnalyzer } from "./behavioral_analyzer.ts";
 import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
@@ -44,8 +42,22 @@ export class EventMediator extends BaseService {
     private readonly MAX_QUEUE_DEPTH = 1000;
     private batchTimer?: number;
 
-    protected override onInit(): Promise<Result<void>> {
-        return Promise.resolve(ok(undefined));
+    protected override async onInit(): Promise<Result<void>> {
+        // Lazy resolution of dependencies via Service Locator to prevent God Object coupling
+        // and handle circular dependencies during complex system boot.
+        const { serviceLocator } = await import("@core/service_locator.ts");
+
+        if (serviceLocator.has("processTracker")) {
+            const processTracker = serviceLocator.get("processTracker");
+            (this.sentinelIntegration as any).processTracker = processTracker;
+        }
+
+        if (serviceLocator.has("canaryService")) {
+            const canaryService = serviceLocator.get("canaryService");
+            (this.fimIntegration as any).canaryService = canaryService;
+        }
+
+        return ok(undefined);
     }
 
     protected override async onShutdown(): Promise<Result<void>> {
@@ -76,8 +88,6 @@ export class EventMediator extends BaseService {
 
     constructor(
         private eventBusPort: EventBus,
-        private processTracker: ProcessTracker,
-        private canaryService: CanaryService,
         private broadcast: (msg: BroadcastData) => void,
         logger: LoggingPort,
         private kv?: Deno.Kv
@@ -97,8 +107,8 @@ export class EventMediator extends BaseService {
             }));
         }
 
-        this.sentinelIntegration = new SentinelIntegration(eventBusPort, processTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
-        this.fimIntegration = new FimIntegration(eventBusPort, canaryService, logger, broadcast);
+        this.sentinelIntegration = new SentinelIntegration(eventBusPort, undefined as any, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
+        this.fimIntegration = new FimIntegration(eventBusPort, undefined as any, logger, broadcast);
         this.networkIntegration = new NetworkIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.networkBatch);
         this.scannerIntegration = new ScannerIntegration(eventBusPort, logger, broadcast);
 

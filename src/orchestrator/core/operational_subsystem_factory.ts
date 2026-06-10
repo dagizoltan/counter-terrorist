@@ -61,7 +61,7 @@ export class OperationalSubsystemFactory {
         const covert = this.createServiceDelegate(health, "Covert", () => new CovertChannelService(this.executor, this.logging));
         const ledger = new LedgerService(mesh, this.logging);
         const viewModel = new ViewModelService();
-        const mediator = new EventMediator(eventBus as any, processTracker, security.canaryService, broadcast, this.logging as any, this.kv);
+        const mediator = new EventMediator(eventBus as any, broadcast, this.logging as any, this.kv);
         const baseline = new BaselineService(this.kv, this.sidecarManager, this.executor, this.logging);
         const deceptionGrid = new DeceptionGridService(security.honeypot, security.canaryService, this.logging);
 

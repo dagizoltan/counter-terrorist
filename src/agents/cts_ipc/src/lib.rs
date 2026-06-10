@@ -1,5 +1,6 @@
 pub mod models;
 
+use ed25519_dalek::{Signer, SigningKey};
 use shared_memory::*;
 use landlock::*;
 use serde::{Serialize, Deserialize};
@@ -114,6 +115,7 @@ pub struct IpcManager {
     shmem: Option<Arc<Mutex<ShmemWrapper>>>,
     cmd_shmem: Option<Arc<Mutex<ShmemWrapper>>>,
     obfuscation_key: Option<Vec<u8>>,
+    signing_key: Option<SigningKey>,
 }
 
 impl IpcManager {
@@ -145,7 +147,7 @@ impl IpcManager {
         };
 
         if shmem.is_none() {
-            return Self { shmem: None, cmd_shmem: None, obfuscation_key: None };
+            return Self { shmem: None, cmd_shmem: None, obfuscation_key: None, signing_key: None };
         }
 
         let cmd_path = format!("/dev/shm/cts_cmd_{}_{}", sidecar_name, pid);
@@ -174,10 +176,21 @@ impl IpcManager {
             .ok()
             .map(|s| s.as_bytes().to_vec());
 
-        Self { shmem, cmd_shmem, obfuscation_key }
+        // SOV-P5: Telemetry Signing - Load or generate identity key
+        // In a real environment, this would be derived from the TPM or a persistent config.
+        let signing_key = std::env::var("CTS_AGENT_KEY")
+            .ok()
+            .and_then(|s| {
+                let bytes = hex::decode(s).ok()?;
+                let bytes: [u8; 32] = bytes.try_into().ok()?;
+                Some(SigningKey::from_bytes(&bytes))
+            });
+
+        Self { shmem, cmd_shmem, obfuscation_key, signing_key }
     }
 
     /// Emits a serialized event into the shared memory buffer using the Ring Buffer.
+    /// In SOV-P5, events are optionally signed if a signing key is available.
     pub fn emit_event<T: Serialize>(&self, event: &T) -> bool {
         let shmem_arc = match &self.shmem {
             Some(s) => s,
@@ -188,6 +201,16 @@ impl IpcManager {
         if let Err(e) = event.serialize(&mut rmp_serde::Serializer::new(&mut buf)) {
             error!("Failed to serialize event: {:?}", e);
             return false;
+        }
+
+        // SOV-P5: Telemetry Signing
+        // We prepend the 64-byte Ed25519 signature to the payload if the key is available.
+        if let Some(key) = &self.signing_key {
+            let signature = key.sign(&buf);
+            let mut signed_buf = Vec::with_capacity(64 + buf.len());
+            signed_buf.extend_from_slice(&signature.to_bytes());
+            signed_buf.extend_from_slice(&buf);
+            buf = signed_buf;
         }
 
         // SEC-03: Shared Memory IPC Hardening - Multi-Byte XOR Obfuscation

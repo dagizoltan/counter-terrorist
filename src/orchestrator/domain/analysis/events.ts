@@ -4,12 +4,13 @@ import { z } from "npm:zod";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT" | "METRIC_UPDATE" | "SIDECAR_ALERT" | "UI_BROADCAST";
 
-export interface SystemEvent<T extends EventName = any> {
+export interface SystemEvent<T extends EventName = string> {
   type: T;
   message: string;
   timestamp: string;
-  data: any;
+  data: unknown;
   correlationId?: string;
+  fromAudit?: boolean;
 }
 
 export type Handler<T extends EventName> = (data: any, event: SystemEvent<T>) => void | Promise<void>;
@@ -17,7 +18,7 @@ export type Handler<T extends EventName> = (data: any, event: SystemEvent<T>) =>
 export type Middleware = (event: SystemEvent, next: () => void | Promise<void>) => void | Promise<void>;
 
 export class EventBus implements EventBusPort {
-  private handlers: ((event: SystemEvent) => void | Promise<void>)[] = [];
+  private handlers: ((event: SystemEvent<any>) => void | Promise<void>)[] = [];
   private keyedListeners: Map<string, Handler<any>[]> = new Map();
   private middleware: Middleware[] = [];
   private pendingHandlers: Set<Promise<void>> = new Set();
@@ -88,25 +89,25 @@ export class EventBus implements EventBusPort {
     return () => this.unsubscribe(callback);
   }
 
-  async emit<T extends EventName>(event: T, data: any): Promise<void> {
+  async emit<T extends EventName>(event: T, data: unknown): Promise<void> {
     await this.publish(event, `Emitted event: ${event}`, data);
   }
 
-  async publish<T extends EventName>(type: T, message: string, data?: any): Promise<void> {
+  async publish<T extends EventName>(type: T, message: string, data?: unknown): Promise<void> {
     const validatedData = validateEvent(type as any, data);
     
     // SOV-06: Preserve recursion guard flags during publication
-    const fromAudit = (data as any)?.fromAudit;
-    const correlationId = (data as any)?.correlationId || crypto.randomUUID();
+    const fromAudit = (data as Record<string, unknown>)?.fromAudit as boolean | undefined;
+    const correlationId = (data as Record<string, unknown>)?.correlationId as string | undefined || crypto.randomUUID();
 
-    const event: SystemEvent = {
-        type: type as EventType,
+    const event: SystemEvent<T> = {
+        type,
         message,
         timestamp: new Date().toISOString(),
         data: validatedData,
         correlationId,
         fromAudit
-    } as any;
+    };
 
     // SOV-P2: Execute Middleware Chain
     if (this.middleware.length > 0) {
@@ -162,7 +163,7 @@ export class EventBus implements EventBusPort {
     }
   }
 
-  private async finalizePublish(event: SystemEvent, validatedData: any) {
+  private async finalizePublish<T extends EventName>(event: SystemEvent<T>, validatedData: any) {
     const type = event.type as string;
     const message = event.message;
 

@@ -156,7 +156,8 @@ export class LoggingService implements LoggingPort {
                     [LogSeverity.SUCCESS]: "\x1b[32m",
                     [LogSeverity.WARNING]: "\x1b[33m",
                     [LogSeverity.ERROR]: "\x1b[31m",
-                    [LogSeverity.DEBUG]: "\x1b[90m"
+                    [LogSeverity.DEBUG]: "\x1b[90m",
+                    [LogSeverity.CRITICAL]: "\x1b[41m\x1b[37m"
                 };
                 const c = colors[severity] || "\x1b[0m";
                 const reset = "\x1b[0m";
