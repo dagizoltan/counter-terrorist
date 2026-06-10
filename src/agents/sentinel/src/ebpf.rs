@@ -18,12 +18,18 @@ pub fn attach_kprobes(bpf: &mut Bpf) -> Result<(), anyhow::Error> {
         ("kprobe_mmap", "sys_mmap"),
         ("kprobe_execve", "sys_execve"),
         ("kprobe_connect", "sys_connect"),
-        ("kprobe_openat", "sys_openat")
+        ("kprobe_openat", "sys_openat"),
+        ("kprobe_namespace", "sys_unshare"),
+        ("kprobe_namespace", "sys_setns"),
+        ("kprobe_uring", "sys_io_uring_setup")
     ] {
         if let Some(prog) = bpf.program_mut(name) {
             if let Ok(p) = <&mut KProbe>::try_from(prog) {
                 let _ = p.load();
-                let _ = p.attach(func, 0).or_else(|_| p.attach(format!("__x64_{}", func), 0));
+                // SOV-06: Robust attachment across kernel architectures
+                let _ = p.attach(func, 0)
+                    .or_else(|_| p.attach(format!("__x64_{}", func), 0))
+                    .or_else(|_| p.attach(format!("__arm64_{}", func), 0));
             }
         }
     }

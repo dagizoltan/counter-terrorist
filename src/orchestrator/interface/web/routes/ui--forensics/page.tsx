@@ -7,7 +7,8 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string, 
       '/components/islands/TimelineIsland.js',
       '/components/islands/ReplayIsland.js',
       '/components/islands/BlockingLog.js',
-      '/components/islands/ForensicVault.js'
+      '/components/islands/ForensicVault.js',
+      '/routes/ui--forensics/islands/CausalLineageIsland.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
@@ -68,10 +69,10 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string, 
 
             <div class="col-span-12 lg:col-span-4 t-panel glass-panel p-0 border-t-2 border-primary/30 flex flex-col group hover:bg-white/[0.02] transition-all">
                <header class="p-8 border-b border-white/10 bg-black/40 backdrop-blur-md">
-                  <h3 class="tactical-title text-sm uppercase tracking-widest text-primary">Scene Reconstruction</h3>
+                  <h3 class="tactical-title text-sm uppercase tracking-widest text-primary">Causal Lineage Map</h3>
                </header>
-               <div class="p-6 flex-grow bg-black/60 relative overflow-hidden">
-                  <div id="forensic-replay-root"></div>
+               <div class="p-6 flex-grow bg-black/60 relative overflow-hidden custom-scrollbar max-h-[600px] overflow-y-auto">
+                  <div id="causal-lineage-root"></div>
                </div>
                <footer class="p-8 border-t border-white/5 bg-black/40 flex flex-col gap-4">
                   {(props.userRole === "admin" || props.userRole === "operator") && (

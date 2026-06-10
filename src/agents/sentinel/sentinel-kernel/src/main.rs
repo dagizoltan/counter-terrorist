@@ -438,7 +438,7 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
     let mut event = SyscallEvent {
         pid: (bpf_get_current_pid_tgid() >> 32) as u32,
         comm,
-        syscall_id: 257,
+        syscall_id: if cfg!(target_arch = "aarch64") { 56 } else { 257 },
         fd: 0,
         port: 0,
         family: 0,
@@ -451,6 +451,52 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
         let _ = unsafe { bpf_probe_read_user_str_bytes(path_ptr, &mut event.path) };
     }
 
+    unsafe { EVENTS.output(&ctx, &event, 0) };
+    0
+}
+
+#[kprobe]
+pub fn kprobe_namespace(ctx: ProbeContext) -> u32 {
+    if !is_hook_enabled(11) {
+        return 0;
+    }
+    let comm = bpf_get_current_comm().unwrap_or([0; 16]);
+    if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
+        return 0;
+    }
+
+    // This probe will be attached to both unshare and setns
+    // We use a dummy ID here that the user-space agent will map based on the probe name if CO-RE isn't fully active,
+    // but for now we'll just emit an event to signal namespace activity.
+    let event = SyscallEvent {
+        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        comm,
+        syscall_id: 1000, // Namespace Event Marker
+        fd: 0,
+        port: ctx.arg(0).unwrap_or(0), // Capture flags/fd
+        family: 0,
+        ip: [0; 16],
+        path: [0; 64],
+    };
+    unsafe { EVENTS.output(&ctx, &event, 0) };
+    0
+}
+
+#[kprobe]
+pub fn kprobe_uring(ctx: ProbeContext) -> u32 {
+    if !is_hook_enabled(12) {
+        return 0;
+    }
+    let event = SyscallEvent {
+        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        comm: bpf_get_current_comm().unwrap_or([0; 16]),
+        syscall_id: 425, // io_uring_setup
+        fd: 0,
+        port: 0,
+        family: 0,
+        ip: [0; 16],
+        path: [0; 64],
+    };
     unsafe { EVENTS.output(&ctx, &event, 0) };
     0
 }

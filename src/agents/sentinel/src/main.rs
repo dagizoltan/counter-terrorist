@@ -137,7 +137,8 @@ async fn main() -> Result<(), anyhow::Error> {
                                         21 => "access", 41 => "socket", 42 => "connect", 43 => "accept",
                                         56 => "clone", 57 => "fork", 58 => "vfork", 59 => "execve", 60 => "exit",
                                         62 => "kill", 101 => "ptrace", 157 => "prctl", 202 => "futex",
-                                        257 => "openat", 319 => "memfd_create", 321 => "bpf", 322 => "execveat",
+                                        257 => "openat", 272 => "unshare", 308 => "setns", 319 => "memfd_create",
+                                        321 => "bpf", 322 => "execveat", 425 => "io_uring_setup", 426 => "io_uring_enter",
                                         _ => "unknown"
                                     }
                                 } else if cfg!(target_arch = "aarch64") {
@@ -147,7 +148,8 @@ async fn main() -> Result<(), anyhow::Error> {
                                         48 => "faccessat", 198 => "socket", 203 => "connect", 202 => "accept",
                                         220 => "clone", 1079 => "fork", 1071 => "vfork", 221 => "execve", 93 => "exit",
                                         129 => "kill", 117 => "ptrace", 167 => "prctl", 98 => "futex",
-                                        279 => "memfd_create", 280 => "bpf", 281 => "execveat",
+                                        97 => "unshare", 268 => "setns", 279 => "memfd_create", 280 => "bpf",
+                                        281 => "execveat", 425 => "io_uring_setup", 426 => "io_uring_enter",
                                         _ => "unknown"
                                     }
                                 } else {

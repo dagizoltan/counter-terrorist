@@ -44,6 +44,7 @@ export class SidecarManager implements CommandPort {
 
   private tpm: TpmPort | undefined;
   private obfuscationKey: Uint8Array | null = null;
+  private agentPublicKeys: Map<string, Uint8Array> = new Map();
   private redactor: SecretRedactor = new SecretRedactor();
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   private heartbeatMonitor: HeartbeatMonitor;
@@ -506,8 +507,11 @@ export class SidecarManager implements CommandPort {
               const shmemPtr = this.ipc.getShmemPtr(name);
               if (shmemPtr) {
                   // SOV-M4: Pull all available messages from the ring buffer
+                  // Pre-load agent public key for signing verification if available
+                  const pubKey = this.agentPublicKeys.get(name);
+
                   let jsonStr;
-                  while ((jsonStr = this.ffi.pullRingEvent(shmemPtr, this.obfuscationKey || undefined)) !== null) {
+                  while ((jsonStr = this.ffi.pullRingEvent(shmemPtr, this.obfuscationKey || undefined, pubKey)) !== null) {
                       this.handleIpcLine(name, jsonStr);
                   }
               }

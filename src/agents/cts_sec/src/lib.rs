@@ -5,6 +5,7 @@ use shared_memory::*;
 use serde::{Serialize};
 use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
 use std::sync::atomic::{AtomicU32, Ordering};
+use ed25519_dalek::{VerifyingKey, Signature, Verifier};
 
 /// Computes SHA256 hash of the input data.
 ///
@@ -412,6 +413,37 @@ pub unsafe extern "C" fn free_buffer(ptr: *mut u8, len: usize) {
     if !ptr.is_null() {
         let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len));
     }
+}
+
+/// SOV-P5: Native Ed25519 verification for IPC data plane.
+///
+/// # Safety
+/// * `pubkey_ptr` must be a valid pointer to 32 bytes.
+/// * `sig_ptr` must be a valid pointer to 64 bytes.
+/// * `msg_ptr` must be a valid pointer to at least `msg_len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn verify_ed25519(
+    pubkey_ptr: *const u8,
+    sig_ptr: *const u8,
+    msg_ptr: *const u8,
+    msg_len: usize,
+) -> bool {
+    if pubkey_ptr.is_null() || sig_ptr.is_null() || msg_ptr.is_null() {
+        return false;
+    }
+
+    let pubkey_bytes = std::slice::from_raw_parts(pubkey_ptr, 32);
+    let sig_bytes = std::slice::from_raw_parts(sig_ptr, 64);
+    let msg = std::slice::from_raw_parts(msg_ptr, msg_len);
+
+    let pubkey = match VerifyingKey::from_bytes(pubkey_bytes.try_into().unwrap()) {
+        Ok(k) => k,
+        Err(_) => return false,
+    };
+
+    let signature = Signature::from_bytes(sig_bytes.try_into().unwrap());
+
+    pubkey.verify(msg, &signature).is_ok()
 }
 
 /// SOV-P1: Binary Sovereignty - Execution from Memory
