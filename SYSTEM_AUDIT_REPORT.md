@@ -1,58 +1,65 @@
-# Sovereign System Audit Report (v5.2-CLEANUP)
+# Sovereign System Audit Report (v5.2-FINAL)
 
-This report details identified issues, partial implementations, and "AI-intuitive" logic gaps in the Counter-Terrorist orchestrator. While the system is functional and passes integration tests, several components lack production rigor.
+This report provides a comprehensive map of technical debt, security gaps, and "AI-intuitive" partial logic across the Counter-Terrorist orchestrator and its native agents.
 
-## 1. High Severity: Security & Integrity Gaps
+## 1. High Severity: Security & Root of Trust
 
 ### 1.1 Signature Inconsistency (Mesh Split-Brain)
 - **File:** `src/orchestrator/domain/orchestration/mesh.ts`
-- **Issue:** `signPayload` uses standard `JSON.stringify(payload)` when in TPM mode, but software-based signatures (via `crypto_utils.ts`) use `canonicalStringify`.
-- **Impact:** Mesh nodes with TPM identity cannot verify payloads from non-TPM nodes (and vice-versa) due to key-ordering differences in JSON serialization. This breaks consensus in heterogeneous clusters.
+- **Issue:** `signPayload` uses standard `JSON.stringify(payload)` in TPM mode, while software-backed signatures use `canonicalStringify`.
+- **Impact:** Breaks consensus in mixed clusters where some nodes use physical TPMs and others use software fallbacks.
 
-### 1.2 Kernel Attestation Mock
-- **File:** `src/agents/analyzer/src/main.rs`
-- **Issue:** The `AttestKernel` command is a hardcoded mock that returns `success: true` and "Integrity verified" without performing any actual kernel checks or measurements.
-- **Impact:** False sense of security; the system claims to attest kernel integrity but provides zero actual verification.
+### 1.2 Unauthenticated TPM NVRAM
+- **File:** `src/agents/trustroot/src/main.rs`
+- **Issue:** NVRAM operations (`NvWrite`, `NvRead`) do not require authorization sessions or passwords.
+- **Impact:** Any compromised local process can overwrite hardware-sealed secrets, bypassing the core security boundary.
 
-### 1.3 Insecure Syslog TLS Fallback
-- **File:** `src/orchestrator/infrastructure/system/logging/SyslogTransport.ts`
-- **Issue:** The transport silently ignores CA certificate loading failures. If the `tlsCaCertPath` is invalid, it proceeds with `Deno.connectTls` without pinned certificates.
-- **Impact:** Potential for Man-in-the-Middle (MITM) attacks on remote audit logging if the system falls back to standard trust stores or unverified connections.
+### 1.3 Lateral Movement Weaponization (Root SSH)
+- **File:** `src/orchestrator/domain/orchestration/provisioning_service.ts`
+- **Issue:** `ProvisioningService` hardcodes the `root` user for SSH/SCP lateral movement and uses `StrictHostKeyChecking=accept-new`.
+- **Impact:** An attacker who compromises one orchestrator can instantly propagate to the entire network with full root privileges. The "Short-Lived Provisioning Token" is also unimplemented in the mesh join logic.
+
+### 1.4 Kernel Attestation & Provider Mocks
+- **Files:** `src/agents/analyzer/src/main.rs`, `windows_firewall.ts`, `macos_antivirus.ts`
+- **Issue:** `AttestKernel` is a hardcoded mock returning "Integrity verified." Multiple platform-specific providers for Windows/macOS are stubs.
+- **Impact:** Zero real protection on non-Linux platforms and a false sense of kernel integrity.
 
 ---
 
-## 2. Medium Severity: Stability & Performance
+## 2. Medium Severity: Stability & Resilience
 
-### 2.1 Mesh Discovery Task Leakage
+### 2.1 Mesh Discovery Promise Explosion
 - **File:** `src/orchestrator/domain/orchestration/mesh.ts`
-- **Issue:** `discoverSubnet` is an async process triggered via `setInterval` every 30-60 seconds. It lacks a re-entrancy guard.
-- **Impact:** On slow or congested networks, multiple discovery cycles can overlap, leading to a "Promise Explosion," socket exhaustion, and eventually crashing the Deno worker pool.
+- **Issue:** `discoverSubnet` runs via `setInterval` without a re-entrancy guard or task tracking.
+- **Impact:** Potential socket exhaustion and worker thread pool saturation on slow networks.
 
-### 2.2 Unbounded News Signal Growth
-- **File:** `src/orchestrator/domain/analysis/audit.ts` / `NewsSignalService` (Ref)
-- **Issue:** While the Audit Ledger has a retention policy, auxiliary forensic data like `AuditDelta` and `NewsItem` signals are stored in Deno KV without any automatic purge or archival logic.
-- **Impact:** Linear disk growth over time, leading to potential volume exhaustion in long-running production environments.
+### 2.2 Unbounded Data Growth
+- **Domain:** Persistence (Audit/Forensics)
+- **Issue:** `AuditDelta` and `NewsItem` objects are stored indefinitely in Deno KV. PCAP captures and process dumps lack automated lifecycle purging in several paths.
+- **Impact:** Linear disk exhaustion over long operational windows.
 
-### 2.3 Simplified Merkle Proofs (Limited Horizon)
-- **File:** `src/orchestrator/domain/analysis/audit.ts`
-- **Issue:** `getMerkleProof` is hardcoded to only check the last 100 events in memory.
-- **Impact:** Forensic verification of events older than 100 entries requires a full chain scan, making the "Merkle proof" capability nearly useless for long-term audit verification.
+### 2.3 Fragile eBPF Lifecycle
+- **File:** `src/agents/sentinel/src/main.rs`
+- **Issue:** The agent leaks `static` Mutexes and utilizes `unsafe { core::mem::transmute }` for BPF maps.
+- **Impact:** Risk of use-after-free or memory corruption at the kernel/userspace boundary.
 
 ---
 
 ## 3. Low Severity & Technical Debt
 
 ### 3.1 Massive Type-Safety Erosion
-- **Status:** 311+ instances of `any` found in `src/`.
-- **Issue:** Critical security paths (e.g., `EventBus`, `PolicyEngine`) bypass TypeScript's compiler checks.
-- **Impact:** High risk of "silent" runtime failures and "Undefined" errors in production, typical of systems evolved through rapid AI suggestions without strict linting.
+- **Status:** 311 instances of `any` across the TypeScript codebase.
+- **Impact:** High probability of "AI-generated" runtime failures that bypass compiler checks.
 
-### 3.2 Non-Atomic Persistent Queue Failures
+### 3.2 Fire-and-Forget Error Handling
+- **Status:** Dozens of empty `catch` blocks and `.catch(() => {})` in critical service loops (e.g., `Provisioning`, `Honeypot`, `KernelService`).
+- **Impact:** Silent failures make debugging and production monitoring extremely difficult.
+
+### 3.3 Non-Deterministic Randomness
+- **Status:** Continued usage of `Math.random()` for tactical jitter and padding in `MeshManager` and `HoneypotService`.
+- **Impact:** Reduced unpredictability for behavioral defense patterns.
+
+### 3.4 Non-Atomic Queue Failure Paths
 - **File:** `src/orchestrator/core/utils/persistent_queue.ts`
-- **Issue:** `handleFailure` performs a `kv.delete()` followed by a `kv.set()` for the Dead-Letter Queue (DLQ).
-- **Impact:** If the orchestrator crashes between these two calls, a critical security alert is permanently lost. This should be wrapped in `kv.atomic()`.
-
-### 3.3 Platform Parity Mocks
-- **Files:** `enforcer-win`, `sentinel-darwin`
-- **Issue:** Core enforcement features (WFP, ESF) are still largely stubs with `MOCK` comments.
-- **Impact:** Windows and macOS support is currently "Provisional" and does not offer the same security guarantees as the Linux implementation.
+- **Issue:** `handleFailure` lacks atomicity when moving items to the Dead-Letter Queue.
+- **Impact:** Potential for permanent data loss during orchestrator crashes.
