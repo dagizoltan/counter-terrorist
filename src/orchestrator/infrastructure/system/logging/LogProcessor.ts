@@ -30,7 +30,8 @@ export class LogProcessor {
             [LogSeverity.SUCCESS]: 5,
             [LogSeverity.WARNING]: 4,
             [LogSeverity.ERROR]: 3,
-            [LogSeverity.DEBUG]: 7
+            [LogSeverity.DEBUG]: 7,
+            [LogSeverity.CRITICAL]: 2
         };
 
         const pri = (1 * 8) + (severityMap[severity] || 6);

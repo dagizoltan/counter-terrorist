@@ -43,6 +43,7 @@ import { ApplicationManager } from "./application_manager.ts";
 import { LifecycleManager } from "./lifecycle_manager.ts";
 import { HardeningManager } from "../infrastructure/system/hardening_manager.ts";
 import { ServiceOrchestrator } from "./service_orchestrator.ts";
+import { ConfigurationValidator } from "./configuration_validator.ts";
 
 export class SovereignApp {
     private services!: ServiceContainer;
@@ -73,6 +74,13 @@ export class SovereignApp {
 
         const config = loadConfig();
         const configProvider = new EnvConfigProvider(config);
+
+        // SOV-M5 Hardening: Explicit Configuration Validation before engaging mesh
+        const validator = new ConfigurationValidator(loggingService);
+        const validation = validator.validate(configProvider);
+        if (!validation.success) {
+            throw new Error(`Configuration Validation Failed: ${validation.errors.join(", ")}`);
+        }
 
         await this.hardeningManager.applyProductionHardening(configProvider);
         this.configureLogging(config);

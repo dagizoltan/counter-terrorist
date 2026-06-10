@@ -10,10 +10,10 @@ export class NetworkIntegration {
         private logger: LoggingPort,
         private broadcast: (msg: BroadcastData) => void,
         private flushBatches: () => void,
-        private networkBatch: any[]
+        private networkBatch: Record<string, unknown>[]
     ) {}
 
-    async handleEvent(event: any, data: any) {
+    async handleEvent(event: Record<string, unknown>, data: Record<string, unknown>) {
         try {
             const { NetworkLogSchema } = await import("../../../core/event_schema.ts");
             if (event.type === "NETWORK_LOG") {

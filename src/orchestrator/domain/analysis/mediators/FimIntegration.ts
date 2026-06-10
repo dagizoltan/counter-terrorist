@@ -11,7 +11,7 @@ export class FimIntegration {
         private broadcast: (msg: BroadcastData) => void
     ) {}
 
-    async handleEvent(payload: any) {
+    async handleEvent(payload: Record<string, unknown>) {
         try {
             const { FileDriftSchema } = await import("../../../core/event_schema.ts");
             if (payload?.type === "FileAlert") {
@@ -60,7 +60,7 @@ export class FimIntegration {
                 message: `FIM Alert: ${action} on ${path} [Actor: ${actor}]`,
                 data: payload
             });
-            await this.eventBus.emit((isCanary ? "THREAT" : "DRIFT_PROCESS") as any, payload as any);
+            await this.eventBus.emit(isCanary ? "THREAT" : "DRIFT_PROCESS", payload);
         }
     }
 }

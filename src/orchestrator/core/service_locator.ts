@@ -55,7 +55,7 @@ export interface OrchestrationServices {
   "mesh": import("../domain/orchestration/mesh.ts").MeshManager;
   "notifications": import("../domain/analysis/notifications.ts").NotificationService;
   "playbook": import("../domain/orchestration/playbook_service.ts").PlaybookService;
-  "covert": import("../domain/orchestration/covert_channel_service.ts").CovertChannelService;
+  "covert": import("../domain/orchestration/covert_service.ts").CovertChannelService;
   "policy": import("../domain/orchestration/policy_engine.ts").PolicyEngine;
   "provisioning": import("../domain/orchestration/provisioning_service.ts").ProvisioningService;
   "chaos": import("../domain/orchestration/chaos_engine.ts").ChaosEngine;

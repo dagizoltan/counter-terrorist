@@ -21,7 +21,7 @@ export class HealthService extends BaseService {
     private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
     private sidecarViolationCounts: Map<string, number> = new Map();
-    private intervals: any[] = [];
+    private intervals: (number | any)[] = [];
     private serviceRegistry: Map<string, BaseService> = new Map();
 
     protected override onInit(): Promise<Result<void>> {
@@ -55,7 +55,7 @@ export class HealthService extends BaseService {
         this.sidecarManager = sm;
     }
 
-    public registerService(name: string, service: any) {
+    public registerService(name: string, service: unknown) {
         if (service instanceof BaseService) {
             this.serviceRegistry.set(name.toLowerCase(), service);
         }
@@ -67,7 +67,7 @@ export class HealthService extends BaseService {
                 domain: "system_health",
                 data: {
                     status: this.getGlobalSeverity(),
-                    subsystems: this.getAllStatuses() as any,
+                    subsystems_count: this.states.size,
                     fullyOperational: this.isFullyOperational()
                 }
             });
