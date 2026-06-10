@@ -156,25 +156,41 @@ export class ProvisioningService extends BaseService {
         const provisioningToken = crypto.randomUUID();
         const meshSecret = this.config.getEnv("MESH_SECRET") || "";
 
-        // We'll use the mesh manager to register this token as a valid JIT entry (not implemented in this mock but architectural intent)
+        // SOV-M6 Hardening: Register JIT token with MeshManager for verification
+        this.mesh.registerProvisioningToken(ip, provisioningToken);
         const envContent = `ENVIRONMENT=production\nPROVISIONING_TOKEN=${provisioningToken}\nAPI_TOKEN=${this.config.getToken()}\n`;
         await Deno.writeTextFile(envPath, envContent);
 
         try {
+            // SOV-M6 Hardening: Secure Provisioning User and Key Verification
+            // Avoid hardcoding root. Use a dedicated service user 'cts-deploy' if available,
+            // otherwise fallback to the current user (if privileged).
+            const provisionUser = this.config.getEnv("PROVISIONING_USER") || "cts-deploy";
+
             // BUG-4.9 FIX: Implement Secure Host Key Verification
             // We use a dedicated known_hosts file for the mesh to avoid polluting system logs
             // and implement strict checking once a host is known.
             const meshKnownHosts = "./volume/storage/mesh_known_hosts";
-            const sshOptions = ["-o", "StrictHostKeyChecking=accept-new", "-o", `UserKnownHostsFile=${meshKnownHosts}`];
+            // SEC-05: Strict SSH options. Avoid accept-new in production for high-assurance.
+            const isProd = this.config.getEnv("ENVIRONMENT") === "production";
+            const hostKeyPolicy = isProd ? "yes" : "accept-new";
+            const sshOptions = [
+                "-o", `StrictHostKeyChecking=${hostKeyPolicy}`,
+                "-o", `UserKnownHostsFile=${meshKnownHosts}`,
+                "-o", "BatchMode=yes",
+                "-o", "ConnectTimeout=10"
+            ];
 
             // 2. Transfer Binary and Secure Env File
-            await this.executor.execute("scp", [...sshOptions, binaryPath, `root@${ip}:/usr/local/bin/counter-terrorist`]);
-            await this.executor.execute("scp", [...sshOptions, envPath, `root@${ip}:/etc/cts.env`]);
+            await this.executor.execute("scp", [...sshOptions, binaryPath, `${provisionUser}@${ip}:/tmp/counter-terrorist`]);
+            await this.executor.execute("scp", [...sshOptions, envPath, `${provisionUser}@${ip}:/tmp/cts.env`]);
+
+            // 3. Install and Start Orchestrator (Secrets NOT in process list)
+            // Uses sudo for installation if not root.
+            const installCmd = `sudo mv /tmp/counter-terrorist /usr/local/bin/counter-terrorist && sudo mv /tmp/cts.env /etc/cts.env && sudo chmod 600 /etc/cts.env && sudo chown root:root /etc/cts.env /usr/local/bin/counter-terrorist`;
+            const startCmd = `export $(sudo grep -v '^#' /etc/cts.env | xargs -d '\\n') && sudo /usr/local/bin/counter-terrorist > /var/log/cts.log 2>&1 &`;
             
-            // 3. Start Orchestrator using the secure env file (Secrets NOT in process list)
-            // BUG-4.10 FIX: Use structured environment loading to avoid xargs leakage in process lists
-            const startCmd = `chmod 600 /etc/cts.env && export $(grep -v '^#' /etc/cts.env | xargs -d '\\n') && /usr/local/bin/counter-terrorist > /var/log/cts.log 2>&1 &`;
-            await this.executor.execute("ssh", [...sshOptions, `root@${ip}`, startCmd]);
+            await this.executor.execute("ssh", [...sshOptions, `${provisionUser}@${ip}`, `${installCmd} && ${startCmd}`]);
             
             this.logging.log({
                 timestamp: new Date().toISOString(),

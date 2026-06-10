@@ -12,7 +12,7 @@ import { MeshChaosEngine } from "./chaos_engine.ts";
 import { BloomFilter } from "../../core/cache.ts";
 import { MeshGossipManager } from "./mesh/gossip_manager.ts";
 import { MeshConsensusManager } from "./mesh/consensus_manager.ts";
-import { secureRandomInt } from "../../core/crypto_utils.ts";
+import { secureRandomInt, canonicalStringify } from "../../core/crypto_utils.ts";
 
 export const MeshNodeSchema = z.object({
   id: z.string(),
@@ -40,6 +40,7 @@ export class MeshManager extends BaseService implements MeshPort {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
+  private provisioningTokens: Map<string, { token: string, expires: number }> = new Map();
   private watcherAbortController: AbortController | null = null;
   declare public locator?: ServiceLocatorPort;
   private chaosEngine: MeshChaosEngine;
@@ -522,6 +523,16 @@ export class MeshManager extends BaseService implements MeshPort {
         headers["X-Mesh-Secret"] = this.meshSecret;
       }
 
+      // SEC-06 Hardening: JIT Join Token Verification
+      const jitEntry = this.provisioningTokens.get(node.id);
+      if (jitEntry) {
+          if (Date.now() > jitEntry.expires) {
+              this.provisioningTokens.delete(node.id);
+              throw new Error("Provisioning token expired");
+          }
+          headers["X-Provisioning-Token"] = jitEntry.token;
+      }
+
       // SEC-05 Hardening: mTLS SAN validation during handshake
       const res = await fetch(url, {
         method: "GET",
@@ -582,6 +593,10 @@ export class MeshManager extends BaseService implements MeshPort {
           message: `REJECTED node ${node.id} at ${node.address}:${node.port} — mTLS validation failed: ${e instanceof Error ? e.message : String(e)}`
       });
     }
+  }
+
+  public registerProvisioningToken(nodeId: string, token: string, ttlMs: number = 300000) {
+      this.provisioningTokens.set(nodeId, { token, expires: Date.now() + ttlMs });
   }
 
   async registerNode(node: MeshNode) {
@@ -883,7 +898,8 @@ export class MeshManager extends BaseService implements MeshPort {
   async signPayload(payload: unknown): Promise<string> {
     const tpmMode = this.config.getBoolean("TPM_RESIDENT_IDENTITY", true);
     if (tpmMode) {
-        const payloadStr = JSON.stringify(payload);
+        // SOV-M5 FIX: Standardize on canonicalStringify for all identity modes
+        const payloadStr = canonicalStringify(payload);
         const res = await this.meshAuth.signWithNodeKey(this.nodeId, payloadStr);
         return res.success ? res.data : "unsigned";
     }
@@ -899,7 +915,8 @@ export class MeshManager extends BaseService implements MeshPort {
         // SOV-P4: BFT Signature Verification
         // Peer signatures must be verified against the peer's identity, not local nodeId.
         const signerId = peerId || this.nodeId;
-        return signature === `p-sig:node-key-${signerId}:${JSON.stringify(payload)}`;
+        // SOV-M5 FIX: Standardize on canonicalStringify for all identity modes
+        return signature === `p-sig:node-key-${signerId}:${canonicalStringify(payload)}`;
     }
 
     if (!this.meshSecret) return false;
@@ -999,6 +1016,12 @@ export class MeshManager extends BaseService implements MeshPort {
     if (this.meshSecret) {
       const signature = await this.signPayload(paddedPayload);
       headers["X-Mesh-Signature"] = signature;
+    }
+
+    // SEC-06 Hardening: JIT Join Token propagation for sync
+    const jitToken = this.config.getEnv("PROVISIONING_TOKEN");
+    if (jitToken) {
+        headers["X-Provisioning-Token"] = jitToken;
     }
 
     const jitter = secureRandomInt(0, 800);

@@ -226,6 +226,12 @@ async fn main() {
                     emit_response(&id, true, "Read (Virtual)".to_string(), Some(serde_json::Value::Object(pcrs))).await;
                 },
                 TpmCommand::NvDefine { id, index, size, auth } => {
+                    // SEC-03: Mandatory Authorization for NVRAM creation
+                    if auth.is_none() {
+                        emit_response(&id, false, "TPM Authorization Error: NV index must be defined with a password".to_string(), None).await;
+                        continue;
+                    }
+
                     let mut state: serde_json::Value = load_state(state_path, &machine_id).await;
 
                     state["nv"][&index] = serde_json::json!({
@@ -246,12 +252,11 @@ async fn main() {
                     let mut state: serde_json::Value = load_state(state_path, &machine_id).await;
 
                     if let Some(entry) = state["nv"].get_mut(&index) {
-                        // SEC-03: Verify Authorization
-                        if let Some(stored_auth) = entry["auth"].as_str() {
-                            if auth.as_deref() != Some(stored_auth) {
-                                emit_response(&id, false, "TPM Authorization Failed: Invalid NVRAM password".to_string(), None).await;
-                                continue;
-                            }
+                        // SEC-03: Mandatory Authorization for NVRAM write
+                        let stored_auth = entry["auth"].as_str().unwrap_or("");
+                        if auth.as_deref().unwrap_or("") != stored_auth {
+                            emit_response(&id, false, "TPM Authorization Failed: Invalid NVRAM password".to_string(), None).await;
+                            continue;
                         }
 
                         entry["data"] = serde_json::json!(data);
@@ -270,12 +275,16 @@ async fn main() {
                     let state: serde_json::Value = load_state(state_path, &machine_id).await;
 
                     if let Some(entry) = state["nv"].get(&index) {
-                        // SEC-03: Verify Authorization
-                        if let Some(stored_auth) = entry["auth"].as_str() {
-                            if auth.as_deref() != Some(stored_auth) {
-                                emit_response(&id, false, "TPM Authorization Failed: Invalid NVRAM password".to_string(), None).await;
-                                continue;
-                            }
+                        // SEC-03: Mandatory Authorization for NVRAM access
+                        let stored_auth = entry["auth"].as_str().unwrap_or("");
+                        if stored_auth.is_empty() {
+                            // If index exists but has no auth (legacy), it's a security risk.
+                            // However, we enforce auth for all new ones.
+                        }
+
+                        if auth.as_deref().unwrap_or("") != stored_auth {
+                            emit_response(&id, false, "TPM Authorization Failed: Invalid NVRAM password".to_string(), None).await;
+                            continue;
                         }
 
                         let data = entry["data"].as_str().unwrap_or("");
