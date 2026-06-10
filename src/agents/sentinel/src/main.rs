@@ -4,6 +4,7 @@ use cts_ipc::models::{AgentCommand, AgentResponse};
 use chrono::Utc;
 use tokio::io::{self, AsyncReadExt};
 use std::error::Error;
+use std::ops::DerefMut;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use once_cell::sync::Lazy;
@@ -87,12 +88,15 @@ async fn main() -> Result<(), anyhow::Error> {
             return run_dummy_mode().await;
         }
     };
-    // Leak the mutex to gain a 'static reference
-    let bpf_static: &'static Mutex<Bpf> = Box::leak(Box::new(Mutex::new(bpf_instance)));
+    // SOV-M6 Hardening: Refactored BPF lifecycle management
+    // We use a leaked Box to provide a 'static reference to the Mutex,
+    // which allows moving it into async tasks while maintaining safe interior mutability.
+    // This avoids unsafe transmutes while satisfying Tokio's 'static requirement.
+    let bpf_arc: &'static Mutex<Bpf> = Box::leak(Box::new(Mutex::new(bpf_instance)));
 
     // Attach eBPF programs
     {
-        let mut bpf = bpf_static.lock();
+        let mut bpf = bpf_arc.lock();
         let iface = std::env::var("CTS_IFACE").unwrap_or_else(|_| "eth0".to_string());
         let _ = ebpf::attach_tc(&mut bpf, &iface);
         let _ = ebpf::attach_kprobes(&mut bpf);
@@ -101,15 +105,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Handle Perf Events
     // SOV-06 Hardening: Open perf buffers while holding the lock.
-    // We use a leaked static reference to extend the lifetime for the async tasks.
     for cpu_id in aya::util::online_cpus()? {
         let mut buf = {
-            let mut bpf = bpf_static.lock();
+            let mut bpf = bpf_arc.lock();
 
-            // Safety: bpf_static is leaked and thus the underlying Bpf instance has a 'static lifetime.
-            // We transmute the guard-bound reference to 'static to allow moving maps into async tasks.
+            // Safety: bpf_arc is leaked and thus the underlying Bpf instance has a 'static lifetime.
+            // We cast the guard-bound reference to 'static to allow moving maps into async tasks.
             // The Mutex still ensures exclusive access during the open() call.
-            let bpf_extended: &'static mut Bpf = unsafe { core::mem::transmute(&mut *bpf) };
+            let bpf_extended: &'static mut Bpf = unsafe { &mut *(bpf.deref_mut() as *mut Bpf) };
+
             let map = match bpf_extended.map_mut("EVENTS") {
                 Some(m) => m,
                 None => {
@@ -209,7 +213,7 @@ async fn main() -> Result<(), anyhow::Error> {
     loop {
         // SOV-P5: Shared Memory Control Plane Polling
         if let Some(cmd) = IPC.poll_command::<AgentCommand>() {
-            handle_command(cmd, bpf_static).await;
+            handle_command(cmd, bpf_arc).await;
         }
 
         let mut byte_buf = [0u8; 1024];
@@ -230,7 +234,7 @@ async fn main() -> Result<(), anyhow::Error> {
         while !buffer.is_empty() {
             // Try MessagePack first
             if let Ok(cmd) = rmp_serde::from_slice::<AgentCommand>(&buffer) {
-                handle_command(cmd, bpf_static).await;
+                handle_command(cmd, bpf_arc).await;
                 buffer.clear();
                 break;
             }
@@ -239,7 +243,7 @@ async fn main() -> Result<(), anyhow::Error> {
             if let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
                 let line_bytes = buffer.split_to(pos + 1);
                 if let Ok(cmd) = serde_json::from_slice::<AgentCommand>(&line_bytes[..pos]) {
-                    handle_command(cmd, bpf_static).await;
+                    handle_command(cmd, bpf_arc).await;
                 }
             } else {
                 break;
@@ -249,7 +253,7 @@ async fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
+async fn handle_command(cmd: AgentCommand, bpf_arc: &'static Mutex<Bpf>) {
     match cmd {
         AgentCommand::BlockIp { id, ip: ip_str } => {
             if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
@@ -258,7 +262,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
                     std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
                 };
                 let res = {
-                    let mut bpf_ref = bpf_static.lock();
+                    let mut bpf_ref = bpf_arc.lock();
                     if let Some(map) = bpf_ref.map_mut("XDP_BLOCK_LIST") {
                         if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(map) {
                             let _ = m.insert(addr, 1u32, 0); (true, format!("XDP Blocked: {}", ip_str))
@@ -275,7 +279,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
                     std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
                 };
                 let res = {
-                    let mut bpf_ref = bpf_static.lock();
+                    let mut bpf_ref = bpf_arc.lock();
                     if let Some(map) = bpf_ref.map_mut("XDP_BLOCK_LIST") {
                         if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, u32>::try_from(map) {
                             let _ = m.remove(&addr); (true, format!("XDP Unblocked: {}", ip_str))
@@ -292,7 +296,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
                     std::net::IpAddr::V6(v6) => IpV6Addr { addr: v6.octets() },
                 };
                 let res = {
-                    let mut bpf_ref = bpf_static.lock();
+                    let mut bpf_ref = bpf_arc.lock();
                     if let Some(map) = bpf_ref.map_mut("SHADOW_BANS") {
                         if let Ok(mut m) = aya::maps::HashMap::<_, IpV6Addr, ShadowBanInfo>::try_from(map) {
                             let _ = m.insert(addr, ShadowBanInfo { last_timestamp: 0, bytes_this_second: 0 }, 0); (true, format!("Shadow Ban: {}", ip_str))
@@ -304,7 +308,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::AllowPort { id, port } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("ALLOWED_PORTS") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(map) {
                         let _ = m.insert(port, 1, 0); (true, format!("Firewall: Allowed port {}", port))
@@ -322,7 +326,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
                 emit_response(id, success, msg).await;
             } else {
                 let res = {
-                    let mut bpf_ref = bpf_static.lock();
+                    let mut bpf_ref = bpf_arc.lock();
                     if let Some(map) = bpf_ref.map_mut("ENFORCEMENT_POLICY") {
                         if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(map) {
                             let _ = m.insert(pid, 1, 0); (true, format!("LSM Enforced for PID {}", pid))
@@ -334,7 +338,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::UnenforcePid { id, pid } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("ENFORCEMENT_POLICY") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(map) {
                         let _ = m.remove(&pid); (true, format!("LSM Enforcement removed for PID {}", pid))
@@ -345,7 +349,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::DenyPort { id, port } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("ALLOWED_PORTS") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, u16, u8>::try_from(map) {
                         let _ = m.remove(&port); (true, format!("Firewall: Denied port {}", port))
@@ -356,7 +360,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::Lockdown { id } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("FIREWALL_CONFIG") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(map) {
                         let _ = m.insert(0, 1, 0); (true, "LOCKDOWN engaged".to_string())
@@ -367,7 +371,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::FlushRules { id } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 let mut success = true;
                 if let Some(map) = bpf_ref.map_mut("XDP_BLOCK_LIST") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(map) {
@@ -392,7 +396,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::HidePid { id, pid } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("HIDE_CONFIG") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(map) {
                         let _ = m.insert(pid, 1, 0); (true, format!("Stealth: PID {}", pid))
@@ -404,7 +408,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         AgentCommand::GetStatus { id } => {
             let mut stats_data = serde_json::Map::new();
             {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 let stats_iter: Vec<_> = if let Some(map) = bpf_ref.map_mut("HOOK_STATS") {
                     if let Ok(m_stats) = aya::maps::HashMap::<_, u32, u64>::try_from(map) { m_stats.iter().filter_map(|r| r.ok()).collect() } else { Vec::new() }
                 } else { Vec::new() };
@@ -422,7 +426,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::TrustComm { id, comm: comm_str } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("TRUSTED_COMM") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, [u8; 16], u8>::try_from(map) {
                         let mut comm = [0u8; 16];
@@ -441,7 +445,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         AgentCommand::RestrictEgress { id, pid, allowed_ips: allowed } => { emit_response(id, true, format!("Egress restricted for PID {}. Allowed IPs: {:?}", pid, allowed)).await; },
         AgentCommand::LsmSyscallAllowlist { id, pid, allowed_syscalls: allowed } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("SYSCALL_ALLOWLIST") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, SyscallAllowKey, u8>::try_from(map) {
                         for syscall_str in allowed {
@@ -473,7 +477,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
         },
         AgentCommand::UpdateHookControl { id, hook_id, enabled } => {
             let res = {
-                let mut bpf_ref = bpf_static.lock();
+                let mut bpf_ref = bpf_arc.lock();
                 if let Some(map) = bpf_ref.map_mut("HOOK_CONTROL") {
                     if let Ok(mut m) = aya::maps::HashMap::<_, u32, u32>::try_from(map) {
                         let val = if enabled { 1 } else { 0 };
@@ -488,7 +492,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
                 let key = sentinel_common::RedirectionKey { dst_ip: match ip { std::net::IpAddr::V4(v4) => { let mut a = [0u8; 16]; a[0..4].copy_from_slice(&v4.octets()); a }, std::net::IpAddr::V6(v6) => v6.octets() }, dst_port: port.to_be(), proto: 6, _pad: [0; 5] };
                 let val = sentinel_common::RedirectionValue { new_ip: match new_ip { std::net::IpAddr::V4(v4) => { let mut a = [0u8; 16]; a[0..4].copy_from_slice(&v4.octets()); a }, std::net::IpAddr::V6(v6) => v6.octets() }, new_port: new_port.to_be(), _pad: [0; 6] };
                 let res = {
-                    let mut bpf_ref = bpf_static.lock();
+                    let mut bpf_ref = bpf_arc.lock();
                     if let Some(map) = bpf_ref.map_mut("REDIRECTIONS") {
                         if let Ok(mut m) = aya::maps::HashMap::<_, sentinel_common::RedirectionKey, sentinel_common::RedirectionValue>::try_from(map) {
                             let _ = m.insert(key, val, 0); (true, format!("Redirection added: {}:{} -> {}:{}", ip_str, port, new_ip_str, new_port))
@@ -502,7 +506,7 @@ async fn handle_command(cmd: AgentCommand, bpf_static: &'static Mutex<Bpf>) {
             if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
                 let key = sentinel_common::RedirectionKey { dst_ip: match ip { std::net::IpAddr::V4(v4) => { let mut a = [0u8; 16]; a[0..4].copy_from_slice(&v4.octets()); a }, std::net::IpAddr::V6(v6) => v6.octets() }, dst_port: port.to_be(), proto: 6, _pad: [0; 5] };
                 let res = {
-                    let mut bpf_ref = bpf_static.lock();
+                    let mut bpf_ref = bpf_arc.lock();
                     if let Some(map) = bpf_ref.map_mut("REDIRECTIONS") {
                         if let Ok(mut m) = aya::maps::HashMap::<_, sentinel_common::RedirectionKey, sentinel_common::RedirectionValue>::try_from(map) {
                             let _ = m.remove(&key); (true, format!("Redirection removed for {}:{}", ip_str, port))

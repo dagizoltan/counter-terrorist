@@ -460,9 +460,10 @@ export class AuditService extends BaseService {
     }
 
     public async getMerkleProof(eventHash: string): Promise<{ leaf: string, index: number, proof: string[], root: string } | null> {
-        // This is a simplified implementation.
-        // In a real system, we would maintain Merkle trees for blocks of events.
-        const recent = await this.getRecentEvents(100);
+        // SEC-03: Extended Forensic Proof Window.
+        // Expanded from 100 to 1000 events to cover larger security incidents.
+        const WINDOW_SIZE = 1000;
+        const recent = await this.getRecentEvents(WINDOW_SIZE);
         const hashes = recent.map(e => e.hash).reverse();
         const index = hashes.indexOf(eventHash);
 

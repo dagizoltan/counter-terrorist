@@ -255,7 +255,16 @@ export class HoneypotService extends BaseService {
         });
       }
     } else if (payload.type === "SessionData") {
-      const { port, source_ip, data } = payload;
+      const { port, source_ip, data: rawData } = payload;
+
+      // SEC-05: Unbounded Session Transcript Protection
+      // Implement hard byte-limits (16KB) for captured session data to prevent memory exhaustion (OOM).
+      const MAX_SESSION_BYTES = 16384;
+      const dataStr = String(rawData);
+      const data = dataStr.length > MAX_SESSION_BYTES
+        ? dataStr.substring(0, MAX_SESSION_BYTES) + "... [TRUNCATED]"
+        : dataStr;
+
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
       const callerId = module ? `decoy:${module.id}` : "decoy:session";
 

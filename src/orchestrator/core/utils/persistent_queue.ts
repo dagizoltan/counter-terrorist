@@ -24,13 +24,17 @@ export class PersistentQueue<T> {
 
     /**
      * Processes items in the queue using the provided handler.
+     * SEC-05: Paginated processing to prevent OOM during event floods.
      */
-    async process(handler: (item: T) => Promise<boolean>, maxAttempts = 5) {
+    async process(handler: (item: T) => Promise<boolean>, maxAttempts = 5, batchSize = 100) {
         if (this.isProcessing) return;
         this.isProcessing = true;
 
         try {
-            const iter = this.kv.list<{ item: T, attempts: number, timestamp: number }>({ prefix: ["queue", this.name] });
+            const iter = this.kv.list<{ item: T, attempts: number, timestamp: number }>(
+                { prefix: ["queue", this.name] },
+                { limit: batchSize }
+            );
             for await (const entry of iter) {
                 const { item, attempts } = entry.value;
 
@@ -52,10 +56,15 @@ export class PersistentQueue<T> {
 
     private async handleFailure(key: Deno.KvKey, item: T, attempts: number, maxAttempts: number) {
         if (attempts >= maxAttempts) {
-            // Move to dead-letter queue or just drop after logging
-            console.error(`PersistentQueue [${this.name}]: Dropping item after ${attempts} failed attempts.`);
-            await this.kv.delete(key);
-            await this.kv.set(["queue", this.name, "dlq", key[2]], { item, attempts, timestamp: Date.now() });
+            // SEC-05: Atomic Failure Transitions
+            // Ensure moving to DLQ and removing from active queue is transactional.
+            console.error(`PersistentQueue [${this.name}]: Dropping item after ${attempts} failed attempts. Moving to DLQ.`);
+
+            const dlqKey = ["queue", this.name, "dlq", key[key.length - 1]];
+            await this.kv.atomic()
+                .delete(key)
+                .set(dlqKey, { item, attempts, timestamp: Date.now() })
+                .commit();
         } else {
             await this.kv.set(key, { item, attempts, timestamp: Date.now() });
         }

@@ -40,6 +40,7 @@ export class MeshManager extends BaseService implements MeshPort {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
+  private isDiscovering: boolean = false;
   private provisioningTokens: Map<string, { token: string, expires: number }> = new Map();
   private watcherAbortController: AbortController | null = null;
   declare public locator?: ServiceLocatorPort;
@@ -248,6 +249,10 @@ export class MeshManager extends BaseService implements MeshPort {
   }
 
   private async discoverSubnet() {
+    if (this.isDiscovering) return;
+    this.isDiscovering = true;
+
+    try {
     const interfaces = Deno.networkInterfaces();
     const localIps = interfaces
       .filter(i => i.family === "IPv4" && !i.address.startsWith("127."))
@@ -281,6 +286,9 @@ export class MeshManager extends BaseService implements MeshPort {
         }
       }
       await Promise.all(probes);
+    }
+    } finally {
+        this.isDiscovering = false;
     }
   }
 
