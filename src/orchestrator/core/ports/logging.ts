@@ -43,5 +43,5 @@ export interface LoggingPort {
   // Legacy support
   logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: unknown): Promise<void>;
   setKv(kv: Deno.Kv): void;
-  shutdown(): Promise<void> | Promise<any>;
+  shutdown(): Promise<void>;
 }

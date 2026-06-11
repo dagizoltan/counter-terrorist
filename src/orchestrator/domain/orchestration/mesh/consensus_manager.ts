@@ -2,7 +2,7 @@ import { MeshNode } from "../mesh.ts";
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
 
 export interface MeshConsensusDependencies {
-    sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<any>;
+    sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<Record<string, unknown>>;
     signPayload(payload: unknown): Promise<string>;
     verifySignature(payload: unknown, signature: string, peerId?: string): Promise<boolean>;
     getNodeId(): string;

@@ -33,7 +33,7 @@ export class EventMediator extends BaseService {
     private fimIntegration: FimIntegration;
     private networkIntegration: NetworkIntegration;
     private scannerIntegration: ScannerIntegration;
-    private learningTimeout: any = null;
+    private learningTimeout: number | null = null;
 
     // Performance: High-volume event batching & Backpressure Throttling
     private syscallBatch: SidecarEvent[] = [];
@@ -48,13 +48,13 @@ export class EventMediator extends BaseService {
         const { serviceLocator } = await import("@core/service_locator.ts");
 
         if (serviceLocator.has("processTracker")) {
-            const processTracker = serviceLocator.get("processTracker");
-            (this.sentinelIntegration as any).processTracker = processTracker;
+            const processTracker = serviceLocator.get<ProcessTracker>("processTracker");
+            this.sentinelIntegration.setProcessTracker(processTracker);
         }
 
         if (serviceLocator.has("canaryService")) {
-            const canaryService = serviceLocator.get("canaryService");
-            (this.fimIntegration as any).canaryService = canaryService;
+            const canaryService = serviceLocator.get<CanaryService>("canaryService");
+            this.fimIntegration.setCanaryService(canaryService);
         }
 
         return ok(undefined);
@@ -107,8 +107,8 @@ export class EventMediator extends BaseService {
             }));
         }
 
-        this.sentinelIntegration = new SentinelIntegration(eventBusPort, undefined as any, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
-        this.fimIntegration = new FimIntegration(eventBusPort, undefined as any, logger, broadcast);
+        this.sentinelIntegration = new SentinelIntegration(eventBusPort, null as unknown as ProcessTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
+        this.fimIntegration = new FimIntegration(eventBusPort, null as unknown as CanaryService, logger, broadcast);
         this.networkIntegration = new NetworkIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.networkBatch);
         this.scannerIntegration = new ScannerIntegration(eventBusPort, logger, broadcast);
 
@@ -132,7 +132,7 @@ export class EventMediator extends BaseService {
         });
 
         // Periodic batch flush
-        this.batchTimer = setInterval(() => this.flushBatches(), 1000) as any;
+        this.batchTimer = setInterval(() => this.flushBatches(), 1000);
     }
 
     private async flushBatches() {

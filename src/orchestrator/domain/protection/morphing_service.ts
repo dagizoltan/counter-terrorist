@@ -5,6 +5,7 @@ import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface MorphingFfi {
     fastMorph(data: Uint8Array, key: Uint8Array): void;
@@ -19,7 +20,7 @@ export interface MeshPort {
  * Periodically changes the system's defensive posture to confuse attackers.
  */
 export class MorphingService extends BaseService {
-    private intervalId?: any;
+    private intervalId?: number;
     private logging: LoggingPort;
 
     private ffi?: MorphingFfi;
@@ -96,7 +97,8 @@ export class MorphingService extends BaseService {
             }));
             
             // Randomly rotate mesh identity to prevent long-term fingerprinting (10% chance per morph)
-            if (Math.random() > 0.9) {
+            // SOV-M5 FIX: Transition to secure random decision
+            if (secureRandomInt(1, 100) > 90) {
                 await this.mesh.rotateIdentity().catch((err: Error) => this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,

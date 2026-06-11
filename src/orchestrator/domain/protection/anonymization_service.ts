@@ -1,6 +1,7 @@
 import { LoggingPort, LogSeverity, LogType, FirewallPort, VpnPort } from "@core/ports.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface AnonymizationNode {
     country: string;
@@ -25,9 +26,9 @@ export class AnonymizationService extends BaseService {
     private rotationCount: number = 0;
     private lastRotationTime: string = "NEVER";
     private mode: StealthMode = StealthMode.OFF;
-    private rotationInterval?: any;
+    private rotationInterval?: number;
 
-    private killSwitchInterval?: any;
+    private killSwitchInterval?: number;
     private firewall?: FirewallPort;
 
     constructor(
@@ -147,7 +148,8 @@ export class AnonymizationService extends BaseService {
 
             const available = pool.filter(n => n.ip !== this.currentNode?.ip);
             const targetPool = available.length > 0 ? available : pool;
-            selected = targetPool[Math.floor(Math.random() * targetPool.length)];
+            // SOV-M5 FIX: Transition to secure random selection
+            selected = targetPool[secureRandomInt(0, targetPool.length - 1)];
             
             switch (this.mode) {
                 case StealthMode.VPNGATE:

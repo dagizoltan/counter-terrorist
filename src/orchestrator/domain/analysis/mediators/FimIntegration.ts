@@ -6,10 +6,14 @@ import { BroadcastData } from "@interface/ws_handler.ts";
 export class FimIntegration {
     constructor(
         private eventBus: EventBus,
-        private canaryService: CanaryService,
+        private canaryService: CanaryService | null,
         private logger: LoggingPort,
         private broadcast: (msg: BroadcastData) => void
     ) {}
+
+    public setCanaryService(service: CanaryService) {
+        this.canaryService = service;
+    }
 
     async handleEvent(payload: Record<string, unknown>) {
         try {
@@ -34,7 +38,7 @@ export class FimIntegration {
             const comm = typeof payload.comm === "string" ? payload.comm : undefined;
             const pid = typeof payload.pid === "number" ? payload.pid : undefined;
             const actor = comm || "system:internal";
-            const isCanary = await this.canaryService.handleFileAccess(path, actor);
+            const isCanary = this.canaryService ? await this.canaryService.handleFileAccess(path, actor) : false;
 
             if (isCanary && action.includes("Metadata")) {
                 return;

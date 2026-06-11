@@ -12,7 +12,7 @@ export interface PlatformPort {
 export interface PluginRegistryPort {
   register(plugin: Plugin): void;
   startAll(): Promise<void>;
-  listPlugins(): { name: string; status: string; description: string; details?: any }[];
+  listPlugins(): { name: string; status: string; description: string; details?: Record<string, unknown> }[];
 }
 
 export interface PluginFactoryPort {
@@ -59,7 +59,7 @@ export interface ApplicationStatus {
   dependencies: Record<string, boolean>;
   platformTag: string;
   platform?: PlatformInfo;
-  plugins: { name: string; status: string; description: string; details?: any }[];
+  plugins: { name: string; status: string; description: string; details?: Record<string, unknown> }[];
 }
 
 export interface ServiceLocatorPort {

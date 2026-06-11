@@ -13,13 +13,13 @@ export interface SystemEvent<T extends EventName = string> {
   fromAudit?: boolean;
 }
 
-export type Handler<T extends EventName> = (data: any, event: SystemEvent<T>) => void | Promise<void>;
+export type Handler<T extends EventName> = (data: T extends keyof EventRegistry ? EventRegistry[T] : unknown, event: SystemEvent<T>) => void | Promise<void>;
 
 export type Middleware = (event: SystemEvent, next: () => void | Promise<void>) => void | Promise<void>;
 
 export class EventBus implements EventBusPort {
-  private handlers: ((event: SystemEvent<any>) => void | Promise<void>)[] = [];
-  private keyedListeners: Map<string, Handler<any>[]> = new Map();
+  private handlers: ((event: SystemEvent<EventName>) => void | Promise<void>)[] = [];
+  private keyedListeners: Map<string, Handler<EventName>[]> = new Map();
   private middleware: Middleware[] = [];
   private pendingHandlers: Set<Promise<void>> = new Set();
 
@@ -59,18 +59,18 @@ export class EventBus implements EventBusPort {
     this.middleware.push(mw);
   }
 
-  subscribe(handler: (event: SystemEvent<any>) => void | Promise<void>): () => void {
+  subscribe(handler: (event: SystemEvent<EventName>) => void | Promise<void>): () => void {
     this.handlers.push(handler);
-    return () => this.unsubscribe(handler);
+    return () => this.unsubscribe(handler as unknown as Handler<EventName>);
   }
 
-  unsubscribe(handler: Handler<any>) {
+  unsubscribe(handler: Handler<EventName>) {
     // Remove from main handlers
-    this.handlers = this.handlers.filter(h => h !== handler);
+    this.handlers = this.handlers.filter(h => (h as unknown as Handler<EventName>) !== handler);
 
     // Remove from all keyed listeners
     for (const [event, listeners] of this.keyedListeners.entries()) {
-      const filtered = listeners.filter(l => l !== handler);
+      const filtered = listeners.filter(l => l !== (handler as unknown as Handler<typeof event>));
       if (filtered.length !== listeners.length) {
         if (filtered.length === 0) {
           this.keyedListeners.delete(event);
@@ -94,7 +94,7 @@ export class EventBus implements EventBusPort {
   }
 
   async publish<T extends EventName>(type: T, message: string, data?: unknown): Promise<void> {
-    const validatedData = validateEvent(type as any, data);
+    const validatedData = validateEvent(type, data);
     
     // SOV-06: Preserve recursion guard flags during publication
     const fromAudit = (data as Record<string, unknown>)?.fromAudit as boolean | undefined;
@@ -130,14 +130,14 @@ export class EventBus implements EventBusPort {
     await this.finalizePublish(event, validatedData);
   }
 
-  private async runMiddleware(index: number, event: SystemEvent) {
+  private async runMiddleware<T extends EventName>(index: number, event: SystemEvent<T>) {
     if (index >= this.middleware.length) {
-        this.finalizePublish(event, event.data);
+        this.finalizePublish(event, event.data as T extends keyof EventRegistry ? EventRegistry[T] : unknown);
         return;
     }
 
     // SOV-05 STABILITY: Added timeout for middleware to prevent chain deadlocks
-    let timeoutId: any;
+    let timeoutId: number | undefined;
     const timeoutMs = 5000;
 
     try {
@@ -163,7 +163,7 @@ export class EventBus implements EventBusPort {
     }
   }
 
-  private async finalizePublish<T extends EventName>(event: SystemEvent<T>, validatedData: any) {
+  private async finalizePublish<T extends EventName>(event: SystemEvent<T>, validatedData: T extends keyof EventRegistry ? EventRegistry[T] : unknown) {
     const type = event.type as string;
     const message = event.message;
 
@@ -227,7 +227,7 @@ export class EventBus implements EventBusPort {
             const res = fn();
             if (!(res instanceof Promise)) return;
 
-            let timeoutId: any;
+            let timeoutId: number | undefined;
             try {
                 const timeoutPromise = new Promise((_, reject) => {
                     timeoutId = setTimeout(() => reject(new Error(`Handler timeout after ${timeoutMs}ms`)), timeoutMs);

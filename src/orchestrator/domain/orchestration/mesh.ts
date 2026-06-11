@@ -52,7 +52,7 @@ export class MeshManager extends BaseService implements MeshPort {
     this.locator = locator;
   }
 
-  public async sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<any> {
+  public async sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     return await this.sendSyncInternal(node, payload);
   }
 
@@ -115,7 +115,7 @@ export class MeshManager extends BaseService implements MeshPort {
   }
 
   protected override async onInit(): Promise<Result<void>> {
-    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000) as any;
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
 
     if (this.eventBus) {
@@ -238,14 +238,22 @@ export class MeshManager extends BaseService implements MeshPort {
     this.listenForDiscovery();
 
     setTimeout(() => {
-        this.discoverSubnet().catch(() => {});
+        this.discoverSubnet().catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:orchestration:mesh",
+                message: `Mesh discovery task failed: ${e.message}`
+            });
+        });
     }, 2000 + secureRandomInt(0, 3000));
     
     this.discoveryInterval = setInterval(() => {
         this.discoverSubnet();
         this.scanNetwork();
         this.resolveSplitBrain(); // Periodic split-brain check
-    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + secureRandomInt(0, 5000)) as any;
+    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + secureRandomInt(0, 5000));
   }
 
   private async discoverSubnet() {
@@ -989,7 +997,7 @@ export class MeshManager extends BaseService implements MeshPort {
     return success;
   }
 
-  private async sendSyncInternal(node: MeshNode, payload: Record<string, unknown>): Promise<any> {
+  private async sendSyncInternal(node: MeshNode, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     if (!this.httpClient) await this.init();
 
     const client = this.httpClient!;

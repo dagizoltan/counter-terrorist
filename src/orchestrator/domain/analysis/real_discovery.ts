@@ -93,7 +93,7 @@ export class RealDiscovery {
         
         const batchSize = 32;
         for (let i = 1; i <= 254; i += batchSize) {
-            const promises: Promise<any>[] = [];
+            const promises: Promise<unknown>[] = [];
             for (let j = i; j < i + batchSize && j <= 254; j++) {
                 promises.push(this.silentPing(`${prefix}.${j}`));
             }
@@ -134,7 +134,7 @@ export class RealDiscovery {
         const { success, stdout } = await this.executor.execute("ip", args);
         if (!success) return [];
         
-        const devices: any[] = [];
+        const devices: Record<string, string>[] = [];
         for (const line of stdout.split("\n")) {
             const parts = line.trim().split(/\s+/);
             if (parts.length >= 4 && parts.includes("lladdr")) {
@@ -175,7 +175,7 @@ export class RealDiscovery {
             const { success, stdout } = await this.executor.execute("nmcli", ["-t", "-f", "SSID,BSSID,SIGNAL,SECURITY", "dev", "wifi", "list"]);
             if (!success) return [];
             
-            const aps: any[] = [];
+            const aps: Record<string, string | number>[] = [];
             for (const line of stdout.split("\n")) {
                 if (!line.trim()) continue;
                 

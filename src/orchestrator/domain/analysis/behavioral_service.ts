@@ -19,7 +19,7 @@ export interface SuspiciousIp {
 
 export class BehavioralService extends BaseService {
   private history: BoundedMap<string, IpHistory> = new BoundedMap(1000);
-  private metricsInterval?: number | any;
+  private metricsInterval?: number;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
 
@@ -30,7 +30,7 @@ export class BehavioralService extends BaseService {
   protected override async onInit(): Promise<Result<void>> {
 
     console.log("BehavioralService initialized");
-    this.metricsInterval = setInterval(() => this.emitMetrics(), 15000) as any;
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
     return ok(undefined);
   }
 

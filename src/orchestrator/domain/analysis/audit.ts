@@ -8,6 +8,7 @@ import { Result, ok, err } from "@core/result.ts";
 import { ServiceLocatorPort } from "../../core/ports.ts";
 import { WormRepository } from "../repositories/worm_repository.ts";
 import { BackgroundTaskManager } from "../../core/utils/background_task_manager.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface ActorContext {
     id: string;
@@ -123,7 +124,8 @@ export class AuditService extends BaseService {
             return restoreRes;
         }
 
-        const jitter = (ms: number) => ms + (Math.random() * 5000);
+        // SOV-M5 FIX: Transition to secure random jitter
+        const jitter = (ms: number) => ms + secureRandomInt(0, 5000);
 
         this.intervals.push(this.taskManager.schedule("purgeExpired", jitter(60 * 60 * 1000), () => this.purgeExpired()));
         this.intervals.push(this.taskManager.schedule("emitMetrics", jitter(30000), () => this.emitMetrics()));
@@ -407,11 +409,12 @@ export class AuditService extends BaseService {
             });
 
             // SEC-05: Anchor the root across the mesh
+            // SEC-05: Anchor the root across the mesh
             if (this.eventBus) {
                 this.eventBus.publish("AUDIT_VERIFICATION", "Merkle verification", {
                     lastHash: root,
                     eventCount: hashesToCommit.length
-                }).catch((e: any) => {
+                }).catch((e: Error) => {
                     this.safeLogAuditError("Failed to broadcast Merkle verification", e);
                 });
             }
@@ -732,7 +735,7 @@ export class AuditService extends BaseService {
                         });
 
                         if (this.eventBus && (auditEvent.type === "CRITICAL" || auditEvent.type === "THREAT")) {
-                            this.eventBus.publish("AUDIT_BROADCAST", "Audit Broadcast", auditEvent).catch((e: any) => {
+                            this.eventBus.publish("AUDIT_BROADCAST", "Audit Broadcast", auditEvent as any).catch((e: Error) => {
                                 this.safeLogAuditError("Failed to broadcast audit event", e);
                             });
                         }
@@ -794,7 +797,7 @@ export class AuditService extends BaseService {
 
         try {
             await this.repo.saveMany(toFlush);
-        } catch (e: any) {
+        } catch (e: unknown) {
             this.auditBuffer.unshift(...toFlush);
             const error = e instanceof Error ? e : new Error(String(e));
             this.safeLogAuditError("Failed to flush audit batch", error);

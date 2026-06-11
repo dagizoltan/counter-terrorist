@@ -18,7 +18,7 @@ export interface NewsItem {
 
 export class NewsSignalService extends BaseService {
     private kv?: Deno.Kv;
-    private refreshInterval?: any;
+    private refreshInterval?: number;
     private breaker = new CircuitBreaker({ failureThreshold: 3, resetTimeoutMs: 300000 });
     private feeds = [
         { name: "Krebs on Security", url: "https://krebsonsecurity.com/feed/" },

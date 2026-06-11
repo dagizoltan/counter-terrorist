@@ -112,8 +112,8 @@ export class HoneypotService extends BaseService {
     return err(new Error(`Module ${id} not found`));
   }
 
-  private morphInterval?: any;
-  private metricsInterval?: any;
+  private morphInterval?: number;
+  private metricsInterval?: number;
 
   protected override async onInit(): Promise<Result<void>> {
     const res = await this.start();
@@ -238,7 +238,15 @@ export class HoneypotService extends BaseService {
             caller: "honeypot",
             message: `Shadow ban failed for ${source_ip}: ${e.message}`
         }));
-        this.sabotageSession(source_ip).catch(() => {});
+        this.sabotageSession(source_ip).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:honeypot:breaker",
+                message: `Sabotage attempt failed for ${source_ip}: ${e.message}`
+            });
+        });
       }
 
       // Automated Forensics: Start capture for the attacker's traffic

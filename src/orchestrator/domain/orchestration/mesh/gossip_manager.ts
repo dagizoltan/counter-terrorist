@@ -5,7 +5,7 @@ import { retry, CircuitBreaker } from "../../../core/utils/resilience.ts";
 import { BloomFilter } from "../../../core/cache.ts";
 
 export interface MeshGossipDependencies {
-    sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<any>;
+    sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<Record<string, unknown>>;
 }
 
 export class MeshGossipManager {

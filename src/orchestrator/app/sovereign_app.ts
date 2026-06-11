@@ -269,8 +269,21 @@ export class SovereignApp {
             }
         })();
 
-        networkDiscovery.start().catch(err => console.error(`Background task failure: ${err}`));
-        provisioning.run().catch(err => console.error(`Background task failure: ${err}`));
+        networkDiscovery.start().catch(err => loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:app:sovereign_app",
+            message: `Background NetworkDiscovery failure: ${err}`
+        }).catch(() => {}));
+
+        provisioning.run().catch(err => loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:app:sovereign_app",
+            message: `Background Provisioning failure: ${err}`
+        }).catch(() => {}));
         
         this.services.baseline.startMonitor();
         lifecycle.start();

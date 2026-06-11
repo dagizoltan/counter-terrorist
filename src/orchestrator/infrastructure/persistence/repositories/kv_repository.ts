@@ -51,7 +51,10 @@ export class KvRepository<T> implements Repository<T> {
         attempts++;
         if (attempts < maxAttempts) {
             // Randomized exponential backoff to reduce contention
-            await new Promise(r => setTimeout(r, Math.random() * 50 * Math.pow(2, attempts)));
+            // SOV-M5 FIX: Transition to secure random jitter
+            const { secureRandomInt } = await import("../../../core/crypto_utils.ts");
+            const jitter = secureRandomInt(0, 50 * Math.pow(2, attempts));
+            await new Promise(r => setTimeout(r, jitter));
         }
     }
     throw new Error(`OCC Write Conflict: Failed to set [${this.prefix}, ${id}] after ${maxAttempts} attempts.`);
@@ -72,7 +75,9 @@ export class KvRepository<T> implements Repository<T> {
         if (result.ok) return;
         attempts++;
         if (attempts < maxAttempts) {
-            await new Promise(r => setTimeout(r, Math.random() * 50 * Math.pow(2, attempts)));
+            const { secureRandomInt } = await import("../../../core/crypto_utils.ts");
+            const jitter = secureRandomInt(0, 50 * Math.pow(2, attempts));
+            await new Promise(r => setTimeout(r, jitter));
         }
     }
     throw new Error(`OCC Write Conflict: Failed to delete [${this.prefix}, ${id}] after ${maxAttempts} attempts.`);

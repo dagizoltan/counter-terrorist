@@ -16,7 +16,7 @@ export interface KernelHardeningStatus {
 export class KernelService extends BaseService {
     private lastHardened: string = "";
     private logging: LoggingPort;
-    private metricsInterval?: any;
+    private metricsInterval?: number;
 
     constructor(
         private executor: ExecutorPort,
@@ -99,12 +99,12 @@ export class KernelService extends BaseService {
                 }
 
                 if (this.eventBus) {
-                    await this.eventBus.emit("SIDECAR_ALERT" as any, {
+                    await this.eventBus.emit("SIDECAR_ALERT", {
                         sidecar: "sentinel",
                         type: "PERFORMANCE_DEGRADED",
                         message: `Hook ${hookId} latency spike: ${data.avg_ns}ns. Hook has been temporarily disabled.`,
                         data: { hookId, ...data }
-                    } as any);
+                    });
                 }
             }
         }
@@ -296,7 +296,15 @@ export class KernelService extends BaseService {
 
         const trustedComms = ["deno", "enforcer", "sentinel", "watchfile", "netcap", "analyzer", "decoy"];
         for (const comm of trustedComms) {
-            await this.sidecarManager.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(() => {});
+            await this.sidecarManager.sendCommand("sentinel", { type: "TRUST_COMM", comm }).catch(e => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:domain:protection:kernel:quiet",
+                    message: `Failed to trust comm '${comm}': ${e.message}`
+                });
+            });
         }
     }
 
@@ -316,7 +324,15 @@ export class KernelService extends BaseService {
             type: "RESTRICT_EGRESS",
             pid: Deno.pid,
             allowed_ips: trustedIps
-        }).catch(() => {});
+        }).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:kernel:egress",
+                message: `Failed to apply orchestrator self-enforcement: ${e.message}`
+            });
+        });
     }
 
     /**
