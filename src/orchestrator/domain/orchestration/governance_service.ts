@@ -14,7 +14,7 @@ export interface Proposal {
     proposer: string;
     type: "LOCKDOWN" | "IDENTITY_ROTATE" | "ACTIVE_SABOTAGE";
     target: string;
-    payload: any;
+    payload: Record<string, unknown>;
     votes: Vote[];
     timestamp: number;
     executed: boolean;
@@ -26,7 +26,7 @@ export interface Proposal {
  */
 export class GovernanceService extends BaseService {
     private proposals: Map<string, Proposal> = new Map();
-    private cleanupInterval?: any;
+    private cleanupInterval?: number;
 
     constructor(
         private mesh: MeshManager,
@@ -63,7 +63,7 @@ export class GovernanceService extends BaseService {
     /**
      * Proposes a new high-impact action to the mesh.
      */
-    async propose(type: Proposal["type"], target: string, payload: any = {}) {
+    async propose(type: Proposal["type"], target: string, payload: Record<string, unknown> = {}) {
         const id = crypto.randomUUID();
         const proposal: Proposal = {
             id,
@@ -114,7 +114,7 @@ export class GovernanceService extends BaseService {
     /**
      * Handles an incoming proposal from the mesh.
      */
-    async handleProposal(payload: { id: string; proposer: string; type: Proposal["type"]; target: string; payload: any }) {
+    async handleProposal(payload: { id: string; proposer: string; type: Proposal["type"]; target: string; payload: Record<string, unknown> }) {
         if (this.proposals.has(payload.id)) return;
 
         const proposal: Proposal = {

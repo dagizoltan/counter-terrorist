@@ -12,7 +12,7 @@ import { MeshChaosEngine } from "./chaos_engine.ts";
 import { BloomFilter } from "../../core/cache.ts";
 import { MeshGossipManager } from "./mesh/gossip_manager.ts";
 import { MeshConsensusManager } from "./mesh/consensus_manager.ts";
-import { secureRandomInt } from "../../core/crypto_utils.ts";
+import { secureRandomInt, canonicalStringify } from "../../core/crypto_utils.ts";
 
 export const MeshNodeSchema = z.object({
   id: z.string(),
@@ -40,6 +40,8 @@ export class MeshManager extends BaseService implements MeshPort {
   private port: number = 8000;
   private httpClient: Deno.HttpClient | null = null;
   private meshSecret: string | undefined;
+  private isDiscovering: boolean = false;
+  private provisioningTokens: Map<string, { token: string, expires: number }> = new Map();
   private watcherAbortController: AbortController | null = null;
   declare public locator?: ServiceLocatorPort;
   private chaosEngine: MeshChaosEngine;
@@ -50,7 +52,7 @@ export class MeshManager extends BaseService implements MeshPort {
     this.locator = locator;
   }
 
-  public async sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<any> {
+  public async sendSync(node: MeshNode, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     return await this.sendSyncInternal(node, payload);
   }
 
@@ -113,7 +115,7 @@ export class MeshManager extends BaseService implements MeshPort {
   }
 
   protected override async onInit(): Promise<Result<void>> {
-    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000) as any;
+    this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
     this.nodeId = Deno.hostname() || "node-" + crypto.randomUUID().slice(0, 8);
 
     if (this.eventBus) {
@@ -236,17 +238,29 @@ export class MeshManager extends BaseService implements MeshPort {
     this.listenForDiscovery();
 
     setTimeout(() => {
-        this.discoverSubnet().catch(() => {});
+        this.discoverSubnet().catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:orchestration:mesh",
+                message: `Mesh discovery task failed: ${e.message}`
+            });
+        });
     }, 2000 + secureRandomInt(0, 3000));
     
     this.discoveryInterval = setInterval(() => {
         this.discoverSubnet();
         this.scanNetwork();
         this.resolveSplitBrain(); // Periodic split-brain check
-    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + secureRandomInt(0, 5000)) as any;
+    }, TACTICAL_CONSTANTS.MESH.DISCOVERY_INTERVAL_MS + secureRandomInt(0, 5000));
   }
 
   private async discoverSubnet() {
+    if (this.isDiscovering) return;
+    this.isDiscovering = true;
+
+    try {
     const interfaces = Deno.networkInterfaces();
     const localIps = interfaces
       .filter(i => i.family === "IPv4" && !i.address.startsWith("127."))
@@ -280,6 +294,9 @@ export class MeshManager extends BaseService implements MeshPort {
         }
       }
       await Promise.all(probes);
+    }
+    } finally {
+        this.isDiscovering = false;
     }
   }
 
@@ -522,6 +539,16 @@ export class MeshManager extends BaseService implements MeshPort {
         headers["X-Mesh-Secret"] = this.meshSecret;
       }
 
+      // SEC-06 Hardening: JIT Join Token Verification
+      const jitEntry = this.provisioningTokens.get(node.id);
+      if (jitEntry) {
+          if (Date.now() > jitEntry.expires) {
+              this.provisioningTokens.delete(node.id);
+              throw new Error("Provisioning token expired");
+          }
+          headers["X-Provisioning-Token"] = jitEntry.token;
+      }
+
       // SEC-05 Hardening: mTLS SAN validation during handshake
       const res = await fetch(url, {
         method: "GET",
@@ -582,6 +609,10 @@ export class MeshManager extends BaseService implements MeshPort {
           message: `REJECTED node ${node.id} at ${node.address}:${node.port} — mTLS validation failed: ${e instanceof Error ? e.message : String(e)}`
       });
     }
+  }
+
+  public registerProvisioningToken(nodeId: string, token: string, ttlMs: number = 300000) {
+      this.provisioningTokens.set(nodeId, { token, expires: Date.now() + ttlMs });
   }
 
   async registerNode(node: MeshNode) {
@@ -883,7 +914,8 @@ export class MeshManager extends BaseService implements MeshPort {
   async signPayload(payload: unknown): Promise<string> {
     const tpmMode = this.config.getBoolean("TPM_RESIDENT_IDENTITY", true);
     if (tpmMode) {
-        const payloadStr = JSON.stringify(payload);
+        // SOV-M5 FIX: Standardize on canonicalStringify for all identity modes
+        const payloadStr = canonicalStringify(payload);
         const res = await this.meshAuth.signWithNodeKey(this.nodeId, payloadStr);
         return res.success ? res.data : "unsigned";
     }
@@ -899,7 +931,8 @@ export class MeshManager extends BaseService implements MeshPort {
         // SOV-P4: BFT Signature Verification
         // Peer signatures must be verified against the peer's identity, not local nodeId.
         const signerId = peerId || this.nodeId;
-        return signature === `p-sig:node-key-${signerId}:${JSON.stringify(payload)}`;
+        // SOV-M5 FIX: Standardize on canonicalStringify for all identity modes
+        return signature === `p-sig:node-key-${signerId}:${canonicalStringify(payload)}`;
     }
 
     if (!this.meshSecret) return false;
@@ -964,7 +997,7 @@ export class MeshManager extends BaseService implements MeshPort {
     return success;
   }
 
-  private async sendSyncInternal(node: MeshNode, payload: Record<string, unknown>): Promise<any> {
+  private async sendSyncInternal(node: MeshNode, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     if (!this.httpClient) await this.init();
 
     const client = this.httpClient!;
@@ -999,6 +1032,12 @@ export class MeshManager extends BaseService implements MeshPort {
     if (this.meshSecret) {
       const signature = await this.signPayload(paddedPayload);
       headers["X-Mesh-Signature"] = signature;
+    }
+
+    // SEC-06 Hardening: JIT Join Token propagation for sync
+    const jitToken = this.config.getEnv("PROVISIONING_TOKEN");
+    if (jitToken) {
+        headers["X-Provisioning-Token"] = jitToken;
     }
 
     const jitter = secureRandomInt(0, 800);

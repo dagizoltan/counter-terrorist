@@ -13,6 +13,7 @@ import { IntegrityManager } from "./integrity_manager.ts";
 import { SidecarSpawner } from "./sidecar_spawner.ts";
 import { IpcCoordinator } from "./ipc_coordinator.ts";
 import { SidecarRotator } from "./sidecar_rotator.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 /**
  * Manages persistent Rust sidecars.
@@ -114,7 +115,8 @@ export class SidecarManager implements CommandPort {
    */
   private startRotationLoop() {
     const ROTATION_INTERVAL = 6 * 60 * 60 * 1000; // 6 Hours
-    const initialJitter = Math.floor(Math.random() * 30 * 60 * 1000); // 0-30 min jitter
+    // SOV-M5 FIX: Transition to secure random jitter
+    const initialJitter = secureRandomInt(0, 30 * 60 * 1000); // 0-30 min jitter
 
     const rotationTimer = setTimeout(() => {
         this.backoffTimers.delete(rotationTimer);
@@ -847,7 +849,8 @@ export class SidecarManager implements CommandPort {
           critical: isCritical
       });
 
-      const jitter = Math.floor(Math.random() * 30000);
+      // SOV-M5 FIX: Transition to secure random jitter
+      const jitter = secureRandomInt(0, 30000);
       const resetTimer = setTimeout(() => {
           this.spawner.clearTripped(name);
           this.spawner.clearRestartInfo(name);

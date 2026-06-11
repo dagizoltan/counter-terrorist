@@ -274,13 +274,52 @@ async fn handle_command(command: AgentCommand, sys: &mut System) -> AgentRespons
         }
         AgentCommand::AttestKernel { id } => {
             log_forensic("info", "Executing Kernel-Level Attestation task...").await;
+
+            // SOV-M6 Hardening: Functional Kernel Attestation
+            // Check for critical kernel parameters and module integrity signs.
+            let mut anomalies = Vec::new();
+
+            #[cfg(target_os = "linux")]
+            {
+                // 1. Check for Taint
+                if let Ok(tainted) = std::fs::read_to_string("/proc/sys/kernel/tainted") {
+                    if tainted.trim() != "0" {
+                        anomalies.push(format!("Kernel is TAINTED (Value: {})", tainted.trim()));
+                    }
+                }
+
+                // 2. Check for unexpected modules (Example: common rootkit module names)
+                if let Ok(modules) = std::fs::read_to_string("/proc/modules") {
+                    let suspicious = ["diamorphine", "adore_ng", "vlany", "reptile"];
+                    for m in suspicious {
+                        if modules.contains(m) {
+                            anomalies.push(format!("Suspicious kernel module DETECTED: {}", m));
+                        }
+                    }
+                }
+
+                // 3. Verify Lockdown status
+                if let Ok(lockdown) = std::fs::read_to_string("/sys/kernel/security/lockdown") {
+                    if !lockdown.contains("[integrity]") && !lockdown.contains("[confidentiality]") {
+                        anomalies.push("Kernel Lockdown is NOT active.".to_string());
+                    }
+                }
+            }
+
+            let success = anomalies.is_empty();
+            let msg = if success {
+                "Kernel attestation complete. Integrity verified.".to_string()
+            } else {
+                format!("Kernel integrity compromised: {}", anomalies.join(", "))
+            };
+
             AgentResponse {
                 id: Some(id),
-                success: true,
+                success,
                 timestamp: Utc::now().to_rfc3339(),
-                message: Some("Kernel attestation complete. Integrity verified.".to_string()),
-                threats_found: Some(false),
-                memory_anomalies: None,
+                message: Some(msg),
+                threats_found: Some(!success),
+                memory_anomalies: if anomalies.is_empty() { None } else { Some(anomalies.into_iter().map(|a| serde_json::Value::String(a)).collect()) },
                 target: None,
                 data: None,
             }

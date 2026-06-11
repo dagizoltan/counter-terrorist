@@ -7,13 +7,17 @@ import { BroadcastData } from "@interface/ws_handler.ts";
 export class SentinelIntegration {
     constructor(
         private eventBus: EventBus,
-        private processTracker: ProcessTracker,
+        private processTracker: ProcessTracker | null,
         private behavioral: BehavioralAnalyzer,
         private logger: LoggingPort,
         private broadcast: (msg: BroadcastData) => void,
         private flushBatches: () => void,
         private syscallBatch: Record<string, unknown>[]
     ) {}
+
+    public setProcessTracker(tracker: ProcessTracker) {
+        this.processTracker = tracker;
+    }
 
     async handleEvent(event: Record<string, unknown>) {
         try {
@@ -60,10 +64,12 @@ export class SentinelIntegration {
                 severity = LogSeverity.ERROR;
             }
 
-            const analysis = await this.processTracker.analyzeEvent(pid, comm);
-            if (analysis.isStrayShell) {
-                type = "EBPF_STRAY_SHELL";
-                severity = LogSeverity.WARNING;
+            if (this.processTracker) {
+                const analysis = await this.processTracker.analyzeEvent(pid, comm);
+                if (analysis.isStrayShell) {
+                    type = "EBPF_STRAY_SHELL";
+                    severity = LogSeverity.WARNING;
+                }
             }
 
             if (type !== "EBPF_SYSCALL") {

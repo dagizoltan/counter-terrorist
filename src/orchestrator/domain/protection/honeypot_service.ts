@@ -112,8 +112,8 @@ export class HoneypotService extends BaseService {
     return err(new Error(`Module ${id} not found`));
   }
 
-  private morphInterval?: any;
-  private metricsInterval?: any;
+  private morphInterval?: number;
+  private metricsInterval?: number;
 
   protected override async onInit(): Promise<Result<void>> {
     const res = await this.start();
@@ -238,7 +238,15 @@ export class HoneypotService extends BaseService {
             caller: "honeypot",
             message: `Shadow ban failed for ${source_ip}: ${e.message}`
         }));
-        this.sabotageSession(source_ip).catch(() => {});
+        this.sabotageSession(source_ip).catch(e => {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:honeypot:breaker",
+                message: `Sabotage attempt failed for ${source_ip}: ${e.message}`
+            });
+        });
       }
 
       // Automated Forensics: Start capture for the attacker's traffic
@@ -255,7 +263,16 @@ export class HoneypotService extends BaseService {
         });
       }
     } else if (payload.type === "SessionData") {
-      const { port, source_ip, data } = payload;
+      const { port, source_ip, data: rawData } = payload;
+
+      // SEC-05: Unbounded Session Transcript Protection
+      // Implement hard byte-limits (16KB) for captured session data to prevent memory exhaustion (OOM).
+      const MAX_SESSION_BYTES = 16384;
+      const dataStr = String(rawData);
+      const data = dataStr.length > MAX_SESSION_BYTES
+        ? dataStr.substring(0, MAX_SESSION_BYTES) + "... [TRUNCATED]"
+        : dataStr;
+
       const module = Array.from(this.modules.values()).find(m => m.port === Number(port));
       const callerId = module ? `decoy:${module.id}` : "decoy:session";
 

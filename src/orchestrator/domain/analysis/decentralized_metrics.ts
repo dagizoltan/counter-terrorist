@@ -2,6 +2,7 @@ import { EventBus } from "./events.ts";
 import { LoggingPort } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "@core/result.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface MetricUpdatePayload {
     domain: string;
@@ -28,7 +29,8 @@ export class DecentralizedMetricsService extends BaseService {
     }
 
     protected override async onInit(): Promise<Result<void>> {
-        this.interval = setInterval(() => this.broadcastMetrics(), 5000 + (Math.random() * 500));
+        // SOV-M5 FIX: Transition to secure random jitter
+        this.interval = setInterval(() => this.broadcastMetrics(), 5000 + secureRandomInt(0, 500));
         return ok(undefined);
     }
 

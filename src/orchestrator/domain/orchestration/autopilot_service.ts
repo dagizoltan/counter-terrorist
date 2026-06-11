@@ -71,7 +71,7 @@ export class AutopilotService extends BaseService {
 
   private isStarted = false;
   private lureProcess: Deno.ChildProcess | null = null;
-  private intervalId: any = null;
+  private intervalId: number | null = null;
   private unsubscribers: (() => void)[] = [];
 
     protected override onShutdown(): Promise<Result<void>> {
@@ -144,7 +144,7 @@ export class AutopilotService extends BaseService {
 
     bus.on("HONEYPOT", async (data) => {
         await this.engine.evaluate({
-            source: data.source_ip || (data as any).ip || "unknown",
+            source: (data as Record<string, string>).source_ip || (data as Record<string, string>).ip || "unknown",
             type: "HONEYPOT_TRIGGER",
             severity: 2,
             description: `Accessed honey-port ${data.port}`,
@@ -185,9 +185,9 @@ export class AutopilotService extends BaseService {
     bus.on("EBPF_CRITICAL", async (data) => {
         const { pid, comm, syscall, args } = data;
         
-        const anomalyResult = await this.services!.playbook.executeBehavioralAudit(pid, comm, syscall, args || []) as any;
+        const anomalyResult = await this.services!.playbook.executeBehavioralAudit(pid, comm, syscall, args || []);
         
-        if (anomalyResult === "BLOCK_SYSCALL") {
+        if (anomalyResult.success && anomalyResult.data === "BLOCK_SYSCALL") {
             await this.services!.kernelService.blockSyscall(pid, syscall);
         }
 

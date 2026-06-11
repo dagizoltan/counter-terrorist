@@ -6,7 +6,7 @@ export class ThreatIntelService {
     "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
   ];
   private blacklist: Set<string> = new Set();
-  private updateInterval?: any;
+  private updateInterval?: number;
 
   constructor(
     private protection: ProtectionPort,
@@ -59,7 +59,15 @@ export class ThreatIntelService {
             this.blacklist.add(ip);
             totalLoaded++;
             // Still attempt to block via firewall sidecar for system-level protection
-            this.protection.firewall.blockIp(ip).catch(() => {});
+            this.protection.firewall.blockIp(ip).catch((e: Error) => {
+              this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:threat_intel",
+                message: `Failed to block IP ${ip}: ${e.message}`
+              });
+            });
           }
         }
       } catch (e) {

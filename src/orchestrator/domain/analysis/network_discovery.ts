@@ -25,10 +25,10 @@ export interface NetworkDevice {
  */
 export class NetworkDiscoveryService extends BaseService {
     private devices: Map<string, NetworkDevice> = new Map();
-    private discovery: any;
+    private discovery: import("./real_discovery.ts").RealDiscovery | import("./mock_discovery.ts").MockDiscovery | null = null;
     private selfId: string = "LOCAL_NODE";
     private mesh?: MeshPort;
-    private intervalId: any = null;
+    private intervalId: number | null = null;
     private isScanning = false;
 
     constructor(private logging: LoggingService, private executor: ExecutorPort) {
@@ -101,7 +101,7 @@ export class NetworkDiscoveryService extends BaseService {
         if (!this.discovery) {
             try {
                const { RealDiscovery } = await import("./real_discovery.ts");
-               this.discovery = new RealDiscovery(this.executor as any);
+               this.discovery = new RealDiscovery(this.executor);
             } catch (e) {
                this.logging.log({
                    timestamp: new Date().toISOString(),
@@ -121,7 +121,7 @@ export class NetworkDiscoveryService extends BaseService {
                 
                 // Ethernet / ARP / Local Assets
                 if (results.ethernet) {
-                    results.ethernet.forEach((device: any) => {
+                    (results.ethernet as Record<string, string>[]).forEach((device) => {
                         const mac = device.mac.toLowerCase();
                         const existing = this.devices.get(mac);
                         
@@ -145,7 +145,7 @@ export class NetworkDiscoveryService extends BaseService {
 
                 // WiFi Environmental Signals
                 if (results.wifi) {
-                    results.wifi.forEach((ap: any) => {
+                    (results.wifi as Record<string, string>[]).forEach((ap) => {
                         const id = `WIFI_${ap.mac.toLowerCase()}`;
                         this.devices.set(id, {
                             ...ap,
@@ -164,7 +164,7 @@ export class NetworkDiscoveryService extends BaseService {
 
                 // Bluetooth Environmental Signals
                 if (results.bluetooth) {
-                    results.bluetooth.forEach((dev: any) => {
+                    (results.bluetooth as Record<string, string>[]).forEach((dev) => {
                         const id = `BT_${dev.mac.toLowerCase()}`;
                         this.devices.set(id, {
                             ...dev,
@@ -183,8 +183,8 @@ export class NetworkDiscoveryService extends BaseService {
 
                 // 3. Mesh Integration (Verified Peers)
                 if (this.mesh) {
-                    const nodes = (this.mesh as any).getNodes();
-                    nodes.forEach((node: any) => {
+                    const nodes = this.mesh.getNodes();
+                    nodes.forEach((node) => {
                         const mac = (node.id || "").toLowerCase();
                         if (!mac) return;
 

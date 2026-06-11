@@ -2,6 +2,7 @@ import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface ScheduledTask {
     id: string;
@@ -104,7 +105,8 @@ export class LifecycleService extends BaseService {
         const now = Date.now();
         for (const task of this.tasks) {
             const lastRun = task.lastRun || 0;
-            const jitter = task.jitterMs ? (Math.random() * task.jitterMs) : 0;
+            // SOV-M5 FIX: Transition to secure random jitter
+            const jitter = task.jitterMs ? secureRandomInt(0, task.jitterMs) : 0;
             if (now - lastRun >= (task.intervalMs + jitter)) {
                 task.lastRun = now;
                 await this.executeTask(task);

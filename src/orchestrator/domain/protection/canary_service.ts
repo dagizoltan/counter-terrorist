@@ -3,6 +3,7 @@ import { resolve, dirname } from "https://deno.land/std@0.224.0/path/mod.ts";
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
+import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface CanaryToken {
     id: string;
@@ -20,7 +21,7 @@ export interface CanaryToken {
 export class CanaryService extends BaseService {
     private tokens: CanaryToken[] = [];
     private readonly MASTER_DIR = "./volume/deception/bait";
-    private agingIntervalId?: any;
+    private agingIntervalId?: number;
 
     constructor(
         private auditService: AuditService, 
@@ -40,10 +41,19 @@ export class CanaryService extends BaseService {
         this.tokens = baitFiles.map(b => ({
             id: b.id,
             projectionPath: b.path,
-            masterPath: `${this.MASTER_DIR}/${b.id}_${Math.random().toString(36).substring(7)}`,
+            masterPath: `${this.MASTER_DIR}/${b.id}_${this.generateRandomString(10)}`,
             description: b.desc,
             triggered: false
         }));
+    }
+
+    private generateRandomString(length: number = 8): string {
+        const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let result = "";
+        for (let i = 0; i < length; i++) {
+            result += chars.charAt(secureRandomInt(0, chars.length - 1));
+        }
+        return result;
     }
 
     private isProduction() {
@@ -54,7 +64,7 @@ export class CanaryService extends BaseService {
         const newToken: CanaryToken = {
             id: token.id,
             projectionPath: token.path,
-            masterPath: `${this.MASTER_DIR}/${token.id}_${Math.random().toString(36).substring(7)}`,
+            masterPath: `${this.MASTER_DIR}/${token.id}_${this.generateRandomString(10)}`,
             description: token.desc,
             triggered: false
         };
@@ -67,7 +77,7 @@ export class CanaryService extends BaseService {
     private async deploySingle(newToken: CanaryToken) {
         try {
             await Deno.mkdir(this.MASTER_DIR, { recursive: true }).catch(() => {});
-            const content = `DECEPTION_TOKEN: ${newToken.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
+            const content = `DECEPTION_TOKEN: ${newToken.description}\nSERIAL: ${this.generateRandomString(12)}\nDO NOT DELETE\n`;
             await Deno.writeTextFile(newToken.masterPath, content);
 
             const isProd = this.isProduction();
@@ -109,8 +119,24 @@ export class CanaryService extends BaseService {
             }
 
             await Deno.link(newToken.masterPath, newToken.projectionPath);
-            this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch(() => {});
-        } catch {}
+            this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch((e: Error) => {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:domain:protection:canary",
+                    message: `Failed to watch path ${absProjection}: ${e.message}`
+                });
+            });
+        } catch (e: unknown) {
+            this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "orchestrator:domain:protection:canary",
+                message: `Deployment failed for ${newToken.projectionPath}: ${e instanceof Error ? e.message : String(e)}`
+            });
+        }
     }
 
     protected override async onInit(): Promise<Result<void>> {
@@ -131,7 +157,7 @@ export class CanaryService extends BaseService {
         for (const token of this.tokens) {
             try {
                 // 1. Generate Master Content
-                const content = `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${Math.random().toString(36).substring(7)}\nDO NOT DELETE\n`;
+                const content = `DECEPTION_TOKEN: ${token.description}\nSERIAL: ${this.generateRandomString(12)}\nDO NOT DELETE\n`;
                 await Deno.writeTextFile(token.masterPath, content);
 
                 // 2. Project via Hardlink (Only in production)
@@ -156,7 +182,15 @@ export class CanaryService extends BaseService {
 
                     if (stat.ino === masterStat.ino) {
                         // Already deployed
-                        this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch(() => {});
+                        this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch((e: Error) => {
+                            this.logging.log({
+                                timestamp: new Date().toISOString(),
+                                type: LogType.GENERIC,
+                                severity: LogSeverity.ERROR,
+                                caller: "orchestrator:domain:protection:canary",
+                                message: `Failed to watch path ${absProjection}: ${e.message}`
+                            });
+                        });
                         continue;
                     }
 
@@ -201,8 +235,16 @@ export class CanaryService extends BaseService {
                 });
 
                 // 3. Register with FIM
-                this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch(() => {});
-            } catch (e) {
+                this.sidecar.sendCommand("watchfile", { type: "WatchPath", path: absProjection }).catch((e: Error) => {
+                    this.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.ERROR,
+                        caller: "orchestrator:domain:protection:canary",
+                        message: `Failed to watch path ${absProjection}: ${e.message}`
+                    });
+                });
+            } catch (e: unknown) {
                 this.logging.log({
                     timestamp: new Date().toISOString(),
                     type: LogType.GENERIC,
@@ -299,7 +341,7 @@ export class CanaryService extends BaseService {
                 await Deno.remove(token.masterPath).catch(() => {});
                 
                 // Regenerate master path for entropy
-                token.masterPath = `${this.MASTER_DIR}/${token.id}_${Math.random().toString(36).substring(7)}`;
+                token.masterPath = `${this.MASTER_DIR}/${token.id}_${this.generateRandomString(10)}`;
                 token.triggered = false;
             } catch (e) {
                 this.logging.log({

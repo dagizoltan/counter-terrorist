@@ -47,7 +47,9 @@ export async function retry<T>(
             if (attempt < options.maxAttempts) {
                 options.onRetry?.(lastError, attempt);
                 const delay = Math.min(maxDelay, options.baseDelayMs * Math.pow(factor, attempt - 1));
-                const jitter = delay * 0.1 * Math.random();
+                // SOV-M5 FIX: Transition to secure random jitter
+                const { secureRandomInt } = await import("../crypto_utils.ts");
+                const jitter = secureRandomInt(0, Math.floor(delay * 0.1));
                 await new Promise(r => setTimeout(r, delay + jitter));
             }
         }

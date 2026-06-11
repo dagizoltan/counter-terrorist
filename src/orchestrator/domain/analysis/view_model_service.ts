@@ -63,12 +63,12 @@ export class ViewModelService extends BaseService {
 
         this.unsubscribers.push(this.eventBus!.on("METRIC_UPDATE", (data) => {
             if (data.domain === "audit") {
-                this.metrics.totalEvents = (data.data as any).totalEvents;
+                this.metrics.totalEvents = (data.data as Record<string, number>).totalEvents;
                 this.metrics.lastAuditTimestamp = new Date().toISOString();
             } else if (data.domain === "honeypot") {
-                this.metrics.honeypotHits = (data.data as any).totalHits;
+                this.metrics.honeypotHits = (data.data as Record<string, number>).totalHits;
             } else if (data.domain === "mesh") {
-                this.metrics.activeNodes = (data.data as any).activeNodes;
+                this.metrics.activeNodes = (data.data as Record<string, number>).activeNodes;
             }
         }));
 
