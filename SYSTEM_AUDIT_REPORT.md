@@ -1,51 +1,43 @@
-# Sovereign System Audit Report (v6.1-FINAL-HARDENED)
+# Sovereign System Status & Technical Debt Report (v6.2)
 
-This report documents the final state of the Counter-Terrorist security orchestrator after a comprehensive cleanup and production-hardening cycle.
+This report details the current state of the Sovereign security orchestrator, focusing exclusively on unresolved issues, technical debt, and required next steps for production maturity.
 
-## 1. Remediated Issues (Production Hardened)
+## 1. Current Code State
+The system has completed Phase 1 & 2 of production hardening. Core security logic (TPM, Mesh Consensus, Provisioning) is now functional and verified. The orchestrator is stable on Linux with a 100% pass rate across 171 integration scenarios. However, the codebase remains in a "hybrid" state where high-level domain logic is strongly typed, but lower-level infrastructure and platform-specific providers still rely on legacy mocks and unvalidated types.
 
-### 1.1 High Severity Remediations
-- **Signature Consistency (Mesh Fix)**: Standardized on `canonicalStringify` for all identity modes (TPM & software). Prevents mesh split-brain and consensus failures.
-- **TPM NVRAM Authorization**: Implemented mandatory index-level authorization passwords for all NVRAM operations in the `trustroot` agent. Hardware-sealed secrets are now protected from local compromised processes.
-- **Lateral Movement (Provisioning)**: Secured the `ProvisioningService` by removing hardcoded `root` SSH usage. Implemented `PROVISIONING_USER`, Short-Lived JIT Provisioning Tokens, and strict SSH `known_hosts` management.
-- **Kernel Attestation**: Replaced hardcoded mocks in the `analyzer` agent with functional Linux-native integrity checks (taint, modules, lockdown status).
-- **eBPF Lifecycle Safe-Memory**: Refactored the `sentinel` agent to use safe `'static` references via `Box::leak` for BPF map access, eliminating unsafe `transmute` memory risks.
+- **Type Safety**: ~209 instances of `any` remain (primarily in `infrastructure/` and `app/`).
+- **Platform Support**: Authoritative on Linux; Mock-heavy on Windows/macOS.
+- **Resilience**: Basic crash recovery and tiered timeouts implemented; automated forensic lifecycle missing.
 
-### 1.2 Medium Severity Remediations
-- **Agent Lifecycle Resilience**:
-    - Implemented **Tiered IPC Timeouts** (5s for critical remediation like KillProcess/BlockIp) to prevent orchestrator blocking.
-    - Implemented **Automatic Restart for persistent sidecars** that exit unexpectedly with code 0 (Success).
-- **Mesh Discovery Protection**: Added re-entrancy guards and concurrency limits to `MeshManager.discoverSubnet` to prevent socket exhaustion and task leakage.
-- **Queue & Persistence Integrity**:
-    - Refactored `PersistentQueue` to use `kv.atomic()` for DLQ transitions, ensuring zero data loss on failure.
-    - Implemented paginated queue processing (batch size 100) to prevent OOM during event floods.
-- **Resource Gating**: Implemented 16KB hard limits on honeypot session transcripts and expanded the Merkle proof forensic window in `AuditService`.
+## 2. Unresolved Issues & Technical Debt
 
-### 1.3 Low Severity & Hygiene Remediations
-- **Type-Safety (Phase 1 & 2)**: Removed over 100 instances of `any`.
-- **Event System Hardening**: The `EventBus` now utilizes the `EventRegistry` and Zod schemas for automated payload validation and priority-based execution.
-- **Secure Randomness**: Replaced `Math.random()` with `secureRandomInt` for all sensitive tactical operations and jitter.
-- **Build System**: Fixed `deno task bootstrap` path and verified local Ubuntu setup.
+### 2.1 High Priority: Platform Parity Gaps
+- **Issue**: Critical security providers for Windows and macOS are currently functional stubs or mocks.
+- **Affected Components**: `WindowsFirewallProvider`, `MacOSAntivirusProvider`, `MacOSProcessProvider` (partial), `WindowsPcapProvider`.
+- **Impact**: The system provides zero real-world protection or telemetry when deployed on non-Linux assets.
 
----
+### 2.2 Medium Priority: Type-Safety Erosion (Phase 3)
+- **Issue**: 209 `any` types bypass compiler checks, increasing the risk of runtime failures in edge cases.
+- **Affected Layers**: Infrastructure providers, WebSocket handlers, and KV repository implementations.
+- **Impact**: Reduced maintainability and high reliance on runtime Zod validation rather than compile-time safety.
 
-## 2. Remaining Technical Debt & Architectural Risks
+### 2.3 Medium Priority: AppArmor Profile TOCTOU
+- **Issue**: The profile deployment pipeline uses world-writable `/tmp` for intermediate files.
+- **Impact**: Potential for local privilege escalation or security policy bypass via symlink attacks.
+- **Remediation**: Migrate to root-owned `/var/lib/cts/tmp`.
 
-### 2.1 Type-Safety Erosion (Phase 3)
-- **Status**: 209 instances of `any` remain, primarily in the `infrastructure/` and `app/` layers.
-- **Priority**: Medium - Continue systematic removal in infrastructure providers.
+### 2.4 Low Priority: Remote Path Validation
+- **Issue**: `SystemExecutor` regex for SSH/SCP remote paths returns `valid: true` immediately.
+- **Impact**: Potential for shell metacharacter injection if a payload satisfies the basic regex but contains malicious sub-commands.
 
-### 2.2 Platform Parity Gaps (Windows/macOS)
-- **Issue**: Several platform-specific providers (Firewall, PCAP, Antivirus) remain as functional mocks.
-- **Priority**: High - Implement functional drivers for WFP (Windows) and ESF (macOS).
+### 2.5 Low Priority: Unbounded Forensic Growth
+- **Issue**: PCAP captures and process dumps lack an automated lifecycle purging mechanism.
+- **Impact**: Linear disk exhaustion over long operational windows in high-activity environments.
 
-### 2.3 Deployment Security (Next Phase)
-- **Remote Path Validation**: Refine SSH/SCP argument validation to be context-aware rather than regex-bypassed.
-- **AppArmor Profile TOCTOU**: Migrate intermediate profile generation from world-writable `/tmp` to root-owned `/var/lib/cts/tmp`.
+## 3. Immediate Next Steps
 
----
-
-## 3. Verification Summary
-- **Total Integration Scenarios**: 171 (100% success rate).
-- **Hardening-Specific Tests**: 8 new test files (14 scenarios) covering signature consistency, queue resilience, transcript limits, discovery re-entrancy, EventBus typing, JIT tokens, hook auto-throttling, and sidecar lifecycle.
-- **Code Quality**: Verified via Senior Engineer peer review (Final Rating: #Correct#).
+1.  **Phase 3 Type-Safety**: Refactor `src/orchestrator/infrastructure/` to eliminate `any` in sidecar management and repository ports.
+2.  **Windows/macOS Drivers**: Replace WFP and ESF mocks with functional native command implementations.
+3.  **Secure Temp Directory**: Reconfigure `KernelService` to use restricted-access paths for policy generation.
+4.  **Forensic Lifecycle**: Implement a background cleaner service for `./volume/storage/forensics/`.
+5.  **Context-Aware Validation**: Refine `SystemExecutor` to audit remote path strings for dangerous metacharacters.
