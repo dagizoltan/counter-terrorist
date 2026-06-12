@@ -4,6 +4,8 @@ import { BehavioralAnalyzer } from "../behavioral_analyzer.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BroadcastData } from "@interface/ws_handler.ts";
 
+import { EventRegistry } from "@core/event_schema.ts";
+
 export class SentinelIntegration {
     constructor(
         private eventBus: EventBus,
@@ -15,17 +17,19 @@ export class SentinelIntegration {
         private syscallBatch: Record<string, unknown>[]
     ) {}
 
-    public setProcessTracker(tracker: ProcessTracker) {
+    public setProcessTracker(tracker: ProcessTracker | null) {
         this.processTracker = tracker;
     }
 
     async handleEvent(event: Record<string, unknown>) {
         try {
-            const { SyscallEventSchema } = await import("../../../core/event_schema.ts");
             if (event.type === "SYSCALL_EVENT") {
-                const parsed = SyscallEventSchema.parse(event);
+                const parsed = EventRegistry.SYSCALL_EVENT.parse(event);
                 Object.assign(event, parsed);
             }
+
+            // Logic moved to EventMediator but we keep the schema validation here.
+            if (event.type !== "SYSCALL_EVENT") return;
         } catch (e) {
             await this.logger.log({
                 timestamp: new Date().toISOString(),
@@ -38,11 +42,6 @@ export class SentinelIntegration {
         }
 
         if (event.type === "SYSCALL_EVENT") {
-            this.syscallBatch.push(event);
-            if (this.syscallBatch.length >= 50) {
-                this.flushBatches();
-            }
-
             let type = "EBPF_SYSCALL";
             let severity = LogSeverity.INFO;
             const pid = typeof event.pid === "number" ? event.pid : 0;

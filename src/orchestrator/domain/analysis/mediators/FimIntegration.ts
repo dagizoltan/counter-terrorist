@@ -2,6 +2,7 @@ import { EventBus } from "../events.ts";
 import { CanaryService } from "../../protection/canary_service.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BroadcastData } from "@interface/ws_handler.ts";
+import { EventRegistry } from "@core/event_schema.ts";
 
 export class FimIntegration {
     constructor(
@@ -11,15 +12,14 @@ export class FimIntegration {
         private broadcast: (msg: BroadcastData) => void
     ) {}
 
-    public setCanaryService(service: CanaryService) {
+    public setCanaryService(service: CanaryService | null) {
         this.canaryService = service;
     }
 
     async handleEvent(payload: Record<string, unknown>) {
         try {
-            const { FileDriftSchema } = await import("../../../core/event_schema.ts");
             if (payload?.type === "FileAlert") {
-                payload = FileDriftSchema.parse(payload);
+                payload = EventRegistry.FILE_DRIFT.parse(payload);
             }
         } catch (e) {
             await this.logger.log({

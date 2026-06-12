@@ -4,6 +4,7 @@ import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports
 import { BaseService } from "@core/base_service.ts";
 import { BroadcastData } from "@interface/ws_handler.ts";
 import { Result, ok } from "../../core/result.ts";
+import { TelemetryBatcher } from "./telemetry_batcher.ts";
 
 import { SentinelIntegration } from "./mediators/SentinelIntegration.ts";
 import { FimIntegration } from "./mediators/FimIntegration.ts";
@@ -34,11 +35,9 @@ export class EventMediator extends BaseService {
     private networkIntegration: NetworkIntegration;
     private scannerIntegration: ScannerIntegration;
     private learningTimeout: number | null = null;
+    private batcher: TelemetryBatcher;
 
-    // Performance: High-volume event batching & Backpressure Throttling
-    private syscallBatch: SidecarEvent[] = [];
-    private networkBatch: SidecarEvent[] = [];
-    private readonly BATCH_THRESHOLD = 50;
+    // Performance: High-volume event backpressure throttling
     private readonly MAX_QUEUE_DEPTH = 1000;
     private batchTimer?: number;
 
@@ -48,13 +47,11 @@ export class EventMediator extends BaseService {
         const { serviceLocator } = await import("@core/service_locator.ts");
 
         if (serviceLocator.has("processTracker")) {
-            const processTracker = serviceLocator.get<ProcessTracker>("processTracker");
-            this.sentinelIntegration.setProcessTracker(processTracker);
+            this.sentinelIntegration.setProcessTracker(serviceLocator.get("processTracker"));
         }
 
         if (serviceLocator.has("canaryService")) {
-            const canaryService = serviceLocator.get<CanaryService>("canaryService");
-            this.fimIntegration.setCanaryService(canaryService);
+            this.fimIntegration.setCanaryService(serviceLocator.get("canaryService"));
         }
 
         return ok(undefined);
@@ -97,6 +94,8 @@ export class EventMediator extends BaseService {
         this.setEventBus(eventBusPort);
         this.eventBus = eventBusPort;
         this.behavioral = new BehavioralAnalyzer();
+        this.batcher = new TelemetryBatcher(eventBusPort);
+
         if (kv) {
             this.behavioral.setKv(kv).catch(err => this.logger.log({
                 timestamp: new Date().toISOString(),
@@ -107,9 +106,9 @@ export class EventMediator extends BaseService {
             }));
         }
 
-        this.sentinelIntegration = new SentinelIntegration(eventBusPort, null as unknown as ProcessTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
-        this.fimIntegration = new FimIntegration(eventBusPort, null as unknown as CanaryService, logger, broadcast);
-        this.networkIntegration = new NetworkIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.networkBatch);
+        this.sentinelIntegration = new SentinelIntegration(eventBusPort, null, this.behavioral, logger, broadcast, () => this.batcher.flush("EBPF_SYSCALL"), []);
+        this.fimIntegration = new FimIntegration(eventBusPort, null, logger, broadcast);
+        this.networkIntegration = new NetworkIntegration(eventBusPort, this.behavioral, logger, broadcast, () => this.batcher.flush("NETWORK_LOG"), []);
         this.scannerIntegration = new ScannerIntegration(eventBusPort, logger, broadcast);
 
         this.behavioral.setLearningMode(true);
@@ -135,18 +134,8 @@ export class EventMediator extends BaseService {
         this.batchTimer = setInterval(() => this.flushBatches(), 1000);
     }
 
-    private async flushBatches() {
-        if (this.syscallBatch.length > 0) {
-            // SOV-06 Hardening: Limit batch size to prevent orchestrator loop blocking
-            const batch = this.syscallBatch.splice(0, this.MAX_QUEUE_DEPTH);
-            // @ts-ignore: Batch emitting requires domain-specific cast or registry update
-            await this.eventBus?.emit("EBPF_SYSCALL_BATCH", batch);
-        }
-        if (this.networkBatch.length > 0) {
-            const batch = this.networkBatch.splice(0, this.MAX_QUEUE_DEPTH);
-            // @ts-ignore: Batch emitting requires domain-specific cast or registry update
-            await this.eventBus?.emit("NETWORK_LOG_BATCH", batch);
-        }
+    private flushBatches() {
+        this.batcher.flush();
     }
 
     /**
@@ -176,12 +165,13 @@ export class EventMediator extends BaseService {
         commandPort.onEvent("sentinel", async (response: unknown) => {
             try {
                 // SOV-06 Hardening: Load-shedding during telemetry flood
-                if (this.syscallBatch.length > this.MAX_QUEUE_DEPTH) {
-                    this.handleThrottling("sentinel");
-                    return;
+                // In modularized version, the batching is handled inside SentinelIntegration,
+                // but we keep the mediator-level throttle for safety.
+                const event = unwrapSidecar(response);
+                if (event.type === "SYSCALL_EVENT") {
+                    this.batcher.add("EBPF_SYSCALL", event);
                 }
 
-                const event = unwrapSidecar(response);
                 await this.sentinelIntegration.handleEvent(event);
             } catch (e) {
                 this.handleMediatorError(e as Error, "sentinel");
@@ -202,14 +192,13 @@ export class EventMediator extends BaseService {
         // 4. PCAP Integration
         commandPort.onEvent("netcap", async (response: unknown) => {
             try {
-                // SOV-06 Hardening: Load-shedding during network telemetry flood
-                if (this.networkBatch.length > this.MAX_QUEUE_DEPTH) {
-                    this.handleThrottling("netcap");
-                    return;
-                }
-
                 const event = unwrapSidecar(response);
                 const data = unwrapSidecar(event);
+
+                if (event.type === "NETWORK_LOG") {
+                    this.batcher.add("NETWORK_LOG", data);
+                }
+
                 await this.networkIntegration.handleEvent(event, data);
             } catch (e) {
                 this.handleMediatorError(e as Error, "netcap");
