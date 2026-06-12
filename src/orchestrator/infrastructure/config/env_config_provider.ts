@@ -16,7 +16,7 @@ export class EnvConfigProvider implements ConfigurationPort {
   }
 
   getEnv(key: string): string | undefined {
-    const val = (this.config as any)[key];
+    const val = this.config[key as keyof AppConfig];
     if (val === undefined) {
       // Fallback to Deno.env for non-schema variables if absolutely necessary
       // but log a warning as this bypasses validation.

@@ -109,6 +109,14 @@ export class SystemExecutor implements ExecutorPort {
 
       // Remote path bypass for SCP/SSH to avoid jail enforcement on remote addresses
       if ((baseCmd === "scp" || baseCmd === "ssh") && /^[a-z0-9]+@([a-z0-9.-]+|\[[a-f0-9:]+\]):.*$/.test(arg)) {
+          // SEC-06 Hardening: Even for remote paths, we must audit the path portion for dangerous metacharacters.
+          // Using lastIndexOf to correctly handle IPv6 bracketed addresses which contain colons.
+          const lastColonIndex = arg.lastIndexOf(":");
+          const pathPortion = lastColonIndex !== -1 ? arg.substring(lastColonIndex + 1) : "";
+
+          if (pathPortion && /[;&|><`$()!]/.test(pathPortion)) {
+              return { valid: false, reason: `Security Violation: Shell metacharacters detected in remote path portion of '${arg}'` };
+          }
           return { valid: true };
       }
 
@@ -263,7 +271,7 @@ export class SystemExecutor implements ExecutorPort {
         finalArgs = ["-n", cmd, ...args];
     }
 
-    let timeoutId: any;
+    let timeoutId: number | undefined;
     let child: Deno.ChildProcess | undefined;
 
     try {
