@@ -1,6 +1,6 @@
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort, ExecutorPort } from "@core/ports.ts";
-import { SidecarManifest } from "./sidecar_repository.ts";
-import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
+import { SidecarManifest } from "./repository.ts";
+import { IpcFfiBridge } from "../ipc_ffi_bridge.ts";
 
 export class IntegrityManager {
     constructor(

@@ -37,7 +37,7 @@ export class AutopilotService extends BaseService {
     this.services = services;
   }
 
-    protected override onInit(..._args: any[]): Promise<Result<void>> {
+    protected override onInit(): Promise<Result<void>> {
     if (!this.services) return Promise.resolve(ok(undefined));
 
     const saga = new ThreatResponseSaga({

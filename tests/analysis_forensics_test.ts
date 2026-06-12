@@ -1,9 +1,8 @@
 import { assertEquals } from "@std/assert";
 import { CausalGraphService } from "@domain/analysis/causal_graph_service.ts";
 import { LoggingPort } from "@core/ports.ts";
-import { ForensicRecord } from "../src/orchestrator/tools/ops/forensic_query.ts";
 
-const mockLogging: LoggingPort = {
+const mockLogging: any = {
     log: async () => {},
     logLegacy: async () => {},
     getRecentLogs: async () => [],
@@ -16,7 +15,7 @@ Deno.test("CausalGraphService - Enhanced Heuristics", async () => {
     const service = new CausalGraphService(mockLogging);
 
     // Mock records to test new heuristics
-    const records: ForensicRecord[] = [
+    const records = [
         { pid: 100, comm: "systemd", syscall: "execve", timestamp: "2026-06-12T10:00:00Z" },
         { pid: 200, ppid: 100, comm: "nginx", syscall: "execve", timestamp: "2026-06-12T10:00:01Z" },
         { pid: 200, comm: "nginx", syscall: "connect", timestamp: "2026-06-12T10:00:02Z", port: 80, type: "NETWORK_EVENT" },

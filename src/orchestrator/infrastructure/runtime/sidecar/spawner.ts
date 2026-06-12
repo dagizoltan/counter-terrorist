@@ -1,6 +1,6 @@
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort, ExecutorPort } from "@core/ports.ts";
-import { SIDECAR_REGISTRY } from "./sidecar_registry.ts";
-import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
+import { SIDECAR_REGISTRY } from "../sidecar_registry.ts";
+import { IpcFfiBridge } from "../ipc_ffi_bridge.ts";
 
 export class SidecarSpawner {
     private restartCounts: Map<string, { count: number, lastRestart: number }> = new Map();

@@ -1,7 +1,7 @@
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
-import { SIDECAR_REGISTRY } from "./sidecar_registry.ts";
+import { SIDECAR_REGISTRY } from "../sidecar_registry.ts";
 import { IntegrityManager } from "./integrity_manager.ts";
-import { SidecarRepository } from "./sidecar_repository.ts";
+import { SidecarRepository } from "./repository.ts";
 
 export interface SidecarRotatorDependencies {
     stopSidecar(name: string): Promise<void>;
