@@ -6,7 +6,7 @@ import { LoggingPort, LogType, LogSeverity } from "@core/ports.ts";
  */
 export class HeartbeatMonitor {
     private lastHeartbeat: Map<string, number> = new Map();
-    private heartbeatInterval: any = null;
+    private heartbeatInterval: number | null = null;
 
     constructor(
         private logging: LoggingPort,
