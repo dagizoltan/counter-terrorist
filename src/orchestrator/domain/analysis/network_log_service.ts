@@ -27,11 +27,11 @@ export class NetworkLogService extends BaseService implements LoggingPort {
     this.logging.setKv(kv);
   }
 
-  async log(entry: any) {
-    if (entry.direction && entry.source && entry.destination) {
+  async log(entry: NetworkLogEntry | import("../../core/ports/logging.ts").LogEntry) {
+    if ("direction" in entry && "source" in entry && "destination" in entry) {
         await this.repo.save(entry as NetworkLogEntry);
     } else {
-        await this.logging.log(entry);
+        await this.logging.log(entry as import("../../core/ports/logging.ts").LogEntry);
     }
   }
 

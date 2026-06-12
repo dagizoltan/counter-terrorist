@@ -93,7 +93,7 @@ export class SystemExecutor implements ExecutorPort {
     return { valid: true };
   }
 
-  private static readonly DANGEROUS_PATTERN = /[\/\\%{}&|;><`()!\n\r\$]|\.\./;
+  private static readonly DANGEROUS_PATTERN = /[&|;><`()!\n\r\$]|\.\./;
 
   private isPotentiallyDangerous(arg: string): boolean {
       // SOV-06 HARDENING: Comprehensive shell metacharacter and escape detection
@@ -114,8 +114,9 @@ export class SystemExecutor implements ExecutorPort {
           const lastColonIndex = arg.lastIndexOf(":");
           const pathPortion = lastColonIndex !== -1 ? arg.substring(lastColonIndex + 1) : "";
 
-          if (pathPortion && /[;&|><`$()!]/.test(pathPortion)) {
-              return { valid: false, reason: `Security Violation: Shell metacharacters detected in remote path portion of '${arg}'` };
+          // Apply dangerous pattern check to remote path portion
+          if (pathPortion && this.isPotentiallyDangerous(pathPortion)) {
+              return { valid: false, reason: `Security Violation: Dangerous pattern detected in remote path portion of '${arg}'` };
           }
           return { valid: true };
       }
