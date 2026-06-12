@@ -27,7 +27,7 @@ export interface VpnProvider {
   connect(interfaceName: string): Promise<VpnResult>;
   disconnect(interfaceName?: string): Promise<VpnResult>;
   isConnected(interfaceName?: string): Promise<boolean>;
-  getStatus(): Promise<any>;
+  getStatus(): Promise<CommandResult>;
   flushRules(): Promise<VpnResult>;
 }
 
@@ -40,7 +40,7 @@ export interface ScanResult {
 }
 
 export interface AntivirusProvider {
-  getStatus(): Promise<any>;
+  getStatus(): Promise<CommandResult>;
   scanPath(path: string): Promise<ScanResult>;
   quarantine(path: string): Promise<{ success: boolean; message: string; target?: string }>;
   syncSignatures(): Promise<CommandResult>;
@@ -48,7 +48,7 @@ export interface AntivirusProvider {
 
 export interface PersistenceAuditResult {
   success: boolean;
-  anomalies: any[];
+  anomalies: Record<string, unknown>[];
   timestamp: string;
 }
 

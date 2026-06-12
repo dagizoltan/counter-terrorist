@@ -14,7 +14,7 @@ export class FirewallManager implements FirewallPort {
   private config?: ConfigurationPort;
 
   private eventBus?: EventBusPort;
-  private metricsInterval?: any;
+  private metricsInterval?: number;
 
   constructor(private provider: FirewallProvider, private networkLogs?: LoggingPort) {
       this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);
@@ -45,7 +45,7 @@ export class FirewallManager implements FirewallPort {
           data: {
               blockedCount: rejectCount,
               rules: rules.length,
-              blockedIps: blockedIps.slice(0, 20) as any,
+              blockedIps: blockedIps.slice(0, 20).join(","),
               // Note: behavioral metrics should be emitted by BehavioralService
           }
       });

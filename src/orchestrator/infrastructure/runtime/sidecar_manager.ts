@@ -38,8 +38,8 @@ export class SidecarManager implements CommandPort {
   private cleanupHandler: (() => Promise<void>) | null = null;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
-  private rotationInterval?: number | any;
-  private backoffTimers: Set<number | any> = new Set();
+  private rotationInterval?: number;
+  private backoffTimers: Set<number> = new Set();
   private manifestPromise: Promise<void> | null = null;
   private initialized = false;
 
@@ -432,7 +432,7 @@ export class SidecarManager implements CommandPort {
             if (data.id) {
               const waiter = this.ipc.getWaiter(name, data.id);
               if (waiter) {
-                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
+                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, unknown> | undefined, message: data.message });
 
                 // Also emit to event handlers even if it was a direct response
                 this.ipc.emitEvent(name, data);

@@ -33,7 +33,7 @@ export class LoggingService implements LoggingPort {
         }
 
         if (config.host) {
-            this.transport = new SyslogTransport(config.host, config.port || 514, (config.transport as any) || "udp", config.caPath || null);
+            this.transport = new SyslogTransport(config.host, config.port || 514, (config.transport as "udp" | "tcp" | "tls") || "udp", config.caPath || null);
             this.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.GENERIC,
@@ -71,7 +71,7 @@ export class LoggingService implements LoggingPort {
     private originalError = console.error;
 
     enableGlobalIntercept() {
-        console.log = (...args: any[]) => {
+        console.log = (...args: unknown[]) => {
             this.originalLog(...args);
             if (this.isIntercepting) return;
             this.isIntercepting = true;
@@ -84,7 +84,7 @@ export class LoggingService implements LoggingPort {
             }).finally(() => this.isIntercepting = false);
         };
 
-        console.warn = (...args: any[]) => {
+        console.warn = (...args: unknown[]) => {
             this.originalWarn(...args);
             if (this.isIntercepting) return;
             this.isIntercepting = true;
@@ -97,7 +97,7 @@ export class LoggingService implements LoggingPort {
             }).finally(() => this.isIntercepting = false);
         };
 
-        console.error = (...args: any[]) => {
+        console.error = (...args: unknown[]) => {
             this.originalError(...args);
             if (this.isIntercepting) return;
             this.isIntercepting = true;
@@ -245,7 +245,7 @@ export class LoggingService implements LoggingPort {
         this.flushIntervalId = setInterval(() => {
             this.flushLogs();
             this.flushKvBuffer().catch(() => {});
-        }, 5000) as any;
+        }, 5000);
     }
 
     async shutdown() {

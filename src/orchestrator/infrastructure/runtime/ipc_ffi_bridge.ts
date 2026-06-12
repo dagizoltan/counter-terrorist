@@ -154,12 +154,12 @@ export class IpcFfiBridge {
             return this.ffi.symbols.shmem_write(ptr, masked as any, BigInt(masked.length));
         }
 
-        return this.ffi.symbols.shmem_write(ptr, data as any, BigInt(data.length));
+        return this.ffi.symbols.shmem_write(ptr, data as Uint8Array, BigInt(data.length));
     }
 
     fastMorph(data: Uint8Array, key: Uint8Array): void {
         if (!this.ffi) return;
-        this.ffi.symbols.fast_morph(data as any, BigInt(data.length), key as any, BigInt(key.length));
+        this.ffi.symbols.fast_morph(data as Uint8Array, BigInt(data.length), key as Uint8Array, BigInt(key.length));
     }
 
     createSealedMemfd(name: string, data: Uint8Array): number {

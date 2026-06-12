@@ -292,7 +292,7 @@ export interface SidecarResponse {
   message?: string;
   stdout?: string;
   stderr?: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   timestamp?: string;
   event?: string;
   type?: string;
@@ -329,7 +329,7 @@ export interface PcapResponse extends SidecarResponse {
 
 export interface SidecarEvent {
   type: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -592,7 +592,7 @@ export const SidecarResponseSchema = z.object({
     error: z.string().optional()
 });
 
-export function validateRequest(sidecar: SidecarName, req: Record<string, any>): boolean {
+export function validateRequest(sidecar: SidecarName, req: Record<string, unknown>): boolean {
     const schema = REQUEST_SCHEMAS[sidecar];
     if (!schema) return false;
     return schema.safeParse(req).success;

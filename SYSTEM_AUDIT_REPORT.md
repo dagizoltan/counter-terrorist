@@ -16,9 +16,9 @@ The system has completed Phase 1 & 2 of production hardening. Core security logi
 - **Affected Components**: `WindowsFirewallProvider`, `MacOSAntivirusProvider`, `MacOSProcessProvider` (partial), `WindowsPcapProvider`.
 - **Impact**: The system provides zero real-world protection or telemetry when deployed on non-Linux assets.
 
-### 2.2 Medium Priority: Type-Safety Erosion (Phase 3)
-- **Issue**: 209 `any` types bypass compiler checks, increasing the risk of runtime failures in edge cases.
-- **Affected Layers**: Infrastructure providers, WebSocket handlers, and KV repository implementations.
+### 2.2 Medium Priority: Type-Safety Erosion (Phase 4)
+- **Issue**: 184 `any` types remain, primarily in the `interface/web` and `app/` bootstrap layers.
+- **Affected Layers**: WebSocket handlers, dynamic UI component properties, and service registry mocks.
 - **Impact**: Reduced maintainability and high reliance on runtime Zod validation rather than compile-time safety.
 
 ### 2.3 Medium Priority: AppArmor Profile TOCTOU

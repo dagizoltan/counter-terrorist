@@ -146,7 +146,7 @@ export class ServiceOrchestrator {
             tpm,
             policy,
             health,
-            metrics: {} as any,
+            metrics: {} as DecentralizedMetricsService,
             mediator: operational.mediator,
             behavioral: security.behavioral,
             geoIp: intelligence.geoIp,
@@ -159,7 +159,7 @@ export class ServiceOrchestrator {
 
         for (const [key, service] of Object.entries(services)) {
             if (!serviceLocator.has(key)) {
-                serviceLocator.register(key as any, service);
+                serviceLocator.register(key, service);
             }
         }
 
@@ -175,7 +175,7 @@ export class ServiceOrchestrator {
         );
         services.metrics = metricsService;
         this.registry.register("DecentralizedMetrics", metricsService, ShutdownPriority.AUXILIARY);
-        setMetricsService(metricsService as any);
+        setMetricsService(metricsService);
 
         this.injectEventBus(services);
         this.wireEvents(services);
@@ -200,7 +200,7 @@ export class ServiceOrchestrator {
     }
 
     private isBusAware(svc: unknown): svc is { setEventBus(bus: EventBus): void } {
-        return !!svc && typeof svc === "object" && "setEventBus" in svc && typeof (svc as any).setEventBus === "function";
+        return !!svc && typeof svc === "object" && "setEventBus" in svc && typeof (svc as Record<string, unknown>).setEventBus === "function";
     }
 
     private wireEvents(services: ServiceContainer) {
