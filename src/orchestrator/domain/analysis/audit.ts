@@ -669,6 +669,8 @@ export class AuditService extends BaseService {
         if (this.isProcessingQueue) return;
         this.isProcessingQueue = true;
 
+        const MAX_SESSION_HASHES = 5000;
+
         try {
             while (this.logQueue.length > 0) {
                 const currentQueue = this.logQueue;
@@ -715,8 +717,9 @@ export class AuditService extends BaseService {
                             this.currentSessionHashes.push(hash);
 
                             // STABILITY: Bound Merkle Tree Memory to prevent OOM during high-activity incidents
-                            const MAX_MERKLE_BUFFER = 5000;
-                            if (this.currentSessionHashes.length >= MAX_MERKLE_BUFFER) {
+                            if (this.currentSessionHashes.length >= MAX_SESSION_HASHES) {
+                                // We don't await here to keep the log queue moving,
+                                // but the threshold is enforced.
                                 this.commitMerkleRoot().catch(err => this.safeLogAuditError("Background Merkle commitment failure", err));
                             }
                         }

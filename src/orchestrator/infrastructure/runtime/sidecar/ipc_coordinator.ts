@@ -1,6 +1,6 @@
 import { LoggingPort, LogSeverity, LogType, CommandResult } from "@core/ports.ts";
-import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
-import { SidecarResponse } from "../system/validation.ts";
+import { IpcFfiBridge } from "../ipc_ffi_bridge.ts";
+import { SidecarResponse } from "../../system/validation.ts";
 
 export class IpcCoordinator {
     private mappedShmem: Map<string, Deno.PointerValue> = new Map();

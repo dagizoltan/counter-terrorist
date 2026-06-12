@@ -77,6 +77,24 @@ function ReplayIsland() {
     </div>
   `;
 
+  const [graphNodes, setGraphNodes] = useState({});
+
+  useEffect(() => {
+    if (!filteredEvents[currentIndex]) return;
+    const current = filteredEvents[currentIndex];
+    const pid = current.data?.pid || current.pid;
+
+    if (pid) {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        fetch(`/api/forensics/graph?pid=${pid}`, {
+            headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+        })
+        .then(r => r.json())
+        .then(data => setGraphNodes(data))
+        .catch(err => console.error("[REPLAY] Graph fetch failure", err));
+    }
+  }, [currentIndex, filteredEvents]);
+
   const currentEvent = filteredEvents[currentIndex];
   const severity = currentEvent.type;
   const theme = ['CRITICAL', 'BLOCK', 'THREAT'].includes(severity) ? 'danger' : ['WARN', 'WARNING'].includes(severity) ? 'warning' : 'primary';
@@ -120,6 +138,42 @@ function ReplayIsland() {
     }
   };
 
+  const renderGraph = () => {
+    const nodes = Object.values(graphNodes);
+    if (nodes.length === 0) return html`<div class="flex items-center justify-center h-full text-slate-700 mono-xs uppercase">No_Causal_Data_Available</div>`;
+
+    const width = 800;
+    const height = 400;
+
+    return html`
+        <svg width="100%" height="400" viewBox="0 0 ${width} ${height}" class="bg-black/20 rounded-xl">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orientation="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="var(--primary)" opacity="0.5" />
+                </marker>
+            </defs>
+            ${nodes.map((node, i) => {
+                const x = 100 + (i * 150) % (width - 200);
+                const y = 50 + (Math.floor((i * 150) / (width - 200)) * 100);
+                node.x = x;
+                node.y = y;
+
+                return html`
+                    <g key=${node.id}>
+                        ${node.children.map(childId => {
+                            const child = graphNodes[childId];
+                            if (!child || !child.x) return null;
+                            return html`<line x1=${x} y1=${y} x2=${child.x} y2=${child.y} stroke="var(--primary)" stroke-width="1" opacity="0.2" marker-end="url(#arrowhead)" />`;
+                        })}
+                        <circle cx=${x} cy=${y} r="6" fill=${node.type === 'PROCESS' ? 'var(--primary)' : node.type === 'NETWORK' ? 'var(--warning)' : 'var(--success)'} class="animate-pulse" />
+                        <text x=${x + 10} y=${y + 4} fill="white" font-size="8" class="mono-xs opacity-50 select-none">${node.label}</text>
+                    </g>
+                `;
+            })}
+        </svg>
+    `;
+  };
+
   return html`
     <div class="space-y-8 ">
       <div class="t-panel glass-panel p-10">
@@ -158,7 +212,11 @@ function ReplayIsland() {
                <div class="absolute top-0 right-0 p-12 opacity-[0.05] pointer-events-none transform rotate-12"><svg width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
                <div class="flex justify-between items-start mb-10"><div class=${`status-pill ${theme}`}>${severity}</div><div class="flex flex-col items-end"><span class="metric-tag mb-1">EVENT_ID</span><span class="mono-xs font-black text-white bg-white/5 px-3 py-1 rounded">CT-${currentEvent.id?.toString().slice(-6) || 'UNK'}</span></div></div>
                <h4 class="text-2xl font-bold text-white mb-10 leading-tight tracking-tighter uppercase italic">${currentEvent.message}</h4>
-               <div class="bg-black/60 rounded-xl border border-white/5 p-8"><div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5"><div class="flex items-center gap-4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="3"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span class="mono-xs text-primary font-black tracking-widest uppercase">Telemetry_Manifest</span></div><span class="mono-xs text-slate-700">SHA256_VERIFIED</span></div><pre class="mono-xs text-slate-400 leading-relaxed overflow-x-auto custom-scrollbar max-h-[400px]">${JSON.stringify(currentEvent.data || {}, null, 2)}</pre></div>
+               <div class="bg-black/60 rounded-xl border border-white/5 p-8 mb-8"><div class="flex items-center justify-between mb-6 pb-4 border-b border-white/5"><div class="flex items-center gap-4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="3"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg><span class="mono-xs text-primary font-black tracking-widest uppercase">Telemetry_Manifest</span></div><span class="mono-xs text-slate-700">SHA256_VERIFIED</span></div><pre class="mono-xs text-slate-400 leading-relaxed overflow-x-auto custom-scrollbar max-h-[400px]">${JSON.stringify(currentEvent.data || {}, null, 2)}</pre></div>
+               <div class="t-panel glass-panel p-6">
+                  <div class="flex items-center gap-4 mb-6"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="3"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg><span class="mono-xs text-primary font-black tracking-widest uppercase">Causal_Relativity_Graph</span></div>
+                  ${renderGraph()}
+               </div>
             </div>
             <div class=${`t-panel border-l-4 p-8 ${theme === 'danger' ? 'border-danger bg-danger/5' : 'border-primary bg-primary/5'}`}>
                <div class="flex items-center justify-between mb-8"><div class="flex items-center gap-4 text-white"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg><span class="tactical-title text-base tracking-widest">BLOCKCHAIN_LEDGER_INTEGRITY</span></div><div class="status-pill active bg-success/20 text-success border-success/30 px-4">VALIDATED</div></div>

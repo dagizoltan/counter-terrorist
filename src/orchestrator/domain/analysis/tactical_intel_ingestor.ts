@@ -11,13 +11,19 @@ export interface ThreatInfo {
     severity: "CRITICAL" | "HIGH" | "MEDIUM";
 }
 
+interface IntelSource {
+    name: string;
+    url: string;
+    type: "IP" | "DOMAIN" | "URL";
+}
+
 /**
  * TacticalIntelIngestor
  * Periodically fetches global threat intelligence from OSINT sources and stores it locally.
  */
 export class TacticalIntelIngestor extends BaseService {
     private kv: Deno.Kv | null = null;
-    private sources = [
+    private sources: IntelSource[] = [
         { name: "FeodoTracker", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
         { name: "BinaryDefense", url: "https://www.binarydefense.com/banlist.txt", type: "IP" },
         { name: "OpenPhish", url: "https://openphish.com/feed.txt", type: "URL" },
@@ -26,11 +32,11 @@ export class TacticalIntelIngestor extends BaseService {
         { name: "TalosIntelligence", url: "https://www.talosintelligence.com/documents/ip-blacklist", type: "IP" }
     ];
 
-    constructor(private logging: LoggingPort, private firewall: any) {
+    constructor(private logging: LoggingPort, private firewall: import("@core/ports.ts").FirewallPort) {
         super();
     }
 
-    private intervalId: any = null;
+    private intervalId: number | null = null;
 
     protected override async onInit(): Promise<Result<void>> {
         await this.start();
@@ -110,7 +116,7 @@ export class TacticalIntelIngestor extends BaseService {
         });
     }
 
-    private async processSource(source: any, data: string) {
+    private async processSource(source: IntelSource, data: string) {
         const lines = data.split("\n");
         let count = 0;
 

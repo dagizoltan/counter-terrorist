@@ -190,8 +190,24 @@ export enum TacticalThreatCode {
   UNAUTHORIZED_ACCESS = "UNAUTHORIZED_ACCESS"
 }
 
-export type EventRegistry = typeof SystemEventRegistry;
-export type EventName = keyof EventRegistry | string;
+export const EventRegistry = {
+    SYSCALL_EVENT: SyscallEventSchema,
+    NETWORK_LOG: NetworkLogSchema,
+    FILE_DRIFT: FileDriftSchema,
+    THREAT_DETECTED: z.object({
+        type: z.string(),
+        path: z.string().optional(),
+        pid: z.number().optional(),
+        comm: z.string().optional(),
+        indicator: z.string().optional(),
+        severity: z.string().optional(),
+        message: z.string().optional(),
+        correlationId: z.string().optional()
+    }),
+};
+
+export type SystemEventRegistryType = typeof SystemEventRegistry;
+export type EventName = keyof SystemEventRegistryType | string;
 
 /**
  * Validates an event payload against its registered schema.

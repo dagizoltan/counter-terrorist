@@ -62,13 +62,14 @@ export class ViewModelService extends BaseService {
         super.setEventBus(eventBus);
 
         this.unsubscribers.push(this.eventBus!.on("METRIC_UPDATE", (data) => {
+            const metricsData = data.data as Record<string, unknown>;
             if (data.domain === "audit") {
-                this.metrics.totalEvents = (data.data as Record<string, number>).totalEvents;
+                this.metrics.totalEvents = typeof metricsData.totalEvents === "number" ? metricsData.totalEvents : this.metrics.totalEvents;
                 this.metrics.lastAuditTimestamp = new Date().toISOString();
             } else if (data.domain === "honeypot") {
-                this.metrics.honeypotHits = (data.data as Record<string, number>).totalHits;
+                this.metrics.honeypotHits = typeof metricsData.totalHits === "number" ? metricsData.totalHits : this.metrics.honeypotHits;
             } else if (data.domain === "mesh") {
-                this.metrics.activeNodes = (data.data as Record<string, number>).activeNodes;
+                this.metrics.activeNodes = typeof metricsData.activeNodes === "number" ? metricsData.activeNodes : this.metrics.activeNodes;
             }
         }));
 

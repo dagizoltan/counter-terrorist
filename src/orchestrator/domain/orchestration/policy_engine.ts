@@ -90,7 +90,7 @@ export class PolicyEngine extends BaseService {
     /**
      * Determines the appropriate remediation action for a given threat score and context.
      */
-    evaluate(score: number, context?: Record<string, any>): ThresholdRule {
+    evaluate(score: number, context?: Record<string, unknown>): ThresholdRule {
         // 1. Evaluate DSL Rules first (Context-Aware)
         if (context && this.policy.rules.length > 0) {
             const matchedRule = this.dsl.evaluate(this.policy.rules, { ...context, score });

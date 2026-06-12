@@ -68,8 +68,8 @@ const SOURCE_WEIGHTS: Record<string, number> = {
  */
 export class CuratedIntelService extends BaseService {
     private kv?: Deno.Kv;
-    private syncInterval?: any;
-    private lifecycleInterval?: any;
+    private syncInterval?: number;
+    private lifecycleInterval?: number;
     private breaker = new CircuitBreaker({ failureThreshold: 5, resetTimeoutMs: 600000 });
     private sources = [
         { name: "Abuse.ch", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },

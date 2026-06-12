@@ -43,7 +43,7 @@ export class IntelEnricher {
     /**
      * Enriches a list of devices with public intelligence.
      */
-    static enrichDevices(devices: any[]) {
+    static enrichDevices<T extends { mac?: string }>(devices: T[]) {
         return devices.map(d => ({
             ...d,
             publicIntel: this.getPublicIntel(d.mac || "")

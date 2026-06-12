@@ -1,6 +1,7 @@
 import { EventBus } from "../events.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BroadcastData } from "@interface/ws_handler.ts";
+import { EventRegistry } from "@core/event_schema.ts";
 
 export class ScannerIntegration {
     constructor(
@@ -10,6 +11,21 @@ export class ScannerIntegration {
     ) {}
 
     async handleEvent(data: Record<string, unknown>) {
+        try {
+            if (data.type === "ThreatDetected") {
+                data = EventRegistry.THREAT_DETECTED.parse(data);
+            }
+        } catch (e) {
+            await this.logger.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.GENERIC,
+                severity: LogSeverity.ERROR,
+                caller: "SCANNER:SCHEMA",
+                message: `Malformed SCANNER event: ${(e as Error).message}`
+            });
+            return;
+        }
+
         const scanType = typeof data.type === "string" ? data.type : "";
         if (scanType === "ThreatDetected" || scanType === "RKH_SCAN_RESULT") {
             this.broadcast({

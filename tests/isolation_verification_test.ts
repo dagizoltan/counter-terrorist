@@ -1,6 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { SystemExecutor } from "../src/orchestrator/infrastructure/system/system_executor.ts";
-import { SidecarSpawner } from "../src/orchestrator/infrastructure/runtime/sidecar_spawner.ts";
+import { SidecarSpawner } from "../src/orchestrator/infrastructure/runtime/sidecar/spawner.ts";
 import { LogEntry, LoggingPort } from "@core/ports.ts";
 import { IpcFfiBridge } from "../src/orchestrator/infrastructure/runtime/ipc_ffi_bridge.ts";
 

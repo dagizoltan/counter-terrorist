@@ -5,14 +5,14 @@ import { SIDECAR_REGISTRY, PERSISTENT_SIDECARS } from "./sidecar_registry.ts";
 import { SecretRedactor } from "@core/utils/security.ts";
 import { CircuitBreaker } from "@core/utils/resilience.ts";
 import { IpcFfiBridge } from "./ipc_ffi_bridge.ts";
-import { HeartbeatMonitor } from "./heartbeat_monitor.ts";
+import { HeartbeatMonitor } from "./sidecar/heartbeat_monitor.ts";
 import { serviceLocator } from "@core/service_locator.ts";
 import { LsmLearningService } from "@domain/protection/lsm_learning_service.ts";
-import { SidecarRepository } from "./sidecar_repository.ts";
-import { IntegrityManager } from "./integrity_manager.ts";
-import { SidecarSpawner } from "./sidecar_spawner.ts";
-import { IpcCoordinator } from "./ipc_coordinator.ts";
-import { SidecarRotator } from "./sidecar_rotator.ts";
+import { SidecarRepository } from "./sidecar/repository.ts";
+import { IntegrityManager } from "./sidecar/integrity_manager.ts";
+import { SidecarSpawner } from "./sidecar/spawner.ts";
+import { IpcCoordinator } from "./sidecar/ipc_coordinator.ts";
+import { SidecarRotator } from "./sidecar/rotator.ts";
 import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 /**
@@ -432,7 +432,7 @@ export class SidecarManager implements CommandPort {
             if (data.id) {
               const waiter = this.ipc.getWaiter(name, data.id);
               if (waiter) {
-                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
+                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, unknown> | undefined, message: data.message });
 
                 // Also emit to event handlers even if it was a direct response
                 this.ipc.emitEvent(name, data);

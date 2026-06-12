@@ -64,6 +64,10 @@ pub enum AgentCommand {
     RemoveRedirection { id: Option<String>, ip: String, port: u16 },
     #[serde(rename = "SET_LEARNING_MODE")]
     SetLearningMode { id: Option<String>, learning_mode: bool },
+    #[serde(rename = "TRUST_PID")]
+    TrustPid { id: Option<String>, pid: u32 },
+    #[serde(rename = "UNTRUST_PID")]
+    UntrustPid { id: Option<String>, pid: u32 },
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -5,7 +5,7 @@ export type Operator = "==" | "!=" | ">" | "<" | ">=" | "<=" | "contains" | "mat
 export interface Condition {
     field: string;
     operator: Operator;
-    value: any;
+    value: unknown;
 }
 
 export interface Rule {
@@ -27,7 +27,7 @@ export class PolicyDSL {
      * Evaluates a set of rules against a set of facts (threat context).
      * Returns the highest priority action that matches.
      */
-    evaluate(rules: Rule[], facts: Record<string, any>): Rule | null {
+    evaluate(rules: Rule[], facts: Record<string, unknown>): Rule | null {
         const matchingRules = rules.filter(rule => this.evaluateRule(rule, facts));
 
         if (matchingRules.length === 0) return null;
@@ -36,7 +36,7 @@ export class PolicyDSL {
         return matchingRules.sort((a, b) => b.priority - a.priority)[0];
     }
 
-    private evaluateRule(rule: Rule, facts: Record<string, any>): boolean {
+    private evaluateRule(rule: Rule, facts: Record<string, unknown>): boolean {
         if (rule.conjunction === "AND") {
             return rule.conditions.every(c => this.evaluateCondition(c, facts));
         } else {
@@ -44,23 +44,23 @@ export class PolicyDSL {
         }
     }
 
-    private evaluateCondition(condition: Condition, facts: Record<string, any>): boolean {
+    private evaluateCondition(condition: Condition, facts: Record<string, unknown>): boolean {
         const factValue = facts[condition.field];
         if (factValue === undefined) return false;
 
         switch (condition.operator) {
             case "==": return factValue === condition.value;
             case "!=": return factValue !== condition.value;
-            case ">":  return factValue > condition.value;
-            case "<":  return factValue < condition.value;
-            case ">=": return factValue >= condition.value;
-            case "<=": return factValue <= condition.value;
+            case ">":  return (factValue as number) > (condition.value as number);
+            case "<":  return (factValue as number) < (condition.value as number);
+            case ">=": return (factValue as number) >= (condition.value as number);
+            case "<=": return (factValue as number) <= (condition.value as number);
             case "contains":
                 if (Array.isArray(factValue)) return factValue.includes(condition.value);
-                if (typeof factValue === "string") return factValue.includes(condition.value);
+                if (typeof factValue === "string") return factValue.includes(condition.value as string);
                 return false;
             case "matches":
-                if (typeof factValue === "string") return new RegExp(condition.value).test(factValue);
+                if (typeof factValue === "string") return new RegExp(condition.value as string).test(factValue);
                 return false;
             default: return false;
         }

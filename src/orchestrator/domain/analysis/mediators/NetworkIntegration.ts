@@ -2,6 +2,7 @@ import { EventBus } from "../events.ts";
 import { BehavioralAnalyzer } from "../behavioral_analyzer.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BroadcastData } from "@interface/ws_handler.ts";
+import { EventRegistry } from "@core/event_schema.ts";
 
 export class NetworkIntegration {
     constructor(
@@ -15,9 +16,8 @@ export class NetworkIntegration {
 
     async handleEvent(event: Record<string, unknown>, data: Record<string, unknown>) {
         try {
-            const { NetworkLogSchema } = await import("../../../core/event_schema.ts");
             if (event.type === "NETWORK_LOG") {
-                data = NetworkLogSchema.parse(data);
+                data = EventRegistry.NETWORK_LOG.parse(data);
             }
         } catch (e) {
             await this.logger.log({
@@ -37,13 +37,6 @@ export class NetworkIntegration {
         const iface = typeof data.interface === "string" ? data.interface : undefined;
 
         if (eventType === "PACKET" || eventType === "NETWORK_LOG" || eventType === "EXFIL_ALERT") {
-            if (eventType === "NETWORK_LOG") {
-                this.networkBatch.push(data);
-                if (this.networkBatch.length >= 50) {
-                    this.flushBatches();
-                }
-            }
-
             let severity = eventType === "EXFIL_ALERT" ? LogSeverity.ERROR : LogSeverity.INFO;
             const type = eventType === "EXFIL_ALERT" ? LogType.AUDIT : LogType.ACTIVITY;
 

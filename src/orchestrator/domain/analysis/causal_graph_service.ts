@@ -93,18 +93,29 @@ export class CausalGraphService extends BaseService {
     }
 
     private determineType(record: ForensicRecord): "PROCESS" | "NETWORK" | "FILE" {
-        if (record.syscall === "connect" || record.port) return "NETWORK";
-        if (record.path || record.syscall === "openat") return "FILE";
+        if (record.syscall === "connect" || record.port || record.type === "NETWORK_EVENT") return "NETWORK";
+        if (record.path || record.syscall === "openat" || record.type === "FILE_EVENT") return "FILE";
         return "PROCESS";
     }
 
     private isCausallyRelated(parent: CausalNode, child: CausalNode): boolean {
         if (new Date(child.timestamp) < new Date(parent.timestamp)) return false;
+
+        // 1. Process Inheritance (Fork/Exec)
         if (parent.record.pid === child.record.ppid) return true;
-        if (parent.type === "PROCESS" && child.type === "NETWORK" && parent.record.pid === child.record.pid) {
+
+        // 2. Intra-process relationships (Telemetry from the same PID)
+        if (parent.type === "PROCESS" && (child.type === "NETWORK" || child.type === "FILE") && parent.record.pid === child.record.pid) {
             return true;
         }
+
+        // 3. File access leading to execution or further action
         if (parent.type === "FILE" && child.type === "PROCESS" && parent.record.path === child.record.path) {
+            return true;
+        }
+
+        // 4. Network influence (e.g., download followed by execution - simplified heuristic)
+        if (parent.type === "NETWORK" && child.type === "FILE" && parent.record.pid === child.record.pid) {
             return true;
         }
 

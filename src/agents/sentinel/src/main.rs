@@ -517,6 +517,28 @@ async fn handle_command(cmd: AgentCommand, bpf_arc: &'static Mutex<Bpf>) {
             } else { emit_response(id, false, "Invalid IP".to_string()).await; }
         },
         AgentCommand::SetLearningMode { id, learning_mode: enabled } => { *LEARNING_MODE.lock() = enabled; emit_response(id, true, format!("Learning Mode set to {}", enabled)).await; },
+        AgentCommand::TrustPid { id, pid } => {
+            let res = {
+                let mut bpf_ref = bpf_arc.lock();
+                if let Some(map) = bpf_ref.map_mut("TRUSTED_PIDS") {
+                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u8>::try_from(map) {
+                        let _ = m.insert(pid, 1, 0); (true, format!("Quiet Mode: PID {} suppressed", pid))
+                    } else { (false, "Map Type Error".to_string()) }
+                } else { (false, "Map Not Found".to_string()) }
+            };
+            emit_response(id, res.0, res.1).await;
+        },
+        AgentCommand::UntrustPid { id, pid } => {
+            let res = {
+                let mut bpf_ref = bpf_arc.lock();
+                if let Some(map) = bpf_ref.map_mut("TRUSTED_PIDS") {
+                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u8>::try_from(map) {
+                        let _ = m.remove(&pid); (true, format!("Quiet Mode: Suppression removed for PID {}", pid))
+                    } else { (false, "Map Type Error".to_string()) }
+                } else { (false, "Map Not Found".to_string()) }
+            };
+            emit_response(id, res.0, res.1).await;
+        },
         AgentCommand::Shutdown => std::process::exit(0),
         _ => {}
     }

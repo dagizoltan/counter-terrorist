@@ -1,5 +1,5 @@
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
-import { SIDECAR_REGISTRY } from "./sidecar_registry.ts";
+import { SIDECAR_REGISTRY } from "../sidecar_registry.ts";
 import { canonicalStringify } from "@core/crypto_utils.ts";
 
 export interface SidecarManifest {
