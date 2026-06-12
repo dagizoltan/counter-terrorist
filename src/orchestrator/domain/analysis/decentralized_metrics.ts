@@ -11,7 +11,7 @@ export interface MetricUpdatePayload {
 
 export class DecentralizedMetricsService extends BaseService {
     private metrics: Map<string, Record<string, unknown>> = new Map();
-    private interval?: any;
+    private interval?: number;
 
     constructor(
         eventBus: EventBus,

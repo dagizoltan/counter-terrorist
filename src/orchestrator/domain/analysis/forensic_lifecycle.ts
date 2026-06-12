@@ -9,6 +9,7 @@ import { Result, ok } from "@core/result.ts";
  */
 export class ForensicArtifactLifecycleManager extends BaseService {
     private storageDir = "./volume/storage/forensics";
+    private quotaIntervalId?: number;
 
     constructor(private logging: LoggingPort, private config: ConfigurationPort) {
         super();
@@ -16,6 +17,16 @@ export class ForensicArtifactLifecycleManager extends BaseService {
 
     protected override async onInit(): Promise<Result<void>> {
         await this.enforceQuota();
+        // Periodically enforce quota every hour
+        this.quotaIntervalId = setInterval(() => this.enforceQuota(), 60 * 60 * 1000);
+        return ok(undefined);
+    }
+
+    protected override async onShutdown(): Promise<Result<void>> {
+        if (this.quotaIntervalId) {
+            clearInterval(this.quotaIntervalId);
+            this.quotaIntervalId = undefined;
+        }
         return ok(undefined);
     }
 

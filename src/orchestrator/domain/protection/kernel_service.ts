@@ -579,11 +579,10 @@ ${capStrings}
         // Use secure root-owned directory for temporary files to prevent TOCTOU symlink attacks
         const secureTempDir = "/var/lib/cts/tmp";
         try {
-            const mkdirRes = await this.executor.execute("mkdir", ["-p", secureTempDir]);
-            if (mkdirRes.success) {
-                await this.executor.execute("chmod", ["700", secureTempDir]);
-                await this.executor.execute("chown", ["root:root", secureTempDir]);
-            }
+            // Ensure directory exists with strict 700 permissions
+            await this.executor.execute("mkdir", ["-p", secureTempDir]);
+            await this.executor.execute("chmod", ["700", secureTempDir]);
+            await this.executor.execute("chown", ["root:root", secureTempDir]);
         } catch { /* ignore if already exists and we lack perms */ }
 
         let tempFile = "";
@@ -592,7 +591,10 @@ ${capStrings}
             tempFile = `${secureTempDir}/cts-profile-${name}-${randomSuffix}.profile`;
 
             // SEC-06 Hardening: Mandatory mediation through SystemExecutor for all system writes
-            await this.executor.execute("sh", ["-c", `echo '${profile.replace(/'/g, "'\\''")}' > ${tempFile}`]);
+            // Use strict umask to ensure file is created with 600 or stricter even before chmod
+            const writeRes = await this.executor.execute("sh", ["-c", `umask 077 && echo '${profile.replace(/'/g, "'\\''")}' > ${tempFile}`]);
+            if (!writeRes.success) return err(new Error(`Failed to write AppArmor profile: ${writeRes.stderr}`));
+
             await this.executor.execute("chmod", ["600", tempFile]);
 
             // Deploy profile via privileged SystemExecutor

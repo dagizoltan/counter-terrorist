@@ -82,7 +82,7 @@ export class AutonomousResponseEngine extends BaseService {
             message: `Evaluating threat from ${key}. Score: ${currentScore}`
         });
 
-        const decision = this.policy.evaluate(currentScore);
+        const decision = this.policy.evaluate(currentScore, { ...event, currentScore });
 
         if (this.policy.isShadowMode() && (decision.action === "BLOCK" || decision.action === "ISOLATE" || decision.action === "LOCKDOWN")) {
             await this.logging.log({

@@ -1,7 +1,9 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@std/assert@*": "0.224.0",
     "jsr:@std/assert@0.224": "0.224.0",
+    "jsr:@std/async@*": "1.4.0",
     "jsr:@std/collections@^1.0.0-rc.1": "1.2.0",
     "jsr:@std/dotenv@0.224": "0.224.2",
     "jsr:@std/fmt@0.224": "0.224.0",
@@ -19,6 +21,9 @@
         "jsr:@std/fmt",
         "jsr:@std/internal"
       ]
+    },
+    "@std/async@1.4.0": {
+      "integrity": "4d70b008634f571cff9b554090d628c76141c32613aae0ff283fd5fa23d0c379"
     },
     "@std/collections@1.2.0": {
       "integrity": "47627a21d3a13138b77fd0e4d790ba9d2e603c3510b686cde6b132fe9aa98a88"
@@ -38,7 +43,7 @@
     "@std/path@0.224.0": {
       "integrity": "55bca6361e5a6d158b9380e82d4981d82d338ec587de02951e2b7c3a24910ee6",
       "dependencies": [
-        "jsr:@std/assert"
+        "jsr:@std/assert@0.224"
       ]
     },
     "@std/toml@0.224.1": {

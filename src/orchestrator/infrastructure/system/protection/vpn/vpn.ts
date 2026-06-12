@@ -1,19 +1,23 @@
+import { EventBusPort } from "@core/ports.ts";
 import { VpnProvider, VpnResult } from "../interfaces.ts";
 export type { VpnProvider, VpnResult };
 
 export class VpnManager {
-  private eventBus?: any;
-  private metricsInterval?: any;
+  private eventBus?: EventBusPort;
+  private metricsInterval?: number;
 
   constructor(private provider: VpnProvider) {
     this.metricsInterval = setInterval(() => this.emitMetrics(), 30000);
   }
 
   shutdown() {
-    if (this.metricsInterval) clearInterval(this.metricsInterval);
+    if (this.metricsInterval) {
+      clearInterval(this.metricsInterval);
+      this.metricsInterval = undefined;
+    }
   }
 
-  setEventBus(eventBus: any) {
+  setEventBus(eventBus: EventBusPort) {
     this.eventBus = eventBus;
   }
 

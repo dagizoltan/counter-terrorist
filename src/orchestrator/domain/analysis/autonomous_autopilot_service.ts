@@ -16,7 +16,7 @@ export class AutonomousAutopilotService extends BaseService {
         super();
     }
 
-    private intervalId: any = null;
+    private intervalId?: number;
 
     /**
      * Continuously monitors the correlation engine for breaches.
@@ -30,7 +30,7 @@ export class AutonomousAutopilotService extends BaseService {
         const { ok } = await import("@core/result.ts");
         if (this.intervalId) {
             clearInterval(this.intervalId);
-            this.intervalId = null;
+            this.intervalId = undefined;
         }
         return ok(undefined);
     }

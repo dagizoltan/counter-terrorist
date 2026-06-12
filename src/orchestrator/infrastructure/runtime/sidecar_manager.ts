@@ -38,8 +38,8 @@ export class SidecarManager implements CommandPort {
   private cleanupHandler: (() => Promise<void>) | null = null;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
-  private rotationInterval?: number | any;
-  private backoffTimers: Set<number | any> = new Set();
+  private rotationInterval?: number;
+  private backoffTimers: Set<number> = new Set();
   private manifestPromise: Promise<void> | null = null;
   private initialized = false;
 
