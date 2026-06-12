@@ -38,14 +38,29 @@ The system has achieved comprehensive production stability on Linux. High-level 
 - **Feature**: Enhanced `decoy` agent with realistic Redis protocol simulation (banners, AUTH, SET responses).
 - **Status**: Active in the Sovereign Deception Grid.
 
-## 4. Remaining Technical Debt & Roadmap
+## 4. Advanced Features Implemented (Phase 4 Initiation)
 
-### 4.1 High Priority: Platform Parity Gaps
-- **Issue**: Critical security providers for Windows and macOS remain functional stubs (e.g., `WindowsFirewallProvider`).
-- **Focus**: Native WFP and ESF implementations to match Linux parity.
+### 4.1 eBPF 'Quiet Mode' - RESOLVED
+- **Outcome**: Implemented in-kernel PID suppression via `TRUSTED_PIDS` HashMap.
+- **Impact**: Significant reduction in orchestrator CPU overhead and telemetry noise for trusted sidecars (`sentinel`, `decoy`, `watchfile`).
 
-### 4.2 Medium Priority: Forensic Visualization
-- **Task**: Implement the "Temporal Replay Island" UI to visualize causal graphs from PCAP and audit logs.
+### 4.2 Temporal Replay Island - RESOLVED
+- **Outcome**: Enhanced `CausalGraphService` with cross-domain heuristics and integrated SVG visualization in the `ReplayIsland` UI.
+- **Impact**: Operators can now perform forensic timeline reconstruction with visual causal linking of process, file, and network events.
 
-### 4.3 Low Priority: Kernel-Level Event Suppression
-- **Task**: eBPF "Quiet Mode" to reduce orchestrator overhead for trusted process telemetry.
+### 4.3 Hybrid Identity & Signing - RESOLVED
+- **Outcome**: Standardized `canonicalStringify` and hardware-rooted TPM signing for all critical audit checkpoints and sidecar manifest verification.
+- **Impact**: Immutable, multi-architecture supply chain security from build to runtime.
+
+## 5. Remaining Technical Debt & Roadmap
+
+### 5.1 High Priority: Native Security Enforcement (WFP/ESF)
+- **Status**: Structural stubs implemented for Windows (WFP) and macOS (ESF).
+- **Goal**: Full implementation of native driver/framework calls to provide real-time protection on non-Linux assets.
+
+### 5.2 Medium Priority: Orchestrator Modularization
+- **Issue**: `SidecarManager.ts` has grown into a significant 'God Object' (1000+ LOC).
+- **Task**: Refactor into domain-specific modules: `Spawner`, `IpcCoordinator`, `HeartbeatMonitor`, and `IntegrityManager`.
+
+### 5.3 Low Priority: Resource Stability Hardening
+- **Task**: Implement "True Incremental Hashing" for sidecar binaries to eliminate OOM risks on memory-constrained nodes.

@@ -43,10 +43,10 @@ This document outlines the strategic direction for the Sovereign project, focusi
 
 ### 3.2 Kernel-Level Sandboxing
 - **Feature**: Landlock Integration. Use Linux Landlock (via Rust) to jail the `analyzer` and `decoy` agents even more strictly at the syscall level.
-- **Feature**: eBPF-based "Quiet Mode." Implement in-kernel event suppression for trusted processes to reduce orchestrator overhead.
+- **Feature**: eBPF-based "Quiet Mode." [COMPLETED] Implement in-kernel event suppression for trusted processes to reduce orchestrator overhead.
 
 ### 3.3 Mesh Forensic Replay
-- **Feature**: "Temporal Replay Island." A UI component that allows an operator to replay a system's state leading up to a security event, visualizing the causal graph of processes and network connections.
+- **Feature**: "Temporal Replay Island." [COMPLETED] A UI component that allows an operator to replay a system's state leading up to a security event, visualizing the causal graph of processes and network connections.
 - **Feature**: Mesh-wide Quarantining. Synchronized isolation of a malicious actor across all nodes in the mesh simultaneously.
 
 ### 3.4 Automated Compliance Mapping
