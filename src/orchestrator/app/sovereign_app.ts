@@ -132,7 +132,7 @@ export class SovereignApp {
     }
 
 
-    private configureLogging(config: any) {
+    private configureLogging(config: import("../core/config_schema.ts").AppConfig) {
         loggingService.setConfig({
             host: config.SYSLOG_HOST,
             port: config.SYSLOG_PORT,

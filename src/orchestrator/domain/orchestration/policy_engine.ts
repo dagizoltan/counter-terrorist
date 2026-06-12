@@ -1,6 +1,7 @@
 import { ok } from "@core/result.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
+import { PolicyDSL, Rule } from "./policy_dsl.ts";
 
 export type RemediationAction = "LOG" | "WATCH" | "SHADOW" | "BLOCK" | "ISOLATE" | "LOCKDOWN";
 
@@ -13,6 +14,7 @@ export interface ThresholdRule {
 export interface SecurityPolicy {
     version: string;
     thresholds: ThresholdRule[];
+    rules: Rule[]; // NEW: Structured DSL Rules
     defaultAction: RemediationAction;
     strictMode: boolean;
     shadowMode: boolean; // NEW: Simulation Mode
@@ -26,6 +28,7 @@ export interface SecurityPolicy {
  */
 export class PolicyEngine extends BaseService {
     private policy: SecurityPolicy;
+    private dsl: PolicyDSL = new PolicyDSL();
 
     constructor(
         private logging: LoggingPort,
@@ -46,6 +49,7 @@ export class PolicyEngine extends BaseService {
                 { score: 90, action: "ISOLATE", description: "Full node network isolation" },
                 { score: 100, action: "LOCKDOWN", description: "Mesh-wide quorum lockdown" }
             ],
+            rules: [],
             ...initialPolicy
         };
 
@@ -84,9 +88,22 @@ export class PolicyEngine extends BaseService {
     }
 
     /**
-     * Determines the appropriate remediation action for a given threat score.
+     * Determines the appropriate remediation action for a given threat score and context.
      */
-    evaluate(score: number): ThresholdRule {
+    evaluate(score: number, context?: Record<string, any>): ThresholdRule {
+        // 1. Evaluate DSL Rules first (Context-Aware)
+        if (context && this.policy.rules.length > 0) {
+            const matchedRule = this.dsl.evaluate(this.policy.rules, { ...context, score });
+            if (matchedRule) {
+                return {
+                    score: matchedRule.priority, // Use priority as indicative score
+                    action: matchedRule.action,
+                    description: `DSL Match: ${matchedRule.name} - ${matchedRule.description}`
+                };
+            }
+        }
+
+        // 2. Fallback to Threshold-based evaluation
         // BUG-37: Use pre-sorted thresholds
         for (const rule of this.policy.thresholds) {
             if (score >= rule.score) {

@@ -194,7 +194,9 @@ async fn start_port_listener(port: u16, state: Arc<Mutex<HashMap<u16, ListenerSt
                             ],
                             6379 => vec![
                                 "+OK\r\n",
-                                "-NOAUTH Authentication required.\r\n"
+                                "-NOAUTH Authentication required.\r\n",
+                                "*3\r\n$3\r\nSET\r\n$1\r\na\r\n$1\r\nb\r\n+OK\r\n",
+                                "*2\r\n$4\r\nAUTH\r\n$8\r\npassword\r\n+OK\r\n"
                             ],
                             _ => vec![
                                 "Sovereign Node v1.0 - Authorized Personnel Only\nlogin: ",

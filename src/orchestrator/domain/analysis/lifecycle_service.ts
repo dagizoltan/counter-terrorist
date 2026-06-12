@@ -8,7 +8,7 @@ export interface ScheduledTask {
     id: string;
     agent: string;
     command: string;
-    payload?: any;
+    payload?: Record<string, unknown>;
     intervalMs: number;
     lastRun?: number;
     jitterMs?: number;
@@ -17,10 +17,10 @@ export interface ScheduledTask {
 export class LifecycleService extends BaseService {
     private tasks: ScheduledTask[] = [];
     private customTasks: (() => Promise<void>)[] = [];
-    private timerId?: any;
+    private timerId?: number;
     private kv?: Deno.Kv;
-    private shadowTimer?: any;
-    private lkgTimer?: any;
+    private shadowTimer?: number;
+    private lkgTimer?: number;
     private policyEngine?: import("../orchestration/policy_engine.ts").PolicyEngine;
 
     constructor(private commands: CommandPort, private logging: LoggingPort) {

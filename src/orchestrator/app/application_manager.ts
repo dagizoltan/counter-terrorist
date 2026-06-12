@@ -23,7 +23,8 @@ export class ApplicationManager {
     ) {}
 
     async initializeInfrastructure(configProvider: ConfigurationPort, tpmManager: TPMManager, auditService: AuditService, lifecycleService: SystemLifecycleService) {
-        const platformInfo = await (await import("@infrastructure/system/platform.ts")).getPlatformInfo(new (await import("@infrastructure/system/system_executor.ts")).SystemExecutor() as any);
+        const executor = new (await import("@infrastructure/system/system_executor.ts")).SystemExecutor();
+        const platformInfo = await (await import("@infrastructure/system/platform.ts")).getPlatformInfo(executor);
 
         await bootstrap();
         const eventBus = new EventBus(loggingService);
@@ -73,7 +74,7 @@ export class ApplicationManager {
         const { command: sm, platformInfo } = services;
         const daemons = ["decoy", "watchfile", "netcap", "analyzer", "tunnel"];
 
-        if ((platformInfo.name as string) === "linux" || platformInfo.name === "ubuntu") {
+        if (platformInfo.name === "linux" || platformInfo.name === "ubuntu") {
             daemons.push("enforcer");
         }
 
