@@ -9,3 +9,10 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 chrono = { workspace = true }
 once_cell = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.52", features = [
+    "Win32_NetworkManagement_WindowsFilteringPlatform",
+    "Win32_Foundation",
+    "Win32_Security"
+] }

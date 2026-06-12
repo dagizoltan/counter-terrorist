@@ -6,6 +6,6 @@ export const handlerFactory = (services: ServiceContainer) => async (c: Context)
     const searchTerm = c.req.query("q");
     const pid = pidStr ? parseInt(pidStr) : undefined;
 
-    const result = await services.viewModels.getForensicCausalGraph(pid, searchTerm);
+    const result = await services.viewModel.getForensicCausalGraph(pid, searchTerm);
     return c.json(result);
 };

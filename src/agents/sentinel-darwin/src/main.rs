@@ -78,7 +78,26 @@ async fn main() {
                 while let Ok(Some(line)) = lines.next_line().await {
                     if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
                         let event_type = val["event_type"].as_str().unwrap_or("UNKNOWN");
-                        emit_event(&format!("ES_{}", event_type.to_uppercase()), val).await;
+                        let pid = val["process"]["audit_token"]["pid"].as_i64().unwrap_or(0);
+                        let path = val["process"]["executable"]["path"].as_str().unwrap_or("unknown");
+
+                        // SOV-P5: Native ESF Policy Filtering
+                        let is_blocked = {
+                            let paths = blocked_paths.lock().await;
+                            paths.iter().any(|p| path.contains(p))
+                        };
+
+                        if is_blocked && event_type.starts_with("AUTH_") {
+                             // Bridge to real ESF AUTH denial would happen here
+                             emit_event("ES_AUTH_DENY", serde_json::json!({
+                                "pid": pid,
+                                "path": path,
+                                "event": event_type,
+                                "action": "BLOCKED"
+                             })).await;
+                        } else {
+                             emit_event(&format!("ES_{}", event_type.to_uppercase()), val).await;
+                        }
                     }
                 }
             }

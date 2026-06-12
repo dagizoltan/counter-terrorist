@@ -27,6 +27,9 @@ static mut SHADOW_BANS: HashMap<IpV6Addr, ShadowBanInfo> = HashMap::with_max_ent
 static mut HIDE_CONFIG: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
 
 #[map]
+static mut TRUSTED_PIDS: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
+
+#[map]
 static mut ACTIVE_SESSIONS: LruHashMap<SessionKey, SessionValue> = LruHashMap::with_max_entries(4096, 0);
 
 #[map]
@@ -65,6 +68,11 @@ fn is_hook_enabled(hook_id: u32) -> bool {
         return *control != 0;
     }
     true // Default enabled
+}
+
+#[inline(always)]
+fn is_pid_trusted(pid: u32) -> bool {
+    unsafe { TRUSTED_PIDS.get(&pid).is_some() }
 }
 
 #[xdp]
@@ -312,6 +320,10 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(2) {
         return 0;
     }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if is_pid_trusted(pid) {
+        return 0;
+    }
     let start_ns = unsafe { bpf_ktime_get_ns() };
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
@@ -319,7 +331,7 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
     }
 
     let event = SyscallEvent {
-        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        pid,
         comm,
         syscall_id: 59,
         fd: 0,
@@ -346,13 +358,17 @@ pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(3) {
         return 0;
     }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if is_pid_trusted(pid) {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
     }
 
     let event = SyscallEvent {
-        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        pid,
         comm,
         syscall_id: 101,
         fd: 0,
@@ -370,10 +386,14 @@ pub fn kprobe_mmap(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(4) {
         return 0;
     }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if is_pid_trusted(pid) {
+        return 0;
+    }
     let prot: u64 = ctx.arg(2).unwrap_or(0);
     if (prot & 0x04) != 0 { // PROT_EXEC
         let event = SyscallEvent {
-            pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+            pid,
             comm: bpf_get_current_comm().unwrap_or([0; 16]),
             syscall_id: 9,
             fd: 0,
@@ -406,13 +426,17 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(6) {
         return 0;
     }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if is_pid_trusted(pid) {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
     }
 
     let event = SyscallEvent {
-        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        pid,
         comm,
         syscall_id: 42,
         fd: ctx.arg(0).unwrap_or(0),
@@ -430,13 +454,17 @@ pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(7) {
         return 0;
     }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if is_pid_trusted(pid) {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
     }
 
     let mut event = SyscallEvent {
-        pid: (bpf_get_current_pid_tgid() >> 32) as u32,
+        pid,
         comm,
         syscall_id: if cfg!(target_arch = "aarch64") { 56 } else { 257 },
         fd: 0,
