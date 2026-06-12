@@ -200,7 +200,7 @@ export class ForensicService extends BaseService {
     return await this.queryTool.search(query);
   }
 
-  async isolateSource(source: string, reason: string): Promise<any> {
+  async isolateSource(source: string, reason: string): Promise<{ success: boolean; message: string }> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.AUDIT,

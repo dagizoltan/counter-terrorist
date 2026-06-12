@@ -21,7 +21,7 @@ export class HealthService extends BaseService {
     private sidecarQuotas: Map<string, { cpu: number, memory: number }> = new Map();
     private sidecarStats: Map<string, { lastTicks: number, lastTs: number }> = new Map();
     private sidecarViolationCounts: Map<string, number> = new Map();
-    private intervals: (number | any)[] = [];
+    private intervals: number[] = [];
     private serviceRegistry: Map<string, BaseService> = new Map();
 
     protected override onInit(): Promise<Result<void>> {

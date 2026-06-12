@@ -26,11 +26,11 @@ export class TacticalIntelIngestor extends BaseService {
         { name: "TalosIntelligence", url: "https://www.talosintelligence.com/documents/ip-blacklist", type: "IP" }
     ];
 
-    constructor(private logging: LoggingPort, private firewall: any) {
+    constructor(private logging: LoggingPort, private firewall: import("../../core/ports/security.ts").FirewallPort) {
         super();
     }
 
-    private intervalId: any = null;
+    private intervalId?: number;
 
     protected override async onInit(): Promise<Result<void>> {
         await this.start();
@@ -58,7 +58,7 @@ export class TacticalIntelIngestor extends BaseService {
     protected override async onShutdown(): Promise<import("@core/result.ts").Result<void>> {
         if (this.intervalId) {
             clearInterval(this.intervalId);
-            this.intervalId = null;
+            this.intervalId = undefined;
         }
         if (this.kv) {
             this.kv.close();
@@ -110,7 +110,7 @@ export class TacticalIntelIngestor extends BaseService {
         });
     }
 
-    private async processSource(source: any, data: string) {
+    private async processSource(source: { name: string, type: "IP" | "DOMAIN" | "URL" }, data: string) {
         const lines = data.split("\n");
         let count = 0;
 
