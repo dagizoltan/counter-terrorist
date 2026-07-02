@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { AuditService } from "../src/orchestrator/domain/analysis/audit.ts";
+import { AuditVerifier } from "../src/orchestrator/domain/analysis/audit_verifier.ts";
 import { WormRepository } from "../src/orchestrator/domain/repositories/worm_repository.ts";
 import { LoggingPort } from "../src/orchestrator/core/ports.ts";
 
@@ -24,7 +25,10 @@ Deno.test("AuditService: WORM Mirroring", async () => {
     try { await Deno.remove(wormPath); } catch { /* ignore */ }
 
     const wormRepo = new WormRepository(wormPath);
-    const audit = new AuditService(new MockRepo() as any, new MockLogging());
+    const repo = new MockRepo() as any;
+    const logging = new MockLogging();
+    const verifier = new AuditVerifier(repo, logging);
+    const audit = new AuditService(repo, logging, verifier);
     audit.setWormRepository(wormRepo);
 
     // Trigger internal ready state

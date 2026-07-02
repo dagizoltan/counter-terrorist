@@ -4,6 +4,7 @@ import { AuditRepository } from "../repositories/audit_repository.ts";
 import { computeHash } from "@core/crypto_utils.ts";
 import { BaseService } from "@core/base_service.ts";
 import { MerkleTree } from "@core/merkle.ts";
+import { AuditVerifier } from "./audit_verifier.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { ServiceLocatorPort } from "../../core/ports.ts";
 import { WormRepository } from "../repositories/worm_repository.ts";
@@ -103,9 +104,22 @@ export class AuditService extends BaseService {
         this.locator = locator;
     }
 
+    public setVerifier(verifier: AuditVerifier) {
+        this.verifier = verifier;
+    }
+
+    public getRepo(): AuditRepository {
+        return this.repo;
+    }
+
+    public getVerifier(): AuditVerifier {
+        return this.verifier;
+    }
+
     constructor(
         private repo: AuditRepository,
         private logging: LoggingPort,
+        private verifier: AuditVerifier,
         private tpm?: TpmPort,
         private mesh: MeshManager | null = null,
         private correlation?: AuditCorrelation
@@ -127,10 +141,10 @@ export class AuditService extends BaseService {
         // SOV-M5 FIX: Transition to secure random jitter
         const jitter = (ms: number) => ms + secureRandomInt(0, 5000);
 
-        this.intervals.push(this.taskManager.schedule("purgeExpired", jitter(60 * 60 * 1000), () => this.purgeExpired()));
-        this.intervals.push(this.taskManager.schedule("emitMetrics", jitter(30000), () => this.emitMetrics()));
+        this.taskManager.schedule("purgeExpired", jitter(60 * 60 * 1000), () => this.purgeExpired());
+        this.taskManager.schedule("emitMetrics", jitter(30000), () => this.emitMetrics());
 
-        this.intervals.push(this.taskManager.schedule("broadcastAuditVerification", jitter(5 * 60 * 1000), async () => {
+        this.taskManager.schedule("broadcastAuditVerification", jitter(5 * 60 * 1000), async () => {
             if (this.eventBus) {
                 const status = await this.getChainStatus();
                 await this.eventBus.publish("AUDIT_VERIFICATION", "Audit Verification Broadcast", {
@@ -138,15 +152,15 @@ export class AuditService extends BaseService {
                     eventCount: status.count
                 });
             }
-        }));
+        });
 
-        this.intervals.push(this.taskManager.schedule("verifyChainIncremental", jitter(60 * 1000), async () => {
+        this.taskManager.schedule("verifyChainIncremental", jitter(60 * 1000), async () => {
             await this.verifyChainIncremental();
-        }));
+        });
 
-        this.intervals.push(this.taskManager.schedule("commitMerkleRoot", jitter(600000), async () => { await this.commitMerkleRoot(); }));
-        this.intervals.push(this.taskManager.schedule("archiveToColdStorage", jitter(12 * 60 * 60 * 1000), async () => { await this.archiveToColdStorage(); }));
-        this.intervals.push(this.taskManager.schedule("flushBuffer", 1000, async () => { await this.flushBuffer(); }));
+        this.taskManager.schedule("commitMerkleRoot", jitter(600000), async () => { await this.commitMerkleRoot(); });
+        this.taskManager.schedule("archiveToColdStorage", jitter(12 * 60 * 60 * 1000), async () => { await this.archiveToColdStorage(); });
+        this.taskManager.schedule("flushBuffer", 1000, async () => { await this.flushBuffer(); });
 
         this.startLedgerWatcher();
         return ok(undefined);
@@ -221,8 +235,7 @@ export class AuditService extends BaseService {
 
     protected override async onShutdown(): Promise<Result<void>> {
         // STABILITY: Ensure all intervals and timers are cleared to prevent hanging
-        for (const id of this.intervals) clearInterval(id);
-        this.intervals = [];
+        this.taskManager.shutdown();
 
         if (this.watcherAbortController) {
             this.watcherAbortController.abort();
@@ -463,20 +476,9 @@ export class AuditService extends BaseService {
     }
 
     public async getMerkleProof(eventHash: string): Promise<{ leaf: string, index: number, proof: string[], root: string } | null> {
-        // SEC-03: Extended Forensic Proof Window.
-        // Expanded from 100 to 1000 events to cover larger security incidents.
         const WINDOW_SIZE = 1000;
         const recent = await this.getRecentEvents(WINDOW_SIZE);
-        const hashes = recent.map(e => e.hash).reverse();
-        const index = hashes.indexOf(eventHash);
-
-        if (index === -1) return null;
-
-        const tree = new MerkleTree(hashes);
-        const proof = await tree.getProof(index);
-        const root = await tree.getRoot();
-
-        return { leaf: eventHash, index, proof, root };
+        return await this.verifier.getMerkleProof(eventHash, recent);
     }
 
     /**
@@ -504,7 +506,7 @@ export class AuditService extends BaseService {
                     message: `Chain head restored: ${this.lastHash.slice(0, 12)}…`
                 });
 
-                const verification = await this.verifyChain(50);
+                const verification = await this.verifier.verifyChain(50);
                 if (!verification.valid) {
                     const errorMsg = "CHAIN INTEGRITY FAILURE. TAMPERING DETECTED. FORCING EMERGENCY LOCKDOWN.";
                     this.logging.log({
@@ -813,7 +815,7 @@ export class AuditService extends BaseService {
 
     async verifyChainIncremental(): Promise<Result<void>> {
         if (this.lastHash === this.lastVerifiedHash) return ok(undefined);
-        const res = await this.verifyChain(100);
+        const res = await this.verifier.verifyChain(100);
 
         if (res.valid) {
             this.lastVerifiedHash = this.lastHash;
@@ -847,77 +849,12 @@ export class AuditService extends BaseService {
     /**
      * Comprehensive forensic verification of the entire audit ledger.
      */
-    public async verifyFullChain(): Promise<{
-        valid: boolean;
-        eventsChecked: number;
-        brokenAt?: { eventId: string; expected: string; actual: string; type: string };
-    }> {
-        return await this.verifyChain(-1);
+    public async verifyFullChain() {
+        return await this.verifier.verifyFullChain();
     }
 
-    async verifyChain(limit: number = 1000): Promise<{
-        valid: boolean;
-        eventsChecked: number;
-        brokenAt?: { eventId: string; expected: string; actual: string; type: string };
-    }> {
-        const stream = limit === -1 ? this.repo.getStream(Number.MAX_SAFE_INTEGER, true) : this.repo.getStream(limit, true);
-
-        let eventsChecked = 0;
-        let prevEvent: AuditEvent | null = null;
-
-        for await (const event of stream) {
-            eventsChecked++;
-
-            if (event.type === "CHECKPOINT") {
-                if (event.hwSignature && this.tpm) {
-                    const isValidCheckpoint = await this.tpm.verify(event.hash, event.hwSignature);
-                    if (!isValidCheckpoint) {
-                        return {
-                            valid: false,
-                            eventsChecked,
-                            brokenAt: { eventId: event.id, expected: "VALID_TPM_SIG", actual: "INVALID_SIG", type: "CHECKPOINT_TAMPER" },
-                        };
-                    }
-                } else if (event.prevHash !== "TRUNCATED") {
-                    return {
-                        valid: false,
-                        eventsChecked,
-                        brokenAt: { eventId: event.id, expected: "TPM_SIGNATURE", actual: "UNSIGNED", type: "UNSIGNED_CHECKPOINT" },
-                    };
-                }
-                prevEvent = event;
-                continue;
-            }
-
-            const hashInput = {
-                id: event.id, timestamp: event.timestamp, type: event.type, severity: event.severity,
-                caller: event.caller, message: event.message,
-                actor: event.actor, data: event.data,
-                correlationId: event.correlationId, prevHash: event.prevHash,
-            };
-            const expectedHash = await computeHash(hashInput);
-
-            if (event.hash !== expectedHash) {
-                return {
-                    valid: false,
-                    eventsChecked,
-                    brokenAt: { eventId: event.id, expected: expectedHash, actual: event.hash, type: "HASH_MISMATCH" },
-                };
-            }
-
-            // AUDIT-FIX: Chain verification logic fix for reverse streams (newest to oldest)
-            if (prevEvent && prevEvent.prevHash !== event.hash && prevEvent.prevHash !== "TRUNCATED") {
-                return {
-                    valid: false,
-                    eventsChecked,
-                    brokenAt: { eventId: prevEvent.id, expected: event.hash, actual: prevEvent.prevHash, type: "CHAIN_BREAK" },
-                };
-            }
-            
-            prevEvent = event;
-        }
-
-        return { valid: true, eventsChecked };
+    async verifyChain(limit: number = 1000) {
+        return await this.verifier.verifyChain(limit);
     }
 
     private async purgeExpired() {

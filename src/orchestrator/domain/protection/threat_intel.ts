@@ -1,6 +1,8 @@
 import { ProtectionPort, LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { BaseService } from "@core/base_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
-export class ThreatIntelService {
+export class ThreatIntelService extends BaseService {
   private intelSources = [
     "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt",
     "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
@@ -14,6 +16,10 @@ export class ThreatIntelService {
   ) {}
 
   async start() {
+    await this.init();
+  }
+
+  protected override async onInit(): Promise<Result<void>> {
     this.logging.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
@@ -90,8 +96,7 @@ export class ThreatIntelService {
     });
   }
 
-  async shutdown(): Promise<import("@core/result.ts").Result<void>> {
-    const { ok } = await import("@core/result.ts");
+  protected override async onShutdown(): Promise<Result<void>> {
     if (this.updateInterval) {
         clearInterval(this.updateInterval);
         this.updateInterval = undefined;

@@ -4,6 +4,7 @@ import {
     ViewModelService, EventMediator, IntegrityService,
     LsmLearningService, BaselineService, DeceptionGridService
 } from "@domain/index.ts";
+import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { LoggingPort, EventBusPort, TpmPort } from "@core/ports.ts";
@@ -61,6 +62,7 @@ export class OperationalSubsystemFactory {
         const covert = this.createServiceDelegate(health, "Covert", () => new CovertChannelService(this.executor, this.logging));
         const ledger = new LedgerService(mesh, this.logging);
         const viewModel = new ViewModelService();
+
         const mediator = new EventMediator(eventBus as any, broadcast, this.logging as any, this.kv);
         const baseline = new BaselineService(this.kv, this.sidecarManager, this.executor, this.logging);
         const deceptionGrid = new DeceptionGridService(security.honeypot, security.canaryService, this.logging);

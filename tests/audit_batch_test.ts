@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { AuditService, AuditDelta } from "@domain/analysis/audit.ts";
+import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 import { AuditRepository } from "@domain/repositories/audit_repository.ts";
 import { AuditEvent } from "@domain/analysis/audit.ts";
 import { LoggingPort, LogEntry, LogSeverity, LogType } from "@core/ports.ts";
@@ -43,7 +44,8 @@ class MockLogging implements LoggingPort {
 Deno.test("AuditService batching", async () => {
     const repo = new MockRepo();
     const logging = new MockLogging();
-    const service = new AuditService(repo as any, logging);
+    const verifier = new AuditVerifier(repo as any, logging);
+    const service = new AuditService(repo as any, logging, verifier);
     await service.init();
 
     // Log 5 events, should be buffered
