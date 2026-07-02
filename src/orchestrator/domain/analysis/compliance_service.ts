@@ -15,8 +15,8 @@ export interface ComplianceReport {
         pcrVerification: "SUCCESS" | "FAILURE";
         stealthDetections: number;
     };
-    recentMutations: any[];
-    violations: any[];
+    recentMutations: Array<{ timestamp: string; actor?: string; action: string }>;
+    violations: Array<{ timestamp: string; message: string; actor: string }>;
 }
 
 /**
@@ -50,7 +50,7 @@ export class ComplianceService extends BaseService {
         // Find all admin actions in the last 1000 events
         const entries = this.kv.list<AuditEvent>({ prefix: ["audit"] }, { limit: 1000, reverse: true });
         const adminActions: AuditEvent[] = [];
-        const violations: any[] = [];
+        const violations: Array<{ timestamp: string; message: string; actor: string }> = [];
         let tamperAttempts = 0;
 
         for await (const entry of entries) {

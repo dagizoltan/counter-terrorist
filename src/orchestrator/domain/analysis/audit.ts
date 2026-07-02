@@ -783,7 +783,7 @@ export class AuditService extends BaseService {
         }).catch(err => this.safeLogAuditError("Background task failure", err));
 
         if (this.locator?.has("health")) {
-            const health = this.locator.get<any>("health");
+            const health = this.locator.get<import("./health_service.ts").HealthService>("health");
             health.reportStatus("audit", "DEGRADED", `Background task '${task}' failed: ${e.message}`);
         }
     }
