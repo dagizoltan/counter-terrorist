@@ -49,5 +49,20 @@ The environment is now fully provisioned:
 - **Bootstrap**: `.env` is configured with `CTS_DEV_MODE=true` to bypass hardware integrity checks during development.
 - **Verification**: A comprehensive security audit suite (`tests/security_audit.ts`) is included to prevent regressions in security boundary logic.
 
+## Advanced High-Performance Mechanisms
+
+### 1. Zero-Copy Lock-Free Ring Buffer (`cts_ipc`)
+To handle high-frequency telemetry (thousands of syscall events per second) without blocking the orchestrator or sidecars, the system implements a custom ring buffer in Rust.
+- **Shared Memory**: Telemetry is written to `/dev/shm` segments.
+- **Concurrency**: Uses atomic head/tail pointers (`AtomicU32`) to allow single-producer (sidecar), single-consumer (orchestrator) access without mutexes.
+- **Contiguous Messages**: Implements a skip-marker (`0xFFFFFFFF`) at the end of the buffer to ensure all messages remain contiguous in memory, simplifying Deno FFI ingestion.
+- **Signing**: Prepend 64-byte Ed25519 signatures to telemetry packets, verified in the orchestrator via native FFI.
+
+### 2. Binary Sovereignty (Execution from Memory)
+To mitigate TOCTOU (Time-of-Check Time-of-Use) attacks where a sidecar binary could be swapped after validation but before execution, Sovereign implements memory-only execution.
+- **Sealed Memfd**: The orchestrator reads the validated binary into memory, creates an anonymous file via `memfd_create`, and immediately applies seals (`F_SEAL_WRITE`, `F_SEAL_SHRINK`, etc.) to prevent any modifications.
+- **FD Execution**: The sidecar is spawned via `/proc/self/fd/N` rather than a disk path.
+- **Namespace Isolation**: Spawning is further hardened via `systemd-run` with `ProtectProc=invisible` and `ProcSubset=pid`.
+
 ## Summary
-The system's security posture has been significantly improved by transitioning from regex-only validation to a multi-layered verification strategy combining regex, path normalization, and deep payload inspection.
+The system's security posture has been significantly improved by transitioning from regex-only validation to a multi-layered verification strategy combining regex, path normalization, and deep payload inspection, underpinned by native high-performance IPC and hardware-rooted integrity.

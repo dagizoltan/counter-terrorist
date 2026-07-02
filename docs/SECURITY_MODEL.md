@@ -29,12 +29,15 @@ Sidecars are deployed to `/var/lib/cts/bin`, owned by `root`, and executed via `
 ### 3.1 Forensic Ledger
 All security-critical events are logged to an append-only, cryptographically linked chain.
 - **Hashing**: SHA-256 links each event to its predecessor.
+- **Merkle Trees**: Merkle proofs enable O(log n) verification of log segments, used during mesh-wide audit reconciliation.
 - **Signing**: TPM-rooted signatures ensure that the ledger cannot be tampered with even if the OS is compromised.
 
 ### 3.2 Key Management
 - **PKI_SECRET**: Used to encrypt node private keys at rest (AES-256-GCM).
-- **MESH_SECRET**: Used for HMAC signing of inter-node gossip.
+- **MESH_SECRET**: Used for HMAC signing of inter-node gossip and discovery.
 - **Sealing**: In production, these secrets are sealed to the TPM to prevent exfiltration.
+- **Machine-Bound Encryption**: Virtual TPM state and orchestrator DB segments are encrypted using keys derived from `/etc/machine-id`.
+- **TPM-Resident Identities**: Support for proxy keys where the private key never leaves the TPM, with signing performed via hardware-rooted FFI.
 
 ## 4. Input Validation Strategy
 
@@ -47,6 +50,7 @@ All filesystem-touching commands are restricted to a set of mandatory jails:
 ### 4.2 Network Validation
 - **SSRF Protection**: Webhook URLs are resolved and checked against RFC1918 private ranges and cloud metadata IPs.
 - **DNS Rebinding**: `safeFetch` pins requests to pre-validated IP addresses.
+- **Mesh Gating**: Subnet-level gating and mDNS HMAC verification prevent unauthorized nodes from joining the discovery process.
 
 ## 5. Trust Boundaries
 
@@ -54,7 +58,12 @@ All filesystem-touching commands are restricted to a set of mandatory jails:
 | :--- | :--- | :--- |
 | **External Internet** | UNTRUSTED | Firewall (XDP) + Web Auth |
 | **Local Web Client** | PARTIALLY TRUSTED | RBAC + CSRF + CSP |
-| **Mesh Network** | PEER TRUSTED | mTLS (X.509) + Gossip HMAC |
+| **Mesh Network** | PEER TRUSTED | mTLS (X.509) + Gossip HMAC + Canonical Serialization |
 | **Deno Orchestrator** | TRUSTED (SANDBOXED) | Deno Runtime Permissions |
-| **Sidecar Agents** | HIGHLY TRUSTED | Mandatory IPC Validation + Binary Integrity |
+| **Sidecar Agents** | HIGHLY TRUSTED | Mandatory IPC Validation + Binary Sovereignty |
 | **Kernel** | AUTHORITATIVE | eBPF / LSM |
+
+### 5.1 Advanced Mesh Security
+- **HMAC Signatures**: Mesh gossip payloads and mDNS announcements are signed with `MESH_SECRET` to prevent tampering and reconnaissance.
+- **Canonical Serialization**: Mesh-wide consensus and signatures use deterministic canonical stringification to prevent type-erosion or property-order attacks.
+- **JIT Join Tokens**: Autonomous mesh expansion uses short-lived "Just-In-Time" tokens to authorize new node provisioning.

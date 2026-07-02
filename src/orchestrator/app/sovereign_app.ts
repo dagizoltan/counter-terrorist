@@ -64,7 +64,7 @@ export class SovereignApp {
   ▐▌   ▐▌ ▐▌▐▌ ▐▌▐▛▚▞▜▌▐▌     █  ▐▌ ▐▌
   ▐▝▚▄▖▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌▐▛▀▀▖  █  ▐▛▀▚▖
   ▝▚▄▄▖▝▙▄☘▝▙▄▄☘▐▌  ▐▌▐▙▄▄▖  █  ▐▌ ▐▌
-  SOVEREIGN CYBERSECURITY - PILOT V5.2
+  SOVEREIGN CYBERSECURITY - v7.0-PRODUCTION
         `);
     }
 
