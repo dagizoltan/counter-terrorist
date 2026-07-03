@@ -105,14 +105,29 @@ export const SystemEventRegistry = {
     message: z.string(),
     data: z.record(z.string(), z.unknown()).optional(),
     hash: z.string().optional(),
-    prevHash: z.string().optional()
+    prevHash: z.string().optional(),
+    hwSignature: z.string().optional(),
+    correlationId: z.string().optional(),
+    formatted: z.string().optional(),
+    merkleRoot: z.string().optional()
   }),
   "UI_BROADCAST": z.object({
     type: z.string(),
     data: z.record(z.string(), z.unknown())
   }),
-  "AUDIT_BROADCAST": z.any(),
-  "AUDIT_VERIFICATION": z.any(),
+  "AUDIT_BROADCAST": z.object({
+    id: z.string(),
+    timestamp: z.string(),
+    type: z.string(),
+    message: z.string(),
+    hash: z.string(),
+    prevHash: z.string()
+  }).passthrough(),
+  "AUDIT_VERIFICATION": z.object({
+    lastHash: z.string(),
+    eventCount: z.number(),
+    node: z.string().optional()
+  }),
   "SIDECAR_ALERT": z.object({
     type: z.string(),
     sidecar: z.string(),

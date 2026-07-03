@@ -432,7 +432,7 @@ export class SidecarManager implements CommandPort {
             if (data.id) {
               const waiter = this.ipc.getWaiter(name, data.id);
               if (waiter) {
-                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, any> | undefined, message: data.message });
+                waiter.resolve({ success: !!data.success, stdout: data.stdout || "", stderr: data.stderr || "", data: data.data as Record<string, unknown> | undefined, message: data.message });
 
                 // Also emit to event handlers even if it was a direct response
                 this.ipc.emitEvent(name, data);
