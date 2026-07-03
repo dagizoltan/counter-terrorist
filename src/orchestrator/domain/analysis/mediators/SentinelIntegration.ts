@@ -7,12 +7,12 @@ import { BroadcastData } from "@interface/ws_handler.ts";
 export class SentinelIntegration {
     constructor(
         private eventBus: EventBus,
-        private processTracker: ProcessTracker | null,
         private behavioral: BehavioralAnalyzer,
         private logger: LoggingPort,
         private broadcast: (msg: BroadcastData) => void,
         private flushBatches: () => void,
-        private syscallBatch: Record<string, unknown>[]
+        private syscallBatch: Record<string, unknown>[],
+        private processTracker: ProcessTracker | null = null
     ) {}
 
     public setProcessTracker(tracker: ProcessTracker) {

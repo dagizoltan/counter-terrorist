@@ -90,13 +90,14 @@ export class EventMediator extends BaseService {
         private eventBusPort: EventBus,
         private broadcast: (msg: BroadcastData) => void,
         logger: LoggingPort,
-        private kv?: Deno.Kv
+        private kv?: Deno.Kv,
+        behavioral?: BehavioralAnalyzer
     ) {
         super();
         this.logger = logger;
         this.setEventBus(eventBusPort);
         this.eventBus = eventBusPort;
-        this.behavioral = new BehavioralAnalyzer();
+        this.behavioral = behavioral || new BehavioralAnalyzer();
         if (kv) {
             this.behavioral.setKv(kv).catch(err => this.logger.log({
                 timestamp: new Date().toISOString(),
@@ -107,8 +108,8 @@ export class EventMediator extends BaseService {
             }));
         }
 
-        this.sentinelIntegration = new SentinelIntegration(eventBusPort, null as unknown as ProcessTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
-        this.fimIntegration = new FimIntegration(eventBusPort, null as unknown as CanaryService, logger, broadcast);
+        this.sentinelIntegration = new SentinelIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
+        this.fimIntegration = new FimIntegration(eventBusPort, logger, broadcast);
         this.networkIntegration = new NetworkIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.networkBatch);
         this.scannerIntegration = new ScannerIntegration(eventBusPort, logger, broadcast);
 

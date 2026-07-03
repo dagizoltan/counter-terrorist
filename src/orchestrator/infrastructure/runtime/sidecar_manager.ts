@@ -733,6 +733,7 @@ export class SidecarManager implements CommandPort {
     for (const timer of this.backoffTimers) clearTimeout(timer);
     this.backoffTimers.clear();
     await this.ipc.shutdown();
+    await this.ffi.shutdown();
 
     if (this.cleanupHandler) {
         Deno.removeSignalListener("SIGINT", this.cleanupHandler);

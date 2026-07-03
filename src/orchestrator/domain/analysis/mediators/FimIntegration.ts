@@ -6,9 +6,9 @@ import { BroadcastData } from "@interface/ws_handler.ts";
 export class FimIntegration {
     constructor(
         private eventBus: EventBus,
-        private canaryService: CanaryService | null,
         private logger: LoggingPort,
-        private broadcast: (msg: BroadcastData) => void
+        private broadcast: (msg: BroadcastData) => void,
+        private canaryService: CanaryService | null = null
     ) {}
 
     public setCanaryService(service: CanaryService) {
