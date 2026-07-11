@@ -1,5 +1,6 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { AuditService, AuditEvent, AuditDelta } from "@domain/analysis/audit.ts";
+import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 import { LoggingPort, LogEntry } from "@core/ports.ts";
 import { AuditRepository } from "../src/orchestrator/domain/repositories/audit_repository.ts";
 
@@ -34,7 +35,8 @@ class MockLoggingPort implements LoggingPort {
 Deno.test("AuditService - Merkle Root Commitment", async () => {
     const repo = new MockAuditRepository();
     const logger = new MockLoggingPort();
-    const service = new AuditService(repo, logger);
+    const verifier = new AuditVerifier(repo, logger);
+    const service = new AuditService(repo, logger, verifier);
     await service.init();
 
     await service.logEvent({ type: "TEST", message: "Event 1" });
@@ -58,7 +60,8 @@ Deno.test("AuditService - Merkle Root Commitment", async () => {
 Deno.test("AuditService - Chain Verification and Tampering Detection", async () => {
     const repo = new MockAuditRepository();
     const logger = new MockLoggingPort();
-    const service = new AuditService(repo, logger);
+    const verifier = new AuditVerifier(repo, logger);
+    const service = new AuditService(repo, logger, verifier);
     await service.init();
 
     await service.logEvent({ type: "TEST", message: "Valid 1" });
@@ -81,7 +84,8 @@ Deno.test("AuditService - Chain Verification and Tampering Detection", async () 
 Deno.test("AuditService - Retention Checkpoint", async () => {
     const repo = new MockAuditRepository();
     const logger = new MockLoggingPort();
-    const service = new AuditService(repo, logger);
+    const verifier = new AuditVerifier(repo, logger);
+    const service = new AuditService(repo, logger, verifier);
     await service.init();
 
     // Add an old event

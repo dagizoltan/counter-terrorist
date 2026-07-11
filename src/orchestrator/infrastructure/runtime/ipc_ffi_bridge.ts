@@ -170,6 +170,13 @@ export class IpcFfiBridge {
         return this.ffi.symbols.create_sealed_memfd(nameBuf, buffer, BigInt(buffer.length));
     }
 
+    shutdown(): void {
+        if (this.ffi) {
+            this.ffi.close();
+            this.ffi = null;
+        }
+    }
+
     serializeMessagePack(cmd: Record<string, unknown>): Uint8Array | null {
         if (!this.ffi) return null;
         const jsonStr = JSON.stringify(cmd) + "\0";

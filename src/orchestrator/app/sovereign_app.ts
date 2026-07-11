@@ -34,6 +34,7 @@ import { serviceLocator } from "@core/service_locator.ts";
 
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
+import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 
 // Infrastructure Providers
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
@@ -64,7 +65,7 @@ export class SovereignApp {
   ▐▌   ▐▌ ▐▌▐▌ ▐▌▐▛▚▞▜▌▐▌     █  ▐▌ ▐▌
   ▐▝▚▄▖▐▌ ▐▌▐▌ ▐▌▐▌  ▐▌▐▛▀▀▖  █  ▐▛▀▚▖
   ▝▚▄▄▖▝▙▄☘▝▙▄▄☘▐▌  ▐▌▐▙▄▄▖  █  ▐▌ ▐▌
-  SOVEREIGN CYBERSECURITY - PILOT V5.2
+  SOVEREIGN CYBERSECURITY - v7.0-PRODUCTION
         `);
     }
 
@@ -88,6 +89,7 @@ export class SovereignApp {
         // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
         this.sidecarManager.setConfig(configProvider);
         const tpmManager = new TPMManager(this.sidecarManager, loggingService);
+        this.auditService.getVerifier().setTpm(tpmManager);
         this.sidecarManager.setTpm(tpmManager);
         this.sidecarManager.init();
 
@@ -228,6 +230,10 @@ export class SovereignApp {
         loggingService.setKv(this.kv);
         this.executor = new SystemExecutor();
         this.sidecarManager = new SidecarManager(this.executor, loggingService);
+
+        const auditRepo = new KvAuditRepository(this.kv);
+        const auditVerifier = new AuditVerifier(auditRepo, loggingService);
+        this.auditService = new AuditService(auditRepo, loggingService, auditVerifier);
     }
 
 

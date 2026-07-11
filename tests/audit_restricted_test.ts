@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import { AuditService } from "@domain/analysis/audit.ts";
+import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 
 Deno.test("AuditService - Forensic restricted mode", async () => {
     const repo = {
@@ -10,7 +11,8 @@ Deno.test("AuditService - Forensic restricted mode", async () => {
     } as any;
     const logging = { log: () => Promise.resolve() } as any;
 
-    const service = new AuditService(repo, logging);
+    const verifier = new AuditVerifier(repo, logging);
+    const service = new AuditService(repo, logging, verifier);
     // @ts-ignore
     service.initialized = true;
 

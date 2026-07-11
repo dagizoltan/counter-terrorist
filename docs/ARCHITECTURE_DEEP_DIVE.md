@@ -16,15 +16,13 @@ The `SovereignApp` boot sequence is a multi-phase initialization designed to ens
 ```mermaid
 graph TD
     A[index.ts] --> B[SovereignApp.boot]
-    B --> C[initCore: KV, Executor, SidecarManager]
-    C --> D{Lockdown Check}
-    D -- Locked --> E[Abort Boot]
-    D -- Safe --> F[initMesh: mTLS Identity]
-    F --> G[verifyHardware: TPM PCR Validation]
-    G --> H[initServices: DDD Domain Injection]
-    H --> I[initOperationalLayer: Web, Metrics]
-    I --> J[Subsystem Activation: Playbook, Autopilot]
-    J --> K[Web Server Start]
+    B --> C[Phase 1: initCore - Logging, KV, Executor, SidecarManager]
+    C --> D[Phase 2: Configuration Validation & Hardening]
+    D --> E[Phase 3: TPM & System Lifecycle Initialization]
+    E --> F[Phase 4: Infrastructure - Mesh, Health, EventBus]
+    F --> G[Phase 5: Domain Service Orchestration]
+    G --> H[Phase 6: Operational Layer - Web & Metrics]
+    H --> I[Phase 7: Drop Capabilities & Finalize]
 ```
 
 ### 2.2 Request Lifecycle
@@ -50,9 +48,12 @@ The system uses a `ServiceContainer` for dependency injection, ensuring componen
 
 ## 4. Trust Boundaries & Isolation
 
-### 4.1 Internal IPC (JSON-over-stdio)
-Communication between Deno and Rust sidecars is strictly mediated.
-- **Validation**: `validateRequest` and `validateResponse` schemas enforce strict structures.
+### 4.1 Internal IPC (Shared Memory & Stdio)
+Communication between Deno and Rust sidecars uses a tiered approach:
+- **Shared Memory Data Plane**: High-frequency telemetry uses a Zero-Copy Ring Buffer in `/dev/shm` with SIMD-accelerated obfuscation.
+- **Control Plane**: Stdio pipes or shared memory slots for command-and-control.
+- **Validation**: `validateRequest` and `validateResponse` schemas (Zod) enforce strict structural integrity.
+- **Tiered Timeouts**: High-priority remediation commands (e.g., `KillProcess`, `BlockIp`) timeout in 5 seconds to prevent orchestrator blocking, while standard commands allow 60 seconds.
 - **Jailing**: `SystemExecutor` enforces mandatory path jailing for all sidecar commands.
 
 ### 4.2 Mesh Connectivity (mTLS)

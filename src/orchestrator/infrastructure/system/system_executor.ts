@@ -55,6 +55,7 @@ export class SystemExecutor implements ExecutorPort {
       return { valid: false, reason: `No exhaustive Zod security policy defined for whitelisted command '${cmd}'. Blocking for safety.` };
     }
 
+    // Structured Validation via Zod
     const result = policy.schema.safeParse(args);
     if (!result.success) {
         return {
@@ -67,11 +68,7 @@ export class SystemExecutor implements ExecutorPort {
                             SystemExecutor.PATH_SENSITIVE_COMMANDS.includes(cmd);
 
     for (const arg of args) {
-        if (isPathSensitive) {
-            const validation = this.validateSensitiveArgument(arg, baseCmd);
-            if (!validation.valid) return validation;
-        }
-
+        // Block-list strings check
         if (policy.blockedStrings) {
             for (const blocked of policy.blockedStrings) {
                 if (arg.includes(blocked)) {
@@ -83,10 +80,17 @@ export class SystemExecutor implements ExecutorPort {
             }
         }
 
+        // Context-aware Shell Metacharacter Protection
         if (!((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
             if (/[;&|><`$!]/.test(arg)) {
                 return { valid: false, reason: `Security Violation: Shell metacharacter detected in command arguments.` };
             }
+        }
+
+        // Mandatory Jailing for Path-Sensitive Commands
+        if (isPathSensitive) {
+            const validation = this.validateSensitiveArgument(arg, baseCmd);
+            if (!validation.valid) return validation;
         }
     }
 

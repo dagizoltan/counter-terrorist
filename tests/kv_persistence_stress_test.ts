@@ -1,5 +1,6 @@
 import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
 import { AuditService } from "../src/orchestrator/domain/analysis/audit.ts";
+import { AuditVerifier } from "../src/orchestrator/domain/analysis/audit_verifier.ts";
 import { LoggingPort } from "../src/orchestrator/core/ports.ts";
 import { delay } from "https://deno.land/std@0.208.0/async/delay.ts";
 
@@ -32,7 +33,8 @@ class MockAuditRepo {
 
 Deno.test("KV Persistence Stress: Batched writes under contention", async () => {
     const repo = new MockAuditRepo();
-    const auditService = new AuditService(repo as any, mockLogging, undefined);
+    const verifier = new AuditVerifier(repo as any, mockLogging);
+    const auditService = new AuditService(repo as any, mockLogging, verifier);
 
     // Inject mock methods to bypass actual repo calls that might fail if not fully mocked
     (auditService as any).restoreChainHead = () => Promise.resolve({ success: true });

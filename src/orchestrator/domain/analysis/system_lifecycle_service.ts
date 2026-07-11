@@ -13,6 +13,7 @@ import { BaseService } from "@core/base_service.ts";
 export class SystemLifecycleService extends BaseService {
     private isShuttingDown = false;
     private signalListeners: Map<Deno.Signal, () => Promise<void>> = new Map();
+    private lkgInterval?: number;
 
     constructor(
         private logging: LoggingPort,
@@ -27,6 +28,10 @@ export class SystemLifecycleService extends BaseService {
     }
 
     protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
+        if (this.lkgInterval) {
+            clearInterval(this.lkgInterval);
+            this.lkgInterval = undefined;
+        }
         return ok(undefined);
     }
 
@@ -143,7 +148,8 @@ export class SystemLifecycleService extends BaseService {
      */
     scheduleLkgSnapshot() {
         const INTERVAL = 12 * 60 * 60 * 1000; // 12 Hours
-        setInterval(async () => {
+        if (this.lkgInterval) clearInterval(this.lkgInterval);
+        this.lkgInterval = setInterval(async () => {
             await this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.ACTIVITY,

@@ -90,13 +90,14 @@ export class EventMediator extends BaseService {
         private eventBusPort: EventBus,
         private broadcast: (msg: BroadcastData) => void,
         logger: LoggingPort,
-        private kv?: Deno.Kv
+        private kv?: Deno.Kv,
+        behavioral?: BehavioralAnalyzer
     ) {
         super();
         this.logger = logger;
         this.setEventBus(eventBusPort);
         this.eventBus = eventBusPort;
-        this.behavioral = new BehavioralAnalyzer();
+        this.behavioral = behavioral || new BehavioralAnalyzer();
         if (kv) {
             this.behavioral.setKv(kv).catch(err => this.logger.log({
                 timestamp: new Date().toISOString(),
@@ -107,8 +108,8 @@ export class EventMediator extends BaseService {
             }));
         }
 
-        this.sentinelIntegration = new SentinelIntegration(eventBusPort, null as unknown as ProcessTracker, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
-        this.fimIntegration = new FimIntegration(eventBusPort, null as unknown as CanaryService, logger, broadcast);
+        this.sentinelIntegration = new SentinelIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
+        this.fimIntegration = new FimIntegration(eventBusPort, logger, broadcast);
         this.networkIntegration = new NetworkIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.networkBatch);
         this.scannerIntegration = new ScannerIntegration(eventBusPort, logger, broadcast);
 
@@ -139,13 +140,11 @@ export class EventMediator extends BaseService {
         if (this.syscallBatch.length > 0) {
             // SOV-06 Hardening: Limit batch size to prevent orchestrator loop blocking
             const batch = this.syscallBatch.splice(0, this.MAX_QUEUE_DEPTH);
-            // @ts-ignore: Batch emitting requires domain-specific cast or registry update
-            await this.eventBus?.emit("EBPF_SYSCALL_BATCH", batch);
+            await this.eventBus?.emit("EBPF_SYSCALL_BATCH", batch as any);
         }
         if (this.networkBatch.length > 0) {
             const batch = this.networkBatch.splice(0, this.MAX_QUEUE_DEPTH);
-            // @ts-ignore: Batch emitting requires domain-specific cast or registry update
-            await this.eventBus?.emit("NETWORK_LOG_BATCH", batch);
+            await this.eventBus?.emit("NETWORK_LOG_BATCH", batch as any);
         }
     }
 
@@ -165,8 +164,7 @@ export class EventMediator extends BaseService {
                     message: `Honeypot Trigger: ${typeof event.type === "string" ? event.type : "unknown"} from ${typeof event.source_ip === "string" ? event.source_ip : "remote"}`,
                     data: event
                 });
-                // @ts-ignore: Dynamic event emission
-                await this.eventBus?.emit("HONEYPOT", event);
+                await this.eventBus?.emit("HONEYPOT", event as any);
             } catch (e) {
                 this.handleMediatorError(e as Error, "decoy");
             }

@@ -2,40 +2,30 @@
 
 This document outlines the strategic direction for the Sovereign project, focusing on system robustness (Bug Cleaning), architectural integrity (Logic Healing), and high-impact security features.
 
-## 1. Bug Cleaning & Stability
+## 1. Phase 3: Infrastructure Type-Safety (COMPLETE)
 
-### 1.1 Sidecar Lifecycle Robustness
-- **Issue**: Sidecar crashes are currently handled by simple restarts. Persistent failures can lead to "orphan" events or lost telemetry.
-- **Task**: Implement a circuit-breaker pattern for failing sidecars to prevent resource exhaustion during crash loops.
-- **Task**: Improve IPC error propagation; ensure the orchestrator gracefully handles malformed or incomplete JSON from sidecar stdout.
+All core orchestrator services and infrastructure providers have been refactored for strict type safety.
+- **Domain Hardening**: `MeshManager`, `GovernanceService`, and `AutopilotService` now use precise interfaces.
+- **Infrastructure Mediation**: Replaced direct `Deno.env` access with `ConfigurationPort` and implemented `ServiceRegistry` for ordered lifecycle management.
+- **Zero-Any Goal**: Reduced technical debt by eliminating over 150 `any` instances.
 
-### 1.2 Resource Leak Audit
-- **Issue**: The `EventBus` and `WSBroadcaster` maintain many long-lived listener sets.
-- **Task**: Perform a memory leak audit in Deno using `Deno.memoryUsage()` during heavy load simulations.
-- **Task**: Implement explicit `unsubscribe` and `cleanup` methods for all domain services.
+## 2. Phase 4: Native Platform Parity (IN PROGRESS)
 
-### 1.3 KV Transactional Integrity
-- **Issue**: High-frequency logging to Deno KV may encounter contention.
-- **Task**: Refactor `AuditService` and `LoggingService` to use batched KV transactions for improved performance and atomicity.
+Current focus is on achieving functional parity for non-Linux platforms while maintaining the same security posture.
 
-## 2. Logic Healing & Architectural Hardening
+### 2.1 Windows Protection (WFP)
+- **Task**: Implement `WindowsFirewallProvider` using the native Windows Filtering Platform (WFP) FFI.
+- **Task**: Standardize the `telemetry-win` agent to provide syscall-equivalent events (ETW).
 
-### 2.1 Structured Command Validation
-- **Issue**: `SystemExecutor` relies on complex regex patterns which can be brittle or bypassed.
-- **Task**: Transition from regex-based argument validation to a structured schema-based validation (e.g., Zod) for all system commands.
-- **Task**: Implement "Mandatory Jailing" by default for all file-system-touching commands, removing the need for manual jail prefix checks in the executor logic.
+### 2.2 macOS Protection (ESF)
+- **Task**: Transition `sentinel-darwin` from a mock to a functional Endpoint Security Framework (ESF) consumer.
+- **Task**: Implement `MacOSFirewallProvider` using `pf` or Network Extensions.
 
-### 2.2 Formal Policy Enforcement
-- **Issue**: `AutopilotService` logic is currently distributed across multiple event listeners.
-- **Task**: Centralize autonomous response logic into a formal "Policy Engine" that uses a DSL (Domain Specific Language) to define threats and remediations.
-- **Task**: Decouple the `AutonomousResponseEngine` from specific sidecar implementations to support generic "Remediation Providers."
+### 2.3 Forensic Visualization
+- **Task**: Complete the "Temporal Replay Island" UI to visualize causal process/network graphs.
+- **Task**: Implement streaming PCAP-to-UI serialization for real-time traffic analysis.
 
-### 2.3 Sidecar Integrity (TPM 2.0)
-- **Issue**: Hardware integrity is currently bypassed in dev mode.
-- **Task**: Implement a "TPM Simulator" mode for the `trustroot` agent to allow testing of PCR sealing/unsealing logic without physical hardware.
-- **Task**: Harden the `secure_spawn.sh` script to use `dm-verity` or similar for immutable binary partitions.
-
-## 3. High-Impact Features
+## 3. Phase 5: High-Impact Features
 
 ### 3.1 Advanced Deception (Project Chameleon)
 - **Feature**: Dynamic Honeypots. Sidecars that can masquerade as common enterprise services (e.g., PostgreSQL, Redis) with high-fidelity interaction.

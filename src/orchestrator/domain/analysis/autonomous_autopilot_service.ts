@@ -1,6 +1,7 @@
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
 import { CorrelationService, KillChain } from "./correlation_service.ts";
+import { Result, ok } from "../../core/result.ts";
 
 /**
  * AutonomousAutopilotService
@@ -26,13 +27,12 @@ export class AutonomousAutopilotService extends BaseService {
         this.intervalId = setInterval(() => this.evaluateThreats(), 5000);
     }
 
-    public override async shutdown(): Promise<import("@core/result.ts").Result<void>> {
-        const { ok } = await import("@core/result.ts");
+    protected override onShutdown(): Promise<Result<void>> {
         if (this.intervalId) {
             clearInterval(this.intervalId);
             this.intervalId = undefined;
         }
-        return ok(undefined);
+        return Promise.resolve(ok(undefined));
     }
 
     private activeCaptures = new Set<string>();

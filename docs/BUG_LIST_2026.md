@@ -1,6 +1,6 @@
-# Counter-Terrorist: Extensive Bug List & Security Audit (v5.2)
+# Counter-Terrorist: Extensive Bug List & Security Audit (v7.0-PRODUCTION)
 
-This document categorizes identified bugs, security vulnerabilities, and stability issues discovered during the reverse-engineering and audit of the Counter-Terrorist (v5.2-STABLE) codebase.
+This document categorizes identified bugs, security vulnerabilities, and stability issues discovered during the reverse-engineering and audit of the Counter-Terrorist (v7.0-PRODUCTION-STABLE) codebase.
 
 ## 🔴 CRITICAL SEVERITY
 
@@ -40,17 +40,17 @@ This document categorizes identified bugs, security vulnerabilities, and stabili
 
 ### 6. Logic Gap: Ghost Implementations
 - **Domain**: Architecture
-- **Status**: ⚠️ **PENDING**
-- **Description**: Several core features described in "Milestone 4" are partially or missing implementation:
-    - `ProvisioningService`: Defined but never instantiated or started in `SovereignApp`.
-    - `verifyFullChain`: Called by `MetricsService` but does not exist in `AuditService`.
-- **Impact**: False sense of security; operational capabilities missing.
+- **Status**: ✅ **FIXED**
+- **Description**: Several core features described in "Milestone 4" have been fully integrated:
+    - `ProvisioningService`: Now correctly instantiated via `SubsystemFactory` and started in `SovereignApp.startSubsystems()`.
+    - `verifyFullChain`: Implemented in `AuditVerifier` and delegated from `AuditService`.
+- **Impact**: Operational parity with system design specifications.
 
-### 7. Security: TPM Index Collision
+### 7. Security: TPM Index Mapping Collision
 - **Domain**: Infrastructure (TPM)
-- **Status**: ⚠️ **PENDING**
-- **Description**: `TPMManager.getIndexForSecret` defaults to `0x1500001` for any unknown secret name. This index is specifically reserved for `MESH_SECRET`.
-- **Impact**: Unintentional overwriting of critical hardware-sealed secrets.
+- **Status**: ✅ **FIXED**
+- **Description**: `TPMManager.getIndexForSecret` has been refactored to use a strict mapping of secrets to unique indices. It now throws an explicit error for unknown secrets instead of defaulting to the `MESH_SECRET` index, preventing unintentional overwriting of hardware-sealed data.
+- **Impact**: Neutralized collision risk for hardware-rooted secrets.
 
 ---
 
@@ -58,9 +58,9 @@ This document categorizes identified bugs, security vulnerabilities, and stabili
 
 ### 8. Resource Management: Missing Cleanup
 - **Domain**: Domain (Lifecycle)
-- **Status**: ✅ **FIXED** (Core Services) / ⚠️ **STUBS** (Tools)
-- **Description**: Many background services (e.g., `IntegrityService`, `MorphingService`) lacked `shutdown()` methods to clear `setInterval` timers. In a test environment or during a hot-reload, these would leak resources.
-- **Impact**: Memory/CPU leaks; unstable test suite.
+- **Status**: ✅ **FIXED**
+- **Description**: A comprehensive audit and refactoring of background services was conducted. All core services (e.g., `IntegrityService`, `MorphingService`, `BehavioralService`, `ProcessTracker`, `NewsSignalService`) now implement `onShutdown()` or `shutdown()` methods that explicitly clear `setInterval` and `setTimeout` timers, ensuring hermeticity during system termination and tests.
+- **Impact**: Neutralized resource leaks; stable lifecycle transitions.
 
 ### 9. Stability: NaN/Infinity in Metrics
 - **Domain**: Domain (Analysis)
@@ -76,9 +76,9 @@ This document categorizes identified bugs, security vulnerabilities, and stabili
 
 ### 11. Persistence: Unbounded KV Growth
 - **Domain**: Infrastructure (Persistence)
-- **Status**: ⚠️ **PENDING**
-- **Description**: `AuditDelta` objects and `NewsItem` signals are stored in Deno KV without a comprehensive purge strategy (unlike the main Audit Ledger).
-- **Impact**: Disk exhaustion over long operational periods.
+- **Status**: ✅ **FIXED**
+- **Description**: `AuditDelta` objects and `NewsItem` signals now utilize explicit TTLs (`expireIn`) during KV insertion. Audit deltas are retained for 30 days, while news signals are purged after 48 hours, preventing linear disk growth.
+- **Impact**: Automated storage lifecycle management; prevented long-term disk exhaustion.
 
 ---
 
