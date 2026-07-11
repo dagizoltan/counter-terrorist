@@ -17,7 +17,8 @@ export class IpcFfiBridge {
         "shmem_ring_pull": { parameters: ["pointer", "pointer"], result: "pointer" },
         "shmem_ring_commit": { parameters: ["pointer"], result: "void" },
         "fast_morph": { parameters: ["buffer", "usize", "buffer", "usize"], result: "void" },
-        "verify_ed25519": { parameters: ["buffer", "buffer", "buffer", "usize"], result: "bool" }
+        "verify_ed25519": { parameters: ["buffer", "buffer", "buffer", "usize"], result: "bool" },
+        "canonical_stringify": { parameters: ["buffer", "pointer"], result: "pointer" }
     } as const;
 
     constructor(private logging: LoggingPort) {
@@ -196,5 +197,23 @@ export class IpcFfiBridge {
         // SEC-05 FIX: Release native buffer to prevent memory leak
         this.ffi.symbols.free_buffer(msgpackPtr, BigInt(len));
         return result;
+    }
+
+    canonicalStringifyNative(obj: unknown): string | null {
+        if (!this.ffi) return null;
+        try {
+            const jsonStr = JSON.stringify(obj) + "\0";
+            const jsonBuf = new TextEncoder().encode(jsonStr);
+            const outLenPtr = new BigUint64Array(1);
+            const ptr = this.ffi.symbols.canonical_stringify(jsonBuf, Deno.UnsafePointer.of(outLenPtr));
+            if (!ptr) return null;
+            const len = Number(outLenPtr[0]);
+            const view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(ptr, len));
+            const result = new TextDecoder().decode(view);
+            this.ffi.symbols.free_buffer(ptr, BigInt(len));
+            return result;
+        } catch {
+            return null;
+        }
     }
 }

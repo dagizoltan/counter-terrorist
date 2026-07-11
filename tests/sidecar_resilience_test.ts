@@ -47,6 +47,66 @@ Deno.test("Sidecar Resilience - Tiered IPC Timeouts", async () => {
     }
 });
 
+Deno.test("Sidecar Resilience - trustroot (TPM) termination during Unseal recovery", async () => {
+    const mockExecutor = { execute: () => Promise.resolve({ success: true, stdout: "", stderr: "" }) };
+    const logs: any[] = [];
+    const mockLogging = { log: (entry: any) => {
+        logs.push(entry);
+        return Promise.resolve();
+    } };
+
+    const bridgeStub = stub(Deno, "dlopen", () => ({ close: () => {} } as any));
+
+    try {
+        const manager = new SidecarManager(mockExecutor as any, mockLogging as any);
+        manager.setConfig({ getEnv: () => undefined, getToken: () => undefined, getBoolean: () => true } as any);
+
+        let restartAttempts = 0;
+        // Mock getPersistentSidecar to count restart attempts and eventually succeed
+        // @ts-ignore: Accessing private/mocking
+        manager.getPersistentSidecar = (name: string) => {
+            if (name === "trustroot") {
+                restartAttempts++;
+            }
+            return Promise.resolve({
+                stdin: { getWriter: () => ({ write: () => Promise.resolve(), releaseLock: () => {} }) },
+                stdout: { getReader: () => ({ read: () => new Promise(() => {}), releaseLock: () => {} }) },
+                stderr: { getReader: () => ({ read: () => new Promise(() => {}), releaseLock: () => {} }) },
+                pid: 5678
+            } as any);
+        };
+
+        // Simulated Unseal operation that fails because sidecar is forcibly terminated (exit 1)
+        // @ts-ignore: Triggering private exit handler
+        manager.handleSidecarExit("trustroot", 1);
+
+        // Wait for the async restart attempt to be scheduled and run
+        await new Promise(r => setTimeout(r, 1100));
+
+        assert(restartAttempts > 0, "Expected SidecarManager to restart the trustroot sidecar");
+        const logEntry = logs.find(l => l.message && (l.message.includes("unexpectedly. Persistent agents should not exit.") || l.message.includes("crashed")));
+        assert(logEntry !== undefined, "Should have logged unexpected exit of trustroot");
+
+        // Verify we can send commands successfully now that it's resurrected
+        // Stub sendCommand to return success after resurrection
+        let commandSent = false;
+        manager.sendCommand = async (name, cmd) => {
+            if (name === "trustroot" && cmd.type === "Unseal") {
+                commandSent = true;
+                return { success: true, stdout: "unsealed_data", stderr: "", data: { data: "secret_value" } };
+            }
+            return { success: false, stdout: "", stderr: "unknown" };
+        };
+
+        const res = await manager.sendCommand("trustroot", { type: "Unseal", index: "0x1500001" });
+        assert(res.success);
+        assertEquals(res.data?.data, "secret_value");
+        assert(commandSent, "Expected Unseal command to succeed after sidecar resurrection");
+    } finally {
+        bridgeStub.restore();
+    }
+});
+
 Deno.test("Sidecar Resilience - Unexpected exit code 0 triggers restart", async () => {
     const mockExecutor = { execute: () => Promise.resolve({ success: true, stdout: "", stderr: "" }) };
     const logs: any[] = [];

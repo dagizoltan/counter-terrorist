@@ -1,6 +1,7 @@
 /**
  * Centralized Cryptographic and Serialization Utilities
  */
+import { serviceLocator } from "./service_locator.ts";
 
 /**
  * Deterministic JSON stringifier to ensure consistent hashes and signatures.
@@ -9,6 +10,23 @@
  * SOV-M5: Hardened against JSON Bombs with recursion depth and breadth limits.
  */
 export function canonicalStringify(obj: unknown, depth = 0): string {
+  if (depth === 0) {
+    try {
+      if (serviceLocator.has("command")) {
+        const sm = serviceLocator.get<any>("command");
+        const ffi = sm?.getFfi?.() || (sm as any).ffi;
+        if (ffi && typeof ffi.canonicalStringifyNative === "function") {
+          const nativeRes = ffi.canonicalStringifyNative(obj);
+          if (nativeRes !== null) {
+            return nativeRes;
+          }
+        }
+      }
+    } catch {
+      // Fall back silently
+    }
+  }
+
   const MAX_DEPTH = 10;
   const MAX_BREADTH = 100;
 

@@ -113,6 +113,7 @@ export class ServiceInitializer {
         health.registerService("honeypot", security.honeypot);
 
         const services: ServiceContainer = {
+            commandBus: serviceLocator.get("commandBus") as any,
             config: configProvider,
             protection,
             command: this.sidecarManager,
