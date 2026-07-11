@@ -33,6 +33,7 @@ import { ServiceRegistry, ShutdownPriority } from "@core/registry.ts";
 import { serviceLocator } from "@core/service_locator.ts";
 
 import { SubsystemFactory } from "@core/subsystem_factory.ts";
+import { CommandBus } from "@core/command_bus.ts";
 import { SystemLifecycleService } from "@domain/analysis/system_lifecycle_service.ts";
 import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 
@@ -107,6 +108,8 @@ export class SovereignApp {
             await this.appManager.initializeInfrastructure(configProvider, tpmManager, this.auditService, this.lifecycleService);
         this.registry.register("Health", healthService, ShutdownPriority.CRITICAL);
 
+        const commandBus = new CommandBus();
+        serviceLocator.register("commandBus", commandBus);
         serviceLocator.register("config", configProvider);
         serviceLocator.register("command", this.sidecarManager);
         serviceLocator.register("logging", loggingService);

@@ -42,6 +42,9 @@ export class EventMediator extends BaseService {
     private readonly MAX_QUEUE_DEPTH = 1000;
     private batchTimer?: number;
 
+    private uiBroadcastBatch: BroadcastData[] = [];
+    private uiBroadcastTimer?: number;
+
     protected override async onInit(): Promise<Result<void>> {
         // Lazy resolution of dependencies via Service Locator to prevent God Object coupling
         // and handle circular dependencies during complex system boot.
@@ -68,9 +71,14 @@ export class EventMediator extends BaseService {
         if (this.batchTimer) {
             clearInterval(this.batchTimer);
         }
+        if (this.uiBroadcastTimer) {
+            clearTimeout(this.uiBroadcastTimer);
+            this.uiBroadcastTimer = undefined;
+        }
 
         // SOV-06 FIX: Final batch flush on shutdown to prevent telemetry loss
         this.flushBatches();
+        this.flushUiBroadcastBatch();
 
         if (this.behavioral) {
             await this.behavioral.shutdown();
@@ -128,12 +136,35 @@ export class EventMediator extends BaseService {
 
         this.eventBus?.on("UI_BROADCAST", (msg: unknown) => {
             if (typeof msg === "object" && msg !== null) {
-                this.broadcast(msg as BroadcastData);
+                const event = msg as BroadcastData;
+                // Batch/buffer UI_BROADCAST events (specifically audit/logs or any log entries) to reduce WebSocket overhead
+                if (event.type === "AUDIT_LOG" || event.type === "LOG" || event.type === "UI_MESSAGE") {
+                    this.uiBroadcastBatch.push(event);
+                    if (!this.uiBroadcastTimer) {
+                        this.uiBroadcastTimer = setTimeout(() => this.flushUiBroadcastBatch(), 100);
+                    }
+                } else {
+                    this.broadcast(event);
+                }
             }
         });
 
         // Periodic batch flush
         this.batchTimer = setInterval(() => this.flushBatches(), 1000);
+    }
+
+    private flushUiBroadcastBatch() {
+        if (this.uiBroadcastBatch.length > 0) {
+            const batch = [...this.uiBroadcastBatch];
+            this.uiBroadcastBatch = [];
+            this.broadcast({
+                type: "UI_BROADCAST_BATCH",
+                data: {
+                    batch
+                }
+            } as any);
+        }
+        this.uiBroadcastTimer = undefined;
     }
 
     private async flushBatches() {

@@ -155,7 +155,7 @@ export class WebAdapter implements WebPort {
       if (!role) {
         const sessionId = getCookie(c, "session_token");
         if (sessionId) {
-          const result = await this.services.sessions.validateSession(sessionId);
+          const result = await this.services.commandBus.dispatch<any>({ type: "VALIDATE_SESSION", payload: { sessionId } });
           if (result.success && result.data) {
             role = result.data.role || "viewer";
           }
@@ -248,8 +248,7 @@ export class WebAdapter implements WebPort {
   private setupDeceptionGrid() {
     // ── DECEPTION GRID (HONEYPOT) - MUST BE FIRST ─────────────────────
     // These routes must bypass all security and logging middleware to capture raw attacker data.
-    if (this.services.honeypot) {
-      const honeyRoutes = this.services.honeypot.getDecoyRoutes();
+    this.services.commandBus.dispatch<string[]>({ type: "GET_DECOY_ROUTES" }).then(honeyRoutes => {
       honeyRoutes.forEach(route => {
         this.app.get(route, async (c) => {
           const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
@@ -260,11 +259,11 @@ export class WebAdapter implements WebPort {
             caller: "orchestrator:interface:web:api:honeypot",
             message: `[HONEYPOT] Web Decoy Triggered: Access to ${route} from ${ip}`
           });
-          await this.services.honeypot.onWebTrigger(route, ip);
+          await this.services.commandBus.dispatch({ type: "TRIGGER_WEB_DECOY", payload: { route, ip } });
           return c.json({ error: "Unauthorized access detected. Security event logged.", code: "DECEPTION_TRAP" }, 403);
         });
       });
-    }
+    }).catch(() => {});
   }
 
   private setupMiddleware() {
@@ -309,17 +308,18 @@ export class WebAdapter implements WebPort {
         });
       }
 
-      if (this.services.networkLogs) {
-        const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "127.0.0.1";
-        await this.services.networkLogs.log({
-            direction: "INBOUND",
-            source: ip,
-            destination: `LOCAL:${c.req.header("host") || "8000"}`,
-            protocol: "HTTP",
-            length: Number(c.req.header("Content-Length") || 0),
-            action: "ALLOW"
-        });
-      }
+      const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "127.0.0.1";
+      await this.services.commandBus.dispatch({
+          type: "LOG_NETWORK_EVENT",
+          payload: {
+              direction: "INBOUND",
+              source: ip,
+              destination: `LOCAL:${c.req.header("host") || "8000"}`,
+              protocol: "HTTP",
+              length: Number(c.req.header("Content-Length") || 0),
+              action: "ALLOW"
+          }
+      }).catch(() => {});
 
       const result = await next();
 
@@ -342,13 +342,16 @@ export class WebAdapter implements WebPort {
 
       if (isMutation && isSuccess && isSensitiveApi) {
           const actor = this.security.getActor(c);
-          await this.services.audit.logEvent({
-              type: "ADMIN_ACTION",
-              message: `${actor.id} executed ${method} on ${path}`,
-              actor,
-              correlationId: traceId,
-              data: { method, path, status, duration }
-          });
+          await this.services.commandBus.dispatch({
+              type: "LOG_AUDIT_EVENT",
+              payload: {
+                  type: "ADMIN_ACTION",
+                  message: `${actor.id} executed ${method} on ${path}`,
+                  actor,
+                  correlationId: traceId,
+                  data: { method, path, status, duration }
+              }
+          }).catch(() => {});
       }
 
       c.res.headers.set("X-Request-ID", traceId);
@@ -374,7 +377,7 @@ export class WebAdapter implements WebPort {
     );
     if (isMaster) return "admin";
 
-    const result = await this.services.apiKeys.validateApiKey(token);
+    const result = await this.services.commandBus.dispatch<any>({ type: "VALIDATE_API_KEY", payload: { token } });
     if (result.success && result.data) {
       return result.data;
     }
@@ -382,7 +385,10 @@ export class WebAdapter implements WebPort {
   }
 
   private async checkLoginRateLimit(ip: string) {
-      const result = await this.services.rateLimit.checkLimit(`login:${ip}`, 10, 60000);
+      const result = await this.services.commandBus.dispatch<any>({
+          type: "CHECK_RATE_LIMIT",
+          payload: { key: `login:${ip}`, limit: 10, windowMs: 60000 }
+      });
       if (!result.allowed) return { allowed: false, retryAfterMs: result.retryAfterMs };
       return { allowed: true };
   }

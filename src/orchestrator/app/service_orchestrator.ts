@@ -34,10 +34,41 @@ export class ServiceOrchestrator {
     ): Promise<ServiceContainer> {
         initBroadcaster({ notificationService: notifications, auditService: this.auditService, eventBus, loggingService });
 
-        return await this.initializer.initAll(
+        const services = await this.initializer.initAll(
             configProvider, platformInfo, notifications,
             eventBus, mesh, tpm, health
         );
+
+        // Register CommandBus handlers to decouple WebAdapter from direct service dependencies
+        const commandBus = services.commandBus;
+        commandBus.register("VALIDATE_API_KEY", async (cmd) => {
+            return await services.apiKeys.validateApiKey(cmd.payload.token);
+        });
+        commandBus.register("CHECK_RATE_LIMIT", async (cmd) => {
+            const { key, limit, windowMs } = cmd.payload;
+            return await services.rateLimit.checkLimit(key, limit, windowMs);
+        });
+        commandBus.register("VALIDATE_SESSION", async (cmd) => {
+            return await services.sessions.validateSession(cmd.payload.sessionId);
+        });
+        commandBus.register("LOG_NETWORK_EVENT", async (cmd) => {
+            if (services.networkLogs) {
+                await services.networkLogs.log(cmd.payload);
+            }
+        });
+        commandBus.register("LOG_AUDIT_EVENT", async (cmd) => {
+            await services.audit.logEvent(cmd.payload);
+        });
+        commandBus.register("GET_DECOY_ROUTES", async () => {
+            return services.honeypot ? services.honeypot.getDecoyRoutes() : [];
+        });
+        commandBus.register("TRIGGER_WEB_DECOY", async (cmd) => {
+            if (services.honeypot) {
+                await services.honeypot.onWebTrigger(cmd.payload.route, cmd.payload.ip);
+            }
+        });
+
+        return services;
     }
 
     async initOperationalLayer(services: ServiceContainer, startSubsystemsDelegate: () => Promise<void>) {

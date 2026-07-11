@@ -79,7 +79,9 @@ export interface ServiceMap extends
   AnalysisServices,
   SecurityServices,
   OrchestrationServices,
-  IdentityServices {}
+  IdentityServices {
+  "commandBus": import("./command_bus.ts").CommandBus;
+}
 
 export class ServiceLocator implements ServiceLocatorPort {
   private services = new Map<keyof ServiceMap | string, ServiceMap[keyof ServiceMap]>();
