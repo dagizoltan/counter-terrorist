@@ -66,9 +66,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Bytecode loading logic
     #[cfg(debug_assertions)]
-    let bpf_bytes = include_bytes_aligned!("../../target/bpfel-unknown-none/debug/sentinel-kernel");
+    let bpf_bytes = include_bytes_aligned!("../../../target/bpfel-unknown-none/debug/sentinel-kernel");
     #[cfg(not(debug_assertions))]
-    let bpf_bytes = include_bytes_aligned!("../../target/bpfel-unknown-none/release/sentinel-kernel");
+    let bpf_bytes = include_bytes_aligned!("../../../target/bpfel-unknown-none/release/sentinel-kernel");
 
     // BUG-20: Refactor Bpf management to use safe interior mutability
     // and 'static references for async tasks.

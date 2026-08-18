@@ -5,11 +5,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/trustroot",
-          "hash": "5940754571de7c40c6b452ed6e34fcff255884639bdb0710a2bf717f59fbce4d"
+          "hash": "6249d39b1b3b96cb798c7503dd3b96f43acb15ebf90cc8036e3eab4b28d06f76"
         },
         "aarch64": {
           "path": "./src/agents/target/release/trustroot",
-          "hash": "5940754571de7c40c6b452ed6e34fcff255884639bdb0710a2bf717f59fbce4d"
+          "hash": "6249d39b1b3b96cb798c7503dd3b96f43acb15ebf90cc8036e3eab4b28d06f76"
         }
       }
     },
@@ -23,11 +23,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/sentinel",
-          "hash": "6a5a888e2041306c3c0f32ca72d40c1719e57f0680903722dfe7ce3f660c4138"
+          "hash": "8c02e79683213dd01f2c040ffcfc9de32a7f9f4d822fb67a2d121064b429b5d6"
         },
         "aarch64": {
           "path": "./src/agents/target/release/sentinel",
-          "hash": "6a5a888e2041306c3c0f32ca72d40c1719e57f0680903722dfe7ce3f660c4138"
+          "hash": "8c02e79683213dd01f2c040ffcfc9de32a7f9f4d822fb67a2d121064b429b5d6"
         }
       }
     },
@@ -39,11 +39,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/tunnel",
-          "hash": "5d6854fefc36279e9629c546083583bd96af462404b9e7100aee2c34b8c2d204"
+          "hash": "17e90185e6d77d62e2907e7351f15a45766c682a115e104bb9cb1d77d25a613e"
         },
         "aarch64": {
           "path": "./src/agents/target/release/tunnel",
-          "hash": "5d6854fefc36279e9629c546083583bd96af462404b9e7100aee2c34b8c2d204"
+          "hash": "17e90185e6d77d62e2907e7351f15a45766c682a115e104bb9cb1d77d25a613e"
         }
       }
     },
@@ -56,11 +56,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/enforcer",
-          "hash": "14bc80f2363d1c261b8532c37e37a5296473a85ef679601351c881be5736afd4"
+          "hash": "69ed2f68dc41cd8746ae1991aac80578843123d9cbe395ecc3586cea523712a8"
         },
         "aarch64": {
           "path": "./src/agents/target/release/enforcer",
-          "hash": "14bc80f2363d1c261b8532c37e37a5296473a85ef679601351c881be5736afd4"
+          "hash": "69ed2f68dc41cd8746ae1991aac80578843123d9cbe395ecc3586cea523712a8"
         }
       }
     },
@@ -69,11 +69,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/analyzer",
-          "hash": "46b607c0127801aca38843d006c1e8917929576a235ff792e849a4a3222745e7"
+          "hash": "6668d319e584140828ded2ba525ef2613a6beb47a61e18a37378e9d76f1b523a"
         },
         "aarch64": {
           "path": "./src/agents/target/release/analyzer",
-          "hash": "46b607c0127801aca38843d006c1e8917929576a235ff792e849a4a3222745e7"
+          "hash": "6668d319e584140828ded2ba525ef2613a6beb47a61e18a37378e9d76f1b523a"
         }
       }
     },
@@ -86,11 +86,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/netcap",
-          "hash": "3de018255d5fc1247669a73279a9a25e5c26d0c59239fe4f9f0a5dc71d943376"
+          "hash": "166cf7a56eab092a1cfc7068c1e7683c40adf126b39b4a31bacf5a5807f35f50"
         },
         "aarch64": {
           "path": "./src/agents/target/release/netcap",
-          "hash": "3de018255d5fc1247669a73279a9a25e5c26d0c59239fe4f9f0a5dc71d943376"
+          "hash": "166cf7a56eab092a1cfc7068c1e7683c40adf126b39b4a31bacf5a5807f35f50"
         }
       }
     },
@@ -99,11 +99,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/decoy",
-          "hash": "79e56226898838f5e2dca2905cce8d124c3090186192299e260d4078bba7c42a"
+          "hash": "31b940fb4ceb4e4ae62870a018776c4cdaf2d18b20cb440770a1c0473417f942"
         },
         "aarch64": {
           "path": "./src/agents/target/release/decoy",
-          "hash": "79e56226898838f5e2dca2905cce8d124c3090186192299e260d4078bba7c42a"
+          "hash": "31b940fb4ceb4e4ae62870a018776c4cdaf2d18b20cb440770a1c0473417f942"
         }
       }
     },
@@ -115,11 +115,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/watchfile",
-          "hash": "f1cb9cc76858979df64383e81f10eefc43be0796c55829b68b5a6182ceb8abf4"
+          "hash": "0eb63d75f360f49c5e572d28ae158100c798c97073d99f7725309351c00161ce"
         },
         "aarch64": {
           "path": "./src/agents/target/release/watchfile",
-          "hash": "f1cb9cc76858979df64383e81f10eefc43be0796c55829b68b5a6182ceb8abf4"
+          "hash": "0eb63d75f360f49c5e572d28ae158100c798c97073d99f7725309351c00161ce"
         }
       }
     },
@@ -128,11 +128,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/sentinel-darwin",
-          "hash": "7b63baa1328d5da20699252b2607d2057fba429d24df30941d3cdc5b1bdeab3a"
+          "hash": "60abf959aeebf2a7227b0ac2f51506a97b110e685b87406fe7274cdd59865fc2"
         },
         "aarch64": {
           "path": "./src/agents/target/release/sentinel-darwin",
-          "hash": "7b63baa1328d5da20699252b2607d2057fba429d24df30941d3cdc5b1bdeab3a"
+          "hash": "60abf959aeebf2a7227b0ac2f51506a97b110e685b87406fe7274cdd59865fc2"
         }
       }
     }
