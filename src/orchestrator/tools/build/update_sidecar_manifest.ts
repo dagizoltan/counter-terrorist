@@ -27,23 +27,44 @@ async function main() {
 
   let updated = false;
   for (const [name, entry] of Object.entries(manifest.sidecars as Record<string, any>)) {
-    if (!entry || typeof entry !== "object" || typeof entry.path !== "string") {
+    if (!entry || typeof entry !== "object") {
       console.warn(`Skipping malformed manifest entry for '${name}'.`);
       continue;
     }
 
-    const binaryPath = normalizeBinaryPath(entry.path);
-    try {
-      const currentHash = await sha256File(binaryPath);
-      if (entry.hash !== currentHash) {
-        console.log(`- ${name}: hash updated (${entry.hash?.slice(0, 8) || "none"} -> ${currentHash.slice(0, 8)})`);
-        entry.hash = currentHash;
-        updated = true;
-      } else {
-        console.log(`- ${name}: hash unchanged`);
+    if (entry.architectures && typeof entry.architectures === "object") {
+      for (const [arch, archEntry] of Object.entries(entry.architectures as Record<string, any>)) {
+        if (!archEntry || typeof archEntry.path !== "string") continue;
+        const binaryPath = normalizeBinaryPath(archEntry.path);
+        try {
+          const currentHash = await sha256File(binaryPath);
+          if (archEntry.hash !== currentHash) {
+            console.log(`- ${name} (${arch}): hash updated (${archEntry.hash?.slice(0, 8) || "none"} -> ${currentHash.slice(0, 8)})`);
+            archEntry.hash = currentHash;
+            updated = true;
+          } else {
+            console.log(`- ${name} (${arch}): hash unchanged`);
+          }
+        } catch (error) {
+          console.warn(`- ${name} (${arch}): unable to hash '${binaryPath}' (${(error as Error).message})`);
+        }
       }
-    } catch (error) {
-      console.warn(`- ${name}: unable to hash '${binaryPath}' (${(error as Error).message})`);
+    } else if (typeof entry.path === "string") {
+      const binaryPath = normalizeBinaryPath(entry.path);
+      try {
+        const currentHash = await sha256File(binaryPath);
+        if (entry.hash !== currentHash) {
+          console.log(`- ${name}: hash updated (${entry.hash?.slice(0, 8) || "none"} -> ${currentHash.slice(0, 8)})`);
+          entry.hash = currentHash;
+          updated = true;
+        } else {
+          console.log(`- ${name}: hash unchanged`);
+        }
+      } catch (error) {
+        console.warn(`- ${name}: unable to hash '${binaryPath}' (${(error as Error).message})`);
+      }
+    } else {
+      console.warn(`Skipping malformed manifest entry for '${name}'.`);
     }
   }
 
