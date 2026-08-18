@@ -5,11 +5,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/trustroot",
-          "hash": "6249d39b1b3b96cb798c7503dd3b96f43acb15ebf90cc8036e3eab4b28d06f76"
+          "hash": "d93a108eb74b726a43d4d2b801f07502a4397ee47bdb9b68736992abb6c8a7bd"
         },
         "aarch64": {
           "path": "./src/agents/target/release/trustroot",
-          "hash": "6249d39b1b3b96cb798c7503dd3b96f43acb15ebf90cc8036e3eab4b28d06f76"
+          "hash": "d93a108eb74b726a43d4d2b801f07502a4397ee47bdb9b68736992abb6c8a7bd"
         }
       }
     },

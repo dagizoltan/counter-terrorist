@@ -348,7 +348,7 @@ async fn main() {
 
                                 // Return only cert to orchestrator
                                 emit_response(&id, true, "Root CA generated and hardware-bound".to_string(), Some(serde_json::json!({ "cert": cert }))).await;
-                                return;
+                                continue;
                             }
                         }
                     }
