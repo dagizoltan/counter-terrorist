@@ -267,7 +267,7 @@ export class SovereignApp {
         
         (async () => {
             const res = await kernelService.start();
-            if (res.success && this.services.config.getEnv("ENVIRONMENT") === "production") {
+            if (res.success && this.services?.config?.getEnv("ENVIRONMENT") === "production") {
                 const sidecars = ["analyzer", "sentinel", "watchfile"];
                 for (const name of sidecars) {
                     await kernelService.deployAppArmorProfile(name, `/var/lib/cts/bin/${name}`).catch(err => console.error(`Background task failure: ${err}`));
