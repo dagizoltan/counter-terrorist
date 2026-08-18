@@ -10,7 +10,7 @@ static STDOUT_LOCK: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 enum Command {
-    AddBlockRule { id: String, ip: String, port: Option<u16> },
+    AddBlockRule { id: String, ip: String, _port: Option<u16> },
     RemoveBlockRule { id: String, ip: String },
     AddAllowRule { id: String, port: u16, protocol: String },
     RemoveAllowRule { id: String, port: u16, protocol: String },
@@ -53,7 +53,7 @@ async fn main() {
         };
 
         match cmd {
-            Command::AddBlockRule { id, ip, .. } => {
+            Command::AddBlockRule { id, ip, _port: _ } => {
                 // SOV-M6 Hardening: WFP Integration Stub
                 // In production, this would call FwpmFilterAdd0 via winapi-rs.
                 // For now, we simulate the registry-based persistence check.
