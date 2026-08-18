@@ -49,6 +49,7 @@ export class SidecarManager implements CommandPort {
   private redactor: SecretRedactor = new SecretRedactor();
   private circuitBreakers: Map<string, CircuitBreaker> = new Map();
   private heartbeatMonitor: HeartbeatMonitor;
+  private stdinLocks: Map<string, Promise<void>> = new Map();
 
   constructor(private executor: SystemExecutor, private logging: LoggingPort) {
     this.ffi = new IpcFfiBridge(logging);
@@ -662,30 +663,41 @@ export class SidecarManager implements CommandPort {
       }, timeoutMs);
     });
 
-    const writer = child.stdin.getWriter();
+    // Queue write operations to child.stdin per sidecar to avoid stream locking race conditions
+    const prevLock = this.stdinLocks.get(name) || Promise.resolve();
+    let releaseLock!: () => void;
+    const nextLock = new Promise<void>((resolve) => { releaseLock = resolve; });
+    this.stdinLocks.set(name, nextLock);
 
-    if (name === "sentinel" || name === "netcap") {
-        const cmdShmemPtr = this.ipc.getCmdShmemPtr(name);
-        const binCmd = this.ffi.serializeMessagePack(commandObj);
-        if (cmdShmemPtr && binCmd) {
-            const success = this.ffi.writeShmem(cmdShmemPtr, binCmd, this.obfuscationKey || undefined);
-            if (success) {
-                writer.releaseLock();
-                return Promise.race([responsePromise, timeoutPromise]);
-            }
-        }
+    let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+    try {
+      await prevLock;
+      writer = child.stdin.getWriter();
 
-        if (binCmd) {
-            await writer.write(binCmd);
-            writer.releaseLock();
-            return Promise.race([responsePromise, timeoutPromise]);
-        }
+      if (name === "sentinel" || name === "netcap") {
+          const cmdShmemPtr = this.ipc.getCmdShmemPtr(name);
+          const binCmd = this.ffi.serializeMessagePack(commandObj);
+          if (cmdShmemPtr && binCmd) {
+              const success = this.ffi.writeShmem(cmdShmemPtr, binCmd, this.obfuscationKey || undefined);
+              if (success) {
+                  return await Promise.race([responsePromise, timeoutPromise]);
+              }
+          }
+
+          if (binCmd) {
+              await writer.write(binCmd);
+              return await Promise.race([responsePromise, timeoutPromise]);
+          }
+      }
+
+      await writer.write(new TextEncoder().encode(JSON.stringify(commandObj) + "\n"));
+      return await Promise.race([responsePromise, timeoutPromise]);
+    } finally {
+      if (writer) {
+        try { writer.releaseLock(); } catch { /* ignore */ }
+      }
+      releaseLock();
     }
-
-    await writer.write(new TextEncoder().encode(JSON.stringify(commandObj) + "\n"));
-    writer.releaseLock();
-
-    return Promise.race([responsePromise, timeoutPromise]);
   }
 
   onEvent(name: string, handler: (data: SidecarResponse) => void) {
