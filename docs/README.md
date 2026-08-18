@@ -38,5 +38,9 @@ Each primary summary is backed by a numbered folder of detailed documents.
 ### 05 Handover
 - `05_handover/01_evaluation_and_handover.md` — evaluation and handover guide.
 
+### Executive & Engineering Guides
+- `REVERSE_ENGINEERING_AND_BUILD_GUIDE.md` — system architecture, Rust agents, IPC mechanics, and local build/startup playbook.
+- `EXECUTIVE_EVALUATION_AND_VALUATION.md` — CISO evaluation, reliability guarantees, IP valuation ($2.5M–$5.0M), and risk assessment matrix.
+
 ## How to use this folder
 Follow the numbered summaries in order. After each summary, use the matching numbered folder for detailed implementation, architecture, and handover support.

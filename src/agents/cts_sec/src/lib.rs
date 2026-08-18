@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{Read, BufReader, Write};
 use shared_memory::*;
 use serde::{Serialize};
-use std::os::unix::io::{AsRawFd, FromRawFd, OwnedFd};
+use std::os::unix::io::{FromRawFd, OwnedFd};
 use std::sync::atomic::{AtomicU32, Ordering};
 use ed25519_dalek::{VerifyingKey, Signature, Verifier};
 
