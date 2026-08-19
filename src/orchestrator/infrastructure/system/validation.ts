@@ -482,7 +482,7 @@ const SentinelRequestSchema = z.object({
 
 const TrustrootRequestSchema = z.object({
     id: IdSchema,
-    type: z.enum(["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert"])
+    type: z.enum(["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert", "GenerateProxyKey", "SignProxy", "WipeSecrets"])
 });
 
 const TunnelRequestSchema = z.object({
