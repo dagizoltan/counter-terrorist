@@ -295,7 +295,13 @@ export class SovereignApp {
         lifecycle.start();
         autonomousAutopilot.start();
 
-        await this.appManager.startDaemons(this.services);
+        this.appManager.startDaemons(this.services).catch(err => loggingService.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.GENERIC,
+            severity: LogSeverity.ERROR,
+            caller: "orchestrator:app:sovereign_app",
+            message: `Background startDaemons failure: ${err}`
+        }).catch(() => {}));
     }
 
 

@@ -416,6 +416,7 @@ export class WebAdapter implements WebPort {
           throw new Error(`Failed to generate node certificate: ${result.error.message}`);
       }
       const nodeCert = result.data;
+      console.log(`\n🚀 [TACTICAL CONSOLE ACTIVE] https://localhost:${port}\n`);
       loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
@@ -437,6 +438,7 @@ export class WebAdapter implements WebPort {
         ciphers: ["TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"]
       }, this.app.fetch);
     } else {
+      console.log(`\n🚀 [TACTICAL CONSOLE ACTIVE] http://localhost:${port}\n`);
       loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.GENERIC,
