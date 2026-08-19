@@ -14,7 +14,7 @@ export class HeartbeatMonitor {
     ) {}
 
     start(getActiveSidecars: () => string[]) {
-        const HEARTBEAT_TIMEOUT = 5000;
+        const HEARTBEAT_TIMEOUT = 30000;
         this.heartbeatInterval = setInterval(() => {
             const now = Date.now();
             const active = getActiveSidecars();

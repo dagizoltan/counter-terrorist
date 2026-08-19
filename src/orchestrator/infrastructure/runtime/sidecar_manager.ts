@@ -371,6 +371,7 @@ export class SidecarManager implements CommandPort {
   }
 
   private handleIpcLine(name: string, trimmed: string) {
+          this.heartbeatMonitor.recordHeartbeat(name);
           try {
             // Robust IPC Recursion Depth & Complexity Limiter
             const MAX_DEPTH = 8;
@@ -627,6 +628,7 @@ export class SidecarManager implements CommandPort {
     const child = await this.getPersistentSidecar(name) as Deno.ChildProcess | null;
     if (!child) return { success: false, stdout: "", stderr: `Sidecar ${name} not found` };
 
+    this.heartbeatMonitor.recordHeartbeat(name);
     const id = crypto.randomUUID();
     const commandObj = typeof cmd === "string" ? { id, type: cmd } : { ...cmd, id };
 
