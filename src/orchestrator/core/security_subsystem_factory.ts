@@ -34,7 +34,7 @@ export class SecuritySubsystemFactory {
         const behavioral = new BehavioralService(protection.firewall, this.auditService);
         const honeypot = new HoneypotService(this.sidecarManager, protection.firewall, protection.pcap, this.logging);
 
-        const canaryService = this.createServiceDelegate(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging));
+        const canaryService = this.createServiceDelegate(health, "Canary", () => new CanaryService(this.auditService, this.sidecarManager, this.logging, config));
         const kernelService = new KernelService(this.executor, this.auditService, config, this.sidecarManager, this.sidecarManager.getTpm());
 
         return { anonymization, shadowProtocol, behavioral, honeypot, canaryService, kernelService };

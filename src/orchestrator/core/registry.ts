@@ -24,14 +24,19 @@ export class ServiceRegistry {
      * Registers a service with the registry.
      */
     register(name: string, service: Service, priority: ShutdownPriority = ShutdownPriority.AUXILIARY) {
-        if (this.services.has(name)) {
-            this.logging?.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.WARNING,
-                caller: "orchestrator:core:registry",
-                message: `Service '${name}' is already registered. Overwriting.`
-            });
+        const existing = this.services.get(name);
+        if (existing) {
+            if (existing.service !== service) {
+                this.logging?.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.WARNING,
+                    caller: "orchestrator:core:registry",
+                    message: `Service '${name}' is already registered with a different instance. Overwriting.`
+                });
+            }
+            this.services.set(name, { service, priority });
+            return;
         }
         this.services.set(name, { service, priority });
         this.initOrder.push(name);
