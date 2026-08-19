@@ -94,7 +94,7 @@ export const SystemEventRegistry = {
   }),
   "METRIC_UPDATE": z.object({
     domain: z.string(),
-    data: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    data: z.record(z.string(), z.unknown())
   }),
   "AUDIT_EVENT": z.object({
     id: z.string().optional(),
