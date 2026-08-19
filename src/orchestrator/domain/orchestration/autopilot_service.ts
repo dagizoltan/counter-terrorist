@@ -28,9 +28,9 @@ export class AutopilotService extends BaseService {
   private engine!: AutonomousResponseEngine;
   private policy: PolicyEngine;
 
-  constructor() {
+  constructor(config?: import("../../core/ports/system.ts").ConfigurationPort) {
     super();
-    this.policy = new PolicyEngine(loggingService);
+    this.policy = new PolicyEngine(loggingService, config);
   }
 
   public setServices(services: AutopilotDependencies) {

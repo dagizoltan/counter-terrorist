@@ -76,7 +76,7 @@ export class ServiceInitializer {
         serviceLocator.register("playbook", playbook);
         this.registry.register("Playbook", playbook, ShutdownPriority.AUXILIARY);
 
-        const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await this.factory.initEngine(correlation, mesh);
+        const { autopilot, autonomousAutopilot, lifecycle, policy, provisioning } = await this.factory.initEngine(correlation, mesh, configProvider);
         this.registry.register("Autopilot", autopilot, ShutdownPriority.AUXILIARY);
         this.registry.register("AutonomousAutopilot", autonomousAutopilot, ShutdownPriority.AUXILIARY);
         this.registry.register("Lifecycle", lifecycle, ShutdownPriority.AUXILIARY);

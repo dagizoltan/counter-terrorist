@@ -85,8 +85,8 @@ export class SubsystemFactory {
         return this.intelligenceFactory.initIntelligence(protection, processTracker, health, config, mesh, meshAuth);
     }
 
-    async initEngine(correlation: CorrelationService, mesh: MeshManager) {
-        return this.engineFactory.initEngine(correlation, mesh);
+    async initEngine(correlation: CorrelationService, mesh: MeshManager, config: ConfigurationPort) {
+        return this.engineFactory.initEngine(correlation, mesh, config);
     }
 
     initProcessTracker(platformInfo: PlatformInfo) {

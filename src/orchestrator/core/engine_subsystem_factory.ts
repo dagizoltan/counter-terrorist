@@ -14,7 +14,7 @@ export class EngineSubsystemFactory {
         private logging: LoggingPort
     ) {}
 
-    async initEngine(correlation: CorrelationService, mesh: MeshManager): Promise<{
+    async initEngine(correlation: CorrelationService, mesh: MeshManager, config: import("./ports/system.ts").ConfigurationPort): Promise<{
         autopilot: import("@domain/index.ts").AutopilotService;
         autonomousAutopilot: import("@domain/index.ts").AutonomousAutopilotService;
         lifecycle: import("@domain/index.ts").LifecycleService;
@@ -22,10 +22,10 @@ export class EngineSubsystemFactory {
         correlation: CorrelationService;
         provisioning: import("@domain/index.ts").ProvisioningService;
     }> {
-        const autopilot = new AutopilotService();
+        const autopilot = new AutopilotService(config);
         const autonomousAutopilot = new AutonomousAutopilotService(correlation, this.sidecarManager, this.logging);
         const lifecycle = new LifecycleService(this.sidecarManager, this.logging);
-        const provisioning = new ProvisioningService(this.sidecarManager, mesh, this.executor, this.logging);
+        const provisioning = new ProvisioningService(this.sidecarManager, mesh, this.executor, this.logging, config);
 
         return { autopilot, autonomousAutopilot, lifecycle, policy: autopilot.getPolicy(), correlation, provisioning };
     }
