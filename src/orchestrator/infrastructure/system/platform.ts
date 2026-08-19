@@ -109,10 +109,11 @@ async function getMetrics(executor?: SystemExecutor): Promise<PlatformInfo["metr
       hostname,
     };
   } catch (e) {
+    const isPermissionError = e instanceof Error && (e.name === "PermissionDenied" || e.message.includes("Requires"));
     loggingService.log({
         timestamp: new Date().toISOString(),
         type: LogType.GENERIC,
-        severity: LogSeverity.ERROR,
+        severity: isPermissionError ? LogSeverity.DEBUG : LogSeverity.ERROR,
         caller: "orchestrator:infra:system:platform",
         message: `Failed to get metrics: ${e instanceof Error ? e.message : String(e)}`
     });
