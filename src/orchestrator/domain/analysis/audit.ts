@@ -65,6 +65,28 @@ type KvWatchable = {
     watch(keys: string[][], options: { signal: AbortSignal }): AsyncIterable<{ key: unknown[]; value: unknown; oldValue?: unknown }>;
 };
 
+function sanitizeDataForAudit(obj: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
+    if (depth > 6) return "[Truncated: Max Depth]";
+    if (obj === null || typeof obj !== "object") return obj;
+    if (seen.has(obj as object)) return "[Circular]";
+    seen.add(obj as object);
+
+    if (Array.isArray(obj)) {
+        return obj.slice(0, 50).map(item => sanitizeDataForAudit(item, depth + 1, seen));
+    }
+    const record = obj as Record<string, unknown>;
+    const sanitized: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(record).slice(0, 50)) {
+        if (typeof v === "function") continue;
+        try {
+            sanitized[k] = sanitizeDataForAudit(v, depth + 1, seen);
+        } catch {
+            sanitized[k] = "[Unserializable]";
+        }
+    }
+    return sanitized;
+}
+
 type AuditBroadcastPayload = Parameters<MeshManager["broadcastAuditEvent"]>[0];
 
 /**
@@ -659,7 +681,8 @@ export class AuditService extends BaseService {
             return;
         }
 
-        this.logQueue.push(event);
+        const sanitizedData = event.data ? sanitizeDataForAudit(event.data) as Record<string, unknown> : undefined;
+        this.logQueue.push({ ...event, data: sanitizedData });
         if (!this.isProcessingQueue) {
             this.processQueue().catch((err) => {
                 this.safeLogAuditError("Audit processing failed", err);
