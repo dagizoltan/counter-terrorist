@@ -98,6 +98,8 @@ export class SidecarRepository {
             ...(isDev ? [
                 `./src/agents/target/release/${binName}${extension}`,
                 `./src/agents/target/debug/${binName}${extension}`,
+                `./target/release/${binName}${extension}`,
+                `./target/debug/${binName}${extension}`,
             ] : [])
         ].filter(Boolean) as string[];
 

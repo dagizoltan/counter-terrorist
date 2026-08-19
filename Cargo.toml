@@ -1,0 +1,38 @@
+[workspace]
+resolver = "2"
+members = [
+    "src/agents/analyzer",
+    "src/agents/enforcer",
+    "src/agents/decoy",
+    "src/agents/netcap",
+    "src/agents/sentinel",
+    "src/agents/watchfile",
+    "src/agents/trustroot",
+    "src/agents/tunnel",
+    "src/agents/sentinel-darwin",
+    "src/agents/telemetry-win",
+    "src/agents/enforcer-win",
+    "src/agents/cts_sec",
+    "src/agents/cts_ipc",
+]
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+sysinfo = "0.29"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+rayon = "1.8"
+once_cell = "1.18"
+parking_lot = "0.12"
+anyhow = "1.0"
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+rand = "0.8"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
