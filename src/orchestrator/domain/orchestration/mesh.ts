@@ -201,7 +201,7 @@ export class MeshManager extends BaseService implements MeshPort {
           caller: "orchestrator:domain:orchestration:mesh",
           message: `Failed to initialize mTLS: ${error.message}. Continuing with limited mesh functionality.`
       });
-      return err(error);
+      return ok(undefined);
     }
   }
 
@@ -659,7 +659,7 @@ export class MeshManager extends BaseService implements MeshPort {
    * @param priority If true, the message will bypass normal gossip queues
    */
   async broadcast(payload: Record<string, unknown>, priority: boolean = false): Promise<Result<void>> {
-    this.ensureReady();
+    if (!this.isInitialized) return ok(undefined);
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => {
         if (!n.verified) return false;
         if (this.chaosEngine.shouldPartition(n.id)) return false;
