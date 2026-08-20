@@ -49,7 +49,9 @@ async fn log_forensic(severity: &str, message: &str) {
     };
     if let Ok(json) = serde_json::to_string(&log) {
         let _lock = STDOUT_LOCK.lock();
+        use std::io::Write;
         println!("[LOG] {}", json);
+        let _ = std::io::stdout().flush();
     }
 }
 
@@ -63,7 +65,9 @@ fn emit_event(event: SidecarEvent) {
     };
     if let Ok(json) = serde_json::to_string(&resp) {
         let _lock = STDOUT_LOCK.lock();
+        use std::io::Write;
         println!("{}", json);
+        let _ = std::io::stdout().flush();
     }
 }
 

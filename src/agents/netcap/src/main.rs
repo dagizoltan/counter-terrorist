@@ -119,7 +119,9 @@ async fn log_forensic(severity: &str, message: &str) {
     if !IPC.emit_event(&log) {
         if let Ok(json) = serde_json::to_string(&log) {
             let _lock = STDOUT_LOCK.lock().await;
+            use std::io::Write;
             println!("[LOG] {}", json);
+            let _ = std::io::stdout().flush();
         }
     }
 }
@@ -195,7 +197,9 @@ async fn handle_netcap_command(cmd_val: serde_json::Value, capture_handle: Arc<M
                     let err_msg = format!("Failed to initialize PCAP writer: {}", e);
                     log_forensic("error", &err_msg).await;
                     let resp = serde_json::json!({ "id": id, "success": false, "message": err_msg, "timestamp": Utc::now().to_rfc3339() });
+                use std::io::Write;
                     println!("{}", resp);
+                let _ = std::io::stdout().flush();
                     return;
                 }
 
@@ -333,7 +337,9 @@ async fn handle_netcap_command(cmd_val: serde_json::Value, capture_handle: Arc<M
                 *handle = Some(h);
                 let msg = format!("PCAPng Forensic Recording Active on {}", interface);
                 let resp = serde_json::json!({ "id": id, "success": true, "message": msg, "timestamp": Utc::now().to_rfc3339() });
+                use std::io::Write;
                 println!("{}", resp);
+                let _ = std::io::stdout().flush();
             }
             "StopCapture" => {
                 let mut handle = capture_handle.lock().await;

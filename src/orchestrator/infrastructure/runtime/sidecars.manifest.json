@@ -5,11 +5,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/trustroot",
-          "hash": "d93a108eb74b726a43d4d2b801f07502a4397ee47bdb9b68736992abb6c8a7bd"
+          "hash": "62a1259836ea85661dd8112907f9c85decbdcfc09ee5062c40b4fac8c706441e"
         },
         "aarch64": {
           "path": "./src/agents/target/release/trustroot",
-          "hash": "d93a108eb74b726a43d4d2b801f07502a4397ee47bdb9b68736992abb6c8a7bd"
+          "hash": "62a1259836ea85661dd8112907f9c85decbdcfc09ee5062c40b4fac8c706441e"
         }
       }
     },
@@ -23,11 +23,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/sentinel",
-          "hash": "8c02e79683213dd01f2c040ffcfc9de32a7f9f4d822fb67a2d121064b429b5d6"
+          "hash": "9cffad577ee8ed8867d1e070df2d1133d717a36a76105f6cafe2622e0c27052b"
         },
         "aarch64": {
           "path": "./src/agents/target/release/sentinel",
-          "hash": "8c02e79683213dd01f2c040ffcfc9de32a7f9f4d822fb67a2d121064b429b5d6"
+          "hash": "9cffad577ee8ed8867d1e070df2d1133d717a36a76105f6cafe2622e0c27052b"
         }
       }
     },
@@ -56,11 +56,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/enforcer",
-          "hash": "69ed2f68dc41cd8746ae1991aac80578843123d9cbe395ecc3586cea523712a8"
+          "hash": "b2d39c7b27b90c8f5d6dfd07954fce7db3938ba52135d914776c8ef0dd063820"
         },
         "aarch64": {
           "path": "./src/agents/target/release/enforcer",
-          "hash": "69ed2f68dc41cd8746ae1991aac80578843123d9cbe395ecc3586cea523712a8"
+          "hash": "b2d39c7b27b90c8f5d6dfd07954fce7db3938ba52135d914776c8ef0dd063820"
         }
       }
     },
@@ -69,11 +69,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/analyzer",
-          "hash": "6668d319e584140828ded2ba525ef2613a6beb47a61e18a37378e9d76f1b523a"
+          "hash": "194bb1b8d167ae0a07e150514cdc8c2456af695d0f560e0a8492821ed76aeeac"
         },
         "aarch64": {
           "path": "./src/agents/target/release/analyzer",
-          "hash": "6668d319e584140828ded2ba525ef2613a6beb47a61e18a37378e9d76f1b523a"
+          "hash": "194bb1b8d167ae0a07e150514cdc8c2456af695d0f560e0a8492821ed76aeeac"
         }
       }
     },
@@ -86,11 +86,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/netcap",
-          "hash": "166cf7a56eab092a1cfc7068c1e7683c40adf126b39b4a31bacf5a5807f35f50"
+          "hash": "e814b13ab5cf5e667529ea4206ee7eee287e5a40940d2af10ce289048d3082d5"
         },
         "aarch64": {
           "path": "./src/agents/target/release/netcap",
-          "hash": "166cf7a56eab092a1cfc7068c1e7683c40adf126b39b4a31bacf5a5807f35f50"
+          "hash": "e814b13ab5cf5e667529ea4206ee7eee287e5a40940d2af10ce289048d3082d5"
         }
       }
     },
@@ -99,11 +99,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/decoy",
-          "hash": "31b940fb4ceb4e4ae62870a018776c4cdaf2d18b20cb440770a1c0473417f942"
+          "hash": "37a78d0b77a8325fdc577f860f161d38d99540ba5cdf3541b91a2b9f2c4649ee"
         },
         "aarch64": {
           "path": "./src/agents/target/release/decoy",
-          "hash": "31b940fb4ceb4e4ae62870a018776c4cdaf2d18b20cb440770a1c0473417f942"
+          "hash": "37a78d0b77a8325fdc577f860f161d38d99540ba5cdf3541b91a2b9f2c4649ee"
         }
       }
     },
@@ -115,11 +115,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/watchfile",
-          "hash": "0eb63d75f360f49c5e572d28ae158100c798c97073d99f7725309351c00161ce"
+          "hash": "95e23cfed334d835546a97a766dc685df70a65cd51f07075e869be79fe57447c"
         },
         "aarch64": {
           "path": "./src/agents/target/release/watchfile",
-          "hash": "0eb63d75f360f49c5e572d28ae158100c798c97073d99f7725309351c00161ce"
+          "hash": "95e23cfed334d835546a97a766dc685df70a65cd51f07075e869be79fe57447c"
         }
       }
     },

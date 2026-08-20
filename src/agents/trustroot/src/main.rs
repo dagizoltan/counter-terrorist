@@ -114,7 +114,9 @@ async fn emit_response(id: &str, success: bool, message: String, data: Option<se
     };
     if let Ok(json) = serde_json::to_string(&resp) {
         let _lock = STDOUT_LOCK.lock().await;
+        use std::io::Write;
         println!("{}", json);
+        let _ = std::io::stdout().flush();
     }
 }
 
