@@ -35,7 +35,9 @@ async fn emit_response(id: Option<String>, success: bool, message: String) {
     if let Ok(json) = serde_json::to_string(&resp) {
         // BUG-13: STDOUT lock to prevent corruption
         let _lock = STDOUT_LOCK.lock();
+        use std::io::Write;
         println!("{}", json);
+        let _ = std::io::stdout().flush();
     }
 }
 
@@ -54,7 +56,9 @@ async fn emit_event(data: serde_json::Value) {
     if !IPC.emit_event(&resp) {
         if let Ok(json) = serde_json::to_string(&resp) {
             let _lock = STDOUT_LOCK.lock();
+            use std::io::Write;
             println!("{}", json);
+            let _ = std::io::stdout().flush();
         }
     }
 }
@@ -422,7 +426,7 @@ async fn handle_command(cmd: AgentCommand, bpf_arc: &'static Mutex<Bpf>) {
                 }
             }
             let resp = AgentResponse { id, success: true, message: Some("Active".to_string()), data: Some(serde_json::Value::Object(stats_data)), timestamp: Utc::now().to_rfc3339(), threats_found: None, memory_anomalies: None, target: None };
-            if let Ok(json) = serde_json::to_string(&resp) { let _lock = STDOUT_LOCK.lock(); println!("{}", json); }
+            if let Ok(json) = serde_json::to_string(&resp) { let _lock = STDOUT_LOCK.lock(); use std::io::Write; println!("{}", json); let _ = std::io::stdout().flush(); }
         },
         AgentCommand::TrustComm { id, comm: comm_str } => {
             let res = {
