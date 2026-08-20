@@ -157,14 +157,16 @@ export class EventMediator extends BaseService {
             try {
                 const payload = (typeof response === "object" && response !== null ? response as SidecarEvent : {} as SidecarEvent);
                 const event = (payload.data as SidecarEvent) ?? payload;
-                this.broadcast({
-                    type: LogType.AUDIT,
-                    severity: LogSeverity.ERROR,
-                    caller: typeof event.caller === "string" ? event.caller : "decoy:honeypot",
-                    message: `Honeypot Trigger: ${typeof event.type === "string" ? event.type : "unknown"} from ${typeof event.source_ip === "string" ? event.source_ip : "remote"}`,
-                    data: event
-                });
-                await this.eventBus?.emit("HONEYPOT", event as any);
+                if (typeof event.type === "string" && typeof event.source_ip === "string") {
+                    this.broadcast({
+                        type: LogType.AUDIT,
+                        severity: LogSeverity.ERROR,
+                        caller: typeof event.caller === "string" ? event.caller : "decoy:honeypot",
+                        message: `Honeypot Trigger: ${event.type} from ${event.source_ip}`,
+                        data: event
+                    });
+                    await this.eventBus?.emit("HONEYPOT", event as any);
+                }
             } catch (e) {
                 this.handleMediatorError(e as Error, "decoy");
             }
