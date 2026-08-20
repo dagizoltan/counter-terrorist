@@ -395,7 +395,7 @@ export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
 const SCANNER_JAIL = ["/home/", "/var/www/", "./volume/", "/var/lib/cts/", "/tmp/"];
 
 // Shared Zod Primitives
-const IdSchema = z.string().optional();
+const IdSchema = z.string().nullable().optional();
 const PidSchema = z.number().int().positive();
 const PortSchema = z.number().int().min(1).max(65535);
 const IpSchema = z.string().refine(isValidIP, { message: "Invalid IP address" });
