@@ -33,6 +33,9 @@ static mut ACTIVE_SESSIONS: LruHashMap<SessionKey, SessionValue> = LruHashMap::w
 static mut TRUSTED_COMM: HashMap<[u8; 16], u8> = HashMap::with_max_entries(1024, 0);
 
 #[map]
+static mut TRUSTED_PIDS: HashMap<u32, u8> = HashMap::with_max_entries(1024, 0);
+
+#[map]
 static mut XDP_BLOCK_LIST: HashMap<IpV6Addr, u32> = HashMap::with_max_entries(1024, 0);
 
 #[map]
@@ -313,6 +316,10 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
         return 0;
     }
     let start_ns = unsafe { bpf_ktime_get_ns() };
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if unsafe { TRUSTED_PIDS.get(&pid) }.is_some() {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
@@ -344,6 +351,10 @@ pub fn kprobe_execve(ctx: ProbeContext) -> u32 {
 #[kprobe]
 pub fn kprobe_ptrace(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(3) {
+        return 0;
+    }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if unsafe { TRUSTED_PIDS.get(&pid) }.is_some() {
         return 0;
     }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
@@ -406,6 +417,10 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(6) {
         return 0;
     }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if unsafe { TRUSTED_PIDS.get(&pid) }.is_some() {
+        return 0;
+    }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);
     if unsafe { TRUSTED_COMM.get(&comm) }.is_some() {
         return 0;
@@ -428,6 +443,10 @@ pub fn kprobe_connect(ctx: ProbeContext) -> u32 {
 #[kprobe]
 pub fn kprobe_openat(ctx: ProbeContext) -> u32 {
     if !is_hook_enabled(7) {
+        return 0;
+    }
+    let pid = (bpf_get_current_pid_tgid() >> 32) as u32;
+    if unsafe { TRUSTED_PIDS.get(&pid) }.is_some() {
         return 0;
     }
     let comm = bpf_get_current_comm().unwrap_or([0; 16]);

@@ -26,6 +26,7 @@ Deno.test("validateRequest - Sentinel Command Validation", () => {
   assertEquals(validateRequest("sentinel", { type: "KillProcess", pid: 1234 }), true);
   assertEquals(validateRequest("sentinel", { type: "QuarantineProcess", pid: 1234 }), true);
   assertEquals(validateRequest("sentinel", { type: "DumpProcess", pid: 1234, path: "./volume/storage/forensics/dump.bin" }), true);
+  assertEquals(validateRequest("sentinel", { type: "TRUST_PID", pid: 5678 }), true, "TrustPid with valid pid should pass validation");
 
   // Invalid PID type
   assertEquals(validateRequest("sentinel", { type: "KillProcess", pid: "1234" }), false, "KillProcess with string PID should fail");
