@@ -100,12 +100,12 @@ export class CausalGraphService extends BaseService {
                 if (ppidMatches) {
                     for (const childCandidate of ppidMatches) candidates.add(childCandidate);
                 }
-                // Process -> Network relation (same PID)
+                // Process -> Network or File/Child event relation (same PID)
                 if (node.type === "PROCESS") {
                     const pidMatches = pidIndex.get(node.record.pid);
                     if (pidMatches) {
                         for (const childCandidate of pidMatches) {
-                            if (childCandidate.type === "NETWORK") candidates.add(childCandidate);
+                            if (childCandidate.type !== "PROCESS") candidates.add(childCandidate);
                         }
                     }
                 }

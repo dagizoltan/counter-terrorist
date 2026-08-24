@@ -60,7 +60,11 @@ export class AutonomousResponseEngine extends BaseService {
      */
     async evaluate(event: ThreatEvent): Promise<Result<void>> {
         const key = event.source;
-        const currentScore = (this.scores.get(key) || 0) + event.severity;
+        // Input validation: guarantee non-negative finite severity score increments
+        const safeSeverity = (typeof event.severity === "number" && Number.isFinite(event.severity) && event.severity > 0)
+            ? Math.floor(event.severity)
+            : 0;
+        const currentScore = (this.scores.get(key) || 0) + safeSeverity;
 
         this.scores.set(key, currentScore);
         

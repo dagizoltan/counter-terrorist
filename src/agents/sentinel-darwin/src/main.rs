@@ -164,7 +164,13 @@ async fn main() {
                 emit_response(Some(id), true, "All ESF rules flushed".to_string(), None).await;
             },
             Command::GetStatus { id } => {
-                emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
+                let paths_count = blocked_paths.lock().await.len();
+                emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({
+                    "engine": "EndpointSecurity",
+                    "os": "macOS",
+                    "esf_status": "Active",
+                    "blocked_paths_count": paths_count
+                }))).await;
             },
             Command::UpdatePolicy { id, blocked_paths: new_paths } => {
                 let normalized: Vec<String> = new_paths.into_iter().map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
