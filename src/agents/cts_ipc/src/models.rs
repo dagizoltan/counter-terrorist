@@ -49,6 +49,8 @@ pub enum AgentCommand {
     HidePid { id: Option<String>, pid: u32 },
     #[serde(rename = "TRUST_COMM")]
     TrustComm { id: Option<String>, comm: String },
+    #[serde(rename = "TRUST_PID")]
+    TrustPid { id: Option<String>, pid: u32 },
     KillProcess { id: Option<String>, pid: u32 },
     QuarantineProcess { id: Option<String>, pid: u32 },
     DumpProcess { id: Option<String>, pid: u32, path: String },

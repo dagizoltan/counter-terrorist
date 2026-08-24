@@ -71,8 +71,53 @@ export class CausalGraphService extends BaseService {
             }
 
             const allNodes = Array.from(nodes.values());
+            // Performance optimization: Index potential child nodes by PPID and PID for O(1) candidate lookup
+            const ppidIndex = new Map<number, CausalNode[]>();
+            const pidIndex = new Map<number, CausalNode[]>();
+            const pathIndex = new Map<string, CausalNode[]>();
+
+            for (const n of allNodes) {
+                if (n.record.ppid) {
+                    let list = ppidIndex.get(n.record.ppid);
+                    if (!list) { list = []; ppidIndex.set(n.record.ppid, list); }
+                    list.push(n);
+                }
+                let pidList = pidIndex.get(n.record.pid);
+                if (!pidList) { pidList = []; pidIndex.set(n.record.pid, pidList); }
+                pidList.push(n);
+
+                if (n.type === "PROCESS" && n.record.path) {
+                    let pathList = pathIndex.get(n.record.path);
+                    if (!pathList) { pathList = []; pathIndex.set(n.record.path, pathList); }
+                    pathList.push(n);
+                }
+            }
+
             for (const node of allNodes) {
-                for (const potentialChild of allNodes) {
+                const candidates = new Set<CausalNode>();
+                // Parent PID matches child PPID
+                const ppidMatches = ppidIndex.get(node.record.pid);
+                if (ppidMatches) {
+                    for (const childCandidate of ppidMatches) candidates.add(childCandidate);
+                }
+                // Process -> Network relation (same PID)
+                if (node.type === "PROCESS") {
+                    const pidMatches = pidIndex.get(node.record.pid);
+                    if (pidMatches) {
+                        for (const childCandidate of pidMatches) {
+                            if (childCandidate.type === "NETWORK") candidates.add(childCandidate);
+                        }
+                    }
+                }
+                // File -> Process relation (same path)
+                if (node.type === "FILE" && node.record.path) {
+                    const pathMatches = pathIndex.get(node.record.path);
+                    if (pathMatches) {
+                        for (const childCandidate of pathMatches) candidates.add(childCandidate);
+                    }
+                }
+
+                for (const potentialChild of candidates) {
                     if (node === potentialChild) continue;
 
                     if (this.isCausallyRelated(node, potentialChild)) {

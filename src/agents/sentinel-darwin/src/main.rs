@@ -91,7 +91,7 @@ async fn main() {
             let mut is_blocked = false;
             {
                 let paths = blocked_paths_clone.lock().await;
-                if paths.iter().any(|p| target_path.contains(p)) {
+                if paths.iter().any(|p| !p.trim().is_empty() && (target_path == p || target_path.starts_with(p))) {
                     is_blocked = true;
                 }
             }
@@ -121,19 +121,41 @@ async fn main() {
 
         match cmd {
             Command::BlockIp { id, ip } => {
+                if ip.parse::<std::net::IpAddr>().is_err() {
+                    emit_response(Some(id), false, "Invalid IP address".to_string(), None).await;
+                    continue;
+                }
                 emit_response(Some(id), true, format!("IP {} blocked via ESF Network Filter", ip), None).await;
             },
             Command::UnblockIp { id, ip } => {
+                if ip.parse::<std::net::IpAddr>().is_err() {
+                    emit_response(Some(id), false, "Invalid IP address".to_string(), None).await;
+                    continue;
+                }
                 emit_response(Some(id), true, format!("IP {} unblocked", ip), None).await;
             },
             Command::ShadowBanIp { id, ip } => {
+                if ip.parse::<std::net::IpAddr>().is_err() {
+                    emit_response(Some(id), false, "Invalid IP address".to_string(), None).await;
+                    continue;
+                }
                 emit_response(Some(id), true, format!("IP {} shadow-banned", ip), None).await;
             },
             Command::AllowPort { id, port, protocol } => {
-                emit_response(Some(id), true, format!("Port {}:{} allowed", protocol, port), None).await;
+                let proto = protocol.to_uppercase();
+                if proto != "TCP" && proto != "UDP" {
+                    emit_response(Some(id), false, "Invalid protocol (must be TCP or UDP)".to_string(), None).await;
+                    continue;
+                }
+                emit_response(Some(id), true, format!("Port {}:{} allowed", proto, port), None).await;
             },
             Command::DenyPort { id, port, protocol } => {
-                emit_response(Some(id), true, format!("Port {}:{} denied", protocol, port), None).await;
+                let proto = protocol.to_uppercase();
+                if proto != "TCP" && proto != "UDP" {
+                    emit_response(Some(id), false, "Invalid protocol (must be TCP or UDP)".to_string(), None).await;
+                    continue;
+                }
+                emit_response(Some(id), true, format!("Port {}:{} denied", proto, port), None).await;
             },
             Command::Lockdown { id } => {
                 emit_response(Some(id), true, "System Lockdown Active".to_string(), None).await;
@@ -145,8 +167,9 @@ async fn main() {
                 emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "EndpointSecurity", "os": "macOS"}))).await;
             },
             Command::UpdatePolicy { id, blocked_paths: new_paths } => {
+                let normalized: Vec<String> = new_paths.into_iter().map(|p| p.trim().to_string()).filter(|p| !p.is_empty()).collect();
                 let mut paths = blocked_paths.lock().await;
-                *paths = new_paths;
+                *paths = normalized;
                 emit_response(Some(id), true, "Policy updated".to_string(), None).await;
             },
             Command::Shutdown => {

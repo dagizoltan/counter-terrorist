@@ -321,6 +321,17 @@ async fn handle_command(cmd: AgentCommand, bpf_arc: &'static Mutex<Bpf>) {
             };
             emit_response(id, res.0, res.1).await;
         },
+        AgentCommand::TrustPid { id, pid } => {
+            let res = {
+                let mut bpf_ref = bpf_arc.lock();
+                if let Some(map) = bpf_ref.map_mut("TRUSTED_PIDS") {
+                    if let Ok(mut m) = aya::maps::HashMap::<_, u32, u8>::try_from(map) {
+                        let _ = m.insert(pid, 1, 0); (true, format!("Trusted PID: {}", pid))
+                    } else { (false, "Map Type Error".to_string()) }
+                } else { (false, "Map Not Found".to_string()) }
+            };
+            emit_response(id, res.0, res.1).await;
+        },
         AgentCommand::EnforcePid { id, pid, path } => {
             if let Some(p) = path {
                 let (success, msg) = match cts_ipc::apply_landlock(&p) {

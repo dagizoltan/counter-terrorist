@@ -53,28 +53,50 @@ async fn main() {
         };
 
         match cmd {
-            Command::AddBlockRule { id, ip, _port: _ } => {
+            Command::AddBlockRule { id, ip, _port } => {
+                if ip.parse::<std::net::IpAddr>().is_err() {
+                    emit_response(Some(id), false, "Invalid IP address".to_string(), None).await;
+                    continue;
+                }
                 // SOV-M6 Hardening: WFP Integration Stub
                 // In production, this would call FwpmFilterAdd0 via winapi-rs.
                 // For now, we simulate the registry-based persistence check.
-                let msg = format!("WFP Block Rule staged for commitment: {}", ip);
+                let msg = format!("WFP Block Rule staged for commitment: {}{}", ip, _port.map_or(String::new(), |p| format!(":{}", p)));
                 emit_response(Some(id), true, msg, None).await;
             },
             Command::RemoveBlockRule { id, ip } => {
+                if ip.parse::<std::net::IpAddr>().is_err() {
+                    emit_response(Some(id), false, "Invalid IP address".to_string(), None).await;
+                    continue;
+                }
                 let msg = format!("WFP Block Rule removed: {}", ip);
                 emit_response(Some(id), true, msg, None).await;
             },
             Command::AddAllowRule { id, port, protocol } => {
-                let msg = format!("WFP Allow Rule staged: {}:{}", protocol, port);
+                let proto = protocol.to_uppercase();
+                if proto != "TCP" && proto != "UDP" {
+                    emit_response(Some(id), false, "Invalid protocol (must be TCP or UDP)".to_string(), None).await;
+                    continue;
+                }
+                let msg = format!("WFP Allow Rule staged: {}:{}", proto, port);
                 emit_response(Some(id), true, msg, None).await;
             },
             Command::RemoveAllowRule { id, port, protocol } => {
-                let msg = format!("WFP Allow Rule removed: {}:{}", protocol, port);
+                let proto = protocol.to_uppercase();
+                if proto != "TCP" && proto != "UDP" {
+                    emit_response(Some(id), false, "Invalid protocol (must be TCP or UDP)".to_string(), None).await;
+                    continue;
+                }
+                let msg = format!("WFP Allow Rule removed: {}:{}", proto, port);
                 emit_response(Some(id), true, msg, None).await;
             },
             Command::ProtectDirectory { id, path } => {
                 // SOV-M6 Hardening: Minifilter Driver Stub
                 // Simulates interaction with the CTS-Shield minifilter driver.
+                if path.trim().is_empty() {
+                    emit_response(Some(id), false, "Directory path cannot be empty".to_string(), None).await;
+                    continue;
+                }
                 let msg = format!("CTS-Shield: Directory isolation engaged for {}", path);
                 emit_response(Some(id), true, msg, None).await;
             },
