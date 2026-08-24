@@ -155,6 +155,5 @@ function buildRoutePath(folderName: string) {
     }
     return segment;
   });
-  const route = `/${segments.join("/")}`;
-  return folderName.startsWith("api--") ? `/api${route}` : route;
+  return `/${segments.join("/")}`;
 }

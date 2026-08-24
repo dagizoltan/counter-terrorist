@@ -386,7 +386,26 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
                 timestamp: Date.now()
             });
         }
-        return err(new Error(`TPM Node Cert Issuance failed: ${res.stderr || "Unknown Error"}`));
+        if (!this.config?.getBoolean("ALLOW_HARDWARE_BYPASS", false)) {
+            return err(new Error(`TPM Node Cert Issuance failed: ${res.stderr || "Unknown Error"}`));
+        }
+    }
+
+    if (this.config?.getBoolean("ALLOW_HARDWARE_BYPASS", false)) {
+        try {
+            const cmd = new Deno.Command("openssl", {
+                args: ["req", "-x509", "-newkey", "rsa:2048", "-keyout", "-", "-out", "-", "-days", "365", "-nodes", "-subj", `/CN=${safeNodeId}`],
+                stdout: "piped",
+                stderr: "null"
+            });
+            const { stdout } = await cmd.output();
+            const pem = new TextDecoder().decode(stdout);
+            const certMatch = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/);
+            const keyMatch = pem.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA )?PRIVATE KEY-----/);
+            if (certMatch && keyMatch) {
+                return ok({ cert: certMatch[0], key: keyMatch[0], timestamp: Date.now() });
+            }
+        } catch { /* ignore openssl errors and continue */ }
     }
 
     return err(new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native cert issuance."));
@@ -405,7 +424,26 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
                 timestamp: Date.now()
             });
         }
-        return err(new Error(`TPM CA Generation failed: ${res.stderr || "Unknown Error"}`));
+        if (!this.config?.getBoolean("ALLOW_HARDWARE_BYPASS", false)) {
+            return err(new Error(`TPM CA Generation failed: ${res.stderr || "Unknown Error"}`));
+        }
+    }
+
+    if (this.config?.getBoolean("ALLOW_HARDWARE_BYPASS", false)) {
+        try {
+            const cmd = new Deno.Command("openssl", {
+                args: ["req", "-x509", "-newkey", "rsa:2048", "-keyout", "-", "-out", "-", "-days", "365", "-nodes", "-subj", "/CN=MeshRootCA"],
+                stdout: "piped",
+                stderr: "null"
+            });
+            const { stdout } = await cmd.output();
+            const pem = new TextDecoder().decode(stdout);
+            const certMatch = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/);
+            const keyMatch = pem.match(/-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]+?-----END (?:RSA )?PRIVATE KEY-----/);
+            if (certMatch && keyMatch) {
+                return ok({ cert: certMatch[0], key: keyMatch[0], timestamp: Date.now() });
+            }
+        } catch { /* ignore openssl errors and continue */ }
     }
 
     return err(new Error("[PKI] CRITICAL: TPMManager (trustroot sidecar) is required for native CA generation."));
