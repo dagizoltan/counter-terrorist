@@ -88,7 +88,7 @@ export class SovereignApp {
 
         // ── Phase 2: Fundamental Infrastructure ───────────────────────────────
         this.sidecarManager.setConfig(configProvider);
-        const tpmManager = new TPMManager(this.sidecarManager, loggingService);
+        const tpmManager = new TPMManager(this.sidecarManager, loggingService, configProvider);
         this.auditService.getVerifier().setTpm(tpmManager);
         this.sidecarManager.setTpm(tpmManager);
         this.sidecarManager.init();
@@ -175,8 +175,6 @@ export class SovereignApp {
 
         this.services.lifecycle.setKv(this.kv);
         this.services.lifecycle.setPolicyEngine(this.services.policy);
-        this.services.lifecycle.startShadowModeTimer(configProvider);
-        this.services.lifecycle.scheduleLkgSnapshot();
         this.watchdog = this.serviceOrchestrator.startWatchdog(healthService, this.services);
         this.registry.register("Watchdog", this.watchdog, ShutdownPriority.AUXILIARY);
     }
@@ -212,6 +210,17 @@ export class SovereignApp {
     }
 
     private async initCore() {
+        try {
+            const envText = await Deno.readTextFile(".env");
+            const { parse } = await import("@std/dotenv");
+            const parsed = parse(envText);
+            for (const [key, value] of Object.entries(parsed)) {
+                if (value) Deno.env.set(key, value);
+            }
+        } catch {
+            await load({ export: true, allowEmptyValues: true });
+        }
+
         loggingService.enableGlobalIntercept();
         this.hardeningManager = new HardeningManager(loggingService);
 
@@ -224,7 +233,6 @@ export class SovereignApp {
         });
 
         await this.hardeningManager.applyCamouflage();
-        await load({ export: true, allowEmptyValues: true });
 
         this.kv = await Deno.openKv("./volume/storage/orchestrator.db");
         loggingService.setKv(this.kv);
