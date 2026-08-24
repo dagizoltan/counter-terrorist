@@ -23,11 +23,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/sentinel",
-          "hash": "092477d4dceef18cbd79a127a2278cc9db2d5d37b13ab7f851447a336a594caa"
+          "hash": "a1cdbf57f54574cc3a0ddd682f2ac6c71504c4b3790fba04d3f61d81d6632c4e"
         },
         "aarch64": {
           "path": "./src/agents/target/release/sentinel",
-          "hash": "092477d4dceef18cbd79a127a2278cc9db2d5d37b13ab7f851447a336a594caa"
+          "hash": "a1cdbf57f54574cc3a0ddd682f2ac6c71504c4b3790fba04d3f61d81d6632c4e"
         }
       }
     },
@@ -128,11 +128,11 @@
       "architectures": {
         "x86_64": {
           "path": "./src/agents/target/release/sentinel-darwin",
-          "hash": "406bff3e3a64f91d87cdd9cc479c303de3816c1480a720281b883c7ef4d22c2f"
+          "hash": "c8a8c9d065f54b3d66b0b8b69797ca57f0bf172ed4ebefed5e37394925e36287"
         },
         "aarch64": {
           "path": "./src/agents/target/release/sentinel-darwin",
-          "hash": "406bff3e3a64f91d87cdd9cc479c303de3816c1480a720281b883c7ef4d22c2f"
+          "hash": "c8a8c9d065f54b3d66b0b8b69797ca57f0bf172ed4ebefed5e37394925e36287"
         }
       }
     }

@@ -435,6 +435,11 @@ async fn handle_command(cmd: AgentCommand, bpf_arc: &'static Mutex<Bpf>) {
                         }
                     }
                 }
+                let trusted_pids_count = if let Some(map) = bpf_ref.map_mut("TRUSTED_PIDS") {
+                    if let Ok(m) = aya::maps::HashMap::<_, u32, u8>::try_from(map) { m.iter().count() } else { 0 }
+                } else { 0 };
+                stats_data.insert("trusted_pids_count".to_string(), serde_json::json!(trusted_pids_count));
+                stats_data.insert("ebpf_attached".to_string(), serde_json::json!(true));
             }
             let resp = AgentResponse { id, success: true, message: Some("Active".to_string()), data: Some(serde_json::Value::Object(stats_data)), timestamp: Utc::now().to_rfc3339(), threats_found: None, memory_anomalies: None, target: None };
             if let Ok(json) = serde_json::to_string(&resp) { let _lock = STDOUT_LOCK.lock(); use std::io::Write; println!("{}", json); let _ = std::io::stdout().flush(); }

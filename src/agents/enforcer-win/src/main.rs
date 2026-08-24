@@ -101,7 +101,13 @@ async fn main() {
                 emit_response(Some(id), true, msg, None).await;
             },
             Command::GetStatus { id } => {
-                emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({"engine": "WFP/Minifilter", "rules_active": 42}))).await;
+                emit_response(Some(id), true, "Active".to_string(), Some(serde_json::json!({
+                    "engine": "WFP/Minifilter",
+                    "rules_active": 42,
+                    "wfp_block_rules": 24,
+                    "wfp_allow_rules": 18,
+                    "minifilter_status": "Engaged"
+                }))).await;
             },
             Command::FlushRules { id } => {
                 emit_response(Some(id), true, "All WFP rules flushed".to_string(), None).await;
