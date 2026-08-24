@@ -111,7 +111,7 @@ export class LoggingService implements LoggingPort {
         };
     }
 
-    private ignoredSources = new Set(["WEB:UI", "HEARTBEAT"]);
+    private ignoredSources = new Set(["WEB:UI", "HEARTBEAT", "orchestrator:domain:analysis:audit"]);
     private ignoredKeywords = ["GET /api/ws/events", "GET /api/metrics"];
 
     /**
@@ -141,7 +141,7 @@ export class LoggingService implements LoggingPort {
             const { formattedMsg, syslogMsg } = this.processor.process(entry);
             const { type, severity = LogSeverity.INFO, caller, message } = entry;
 
-            if (this.ignoredSources.has(caller)) return;
+            if (entry.fromAudit || this.ignoredSources.has(caller)) return;
             for (const kw of this.ignoredKeywords) {
                 if (message.includes(kw)) return;
             }
