@@ -463,7 +463,7 @@ const SentinelRequestSchema = z.object({
     id: IdSchema,
     type: z.enum([
         "BLOCK_IP", "UNBLOCK_IP", "SHADOW_BAN", "HIDE_PID", "GET_STATUS", 
-        "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM",
+        "ALLOW_PORT", "DENY_PORT", "FLUSH_RULES", "LOCKDOWN", "SHUTDOWN", "TRUST_COMM", "TRUST_PID",
         "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess"
     ]),
     ip: IpSchema.optional(),
@@ -474,7 +474,7 @@ const SentinelRequestSchema = z.object({
 }).refine(data => {
     if (data.type === "BLOCK_IP" && (data.ip === undefined || isCriticalInfrastructure(data.ip))) return false;
     if (["UNBLOCK_IP", "SHADOW_BAN"].includes(data.type) && data.ip === undefined) return false;
-    if (["HIDE_PID", "ENFORCE_PID", "UNENFORCE_PID", "KillProcess", "QuarantineProcess", "DumpProcess"].includes(data.type) && data.pid === undefined) return false;
+    if (["HIDE_PID", "ENFORCE_PID", "UNENFORCE_PID", "TRUST_PID", "KillProcess", "QuarantineProcess", "DumpProcess"].includes(data.type) && data.pid === undefined) return false;
     if (["ALLOW_PORT", "DENY_PORT"].includes(data.type) && data.port === undefined) return false;
     if (data.type === "TRUST_COMM" && data.comm === undefined) return false;
     return true;
