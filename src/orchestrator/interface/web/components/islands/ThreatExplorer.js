@@ -194,21 +194,21 @@ class ThreatExplorer extends HTMLElement {
     const selectedCount = this.selectedIps.size;
 
     this.innerHTML = `
-      <div class="flex flex-col gap-10">
+      <div class="flex flex-col gap-4">
         <!-- 01 Provider Row: Grid Layout -->
-        <div class="t-panel glass-panel p-8 bg-black/40 border-t-2 border-primary/20 shadow-2xl">
-           <div class="flex justify-between items-center mb-8 pb-6 border-b border-white/5">
+        <div class="t-panel glass-panel p-4 bg-black/40 border-t-2 border-primary/20 shadow-2xl">
+           <div class="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
               <div class="flex flex-col gap-1">
-                 <h3 class="mono-xs font-black text-slate-500 uppercase tracking-widest">Intelligence_Sources</h3>
-                 <span class="mono text-[8px] text-slate-600 uppercase">Enforcement_Priority: HIGH // Total: ${totalCount.toLocaleString()}</span>
+                 <h3 class="eyebrow">Intelligence_Sources</h3>
+                 <span class="eyebrow">Enforcement_Priority: HIGH // Total: ${totalCount.toLocaleString()}</span>
               </div>
               <div class="flex gap-4">
-                 <button onclick="this.closest('threat-explorer').syncFeeds()" class="t-btn primary !py-2 !px-6 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
+                 <button onclick="this.closest('threat-explorer').syncFeeds()" class="t-btn primary !py-2 !px-4 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
                     <svg class="transition-transform group-hover:rotate-180 duration-700 ${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                    <span class="mono text-[9px] font-black uppercase tracking-widest">Global_Sync</span>
+                    <span class="eyebrow">Global_Sync</span>
                  </button>
-                 <button onclick="this.closest('threat-explorer').wipeDatabase()" class="t-btn danger !py-2 !px-6">
-                    <span class="mono text-[9px] font-black uppercase tracking-widest">Purge_DB</span>
+                 <button onclick="this.closest('threat-explorer').wipeDatabase()" class="t-btn danger !py-2 !px-4">
+                    <span class="eyebrow">Purge_DB</span>
                  </button>
               </div>
            </div>
@@ -216,12 +216,12 @@ class ThreatExplorer extends HTMLElement {
            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               ${Object.entries(this.stats).map(([name, count]) => `
                 <button onclick="this.closest('threat-explorer').setProvider('${name}')" 
-                  class="flex flex-col gap-2 p-5 rounded-xl border transition-all text-left ${this.filter.provider === name ? 'bg-primary/20 border-primary shadow-lg shadow-primary/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
+                  class="flex flex-col gap-2 p-3 rounded-lg border transition-all text-left ${this.filter.provider === name ? 'bg-primary/20 border-primary shadow-lg shadow-primary/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
                   <div class="flex justify-between items-center">
-                     <span class="mono-xs font-black text-white uppercase tracking-widest truncate">${name}</span>
+                     <span class="eyebrow truncate" data-tone="strong">${name}</span>
                      <div class="w-1.5 h-1.5 rounded-full ${count > 0 ? 'bg-success animate-pulse' : 'bg-slate-700'}"></div>
                   </div>
-                  <span class="text-xl font-black text-white italic tabular-nums">${count.toLocaleString()}</span>
+                  <span class="text-xl font-black text-white tabular-nums">${count.toLocaleString()}</span>
                 </button>
               `).join('')}
            </div>
@@ -229,14 +229,14 @@ class ThreatExplorer extends HTMLElement {
 
         <!-- 02 Threat Ledger: Full Width Table -->
         <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden shadow-2xl flex flex-col min-h-[800px] border-t-2 border-primary/10">
-           <header class="p-8 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
-              <div class="flex items-center gap-6">
+           <header class="p-4 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
+              <div class="flex items-center gap-4">
                  <div class="flex flex-col gap-1">
-                    <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Forensic_Malware_Ledger</span>
-                    <span class="mono text-[7px] text-slate-600 uppercase">Live_Enforcement_Active</span>
+                    <span class="eyebrow">Forensic_Malware_Ledger</span>
+                    <span class="eyebrow">Live_Enforcement_Active</span>
                  </div>
-                 ${this.filter.provider ? `<span class="status-pill warning active !px-4 !py-1 text-[8px]">${this.filter.provider}</span>` : ''}
-                 ${this.loading ? `<span class="mono text-[8px] text-primary animate-pulse uppercase">Traversing_Database...</span>` : ''}
+                 ${this.filter.provider ? `<span class="status-pill warning active">${this.filter.provider}</span>` : ''}
+                 ${this.loading ? `<span class="eyebrow animate-pulse" data-tone="primary">Traversing_Database...</span>` : ''}
               </div>
               <div class="flex items-center gap-4">
                  <div class="relative group">
@@ -244,22 +244,22 @@ class ThreatExplorer extends HTMLElement {
                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                     </div>
                     <input type="text" value="${this.filter.search}" oninput="this.closest('threat-explorer').setSearch(this.value)" 
-                      class="bg-black/80 border border-white/10 rounded-xl pl-12 pr-6 py-3 mono-xs text-white focus:border-primary outline-none transition-all w-64 shadow-2xl" 
+                      class="bg-black/80 border border-white/10 rounded-lg pl-5 pr-4 py-3 mono-xs text-white focus:border-primary outline-none transition-all w-64 shadow-2xl" 
                       placeholder="SCAN_INDICATORS..." />
                  </div>
               </div>
            </header>
 
            ${selectedCount > 0 ? `
-              <div class="bg-primary/20 border-b border-primary/40 px-8 py-4 flex justify-between items-center animate-in slide-in-from-top-2 duration-300">
+              <div class="bg-primary/20 border-b border-primary/40 px-4 py-4 flex justify-between items-center animate-in slide-in-from-top-2 duration-300">
                  <div class="flex items-center gap-4">
-                    <span class="mono-xs font-black text-primary uppercase tracking-widest">${selectedCount} INDICATORS_SELECTED</span>
+                    <span class="eyebrow" data-tone="primary">${selectedCount} INDICATORS_SELECTED</span>
                  </div>
                  <div class="flex gap-4">
-                    <button onclick="this.closest('threat-explorer').bulkBlock()" class="t-btn primary !py-2 !px-8 text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
+                    <button onclick="this.closest('threat-explorer').bulkBlock()" class="t-btn primary !py-2 !px-4 text-[9px] font-black uppercase tracking-widest shadow-lg shadow-primary/20">
                        Commit_Bulk_Isolation
                     </button>
-                    <button onclick="this.closest('threat-explorer').selectedIps.clear(); this.closest('threat-explorer').render()" class="mono-xs text-slate-400 font-bold uppercase tracking-widest hover:text-white transition-colors">
+                    <button onclick="this.closest('threat-explorer').selectedIps.clear(); this.closest('threat-explorer').render()" class="eyebrow hover:text-white transition-colors">
                        Cancel
                     </button>
                  </div>
@@ -274,14 +274,14 @@ class ThreatExplorer extends HTMLElement {
                           <input type="checkbox" onchange="this.closest('threat-explorer').toggleSelectAll()" 
                             class="accent-primary w-2 h-2 rounded border-white/10 bg-black" />
                        </th>
-                       <th class="p-1 w-[16%] mono text-slate-600 uppercase">Indicator_IP</th>
-                       <th class="p-1 w-[8%] mono text-slate-600 uppercase">Origin</th>
-                       <th class="p-1 w-[18%] mono text-slate-600 uppercase">Carrier_ASN</th>
-                       <th class="p-1 w-[20%] mono text-slate-600 uppercase">Reason_Threat</th>
-                       <th class="p-1 w-[8%] mono text-slate-600 uppercase">Source</th>
-                       <th class="p-1 w-[10%] mono text-slate-600 uppercase">Risk</th>
-                       <th class="p-1 w-[10%] mono text-slate-600 uppercase">Last_Seen</th>
-                       <th class="p-1 w-[10%] mono text-slate-600 uppercase text-right">Op</th>
+                       <th class="eyebrow p-1 w-[16%]">Indicator_IP</th>
+                       <th class="eyebrow p-1 w-[8%]">Origin</th>
+                       <th class="eyebrow p-1 w-[18%]">Carrier_ASN</th>
+                       <th class="eyebrow p-1 w-[20%]">Reason_Threat</th>
+                       <th class="eyebrow p-1 w-[8%]">Source</th>
+                       <th class="eyebrow p-1 w-[10%]">Risk</th>
+                       <th class="eyebrow p-1 w-[10%]">Last_Seen</th>
+                       <th class="eyebrow p-1 w-[10%] text-right">Op</th>
                     </tr>
                  </thead>
                  <tbody class="divide-y divide-white/5">
@@ -298,7 +298,7 @@ class ThreatExplorer extends HTMLElement {
                         });
                       
                       if (validThreats.length === 0 && !this.loading) {
-                        return `<tr><td colspan="9" class="p-8 text-center mono text-[8px] opacity-20 uppercase">Empty_Dataset</td></tr>`;
+                        return `<tr><td colspan="9" class="eyebrow p-4 text-center opacity-20">Empty_Dataset</td></tr>`;
                       }
                       
                       return validThreats.map(t => {
@@ -316,7 +316,7 @@ class ThreatExplorer extends HTMLElement {
                                <span class="mono text-[9px] text-white tabular-nums">${t.indicator}</span>
                             </td>
                             <td class="p-1">
-                               <span class="px-1.5 py-0.5 rounded-sm bg-white/5 border border-white/10 mono text-[7px] text-slate-400 font-black uppercase">
+                               <span class="eyebrow px-1.5 py-0.5 rounded-sm bg-white/5 border border-white/10">
                                   ${t.geo?.country || '??'}
                                </span>
                             </td>
@@ -327,10 +327,10 @@ class ThreatExplorer extends HTMLElement {
                                </div>
                             </td>
                             <td class="p-1 truncate">
-                               <span class="mono text-[6.5px] text-slate-500 uppercase">${t.threatType}</span>
+                               <span class="eyebrow">${t.threatType}</span>
                             </td>
                             <td class="p-1">
-                               <span class="mono text-[6.5px] text-slate-600 font-bold uppercase">${t.provider}</span>
+                               <span class="eyebrow">${t.provider}</span>
                             </td>
                             <td class="p-1">
                                <div class="flex items-center gap-1">
@@ -341,13 +341,13 @@ class ThreatExplorer extends HTMLElement {
                                </div>
                             </td>
                             <td class="p-1">
-                               <span class="mono text-[6.5px] text-slate-700 font-bold uppercase">
+                               <span class="eyebrow">
                                   ${new Date(t.lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
                                 </span>
                             </td>
                             <td class="p-1 text-right">
                                ${t.blocked ? `
-                                  <span class="mono text-[5px] text-success/40 uppercase font-black">LKD</span>
+                                  <span class="eyebrow text-[5px] text-success/40">LKD</span>
                                 ` : `
                                   <button onclick="this.closest('threat-explorer').blockIp('${t.indicator}', '${t.provider}')" 
                                     class="border border-primary/20 hover:bg-primary/20 hover:border-primary px-1.5 py-0 mono text-[5px] text-primary/60 hover:text-primary transition-all">
@@ -363,8 +363,8 @@ class ThreatExplorer extends HTMLElement {
            </div>
               
               ${this.filter.offset ? `
-                <footer class="p-6 border-t border-white/5 bg-black/60 text-center">
-                   <button onclick="this.closest('threat-explorer').fetchThreats(true)" class="mono-xs text-primary font-black uppercase tracking-[0.4em] hover:text-white transition-colors">
+                <footer class="p-4 border-t border-white/5 bg-black/60 text-center">
+                   <button onclick="this.closest('threat-explorer').fetchThreats(true)" class="eyebrow hover:text-white transition-colors" data-tone="primary">
                       Fetch_Historical_Indicators_↓
                    </button>
                 </footer>

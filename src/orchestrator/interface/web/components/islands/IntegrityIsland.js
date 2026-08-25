@@ -33,7 +33,7 @@ export default function IntegrityIsland() {
   if (!status) return html`<div>Loading Mesh Integrity...</div>`;
 
   return html`
-    <div class="space-y-6">
+    <div class="space-y-4">
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-white/5 p-4 border border-white/10 rounded-lg">
           <div class="text-[10px] text-slate-500 uppercase tracking-widest mb-1">Local Chain Head</div>
@@ -49,19 +49,19 @@ export default function IntegrityIsland() {
         </div>
       </div>
 
-      <div class="bg-slate-900/50 border border-white/10 rounded-xl p-6">
+      <div class="bg-slate-900/50 border border-white/10 rounded-lg p-4">
         <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
           Audit Chain Verification
         </h3>
-        <p class="text-sm text-slate-400 mb-6">
+        <p class="text-sm text-slate-400 mb-4">
           Perform a deep scan of the local audit ledger to ensure the SHA-256 hash chain is unbroken and hasn't' been tampered with.
         </p>
 
         <button 
           onClick=${runVerification}
           disabled=${verifying}
-          class="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded font-bold text-xs uppercase tracking-widest"
+          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded font-bold text-xs uppercase tracking-widest"
         >
           ${verifying ? "Verifying Chain..." : "Run Full Integrity Scan"}
         </button>

@@ -145,7 +145,7 @@ class AgentCardIsland extends HTMLElement {
 
   render() {
     this.innerHTML = `
-      <div class="flex gap-6 items-center">
+      <div class="flex gap-4 items-center">
          <div class="relative w-16 h-16 flex items-center justify-center">
             <svg class="w-full h-full -rotate-90">
                <circle cx="32" cy="32" r="18" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="4" />

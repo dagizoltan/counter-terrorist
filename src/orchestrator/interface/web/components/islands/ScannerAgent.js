@@ -34,8 +34,8 @@ class ScannerAgent extends HTMLElement {
 
     if (!ledger || ledger.length === 0) {
       listEl.innerHTML = `
-        <div class="p-12 text-center t-panel glass-panel border-dashed opacity-50">
-          <span class="mono-xs font-black text-slate-500 uppercase tracking-widest italic">No Critical Artifacts Identified</span>
+        <div class="p-5 text-center t-panel glass-panel border-dashed opacity-50">
+          <span class="eyebrow italic">No Critical Artifacts Identified</span>
         </div>
       `;
       return;
@@ -44,7 +44,7 @@ class ScannerAgent extends HTMLElement {
     listEl.innerHTML = ledger.map(item => `
       <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded transition-colors">
         <div class="flex flex-col gap-1 overflow-hidden">
-           <span class="mono-xs text-slate-500 font-black tracking-widest uppercase">${globalThis.escapeHTML(item.threatType || 'MALICIOUS_ARTIFACT')}</span>
+           <span class="eyebrow">${globalThis.escapeHTML(item.threatType || 'MALICIOUS_ARTIFACT')}</span>
            <span class="mono-sm font-black text-danger uppercase tracking-widest truncate">${globalThis.escapeHTML(item.indicator.slice(0, 32))}...</span>
         </div>
         <div class="flex items-center gap-4">
@@ -65,9 +65,9 @@ class ScannerAgent extends HTMLElement {
       const resultsEl = document.getElementById('scanner-results');
       if (resultsEl) {
         resultsEl.innerHTML = `
-          <div class="flex flex-col items-center justify-center p-24 gap-6">
+          <div class="flex flex-col items-center justify-center p-6 gap-4">
             <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <div class="mono-xs font-black text-primary uppercase tracking-[0.4em]">Synchronizing_Global_Threat_Signatures...</div>
+            <div class="eyebrow" data-tone="primary">Synchronizing_Global_Threat_Signatures...</div>
           </div>
         `;
       }
@@ -81,7 +81,7 @@ class ScannerAgent extends HTMLElement {
       const result = await res.json();
       if (resultsEl) {
         resultsEl.innerHTML = `
-          <div class="t-panel glass-panel border-l-4 border-success p-8 animate-in zoom-in duration-500">
+          <div class="t-panel glass-panel border-l-4 border-success p-4 animate-in zoom-in duration-500">
              <h4 class="mono-sm font-black text-success uppercase tracking-widest mb-4">SYNC_COMPLETE</h4>
              <pre class="mono-xs text-slate-500 bg-black/40 p-4 rounded border border-white/5 overflow-x-auto">${globalThis.escapeHTML(result.message || 'Database updated successfully.')}</pre>
           </div>
@@ -101,9 +101,9 @@ class ScannerAgent extends HTMLElement {
       const resultsEl = document.getElementById('scanner-results');
       if (resultsEl) {
         resultsEl.innerHTML = `
-          <div class="flex flex-col items-center justify-center p-24 gap-6">
+          <div class="flex flex-col items-center justify-center p-6 gap-4">
             <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <div class="mono-xs font-black text-primary uppercase tracking-[0.4em]">Initializing_Scanner_Sidecar...</div>
+            <div class="eyebrow" data-tone="primary">Initializing_Scanner_Sidecar...</div>
             <div class="w-full max-w-xs h-1 bg-white/5 rounded-full overflow-hidden">
                <div class="h-full bg-primary animate-progress"></div>
             </div>
@@ -132,31 +132,31 @@ class ScannerAgent extends HTMLElement {
         
         resultsEl.innerHTML = `
           <div class="t-panel glass-panel border-l-4 animate-in zoom-in duration-500" style="border-left-color: ${color}">
-             <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/5">
+             <div class="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
                 <div class="flex items-center gap-4">
                    <div class="dot active" style="background: ${color}"></div>
                    <h4 class="mono-sm font-black uppercase tracking-widest" style="color: ${color}">
                      ${isClean ? 'AUDIT_COMPLETE // CLEAN' : 'ANOMALY_DETECTED // CRITICAL'}
                    </h4>
                 </div>
-                <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest">SID: ${Math.random().toString(36).slice(2, 8).toUpperCase()}</span>
+                <span class="eyebrow">SID: ${Math.random().toString(36).slice(2, 8).toUpperCase()}</span>
              </div>
              
-             <p class="mono-xs text-slate-400 mb-8 uppercase leading-relaxed tracking-tight font-bold">
+             <p class="mono-xs text-slate-400 mb-4 uppercase leading-relaxed tracking-tight font-bold">
                ${globalThis.escapeHTML(result.summary || 'Full integrity audit completed. No malicious signatures identified in the target path.')}
              </p>
              
-             <div class="bg-black/60 rounded p-6 border border-white/5 mono-xs text-slate-500 max-h-[300px] overflow-y-auto custom-scrollbar uppercase tracking-tighter leading-tight font-bold">
+             <div class="bg-black/60 rounded p-4 border border-white/5 mono-xs text-slate-500 max-h-[300px] overflow-y-auto custom-scrollbar uppercase tracking-tighter leading-tight font-bold">
                <div class="text-slate-800 mb-4 border-b border-white/5 pb-2">RAW_AUDIT_MANIFEST</div>
                ${globalThis.escapeHTML(result.message || 'No detailed log provided.')}
              </div>
              
-             <div class="mt-8 flex justify-between items-center border-t border-white/5 pt-6">
+             <div class="mt-4 flex justify-between items-center border-t border-white/5 pt-4">
                 <div class="flex items-center gap-3">
                    <svg width="12" height="12" fill="none" stroke="var(--primary)" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
-                   <span class="mono-xs text-slate-600 uppercase font-black tracking-widest">Verification_SHA-256_ACTIVE</span>
+                   <span class="eyebrow">Verification_SHA-256_ACTIVE</span>
                 </div>
-                <span class="mono-xs text-slate-700 uppercase font-bold">${new Date().toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
+                <span class="eyebrow">${new Date().toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'})}</span>
              </div>
           </div>
         `;
@@ -171,29 +171,29 @@ class ScannerAgent extends HTMLElement {
  
   render() {
     this.innerHTML = `
-      <div class="space-y-8">
-         <div class="bg-black/40 p-8 border border-white/5 rounded-2xl">
-            <div class="flex justify-between items-center mb-10">
+      <div class="space-y-4">
+         <div class="bg-black/40 p-4 border border-white/5 rounded-lg">
+            <div class="flex justify-between items-center mb-5">
                <div class="flex flex-col gap-2">
                   <h3 class="tactical-title text-base tracking-widest">FILESYSTEM_ASSESSMENT</h3>
-                  <p class="mono-xs text-slate-500 font-black uppercase tracking-widest">Deep signature scan & vulnerability discovery</p>
+                  <p class="eyebrow">Deep signature scan & vulnerability discovery</p>
                </div>
                 <div class="flex gap-4">
-                   <div class="flex gap-4 p-1 bg-black/60 border border-white/10 rounded-xl">
+                   <div class="flex gap-4 p-1 bg-black/60 border border-white/10 rounded-lg">
                       ${['STANDARD', 'MALWARE', 'ROOTKIT'].map(type => `
-                         <button class="px-6 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${this.scanType === type ? 'bg-primary text-black' : 'text-slate-500 hover:text-slate-300'}" 
+                         <button class="px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${this.scanType === type ? 'bg-primary text-black' : 'text-slate-500 hover:text-slate-300'}" 
                                  onclick="this.closest('scanner-agent').setScanType('${type}')">
                             ${type}
                          </button>
                       `).join('')}
                    </div>
-                   <button class="t-btn px-6 py-2 text-[9px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/5" 
+                   <button class="t-btn px-4 py-2 text-[9px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/5" 
                            onclick="this.closest('scanner-agent').syncSignatures()">
                       Sync_Tactical_Signatures
                    </button>
                 </div>
              </div>
-            <button id="btn-run-scan" class="t-btn primary px-12 py-5 font-black uppercase tracking-widest w-full justify-center ${this.scanning ? 'opacity-50' : ''}" 
+            <button id="btn-run-scan" class="t-btn primary px-5 py-3 font-black uppercase tracking-widest w-full justify-center ${this.scanning ? 'opacity-50' : ''}" 
                     ${this.scanning ? 'disabled' : ''}>
                ${this.scanning ? `
                  <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -207,8 +207,8 @@ class ScannerAgent extends HTMLElement {
          
          <div id="scanner-results">
             ${this.scanning ? '' : `
-              <div class="p-24 text-center border-2 border-dashed border-white/5 rounded-2xl opacity-20">
-                 <span class="mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Scan_Trigger...</span>
+              <div class="p-6 text-center border-2 border-dashed border-white/5 rounded-lg opacity-20">
+                 <span class="eyebrow">Awaiting_Scan_Trigger...</span>
               </div>
             `}
          </div>

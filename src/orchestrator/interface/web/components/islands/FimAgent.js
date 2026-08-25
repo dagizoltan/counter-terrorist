@@ -10,13 +10,13 @@ class FimAgent extends HTMLElement {
 
   connectedCallback() {
     this.innerHTML = `
-      <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden">
-         <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center">
+      <div class="bg-black/20 border border-white/5 rounded-lg overflow-hidden">
+         <header class="p-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
             <h3 class="tactical-title text-base tracking-widest">FILE_INTEGRITY_AUDIT</h3>
             <div class="status-pill warning">WATCH_ACTIVE</div>
          </header>
          <div id="fim-alerts" class="h-[600px] overflow-y-auto custom-scrollbar">
-            <div class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Monitoring_Filesystem_Integrity...</div>
+            <div class="eyebrow p-5 text-center opacity-20">Monitoring_Filesystem_Integrity...</div>
          </div>
       </div>
     `;
@@ -75,9 +75,9 @@ class FimAgent extends HTMLElement {
 
     if (this.alerts.length === 0) {
       container.innerHTML = `
-        <div class="flex flex-col items-center justify-center p-24 opacity-20">
-           <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mb-6"></div>
-           <div class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em] ">Awaiting_Integrity_Signals...</div>
+        <div class="flex flex-col items-center justify-center p-6 opacity-20">
+           <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mb-4"></div>
+           <div class="eyebrow">Awaiting_Integrity_Signals...</div>
         </div>
       `;
       return;
@@ -134,8 +134,8 @@ class FimAgent extends HTMLElement {
       const footer = document.createElement('div');
       footer.className = "mt-4 flex gap-4";
       footer.innerHTML = `
-         <div class="status-pill ${isCritical ? 'danger' : 'warning'} py-1 px-3 text-[8px] font-black uppercase tracking-widest">UNAUTHORIZED_ACCESS</div>
-         <div class="status-pill py-1 px-3 text-[8px] font-black uppercase tracking-widest border border-white/5 text-slate-500">SHA-256_MISMATCH</div>
+         <div class="status-pill ${isCritical ? 'danger' : 'warning'} font-black uppercase tracking-widest">UNAUTHORIZED_ACCESS</div>
+         <div class="status-pill font-black uppercase tracking-widest border border-white/5">SHA-256_MISMATCH</div>
       `;
 
       alertEl.appendChild(topRow);

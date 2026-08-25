@@ -15,57 +15,57 @@ class EbpfAgent extends HTMLElement {
 
   connectedCallback() {
     this.innerHTML = `
-      <div class="grid grid-cols-12 gap-6">
-        <div class="col-span-12 lg:col-span-3 space-y-6">
-           <div class="p-8 bg-black/40 border border-white/5 rounded-2xl">
-              <div class="flex justify-between items-center mb-6">
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Guardian_Status</span>
+      <div class="grid grid-cols-12 gap-4">
+        <div class="col-span-12 lg:col-span-3 space-y-4">
+           <div class="p-4 bg-black/40 border border-white/5 rounded-lg">
+              <div class="flex justify-between items-center mb-4">
+                 <span class="eyebrow">Guardian_Status</span>
                  <div id="ebpf-status-dot" class="dot"></div>
               </div>
               <div id="ebpf-status-label" class="mono-sm font-black text-white uppercase tracking-widest italic">Awaiting_Sync...</div>
            </div>
            
-           <div class="p-8 bg-black/40 border border-white/5 rounded-2xl">
-              <div class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-6">Intercepts</div>
-              <div id="ebpf-stat-intercepted" class="text-5xl font-black text-white tabular-nums italic">0000</div>
+           <div class="p-4 bg-black/40 border border-white/5 rounded-lg">
+              <div class="eyebrow mb-4">Intercepts</div>
+              <div id="ebpf-stat-intercepted" class="text-5xl font-black text-white tabular-nums">0000</div>
            </div>
  
-           <div class="p-8 bg-black/40 border border-white/5 rounded-2xl">
-              <div class="mono-xs text-slate-500 font-black uppercase tracking-widest mb-6">Anomalies</div>
-              <div id="ebpf-stat-drifts" class="text-5xl font-black text-white tabular-nums italic">00</div>
+           <div class="p-4 bg-black/40 border border-white/5 rounded-lg">
+              <div class="eyebrow mb-4">Anomalies</div>
+              <div id="ebpf-stat-drifts" class="text-5xl font-black text-white tabular-nums">00</div>
            </div>
         </div>
         
-        <div class="col-span-12 lg:col-span-9 space-y-6">
-           <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden">
-              <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center">
+        <div class="col-span-12 lg:col-span-9 space-y-4">
+           <div class="bg-black/20 border border-white/5 rounded-lg overflow-hidden">
+              <header class="p-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
                  <h3 class="tactical-title text-base tracking-widest">KERNEL_EVENT_STREAM</h3>
                  <div class="status-pill primary">LIVE_AUDIT</div>
               </header>
               <div id="ebpf-event-log" class="h-[400px] overflow-y-auto custom-scrollbar">
-                 <div class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Listening_For_Syscalls...</div>
+                 <div class="eyebrow p-5 text-center opacity-20">Listening_For_Syscalls...</div>
               </div>
            </div>
  
            <div class="t-panel glass-panel p-0 border-t-2 border-danger/30 overflow-hidden">
-              <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center">
+              <header class="p-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
                  <h3 class="tactical-title text-base tracking-widest">KERNEL_EVENT_LEDGER</h3>
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Persistent Forensic Trail</span>
+                 <span class="eyebrow">Persistent Forensic Trail</span>
               </header>
               <div class="overflow-x-auto">
                  <table class="w-full text-left">
                     <thead class="bg-black/20 border-b border-white/5">
                        <tr>
-                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Timestamp</th>
-                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Type</th>
-                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Source</th>
-                          <th class="p-4 mono-xs text-slate-500 font-black uppercase">Message</th>
-                          <th class="p-4 mono-xs text-slate-500 font-black uppercase text-right">Action</th>
+                          <th class="eyebrow p-4">Timestamp</th>
+                          <th class="eyebrow p-4">Type</th>
+                          <th class="eyebrow p-4">Source</th>
+                          <th class="eyebrow p-4">Message</th>
+                          <th class="eyebrow p-4 text-right">Action</th>
                        </tr>
                     </thead>
                     <tbody id="ebpf-ledger-body" class="divide-y divide-white/5">
                        <tr>
-                          <td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Forensic_Data...</td>
+                          <td colspan="5" class="eyebrow p-5 text-center opacity-20">Awaiting_Forensic_Data...</td>
                        </tr>
                     </tbody>
                  </table>
@@ -189,7 +189,7 @@ class EbpfAgent extends HTMLElement {
  
     if (this.logs.length === 0) {
       container.innerHTML = `
-        <div class="p-12 space-y-6">
+        <div class="p-5 space-y-4">
            <div class="h-16 w-full bg-white/5 animate-pulse rounded-lg"></div>
            <div class="h-16 w-full bg-white/5 animate-pulse rounded-lg opacity-60"></div>
            <div class="h-16 w-full bg-white/5 animate-pulse rounded-lg opacity-30"></div>
@@ -268,7 +268,7 @@ class EbpfAgent extends HTMLElement {
     const forensicLogs = this.logs.filter(log => log.type === 'DRIFT_PROCESS' || log.type === 'EBPF_CRITICAL' || log.message?.toLowerCase().includes('unauthorized'));
     
     if (forensicLogs.length === 0) {
-      ledger.innerHTML = `<tr><td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Listening_For_Critical_Violations...</td></tr>`;
+      ledger.innerHTML = `<tr><td colspan="5" class="eyebrow p-5 text-center opacity-20">Listening_For_Critical_Violations...</td></tr>`;
     } else {
       ledger.innerHTML = '';
       forensicLogs.forEach(log => {

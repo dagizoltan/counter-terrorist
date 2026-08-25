@@ -31,22 +31,35 @@ The system follows a three-tier model:
 
 ### Installation & Run
 
-1. **Generate configuration** (CSPRNG secrets, written to `.env` with mode 600):
-   ```bash
-   deno task setup
-   ```
+```bash
+deno task up
+```
 
-2. **Build the Rust agents** — also refreshes the sidecar integrity manifest, without
-   which every agent is refused at spawn:
-   ```bash
-   deno task build-agents
-   ```
+That is the whole thing. It generates `.env` with CSPRNG secrets on first run,
+builds the Rust agents, refreshes the sidecar integrity manifest, rebuilds the
+stylesheet, and starts the node — skipping any step whose inputs have not
+changed since the last run.
 
-3. **Start the orchestrator:**
-   ```bash
-   deno task start:single-node    # one host, no peers
-   deno task start                # mesh-capable
-   ```
+The first run compiles the agent fleet and takes about a minute. After that,
+when nothing has changed, the whole pre-flight costs ~100ms and invokes no
+build tools at all.
+
+```bash
+deno task up          # build what is stale, then start
+deno task up:mesh     # same, with mesh peering enabled
+deno task build       # build what is stale, do not start
+deno task status      # what is running, and what is stale
+deno task stop        # graceful shutdown (SIGTERM, then SIGKILL after 15s)
+deno task restart     # stop, then up
+deno task clean       # forget build fingerprints (--all also drops target/)
+```
+
+Useful flags: `--force` rebuilds everything, `--no-agents` skips the Rust
+build, `--no-css` skips the stylesheet.
+
+The individual steps remain available (`deno task setup`, `build-agents`,
+`build-css`, `start`) for scripting and for systemd, which runs `deno task
+start` directly so a service restart never triggers a build.
 
 The dashboard is served over TLS at `https://localhost:8000` behind a self-signed
 certificate. API access requires the bearer token from `.env`:

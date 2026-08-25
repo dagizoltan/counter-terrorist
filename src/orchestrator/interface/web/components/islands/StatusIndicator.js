@@ -1,12 +1,23 @@
 /**
- * Custom Element: StatusIndicator
- * Refactored to use Global Tactical Design System
+ * <status-indicator name="..."> — one agent's liveness row.
+ *
+ * Previously wrote its colour through inline `style="background: ...;
+ * box-shadow: ..."` attributes built from a `var(--success)` string passed
+ * around as a parameter. That is why `style-src 'unsafe-inline'` is still in
+ * the CSP, and it meant the dot's treatment here could drift from every other
+ * status dot in the console. State is now an attribute the stylesheet matches.
  */
-class StatusIndicator extends HTMLElement {
-  constructor() {
-    super();
-  }
 
+/** Maps a raw agent condition onto the console's five-state vocabulary. */
+const STATE = {
+  ONLINE: "ok",
+  OFFLINE: "crit",
+  ERROR: "crit",
+  TRIPPED: "warn",
+  "SAFE MODE": "warn",
+};
+
+class StatusIndicator extends HTMLElement {
   connectedCallback() {
     this.updateStatus();
     this.interval = setInterval(() => this.updateStatus(), 30000);
@@ -17,51 +28,55 @@ class StatusIndicator extends HTMLElement {
   }
 
   async updateStatus() {
-    const name = this.getAttribute('name') || 'Unknown Agent';
-    
-    try {
-      let isOnline = false;
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const res = await fetch('/api/agent/status', {
-        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
-      });
-      if (res.ok) {
-        const data = await res.json();
-          if (data.safeMode) {
-              return this.render(name, 'SAFE MODE', 'var(--warning)');
-          }
-          if (data.trippedSidecars?.length > 0) {
-              const mapping = {
-                  "Active Blocker": "blocker",
-                  "Network Sensor": "sentinel",
-                  "Persistence Monitor": "watchfile"
-              };
-              if (data.trippedSidecars.includes(mapping[name])) {
-                  return this.render(name, 'TRIPPED', 'var(--warning)');
-              }
-          }
+    const name = this.getAttribute("name") || "Unknown Agent";
 
-        if (name === "Active Blocker") isOnline = data.firewall?.active;
-        else if (name === "Network Sensor") isOnline = data.ebpf?.active;
-        else if (name === "Persistence Monitor") isOnline = data.fim?.active;
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch("/api/agent/status", {
+        headers: csrfToken ? { "X-CT-Token": csrfToken } : {},
+      });
+
+      if (!res.ok) return this.render(name, "ERROR");
+
+      const data = await res.json();
+
+      if (data.safeMode) return this.render(name, "SAFE MODE");
+
+      const sidecar = {
+        "Active Blocker": "blocker",
+        "Network Sensor": "sentinel",
+        "Persistence Monitor": "watchfile",
+      }[name];
+
+      if (sidecar && data.trippedSidecars?.includes(sidecar)) {
+        return this.render(name, "TRIPPED");
       }
-      this.render(name, isOnline ? 'ONLINE' : 'OFFLINE', isOnline ? 'var(--success)' : 'var(--danger)');
-    } catch (e) {
-      this.render(name, 'ERROR', 'var(--danger)');
+
+      const online = name === "Active Blocker" ? data.firewall?.active
+        : name === "Network Sensor" ? data.ebpf?.active
+        : name === "Persistence Monitor" ? data.fim?.active
+        : false;
+
+      this.render(name, online ? "ONLINE" : "OFFLINE");
+    } catch {
+      this.render(name, "ERROR");
     }
   }
 
-  render(name, status, color) {
+  render(name, status) {
+    const state = STATE[status] ?? "idle";
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
+
     this.innerHTML = `
-      <div class="flex justify-between items-center py-3 border-b border-white/5 group">
-        <span class="mono text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">${name}</span>
-        <div class="flex items-center gap-2">
-           <span class="dot" style="background: ${color}; box-shadow: 0 0 10px ${color}88;"></span>
-           <span class="mono text-[9px] font-black uppercase tracking-widest" style="color: ${color}">${status}</span>
-        </div>
+      <div class="stat-row" data-state="${state}">
+        <span class="eyebrow">${esc(name)}</span>
+        <span class="agent-state">
+          <span class="indicator" data-state="${state}"${state === "ok" ? ' data-pulse=""' : ""} aria-hidden="true"></span>
+          <span class="agent-state__label">${esc(status)}</span>
+        </span>
       </div>
     `;
   }
 }
 
-customElements.define('status-indicator', StatusIndicator);
+customElements.define("status-indicator", StatusIndicator);

@@ -57,13 +57,13 @@ class EnvironmentalSignals extends HTMLElement {
     const ethCount = this.signals.ethernet?.length || 0;
 
     this.innerHTML = `
-      <div class="flex flex-col gap-6 animate-in fade-in duration-1000">
+      <div class="flex flex-col gap-4 animate-in fade-in duration-1000">
         <!-- TACTICAL SELECTOR -->
-        <div class="flex gap-2 p-1 bg-black/40 border border-white/5 rounded-xl self-start backdrop-blur-xl">
-          <button class="px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'ALL' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('ALL')">All Signals (${wifiCount + btCount + ethCount})</button>
-          <button class="px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'WIFI' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('WIFI')">WiFi APs (${wifiCount})</button>
-          <button class="px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'BT' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('BT')">Bluetooth (${btCount})</button>
-          <button class="px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'FRIENDS' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('FRIENDS')">Friends (${ethCount})</button>
+        <div class="flex gap-2 p-1 bg-black/40 border border-white/5 rounded-lg self-start backdrop-blur-xl">
+          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'ALL' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('ALL')">All Signals (${wifiCount + btCount + ethCount})</button>
+          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'WIFI' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('WIFI')">WiFi APs (${wifiCount})</button>
+          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'BT' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('BT')">Bluetooth (${btCount})</button>
+          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'FRIENDS' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('FRIENDS')">Friends (${ethCount})</button>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -93,11 +93,11 @@ class EnvironmentalSignals extends HTMLElement {
 
     if (list.length === 0) {
       return `
-        <div class="col-span-full py-20 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.02]">
+        <div class="col-span-full py-6 flex flex-col items-center justify-center border border-dashed border-white/10 rounded-lg bg-white/[0.02]">
           <div class="w-12 h-12 rounded-full border-2 border-white/5 flex items-center justify-center mb-4 animate-pulse">
-            <div class="w-2 h-2 rounded-full bg-primary"></div>
+            <div class="indicator" data-state="info" aria-hidden="true"></div>
           </div>
-          <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">No ambient signals captured in this vector</span>
+          <span class="eyebrow">No ambient signals captured in this vector</span>
         </div>
       `;
     }
@@ -139,52 +139,52 @@ class EnvironmentalSignals extends HTMLElement {
     }
 
     return `
-      <div class="glass-panel group relative flex flex-col p-8 bg-black/40 border border-white/5 hover:border-white/20 transition-all duration-300 hover:bg-white/[0.03] shadow-2xl">
+      <div class="glass-panel group relative flex flex-col p-4 bg-black/40 border border-white/5 hover:border-white/20 transition-all duration-300 hover:bg-white/[0.03] shadow-2xl">
         <!-- Top Operational Header -->
-        <div class="flex justify-between items-start mb-10">
+        <div class="flex justify-between items-start mb-5">
           <div class="flex items-center gap-4">
-            <div class="p-3 bg-black/60 rounded-xl border border-white/10 group-hover:border-${isWifi ? 'primary' : isBT ? 'warning' : 'success'}/40 transition-colors">
+            <div class="signal-chip" data-state="${isWifi ? 'info' : isBT ? 'warn' : 'ok'}">
               ${this.getVectorIconSmall(s.vector)}
             </div>
             <div class="flex flex-col gap-1">
-              <span class="mono text-[7px] font-black text-slate-500 uppercase tracking-[0.3em]">${s.vector} // ${s.mac?.toUpperCase() || 'UNKNOWN_ADDR'}</span>
+              <span class="eyebrow">${s.vector} // ${s.mac?.toUpperCase() || 'UNKNOWN_ADDR'}</span>
               <span class="mono text-[9px] font-black text-slate-400 uppercase tracking-tighter">${s.vendor || 'Unknown_Manufacturer'}</span>
             </div>
           </div>
           <div class="flex flex-col items-end gap-2">
-            <span class="status-pill active !px-4 !py-1 text-[9px] font-black uppercase tracking-[0.2em]" style="background: ${trustColor}20; color: ${trustColor}; border-color: ${trustColor}40">
+            <span class="status-pill active font-black uppercase tracking-[0.2em]" style="background: ${trustColor}20; color: ${trustColor}; border-color: ${trustColor}40">
                ${trustStatus}
             </span>
             <div class="flex items-center gap-2">
-               <span class="mono text-[7px] font-black text-slate-600 uppercase">Trust_${trustScore}%</span>
+               <span class="eyebrow">Trust_${trustScore}%</span>
                <div class="w-1.5 h-1.5 rounded-full" style="background: ${trustColor}; box-shadow: 0 0 8px ${trustColor}"></div>
             </div>
           </div>
         </div>
 
         <!-- Primary Identification -->
-        <div class="mb-10 flex-grow">
-          <h4 class="text-3xl font-black text-white italic tracking-tighter uppercase leading-none mb-3 group-hover:translate-x-1 transition-transform">
+        <div class="mb-5 flex-grow">
+          <h4 class="text-3xl font-black text-white tracking-tighter uppercase leading-none mb-3 group-hover:translate-x-1 transition-transform">
             ${s.ssid || s.hostname || s.name || 'ANONYMOUS_ENTITY'}
           </h4>
-          <span class="mono text-[9px] font-black text-primary/40 uppercase tracking-[0.2em] italic">${s.publicIntel?.replace(/_/g, ' ') || 'STANDARD_NODE_IDENTIFIED'}</span>
+          <span class="eyebrow text-primary/40 italic">${s.publicIntel?.replace(/_/g, ' ') || 'STANDARD_NODE_IDENTIFIED'}</span>
         </div>
 
         <!-- Technical Attributes Grid -->
-        <div class="grid grid-cols-3 gap-3 mb-10">
+        <div class="grid grid-cols-3 gap-3 mb-5">
           ${meta.map(m => `
-            <div class="bg-black/60 border border-white/5 p-3 rounded-xl flex flex-col gap-1">
-               <span class="mono text-[6px] font-black text-slate-600 uppercase tracking-widest">${m.label}</span>
-               <span class="mono text-[9px] font-black text-slate-300 uppercase truncate">${m.value}</span>
+            <div class="bg-black/60 border border-white/5 p-3 rounded-lg flex flex-col gap-1">
+               <span class="eyebrow">${m.label}</span>
+               <span class="eyebrow truncate">${m.value}</span>
             </div>
           `).join('')}
         </div>
 
         <!-- Telemetry Block -->
-        <div class="bg-black/80 p-5 rounded-2xl border border-white/5 mb-8">
+        <div class="bg-black/80 p-3 rounded-lg border border-white/5 mb-4">
           <div class="flex justify-between items-end mb-3">
-             <span class="mono text-[7px] font-black text-slate-500 uppercase tracking-[0.5em]">Signal_Magnitude</span>
-             <span class="mono text-[12px] font-black tabular-nums italic" style="color: ${themeColor}">${isBT ? (s.signal + ' dBm') : isMesh ? 'VFRD' : (s.signal + '%')}</span>
+             <span class="eyebrow">Signal_Magnitude</span>
+             <span class="mono text-[12px] font-black tabular-nums" style="color: ${themeColor}">${isBT ? (s.signal + ' dBm') : isMesh ? 'VFRD' : (s.signal + '%')}</span>
           </div>
           <div class="h-1.5 bg-white/5 rounded-full overflow-hidden flex gap-1">
              ${this.renderSignalBars(isMesh ? 100 : s.signal, themeColor)}
@@ -192,12 +192,12 @@ class EnvironmentalSignals extends HTMLElement {
         </div>
 
         <!-- Action / Forensic Footer -->
-        <div class="pt-6 border-t border-white/5 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-all">
+        <div class="pt-4 border-t border-white/5 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-all">
            <div class="flex items-center gap-3">
               <div class="p-1.5 bg-white/5 rounded border border-white/10">
                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-slate-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               </div>
-              <span class="mono text-[7px] font-black text-slate-500 uppercase tracking-[0.3em]">Forensic_Capture_Ready</span>
+              <span class="eyebrow">Forensic_Capture_Ready</span>
            </div>
            <svg class="transition-transform group-hover:translate-x-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </div>

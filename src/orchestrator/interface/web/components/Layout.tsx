@@ -1,12 +1,14 @@
 import { jsx } from "hono/jsx";
 import { SidebarNav } from "./SidebarNav.tsx";
 import { GlobalHeader } from "./GlobalHeader.tsx";
+import { Eyebrow } from "./Tactical.tsx";
 
 /**
- * Sovereign App Shell // v5.2-STABLE
- * Hardened tactical interface with 3-column operational grid.
- * Optimized for consistent high-fidelity rendering.
- * Refactored: Forensic tabs migrated to Global Header.
+ * Application shell.
+ *
+ * Three columns: navigation rail, operational deck, forensic aside. The rail
+ * and the aside are named view-transition targets (see design/04-motion.css),
+ * so a navigation animates the deck content while the chrome holds still.
  */
 export const Layout = (props: {
   title: string;
@@ -17,226 +19,250 @@ export const Layout = (props: {
   islandPaths?: string[];
   userRole?: string;
 }) => {
+  const deckTitle = props.title.split("//")[0].trim();
+
   return (
     <html lang="en">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta name="csrf-token" content={props.csrfToken} />
-        <title>{props.title} | {props.hostname || 'Sovereign Orchestrator'}</title>
+        <meta name="color-scheme" content="dark" />
+        <title>{deckTitle} · {props.hostname || "Sovereign Orchestrator"}</title>
         <link rel="stylesheet" href="/style.css" />
       </head>
-      <body class="bg-[#050505] text-slate-100 font-sans selection:bg-primary/30 overflow-hidden">
-        <div class="noise-overlay pointer-events-none opacity-[0.03]"></div>
-        <div class="system-scan-overlay pointer-events-none opacity-[0.02]"></div>
-        
+      <body>
         <div class="app-shell">
-          
-          {/* ── 01 Navigation Deck (Left) ─────────────────────────────── */}
-          <aside id="main-sidebar" class="shell-sidebar relative">
-            <header class="h-[var(--header-height-sm)] px-4 flex items-center justify-between border-b border-white/5 bg-black/20 shrink-0">
-               <h1 class="brand-title text-base font-black tracking-[0.2em] uppercase italic leading-none text-white pl-2">CT ORCH</h1>
-               <button id="sidebar-toggle-btn" onclick="window.toggleSidebar()" class="sidebar-nav-icon" title="Toggle Sidebar Navigation">
-                  <svg id="sidebar-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-               </button>
+
+          {/* ── Navigation rail ─────────────────────────────────────── */}
+          <aside id="main-sidebar" class="shell-sidebar">
+            <header>
+              <span class="brand-title">CT ORCH</span>
+              <button
+                id="sidebar-toggle-btn"
+                type="button"
+                class="icon-btn"
+                aria-expanded="true"
+                aria-controls="main-sidebar"
+                aria-label="Toggle navigation rail"
+                onclick="window.toggleSidebar()"
+              >
+                <svg id="sidebar-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+              </button>
             </header>
 
             <SidebarNav userRole={props.userRole} />
 
-            <footer class="p-3 border-t border-white/5 bg-black/20">
-               <form method="POST" action="/logout">
-                  <input type="hidden" name="csrfToken" value={props.csrfToken} />
-                  <button type="submit" class="t-btn danger sidebar-footer-btn w-full justify-center group py-2.5" title="Terminate Session">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 shrink-0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    <span class="sidebar-footer-text truncate">Terminate Session</span>
-                  </button>
-               </form>
+            <footer>
+              <form method="POST" action="/logout">
+                <input type="hidden" name="csrfToken" value={props.csrfToken} />
+                <button type="submit" class="btn danger btn--block sidebar-footer-btn" title="Terminate session">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                  <span class="sidebar-footer-text">Terminate</span>
+                </button>
+              </form>
             </footer>
           </aside>
 
-
-          {/* ── 02 Operational Main (Center) ──────────────────────────── */}
-          <main class="shell-main relative z-10">
-             {/* Main Deck Header */}
-             <GlobalHeader hostname={props.hostname} title={props.title} />
-
-             {/* Content Stage */}
-             <div class="shell-content">
-                {/* Background Tactical Elements */}
-                <div class="absolute inset-0 pointer-events-none opacity-10 z-0">
-                   <div class="absolute top-40 right-10 w-40 h-40 bg-primary/5 blur-[120px] rounded-full"></div>
-                </div>
-                
-                <div class="relative z-10 pt-12">
-                   {props.children}
-                </div>
-             </div>
+          {/* ── Operational deck ────────────────────────────────────── */}
+          <main class="shell-main">
+            <GlobalHeader hostname={props.hostname} title={props.title} />
+            <div class="shell-content">{props.children}</div>
           </main>
 
-          {/* ── 03 Forensic Telemetry (Right) ─────────────────────────── */}
-          <aside class="shell-aside relative z-20 flex flex-col border-l border-white/5 bg-[#080808]">
-             {/* Sidebar Header with Icon Tabs */}
-             <header class="h-[var(--header-height)] px-8 flex justify-between items-center border-b border-white/5 bg-black/20 shrink-0">
-                <div class="flex items-center gap-3 ml-2">
-                   <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Forensic Audit</span>
-                   <div class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></div>
-                </div>
+          {/* ── Forensic aside ──────────────────────────────────────── */}
+          <aside class="shell-aside">
+            <header>
+              <Eyebrow tick>Forensic Audit</Eyebrow>
+              <div class="tab-group" role="tablist" aria-label="Forensic panel">
+                <button
+                  id="btn-logs"
+                  type="button"
+                  class="icon-btn active"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="sidebar-tab-logs"
+                  title="Live telemetry"
+                  onclick="window.switchSidebarTab('logs')"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 12H3" /><path d="M21 6H3" /><path d="M21 18H3" /><path d="M10 6v12" /></svg>
+                </button>
+                <button
+                  id="btn-integrity"
+                  type="button"
+                  class="icon-btn"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="sidebar-tab-integrity"
+                  title="System integrity"
+                  onclick="window.switchSidebarTab('integrity')"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                </button>
+              </div>
+            </header>
 
-                <div id="module-nav-container" class="flex gap-1 bg-black/40 p-1 rounded-lg border border-white/5">
-                   <button id="btn-integrity" onclick="window.switchSidebarTab('integrity')" class="sidebar-nav-icon" title="System Integrity">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                   </button>
-                   <button id="btn-logs" onclick="window.switchSidebarTab('logs')" class="sidebar-nav-icon active" title="Live Telemetry">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12H3"/><path d="M21 6H3"/><path d="M21 18H3"/><path d="M10 6L10 18"/></svg>
-                   </button>
+            <div class="aside-body custom-scrollbar">
+              <section id="sidebar-tab-logs" class="sidebar-tab-content" role="tabpanel" aria-labelledby="btn-logs">
+                <div class="aside-section-head">
+                  <Eyebrow tick>Live Telemetry</Eyebrow>
+                  <span class="pill" data-state="ok" data-dot="live">Live</span>
                 </div>
-             </header>
+                <mini-log id="sidebar-log"></mini-log>
+              </section>
 
-             <div class="flex-grow overflow-y-auto custom-scrollbar px-4 pb-4">
-                {/* Tab Content: Integrity */}
-                <div id="sidebar-tab-integrity" class="sidebar-tab-content hidden pt-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                   <div class="mb-10">
-                      <div class="flex items-center gap-2 mb-6 px-2">
-                         <div class="w-1 h-3 bg-primary rounded-full"></div>
-                         <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">System Health</span>
-                      </div>
-                      <system-health></system-health>
-                   </div>
+              <section id="sidebar-tab-integrity" class="sidebar-tab-content hidden" role="tabpanel" aria-labelledby="btn-integrity">
+                <div class="aside-section-head">
+                  <Eyebrow tick>System Health</Eyebrow>
                 </div>
+                <system-health></system-health>
+              </section>
+            </div>
 
-                {/* Tab Content: Logs */}
-                <div id="sidebar-tab-logs" class="sidebar-tab-content pt-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                   <div class="mb-10">
-                      <div class="flex justify-between items-center mb-6 px-2">
-                         <div class="flex items-center gap-2">
-                            <div class="w-1 h-3 bg-primary rounded-full"></div>
-                            <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em]">Live_Telemetry</span>
-                         </div>
-                         <div class="flex items-center gap-2 bg-success/5 border border-success/20 px-3 py-1 rounded-full">
-                            <div class="w-1.5 h-1.5 bg-success rounded-full animate-pulse shadow-[0_0_8px_var(--success)]"></div>
-                            <span class="mono text-[7px] text-success font-black uppercase tracking-widest">Live</span>
-                         </div>
-                      </div>
-                      <mini-log id="sidebar-log"></mini-log>
-                   </div>
+            <footer>
+              <div class="trust-meter">
+                <div class="trust-meter__row">
+                  <Eyebrow>Operational Trust</Eyebrow>
+                  <span class="trust-meter__value num" id="stat-trust-score">99.9%</span>
                 </div>
-             </div>
-
-             <footer class="p-6 border-t border-white/5 bg-black/40">
-                <div class="flex justify-between items-center mb-3">
-                   <span class="mono-xs font-black text-slate-500 uppercase tracking-widest">Operational Trust</span>
-                   <span class="mono-xs font-black text-primary tracking-widest uppercase tabular-nums">99.9%</span>
-                </div>
-                <div class="h-1 bg-white/5 rounded-full overflow-hidden relative">
-                   <div class="absolute inset-0 bg-primary/20 blur-sm"></div>
-                   <div class="h-full bg-primary relative z-10 shadow-[0_0_10px_var(--primary)]" style="width: 99.9%"></div>
-                </div>
-             </footer>
+                <div class="meter" data-state="info" style="--value:99.9%"></div>
+              </div>
+            </footer>
           </aside>
 
         </div>
 
-         {/* Global Orchestration Components */}
+        {/* Global orchestration components */}
         <metrics-hydrator></metrics-hydrator>
         <alert-overlay></alert-overlay>
         <toast-manager></toast-manager>
-        
-        {/* Authoritative Script Injection */}
+
         <script type="module" src="/components/islands/SharedWebSocket.js" nonce={props.nonce}></script>
         <script type="module" src="/components/islands/MetricsHydrator.js" nonce={props.nonce}></script>
         <script type="module" src="/components/islands/AlertOverlay.js" nonce={props.nonce}></script>
         <script type="module" src="/components/islands/ToastManager.js" nonce={props.nonce}></script>
         <script type="module" src="/components/islands/SystemHealth.js" nonce={props.nonce}></script>
         <script type="module" src="/components/islands/MiniLog.js" nonce={props.nonce}></script>
-        
-        {props.islandPaths?.map(path => (
-          !['SharedWebSocket.js', 'MetricsHydrator.js', 'AlertOverlay.js', 'ToastManager.js', 'SystemHealth.js', 'MiniLog.js'].some(f => path.includes(f)) && 
+
+        {props.islandPaths?.map((path) => (
+          !["SharedWebSocket.js", "MetricsHydrator.js", "AlertOverlay.js", "ToastManager.js", "SystemHealth.js", "MiniLog.js"].some((f) => path.includes(f)) &&
           <script type="module" src={path} nonce={props.nonce}></script>
         ))}
 
         <script nonce={props.nonce} dangerouslySetInnerHTML={{ __html: `
-          // Unified UI State Manager
-          // window.csrfToken is removed for security (SEC-02). 
-          // Use document.querySelector('meta[name="csrf-token"]').content instead.
-          
-          function syncInterface() {
-            const path = window.location.pathname;
-            
-            // Sidebar Navigation Active State
-            document.querySelectorAll('.nav-link').forEach(link => {
-              const href = link.getAttribute('href');
-              const isActive = path === href || (href !== '/' && path.startsWith(href));
-              link.classList.toggle('active', isActive);
+          // ── Shell state ────────────────────────────────────────────────
+          // CSRF lives in the meta tag, never on window (SEC-02).
+
+          var RAIL_KEY = 'sovereign_sidebar_collapsed';
+          var TAB_KEY = 'sovereign_aside_tab';
+
+          function markActiveNav() {
+            var path = window.location.pathname;
+            var best = null;
+            var bestLen = -1;
+
+            // Longest-prefix wins. The previous build marked every link whose
+            // href was a prefix of the path, so /agents stayed lit while
+            // /agents/deception was open and two rows read as active at once.
+            document.querySelectorAll('.nav-link').forEach(function (link) {
+              var href = link.getAttribute('href');
+              if (!href) return;
+              link.classList.remove('active');
+              link.removeAttribute('aria-current');
+              var match = path === href || path.indexOf(href + '/') === 0;
+              if (match && href.length > bestLen) { best = link; bestLen = href.length; }
             });
-            
-            // Dynamic Clock
-            const clock = document.getElementById('system-clock');
-            if (clock) {
-              const now = new Date();
-              clock.innerText = now.toLocaleTimeString('en-GB', { hour12: false });
+
+            if (best) {
+              best.classList.add('active');
+              best.setAttribute('aria-current', 'page');
             }
           }
 
-          setInterval(syncInterface, 1000);
-          syncInterface();
-          window.addEventListener('popstate', syncInterface);
+          function tickClock() {
+            var clock = document.getElementById('system-clock');
+            if (clock) {
+              clock.textContent = new Date().toLocaleTimeString('en-GB', { hour12: false });
+            }
+          }
 
-          // Global Utility: escapeHTML
-          window.escapeHTML = function(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+          markActiveNav();
+          tickClock();
+
+          // The previous build ran the full interface sync — including a
+          // querySelectorAll over every nav link — on a 1s setInterval. Only
+          // the clock is time-dependent; navigation state changes on
+          // navigation.
+          setInterval(tickClock, 1000);
+          window.addEventListener('popstate', markActiveNav);
+          window.addEventListener('pageshow', markActiveNav);
+
+          window.escapeHTML = function (str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+              .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
           };
 
-          // Collapsible Left Sidebar Logic
-          window.toggleSidebar = function() {
-            const sidebar = document.getElementById('main-sidebar');
-            const appShell = document.querySelector('.app-shell');
-            const icon = document.getElementById('sidebar-toggle-icon');
-            if (!sidebar || !appShell) return;
+          // ── Navigation rail ────────────────────────────────────────────
+          function applyRailState(collapsed) {
+            var rail = document.getElementById('main-sidebar');
+            var shell = document.querySelector('.app-shell');
+            var icon = document.getElementById('sidebar-toggle-icon');
+            var btn = document.getElementById('sidebar-toggle-btn');
+            if (!rail || !shell) return;
 
-            const isCollapsed = sidebar.classList.toggle('collapsed');
-            appShell.classList.toggle('sidebar-is-collapsed', isCollapsed);
-            localStorage.setItem('sovereign_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-
+            rail.classList.toggle('collapsed', collapsed);
+            shell.classList.toggle('sidebar-is-collapsed', collapsed);
+            if (btn) btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
             if (icon) {
-              icon.innerHTML = isCollapsed
+              icon.innerHTML = collapsed
                 ? '<polyline points="9 18 15 12 9 6"/>'
                 : '<polyline points="15 18 9 12 15 6"/>';
             }
+          }
+
+          window.toggleSidebar = function () {
+            var rail = document.getElementById('main-sidebar');
+            if (!rail) return;
+            var collapsed = !rail.classList.contains('collapsed');
+            applyRailState(collapsed);
+            try { localStorage.setItem(RAIL_KEY, collapsed ? 'true' : 'false'); } catch (e) {}
           };
 
-          // Restore Collapsed State
-          (function restoreSidebarState() {
-            const stored = localStorage.getItem('sovereign_sidebar_collapsed');
-            if (stored === 'true') {
-              const sidebar = document.getElementById('main-sidebar');
-              const appShell = document.querySelector('.app-shell');
-              const icon = document.getElementById('sidebar-toggle-icon');
-              if (sidebar) sidebar.classList.add('collapsed');
-              if (appShell) appShell.classList.add('sidebar-is-collapsed');
-              if (icon) icon.innerHTML = '<polyline points="9 18 15 12 9 6"/>';
-            }
+          // ── Forensic aside tabs ────────────────────────────────────────
+          window.switchSidebarTab = function (tab) {
+            document.querySelectorAll('.sidebar-tab-content').forEach(function (panel) {
+              panel.classList.add('hidden');
+            });
+            var active = document.getElementById('sidebar-tab-' + tab);
+            if (active) active.classList.remove('hidden');
+
+            ['logs', 'integrity'].forEach(function (name) {
+              var btn = document.getElementById('btn-' + name);
+              if (!btn) return;
+              var on = name === tab;
+              btn.classList.toggle('active', on);
+              btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+
+            try { localStorage.setItem(TAB_KEY, tab); } catch (e) {}
+          };
+
+          // ── Restore persisted shell state ──────────────────────────────
+          // Runs inline so the rail is already in its stored position before
+          // first paint; the previous build restored it after the grid had
+          // been laid out at full width, which flashed on every navigation.
+          (function restore() {
+            var collapsed = false;
+            var tab = 'logs';
+            try {
+              collapsed = localStorage.getItem(RAIL_KEY) === 'true';
+              tab = localStorage.getItem(TAB_KEY) || 'logs';
+            } catch (e) {}
+            applyRailState(collapsed);
+            window.switchSidebarTab(tab);
           })();
-
-          // Global Tab Switching (Forensics)
-          window.switchSidebarTab = function(tab) {
-            const contents = document.querySelectorAll('.sidebar-tab-content');
-            contents.forEach(c => c.classList.add('hidden'));
-            
-            const activeContent = document.getElementById('sidebar-tab-' + tab);
-            if (activeContent) activeContent.classList.remove('hidden');
-
-            // Update icon states
-            const btnIntegrity = document.getElementById('btn-integrity');
-            const btnLogs = document.getElementById('btn-logs');
-            if (btnIntegrity && btnLogs) {
-               btnIntegrity.classList.toggle('active', tab === 'integrity');
-               btnLogs.classList.toggle('active', tab === 'logs');
-            }
-          };
-          
-          // Default tab
-          window.switchSidebarTab('logs');
         ` }} />
       </body>
     </html>

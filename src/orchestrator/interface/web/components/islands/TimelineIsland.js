@@ -115,7 +115,7 @@ class TimelineIsland extends HTMLElement {
 
     if (this.isHydrating && this.events.length === 0) {
       container.innerHTML = `
-        <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-4">
            <div class="skeleton h-32 w-full"></div>
            <div class="skeleton h-32 w-full opacity-60"></div>
            <div class="skeleton h-32 w-full opacity-30"></div>
@@ -127,7 +127,7 @@ class TimelineIsland extends HTMLElement {
     if (this.events.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-           <span class="mono-xs font-bold uppercase tracking-widest text-slate-500 italic">No_Security_Events_Found_In_Temporal_Buffer</span>
+           <span class="eyebrow italic">No_Security_Events_Found_In_Temporal_Buffer</span>
         </div>
       `;
       return;
@@ -139,7 +139,7 @@ class TimelineIsland extends HTMLElement {
     if (this.visibleCount < this.events.length) {
       const loadMore = document.createElement('div');
       loadMore.className = 'py-12 text-center opacity-30';
-      loadMore.innerHTML = `<span class="mono-xs font-bold text-slate-500 uppercase tracking-widest">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
+      loadMore.innerHTML = `<span class="eyebrow">Scanning_Older_Segments_(${this.events.length - this.visibleCount}_Remaining)...</span>`;
       container.appendChild(loadMore);
     }
   }
@@ -162,28 +162,28 @@ class TimelineIsland extends HTMLElement {
     }
 
     return `
-      <div class="t-panel glass-panel border-l-4 group hover:bg-white/[0.03]  p-8 mb-6" style="border-left-color: var(--${theme})">
-        <div class="flex justify-between items-start mb-8">
-           <div class="flex items-center gap-8">
+      <div class="t-panel glass-panel border-l-4 group hover:bg-white/[0.03] p-4 mb-4" style="border-left-color: var(--${theme})">
+        <div class="flex justify-between items-start mb-4">
+           <div class="flex items-center gap-4">
               <div class="flex flex-col gap-1">
-                 <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Timestamp</span>
+                 <span class="eyebrow">Timestamp</span>
                  <span class="mono-md font-black text-white tabular-nums tracking-widest">${ts}</span>
               </div>
               <span class="text-slate-800 font-bold opacity-30 text-xl">//</span>
               <div class="flex flex-col gap-1">
-                 <span class="mono-xs text-slate-500 font-bold uppercase tracking-widest">Source_Node</span>
+                 <span class="eyebrow">Source_Node</span>
                  <div class="flex items-center gap-3">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-primary/60"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-                    <span class="mono-xs font-black text-primary tracking-widest uppercase">${this.escape(nodeName)}</span>
+                    <span class="eyebrow" data-tone="primary">${this.escape(nodeName)}</span>
                  </div>
               </div>
            </div>
            <div class="status-pill ${theme}">${this.escape(ev.type || 'EVENT')}</div>
         </div>
-        <h4 class="text-xl font-bold text-white uppercase tracking-tighter mb-8 leading-tight">${this.escape(msg)}</h4>
+        <h4 class="text-xl font-bold text-white uppercase tracking-tighter mb-4 leading-tight">${this.escape(msg)}</h4>
         ${ev.data ? `
-          <div class="p-8 bg-black/40 border border-white/5 rounded-xl font-mono text-primary/60 break-all select-all opacity-40 relative group/data">
-            <div class="absolute top-6 right-6 mono-xs text-slate-800 font-black opacity-0 group-hover/data:opacity-100 uppercase tracking-widest">Raw_Telemetry</div>
+          <div class="p-4 bg-black/40 border border-white/5 rounded-lg font-mono text-primary/60 break-all select-all opacity-40 relative group/data">
+            <div class="eyebrow absolute top-6 right-6 text-slate-800 opacity-0 group-hover/data:opacity-100">Raw_Telemetry</div>
             <pre class="whitespace-pre-wrap leading-relaxed text-[10px]">${this.escape(typeof ev.data === 'string' ? ev.data : JSON.stringify(ev.data, null, 2))}</pre>
           </div>
         ` : ''}

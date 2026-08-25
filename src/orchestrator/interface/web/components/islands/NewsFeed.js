@@ -107,8 +107,8 @@ class NewsFeed extends HTMLElement {
         <div class="flex flex-col gap-4">
            <div class="${isCompact ? 'p-4 rounded-xl' : 'p-6 rounded-2xl'} bg-black/40 border border-white/5 backdrop-blur-xl">
               <div class="flex items-center gap-3 mb-2">
-                 <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
-                 <span class="mono-xs text-primary font-black uppercase tracking-widest">Global Intelligence Feed Standby</span>
+                 <div class="indicator" data-state="info" data-pulse="" aria-hidden="true"></div>
+                 <span class="eyebrow" data-tone="primary">Global Intelligence Feed Standby</span>
               </div>
               <p class="mono-xs text-slate-500 font-medium tracking-wide leading-relaxed">
                  Awaiting dynamic threat telemetry ingest from OSINT providers (NVD, AlienVault, CISA).
@@ -127,33 +127,33 @@ class NewsFeed extends HTMLElement {
           <a href="${item.link}" target="_blank" class="block ${isCompact ? 'p-4 rounded-xl' : 'p-8 rounded-2xl'} bg-black/40 border border-white/5 hover:border-white/10 hover:bg-white/[0.03] group transition-all duration-300 relative overflow-hidden backdrop-blur-xl">
             <div class="flex justify-between items-start ${isCompact ? 'mb-2' : 'mb-6'}">
                <div class="flex items-center gap-4">
-                  <div class="${isCompact ? 'p-1.5' : 'p-2.5'} rounded-xl border ${this.getSeverityStyles(item.severity, item.category)}">
+                  <div class="${isCompact ? 'p-1.5' : 'p-2.5'} rounded-lg border ${this.getSeverityStyles(item.severity, item.category)}">
                      ${this.getCategoryIcon(item.category)}
                   </div>
                   <div class="flex flex-col gap-0.5">
-                     <span class="mono-xs font-bold text-slate-400 tracking-widest uppercase" style="${isCompact ? 'font-size: 7px;' : ''}">${this.formatLabel(item.source)}</span>
-                     <span class="mono-xs text-slate-600 font-bold uppercase" style="font-size: 8px;">${new Date(item.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
+                     <span class="eyebrow" style="${isCompact ? 'font-size: 7px;' : ''}">${this.formatLabel(item.source)}</span>
+                     <span class="eyebrow" style="font-size: 8px;">${new Date(item.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
                   </div>
                </div>
-               <span class="status-pill ${item.severity === 'CRITICAL' ? 'danger' : item.severity === 'HIGH' ? 'warning' : 'neutral'} !px-4 !py-1 text-[9px] font-black uppercase tracking-[0.2em]">
+               <span class="status-pill ${item.severity === 'CRITICAL' ? 'danger' : item.severity === 'HIGH' ? 'warning' : 'neutral'} font-black uppercase tracking-[0.2em]">
                   ${item.severity}
                </span>
             </div>
  
-            <h4 class="${isCompact ? 'text-sm mb-2' : 'text-xl mb-6'} font-black text-white uppercase tracking-tight leading-tight line-clamp-1 italic group-hover:translate-x-1 transition-all">
+            <h4 class="${isCompact ? 'text-sm mb-2' : 'text-xl mb-6'} font-black text-white uppercase tracking-tight leading-tight line-clamp-1 group-hover:translate-x-1 transition-all">
                ${item.title.replace(/_/g, ' ')}
             </h4>
             
             ${!isCompact ? `
-              <p class="mono-xs text-slate-400 line-clamp-3 leading-relaxed mb-8 font-medium italic">
+              <p class="mono-xs text-slate-400 line-clamp-3 leading-relaxed mb-4 font-medium italic">
                  ${item.summary.replace(/_/g, ' ')}
               </p>
             ` : ''}
  
             ${!isCompact ? `
-              <div class="flex items-center justify-between pt-6 border-t border-white/5">
+              <div class="flex items-center justify-between pt-4 border-t border-white/5">
                   <div class="flex items-center gap-3 text-slate-500 group-hover:text-slate-300 transition-colors">
-                      <span class="mono-xs font-black uppercase tracking-[0.3em] text-[9px]">Intercept Signal</span>
+                      <span class="eyebrow">Intercept Signal</span>
                       <svg class="transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                   </div>
               </div>
@@ -163,9 +163,9 @@ class NewsFeed extends HTMLElement {
       </div>
  
       ${!isDetailed && !isCompact ? `
-        <div class="mt-16">
-            <a href="/intel/feed" class="t-btn primary w-full justify-center py-6 group">
-                <span class="mono-xs font-black tracking-[0.4em] uppercase">Open Global Intelligence Deck</span>
+        <div class="mt-6">
+            <a href="/intel/feed" class="t-btn primary w-full justify-center py-4 group">
+                <span class="eyebrow">Open Global Intelligence Deck</span>
                 <svg class="transition-transform group-hover:translate-x-1" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12H3"/><path d="m15 18 6-6-6-6"/></svg>
             </a>
         </div>

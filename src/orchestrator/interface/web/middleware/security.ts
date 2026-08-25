@@ -26,9 +26,20 @@ export class SecurityMiddleware {
 
       // Apply headers to the final response
       if (c.res) {
+        // The console no longer loads webfonts. style.css previously opened
+        // with an @import of fonts.googleapis.com, so every dashboard render
+        // on a "sovereign", air-gapped appliance made an outbound request to
+        // Google carrying the operator's IP, User-Agent and Referer — and on
+        // an isolated network the type silently fell back mid-session. The UI
+        // is on system font stacks now, so both font origins are dropped.
+        //
+        // 'unsafe-inline' remains only for style-src: ~95 inline style=""
+        // attributes across the islands still set dynamic values. Those are
+        // being migrated to data-state attributes (see StatusIndicator.js);
+        // once the count reaches zero this can go too.
         c.res.headers.set(
           "Content-Security-Policy",
-          `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;`
+          `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests;`
         );
         c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
         c.res.headers.set("X-Frame-Options", "DENY");

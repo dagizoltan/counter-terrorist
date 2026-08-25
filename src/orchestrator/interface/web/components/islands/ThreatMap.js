@@ -131,7 +131,7 @@ class ThreatMap extends HTMLElement {
       <div class="mono-xs bg-black/90 p-4 border border-white/10 rounded shadow-2xl">
         <div class="text-primary font-black mb-2 uppercase tracking-widest">${indicator}</div>
         <div class="text-slate-500 uppercase text-[8px] mb-2">${type || 'UNKNOWN_THREAT'}</div>
-        <div class="status-pill ${blocked ? 'neutral' : 'danger'} text-[7px]">${blocked ? 'ISOLATED' : 'ACTIVE_THREAT'}</div>
+        <div class="status-pill ${blocked ? 'neutral' : 'danger'}">${blocked ? 'ISOLATED' : 'ACTIVE_THREAT'}</div>
       </div>
     `, {
       className: 'tactical-popup',

@@ -33,8 +33,8 @@ class SystemHealth extends HTMLElement {
     
     if (subsystems.length === 0) {
       this.innerHTML = `
-        <div class="flex flex-col gap-6">
-           <div class="p-8 text-center border border-dashed border-white/10 mono-xs uppercase tracking-widest italic opacity-40">
+        <div class="flex flex-col gap-4">
+           <div class="eyebrow p-4 text-center border border-dashed border-white/10 italic opacity-40">
               Auditing subsystem health...
            </div>
         </div>
@@ -45,10 +45,10 @@ class SystemHealth extends HTMLElement {
     // SEC-03: DOM-based XSS Hardening.
     // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
     this.innerHTML = `
-      <div class="space-y-6">
-        <div class="flex justify-between items-center mb-8 p-6 bg-black/60 border border-white/5 rounded-2xl backdrop-blur-xl">
-           <span class="mono-xs text-slate-400 font-black uppercase tracking-widest">Global Integrity</span>
-           <span id="global-severity" class="status-pill !px-6 !py-2 text-[10px] tracking-[0.2em]"></span>
+      <div class="space-y-4">
+        <div class="flex justify-between items-center mb-4 p-4 bg-black/60 border border-white/5 rounded-lg backdrop-blur-xl">
+           <span class="eyebrow">Global Integrity</span>
+           <span id="global-severity" class="status-pill tracking-[0.2em]"></span>
         </div>
         
         <div id="subsystem-grid" class="grid grid-cols-1 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-3">

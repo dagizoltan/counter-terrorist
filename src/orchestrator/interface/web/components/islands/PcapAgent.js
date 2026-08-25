@@ -11,11 +11,11 @@ class PcapAgent extends HTMLElement {
 
   connectedCallback() {
     this.innerHTML = `
-      <div class="space-y-6">
-         <div class="grid grid-cols-12 gap-6">
-            <div class="col-span-12 lg:col-span-8 flex gap-4 bg-black/40 p-6 border border-white/5 rounded-2xl">
+      <div class="space-y-4">
+         <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-12 lg:col-span-8 flex gap-4 bg-black/40 p-4 border border-white/5 rounded-lg">
                <div class="flex-1">
-                  <span class="mono-xs text-slate-600 font-black uppercase tracking-widest mb-3 block">Interface</span>
+                  <span class="eyebrow mb-3 block">Interface</span>
                   <select id="pcap-iface" class="t-input w-full bg-black/60 border-white/10 text-white font-mono text-xs">
                      <option value="any">ANY_INTERFACE</option>
                      <option value="eth0">ETH0_CORE</option>
@@ -24,32 +24,32 @@ class PcapAgent extends HTMLElement {
                   </select>
                </div>
                <div class="flex-[2]">
-                  <span class="mono-xs text-slate-600 font-black uppercase tracking-widest mb-3 block">BPF_Filter</span>
+                  <span class="eyebrow mb-3 block">BPF_Filter</span>
                   <input id="pcap-filter" type="text" class="t-input w-full" placeholder="tcp port 80 or udp" />
                </div>
                <div class="flex items-end">
-                  <button id="btn-start-pcap" onclick="this.closest('pcap-agent').startCapture()" class="t-btn primary h-[42px] px-8 font-black uppercase tracking-widest">Start_Capture</button>
+                  <button id="btn-start-pcap" onclick="this.closest('pcap-agent').startCapture()" class="t-btn primary h-[42px] px-4 font-black uppercase tracking-widest">Start_Capture</button>
                </div>
             </div>
             
-            <div class="col-span-12 lg:col-span-4 bg-black/40 p-6 border border-white/5 rounded-2xl flex items-center justify-center">
+            <div class="col-span-12 lg:col-span-4 bg-black/40 p-4 border border-white/5 rounded-lg flex items-center justify-center">
                <div class="flex flex-col items-center gap-2">
-                  <div class="status-pill warning px-8 py-2">Deep_Packet_Inspection_Active</div>
-                  <span class="mono-xs text-slate-600 font-black uppercase tracking-widest mt-2">Buffer_State: Operational</span>
+                  <div class="status-pill warning">Deep_Packet_Inspection_Active</div>
+                  <span class="eyebrow mt-2">Buffer_State: Operational</span>
                </div>
             </div>
          </div>
 
-         <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden shadow-2xl">
-            <header class="p-6 border-b border-white/5 bg-black/40 flex justify-between items-center backdrop-blur-md">
+         <div class="bg-black/20 border border-white/5 rounded-lg overflow-hidden shadow-2xl">
+            <header class="p-4 border-b border-white/5 bg-black/40 flex justify-between items-center backdrop-blur-md">
                <div class="flex items-center gap-3">
                   <h3 class="tactical-title text-base tracking-widest">INTERCEPT_STREAM</h3>
                   <div class="status-pill primary animate-pulse">LIVE</div>
                </div>
-               <div class="mono-xs text-slate-500 font-black uppercase tracking-widest">Real-time Segment Analysis</div>
+               <div class="eyebrow">Real-time Segment Analysis</div>
             </header>
             <div id="pcap-stream" class="h-[550px] overflow-y-auto custom-scrollbar bg-black/20">
-               <div class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Ingress_Signal...</div>
+               <div class="eyebrow p-5 text-center opacity-20">Awaiting_Ingress_Signal...</div>
             </div>
          </div>
       </div>
@@ -165,9 +165,9 @@ class PcapAgent extends HTMLElement {
 
     if (this.packets.length === 0) {
       container.innerHTML = `
-        <div class="flex flex-col items-center justify-center p-24 opacity-20">
-           <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mb-6"></div>
-           <div class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Awaiting_Packet_Intercepts...</div>
+        <div class="flex flex-col items-center justify-center p-6 opacity-20">
+           <div class="w-12 h-12 border-2 border-slate-700 border-t-transparent rounded-full animate-spin mb-4"></div>
+           <div class="eyebrow">Awaiting_Packet_Intercepts...</div>
         </div>
       `;
       return;
@@ -178,23 +178,23 @@ class PcapAgent extends HTMLElement {
       const color = isSystem ? 'var(--primary)' : (p.direction === 'INBOUND' ? 'var(--primary)' : 'var(--warning)');
       
       return `
-        <div class="flex items-center gap-6 p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group animate-in fade-in slide-in-from-right-2 duration-300">
+        <div class="flex items-center gap-4 p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group animate-in fade-in slide-in-from-right-2 duration-300">
           <div class="flex items-center gap-3 w-20">
-             <span class="mono-xs font-black uppercase tracking-widest text-[8px]" style="color: ${color}">${(p.direction || 'IN').slice(0, 3)}</span>
+             <span class="eyebrow" style="color: ${color}">${(p.direction || 'IN').slice(0, 3)}</span>
              <div class="w-1 h-1 rounded-full ${isSystem ? 'bg-primary' : (p.direction === 'INBOUND' ? 'bg-primary' : 'bg-warning')} shadow-[0_0_5px_currentColor]"></div>
           </div>
           
           <div class="flex-1 min-w-0">
              <div class="flex items-center gap-2 mb-1">
-                <span class="mono-xs font-black text-white italic tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(p.source || '...')}</span>
+                <span class="mono-xs font-black text-white tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(p.source || '...')}</span>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" class="text-slate-700"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                <span class="mono-xs font-black text-slate-400 italic tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(p.destination || '...')}</span>
+                <span class="mono-xs font-black text-slate-400 tracking-tight truncate max-w-[200px]">${globalThis.escapeHTML(p.destination || '...')}</span>
              </div>
-             ${p.message ? `<div class="mono-xs text-[7px] text-slate-600 uppercase font-black tracking-widest truncate">${globalThis.escapeHTML(p.message)}</div>` : ''}
+             ${p.message ? `<div class="eyebrow truncate">${globalThis.escapeHTML(p.message)}</div>` : ''}
           </div>
  
           <div class="flex items-center gap-4">
-             <span class="mono-xs font-black uppercase tracking-[0.2em] text-slate-500 bg-white/5 px-2 py-0.5 rounded text-[7px]">
+             <span class="eyebrow bg-white/5 px-2 py-0.5 rounded">
                 ${globalThis.escapeHTML(p.protocol || 'TCP')}
              </span>
              <span class="mono-xs text-slate-600 font-bold text-[8px] tabular-nums">${new Date(p.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>

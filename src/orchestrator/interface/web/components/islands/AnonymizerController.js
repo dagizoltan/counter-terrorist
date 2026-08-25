@@ -55,7 +55,7 @@ class AnonymizerController extends HTMLElement {
 
   render() {
     this.innerHTML = `
-      <div class="space-y-6">
+      <div class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
            ${[
              { id: 'OFF', label: 'DIRECT_STACK', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M2 12h20"/></svg>' },
@@ -65,9 +65,9 @@ class AnonymizerController extends HTMLElement {
            ].map(mode => `
              <button 
                data-mode="${mode.id}"
-               class="mode-btn group relative flex flex-col items-center justify-center p-6 rounded-2xl border border-white/5 bg-black/40 hover:bg-white/[0.03] transition-all"
+               class="mode-btn group relative flex flex-col items-center justify-center p-4 rounded-lg border border-white/5 bg-black/40 hover:bg-white/[0.03] transition-all"
              >
-                <div class="p-3 mb-3 bg-white/5 rounded-xl border border-white/5 text-slate-500 group-hover:text-white transition-colors">
+                <div class="p-3 mb-3 bg-white/5 rounded-lg border border-white/5 text-slate-500 group-hover:text-white transition-colors">
                    ${mode.icon}
                 </div>
                 <div class="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-2">${mode.label}</div>
@@ -76,16 +76,16 @@ class AnonymizerController extends HTMLElement {
            `).join('')}
         </div>
  
-        <div class="bg-black/20 border border-white/5 rounded-2xl overflow-hidden shadow-inner">
-           <header class="px-6 py-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
+        <div class="bg-black/20 border border-white/5 rounded-lg overflow-hidden shadow-inner">
+           <header class="px-4 py-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
               <div class="flex items-center gap-3">
                  <div class="w-1 h-3 bg-primary rounded-full"></div>
-                 <span class="mono-xs text-slate-500 font-black uppercase tracking-widest">Operation_Log</span>
+                 <span class="eyebrow">Operation_Log</span>
               </div>
-              <div class="w-1.5 h-1.5 bg-primary rounded-full animate-pulse"></div>
+              <div class="indicator indicator--sm" data-state="info" data-pulse="" aria-hidden="true"></div>
            </header>
-           <div id="anon-logs" class="h-48 overflow-y-auto custom-scrollbar p-6 space-y-3">
-              <div class="text-center py-10 opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Awaiting_Identity_Logs...</div>
+           <div id="anon-logs" class="h-48 overflow-y-auto custom-scrollbar p-4 space-y-3">
+              <div class="eyebrow text-center py-5 opacity-20">Awaiting_Identity_Logs...</div>
            </div>
         </div>
       </div>
