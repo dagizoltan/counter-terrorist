@@ -1,12 +1,23 @@
-import { dirname, join, resolve, fromFileUrl } from "@std/path";
+/**
+ * update_sidecar_manifest — records the SHA-256 of every sidecar binary.
+ *
+ * sidecar_manager refuses to spawn a binary whose hash does not match its
+ * manifest entry, so this must run after any Rust rebuild. `deno task up`
+ * chains the two automatically; see tools/ops/lifecycle.ts.
+ *
+ * Deliberately dependency-free. This runs during bootstrap, when the module
+ * cache may be cold and — on the air-gapped appliances this project targets —
+ * there is no network to populate it from. It previously imported @std/path,
+ * which made a first build on such a host impossible.
+ */
 
-const scriptDir = dirname(fromFileUrl(import.meta.url));
-const manifestPath = resolve(scriptDir, "..", "..", "infrastructure", "runtime", "sidecars.manifest.json");
-const repoRoot = resolve(scriptDir, "..", "..", "..", "..");
+const here = new URL(import.meta.url);
+const manifestPath = new URL("../../infrastructure/runtime/sidecars.manifest.json", here).pathname;
+const repoRoot = new URL("../../../../", here).pathname.replace(/\/$/, "");
 
 function normalizeBinaryPath(entryPath: string) {
   const cleaned = entryPath.replace(/^\.\//, "");
-  return resolve(repoRoot, cleaned);
+  return cleaned.startsWith("/") ? cleaned : `${repoRoot}/${cleaned}`;
 }
 
 async function sha256File(filePath: string): Promise<string> {

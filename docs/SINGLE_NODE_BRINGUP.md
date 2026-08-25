@@ -20,27 +20,40 @@ degrades a subsystem and says so in the audit log.
 ## 2. Bring-up
 
 ```bash
-deno task setup          # generate .env with CSPRNG secrets (mode 600, never overwrites)
-deno task build-agents   # cargo build --release + refresh the sidecar manifest
-deno task start:single-node
+deno task up
 ```
 
-`deno task setup` defaults to `ENVIRONMENT=development`, `SINGLE_NODE=true`.
-For a production profile use `deno task setup -- --production`; that sets
-`STRICT_HARDWARE_INTEGRITY=true` and `ALLOW_HARDWARE_BYPASS=false`, which a host
-without a working TPM 2.0 stack cannot satisfy — the boot will abort by design.
+One command. It generates `.env` with CSPRNG secrets if absent, builds the Rust
+agents, refreshes the sidecar integrity manifest, rebuilds the stylesheet, and
+starts the node. Each step is skipped when its inputs are unchanged, so the
+first run takes about a minute and subsequent runs add ~100ms.
+
+`deno task status` reports what is running and what is stale. `deno task stop`
+shuts the node down gracefully.
+
+For a production profile, generate the environment explicitly first:
+`deno task setup -- --production`. That sets `STRICT_HARDWARE_INTEGRITY=true`
+and `ALLOW_HARDWARE_BYPASS=false`, which a host without a working TPM 2.0 stack
+cannot satisfy — the boot will abort by design. The default profile is
+`ENVIRONMENT=development`, `SINGLE_NODE=true`.
 
 The dashboard is on `https://localhost:8000` behind a self-signed cert. Get the
 API token with `grep '^API_TOKEN' .env`.
 
-### `build-agents` is not optional
+### Why the manifest refresh is chained to the agent build
 
 Every non-dev spawn checks the agent binary's SHA-256 against
 `src/orchestrator/infrastructure/runtime/sidecars.manifest.json`. Those hashes are
 specific to whoever built the binaries, so a fresh clone's committed hashes will
-not match your build: **every sidecar is refused until you run `deno task
-build-agents`**, which rebuilds and rewrites the manifest. The symptom is
-`CRITICAL: Sidecar <name> integrity check failed` for the whole fleet.
+not match your build, and **every sidecar is refused until the manifest is
+refreshed**. The symptom is `CRITICAL: Sidecar <name> integrity check failed`
+for the whole fleet — a node that reports a successful boot while running no
+agents at all.
+
+This used to be a step you had to remember. `deno task up` now tracks the agent
+binaries by fingerprint and refreshes the manifest whenever they change, so the
+two cannot drift apart. If you invoke `cargo build` directly, run
+`deno task build` afterwards to resync.
 
 Editing the manifest invalidates its Ed25519 signature. In development that is
 logged and tolerated; in production an unsigned manifest without an

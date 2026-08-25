@@ -1,5 +1,12 @@
 {
   "tasks": {
+    "up": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys src/orchestrator/tools/ops/lifecycle.ts up",
+    "up:mesh": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys src/orchestrator/tools/ops/lifecycle.ts up --mesh",
+    "build": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys src/orchestrator/tools/ops/lifecycle.ts build",
+    "status": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys src/orchestrator/tools/ops/lifecycle.ts status",
+    "stop": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys src/orchestrator/tools/ops/lifecycle.ts stop",
+    "restart": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys src/orchestrator/tools/ops/lifecycle.ts restart",
+    "clean": "deno run --allow-read --allow-write --allow-env --allow-run --allow-sys src/orchestrator/tools/ops/lifecycle.ts clean",
     "setup": "deno run --allow-read=./ --allow-write=./.env --allow-env src/orchestrator/tools/ops/init_env.ts",
     "bootstrap": "deno run --allow-all src/orchestrator/app/bootstrapper.ts",
     "build-agents": "cd src/agents && cargo build --release && cd ../.. && deno run -A src/orchestrator/tools/build/update_sidecar_manifest.ts",
