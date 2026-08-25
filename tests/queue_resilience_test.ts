@@ -1,4 +1,4 @@
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { PersistentQueue } from "../src/orchestrator/core/utils/persistent_queue.ts";
 
 Deno.test("PersistentQueue Resilience - Pagination prevents OOM on large queues", async () => {

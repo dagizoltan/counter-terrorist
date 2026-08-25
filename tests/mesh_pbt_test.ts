@@ -1,5 +1,5 @@
 import { assertEquals, assertExists } from "@std/assert";
-import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
+import { stub } from "@std/testing/mock";
 import { MeshManager, MeshNode } from "@domain/orchestration/mesh.ts";
 import { LoggingPort, LogEntry, ConfigurationPort, MeshAuthPort, AuditPort } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";

@@ -2,7 +2,7 @@
  * WebSocket handler for real-time security events.
  * Compatible with Hono's upgradeWebSocket.
  */
-import { WSContext } from "hono/helper/websocket/index.ts";
+import { WSContext } from "hono/ws";
 import { NotificationService, AuditService, EventBus } from "@domain/index.ts";
 import { LoggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { EventName } from "@core/event_schema.ts";

@@ -2,11 +2,11 @@
  * Production Multi-Platform Release Generator
  * Implements the Unified Artifact Matrix: target/{distro}/{build,deploy,release}
  */
-import { copy } from "https://deno.land/std@0.224.0/fs/copy.ts";
-import { emptyDir } from "https://deno.land/std@0.224.0/fs/empty_dir.ts";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { crypto } from "https://deno.land/std@0.224.0/crypto/mod.ts";
-import { encodeHex } from "https://deno.land/std@0.224.0/encoding/hex.ts";
+import { copy } from "@std/fs/copy";
+import { emptyDir } from "@std/fs/empty-dir";
+import { join } from "@std/path";
+import { crypto } from "@std/crypto";
+import { encodeHex } from "@std/encoding/hex";
 
 const TARGET_ROOT = "./target";
 const SRC_ROOT = "./src/orchestrator";

@@ -1,4 +1,4 @@
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert } from "@std/assert";
 import { KernelService } from "../src/orchestrator/domain/protection/kernel_service.ts";
 
 Deno.test("Kernel Resilience - Hook auto-throttling on latency spike", async () => {

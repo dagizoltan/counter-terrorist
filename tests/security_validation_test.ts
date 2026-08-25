@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertRejects } from "@std/assert";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { isValidIP, secureCompareBytes, secureCompare } from "@infrastructure/system/validation.ts";
 

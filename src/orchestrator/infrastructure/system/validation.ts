@@ -583,7 +583,10 @@ export const SidecarResponseSchema = z.object({
     message: z.string().optional(),
     stdout: z.string().optional(),
     stderr: z.string().optional(),
-    data: z.record(z.string(), z.unknown()).optional(),
+    // Agents that serialise `data: None` without skip_serializing_if emit an explicit
+    // JSON null. `.optional()` alone rejects that, the response is dropped as a schema
+    // violation, and the caller blocks until its IPC timeout.
+    data: z.record(z.string(), z.unknown()).nullish(),
     timestamp: z.string().optional(),
     event: z.string().optional(),
     type: z.string().optional(),

@@ -647,8 +647,9 @@ export class SidecarManager implements CommandPort {
     const isHighPriority = ["KillProcess", "BlockIp", "QuarantineProcess", "DumpProcess", "LOCKDOWN", "ENFORCE_PID"].includes(type);
     const timeoutMs = isHighPriority ? 5000 : 60000;
 
+    let timeoutHandle: number | undefined;
     const timeoutPromise = new Promise<CommandResult>((resolve) => {
-      setTimeout(() => {
+      timeoutHandle = setTimeout(() => {
         this.ipc.removeWaiter(name, id);
         this.logging.log({
           timestamp: new Date().toISOString(),
@@ -695,6 +696,11 @@ export class SidecarManager implements CommandPort {
       await writer.write(new TextEncoder().encode(JSON.stringify(commandObj) + "\n"));
       return await Promise.race([responsePromise, timeoutPromise]);
     } finally {
+      // The race resolving does not cancel the timer: without this the alarm still fires
+      // for a command that already succeeded, logging a phantom "agent stall" and
+      // evicting a live waiter.
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+      this.ipc.removeWaiter(name, id);
       if (writer) {
         try { writer.releaseLock(); } catch { /* ignore */ }
       }

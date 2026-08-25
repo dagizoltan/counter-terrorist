@@ -1,5 +1,5 @@
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
+import { assertEquals, assert } from "@std/assert";
+import { stub } from "@std/testing/mock";
 import { SidecarManager } from "../src/orchestrator/infrastructure/runtime/sidecar_manager.ts";
 
 Deno.test("Sidecar Resilience - Tiered IPC Timeouts", async () => {

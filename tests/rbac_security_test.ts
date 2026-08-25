@@ -1,4 +1,4 @@
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { ApiKeysService, Role } from "@domain/identity/api_keys.ts";
 import { LoggingService } from "@infrastructure/system/logging.ts";
 import { Result } from "@core/result.ts";

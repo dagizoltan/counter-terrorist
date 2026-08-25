@@ -1,7 +1,7 @@
 
 import { validatePath, validateRequest, SidecarName } from "../src/orchestrator/infrastructure/system/validation.ts";
 import { SystemExecutor } from "../src/orchestrator/infrastructure/system/system_executor.ts";
-import { assertEquals, assertRejects } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertRejects } from "@std/assert";
 
 Deno.test("Security Audit: validatePath should enforce jail if provided", () => {
     const jail = ["./volume/"];

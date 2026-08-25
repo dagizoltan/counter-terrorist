@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "https://deno.land/std/testing/asserts.ts";
+import { assert, assertEquals } from "@std/assert";
 import { PlaybookService } from "@domain/orchestration/playbook_service.ts";
 
 Deno.test("PlaybookService - Honeypot auto-block", async () => {

@@ -15,6 +15,27 @@ const SecuritySecret = z.string()
     return (hasLower && hasUpper && hasDigit) || (hasLower && hasUpper && hasSpecial);
   }, "Secret complexity requirement not met (must include upper, lower, and digit/special)");
 
+/**
+ * Strict environment-variable boolean.
+ *
+ * `z.coerce.boolean()` is `Boolean(value)`, so every non-empty string — including
+ * the literal "false" and "0" — parses as `true`. For security switches such as
+ * ALLOW_HARDWARE_BYPASS or CTS_DEV_MODE that inverts the operator's intent, so we
+ * parse the textual form explicitly and reject anything ambiguous.
+ */
+const TRUTHY = new Set(["true", "1", "yes", "on"]);
+const FALSY = new Set(["false", "0", "no", "off", ""]);
+
+const EnvBoolean = (defaultValue: boolean) =>
+  z.preprocess((raw) => {
+    if (raw === undefined || raw === null) return defaultValue;
+    if (typeof raw === "boolean") return raw;
+    const normalized = String(raw).trim().toLowerCase();
+    if (TRUTHY.has(normalized)) return true;
+    if (FALSY.has(normalized)) return false;
+    return raw; // fall through to z.boolean() and fail with a clear message
+  }, z.boolean());
+
 export const ConfigSchema = z.object({
   PORT: z.coerce.number().default(8000),
   API_TOKEN: SecuritySecret,
@@ -27,8 +48,8 @@ export const ConfigSchema = z.object({
   SESSION_TTL_HOURS: z.coerce.number().default(24),
   LOG_LEVEL: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).default("INFO"),
   ENVIRONMENT: z.enum(["development", "production", "test"]).default("development"),
-  CTS_DEV_MODE: z.coerce.boolean().default(false),
-  STRICT_HARDWARE_INTEGRITY: z.coerce.boolean().default(true),
+  CTS_DEV_MODE: EnvBoolean(false),
+  STRICT_HARDWARE_INTEGRITY: EnvBoolean(true),
   REMOTE_SYSLOG_URL: z.string().url().optional(),
   SYSLOG_HOST: z.string().optional(),
   SYSLOG_PORT: z.coerce.number().default(514),
@@ -38,21 +59,27 @@ export const ConfigSchema = z.object({
   INTEL_SYNC_INTERVAL_HOURS: z.coerce.number().default(1),
 
   // Tactical Operational Flags
-  PILOT_MODE: z.coerce.boolean().default(false),
-  SHADOW_MODE: z.coerce.boolean().default(false),
-  STRICT_POLICY_ENFORCEMENT: z.coerce.boolean().default(false),
-  AUTO_RESTORE_LKG: z.coerce.boolean().default(false),
+  PILOT_MODE: EnvBoolean(false),
+  SHADOW_MODE: EnvBoolean(false),
+  STRICT_POLICY_ENFORCEMENT: EnvBoolean(false),
+  AUTO_RESTORE_LKG: EnvBoolean(false),
   SHADOW_MODE_DURATION_HOURS: z.coerce.number().default(24),
 
   // Service-Specific Tuning
   AUDIT_RETENTION_DAYS: z.coerce.number().default(90),
   AUDIT_MAX_EVENTS: z.coerce.number().default(10000),
-  STEALTH_ENABLED: z.coerce.boolean().default(true),
+  STEALTH_ENABLED: EnvBoolean(true),
 
   // Security Overrides
-  ALLOW_HARDWARE_BYPASS: z.coerce.boolean().default(false),
+  ALLOW_HARDWARE_BYPASS: EnvBoolean(false),
   SECURE_ENVIRONMENT_TOKEN: z.string().optional(),
   SECURE_BYPASS_TOKEN: z.string().optional(),
+
+  // Topology
+  // Single-node deployments have no peers: mesh discovery, mDNS listeners and
+  // quorum voting are short-circuited rather than waiting on absent nodes.
+  SINGLE_NODE: EnvBoolean(false),
+  ALLOW_SMALL_QUORUM: EnvBoolean(true),
 
   // Network/Identity
   GATEWAY_IP: z.string().optional(),
@@ -104,6 +131,8 @@ export function loadConfig(): AppConfig {
     MESH_DOMAIN: Deno.env.get("MESH_DOMAIN"),
     MESH_ALLOWED_SUBNETS: Deno.env.get("MESH_ALLOWED_SUBNETS"),
     PKI_SECRET: Deno.env.get("PKI_SECRET"),
+    SINGLE_NODE: Deno.env.get("SINGLE_NODE"),
+    ALLOW_SMALL_QUORUM: Deno.env.get("ALLOW_SMALL_QUORUM"),
   };
 
   const result = ConfigSchema.safeParse(rawConfig);

@@ -1,10 +1,12 @@
 {
   "tasks": {
-    "start": "deno run --allow-net=0.0.0.0,localhost --allow-read=./,/etc/os-release,/var/lib/cts,/proc --allow-write=./,/var/lib/cts --allow-run=./src/agents/target/release/analyzer,./src/agents/target/release/enforcer,./src/agents/target/release/decoy,./src/agents/target/release/netcap,./src/agents/target/release/sentinel,./src/agents/target/release/watchfile,./src/agents/target/release/trustroot,./src/agents/target/release/tunnel,ufw,cp --allow-sys=hostname,osRelease --allow-env --unstable-kv src/orchestrator/index.ts",
-    "start:strict": "deno run --allow-net=0.0.0.0,localhost --allow-read=./,/etc/os-release,/var/lib/cts,/proc --allow-write=./,/var/lib/cts --allow-run=./src/agents/target/release/analyzer,./src/agents/target/release/enforcer,./src/agents/target/release/decoy,./src/agents/target/release/netcap,./src/agents/target/release/sentinel,./src/agents/target/release/watchfile,./src/agents/target/release/trustroot,./src/agents/target/release/tunnel,ufw,cp --allow-sys=hostname,osRelease --allow-env --unstable-kv src/orchestrator/index.ts",
-    "dev": "deno run -A --env --unstable-kv --watch src/orchestrator/index.ts",
+    "setup": "deno run --allow-read=./ --allow-write=./.env --allow-env src/orchestrator/tools/ops/init_env.ts",
     "bootstrap": "deno run --allow-all src/orchestrator/app/bootstrapper.ts",
     "build-agents": "cd src/agents && cargo build --release && cd ../.. && deno run -A src/orchestrator/tools/build/update_sidecar_manifest.ts",
+    "start": "deno run --allow-net --allow-env --allow-ffi --allow-read --allow-write=./,/var/lib/cts,/tmp --allow-sys=hostname,osRelease,uid,gid,networkInterfaces,systemMemoryInfo,loadavg,cpus --allow-run --unstable-kv src/orchestrator/index.ts",
+    "start:single-node": "SINGLE_NODE=true deno run --allow-net --allow-env --allow-ffi --allow-read --allow-write=./,/var/lib/cts,/tmp --allow-sys=hostname,osRelease,uid,gid,networkInterfaces,systemMemoryInfo,loadavg,cpus --allow-run --unstable-kv src/orchestrator/index.ts",
+    "dev": "deno run -A --env --unstable-kv --watch src/orchestrator/index.ts",
+    "doctor": "deno run -A --unstable-kv src/orchestrator/tools/ops/cts_doctor.ts",
     "install-sovereign": "deno run -A src/orchestrator/tools/ops/installer.ts",
     "provision-integrity": "deno run -A src/orchestrator/tools/provision_integrity.ts",
     "package": "deno run --allow-run --allow-read --allow-write --allow-net src/orchestrator/tools/build/package.ts"
@@ -14,12 +16,12 @@
     "jsxImportSource": "hono/jsx"
   },
   "imports": {
-    "hono": "https://deno.land/x/hono@v4.3.7/mod.ts",
-    "hono/": "https://deno.land/x/hono@v4.3.7/",
-    "hono/bearer-auth": "https://deno.land/x/hono@v4.3.7/middleware/bearer-auth/index.ts",
-    "hono/deno": "https://deno.land/x/hono@v4.3.7/adapter/deno/index.ts",
-    "hono/jsx": "https://deno.land/x/hono@v4.3.7/jsx/index.ts",
-    "hono/jsx/jsx-runtime": "https://deno.land/x/hono@v4.3.7/jsx/jsx-runtime.ts",
+    "hono": "npm:hono@4.3.7",
+    "hono/": "npm:/hono@4.3.7/",
+    "hono/bearer-auth": "npm:/hono@4.3.7/bearer-auth",
+    "hono/deno": "npm:/hono@4.3.7/deno",
+    "hono/jsx": "npm:/hono@4.3.7/jsx",
+    "hono/jsx/jsx-runtime": "npm:/hono@4.3.7/jsx/jsx-runtime",
     "zod": "npm:zod@^4.4.1",
     "@core/": "./src/orchestrator/core/",
     "@domain/": "./src/orchestrator/domain/",
@@ -30,6 +32,13 @@
     "@std/dotenv": "jsr:@std/dotenv@^0.224.0",
     "@std/path": "jsr:@std/path@^0.224.0",
     "@std/assert": "jsr:@std/assert@^0.224.0",
-    "@std/toml": "jsr:@std/toml@^0.224.0"
+    "@std/toml": "jsr:@std/toml@^0.224.0",
+    "@std/fs": "jsr:@std/fs@^0.224.0",
+    "@std/fs/": "jsr:@std/fs@^0.224.0/",
+    "@std/crypto": "jsr:@std/crypto@^0.224.0",
+    "@std/encoding/": "jsr:@std/encoding@^0.224.0/",
+    "@std/testing/": "jsr:@std/testing@^0.224.0/",
+    "@std/async/": "jsr:@std/async@^0.224.0/",
+    "@std/path/": "jsr:@std/path@^0.224.0/"
   }
 }
