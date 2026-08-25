@@ -99,7 +99,7 @@ export const Login = (props: { error?: string }) => {
                 <input
                   class="t-input"
                   style="width: 100%; padding: 1.25rem 1.5rem; font-size: 1.125rem; letter-spacing: 0.4em; border-radius: 12px;"
-                  name="password"
+                  name="token"
                   type="password"
                   placeholder="••••••••"
                   required

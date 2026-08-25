@@ -78,7 +78,10 @@ if (!globalThis.SovereignWS) {
 }
 
 globalThis.SharedWebSocket = class SharedWebSocket {
-    constructor() {
+    constructor(url) {
+        // `url` was read as a free variable here, so every island threw
+        // "ReferenceError: url is not defined" on construction and none of them ever
+        // subscribed — the whole live telemetry layer was dead on arrival.
         this.url = url; // Ignored, we use the multiplexed URL
         this.onmessage = null;
         this.onopen = null;
