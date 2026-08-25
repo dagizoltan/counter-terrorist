@@ -53,12 +53,15 @@ class BlockingLog extends HTMLElement {
     this.filterEl = this.querySelector('#severity-filter');
     this.form = this.querySelector('#block-form');
 
-    this.filterEl.onchange = (e) => {
+    // Both controls live inside the non-compact branch of the template above, so in
+    // compact mode these are null and assigning to them aborted connectedCallback,
+    // taking the whole island down.
+    if (this.filterEl) this.filterEl.onchange = (e) => {
       this.filter = e.target.value;
       this.rebuildList();
     };
 
-    this.form.onsubmit = async (e) => {
+    if (this.form) this.form.onsubmit = async (e) => {
       e.preventDefault();
       const ip = this.querySelector('#ip-input').value;
       if (!ip) return;

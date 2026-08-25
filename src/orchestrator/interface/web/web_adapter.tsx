@@ -114,7 +114,15 @@ export class WebAdapter implements WebPort {
 
     await registerRoutes(this.app, this.services, this.security, statusAggregator);
 
-    this.app.get("/api/ws/events", upgradeWebSocket(async (c) => {
+    // The Deno adapter calls Deno.upgradeWebSocket(c.req.raw) BEFORE awaiting the
+    // events factory. Any request read that happens inside an async factory therefore
+    // touches a raw request the upgrade has already consumed, which throws
+    // "Request closed" and tears down the whole Deno.serve listener — the process
+    // keeps running while the dashboard silently stops answering.
+    //
+    // So all authentication happens here, in ordinary middleware, strictly before the
+    // upgrade; the events factory below is synchronous and only reads what we stashed.
+    this.app.get("/api/ws/events", async (c, next) => {
       // SEC-06 Hardening: Sub-protocol Authentication Fallback
       // Browsers cannot send headers with WebSocket, so we allow the token in the Sec-WebSocket-Protocol.
       const protocols = c.req.header("Sec-WebSocket-Protocol")?.split(",").map(p => p.trim()) || [];
@@ -124,34 +132,34 @@ export class WebAdapter implements WebPort {
       const origin = c.req.header("Origin");
       const host = c.req.header("Host");
       if (origin && host) {
-          try {
-              const originUrl = new URL(origin);
-              if (originUrl.host !== host) {
-                  loggingService.log({
-                      timestamp: new Date().toISOString(),
-                      type: LogType.AUDIT,
-                      severity: LogSeverity.ERROR,
-                      caller: "orchestrator:interface:web:api:ws:sec",
-                      message: `CSWSH Blocked: Origin mismatch. Origin: ${origin}, Host: ${host}`
-                  });
-                  return {
-                      onOpen: (_event, ws) => { ws.close(1008, "Security Violation: Origin Mismatch"); }
-                  };
-              }
-          } catch {
-              return { onOpen: (_event, ws) => { ws.close(1008, "Invalid Origin"); } };
+        try {
+          const originUrl = new URL(origin);
+          if (originUrl.host !== host) {
+            loggingService.log({
+              timestamp: new Date().toISOString(),
+              type: LogType.AUDIT,
+              severity: LogSeverity.ERROR,
+              caller: "orchestrator:interface:web:api:ws:sec",
+              message: `CSWSH Blocked: Origin mismatch. Origin: ${origin}, Host: ${host}`
+            });
+            c.set("wsReject", "Security Violation: Origin Mismatch");
+            return await next();
           }
+        } catch {
+          c.set("wsReject", "Invalid Origin");
+          return await next();
+        }
       }
 
       let role: string | null = null;
-      
+
       // SEC-06 Hardening: Remove token from query parameters to prevent leakage in logs.
       // We now strictly enforce Authorization header, Secure Session Cookie, or Sub-Protocol token.
       const token = subProtocolToken || c.req.header("Authorization")?.replace("Bearer ", "");
       if (token) {
         role = await this.isTokenValid(token);
       }
-      
+
       if (!role) {
         const sessionId = getCookie(c, "session_token");
         if (sessionId) {
@@ -161,7 +169,7 @@ export class WebAdapter implements WebPort {
           }
         }
       }
-      
+
       if (!role) {
         const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
         loggingService.log({
@@ -171,14 +179,18 @@ export class WebAdapter implements WebPort {
           caller: "orchestrator:interface:web:api:ws:auth",
           message: `Unauthorized WebSocket connection attempt from ${ip}`
         });
-        return {
-          onOpen: (_event, ws) => {
-            ws.close(1008, "Unauthorized");
-          }
-        };
+        c.set("wsReject", "Unauthorized");
+        return await next();
       }
-      
-      return createWsHandler(role);
+
+      c.set("wsRole", role);
+      await next();
+    }, upgradeWebSocket((c) => {
+      const reason = c.get("wsReject") as string | undefined;
+      if (reason) {
+        return { onOpen: (_event: Event, ws: { close: (code: number, reason: string) => void }) => { ws.close(1008, reason); } };
+      }
+      return createWsHandler(c.get("wsRole") as string);
     }));
   }
 
@@ -426,7 +438,7 @@ export class WebAdapter implements WebPort {
       });
       
       // SEC-03 Hardening: Enforce Modern TLS Standards
-      Deno.serve({ 
+      this.server = Deno.serve({ 
         port,
         cert: nodeCert.cert,
         key: nodeCert.key,
@@ -446,7 +458,7 @@ export class WebAdapter implements WebPort {
           caller: "orchestrator:interface:web",
           message: `Orchestrator Engine active (INSECURE HTTP). Tactical Console: http://localhost:${port}`
       });
-      Deno.serve({ port }, this.app.fetch);
+      this.server = Deno.serve({ port }, this.app.fetch);
     }
   }
 }
