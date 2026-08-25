@@ -2,6 +2,7 @@
  * MeshHeatmap Island
  * 3D-perspective tactical traffic visualization.
  */
+import { unwrap } from "./api.js";
 class MeshHeatmap extends HTMLElement {
   constructor() {
     super();
@@ -28,7 +29,7 @@ class MeshHeatmap extends HTMLElement {
       const res = await fetch("/api/mesh/nodes", {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
-      const data = await res.json();
+      const data = await unwrap(res);
       this.nodes = [
         { id: 'local', hostname: data.local, x: 0, y: 0, z: 0, verified: true },
         ...data.peers.map(n => ({

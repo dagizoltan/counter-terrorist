@@ -2,6 +2,7 @@
  * ThreatIntelList Island
  * Authoritative OSINT ingestion and enforcement manifest.
  */
+import { unwrap } from "./api.js";
 class ThreatIntelList extends HTMLElement {
   constructor() {
     super();
@@ -21,7 +22,7 @@ class ThreatIntelList extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         const list = Array.isArray(data) ? data : (data.threats || []);
         if (list.length > 0) {
           this.updateThreats(list);

@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 import { h } from '../../vendor/preact.js';
 import { useState } from '../../vendor/preact-hooks.js';
 import htm from '../../vendor/htm.js';
@@ -24,7 +25,7 @@ export default function ChaosIsland() {
         },
         body: JSON.stringify({ vector, target })
       });
-      const data = await res.json();
+      const data = await unwrap(res);
       setResult(data.message);
       setTimeout(() => setResult(null), 5000);
     } catch (e) {

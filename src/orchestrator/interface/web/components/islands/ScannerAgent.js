@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class ScannerAgent extends HTMLElement {
   constructor() {
     super();
@@ -21,7 +22,7 @@ class ScannerAgent extends HTMLElement {
       const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
       const res = await fetch('/api/agents/scanner/ledger', { headers });
       if (!res.ok) return;
-      const ledger = await res.json();
+      const ledger = await unwrap(res);
       this.renderLedger(ledger);
     } catch (e) {
       console.error('Ledger fetch failed:', e);
@@ -78,7 +79,7 @@ class ScannerAgent extends HTMLElement {
           'X-CT-Token': csrfToken || ''
         }
       });
-      const result = await res.json();
+      const result = await unwrap(res);
       if (resultsEl) {
         resultsEl.innerHTML = `
           <div class="t-panel glass-panel border-l-4 border-success p-4 animate-in zoom-in duration-500">
@@ -123,7 +124,7 @@ class ScannerAgent extends HTMLElement {
           type: this.scanType 
         })
       });
-      const result = await res.json();
+      const result = await unwrap(res);
       
       if (resultsEl) {
         const isClean = result.success && !result.threatsFound;

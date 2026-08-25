@@ -4,6 +4,7 @@
  * Optimized for readability and professional engineering standards.
  * Refined: Removed blue color from labels to align with neutral tactical aesthetic.
  */
+import { unwrap } from "./api.js";
 class NewsFeed extends HTMLElement {
   constructor() {
     super();
@@ -24,7 +25,7 @@ class NewsFeed extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         const items = Array.isArray(data) ? data : (data.items || data.latest || []);
         if (items.length > 0) {
           this.news = items.map(item => ({

@@ -2,6 +2,7 @@
  * NetworkMap Island
  * Authoritative Tactical Topology Visualization.
  */
+import { unwrap } from "./api.js";
 class NetworkMap extends HTMLElement {
   constructor() {
     super();
@@ -43,7 +44,7 @@ class NetworkMap extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         let allDevices = [];
         if (Array.isArray(data)) {
             allDevices = data;

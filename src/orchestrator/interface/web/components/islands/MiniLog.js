@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class MiniLog extends HTMLElement {
   constructor() {
     super();
@@ -26,7 +27,7 @@ class MiniLog extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        this.logs = await res.json();
+        this.logs = await unwrap(res);
         this.render();
       }
     } catch (e) {

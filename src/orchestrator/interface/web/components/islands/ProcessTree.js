@@ -2,6 +2,7 @@
  * ProcessTree Island
  * High-density hierarchical visualization of kernel processes.
  */
+import { unwrap } from "./api.js";
 class ProcessTree extends HTMLElement {
   constructor() {
     super();
@@ -27,7 +28,7 @@ class ProcessTree extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        this.processes = await res.json();
+        this.processes = await unwrap(res);
       }
     } catch (e) {
       console.error("[PROCESS-TREE] Sync failed", e);

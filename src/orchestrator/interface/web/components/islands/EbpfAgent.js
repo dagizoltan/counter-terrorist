@@ -2,6 +2,7 @@
  * Custom Element: EbpfAgent
  * Kernel-level security guardian monitoring syscalls and process drifts.
  */
+import { unwrap } from "./api.js";
 class EbpfAgent extends HTMLElement {
   constructor() {
     super();
@@ -108,7 +109,7 @@ class EbpfAgent extends HTMLElement {
         return;
       }
 
-      const data = await res.json();
+      const data = await unwrap(res);
       const ebpf = data.ebpf;
 
       const statusLabel = document.getElementById('ebpf-status-label');

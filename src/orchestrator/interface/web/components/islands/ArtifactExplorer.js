@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class ArtifactExplorer extends HTMLElement {
   constructor() {
     super();
@@ -58,7 +59,7 @@ class ArtifactExplorer extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (resp.ok) {
-        this.stats = await resp.json();
+        this.stats = await unwrap(resp);
         this.render();
       }
     } catch (e) {
@@ -84,7 +85,7 @@ class ArtifactExplorer extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (resp.ok) {
-        const { threats, nextCursor } = await resp.json();
+        const { threats, nextCursor } = await unwrap(resp);
         this.artifacts = append ? [...this.artifacts, ...threats] : threats;
         this.filter.offset = nextCursor;
       }

@@ -8,6 +8,7 @@
  * status dot in the console. State is now an attribute the stylesheet matches.
  */
 
+import { unwrap } from "./api.js";
 /** Maps a raw agent condition onto the console's five-state vocabulary. */
 const STATE = {
   ONLINE: "ok",
@@ -38,7 +39,7 @@ class StatusIndicator extends HTMLElement {
 
       if (!res.ok) return this.render(name, "ERROR");
 
-      const data = await res.json();
+      const data = await unwrap(res);
 
       if (data.safeMode) return this.render(name, "SAFE MODE");
 

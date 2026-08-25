@@ -2,6 +2,7 @@
  * Custom Element: ForensicVault
  * Displays and allows retrieval of forensic artifacts from the secure evidence directory.
  */
+import { unwrap } from "./api.js";
 class ForensicVault extends HTMLElement {
   constructor() {
     super();
@@ -26,7 +27,7 @@ class ForensicVault extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        this.artifacts = await res.json();
+        this.artifacts = await unwrap(res);
       }
     } catch (e) {
       console.error('Failed to fetch forensic artifacts:', e);

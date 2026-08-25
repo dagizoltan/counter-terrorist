@@ -3,6 +3,7 @@
  * Authoritative forensic reconstruction of system events.
  * Implements high-performance virtualization for deep audit histories.
  */
+import { unwrap, apiHeaders } from "./api.js";
 class TimelineIsland extends HTMLElement {
   constructor() {
     super();
@@ -13,7 +14,7 @@ class TimelineIsland extends HTMLElement {
     
     // Safety: Define escape utility
     this.escape = (str) => {
-      if (!str) return ';
+      if (!str) return '';
       return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -24,34 +25,58 @@ class TimelineIsland extends HTMLElement {
   }
 
   connectedCallback() {
+    // Own the subtree we render into. This previously wrote into five element
+    // IDs (timeline-events, -total, -critical, -blocks, -markers) that no page
+    // ever declared, so every render bailed at its `if (!el) return` guard and
+    // the component fetched data it then dropped on the floor.
+    this.renderShell();
     this.fetchTimeline();
-    this.interval = setInterval(() => this.fetchTimeline(), 15000);
-    
-    // Virtualization: Bind scroll listener to window
+    this.pollTimer = setInterval(() => this.fetchTimeline(), 15000);
     this.scrollListener = () => this.handleScroll();
     globalThis.addEventListener('scroll', this.scrollListener, { passive: true });
   }
 
   disconnectedCallback() {
-    if (this.interval) clearInterval(this.interval);
+    if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.scrollListener) globalThis.removeEventListener('scroll', this.scrollListener);
+  }
+
+  renderShell() {
+    this.innerHTML = `
+      <div class="timeline">
+        <header class="timeline__head">
+          <span class="eyebrow">
+            <span class="indicator" data-state="idle" id="timeline-dot" aria-hidden="true"></span>
+            <span id="timeline-mode">BUFFER_SYNCHRONIZING</span>
+          </span>
+          <div class="timeline__stats">
+            <span class="eyebrow">Total <span class="num" id="timeline-total">000</span></span>
+            <span class="eyebrow" data-tone="danger">Critical <span class="num" id="timeline-critical">000</span></span>
+            <span class="eyebrow" data-tone="warning">Blocks <span class="num" id="timeline-blocks">000</span></span>
+          </div>
+        </header>
+        <div class="timeline__track"><div class="timeline__markers" id="timeline-markers"></div></div>
+        <div class="timeline__events custom-scrollbar" id="timeline-events"></div>
+      </div>
+    `;
   }
 
   async fetchTimeline() {
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const res = await fetch('/api/audit?limit=500', {
-        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Update if data length changed or hashes differ
-        if (data.length !== this.events.length || (data.length > 0 && data[0].hash !== this.events[0]?.hash)) {
-          this.events = data;
-          this.isHydrating = false;
-          this.render();
-          this.updateStats();
-        }
+      const res = await fetch('/api/audit?limit=500', { headers: apiHeaders() });
+      if (!res.ok) return;
+      const data = await unwrap(res);
+      const events = Array.isArray(data) ? data : [];
+      // Re-render only when the buffer actually changed.
+      if (events.length !== this.events.length || (events.length > 0 && events[0].hash !== this.events[0]?.hash)) {
+        this.events = events;
+        this.isHydrating = false;
+        this.render();
+        this.updateStats();
+      } else if (this.isHydrating) {
+        this.isHydrating = false;
+        this.render();
+        this.updateStats();
       }
     } catch (e) {
       console.error("[TIMELINE] Hydration failed", e);
@@ -59,7 +84,7 @@ class TimelineIsland extends HTMLElement {
   }
 
   handleScroll() {
-    const container = document.getElementById('timeline-events');
+    const container = this.querySelector('#timeline-events');
     if (!container || this.events.length <= this.visibleCount) return;
 
     const rect = container.getBoundingClientRect();
@@ -73,21 +98,19 @@ class TimelineIsland extends HTMLElement {
   }
 
   updateStats() {
-    const modeEl = document.getElementById('timeline-mode');
-    const totalEl = document.getElementById('timeline-total');
-    const criticalEl = document.getElementById('timeline-critical');
-    const blocksEl = document.getElementById('timeline-blocks');
-    const progressEl = document.getElementById('timeline-progress');
-    const markersEl = document.getElementById('timeline-markers');
+    const modeEl = this.querySelector('#timeline-mode');
+    const totalEl = this.querySelector('#timeline-total');
+    const criticalEl = this.querySelector('#timeline-critical');
+    const blocksEl = this.querySelector('#timeline-blocks');
+    const progressEl = this.querySelector('#timeline-progress');
+    const markersEl = this.querySelector('#timeline-markers');
 
     if (modeEl) {
       const hasEvents = this.events.length > 0;
       modeEl.textContent = hasEvents ? 'BUFFER_SYNCHRONIZED' : 'BUFFER_EMPTY';
-      modeEl.className = `mono-xs font-black tracking-[0.2em] uppercase ${hasEvents ? 'text-primary' : 'text-danger'}`;
-      const dot = modeEl.previousElementSibling;
-      if (dot) {
-        dot.className = `dot ${hasEvents ? 'active' : 'danger'}`;
-      }
+      modeEl.closest('.eyebrow')?.setAttribute('data-tone', hasEvents ? 'primary' : 'danger');
+      const dot = this.querySelector('#timeline-dot');
+      if (dot) dot.setAttribute('data-state', hasEvents ? 'ok' : 'crit');
     }
     
     if (totalEl) totalEl.textContent = this.events.length.toString().padStart(3, '0');
@@ -110,7 +133,7 @@ class TimelineIsland extends HTMLElement {
   }
 
   render() {
-    const container = document.getElementById('timeline-events');
+    const container = this.querySelector('#timeline-events');
     if (!container) return;
 
     if (this.isHydrating && this.events.length === 0) {
