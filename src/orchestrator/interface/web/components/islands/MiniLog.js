@@ -99,7 +99,7 @@ class MiniLog extends HTMLElement {
     if (this.logs.length === 0) {
       this.innerHTML = `
         <div class="space-y-4 opacity-30 p-4">
-           <div class="p-6 text-center border border-dashed border-white/10 mono-xs uppercase tracking-widest italic">
+           <div class="eyebrow p-4 text-center border border-dashed border-white/10 italic">
               Synchronizing telemetry stream...
            </div>
         </div>
@@ -111,7 +111,7 @@ class MiniLog extends HTMLElement {
     // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
     this.innerHTML = '';
     const wrapper = document.createElement('div');
-    wrapper.className = "space-y-1 max-h-[calc(100vh-250px)] overflow-y-auto custom-scrollbar pr-2";
+    wrapper.className = "space-y-1 max-h-[calc(100vh_-_250px)] overflow-y-auto custom-scrollbar pr-2";
 
     this.logs.forEach(log => {
       let rawType = (log.type || 'generic').toLowerCase();

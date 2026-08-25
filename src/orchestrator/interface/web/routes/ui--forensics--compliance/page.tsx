@@ -4,24 +4,24 @@ import { Layout } from "@interface/components/Layout.tsx";
 export const ComplianceCenterPage = (props: { status: unknown; csrfToken: string; nonce?: string, userRole?: string }) => {
   return (
     <Layout title="Compliance Center" csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
-      <header class="page-header mb-8">
+      <header class="page-header mb-4">
         <h1 class="tactical-title text-4xl">Compliance Center</h1>
         <span class="subtitle">Hardware-Signed Evidence & Regulatory Mapping</span>
       </header>
 
-      <section class="grid grid-cols-1 gap-8">
-        <div class="t-panel glass-panel p-8">
-           <header class="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-              <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">Active Frameworks</span>
+      <section class="grid grid-cols-1 gap-4">
+        <div class="t-panel glass-panel p-4">
+           <header class="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
+              <span class="eyebrow">Active Frameworks</span>
               {(props.userRole === "admin" || props.userRole === "operator") && (
-              <button type="button" class="t-btn px-6 py-2" onclick="window.generateComplianceReport()">
+              <button type="button" class="t-btn px-4 py-2" onclick="window.generateComplianceReport()">
                  Generate Audit Bundle
               </button>
               )}
            </header>
 
-           <div id="compliance-results" class="space-y-6">
-              <div class="flex items-center justify-center p-12">
+           <div id="compliance-results" class="space-y-4">
+              <div class="flex items-center justify-center p-5">
                  <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
            </div>
@@ -37,7 +37,7 @@ export const ComplianceCenterPage = (props: { status: unknown; csrfToken: string
 
                 if (data.results) {
                     container.innerHTML = data.results.map(c => \`
-                        <div class="p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
+                        <div class="p-4 bg-white/[0.02] border border-white/5 rounded-lg">
                             <div class="flex justify-between items-center mb-4">
                                 <div>
                                     <span class="text-xs font-black text-primary uppercase tracking-widest mb-1 block">\${c.framework}</span>

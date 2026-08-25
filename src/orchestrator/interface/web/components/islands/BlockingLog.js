@@ -23,12 +23,12 @@ class BlockingLog extends HTMLElement {
     const limit = parseInt(this.getAttribute('limit') || '2000');
 
     this.innerHTML = `
-      <div class="flex flex-col h-full ${isCompact ? '' : 'bg-black/40 rounded-3xl border border-white/5'} overflow-hidden">
+      <div class="flex flex-col h-full ${isCompact ? '' : 'bg-black/40 rounded-lg border border-white/5'} overflow-hidden">
         ${isCompact ? '' : `
-        <div class="p-6 border-b border-white/5 bg-black/20 flex flex-col gap-4">
+        <div class="p-4 border-b border-white/5 bg-black/20 flex flex-col gap-4">
           <div class="flex justify-between items-center">
-            <span class="mono text-[9px] font-black uppercase tracking-widest text-slate-500">Signal_Filter</span>
-            <select id="severity-filter" class="bg-black/60 border border-white/10 rounded-lg p-2 mono text-[10px] uppercase outline-none cursor-pointer text-slate-300">
+            <span class="eyebrow">Signal_Filter</span>
+            <select id="severity-filter" class="eyebrow bg-black/60 border border-white/10 rounded-lg p-2 outline-none cursor-pointer">
               <option value="ALL">ALL_SIGNALS</option>
               <option value="INFO">INFO</option>
               <option value="WARN">WARN</option>
@@ -126,8 +126,8 @@ class BlockingLog extends HTMLElement {
 
     if (filteredLogs.length === 0) {
       this.container.innerHTML = `
-        <div class="p-6 text-center border border-dashed border-white/5 rounded-xl my-4">
-           <span class="mono-xs font-bold text-slate-500 uppercase tracking-widest">Enforcement Ledger Clear // Awaiting Signals</span>
+        <div class="p-4 text-center border border-dashed border-white/5 rounded-lg my-4">
+           <span class="eyebrow">Enforcement Ledger Clear // Awaiting Signals</span>
         </div>
       `;
       return;
@@ -217,7 +217,9 @@ class BlockingLog extends HTMLElement {
         intentHeader.className = "flex items-center gap-2 mb-1";
 
         const dot = document.createElement('div');
-        dot.className = "w-1.5 h-1.5 bg-danger rounded-full animate-pulse";
+        dot.className = "indicator indicator--sm";
+        dot.dataset.state = "crit";
+        dot.dataset.pulse = "";
         intentHeader.appendChild(dot);
 
         const label = document.createElement('span');

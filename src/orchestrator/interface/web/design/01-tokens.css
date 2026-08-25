@@ -1,0 +1,189 @@
+/* ============================================================================
+ * 01 // TOKENS
+ * Single source of truth for the Sovereign console. Nothing below this file
+ * may introduce a raw colour, radius, duration or spacing value.
+ * ==========================================================================*/
+
+:root {
+  /* ── Surface ramp ──────────────────────────────────────────────────────
+   * Six steps from the page floor to the highest-raised control. Every
+   * surface in the UI must land on one of these; no ad-hoc rgba() blends. */
+  --surface-0: hsl(225 22% 4%);      /* page floor                        */
+  --surface-1: hsl(225 20% 6%);      /* rails, headers                    */
+  --surface-2: hsl(225 18% 8%);      /* panels                            */
+  --surface-3: hsl(225 16% 11%);     /* raised / hover                    */
+  --surface-4: hsl(225 15% 14%);     /* controls, inputs                  */
+  --surface-inset: hsl(225 24% 3%);  /* wells, code, scroll tracks        */
+
+  /* ── Line ramp ───────────────────────────────────────────────────────── */
+  --line-faint: hsl(225 15% 100% / 0.05);
+  --line: hsl(225 15% 100% / 0.09);
+  --line-strong: hsl(225 15% 100% / 0.15);
+
+  /* ── Text ramp ───────────────────────────────────────────────────────── */
+  --text-1: hsl(220 20% 98%);        /* primary copy, values              */
+  --text-2: hsl(220 14% 72%);        /* secondary copy                    */
+  --text-3: hsl(220 12% 52%);        /* labels, eyebrows                  */
+  --text-4: hsl(220 12% 38%);        /* disabled, watermarks              */
+
+  /* ── Accents ─────────────────────────────────────────────────────────
+   * Stated as H S L triplets so every alpha blend is one color-mix away
+   * and stays in the same perceptual family. */
+  --primary-hsl: 189 72% 52%;
+  --success-hsl: 152 58% 46%;
+  --warning-hsl: 38 84% 56%;
+  --danger-hsl:  355 74% 58%;
+  --muted-hsl:   220 12% 52%;
+
+  --primary: hsl(var(--primary-hsl));
+  --success: hsl(var(--success-hsl));
+  --warning: hsl(var(--warning-hsl));
+  --danger:  hsl(var(--danger-hsl));
+  --muted:   hsl(var(--muted-hsl));
+
+  /* Per-accent wash + hairline, used by every stateful component. */
+  --primary-wash: hsl(var(--primary-hsl) / 0.10);
+  --success-wash: hsl(var(--success-hsl) / 0.10);
+  --warning-wash: hsl(var(--warning-hsl) / 0.10);
+  --danger-wash:  hsl(var(--danger-hsl)  / 0.10);
+  --muted-wash:   hsl(var(--muted-hsl)   / 0.10);
+
+  --primary-edge: hsl(var(--primary-hsl) / 0.28);
+  --success-edge: hsl(var(--success-hsl) / 0.28);
+  --warning-edge: hsl(var(--warning-hsl) / 0.28);
+  --danger-edge:  hsl(var(--danger-hsl)  / 0.28);
+  --muted-edge:   hsl(var(--muted-hsl)   / 0.28);
+
+  /* ── Typography ────────────────────────────────────────────────────
+   * System stacks only. A sovereign appliance must render identically on
+   * an air-gapped network; no webfont may be fetched at runtime. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter,
+               Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono",
+               Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Type ramp — 7 steps, no more. Dense by default. */
+  --t-micro: 0.625rem;   /* 10px — eyebrows, pills, table meta  */
+  --t-xs:    0.6875rem;  /* 11px — dense mono data              */
+  --t-sm:    0.75rem;    /* 12px — body-small, most UI copy     */
+  --t-base:  0.8125rem;  /* 13px — body                         */
+  --t-md:    0.9375rem;  /* 15px — panel titles                 */
+  --t-lg:    1.125rem;   /* 18px — page title                   */
+  --t-xl:    1.75rem;    /* 28px — primary metric               */
+  --t-2xl:   2.25rem;    /* 36px — hero metric                  */
+
+  /* Tracking — three steps. The 0.2em–0.8em spread this replaced was the
+   * single largest source of visual inconsistency in the console. */
+  --track-tight: -0.011em;
+  --track-flat: 0;
+  --track-label: 0.14em;   /* the ONLY tracking an eyebrow may use */
+
+  /* ── Space scale — 4px base, dense ───────────────────────────────── */
+  --s-1: 0.25rem;   /* 4  */
+  --s-2: 0.375rem;  /* 6  */
+  --s-3: 0.5rem;    /* 8  */
+  --s-4: 0.75rem;   /* 12 */
+  --s-5: 1rem;      /* 16 */
+  --s-6: 1.25rem;   /* 20 */
+  --s-7: 1.5rem;    /* 24 */
+  --s-8: 2rem;      /* 32 */
+  --s-9: 2.5rem;    /* 40 */
+
+  /* ── Radii ───────────────────────────────────────────────────────── */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-xl: 12px;
+  --r-pill: 999px;
+
+  /* ── Elevation — flat by design; depth comes from the surface ramp ── */
+  --elev-1: 0 1px 2px hsl(225 40% 2% / 0.4);
+  --elev-2: 0 4px 12px hsl(225 40% 2% / 0.45);
+  --elev-3: 0 12px 32px hsl(225 40% 2% / 0.55);
+
+  /* ── Motion — one curve, three durations ─────────────────────────── */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-1: 120ms;   /* state echo: hover, press            */
+  --dur-2: 200ms;   /* element transition: open, reveal    */
+  --dur-3: 320ms;   /* view transition: page, route        */
+
+  /* ── Shell geometry ──────────────────────────────────────────────── */
+  --rail-w: 232px;
+  --rail-w-collapsed: 56px;
+  --aside-w: 352px;
+  --header-h: 44px;
+  --header-height: var(--header-h);       /* legacy alias */
+  --header-height-sm: var(--header-h);    /* legacy alias */
+  --content-max: 1560px;
+}
+
+/* Motion is opt-out at the source, not patched away per-component. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 1ms;
+    --dur-2: 1ms;
+    --dur-3: 1ms;
+  }
+}
+
+/* ============================================================================
+ * COMPATIBILITY ALIASES
+ * ---------------------------------------------------------------------------
+ * ~100 inline style="" attributes across the islands and the login view read
+ * these names directly. They are re-pointed at the ramp above so the old
+ * markup renders from the new system rather than from a second palette.
+ *
+ * Four of them (--primary-rgb, --danger-rgb, --success-rgb, --slate-800) were
+ * referenced 16 times but never declared anywhere: every
+ * `rgba(var(--primary-rgb), .5)` was an invalid value the browser discarded,
+ * so those glows had simply never rendered. They are declared here.
+ *
+ * Do not reach for these in new markup — use the ramp.
+ * ==========================================================================*/
+:root {
+  --bg: var(--surface-0);
+  --panel-bg: var(--surface-2);
+  --glass-bg: var(--surface-2);
+  --glass-accent: var(--primary-wash);
+
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --text-muted: var(--text-3);
+
+  --border-subtle: var(--line-faint);
+  --border-active: var(--primary-edge);
+
+  --primary-glow: var(--primary-wash);
+  --success-glow: var(--success-wash);
+  --warning-glow: var(--warning-wash);
+  --danger-glow: var(--danger-wash);
+
+  /* Channel triplets, for legacy call sites that compose hsla() from the
+   * separate hue/saturation/lightness parts rather than a whole colour. */
+  --bg-h: 225; --bg-s: 22%; --bg-l: 4%;
+  --primary-h: 189; --primary-s: 72%; --primary-l: 52%;
+  --success-h: 152; --success-s: 58%; --success-l: 46%;
+  --warning-h: 38;  --warning-s: 84%; --warning-l: 56%;
+  --danger-h: 355;  --danger-s: 74%;  --danger-l: 58%;
+
+  /* Previously undeclared — these are why several glows never appeared. */
+  --primary-rgb: 45, 197, 220;
+  --success-rgb: 49, 185, 128;
+  --warning-rgb: 235, 165, 47;
+  --danger-rgb: 227, 76, 96;
+  --slate-800: hsl(225 16% 11%);
+
+  --shadow-primary: 0 0 0 1px var(--primary-edge), 0 8px 24px hsl(var(--primary-hsl) / 0.12);
+  --shadow-success: 0 0 0 1px var(--success-edge), 0 8px 24px hsl(var(--success-hsl) / 0.12);
+  --shadow-warning: 0 0 0 1px var(--warning-edge), 0 8px 24px hsl(var(--warning-hsl) / 0.12);
+  --shadow-danger:  0 0 0 1px var(--danger-edge),  0 8px 24px hsl(var(--danger-hsl)  / 0.12);
+
+  --transition-fast: var(--dur-2) var(--ease);
+  --transition-slow: var(--dur-3) var(--ease);
+  --glass-blur: blur(12px);
+
+  --sidebar-width: var(--rail-w);
+  --sidebar-collapsed-width: var(--rail-w-collapsed);
+  --sidebar-right-width: var(--aside-w);
+}

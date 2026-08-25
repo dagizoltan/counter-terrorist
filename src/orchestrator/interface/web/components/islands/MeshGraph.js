@@ -41,7 +41,7 @@ class MeshGraph extends HTMLElement {
         <canvas id="mesh-canvas" class="w-full h-full"></canvas>
         <div id="mesh-overlay" class="absolute inset-0 pointer-events-none">
            <div class="absolute top-4 left-4">
-              <span class="mono text-[9px] font-black text-slate-600 uppercase tracking-[0.4em]">Grid_Calibration: AUTO</span>
+              <span class="eyebrow">Grid_Calibration: AUTO</span>
            </div>
         </div>
       </div>

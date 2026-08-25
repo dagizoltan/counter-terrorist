@@ -1,0 +1,1021 @@
+/* ============================================================================
+ * 03 // COMPONENTS
+ * One API per role. Every stateful component reads the same five-state
+ * vocabulary so a status reads identically wherever it appears.
+ *
+ *   STATE     MEANING                  LEGACY ALIASES ACCEPTED
+ *   ok        nominal / operational    success, active, online
+ *   warn      degraded / attention     warning
+ *   crit      failed / hostile         danger, error, offline
+ *   info      informational / live     primary
+ *   idle      inert / unknown          neutral, muted
+ * ==========================================================================*/
+
+/* State carriers. Any component can opt in by setting --c-* from these. */
+[data-state="ok"],   .is-ok   { --c: var(--success); --c-wash: var(--success-wash); --c-edge: var(--success-edge); }
+[data-state="warn"], .is-warn { --c: var(--warning); --c-wash: var(--warning-wash); --c-edge: var(--warning-edge); }
+[data-state="crit"], .is-crit { --c: var(--danger);  --c-wash: var(--danger-wash);  --c-edge: var(--danger-edge); }
+[data-state="info"], .is-info { --c: var(--primary); --c-wash: var(--primary-wash); --c-edge: var(--primary-edge); }
+[data-state="idle"], .is-idle { --c: var(--muted);   --c-wash: var(--muted-wash);   --c-edge: var(--muted-edge); }
+
+/* ── EYEBROW ─────────────────────────────────────────────────────────────
+ * The single label role for the console. It replaces 40+ hand-rolled
+ * permutations of `mono-xs font-black uppercase tracking-[0.2em|0.3em|0.4em
+ * |0.5em|0.8em]` across 7 tracking values, 3 weights and 5 colours — all
+ * describing the same element.
+ *
+ * One size, one weight, one tracking. Tone is the only axis.             */
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.eyebrow[data-tone="primary"] { color: var(--primary); }
+.eyebrow[data-tone="success"] { color: var(--success); }
+.eyebrow[data-tone="warning"] { color: var(--warning); }
+.eyebrow[data-tone="danger"]  { color: var(--danger); }
+.eyebrow[data-tone="strong"]  { color: var(--text-1); }
+
+/* Rule variant — an eyebrow that carries a hairline to the end of its row,
+ * used as a section divider. Replaces the `mb-12 pb-6 border-b` stacks. */
+.eyebrow--rule { display: flex; width: 100%; }
+.eyebrow--rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  margin-left: var(--s-4);
+  background: linear-gradient(90deg, var(--line), transparent);
+}
+
+/* Accent tick — the `w-1 h-3 bg-primary rounded-full` motif that was
+ * hand-written at 9 different sizes. */
+.eyebrow--tick::before {
+  content: "";
+  width: 2px;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  opacity: 0.9;
+}
+
+/* ── INDICATOR (dot) ─────────────────────────────────────────────────────
+ * Replaces `.dot`, `.danger-dot`, `.status-dot` and ~20 inline
+ * `w-1.5 h-1.5 bg-* rounded-full` copies at 6 different diameters.       */
+.indicator,
+.dot,
+.status-dot {
+  --c: var(--muted);
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--c);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 16%, transparent);
+}
+
+.indicator--sm, .dot.sm { width: 4px; height: 4px; }
+.indicator--lg, .dot.lg { width: 8px; height: 8px; }
+
+/* Legacy colour classes, mapped onto the state vocabulary. */
+.indicator.ok,      .dot.ok,      .dot.active,  .dot.success, .status-dot.active { --c: var(--success); }
+.indicator.warn,    .dot.warn,    .dot.warning  { --c: var(--warning); }
+.indicator.crit,    .dot.crit,    .dot.danger,  .dot.error, .danger-dot { --c: var(--danger); }
+.indicator.info,    .dot.info,    .dot.primary  { --c: var(--primary); }
+.indicator.idle,    .dot.idle,    .dot.neutral  { --c: var(--muted); }
+
+/* `.danger-dot` was used in the login view but never declared anywhere, so
+ * the failed-auth marker rendered as nothing. */
+.danger-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--danger);
+  box-shadow: 0 0 0 3px hsl(var(--danger-hsl) / 0.16);
+}
+
+/* Liveness. `animate-pulse` was globally neutralised with
+ * `animation: none !important`, which is why every "live" marker in the
+ * console sat perfectly still. Restored as a calm 2s breath. */
+.indicator[data-pulse],
+.indicator.pulse,
+.dot.pulse,
+.animate-pulse {
+  animation: ct-pulse 2s var(--ease) infinite;
+}
+
+@keyframes ct-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+
+/* ── PILL ────────────────────────────────────────────────────────────────
+ * `.status-pill` was declared twice with conflicting padding (0.35/0.85rem
+ * vs 0.45/1rem), radius (999px vs 6px), size (9px vs 10px) and weight
+ * (700 vs 900). The second block also redefined `.active` as green with the
+ * same specificity as `.danger`, so `class="status-pill danger active"`
+ * resolved to GREEN — the "Perimeter Enforcement Active" pill on the IP
+ * collections view rendered as success.
+ *
+ * The default now sits behind :where() (zero specificity), so any explicit
+ * state class beats it regardless of source order.                       */
+.pill,
+.status-pill {
+  --c: var(--muted);
+  --c-wash: var(--muted-wash);
+  --c-edge: var(--muted-edge);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0.1875rem var(--s-3);
+  border: 1px solid var(--c-edge);
+  border-radius: var(--r-pill);
+  background: var(--c-wash);
+  color: var(--c);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Zero-specificity default: "active" means live, not green. */
+.pill:where(.active),
+.status-pill:where(.active) { --c: var(--success); --c-wash: var(--success-wash); --c-edge: var(--success-edge); }
+
+.pill.ok,   .pill.success, .status-pill.ok,   .status-pill.success,
+.pill.online, .status-pill.online   { --c: var(--success); --c-wash: var(--success-wash); --c-edge: var(--success-edge); }
+.pill.warn, .pill.warning, .status-pill.warn, .status-pill.warning
+                                    { --c: var(--warning); --c-wash: var(--warning-wash); --c-edge: var(--warning-edge); }
+.pill.crit, .pill.danger, .pill.error, .status-pill.crit, .status-pill.danger, .status-pill.error,
+.pill.offline, .status-pill.offline { --c: var(--danger);  --c-wash: var(--danger-wash);  --c-edge: var(--danger-edge); }
+.pill.info, .pill.primary, .status-pill.info, .status-pill.primary
+                                    { --c: var(--primary); --c-wash: var(--primary-wash); --c-edge: var(--primary-edge); }
+.pill.idle, .pill.neutral, .status-pill.idle, .status-pill.neutral
+                                    { --c: var(--muted);   --c-wash: var(--muted-wash);   --c-edge: var(--muted-edge); }
+
+/* A pill may carry its own dot without extra markup. */
+.pill[data-dot]::before,
+.status-pill[data-dot]::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  flex-shrink: 0;
+}
+.pill[data-dot="live"]::before,
+.status-pill[data-dot="live"]::before { animation: ct-pulse 2s var(--ease) infinite; }
+
+/* ── PANEL ───────────────────────────────────────────────────────────────
+ * Flat, dense, one border. The previous panel stacked a radial gradient, a
+ * 16px backdrop-filter, an ::before accent bar and an ::after corner bracket
+ * that animated its own position on hover — four composited layers per card,
+ * on a grid that routinely renders 12 of them.                            */
+.panel,
+.t-panel,
+.glass-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--s-5);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+}
+
+.panel:hover,
+.t-panel:hover { border-color: var(--line); }
+
+.panel--flush { padding: 0; }
+.panel--inset { background: var(--surface-inset); }
+
+/* Panel header: title row with a hairline. Replaces the ad-hoc
+ * `flex justify-between mb-6 pb-4 border-b border-white/5` stack. */
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin: calc(var(--s-5) * -1) calc(var(--s-5) * -1) var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.panel__title {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+  color: var(--text-1);
+}
+
+.panel__body { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+
+/* ── METRIC ──────────────────────────────────────────────────────────────
+ * The dashboard rendered its numbers at `text-6xl font-black italic` — a
+ * size that was never declared, so the metric fell back to inherited 13px
+ * body text. Metrics are now a real component: tabular, tight, upright. */
+.metric { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+
+.metric__value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  font-size: var(--t-xl);
+  font-weight: 550;
+  line-height: 1;
+  letter-spacing: var(--track-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+
+.metric__value--lg { font-size: var(--t-2xl); }
+.metric__unit { font-size: var(--t-sm); font-weight: 500; color: var(--text-3); }
+.metric__foot {
+  margin-top: auto;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-faint);
+}
+
+/* Legacy stat-card, re-pointed at the metric ramp. */
+.stat-card { display: flex; flex-direction: column; gap: var(--s-4); padding: var(--s-5); }
+.stat-card .label { font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 600; text-transform: uppercase; letter-spacing: var(--track-label); color: var(--text-3); }
+.stat-card .value-group { display: flex; align-items: baseline; gap: var(--s-3); }
+.stat-card .value { font-size: var(--t-xl); font-weight: 550; line-height: 1; letter-spacing: var(--track-tight); font-variant-numeric: tabular-nums; color: var(--text-1); }
+.stat-card .unit { font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 600; text-transform: uppercase; letter-spacing: var(--track-label); color: var(--text-3); }
+.stat-card .footer { margin-top: auto; padding-top: var(--s-4); border-top: 1px solid var(--line-faint); }
+
+/* ── PAGE HEADER ─────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-5);
+  margin-bottom: var(--s-6);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.page-header .title-group { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+
+.page-header h1 {
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+  text-transform: none;
+  color: var(--text-1);
+}
+
+.page-header .subtitle {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-3);
+}
+
+.page-header .actions { display: flex; align-items: center; gap: var(--s-3); flex-shrink: 0; }
+
+/* `.tactical-title` no longer inherits the global uppercase + 0.25em rule. */
+.tactical-title {
+  font-size: var(--t-lg);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+  text-transform: none;
+}
+
+/* ── BUTTON ──────────────────────────────────────────────────────────────
+ * `.t-btn` carried a `::after` sheen at `position:absolute` while the button
+ * itself was never positioned, so the overlay escaped to the nearest
+ * positioned ancestor and swept across unrelated parts of the page on hover.
+ * The sheen is gone; the button is positioned regardless.                */
+.btn,
+.t-btn {
+  --c: var(--primary);
+  --c-wash: var(--primary-wash);
+  --c-edge: var(--primary-edge);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: 28px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--c-edge);
+  border-radius: var(--r-md);
+  background: var(--c-wash);
+  color: var(--c);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease),
+              border-color var(--dur-1) var(--ease),
+              color var(--dur-1) var(--ease);
+}
+
+.btn:hover, .t-btn:hover {
+  background: color-mix(in srgb, var(--c) 18%, transparent);
+  border-color: color-mix(in srgb, var(--c) 46%, transparent);
+}
+
+.btn:active, .t-btn:active { background: color-mix(in srgb, var(--c) 26%, transparent); }
+.btn:disabled, .t-btn:disabled { opacity: 0.4; pointer-events: none; }
+
+.btn--lg, .t-btn.lg { height: 34px; padding: 0 var(--s-5); }
+.btn--sm, .t-btn.sm { height: 24px; padding: 0 var(--s-3); }
+.btn--block, .t-btn.block { width: 100%; }
+
+.btn.ghost, .t-btn.ghost {
+  --c: var(--text-2);
+  background: transparent;
+  border-color: var(--line);
+}
+.btn.ghost:hover, .t-btn.ghost:hover { background: var(--surface-3); color: var(--text-1); }
+
+.btn.solid, .t-btn.solid { background: var(--c); border-color: var(--c); color: var(--surface-0); }
+.btn.solid:hover, .t-btn.solid:hover { background: color-mix(in srgb, var(--c) 88%, white); border-color: transparent; }
+
+.btn.danger,  .t-btn.danger  { --c: var(--danger);  --c-wash: var(--danger-wash);  --c-edge: var(--danger-edge); }
+.btn.success, .t-btn.success { --c: var(--success); --c-wash: var(--success-wash); --c-edge: var(--success-edge); }
+.btn.warning, .t-btn.warning { --c: var(--warning); --c-wash: var(--warning-wash); --c-edge: var(--warning-edge); }
+.btn.neutral, .t-btn.neutral { --c: var(--text-2);  --c-wash: transparent;         --c-edge: var(--line); }
+
+/* Icon-only control — the rail toggle and the aside tabs. */
+.icon-btn,
+.sidebar-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-3);
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.icon-btn:hover, .sidebar-nav-icon:hover { background: var(--surface-3); color: var(--text-1); }
+.icon-btn.active, .sidebar-nav-icon.active,
+.icon-btn[aria-selected="true"], .sidebar-nav-icon[aria-selected="true"] {
+  background: var(--primary-wash);
+  border-color: var(--primary-edge);
+  color: var(--primary);
+}
+
+/* ── FIELD ───────────────────────────────────────────────────────────── */
+.input,
+.t-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-inset);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  letter-spacing: 0.02em;
+  transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+}
+
+.input:hover, .t-input:hover { border-color: var(--line-strong); }
+.input:focus, .t-input:focus { border-color: var(--primary); background: var(--surface-0); }
+.input::placeholder, .t-input::placeholder { color: var(--text-4); }
+textarea.input, textarea.t-input { height: auto; padding: var(--s-3) var(--s-4); line-height: 1.5; resize: vertical; }
+select.input, select.t-input { appearance: none; padding-right: var(--s-7); }
+
+.field { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+.field__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-3);
+}
+
+/* ── NAVIGATION RAIL ─────────────────────────────────────────────────── */
+.nav-group { display: flex; flex-direction: column; gap: 1px; margin-bottom: var(--s-5); }
+
+.nav-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-3);
+  margin-bottom: var(--s-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-4);
+}
+
+.nav-heading::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--line-faint), transparent);
+}
+
+.nav-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  height: 30px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-md);
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  letter-spacing: var(--track-flat);
+  text-transform: none;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+
+.nav-link > svg,
+.nav-link .nav-icon { flex-shrink: 0; color: var(--text-3); transition: color var(--dur-1) var(--ease); }
+.nav-link:hover { background: var(--surface-3); color: var(--text-1); }
+.nav-link:hover > svg, .nav-link:hover .nav-icon { color: var(--text-2); }
+
+.nav-link.active {
+  background: var(--primary-wash);
+  color: var(--primary);
+  font-weight: 550;
+}
+.nav-link.active > svg, .nav-link.active .nav-icon { color: var(--primary); }
+
+/* Active rail marker — one 2px bar, replacing the previous gradient wash
+ * plus 20px text-shadow glow. */
+.nav-link.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--primary);
+}
+
+/* Collapsed rail */
+.shell-sidebar.collapsed .brand-title,
+.shell-sidebar.collapsed .nav-heading-text,
+.shell-sidebar.collapsed .nav-link-label,
+.shell-sidebar.collapsed .sidebar-footer-text { display: none; }
+
+.shell-sidebar.collapsed .nav-heading { justify-content: center; padding: 0; margin-bottom: var(--s-2); }
+.shell-sidebar.collapsed .nav-heading::after { display: none; }
+.shell-sidebar.collapsed .nav-link { justify-content: center; padding: 0; }
+.shell-sidebar.collapsed .nav-link.active::before { display: none; }
+.shell-sidebar.collapsed .sidebar-footer-btn { justify-content: center; padding: 0; }
+.shell-sidebar.collapsed > header { justify-content: center; padding: 0; }
+
+.shell-sidebar.collapsed .nav-link:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + var(--s-3));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-4);
+  box-shadow: var(--elev-2);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── TABLE ───────────────────────────────────────────────────────────── */
+.t-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+
+.t-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.t-table tbody td { padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line-faint); color: var(--text-2); vertical-align: middle; }
+.t-table tbody tr:last-child td { border-bottom: none; }
+.t-table tbody tr { transition: background-color var(--dur-1) var(--ease); }
+.t-table tbody tr:hover { background: var(--surface-3); }
+
+/* ── LOG / TELEMETRY ROW ─────────────────────────────────────────────── */
+.log-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.log-row:hover { background: var(--surface-2); }
+.log-row__time { color: var(--text-4); font-variant-numeric: tabular-nums; }
+.log-row__msg { min-width: 0; overflow-wrap: anywhere; }
+
+/* ── METER ───────────────────────────────────────────────────────────── */
+.meter {
+  --value: 0%;
+  position: relative;
+  width: 100%;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--line-faint);
+  overflow: hidden;
+}
+.meter::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: var(--value);
+  border-radius: inherit;
+  background: var(--c, var(--primary));
+  transition: width var(--dur-3) var(--ease);
+}
+
+/* ── EMPTY / SKELETON ────────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: var(--s-9) var(--s-6);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-lg);
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--t-sm);
+}
+
+.skeleton {
+  border-radius: var(--r-sm);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: ct-skeleton 1.4s ease-in-out infinite;
+}
+
+@keyframes ct-skeleton {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+/* ── ALERT STATE ─────────────────────────────────────────────────────── */
+body.system-alert-active .shell-header,
+body.system-alert-active .shell-sidebar,
+body.system-alert-active .shell-aside { border-color: var(--danger-edge); }
+
+/* ── SIDEBAR TABS ────────────────────────────────────────────────────── */
+.sidebar-tab-content { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+.sidebar-tab-content[hidden], .sidebar-tab-content.hidden { display: none; }
+
+/* ============================================================================
+ * ORPHANED CLASSES
+ * ---------------------------------------------------------------------------
+ * Each of the classes below appears in the views or islands but was never
+ * declared in any stylesheet — the markup referenced a design that did not
+ * exist, so these elements rendered as unstyled inline boxes. They are given
+ * real definitions on the token ramp rather than deleted, because the markup
+ * that uses them is live.
+ * ==========================================================================*/
+
+/* Section heading wrapper emitted by <TacticalSectionTitle>. */
+.section-title { display: flex; margin: var(--s-7) 0 var(--s-4); }
+.section-title:first-child { margin-top: 0; }
+
+/* Label/value row emitted by <StatRow>. */
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--line-faint);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-row__value { font-family: var(--font-mono); font-size: var(--t-xs); color: var(--text-1); }
+
+/* Head row inside <Metric>. */
+.metric__head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
+
+/* Legacy metric label + value, kept for islands that render them directly. */
+.metric-group { display: flex; flex-direction: column; gap: var(--s-2); }
+.metric-tag {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-3);
+}
+.metric-val {
+  font-family: var(--font-mono);
+  font-size: var(--t-xl);
+  font-weight: 550;
+  line-height: 1;
+  letter-spacing: var(--track-tight);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+
+/* Agent fleet cards (AgentCardIsland, AgentDetail). */
+.agent-feed { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.agent-label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--text-3);
+}
+.agent-value {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Liveness ring around an agent avatar. */
+.agent-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--c-edge, var(--line));
+  border-radius: var(--r-md);
+  background: var(--c-wash, var(--surface-3));
+  color: var(--c, var(--text-3));
+  flex-shrink: 0;
+}
+
+/* Environmental signal chip — replaces an interpolated `group-hover:border-`
+ * class fragment that could never be resolved at build time. */
+.signal-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-3);
+  border: 1px solid var(--c-edge, var(--line));
+  border-radius: var(--r-lg);
+  background: var(--c-wash, var(--surface-inset));
+  color: var(--c, var(--text-3));
+  transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+}
+
+/* Disclosure affordance on expandable rows. */
+.arrow-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-4);
+  transition: transform var(--dur-2) var(--ease), color var(--dur-1) var(--ease);
+}
+[aria-expanded="true"] > .arrow-icon,
+.is-open > .arrow-icon { transform: rotate(90deg); color: var(--primary); }
+
+/* Expanded detail bodies under a log or message row. */
+.log-detail,
+.message-detail {
+  margin-top: var(--s-2);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Threat-map markers. */
+.tactical-marker {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+}
+.marker-inner {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--c, var(--danger));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c, var(--danger)) 20%, transparent);
+}
+
+/* Segmented mode switch (replay / chaos islands). */
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: 24px;
+  padding: 0 var(--s-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: background-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.mode-btn:hover { background: var(--surface-3); color: var(--text-1); }
+.mode-btn.active,
+.mode-btn[aria-pressed="true"] {
+  background: var(--primary-wash);
+  border-color: var(--primary-edge);
+  color: var(--primary);
+}
+
+/* Accent helpers used by a handful of islands. */
+.accent-primary { color: var(--primary); }
+.accent-success { color: var(--success); }
+.accent-warning { color: var(--warning); }
+.accent-danger  { color: var(--danger); }
+
+/* Opt-in scrollbar class. Now that the base scrollbar is already thin and
+ * self-effacing this is an alias, kept so existing markup keeps resolving. */
+.custom-scrollbar { scrollbar-width: thin; }
+
+/* ============================================================================
+ * AUTHENTICATION VIEW
+ * The login view carried its own 70-line inline <style> block — a fourth
+ * place where surface colours and radii were defined. Folded onto the ramp.
+ * ==========================================================================*/
+body.auth-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 340px;
+  padding: var(--s-8);
+  border: 1px solid var(--line);
+  border-top-color: var(--primary-edge);
+  border-radius: var(--r-xl);
+  background: var(--surface-2);
+  box-shadow: var(--elev-3);
+  animation: ct-enter var(--dur-3) var(--ease-out) both;
+}
+
+.login-card__head { display: flex; flex-direction: column; align-items: center; gap: var(--s-3); margin-bottom: var(--s-7); text-align: center; }
+
+.login-card__mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--primary-edge);
+  border-radius: var(--r-xl);
+  background: var(--primary-wash);
+  color: var(--primary);
+}
+
+.login-card__title { font-size: var(--t-md); font-weight: 600; letter-spacing: 0.06em; color: var(--text-1); }
+
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  background-image:
+    linear-gradient(var(--line-faint) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-faint) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(120% 100% at 50% 0%, #000 20%, transparent 75%);
+}
+
+.bg-gradient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(100% 60% at 50% 0%, hsl(var(--primary-hsl) / 0.07), transparent 70%);
+}
+
+.error-box {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--danger-edge);
+  border-radius: var(--r-md);
+  background: var(--danger-wash);
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-card { animation: none; }
+}
+
+/* ============================================================================
+ * SHELL FURNITURE
+ * Named parts of the rail, deck header and forensic aside.
+ * ==========================================================================*/
+
+.brand-title {
+  font-size: var(--t-sm);
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.nav-rail {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-4) var(--s-3);
+}
+
+.sidebar-footer-btn { justify-content: center; }
+
+/* ── Deck header ─────────────────────────────────────────────────────── */
+.breadcrumb { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.breadcrumb__node { display: inline-flex; align-items: center; gap: var(--s-2); }
+.breadcrumb__sep { color: var(--text-4); font-size: var(--t-micro); }
+.breadcrumb__current { overflow: hidden; text-overflow: ellipsis; }
+
+.deck-status { display: flex; align-items: center; gap: var(--s-3); flex-shrink: 0; }
+
+.deck-clock {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Forensic aside ──────────────────────────────────────────────────── */
+.tab-group {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  background: var(--surface-inset);
+}
+
+.aside-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-5) var(--s-4);
+}
+
+.aside-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.trust-meter { display: flex; flex-direction: column; gap: var(--s-3); }
+.trust-meter__row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.trust-meter__value {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.login-form { display: flex; flex-direction: column; gap: var(--s-5); }
+
+.login-input {
+  height: 38px;
+  font-size: var(--t-base);
+  letter-spacing: 0.24em;
+  text-align: center;
+}
+
+.login-card__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-7);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--line-faint);
+  text-align: center;
+}
+
+.login-card__notice {
+  max-width: 26ch;
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--text-4);
+}
+
+/* Agent liveness row (<status-indicator>). */
+.agent-state { display: inline-flex; align-items: center; gap: var(--s-2); }
+.agent-state__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c, var(--text-3));
+}
+
+/* ── PANEL STAGE ─────────────────────────────────────────────────────────
+ * A fixed-height area inside a flush panel that hosts a chart, map or log.
+ * Replaces the h-[400px] / h-[600px] / min-h-[300px] literals that were
+ * scattered across the views at eight different values.                  */
+.panel-stage { position: relative; min-width: 0; overflow: hidden; }
+.panel-stage--sm { height: 200px; }
+.panel-stage--md { height: 300px; }
+.panel-stage--lg { height: 420px; }
+.panel-stage > * { width: 100%; height: 100%; }
+
+.map-legend {
+  position: absolute;
+  right: var(--s-4);
+  bottom: var(--s-4);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+/* Sections inside the deck share one rhythm rather than each carrying its
+ * own mb-12 / mb-16. */
+.shell-content > section + section { margin-top: var(--s-7); }

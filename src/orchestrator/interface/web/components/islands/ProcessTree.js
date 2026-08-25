@@ -40,9 +40,9 @@ class ProcessTree extends HTMLElement {
   render() {
     if (this.isScanning && this.processes.length === 0) {
       this.innerHTML = `
-        <div class="flex flex-col items-center justify-center p-32 gap-6">
-           <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full "></div>
-           <span class="mono-xs font-black text-primary  uppercase tracking-[0.4em]">Infiltrating_Process_Namespace...</span>
+        <div class="flex flex-col items-center justify-center p-6 gap-4">
+           <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full"></div>
+           <span class="eyebrow" data-tone="primary">Infiltrating_Process_Namespace...</span>
         </div>
       `;
       return;
@@ -50,8 +50,8 @@ class ProcessTree extends HTMLElement {
 
     if (!this.processes.length) {
       this.innerHTML = `
-        <div class="p-32 text-center border border-dashed border-white/5 opacity-30 rounded">
-           <span class="mono-xs font-black uppercase tracking-widest text-slate-500">No_Execution_Lineage_Data_In_Buffer</span>
+        <div class="p-6 text-center border border-dashed border-white/5 opacity-30 rounded">
+           <span class="eyebrow">No_Execution_Lineage_Data_In_Buffer</span>
         </div>
       `;
       return;
@@ -62,7 +62,7 @@ class ProcessTree extends HTMLElement {
     roots.sort((a, b) => a.pid - b.pid);
 
     this.innerHTML = `
-      <div class="space-y-0.5 ">
+      <div class="space-y-0.5">
         ${roots.map(r => this.renderNode(r, 0)).join('')}
       </div>
     `;
@@ -82,19 +82,19 @@ class ProcessTree extends HTMLElement {
 
     return `
       <div class="flex flex-col">
-        <div class="flex items-center group py-2 px-6 hover:bg-white/[0.03] cursor-default border-l border-white/[0.05]" 
+        <div class="flex items-center group py-2 px-4 hover:bg-white/[0.03] cursor-default border-l border-white/[0.05]" 
              style="margin-left: ${paddingLeft}px; border-left-color: rgba(255,255,255,${lineOpacity})">
-           <div class="flex items-center gap-6 w-full">
+           <div class="flex items-center gap-4 w-full">
               <span class="mono-xs font-black opacity-20 w-16 tabular-nums">[${node.pid}]</span>
               <div class="flex items-center gap-4 flex-grow">
                  <span class="mono-sm font-black uppercase tracking-tight ${isGhost ? 'text-danger' : (isProtected ? 'text-primary' : 'text-white')}">
                     ${node.comm}
                  </span>
-                 ${isGhost ? '<span class="status-pill error text-[7px] py-0.5 px-2">UNLINKED_GHOST</span>' : ''}
-                 ${isProtected ? '<span class="status-pill active text-[7px] py-0.5 px-2">SOVEREIGN</span>' : ''}
+                 ${isGhost ? '<span class="status-pill error">UNLINKED_GHOST</span>' : ''}
+                 ${isProtected ? '<span class="status-pill active">SOVEREIGN</span>' : ''}
               </div>
-              <div class="opacity-0 flex items-center gap-6">
-                 <span class="mono-xs text-slate-700 uppercase font-bold tracking-widest">PPID: ${node.ppid}</span>
+              <div class="opacity-0 flex items-center gap-4">
+                 <span class="eyebrow">PPID: ${node.ppid}</span>
                  <button class="t-btn danger p-1 text-[8px] h-6 px-3" onclick="const csrf = document.querySelector('meta[name=\'csrf-token\']')?.content; confirm('Execute SIGKILL on PID ${node.pid}?') && fetch('/api/processes/kill/${node.pid}', {method:'POST', headers:{'X-CT-Token':csrf}}).then(() => location.reload())">Terminate</button>
               </div>
            </div>

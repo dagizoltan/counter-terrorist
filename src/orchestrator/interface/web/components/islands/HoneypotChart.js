@@ -44,28 +44,28 @@ class HoneypotChart extends HTMLElement {
   renderBase() {
     this.innerHTML = `
       <div class="relative w-full h-full flex flex-col">
-        <div class="flex justify-between items-start mb-10">
+        <div class="flex justify-between items-start mb-5">
            <div class="flex flex-col gap-2">
-               <span class="mono-xs text-slate-700 uppercase tracking-[0.3em] font-black">Total Adversary Hits</span>
+               <span class="eyebrow">Total Adversary Hits</span>
               <div class="flex items-baseline gap-4">
                  <span id="total-hits" class="mono-lg font-black text-white tracking-widest tabular-nums leading-none">0</span>
                  <span class="status-pill warning">+2.4%</span>
               </div>
            </div>
-           <div class="flex items-center gap-4 bg-warning/5 border border-warning/20 px-5 py-2.5 rounded-full">
+           <div class="flex items-center gap-4 bg-warning/5 border border-warning/20 px-3 py-2.5 rounded-full">
               <span class="dot danger"></span>
-               <span class="mono-xs font-black text-warning uppercase tracking-[0.2em]">DECEPTION FEED ACTIVE</span>
+               <span class="eyebrow" data-tone="warning">DECEPTION FEED ACTIVE</span>
            </div>
         </div>
         <div class="flex-grow relative min-h-[200px] bg-black/20 rounded-lg border border-white/5 p-4 overflow-hidden">
            <div class="absolute inset-0 pointer-events-none opacity-5" style="background-image: linear-gradient(0deg, var(--warning) 1px, transparent 1px), linear-gradient(90deg, var(--warning) 1px, transparent 1px); background-size: 40px 40px;"></div>
            <canvas class="w-full h-full relative z-10"></canvas>
         </div>
-        <div class="mt-8 flex justify-between items-center opacity-40 border-t border-white/5 pt-6">
+        <div class="mt-4 flex justify-between items-center opacity-40 border-t border-white/5 pt-4">
            <div class="flex items-center gap-3">
-               <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">TEMPORAL WINDOW: 24H CYCLE</span>
+               <span class="eyebrow">TEMPORAL WINDOW: 24H CYCLE</span>
            </div>
-            <span class="mono-xs font-bold text-slate-600 uppercase tracking-widest">SOURCE: DISTRIBUTED HONEYNET V4</span>
+            <span class="eyebrow">SOURCE: DISTRIBUTED HONEYNET V4</span>
         </div>
       </div>
     `;

@@ -3,6 +3,8 @@
     "setup": "deno run --allow-read=./ --allow-write=./.env --allow-env src/orchestrator/tools/ops/init_env.ts",
     "bootstrap": "deno run --allow-all src/orchestrator/app/bootstrapper.ts",
     "build-agents": "cd src/agents && cargo build --release && cd ../.. && deno run -A src/orchestrator/tools/build/update_sidecar_manifest.ts",
+    "build-css": "deno run --allow-read --allow-write src/orchestrator/tools/build/build_css.ts",
+    "check-css": "deno run --allow-read src/orchestrator/tools/build/build_css.ts --check",
     "start": "deno run --allow-net --allow-env --allow-ffi --allow-read --allow-write=./,/var/lib/cts,/tmp --allow-sys=hostname,osRelease,uid,gid,networkInterfaces,systemMemoryInfo,loadavg,cpus --allow-run --unstable-kv src/orchestrator/index.ts",
     "start:single-node": "SINGLE_NODE=true deno run --allow-net --allow-env --allow-ffi --allow-read --allow-write=./,/var/lib/cts,/tmp --allow-sys=hostname,osRelease,uid,gid,networkInterfaces,systemMemoryInfo,loadavg,cpus --allow-run --unstable-kv src/orchestrator/index.ts",
     "dev": "deno run -A --env --unstable-kv --watch src/orchestrator/index.ts",
@@ -38,6 +40,7 @@
     "@std/crypto": "jsr:@std/crypto@^0.224.0",
     "@std/encoding/": "jsr:@std/encoding@^0.224.0/",
     "@std/testing/": "jsr:@std/testing@^0.224.0/",
-    "@std/async/": "jsr:@std/async@^0.224.0/"
+    "@std/async/": "jsr:@std/async@^0.224.0/",
+    "@interface/routes/": "./src/orchestrator/interface/web/routes/"
   }
 }

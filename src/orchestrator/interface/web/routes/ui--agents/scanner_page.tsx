@@ -18,8 +18,8 @@ export const ScannerPage = (props: { status: unknown, csrfToken?: string, nonce?
         </div>
       </header>
 
-      <div class="grid grid-cols-12 gap-6 mb-8">
-        <div class="col-span-12 t-panel glass-panel p-6 border-t-2 border-primary/30">
+      <div class="grid grid-cols-12 gap-4 mb-4">
+        <div class="col-span-12 t-panel glass-panel p-4 border-t-2 border-primary/30">
           <scanner-agent></scanner-agent>
         </div>
       </div>

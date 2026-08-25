@@ -106,7 +106,6 @@ export class WebAdapter implements WebPort {
     this.app.use("/vendor/*", serveStatic({ root: webRoot }));
     this.app.use("/assets/*", serveStatic({ root: webRoot }));
     this.app.use("/components/*", serveStatic({ root: webRoot }));
-    this.app.use("/theme.ts", serveStatic({ path: "./theme.ts", root: webRoot }));
     
     this.app.notFound((c) => {
       return c.html(jsx(NotFoundPage, {}) as any, 404);
@@ -385,7 +384,6 @@ export class WebAdapter implements WebPort {
     this.app.use("/vendor/*", serveStatic({ root: webRoot }));
     this.app.use("/assets/*", serveStatic({ root: webRoot }));
     this.app.use("/components/*", serveStatic({ root: webRoot }));
-    this.app.use("/theme.ts", serveStatic({ path: "./theme.ts", root: webRoot }));
   }
 
   private async isTokenValid(token: string | undefined): Promise<string | null> {

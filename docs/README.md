@@ -40,6 +40,7 @@ Each primary summary is backed by a numbered folder of detailed documents.
 
 ### Executive & Engineering Guides
 - `REVERSE_ENGINEERING_AND_BUILD_GUIDE.md` — system architecture, Rust agents, IPC mechanics, and local build/startup playbook.
+- `UI_DESIGN_SYSTEM.md` — console design system: tokens, components, the state vocabulary, motion, and the generated stylesheet build.
 - `EXECUTIVE_EVALUATION_AND_VALUATION.md` — CISO evaluation, reliability guarantees, IP valuation ($2.5M–$5.0M), and risk assessment matrix.
 
 ## How to use this folder

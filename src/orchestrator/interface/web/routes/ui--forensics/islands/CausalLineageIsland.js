@@ -38,20 +38,20 @@ function CausalLineageIsland() {
     </div>`;
 
     if (!graph || Object.keys(graph).length === 0) {
-        return html`<div class="flex flex-col items-center justify-center py-12 text-slate-600">
+        return html`<div class="flex flex-col items-center justify-center py-5 text-slate-600">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mb-4 opacity-20"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-            <span class="mono-xs font-black uppercase tracking-widest">No_Causal_Nodes_Identified</span>
+            <span class="eyebrow">No_Causal_Nodes_Identified</span>
         </div>`;
     }
 
     return html`
-        <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-4">
             <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center gap-4">
-                    <div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                    <span class="mono-xs font-black text-primary uppercase tracking-widest">Lineage_Map_Active</span>
+                    <div class="indicator" data-state="info" data-pulse="" aria-hidden="true"></div>
+                    <span class="eyebrow" data-tone="primary">Lineage_Map_Active</span>
                 </div>
-                <button onClick=${fetchGraph} class="mono-xs text-slate-500 hover:text-white transition-colors uppercase font-bold tracking-widest flex items-center gap-2">
+                <button onClick=${fetchGraph} class="eyebrow hover:text-white transition-colors flex items-center gap-2">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                     Refresh
                 </button>
@@ -59,7 +59,7 @@ function CausalLineageIsland() {
 
             <div class="space-y-4">
                 ${Object.values(graph).slice(0, 10).map(node => html`
-                    <div class="p-6 bg-black/40 border border-white/5 rounded-xl hover:border-primary/30 transition-all group">
+                    <div class="p-4 bg-black/40 border border-white/5 rounded-lg hover:border-primary/30 transition-all group">
                         <div class="flex justify-between items-start mb-3">
                             <div class="flex items-center gap-4">
                                 <div class=${`px-3 py-1 rounded text-[9px] font-black tracking-widest uppercase ${node.type === 'PROCESS' ? 'bg-primary/10 text-primary' : node.type === 'NETWORK' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
@@ -72,7 +72,7 @@ function CausalLineageIsland() {
 
                         ${node.children.length > 0 && html`
                             <div class="mt-4 pt-4 border-t border-white/[0.03] flex flex-col gap-2">
-                                <span class="mono-xs text-slate-700 font-black uppercase tracking-widest">Downstream_Effects:</span>
+                                <span class="eyebrow">Downstream_Effects:</span>
                                 <div class="flex flex-wrap gap-2">
                                     ${node.children.map(childId => html`
                                         <div class="px-3 py-1 bg-white/5 rounded mono-xs text-slate-400 border border-white/5 truncate max-w-[200px]">
@@ -88,7 +88,7 @@ function CausalLineageIsland() {
 
             ${Object.keys(graph).length > 10 && html`
                 <div class="text-center py-4">
-                    <span class="mono-xs text-slate-700 font-bold italic uppercase tracking-widest">+ ${Object.keys(graph).length - 10} additional nodes in causality chain</span>
+                    <span class="eyebrow italic">+ ${Object.keys(graph).length - 10} additional nodes in causality chain</span>
                 </div>
             `}
         </div>

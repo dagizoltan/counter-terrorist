@@ -84,44 +84,44 @@ class NetworkMap extends HTMLElement {
         const total = this.devices.length;
         indicator.innerHTML = `
             <span class="dot active"></span>
-            <span class="mono-xs font-black text-primary uppercase tracking-[0.2em]">Grid_Telemetry_Live // [M:${meshCount}] [T:${total}]</span>
+            <span class="eyebrow" data-tone="primary">Grid_Telemetry_Live // [M:${meshCount}] [T:${total}]</span>
         `;
     }
   }
 
   renderBase() {
     this.innerHTML = `
-      <div class="space-y-12">
-        <div id="topology-map" class="space-y-8">
-           <div class="flex justify-between items-center mb-12 pb-6 border-b border-white/5">
-              <div class="flex items-center gap-6">
+      <div class="space-y-4">
+        <div id="topology-map" class="space-y-4">
+           <div class="flex justify-between items-center mb-5 pb-4 border-b border-white/5">
+              <div class="flex items-center gap-4">
                  <div class="w-2 h-8 bg-primary rounded-full shadow-[0_0_15px_rgba(var(--primary-rgb),0.5)]"></div>
                  <h3 class="tactical-title text-3xl tracking-[0.2em]">ACTIVE_INFRASTRUCTURE_TOPOLOGY</h3>
               </div>
-              <div id="scan-indicator" class="flex items-center gap-4 bg-primary/5 px-6 py-3 rounded-full border border-primary/20">
+              <div id="scan-indicator" class="flex items-center gap-4 bg-primary/5 px-4 py-3 rounded-full border border-primary/20">
                  <span class="dot active"></span>
-                 <span class="mono-xs font-black text-primary uppercase tracking-[0.2em]">Grid_Telemetry_Live</span>
+                 <span class="eyebrow" data-tone="primary">Grid_Telemetry_Live</span>
               </div>
            </div>
 
            <!-- Central Router / Gateway Node -->
-           <div id="gateway-root" class="flex justify-center mb-16"></div>
+           <div id="gateway-root" class="flex justify-center mb-6"></div>
 
            <!-- Connected Assets Layer -->
            <div class="relative">
               <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent"></div>
-              <div id="asset-layer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pt-16">
-                 <div class="col-span-full flex items-center justify-center p-20 opacity-20">
-                    <span class="mono-xs font-black uppercase tracking-[0.4em] text-primary animate-pulse">Scanning_Bus...</span>
+              <div id="asset-layer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-6">
+                 <div class="col-span-full flex items-center justify-center p-6 opacity-20">
+                    <span class="eyebrow animate-pulse" data-tone="primary">Scanning_Bus...</span>
                  </div>
               </div>
            </div>
         </div>
         
         ${this.mode === 'NEIGHBORS' || this.mode === 'FULL' ? `
-        <div id="environmental-signals" class="space-y-10 pt-12 border-t border-white/5">
-           <h3 class="mono-xs font-black text-slate-500 uppercase tracking-[0.3em] mb-8">ENVIRONMENTAL_SPECTRUM_SIGNALS</h3>
-           <div class="grid grid-cols-12 gap-8">
+        <div id="environmental-signals" class="space-y-4 pt-5 border-t border-white/5">
+           <h3 class="eyebrow mb-4">ENVIRONMENTAL_SPECTRUM_SIGNALS</h3>
+           <div class="grid grid-cols-12 gap-4">
               <div class="col-span-12 lg:col-span-6 space-y-4">
                  <div id="wifi-nodes" class="grid grid-cols-1 gap-3"></div>
               </div>
@@ -155,7 +155,7 @@ class NetworkMap extends HTMLElement {
       if (gateway) {
         root.innerHTML = this.renderGatewayNode(gateway);
       } else {
-        root.innerHTML = `<div class="p-8 border border-dashed border-white/10 rounded-2xl opacity-30 mono-xs uppercase tracking-widest italic text-center w-full max-w-md">Default_Gateway_Undetected</div>`;
+        root.innerHTML = `<div class="eyebrow p-4 border border-dashed border-white/10 rounded-lg opacity-30 italic text-center w-full max-w-md">Default_Gateway_Undetected</div>`;
       }
     }
 
@@ -163,7 +163,7 @@ class NetworkMap extends HTMLElement {
       if (otherAssets.length > 0) {
         assets.innerHTML = otherAssets.map(d => this.renderAssetNode(d)).join('');
       } else {
-        assets.innerHTML = `<div class="col-span-full p-20 text-center opacity-20 mono-xs uppercase tracking-[0.5em]">No_Connected_Assets_Found</div>`;
+        assets.innerHTML = `<div class="eyebrow col-span-full p-6 text-center opacity-20">No_Connected_Assets_Found</div>`;
       }
     }
 
@@ -181,16 +181,16 @@ class NetworkMap extends HTMLElement {
   renderGatewayNode(d) {
     return `
       <div class="relative group">
-         <div class="absolute -inset-4 bg-primary/10 rounded-3xl blur-xl group-hover:bg-primary/20 transition-all"></div>
-         <div class="relative t-panel glass-panel border-t-4 border-primary p-10 w-full max-w-md text-center">
+         <div class="absolute -inset-4 bg-primary/10 rounded-lg blur-xl group-hover:bg-primary/20 transition-all"></div>
+         <div class="relative t-panel glass-panel border-t-4 border-primary p-5 w-full max-w-md text-center">
             <div class="flex flex-col items-center gap-4">
                <div class="w-16 h-16 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center mb-2">
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6 3 3-3 3"/><path d="M18 9H3v7"/><path d="M15 13H3"/></svg>
                </div>
-               <span class="mono-xs text-primary font-black uppercase tracking-[0.3em]">CORE_GATEWAY</span>
+               <span class="eyebrow" data-tone="primary">CORE_GATEWAY</span>
                <h4 class="mono-lg font-black text-white italic select-all">${d.hostname || d.ip}</h4>
                <div class="flex gap-4 pt-4 mt-4 border-t border-white/5 w-full justify-center">
-                  <span class="mono-xs text-slate-500 uppercase">${d.mac}</span>
+                  <span class="eyebrow">${d.mac}</span>
                   <span class="mono-xs text-primary font-black">${d.state || 'ACTIVE'}</span>
                </div>
             </div>
@@ -205,20 +205,20 @@ class NetworkMap extends HTMLElement {
     const color = isMesh ? 'var(--primary)' : 'var(--warning)';
     
     return `
-      <div class="t-panel glass-panel border-l-4 p-8 group hover:bg-white/[0.02] transition-all" style="border-left-color: ${color}; ${isStale ? 'opacity: 0.5' : ''}">
-        <div class="flex justify-between items-start mb-6">
+      <div class="t-panel glass-panel border-l-4 p-4 group hover:bg-white/[0.02] transition-all" style="border-left-color: ${color}; ${isStale ? 'opacity: 0.5' : ''}">
+        <div class="flex justify-between items-start mb-4">
           <div class="flex items-center gap-4">
             <div class="w-2 h-2 rounded-full ${isStale ? 'bg-slate-600' : ''}" style="background: ${isStale ? '' : color}"></div>
             <div class="flex flex-col">
-               <span class="mono-xs text-slate-500 uppercase font-black" style="font-size: 8px;">${isMesh ? 'SOVEREIGN_NODE' : 'ETHERNET_ASSET'}</span>
+               <span class="eyebrow" style="font-size: 8px;">${isMesh ? 'SOVEREIGN_NODE' : 'ETHERNET_ASSET'}</span>
                <span class="mono-md font-black text-white italic truncate max-w-[150px]">${d.hostname || d.ip}</span>
             </div>
           </div>
-          <div class="status-pill ${isMesh ? 'active primary' : 'bg-warning/10 text-warning border-warning/20'}">${d.ip}</div>
+          <div class="status-pill ${isMesh ? 'active primary' : 'bg-warning/10 border-warning/20'}">${d.ip}</div>
         </div>
         <div class="pt-4 border-t border-white/5 flex justify-between items-center">
-          <span class="mono-xs text-slate-600 uppercase tracking-widest">${d.mac}</span>
-          <span class="mono-xs font-black uppercase" style="color: ${color}">${d.state || 'CONNECTED'}</span>
+          <span class="eyebrow">${d.mac}</span>
+          <span class="eyebrow" style="color: ${color}">${d.state || 'CONNECTED'}</span>
         </div>
       </div>
     `;
@@ -229,10 +229,10 @@ class NetworkMap extends HTMLElement {
       <div class="p-4 bg-black/40 border border-white/5 rounded flex justify-between items-center group hover:border-white/20 transition-colors">
         <div class="flex items-center gap-4">
            <div class="w-1 h-4 bg-slate-800 rounded"></div>
-           <span class="mono-xs font-black text-slate-400 uppercase tracking-widest truncate max-w-[120px]">${d.ssid || d.hostname || d.mac}</span>
+           <span class="eyebrow truncate max-w-[120px]">${d.ssid || d.hostname || d.mac}</span>
         </div>
         <div class="flex items-center gap-4">
-           <span class="mono-xs text-slate-700 uppercase" style="font-size: 7px;">${d.type}</span>
+           <span class="eyebrow" style="font-size: 7px;">${d.type}</span>
            <div class="w-10 h-1 bg-white/5 rounded-full overflow-hidden">
               <div class="h-full bg-primary" style="width: ${d.signal || 0}%"></div>
            </div>

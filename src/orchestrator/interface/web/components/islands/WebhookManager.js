@@ -77,9 +77,9 @@ class WebhookManager extends HTMLElement {
 
       if (!webhooks || webhooks.length === 0) {
         container.innerHTML = `
-          <div class="text-center py-12 border-2 border-dashed border-white/5 rounded-xl bg-black/20">
+          <div class="text-center py-5 border-2 border-dashed border-white/5 rounded-lg bg-black/20">
             <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">No_Webhooks_Configured</p>
-            <p class="text-slate-700 text-[9px] mono uppercase">Active alerts require Slack, Discord, or generic endpoints.</p>
+            <p class="eyebrow">Active alerts require Slack, Discord, or generic endpoints.</p>
           </div>`;
         return;
       }

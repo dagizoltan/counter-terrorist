@@ -160,18 +160,18 @@ class ArtifactExplorer extends HTMLElement {
     const selectedCount = this.selectedHashes.size;
 
     this.innerHTML = `
-      <div class="flex flex-col gap-10">
+      <div class="flex flex-col gap-4">
         <!-- 01 Provider Row: Grid Layout -->
-        <div class="t-panel glass-panel p-8 bg-black/40 border-t-2 border-warning/20 shadow-2xl">
-           <div class="flex justify-between items-center mb-8 pb-6 border-b border-white/5">
+        <div class="t-panel glass-panel p-4 bg-black/40 border-t-2 border-warning/20 shadow-2xl">
+           <div class="flex justify-between items-center mb-4 pb-4 border-b border-white/5">
               <div class="flex flex-col gap-1">
-                 <h3 class="mono-xs font-black text-slate-500 uppercase tracking-widest">Artifact_Sources</h3>
-                 <span class="mono text-[8px] text-slate-600 uppercase">Analysis_Priority: CRITICAL // Total: ${totalCount.toLocaleString()}</span>
+                 <h3 class="eyebrow">Artifact_Sources</h3>
+                 <span class="eyebrow">Analysis_Priority: CRITICAL // Total: ${totalCount.toLocaleString()}</span>
               </div>
               <div class="flex gap-4">
-                 <button onclick="this.closest('artifact-explorer').syncArtifacts()" class="t-btn primary !py-2 !px-6 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
+                 <button onclick="this.closest('artifact-explorer').syncArtifacts()" class="t-btn primary !py-2 !px-4 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
                     <svg class="transition-transform group-hover:rotate-180 duration-700 ${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                    <span class="mono text-[9px] font-black uppercase tracking-widest">Global_Artifact_Sync</span>
+                    <span class="eyebrow">Global_Artifact_Sync</span>
                  </button>
               </div>
            </div>
@@ -179,12 +179,12 @@ class ArtifactExplorer extends HTMLElement {
            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               ${Object.entries(this.stats).map(([name, count]) => `
                 <button onclick="this.closest('artifact-explorer').setProvider('${name}')" 
-                  class="flex flex-col gap-2 p-5 rounded-xl border transition-all text-left ${this.filter.provider === name ? 'bg-warning/20 border-warning shadow-lg shadow-warning/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
+                  class="flex flex-col gap-2 p-3 rounded-lg border transition-all text-left ${this.filter.provider === name ? 'bg-warning/20 border-warning shadow-lg shadow-warning/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
                   <div class="flex justify-between items-center">
-                     <span class="mono-xs font-black text-white uppercase tracking-widest truncate">${name}</span>
+                     <span class="eyebrow truncate" data-tone="strong">${name}</span>
                      <div class="w-1.5 h-1.5 rounded-full ${count > 0 ? 'bg-warning animate-pulse' : 'bg-slate-700'}"></div>
                   </div>
-                  <span class="text-xl font-black text-white italic tabular-nums">${count.toLocaleString()}</span>
+                  <span class="text-xl font-black text-white tabular-nums">${count.toLocaleString()}</span>
                 </button>
               `).join('')}
            </div>
@@ -192,13 +192,13 @@ class ArtifactExplorer extends HTMLElement {
 
         <!-- 02 Artifact Ledger -->
         <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden shadow-2xl flex flex-col min-h-[800px] border-t-2 border-warning/10">
-           <header class="p-8 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
-              <div class="flex items-center gap-6">
+           <header class="p-4 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
+              <div class="flex items-center gap-4">
                  <div class="flex flex-col gap-1">
-                    <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Binary_Forensic_Registry</span>
-                    <span class="mono text-[7px] text-slate-600 uppercase">Artifact_DNA_Analysis_Active</span>
+                    <span class="eyebrow">Binary_Forensic_Registry</span>
+                    <span class="eyebrow">Artifact_DNA_Analysis_Active</span>
                  </div>
-                 ${this.filter.provider ? `<span class="status-pill warning active !px-4 !py-1 text-[8px]">${this.filter.provider}</span>` : ''}
+                 ${this.filter.provider ? `<span class="status-pill warning active">${this.filter.provider}</span>` : ''}
               </div>
               <div class="flex items-center gap-4">
                  <div class="relative group">
@@ -206,7 +206,7 @@ class ArtifactExplorer extends HTMLElement {
                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                     </div>
                     <input type="text" value="${this.filter.search}" oninput="this.closest('artifact-explorer').setSearch(this.value)" 
-                      class="bg-black/80 border border-white/10 rounded-xl pl-12 pr-6 py-3 mono-xs text-white focus:border-warning outline-none transition-all w-64 shadow-2xl" 
+                      class="bg-black/80 border border-white/10 rounded-lg pl-5 pr-4 py-3 mono-xs text-white focus:border-warning outline-none transition-all w-64 shadow-2xl" 
                       placeholder="SEARCH_HASHES..." />
                  </div>
               </div>
@@ -220,11 +220,11 @@ class ArtifactExplorer extends HTMLElement {
                           <input type="checkbox" onchange="this.closest('artifact-explorer').toggleSelectAll()" 
                             class="accent-warning w-2 h-2 rounded border-white/10 bg-black" />
                        </th>
-                       <th class="p-1 w-[40%] mono text-slate-600 uppercase">Artifact_Indicator (SHA256/Pattern)</th>
-                       <th class="p-1 w-[20%] mono text-slate-600 uppercase">Malware_Family</th>
-                       <th class="p-1 w-[12%] mono text-slate-600 uppercase">Source</th>
-                       <th class="p-1 w-[10%] mono text-slate-600 uppercase">Risk</th>
-                       <th class="p-1 w-[18%] mono text-slate-600 uppercase text-right">Last_Observed</th>
+                       <th class="eyebrow p-1 w-[40%]">Artifact_Indicator (SHA256/Pattern)</th>
+                       <th class="eyebrow p-1 w-[20%]">Malware_Family</th>
+                       <th class="eyebrow p-1 w-[12%]">Source</th>
+                       <th class="eyebrow p-1 w-[10%]">Risk</th>
+                       <th class="eyebrow p-1 w-[18%] text-right">Last_Observed</th>
                     </tr>
                  </thead>
                  <tbody class="divide-y divide-white/5">
@@ -238,7 +238,7 @@ class ArtifactExplorer extends HTMLElement {
                         });
                       
                       if (validArtifacts.length === 0 && !this.loading) {
-                        return `<tr><td colspan="6" class="p-8 text-center mono text-[8px] opacity-20 uppercase">No_Artifacts_Discovered</td></tr>`;
+                        return `<tr><td colspan="6" class="eyebrow p-4 text-center opacity-20">No_Artifacts_Discovered</td></tr>`;
                       }
                       
                       return validArtifacts.map(t => `
@@ -252,10 +252,10 @@ class ArtifactExplorer extends HTMLElement {
                                <span class="mono text-[8px] text-white tabular-nums">${t.indicator}</span>
                             </td>
                             <td class="p-1 truncate">
-                               <span class="mono text-[6.5px] text-slate-500 uppercase">${t.threatType}</span>
+                               <span class="eyebrow">${t.threatType}</span>
                             </td>
                             <td class="p-1">
-                               <span class="mono text-[6.5px] text-slate-600 font-bold uppercase">${t.provider}</span>
+                               <span class="eyebrow">${t.provider}</span>
                             </td>
                             <td class="p-1">
                                <div class="flex items-center gap-1">
@@ -266,7 +266,7 @@ class ArtifactExplorer extends HTMLElement {
                                </div>
                             </td>
                             <td class="p-1 text-right">
-                               <span class="mono text-[6.5px] text-slate-700 font-bold uppercase">
+                               <span class="eyebrow">
                                   ${new Date(t.lastSeen).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
                                </span>
                             </td>

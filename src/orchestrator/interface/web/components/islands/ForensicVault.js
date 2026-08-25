@@ -63,19 +63,19 @@ class ForensicVault extends HTMLElement {
     // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
     this.innerHTML = `
       <div class="t-panel glass-panel p-0 bg-black/40 overflow-hidden shadow-2xl flex flex-col border-t-2 border-primary/10">
-        <header class="p-8 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
+        <header class="p-4 border-b border-white/5 bg-black/60 flex justify-between items-center backdrop-blur-xl sticky top-0 z-20">
            <div class="flex flex-col gap-1">
-              <span class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">Forensic_Vault</span>
-              <span class="mono text-[7px] text-slate-600 uppercase italic">Immutable Evidence Chain // Root-Protected Storage</span>
+              <span class="eyebrow">Forensic_Vault</span>
+              <span class="eyebrow italic">Immutable Evidence Chain // Root-Protected Storage</span>
            </div>
            <div class="flex gap-4">
-              <button id="btn-bundle" class="t-btn !py-2 !px-6 ${this.bundling ? 'opacity-50 pointer-events-none' : ''}">
+              <button id="btn-bundle" class="t-btn !py-2 !px-4 ${this.bundling ? 'opacity-50 pointer-events-none' : ''}">
                  <svg class="${this.bundling ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                 <span class="mono text-[9px] font-black uppercase tracking-widest ml-2">Create_Signed_Bundle</span>
+                 <span class="eyebrow ml-2">Create_Signed_Bundle</span>
               </button>
-              <button id="btn-refresh" class="t-btn !py-2 !px-6 ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
+              <button id="btn-refresh" class="t-btn !py-2 !px-4 ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
                  <svg class="${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-                 <span class="mono text-[9px] font-black uppercase tracking-widest ml-2">Refresh_Ledger</span>
+                 <span class="eyebrow ml-2">Refresh_Ledger</span>
               </button>
            </div>
         </header>
@@ -84,11 +84,11 @@ class ForensicVault extends HTMLElement {
            <table class="w-full text-left border-collapse table-fixed">
               <thead class="sticky top-0 bg-black/40 backdrop-blur-md z-10 border-b border-white/5 text-[8px]">
                  <tr>
-                    <th class="p-4 w-[40%] mono text-slate-500 font-black uppercase">Artifact_Identifier</th>
-                    <th class="p-4 w-[15%] mono text-slate-500 font-black uppercase">Type</th>
-                    <th class="p-4 w-[15%] mono text-slate-500 font-black uppercase">Size</th>
-                    <th class="p-4 w-[20%] mono text-slate-500 font-black uppercase">Committed_At</th>
-                    <th class="p-4 w-[10%] mono text-slate-500 font-black uppercase text-right">Actions</th>
+                    <th class="eyebrow p-4 w-[40%]">Artifact_Identifier</th>
+                    <th class="eyebrow p-4 w-[15%]">Type</th>
+                    <th class="eyebrow p-4 w-[15%]">Size</th>
+                    <th class="eyebrow p-4 w-[20%]">Committed_At</th>
+                    <th class="eyebrow p-4 w-[10%] text-right">Actions</th>
                  </tr>
               </thead>
               <tbody id="artifact-list" class="divide-y divide-white/5">
@@ -103,7 +103,7 @@ class ForensicVault extends HTMLElement {
 
     const tbody = this.querySelector('#artifact-list');
     if (this.artifacts.length === 0 && !this.loading) {
-        tbody.innerHTML = `<tr><td colspan="5" class="p-12 text-center opacity-20 mono-xs font-black uppercase tracking-[0.4em]">Vault_Empty // No_Active_Breach_Data</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="eyebrow p-5 text-center opacity-20">Vault_Empty // No_Active_Breach_Data</td></tr>`;
     } else {
         this.artifacts.forEach(a => {
             const tr = document.createElement('tr');

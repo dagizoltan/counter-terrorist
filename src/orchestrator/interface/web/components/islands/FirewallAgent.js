@@ -87,8 +87,8 @@ class FirewallAgent extends HTMLElement {
     if (listEl && firewall.blockedIps) {
       if (firewall.blockedIps.length === 0) {
         listEl.innerHTML = `
-          <div class="p-12 text-center t-panel glass-panel border-dashed opacity-50">
-            <span class="mono-xs font-black text-slate-500 uppercase tracking-widest italic">No Active Blocks Detected</span>
+          <div class="p-5 text-center t-panel glass-panel border-dashed opacity-50">
+            <span class="eyebrow italic">No Active Blocks Detected</span>
           </div>
         `;
       } else {
@@ -101,7 +101,7 @@ class FirewallAgent extends HTMLElement {
 
           const info = document.createElement('div');
           info.className = "flex flex-col gap-1";
-          info.innerHTML = `<span class="mono-xs text-slate-500 font-black tracking-widest uppercase">Target Address</span>`;
+          info.innerHTML = `<span class="eyebrow">Target Address</span>`;
           const ipSpan = document.createElement('span');
           ipSpan.className = "mono-sm font-black text-danger uppercase tracking-widest";
           ipSpan.textContent = ip;
@@ -123,7 +123,7 @@ class FirewallAgent extends HTMLElement {
 
           const statusDiv = document.createElement('div');
           statusDiv.className = "flex items-center gap-3";
-          statusDiv.innerHTML = `<div class="dot danger"></div><span class="mono-xs font-black uppercase text-danger tracking-widest">Quarantined</span>`;
+          statusDiv.innerHTML = `<div class="dot danger"></div><span class="eyebrow" data-tone="danger">Quarantined</span>`;
 
           actions.appendChild(releaseBtn);
           actions.appendChild(statusDiv);
@@ -140,7 +140,7 @@ class FirewallAgent extends HTMLElement {
     if (!trafficEl) return;
     if (!logs || logs.length === 0) {
       trafficEl.innerHTML = `
-        <div class="mono-xs text-slate-700  p-12 text-center uppercase tracking-widest font-black">
+        <div class="eyebrow p-5 text-center">
            Awaiting_Packet_Signals...
         </div>
       `;

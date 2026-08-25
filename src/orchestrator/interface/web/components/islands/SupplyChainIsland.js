@@ -16,14 +16,14 @@ function SupplyChainIsland() {
   }, []);
 
   if (!status) return html`
-    <div class="flex items-center justify-center p-12 text-slate-500  mono font-black uppercase tracking-widest text-xs">
+    <div class="eyebrow flex items-center justify-center p-5">
        Scanning_Supply_Chain...
     </div>
   `;
 
   return html`
-    <div class="p-8">
-      <div class="flex justify-between items-center mb-12">
+    <div class="p-4">
+      <div class="flex justify-between items-center mb-5">
          <div>
             <div class="metric-tag mb-2">Integrity_Assurance</div>
             <h3 class="tactical-title" style="font-size:1.5rem;">SUPPLY_CHAIN_HEALTH</h3>
@@ -34,8 +34,8 @@ function SupplyChainIsland() {
          </div>
       </div>
 
-      <div class="space-y-6">
-         <div class="grid grid-cols-4 gap-6 pb-4 border-b border-white/5">
+      <div class="space-y-4">
+         <div class="grid grid-cols-4 gap-4 pb-4 border-b border-white/5">
             <span class="metric-tag">Component</span>
             <span class="metric-tag">Version</span>
             <span class="metric-tag">License</span>
@@ -43,8 +43,8 @@ function SupplyChainIsland() {
          </div>
          <div class="max-h-[300px] overflow-y-auto space-y-3 pr-4 custom-scrollbar">
             ${sbom.map(item => html`
-              <div key=${item.name} class="grid grid-cols-4 gap-6 py-4 border-b border-white/[0.03] group hover:bg-white/[0.02]">
-                 <span class="mono text-[11px] text-white font-black uppercase">${item.name}</span>
+              <div key=${item.name} class="grid grid-cols-4 gap-4 py-4 border-b border-white/[0.03] group hover:bg-white/[0.02]">
+                 <span class="eyebrow text-[11px]" data-tone="strong">${item.name}</span>
                  <span class="mono text-[11px] text-slate-500">${item.version}</span>
                  <span class="mono text-[11px] text-slate-500">${item.license}</span>
                  <span class="text-right">
@@ -58,9 +58,9 @@ function SupplyChainIsland() {
       </div>
 
       ${status.vulnerableCount > 0 && html`
-        <div class="mt-12 p-6 bg-danger/5 border border-danger/20 flex items-center gap-6">
+        <div class="mt-5 p-4 bg-danger/5 border border-danger/20 flex items-center gap-4">
            <div class="dot danger"></div>
-           <p class="mono text-[10px] font-black text-danger uppercase tracking-widest leading-relaxed">
+           <p class="eyebrow leading-relaxed" data-tone="danger">
               VULNERABILITY DETECTED: ${status.vulnerableCount} compromised components identified in manifest.
            </p>
         </div>

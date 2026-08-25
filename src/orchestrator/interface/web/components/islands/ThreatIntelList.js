@@ -50,7 +50,7 @@ class ThreatIntelList extends HTMLElement {
 
   renderBase() {
     this.innerHTML = `
-      <div id="threat-container" class="flex flex-col gap-5">
+      <div id="threat-container" class="flex flex-col gap-3">
          <div class="skeleton h-24 w-full"></div>
          <div class="skeleton h-24 w-full opacity-60"></div>
          <div class="skeleton h-24 w-full opacity-30"></div>
@@ -64,12 +64,12 @@ class ThreatIntelList extends HTMLElement {
 
     if (!threats || threats.length === 0) {
       container.innerHTML = `
-        <div class="p-6 bg-black/40 border border-white/5 rounded-xl flex items-center justify-between">
+        <div class="p-4 bg-black/40 border border-white/5 rounded-lg flex items-center justify-between">
            <div class="flex items-center gap-3">
-              <div class="w-2 h-2 rounded-full bg-success"></div>
-              <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">No Active Threat Neutralizations In Flight</span>
+              <div class="indicator" data-state="ok" aria-hidden="true"></div>
+              <span class="eyebrow">No Active Threat Neutralizations In Flight</span>
            </div>
-           <span class="status-pill success active !px-3 !py-0.5 text-[8px]">Perimeter Clear</span>
+           <span class="status-pill success active">Perimeter Clear</span>
         </div>
       `;
       return;
@@ -80,15 +80,15 @@ class ThreatIntelList extends HTMLElement {
       const color = `var(--${theme})`;
 
       return `
-        <div class="flex items-center justify-between p-6 bg-black/40 border border-white/5 rounded-xl group hover:border-white/10 ">
-           <div class="flex items-center gap-8">
+        <div class="flex items-center justify-between p-4 bg-black/40 border border-white/5 rounded-lg group hover:border-white/10">
+           <div class="flex items-center gap-4">
               <div class="dot ${theme} ${t.blocked ? 'shadow-success' : 'shadow-danger'}"></div>
               <div class="flex flex-col gap-2">
                  <span class="mono-sm font-bold tracking-tight ${t.blocked ? 'text-success' : 'text-white'} uppercase select-all">${window.escapeHTML(t.indicator)}</span>
                  <div class="flex items-center gap-4">
-                    <span class="mono-xs font-bold text-slate-600 uppercase tracking-[0.2em]">${window.escapeHTML(t.threatType)}</span>
+                    <span class="eyebrow">${window.escapeHTML(t.threatType)}</span>
                     <span class="text-slate-800 text-[10px]">//</span>
-                    <span class="mono-xs font-bold text-primary/40 uppercase tracking-[0.1em]">${window.escapeHTML(t.provider)}</span>
+                    <span class="eyebrow text-primary/40">${window.escapeHTML(t.provider)}</span>
                  </div>
               </div>
            </div>

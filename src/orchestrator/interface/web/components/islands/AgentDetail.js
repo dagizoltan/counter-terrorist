@@ -154,9 +154,9 @@ class AgentDetail extends HTMLElement {
     if (name === 'firewall') {
       const metrics = agentData.metrics || {};
       container.innerHTML = `
-        <div class="grid grid-cols-12 gap-8">
+        <div class="grid grid-cols-12 gap-4">
           <section class="col-span-12 t-panel glass-panel border-t-2 border-danger/40">
-            <header class="flex justify-between items-center mb-10 pb-4 border-b border-white/5">
+            <header class="flex justify-between items-center mb-5 pb-4 border-b border-white/5">
                 <div class="flex items-center gap-4">
                    <div class="p-3 bg-danger/10 border border-danger/20 text-danger rounded-lg">
                       <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -168,27 +168,27 @@ class AgentDetail extends HTMLElement {
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 ${(metrics.blockedIps || []).map(ip => `
                  <div class="p-4 bg-black/60 border border-white/5 flex items-center justify-between group hover:border-danger/40 rounded-lg">
-                     <span class="mono-xs text-danger font-black uppercase tracking-widest">${globalThis.escapeHTML(ip)}</span>
+                     <span class="eyebrow" data-tone="danger">${globalThis.escapeHTML(ip)}</span>
                      <button onclick="const t=document.querySelector('meta[name=\\'csrf-token\\']')?.content; fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token': t}, body:JSON.stringify({ip: '${globalThis.escapeHTML(ip)}'})}).then(() => location.reload())"
-                             class="opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white transition-opacity">PURGE</button>
+                             class="eyebrow opacity-0 group-hover:opacity-100 hover:text-white transition-opacity">PURGE</button>
                  </div>
                `).join('') || `
-                   <div class="col-span-full py-12 flex items-center justify-center border border-dashed border-white/5 rounded-lg">
-                     <div class="mono-xs font-bold text-slate-500 uppercase tracking-widest">No_Definitive_Blocks_Active</div>
+                   <div class="col-span-full py-5 flex items-center justify-center border border-dashed border-white/5 rounded-lg">
+                     <div class="eyebrow">No_Definitive_Blocks_Active</div>
                   </div>
                `}
             </div>
           </section>
           
           <section class="col-span-12 t-panel glass-panel border-t-2 border-slate-800">
-            <header class="flex items-center gap-4 mb-10 pb-4 border-b border-white/5">
+            <header class="flex items-center gap-4 mb-5 pb-4 border-b border-white/5">
                 <div class="p-3 bg-primary/10 border border-primary/20 text-primary rounded-lg">
                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
                 </div>
                 <h3 class="tactical-title text-sm uppercase tracking-widest">DEEP_PACKET_INSPECTION_FEED</h3>
             </header>
-            <div id="traffic-log-container" class="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar bg-black/40 rounded-xl p-4 border border-white/5 font-mono">
-               <div class="p-12 text-center text-slate-700 uppercase tracking-[0.3em] ">Synchronizing_DPI_Stream...</div>
+            <div id="traffic-log-container" class="space-y-2 max-h-[500px] overflow-y-auto custom-scrollbar bg-black/40 rounded-lg p-4 border border-white/5 font-mono">
+               <div class="p-5 text-center text-slate-700 uppercase tracking-[0.3em]">Synchronizing_DPI_Stream...</div>
             </div>
           </section>
         </div>
@@ -196,48 +196,48 @@ class AgentDetail extends HTMLElement {
       this.fetchTraffic();
     } else if (name === 'vpn') {
       container.innerHTML = `
-        <div class="grid grid-cols-12 gap-8">
-          <div class="col-span-12 lg:col-span-6 t-panel glass-panel border-t-2 border-primary/40 p-10">
-             <header class="flex justify-between items-center mb-10 pb-4 border-b border-white/5">
+        <div class="grid grid-cols-12 gap-4">
+          <div class="col-span-12 lg:col-span-6 t-panel glass-panel border-t-2 border-primary/40 p-5">
+             <header class="flex justify-between items-center mb-5 pb-4 border-b border-white/5">
                  <span class="metric-tag uppercase font-bold tracking-widest">Tunnel_Configuration</span>
                 <span class="status-pill success">ENCRYPTED</span>
              </header>
-             <div class="space-y-6">
+             <div class="space-y-4">
                 <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px] transition-transform">
-                   <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Interface</span>
-                   <span class="text-lg font-black text-primary tracking-tighter uppercase italic">wg0</span>
+                   <span class="eyebrow">Interface</span>
+                   <span class="text-lg font-black text-primary tracking-tighter uppercase">wg0</span>
                 </div>
                 <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px] transition-transform">
-                   <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Cipher_Suite</span>
+                   <span class="eyebrow">Cipher_Suite</span>
                    <span class="text-lg font-black text-white tracking-tighter">ChaCha20-Poly1305</span>
                 </div>
                 <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-y-[-2px] transition-transform">
-                   <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest">Handshake</span>
+                   <span class="eyebrow">Handshake</span>
                    <span class="text-lg font-black text-success tracking-tighter uppercase">ESTABLISHED</span>
                 </div>
              </div>
           </div>
-          <div class="col-span-12 lg:col-span-6 t-panel glass-panel border-t-2 border-slate-800 p-10">
-             <header class="flex justify-between items-center mb-10 pb-4 border-b border-white/5">
+          <div class="col-span-12 lg:col-span-6 t-panel glass-panel border-t-2 border-slate-800 p-5">
+             <header class="flex justify-between items-center mb-5 pb-4 border-b border-white/5">
                 <span class="metric-tag uppercase font-black tracking-widest">Traffic_Telemetry</span>
-                <span class="mono-xs text-slate-700 font-bold uppercase tracking-widest">Live_IO_Feed</span>
+                <span class="eyebrow">Live_IO_Feed</span>
              </header>
-             <div class="space-y-6">
-                <div class="flex justify-between items-center p-6 bg-black/40 border border-white/5 rounded hover:translate-x-[2px] transition-transform">
+             <div class="space-y-4">
+                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-x-[2px] transition-transform">
                    <div class="flex flex-col">
-                      <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest mb-1">Egress_Volume</span>
+                      <span class="eyebrow mb-1">Egress_Volume</span>
                       <span class="text-4xl font-black text-white tracking-tighter uppercase tabular-nums">${(agentData.telemetry?.tx || 0).toFixed(2)} <span class="text-slate-700 text-xl">MB</span></span>
                    </div>
-                   <div class="p-3 bg-primary/10 text-primary rounded-full ">
+                   <div class="p-3 bg-primary/10 text-primary rounded-full">
                       <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M7 17l10-10M7 7h10v10"/></svg>
                    </div>
                 </div>
-                <div class="flex justify-between items-center p-6 bg-black/40 border border-white/5 rounded hover:translate-x-[2px] transition-transform">
+                <div class="flex justify-between items-center p-4 bg-black/40 border border-white/5 rounded hover:translate-x-[2px] transition-transform">
                    <div class="flex flex-col">
-                      <span class="mono-xs text-slate-600 font-bold uppercase tracking-widest mb-1">Ingress_Volume</span>
+                      <span class="eyebrow mb-1">Ingress_Volume</span>
                       <span class="text-4xl font-black text-white tracking-tighter uppercase tabular-nums">${(agentData.telemetry?.rx || 0).toFixed(2)} <span class="text-slate-700 text-xl">MB</span></span>
                    </div>
-                   <div class="p-3 bg-success/10 text-success rounded-full ">
+                   <div class="p-3 bg-success/10 text-success rounded-full">
                       <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M17 7L7 17m10 0H7V7"/></svg>
                    </div>
                 </div>
@@ -259,8 +259,8 @@ class AgentDetail extends HTMLElement {
       if (!logEl) return;
       if (!logs || logs.length === 0) {
         logEl.innerHTML = `
-          <div class="py-24 flex flex-col items-center justify-center opacity-20">
-             <div class="mono-xs font-black text-slate-500 uppercase tracking-[0.4em]">No_Traffic_Signals_Intercepted</div>
+          <div class="py-6 flex flex-col items-center justify-center opacity-20">
+             <div class="eyebrow">No_Traffic_Signals_Intercepted</div>
           </div>
         `;
         return;
@@ -268,13 +268,13 @@ class AgentDetail extends HTMLElement {
       logEl.innerHTML = (logs || []).map(l => {
         const isBlock = l.action === 'BLOCK';
         return `
-          <div class="flex items-center gap-8 p-6 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors">
+          <div class="flex items-center gap-4 p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group transition-colors">
             <span class="mono-xs text-slate-600 font-bold w-20">${new Date(l.timestamp).toLocaleTimeString([], {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span>
             <span class="mono-xs font-bold w-16 ${l.direction === 'INBOUND' ? 'text-primary' : 'text-warning'}">${globalThis.escapeHTML(l.direction.slice(0, 3))}</span>
-            <span class="mono-xs flex-1 truncate text-slate-400 font-bold uppercase tracking-widest">
+            <span class="eyebrow flex-1 truncate">
                ${globalThis.escapeHTML(l.source)} <span class="text-slate-800 mx-2">→</span> ${globalThis.escapeHTML(l.destination)}
             </span>
-            <div class="flex items-center gap-6">
+            <div class="flex items-center gap-4">
                <span class="status-pill ${isBlock ? 'danger' : 'success'}">${globalThis.escapeHTML(l.action)}</span>
             </div>
           </div>
