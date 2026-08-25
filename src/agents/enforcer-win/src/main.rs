@@ -64,10 +64,24 @@ async fn wfp_add_block_rule(ip: &str, port: Option<u16>) -> (bool, String) {
             description: windows::core::PWSTR(std::ptr::null_mut()),
         };
 
+        let ip_addr = ip.parse::<std::net::Ipv4Addr>().unwrap_or(std::net::Ipv4Addr::UNSPECIFIED);
+        let mut ip_u32 = u32::from_be_bytes(ip_addr.octets());
+
+        let condition = FWPM_FILTER_CONDITION0 {
+            fieldKey: FWPM_CONDITION_IP_REMOTE_ADDRESS,
+            matchType: FWP_MATCH_EQUAL,
+            conditionValue: FWP_CONDITION_VALUE0 {
+                type_: FWP_UINT32,
+                Anonymous: FWP_CONDITION_VALUE0_0 { uint32: ip_u32 },
+            },
+        };
+
         let mut filter = FWPM_FILTER0::default();
         filter.displayData = display_data;
         filter.action.r#type = FWP_ACTION_BLOCK;
         filter.layerKey = FWPM_LAYER_INBOUND_IPPACKET_V4;
+        filter.numFilterConditions = 1;
+        filter.filterCondition = &condition as *const _ as *mut _;
 
         let mut filter_id: u64 = 0;
 
