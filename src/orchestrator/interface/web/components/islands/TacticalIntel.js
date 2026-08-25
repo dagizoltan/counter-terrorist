@@ -16,7 +16,7 @@ function TacticalIntel() {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       const data = await unwrap(res);
-      setIntel(data);
+      setIntel(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error("Failed to fetch tactical intelligence", e);
     } finally {

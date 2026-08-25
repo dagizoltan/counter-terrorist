@@ -11,7 +11,7 @@ export const SupplyChainPage = (props: { status: any, csrfToken?: string, nonce?
   const healthScore = sbom.length > 0 ? Math.round((secureCount / sbom.length) * 100) : 100;
 
   return (
-    <Layout title="Supply Chain Audit" islandPaths={[]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
+    <Layout title="Supply Chain Audit" islandPaths={['/components/islands/SupplyChainIsland.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       <header class="page-header">
         <div class="title-group">
           <h1>Supply Chain Integrity</h1>
@@ -25,6 +25,15 @@ export const SupplyChainPage = (props: { status: any, csrfToken?: string, nonce?
            <div class={`w-1.5 h-16 rounded-full ${healthScore > 90 ? 'bg-success' : 'bg-warning'}`}></div>
         </div>
       </header>
+
+      {/* SupplyChainIsland mounts into this root by id. It polls
+          /api/supply-chain/status for live verification state, which the
+          server-rendered inventory below has no equivalent of. */}
+      <div class="grid grid-cols-12 gap-4 mb-5">
+         <div class="col-span-12">
+            <div id="supply-chain-container"></div>
+         </div>
+      </div>
 
       <div class="grid grid-cols-12 gap-4 mb-5">
          <div class="col-span-12 lg:col-span-4 space-y-4">

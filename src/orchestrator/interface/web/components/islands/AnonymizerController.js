@@ -25,11 +25,11 @@ class AnonymizerController extends HTMLElement {
           const vpn = payload.data.vpn;
           this.updateState(vpn.mode);
           
-          // Update external metric cards if they exist
-          const protocolEl = document.getElementById('vpn-protocol');
-          const regionEl = document.getElementById('vpn-region');
-          const statusEl = document.getElementById('vpn-status');
-          const rotationEl = document.getElementById('vpn-rotation');
+          // Status readouts, rendered by this island (see render()).
+          const protocolEl = this.querySelector('#vpn-protocol');
+          const regionEl = this.querySelector('#vpn-region');
+          const statusEl = this.querySelector('#vpn-status');
+          const rotationEl = this.querySelector('#vpn-rotation');
 
           if (protocolEl && vpn.currentNode) protocolEl.textContent = vpn.currentNode.protocol || 'WIREGUARD';
           if (regionEl && vpn.currentNode) regionEl.textContent = vpn.currentNode.country || 'GLOBAL';
@@ -56,6 +56,25 @@ class AnonymizerController extends HTMLElement {
   render() {
     this.innerHTML = `
       <div class="space-y-4">
+        <div class="stat-grid">
+           <div class="stat-cell">
+              <span class="eyebrow">Protocol</span>
+              <span class="stat-cell__value" id="vpn-protocol">—</span>
+           </div>
+           <div class="stat-cell">
+              <span class="eyebrow">Region</span>
+              <span class="stat-cell__value" id="vpn-region">—</span>
+           </div>
+           <div class="stat-cell">
+              <span class="eyebrow">Status</span>
+              <span class="stat-cell__value" id="vpn-status">—</span>
+           </div>
+           <div class="stat-cell">
+              <span class="eyebrow">Rotation</span>
+              <span class="stat-cell__value" id="vpn-rotation">—</span>
+           </div>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
            ${[
              { id: 'OFF', label: 'DIRECT_STACK', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M2 12h20"/></svg>' },
@@ -98,7 +117,7 @@ class AnonymizerController extends HTMLElement {
   }
 
   renderLogs() {
-    const container = document.getElementById('anon-logs');
+    const container = this.querySelector('#anon-logs');
     if (!container || this.logs.length === 0) return;
 
     // SEC-03: DOM-based XSS Hardening.

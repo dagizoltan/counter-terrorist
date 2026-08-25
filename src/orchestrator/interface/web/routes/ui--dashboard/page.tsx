@@ -46,6 +46,7 @@ export const Dashboard = (props: {
     "/components/islands/HoneypotChart.js",
     "/components/islands/NewsFeed.js",
     "/components/islands/BlockingLog.js",
+    "/components/islands/TacticalIntel.js",
   ];
 
   return (
@@ -127,13 +128,27 @@ export const Dashboard = (props: {
       <section>
         <TacticalSectionTitle label="Tactical Intelligence Deck" tone="danger" />
 
-        <TacticalPanel
-          accent="crit"
-          title="External Threat Databases"
-          actions={<a href="/intel/feed" class="btn ghost btn--sm">Intelligence Center</a>}
-        >
-          <news-feed limit="4" compact="true"></news-feed>
-        </TacticalPanel>
+        <div class="grid grid-cols-12 gap-4">
+          <TacticalPanel
+            accent="crit"
+            title="External Threat Databases"
+            actions={<a href="/intel/feed" class="btn ghost btn--sm">Intelligence Center</a>}
+            class="col-span-12 lg:col-span-6"
+          >
+            <news-feed limit="4" compact="true"></news-feed>
+          </TacticalPanel>
+
+          {/* TacticalIntel mounts into this root by id. It ships a live view of
+              the autonomous mesh's incursion vectors but no page had ever
+              loaded the script, so it was dead code. */}
+          <TacticalPanel
+            accent="warn"
+            title="Autonomous Defense Signals"
+            class="col-span-12 lg:col-span-6"
+          >
+            <div id="tactical-intel-root"></div>
+          </TacticalPanel>
+        </div>
       </section>
 
       {/* ── Defensive mesh ─────────────────────────────────────────────── */}
