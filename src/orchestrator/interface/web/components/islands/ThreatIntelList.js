@@ -10,7 +10,26 @@ class ThreatIntelList extends HTMLElement {
 
   connectedCallback() {
     this.renderBase();
+    this.fetchInitial();
     this.connect();
+  }
+
+  async fetchInitial() {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/threats/identified?limit=15', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.threats || []);
+        if (list.length > 0) {
+          this.updateThreats(list);
+        }
+      }
+    } catch (e) {
+      console.warn('[THREAT-INTEL-LIST] Initial fetch failed');
+    }
   }
 
   connect() {
@@ -45,8 +64,12 @@ class ThreatIntelList extends HTMLElement {
 
     if (!threats || threats.length === 0) {
       container.innerHTML = `
-        <div class="empty-state">
-           <span class="mono-xs font-bold text-slate-500 uppercase tracking-widest italic">Intelligence_Stream_Quiet</span>
+        <div class="p-6 bg-black/40 border border-white/5 rounded-xl flex items-center justify-between">
+           <div class="flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full bg-success"></div>
+              <span class="mono-xs font-black text-slate-400 uppercase tracking-widest">No Active Threat Neutralizations In Flight</span>
+           </div>
+           <span class="status-pill success active !px-3 !py-0.5 text-[8px]">Perimeter Clear</span>
         </div>
       `;
       return;

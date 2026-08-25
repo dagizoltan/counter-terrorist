@@ -33,19 +33,22 @@ export const Layout = (props: {
         <div class="app-shell">
           
           {/* ── 01 Navigation Deck (Left) ─────────────────────────────── */}
-          <aside class="shell-sidebar relative">
-            <header class="h-[var(--header-height-sm)] px-8 flex items-center border-b border-white/5 bg-black/20 shrink-0">
-               <h1 class="text-lg font-black tracking-[0.2em] uppercase italic leading-none text-white">CT ORCH</h1>
+          <aside id="main-sidebar" class="shell-sidebar relative">
+            <header class="h-[var(--header-height-sm)] px-4 flex items-center justify-between border-b border-white/5 bg-black/20 shrink-0">
+               <h1 class="brand-title text-base font-black tracking-[0.2em] uppercase italic leading-none text-white pl-2">CT ORCH</h1>
+               <button id="sidebar-toggle-btn" onclick="window.toggleSidebar()" class="sidebar-nav-icon" title="Toggle Sidebar Navigation">
+                  <svg id="sidebar-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+               </button>
             </header>
 
             <SidebarNav userRole={props.userRole} />
 
-            <footer class="p-4 border-t border-white/5 bg-black/20">
+            <footer class="p-3 border-t border-white/5 bg-black/20">
                <form method="POST" action="/logout">
                   <input type="hidden" name="csrfToken" value={props.csrfToken} />
-                  <button type="submit" class="t-btn danger w-full justify-center group py-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-                    Terminate Session
+                  <button type="submit" class="t-btn danger sidebar-footer-btn w-full justify-center group py-2.5" title="Terminate Session">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 shrink-0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span class="sidebar-footer-text truncate">Terminate Session</span>
                   </button>
                </form>
             </footer>
@@ -183,6 +186,37 @@ export const Layout = (props: {
             if (!str) return '';
             return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
           };
+
+          // Collapsible Left Sidebar Logic
+          window.toggleSidebar = function() {
+            const sidebar = document.getElementById('main-sidebar');
+            const appShell = document.querySelector('.app-shell');
+            const icon = document.getElementById('sidebar-toggle-icon');
+            if (!sidebar || !appShell) return;
+
+            const isCollapsed = sidebar.classList.toggle('collapsed');
+            appShell.classList.toggle('sidebar-is-collapsed', isCollapsed);
+            localStorage.setItem('sovereign_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+
+            if (icon) {
+              icon.innerHTML = isCollapsed
+                ? '<polyline points="9 18 15 12 9 6"/>'
+                : '<polyline points="15 18 9 12 15 6"/>';
+            }
+          };
+
+          // Restore Collapsed State
+          (function restoreSidebarState() {
+            const stored = localStorage.getItem('sovereign_sidebar_collapsed');
+            if (stored === 'true') {
+              const sidebar = document.getElementById('main-sidebar');
+              const appShell = document.querySelector('.app-shell');
+              const icon = document.getElementById('sidebar-toggle-icon');
+              if (sidebar) sidebar.classList.add('collapsed');
+              if (appShell) appShell.classList.add('sidebar-is-collapsed');
+              if (icon) icon.innerHTML = '<polyline points="9 18 15 12 9 6"/>';
+            }
+          })();
 
           // Global Tab Switching (Forensics)
           window.switchSidebarTab = function(tab) {

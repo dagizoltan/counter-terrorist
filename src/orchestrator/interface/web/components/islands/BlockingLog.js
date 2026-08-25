@@ -123,6 +123,15 @@ class BlockingLog extends HTMLElement {
     const filteredLogs = this.filter === 'ALL'
       ? this.logs
       : this.logs.filter(log => log.type === this.filter);
+
+    if (filteredLogs.length === 0) {
+      this.container.innerHTML = `
+        <div class="p-6 text-center border border-dashed border-white/5 rounded-xl my-4">
+           <span class="mono-xs font-bold text-slate-500 uppercase tracking-widest">Enforcement Ledger Clear // Awaiting Signals</span>
+        </div>
+      `;
+      return;
+    }
     
     filteredLogs.forEach(log => this.appendLog(log));
   }

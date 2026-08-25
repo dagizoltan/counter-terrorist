@@ -10,18 +10,18 @@ const colorMap: Record<string, { text: string, bg: string }> = {
 
 export const SidebarNavGroup = ({ title, color, children }: { title: string, color: string, children: any }) => (
   <div class="nav-group mb-6">
-    <div class={`nav-heading ${colorMap[color]?.text || ""} flex items-center gap-3`}>
-       <div class={`w-1 h-3 ${colorMap[color]?.bg || ""} rounded-full`}></div>
-       {title}
+    <div class={`nav-heading ${colorMap[color]?.text || ""} flex items-center gap-3 px-2`}>
+       <div class={`w-1.5 h-3 ${colorMap[color]?.bg || ""} rounded-full shrink-0`}></div>
+       <span class="nav-heading-text truncate">{title}</span>
     </div>
     {children}
   </div>
 );
 
 export const SidebarNavLink = ({ href, icon, label }: { href: string, icon: any, label: string }) => (
-  <a href={href} class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
-     {icon}
-     {label}
+  <a href={href} data-tooltip={label} class="nav-link flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group">
+     <div class="flex items-center justify-center shrink-0 w-5 h-5">{icon}</div>
+     <span class="nav-link-label truncate">{label}</span>
   </a>
 );
 
@@ -100,11 +100,7 @@ export const SidebarNav = ({ userRole }: { userRole?: string }) => {
       </SidebarNavGroup>
 
       {/* 05 SYSTEM (Administration) */}
-      <div class="nav-group pt-4 border-t border-white/5 mt-4 mb-8">
-        <div class="nav-heading !text-slate-500 flex items-center gap-3 mb-2 px-4">
-           <div class="w-1 h-3 bg-slate-700 rounded-full"></div>
-           05 // SYSTEM
-        </div>
+      <SidebarNavGroup title="05 // SYSTEM" color="slate">
         <SidebarNavLink
           href="/system/info"
           label="Platform Status"
@@ -117,7 +113,7 @@ export const SidebarNav = ({ userRole }: { userRole?: string }) => {
           icon={<svg class="group-hover:scale-110 transition-transform" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1-2 2 2 2 0 0 1 2-2v-.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>}
         />
         )}
-      </div>
+      </SidebarNavGroup>
     </nav>
   );
 };

@@ -8,7 +8,23 @@ class AgentCardIsland extends HTMLElement {
 
   connectedCallback() {
     this.render();
+    this.fetchInitial();
     this.connectWS();
+  }
+
+  async fetchInitial() {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/metrics', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        this.updateMetrics(data);
+      }
+    } catch (e) {
+      console.warn('[AGENT-CARD-ISLAND] Initial fetch failed');
+    }
   }
 
   connectWS() {
