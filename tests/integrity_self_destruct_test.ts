@@ -4,7 +4,7 @@ import { MeshManager } from "@domain/orchestration/mesh.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { LoggingPort, LogEntry } from "@core/ports.ts";
-import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
+import { stub } from "@std/testing/mock";
 
 class MockLoggingPort implements LoggingPort {
     logs: LogEntry[] = [];

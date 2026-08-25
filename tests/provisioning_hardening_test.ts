@@ -1,5 +1,5 @@
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
+import { assertEquals, assert } from "@std/assert";
+import { stub } from "@std/testing/mock";
 import { ProvisioningService } from "../src/orchestrator/domain/orchestration/provisioning_service.ts";
 
 Deno.test("Provisioning Hardening - JIT token registration and SSH options", async () => {

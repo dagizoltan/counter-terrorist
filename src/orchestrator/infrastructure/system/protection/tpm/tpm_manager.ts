@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType, TpmPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, TpmPort, ConfigurationPort } from "@core/ports.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 
 /**

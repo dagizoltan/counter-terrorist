@@ -7,6 +7,7 @@ export class SidecarSpawner {
     private unsupportedSidecars: Set<string> = new Set();
     private trippedSidecars: Set<string> = new Set();
     private spawningPromises: Map<string, Promise<Deno.ChildProcess | null>> = new Map();
+    private systemdAvailable: boolean | null = null;
 
     constructor(
         private logging: LoggingPort,
@@ -84,7 +85,10 @@ export class SidecarSpawner {
         }
 
         // SEC-06 Hardening: Hybrid Resource Gating & Binary Sovereignty
-        if (isLinux && Deno.uid() === 0) {
+        // Resource gating requires a live systemd manager. On single-node hosts without one
+        // (containers, WSL, minimal images) systemd-run exits 1 and every agent enters a crash
+        // loop, so we probe once and fall back to a direct exec instead of failing the fleet.
+        if (isLinux && Deno.uid() === 0 && await this.hasSystemd()) {
             const sidecarConfig = SIDECAR_REGISTRY[name];
             const cpuQuota = sidecarConfig?.resources?.cpu || "25%";
             const memoryMax = sidecarConfig?.resources?.memory || "512M";
@@ -117,6 +121,37 @@ export class SidecarSpawner {
         });
 
         return command.spawn();
+    }
+
+    /**
+     * Probes once for a usable systemd manager. Cached for the lifetime of the process:
+     * an init system does not appear or disappear while the orchestrator is running.
+     */
+    private async hasSystemd(): Promise<boolean> {
+        if (this.systemdAvailable !== null) return this.systemdAvailable;
+
+        let available = false;
+        try {
+            // /run/systemd/system only exists when systemd is PID 1 and has booted.
+            const stat = await Deno.stat("/run/systemd/system");
+            available = stat.isDirectory;
+        } catch {
+            available = false;
+        }
+
+        this.systemdAvailable = available;
+
+        if (!available) {
+            await this.logging.log({
+                timestamp: new Date().toISOString(),
+                type: LogType.AUDIT,
+                severity: LogSeverity.WARNING,
+                caller: "orchestrator:infra:runtime:sidecar_spawner",
+                message: "No systemd manager detected. Agents will be spawned directly without cgroup resource gating (CPUQuota/MemoryMax/ProtectProc are NOT enforced)."
+            });
+        }
+
+        return available;
     }
 
     isUnsupported(name: string): boolean {

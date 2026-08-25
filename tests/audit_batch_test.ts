@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { AuditService, AuditDelta } from "@domain/analysis/audit.ts";
 import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 import { AuditRepository } from "@domain/repositories/audit_repository.ts";

@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { SystemExecutor } from "../src/orchestrator/infrastructure/system/system_executor.ts";
 
 Deno.test("Executor Hardening: SSH Command Injection", async () => {

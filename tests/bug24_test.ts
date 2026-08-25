@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { BehavioralAnalyzer } from "../src/orchestrator/domain/analysis/behavioral_analyzer.ts";
 
 Deno.test("BehavioralAnalyzer - BUG-24: Ordered Sequence Matching", async () => {

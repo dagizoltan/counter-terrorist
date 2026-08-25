@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { EventBus } from "../src/orchestrator/domain/analysis/events.ts";
 import { loggingService } from "../src/orchestrator/infrastructure/system/logging.ts";
 

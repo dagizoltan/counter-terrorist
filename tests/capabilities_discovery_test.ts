@@ -1,4 +1,4 @@
-import { assertEquals, assertGreaterOrEqual } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertGreaterOrEqual } from "@std/assert";
 import { dropUnnecessaryCapabilities, getLastCap } from "../src/orchestrator/infrastructure/system/capabilities.ts";
 
 Deno.test("Linux Capability Discovery and Pruning", () => {

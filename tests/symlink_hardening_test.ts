@@ -1,6 +1,6 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { validatePath } from "../src/orchestrator/infrastructure/system/validation.ts";
-import { join } from "https://deno.land/std@0.224.0/path/mod.ts";
+import { join } from "@std/path";
 
 Deno.test("Path Validation - Symlink Jailbreak Prevention", async () => {
     const tmpDir = await Deno.makeTempDir();

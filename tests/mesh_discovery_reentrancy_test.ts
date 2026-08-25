@@ -1,4 +1,4 @@
-import { assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assert } from "@std/assert";
 import { MeshManager } from "../src/orchestrator/domain/orchestration/mesh.ts";
 
 Deno.test("Mesh Discovery Resilience - Subnet discovery re-entrancy protection", async () => {

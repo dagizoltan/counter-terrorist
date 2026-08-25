@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { SupplyChainService } from "@domain/analysis/supply_chain.ts";
 
 Deno.test("SupplyChainService SBOM Generation", async () => {

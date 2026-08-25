@@ -1,4 +1,4 @@
-import { assertEquals, assertNotEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
+import { assertEquals, assertNotEquals } from "@std/assert";
 import { GovernanceService } from "../src/orchestrator/domain/orchestration/governance_service.ts";
 import { LogType, LogSeverity } from "../src/orchestrator/core/ports.ts";
 

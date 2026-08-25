@@ -16,7 +16,11 @@ enum TpmCommand {
         data: String,
         auth: Option<String>,
         #[serde(default)]
-        pcrs: Option<std::collections::HashMap<u32, String>>
+        // Keys stay textual: `#[serde(tag = "type")]` makes serde buffer the payload
+        // into its internal Content representation, which cannot deserialize JSON string
+        // keys into integer map keys. A HashMap<u32, _> here silently fails to parse the
+        // whole command, and the orchestrator then blocks on the full IPC timeout.
+        pcrs: Option<std::collections::HashMap<String, String>>
     },
     Unseal { id: String, index: String, auth: Option<String> },
     Sign { id: String, data: String },
@@ -159,7 +163,8 @@ async fn main() {
     let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "fixed-fallback-key".to_string());
 
     while let Ok(Some(line)) = reader.next_line().await {
-        if let Ok(cmd) = serde_json::from_str::<TpmCommand>(line.trim()) {
+        match serde_json::from_str::<TpmCommand>(line.trim()) {
+            Ok(cmd) => {
             match cmd {
                 TpmCommand::Seal { id, index, data, auth, pcrs } => {
                     // Virtual Sealing: Store encrypted data in state file
@@ -402,6 +407,17 @@ async fn main() {
                     }).await.unwrap_or((false, "Internal thread panic".to_string(), None));
                     emit_response(&id, res.0, res.1, res.2).await;
                 }
+            }
+            }
+            Err(e) => {
+                // Never drop a command silently: the orchestrator has no way to tell a
+                // malformed request from a hung agent and would block for its full IPC
+                // timeout. Echo the request id back with the parse error instead.
+                let id = serde_json::from_str::<serde_json::Value>(line.trim())
+                    .ok()
+                    .and_then(|v| v.get("id").and_then(|i| i.as_str()).map(str::to_string))
+                    .unwrap_or_else(|| "unknown".to_string());
+                emit_response(&id, false, format!("Malformed TPM command: {}", e), None).await;
             }
         }
     }

@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assertThrows } from "@std/assert";
 import { canonicalStringify } from "../src/orchestrator/core/crypto_utils.ts";
 
 Deno.test("JSON Bomb Protection - Recursion Depth", () => {

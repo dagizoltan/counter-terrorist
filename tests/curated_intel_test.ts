@@ -1,5 +1,5 @@
 import { assertEquals, assertExists } from "@std/assert";
-import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
+import { stub } from "@std/testing/mock";
 import { CuratedIntelService } from "@domain/analysis/curated_intel_service.ts";
 import { LoggingPort, LogEntry, FirewallPort, ConfigurationPort, CommandResult } from "@core/ports.ts";
 

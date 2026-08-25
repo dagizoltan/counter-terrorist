@@ -1,6 +1,6 @@
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
+import { assertEquals } from "@std/assert";
+import { stub } from "@std/testing/mock";
 import { UbuntuAntivirusProvider } from "@infrastructure/system/protection/antivirus/providers/ubuntu_antivirus.ts";
 import { LoggingPort, LogEntry, CommandResult } from "@core/ports.ts";
 

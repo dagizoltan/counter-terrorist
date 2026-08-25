@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { stub } from "https://deno.land/std@0.224.0/testing/mock.ts";
+import { stub } from "@std/testing/mock";
 import { NewsSignalService, NewsItem } from "@domain/analysis/news_signal_service.ts";
 import { LoggingPort, LogEntry } from "@core/ports.ts";
 

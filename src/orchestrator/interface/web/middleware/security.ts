@@ -1,5 +1,5 @@
 import { Context, Next } from "hono";
-import { getCookie } from "hono/helper/cookie/index.ts";
+import { getCookie } from "hono/cookie";
 import { Role } from "@domain/identity/api_keys.ts";
 import { ServiceContainer } from "@core/container.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";

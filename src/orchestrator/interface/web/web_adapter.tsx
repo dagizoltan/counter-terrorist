@@ -1,7 +1,7 @@
 import { jsx } from "hono/jsx";
 import { Hono, Context } from "hono";
 import { serveStatic, upgradeWebSocket } from "hono/deno";
-import { getCookie } from "hono/helper/cookie/index.ts";
+import { getCookie } from "hono/cookie";
 import { WebPort, ApplicationStatus, TpmPort } from "@core/ports.ts";
 import { AppError } from "@core/errors.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";

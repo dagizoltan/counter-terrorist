@@ -30,7 +30,7 @@ export const postLoginHandler = (deps: any) => async (c: Context) => {
 };
 
 export const logoutHandler = (deps: any) => async (c: Context) => {
-  const { getCookie } = await import("hono/helper/cookie/index.ts");
+  const { getCookie } = await import("hono/cookie");
   const sessionId = getCookie(c, "session_token");
   if (sessionId) {
     await deps.sessionService.revokeSession(sessionId);

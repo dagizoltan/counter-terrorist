@@ -31,21 +31,30 @@ The system follows a three-tier model:
 
 ### Installation & Run
 
-1. **Bootstrap the environment:**
+1. **Generate configuration** (CSPRNG secrets, written to `.env` with mode 600):
    ```bash
-   deno task bootstrap
+   deno task setup
    ```
 
-2. **Build the Rust agents:**
+2. **Build the Rust agents** — also refreshes the sidecar integrity manifest, without
+   which every agent is refused at spawn:
    ```bash
    deno task build-agents
    ```
 
 3. **Start the orchestrator:**
    ```bash
-   deno task start
+   deno task start:single-node    # one host, no peers
+   deno task start                # mesh-capable
    ```
-   *Note: Access the dashboard at http://localhost:8000. Bearer token authentication is required for API access.*
+
+The dashboard is served over TLS at `https://localhost:8000` behind a self-signed
+certificate. API access requires the bearer token from `.env`:
+`grep '^API_TOKEN' .env`.
+
+See [`docs/SINGLE_NODE_BRINGUP.md`](docs/SINGLE_NODE_BRINGUP.md) for the full
+single-host runbook, what degrades without a TPM or systemd, and how to verify the
+node is healthy.
 
 ## 🛣️ Current Status: v7.0-PRODUCTION
 

@@ -1,4 +1,4 @@
-import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals, assert } from "@std/assert";
 import { HoneypotService } from "../src/orchestrator/domain/protection/honeypot_service.ts";
 import { LogSeverity, LogType } from "../src/orchestrator/core/ports.ts";
 

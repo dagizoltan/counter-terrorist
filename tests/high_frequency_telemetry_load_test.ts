@@ -1,4 +1,4 @@
-import { assertEquals, assert } from "https://deno.land/std@0.208.0/testing/asserts.ts";
+import { assertEquals, assert } from "@std/assert";
 import { EventMediator } from "../src/orchestrator/domain/events/event_mediator.ts";
 import { EventBus } from "../src/orchestrator/domain/events/event_bus.ts";
 import { MockLogging } from "./mocks.ts";

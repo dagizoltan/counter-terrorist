@@ -10,6 +10,9 @@ import { FimIntegration } from "./mediators/FimIntegration.ts";
 import { NetworkIntegration } from "./mediators/NetworkIntegration.ts";
 import { ScannerIntegration } from "./mediators/ScannerIntegration.ts";
 
+import type { ProcessTracker } from "./process_tracker.ts";
+import type { CanaryService } from "@domain/protection/canary_service.ts";
+
 type SidecarEvent = Record<string, unknown>;
 
 const unpackSidecar = (value: unknown): SidecarEvent =>

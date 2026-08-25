@@ -1,4 +1,4 @@
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 import { canonicalStringify } from "../src/orchestrator/core/crypto_utils.ts";
 
 Deno.test("Signature Consistency - Canonical Stringify remains stable across different object property orders", () => {

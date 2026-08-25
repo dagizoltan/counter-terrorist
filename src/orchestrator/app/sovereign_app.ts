@@ -234,7 +234,12 @@ export class SovereignApp {
 
         await this.hardeningManager.applyCamouflage();
 
-        this.kv = await Deno.openKv("./volume/storage/orchestrator.db");
+        // Deno.openKv does not create intermediate directories, so a fresh checkout or a
+        // wiped state volume fails the boot outright. Create the state root first.
+        const STATE_DIR = "./volume/storage";
+        await Deno.mkdir(STATE_DIR, { recursive: true });
+
+        this.kv = await Deno.openKv(`${STATE_DIR}/orchestrator.db`);
         loggingService.setKv(this.kv);
         this.executor = new SystemExecutor();
         this.sidecarManager = new SidecarManager(this.executor, loggingService);

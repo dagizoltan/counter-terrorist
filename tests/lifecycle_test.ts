@@ -1,6 +1,6 @@
 
 import { SovereignApp } from "../src/orchestrator/app/sovereign_app.ts";
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { assertEquals } from "@std/assert";
 
 Deno.test("Lifecycle Logic Healing: SovereignApp should shutdown cleanly", async () => {
     // Note: We don't fully boot the app as it requires hardware/sudo,
