@@ -1,185 +1,149 @@
 /**
- * ThreatMap Island
- * High-fidelity Geospatial Vector Map using Leaflet.
- * Replaces legacy 3D globe for better tactical situational awareness.
+ * <threat-map> — geospatial plot of identified threat indicators.
+ *
+ * Rewritten to be self-contained. It previously injected Leaflet from
+ * unpkg.com and pulled basemap tiles from cartocdn.com, which meant:
+ *
+ *   - The CSP (`default-src 'self'`, `script-src 'self' 'nonce-…'`) blocked
+ *     both, so the map never loaded on a correctly configured node.
+ *   - On an air-gapped appliance — the product's stated target — it could
+ *     never have worked regardless of CSP.
+ *   - `loadDependencies()` resolved only from `script.onload` with no error
+ *     path, so when the fetch failed the promise never settled,
+ *     `connectedCallback` hung forever and the element stayed permanently
+ *     blank with no indication why.
+ *
+ * It now renders an inline SVG equirectangular map with no external
+ * dependency of any kind. Same public behaviour: historical indicators on
+ * connect, live ones over the shared socket.
  */
+import { unwrap } from "./api.js";
+import { WORLD_PATH, project } from "./world-outline.js";
+
+const VIEW_W = 360;
+const VIEW_H = 180;
+
 class ThreatMap extends HTMLElement {
   constructor() {
     super();
-    this.map = null;
-    this.markers = new Map();
-    this.isInitialized = false;
+    this.threats = new Map();
+    this.initialized = false;
   }
 
   async connectedCallback() {
-    if (this.isInitialized) return;
-    this.isInitialized = true;
-    
-    this.style.display = 'block';
-    this.style.width = '100%';
-    this.style.height = '100%';
-
-    await this.loadDependencies();
-    this.initMap();
+    if (this.initialized) return;
+    this.initialized = true;
+    this.renderShell();
+    await this.fetchHistorical();
     this.connectWS();
-    this.fetchHistoricalThreats();
   }
 
-  async loadDependencies() {
-    return new Promise((resolve) => {
-      if (globalThis.L) return resolve();
-
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = () => resolve();
-      document.head.appendChild(script);
-    });
+  disconnectedCallback() {
+    if (this._reconnect) clearTimeout(this._reconnect);
+    if (this._ws) { this._ws.onclose = null; this._ws.close?.(); }
   }
 
-  initMap() {
-    const L = globalThis.L;
-    
-    // Initialize map with a dark tactical theme
-    this.map = L.map(this, {
-      center: [20, 0],
-      zoom: 3,
-      zoomControl: false,
-      attributionControl: false,
-      worldCopyJump: true
-    });
-
-    // CartoDB Dark Matter - High contrast for tactical visualization
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19
-    }).addTo(this.map);
-
-    L.control.zoom({ position: 'bottomright' }).addTo(this.map);
+  renderShell() {
+    this.innerHTML = `
+      <div class="threat-map">
+        <svg class="threat-map__canvas" viewBox="0 0 ${VIEW_W} ${VIEW_H}"
+             preserveAspectRatio="xMidYMid meet" role="img"
+             aria-label="Global threat indicator map">
+          <defs>
+            <pattern id="tm-grid" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M 30 0 L 0 0 0 30" fill="none"
+                    stroke="var(--line-faint)" stroke-width="0.4"/>
+            </pattern>
+          </defs>
+          <rect width="${VIEW_W}" height="${VIEW_H}" fill="url(#tm-grid)"/>
+          <path d="${WORLD_PATH}" class="threat-map__land"/>
+          <g class="threat-map__plots"></g>
+        </svg>
+        <div class="threat-map__legend">
+          <span class="eyebrow"><span class="indicator" data-state="crit" aria-hidden="true"></span>Active</span>
+          <span class="eyebrow"><span class="indicator" data-state="idle" aria-hidden="true"></span>Isolated</span>
+        </div>
+        <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
+      </div>
+    `;
+    this.plots = this.querySelector(".threat-map__plots");
+    this.counter = this.querySelector(".threat-map__count");
   }
 
-  async fetchHistoricalThreats() {
+  async fetchHistorical() {
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const resp = await fetch('/api/threats/identified?limit=200', {
-        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      const res = await fetch("/api/threats/identified?limit=200", {
+        headers: (() => {
+          const t = document.querySelector('meta[name="csrf-token"]')?.content;
+          return t ? { "X-CT-Token": t } : {};
+        })(),
       });
-      if (resp.ok) {
-        const { threats } = await resp.json();
-        threats.forEach(t => {
-          if (t.geo && t.geo.lat && t.geo.lon) {
-            this.plotThreat(t.indicator, t.geo.lat, t.geo.lon, t.threatType, t.blocked);
-          }
-        });
+      if (!res.ok) return;
+      const payload = await unwrap(res);
+      const threats = Array.isArray(payload) ? payload : (payload?.threats ?? []);
+      for (const t of threats) {
+        if (t?.geo?.lat != null && t?.geo?.lon != null) {
+          this.plot(t.indicator, t.geo.lat, t.geo.lon, t.threatType, t.blocked);
+        }
       }
+      this.updateCount();
     } catch (e) {
-      console.error('[ThreatMap] Failed to fetch historical data:', e);
+      console.error("[ThreatMap] historical fetch failed:", e);
     }
   }
 
   connectWS() {
-    const protocol = globalThis.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-    const ws = new SharedWebSocket();
-
-    ws.onmessage = (event) => {
+    if (typeof SharedWebSocket !== "function") return;
+    this._ws = new SharedWebSocket();
+    this._ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'AUDIT_EVENT' && payload.data?.type === 'THREAT') {
-           const threat = payload.data.data;
-           if (threat?.geo?.lat) {
-             this.plotThreat(threat.indicator, threat.geo.lat, threat.geo.lon, threat.threatType, false, true);
-           }
+        if (payload.type !== "AUDIT_EVENT" || payload.data?.type !== "THREAT") return;
+        const threat = payload.data.data;
+        if (threat?.geo?.lat != null) {
+          this.plot(threat.indicator, threat.geo.lat, threat.geo.lon, threat.threatType, false, true);
+          this.updateCount();
         }
-      } catch (e) {}
+      } catch { /* malformed frame */ }
     };
-
-    ws.onclose = () => setTimeout(() => this.connectWS(), 5000);
+    this._ws.onclose = () => { this._reconnect = setTimeout(() => this.connectWS(), 5000); };
   }
 
-  plotThreat(indicator, lat, lon, type, blocked, isNew = false) {
-    if (!this.map || !lat || !lon) return;
-    const L = globalThis.L;
+  plot(indicator, lat, lon, type, blocked, isNew = false) {
+    if (!this.plots || lat == null || lon == null) return;
+    const { x, y } = project(lat, lon);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 
-    // Remove existing marker for this indicator if it exists
-    if (this.markers.has(indicator)) {
-      this.map.removeLayer(this.markers.get(indicator));
-    }
+    this.threats.get(indicator)?.remove();
 
-    const color = blocked ? '#64748b' : '#ef4444'; // Muted if blocked, red if active
-    const pulseClass = isNew ? 'marker-pulse' : '';
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    g.setAttribute("class", `threat-map__plot${isNew ? " is-new" : ""}`);
+    g.setAttribute("data-state", blocked ? "idle" : "crit");
+    g.setAttribute("transform", `translate(${x} ${y})`);
 
-    const markerHtml = `
-      <div class="tactical-marker ${pulseClass}" style="background: ${color}; box-shadow: 0 0 10px ${color}">
-        <div class="marker-inner"></div>
-      </div>
-    `;
+    const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    halo.setAttribute("r", "3.5");
+    halo.setAttribute("class", "threat-map__halo");
 
-    const icon = L.divIcon({
-      html: markerHtml,
-      className: 'custom-div-icon',
-      iconSize: [12, 12],
-      iconAnchor: [6, 6]
-    });
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("r", "1.4");
+    dot.setAttribute("class", "threat-map__dot");
 
-    const marker = L.marker([lat, lon], { icon }).addTo(this.map);
-    
-    marker.bindPopup(`
-      <div class="mono-xs bg-black/90 p-4 border border-white/10 rounded shadow-2xl">
-        <div class="text-primary font-black mb-2 uppercase tracking-widest">${indicator}</div>
-        <div class="text-slate-500 uppercase text-[8px] mb-2">${type || 'UNKNOWN_THREAT'}</div>
-        <div class="status-pill ${blocked ? 'neutral' : 'danger'}">${blocked ? 'ISOLATED' : 'ACTIVE_THREAT'}</div>
-      </div>
-    `, {
-      className: 'tactical-popup',
-      closeButton: false
-    });
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+    const esc = globalThis.escapeHTML ?? String;
+    title.textContent = `${esc(indicator)} — ${esc(type || "UNKNOWN")} — ${blocked ? "isolated" : "active"}`;
 
-    this.markers.set(indicator, marker);
+    g.append(halo, dot, title);
+    this.plots.appendChild(g);
+    this.threats.set(indicator, g);
+  }
 
-    if (isNew) {
-      // Pan to new threat if it's live
-      // this.map.panTo([lat, lon]);
+  updateCount() {
+    if (this.counter) {
+      const n = this.threats.size;
+      this.counter.textContent = `${n} indicator${n === 1 ? "" : "s"}`;
     }
   }
 }
 
-// Inject tactical styles
-const style = document.createElement('style');
-style.textContent = `
-  .tactical-marker {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    border: 2px solid white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .marker-inner {
-    width: 4px;
-    height: 4px;
-    background: white;
-    border-radius: 50%;
-  }
-  .marker-pulse {
-    animation: marker-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-  }
-  @keyframes marker-ping {
-    75%, 100% {
-      transform: scale(2.5);
-      opacity: 0;
-    }
-  }
-  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-    background: transparent !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-  }
-`;
-document.head.appendChild(style);
-
-customElements.define('threat-map', ThreatMap);
+customElements.define("threat-map", ThreatMap);

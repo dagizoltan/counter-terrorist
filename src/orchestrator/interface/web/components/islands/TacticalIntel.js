@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 import { h, render } from '../../vendor/preact.js';
 import { useState, useEffect } from '../../vendor/preact-hooks.js';
 import htm from '../../vendor/htm.js';
@@ -14,7 +15,7 @@ function TacticalIntel() {
       const res = await fetch('/api/autopilot/intelligence', {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
-      const data = await res.json();
+      const data = await unwrap(res);
       setIntel(data);
     } catch (e) {
       console.error("Failed to fetch tactical intelligence", e);

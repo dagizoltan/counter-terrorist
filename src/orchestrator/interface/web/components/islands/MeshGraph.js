@@ -2,6 +2,7 @@
  * MeshGraph Island
  * High-density tactical coordinate map for the security mesh.
  */
+import { unwrap } from "./api.js";
 class MeshGraph extends HTMLElement {
   constructor() {
     super();
@@ -27,7 +28,7 @@ class MeshGraph extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         this.nodes = data.peers;
         this.localNodeId = data.local;
         this.draw();

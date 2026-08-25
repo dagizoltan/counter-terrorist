@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class VpnAgent extends HTMLElement {
   connectedCallback() {
     this.fetchData();
@@ -17,7 +18,7 @@ class VpnAgent extends HTMLElement {
             headers: { 'X-CT-Token': csrf, 'Content-Type': 'application/json' },
             body: JSON.stringify({}) 
           });
-          const data = await res.json();
+          const data = await unwrap(res);
           alert(data.message || 'Tunnel Link Requested');
           this.fetchData();
         } catch (e) { alert(`Link Failed: ${e.message}`); }
@@ -31,7 +32,7 @@ class VpnAgent extends HTMLElement {
             method: 'POST', 
             headers: { 'X-CT-Token': csrf } 
           });
-          const data = await res.json();
+          const data = await unwrap(res);
           alert(data.message || 'Severance Requested');
           this.fetchData();
         } catch (e) { alert(`Severance Failed: ${e.message}`); }
@@ -46,7 +47,7 @@ class VpnAgent extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (!res.ok) return;
-      const data = await res.json();
+      const data = await unwrap(res);
       
       const statusDot = document.getElementById('vpn-status-dot');
       const statusLabel = document.getElementById('vpn-status-label');

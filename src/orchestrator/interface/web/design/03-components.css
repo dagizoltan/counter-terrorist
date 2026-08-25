@@ -39,6 +39,13 @@
   white-space: nowrap;
 }
 
+/* The eyebrow is inline-flex, which is wrong for an element that must remain
+ * a table cell or list item — a `th.eyebrow` stops participating in the table
+ * layout entirely and the column widths collapse into each other. Keep the
+ * typography, keep the native box. */
+th.eyebrow, td.eyebrow { display: table-cell; }
+li.eyebrow { display: list-item; }
+
 .eyebrow[data-tone="primary"] { color: var(--primary); }
 .eyebrow[data-tone="success"] { color: var(--success); }
 .eyebrow[data-tone="warning"] { color: var(--warning); }
@@ -1019,3 +1026,107 @@ body.auth-page {
 /* Sections inside the deck share one rhythm rather than each carrying its
  * own mb-12 / mb-16. */
 .shell-content > section + section { margin-top: var(--s-7); }
+
+/* ============================================================================
+ * THREAT MAP
+ * Self-contained equirectangular plot. Replaced a Leaflet build that pulled
+ * its library from unpkg.com and its tiles from cartocdn.com — both blocked
+ * by this console's CSP, and both unavailable on an air-gapped node.
+ * ==========================================================================*/
+.threat-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  background: var(--surface-inset);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.threat-map__canvas { width: 100%; height: 100%; display: block; }
+
+.threat-map__land {
+  fill: var(--surface-3);
+  stroke: var(--line);
+  stroke-width: 0.4;
+  stroke-linejoin: round;
+}
+
+/* Structural hook: the group every plotted indicator is appended into. */
+.threat-map__plots { pointer-events: auto; }
+
+.threat-map__plot { --c: var(--danger); }
+.threat-map__plot[data-state="idle"] { --c: var(--muted); }
+.threat-map__plot[data-state="crit"] { --c: var(--danger); }
+
+.threat-map__halo { fill: var(--c); opacity: 0.18; }
+.threat-map__dot { fill: var(--c); }
+.threat-map__plot.is-new .threat-map__halo { animation: ct-ping 1.8s var(--ease) 3; }
+
+@keyframes ct-ping {
+  0%   { opacity: 0.5; transform: scale(0.4); }
+  100% { opacity: 0;   transform: scale(2.4); }
+}
+
+.threat-map__legend {
+  position: absolute;
+  left: var(--s-4);
+  bottom: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  pointer-events: none;
+}
+
+.threat-map__count {
+  position: absolute;
+  right: var(--s-4);
+  top: var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .threat-map__plot.is-new .threat-map__halo { animation: none; }
+}
+
+/* ── TIMELINE ────────────────────────────────────────────────────────────
+ * Forensic event timeline. The island owns this subtree; it previously
+ * rendered into five element IDs no page declared.                        */
+.timeline { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+
+.timeline__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.timeline__stats { display: flex; align-items: center; gap: var(--s-5); }
+.timeline__stats .num { margin-left: var(--s-2); color: var(--text-1); }
+
+.timeline__track {
+  position: relative;
+  height: 22px;
+  border-radius: var(--r-sm);
+  background: var(--surface-inset);
+  overflow: hidden;
+}
+
+.timeline__markers { position: absolute; inset: 0; }
+
+.timeline__events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

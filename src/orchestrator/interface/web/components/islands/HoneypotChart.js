@@ -2,6 +2,7 @@
  * HoneypotChart Island
  * Tactical deception volume visualization. No Shadow DOM.
  */
+import { unwrap } from "./api.js";
 class HoneypotChart extends HTMLElement {
   constructor() {
     super();
@@ -33,7 +34,7 @@ class HoneypotChart extends HTMLElement {
       const res = await fetch('/api/stats/honeypot', {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
-      const data = await res.json();
+      const data = await unwrap(res);
       if (data && data.length > 0) {
         this.data = data;
         this.updateChart();

@@ -2,6 +2,7 @@
  * Custom Element: AgentDetail
  * High-fidelity agent diagnostic and orchestration controller.
  */
+import { unwrap } from "./api.js";
 class AgentDetail extends HTMLElement {
   constructor() {
     super();
@@ -24,7 +25,7 @@ class AgentDetail extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (!res.ok) return;
-      const data = await res.json();
+      const data = await unwrap(res);
 
       const agentData = data[name];
       if (!agentData) return;
@@ -110,7 +111,7 @@ class AgentDetail extends HTMLElement {
           method: 'POST',
           headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
-      const result = await res.json();
+      const result = await unwrap(res);
       if (result.success) {
         this.fetchStatus(this.agentName);
       }
@@ -136,7 +137,7 @@ class AgentDetail extends HTMLElement {
         },
         body: JSON.stringify(body)
       });
-      const result = await res.json();
+      const result = await unwrap(res);
       if (result.success) {
         this.fetchStatus(this.agentName);
       }
@@ -254,7 +255,7 @@ class AgentDetail extends HTMLElement {
       const res = await fetch('/api/network/logs', {
           headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
-      const logs = await res.json();
+      const logs = await unwrap(res);
       const logEl = document.getElementById('traffic-log-container');
       if (!logEl) return;
       if (!logs || logs.length === 0) {

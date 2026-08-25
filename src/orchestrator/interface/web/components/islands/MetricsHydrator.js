@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class MetricsHydrator extends HTMLElement {
   constructor() {
     super();
@@ -15,7 +16,7 @@ class MetricsHydrator extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         this.updateMetrics(data);
       }
     } catch (e) {

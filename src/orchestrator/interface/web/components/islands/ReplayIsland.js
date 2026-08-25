@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 import { h, render } from '../../vendor/preact.js';
 import { useState, useEffect, useRef } from '../../vendor/preact-hooks.js';
 import htm from '../../vendor/htm.js';
@@ -23,7 +24,7 @@ function ReplayIsland() {
     fetch("/api/audit?limit=500", {
       headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
     })
-      .then(r => r.json())
+      .then(unwrap)
       .then(data => {
         if (!data) return;
         const sorted = data.reverse();
@@ -88,7 +89,7 @@ function ReplayIsland() {
       const res = await fetch("/api/forensics/export?limit=500", {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
-      const data = await res.json();
+      const data = await unwrap(res);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

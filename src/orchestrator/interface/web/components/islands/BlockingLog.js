@@ -2,6 +2,7 @@
  * Custom Element: BlockingLog
  * Optimized for High-Frequency Real-time Telemetry (Reduced DOM thrashing)
  */
+import { unwrap } from "./api.js";
 class BlockingLog extends HTMLElement {
   constructor() {
     super();
@@ -86,7 +87,7 @@ class BlockingLog extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         this.logs = Array.isArray(data) ? data : (data.items || []);
         this.rebuildList();
       }

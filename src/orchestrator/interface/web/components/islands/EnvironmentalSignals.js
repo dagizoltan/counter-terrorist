@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class EnvironmentalSignals extends HTMLElement {
   constructor() {
     super();
@@ -18,7 +19,7 @@ class EnvironmentalSignals extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (resp.ok) {
-        const data = await resp.json();
+        const data = await unwrap(resp);
         if (Array.isArray(data)) {
           this.signals = {
             wifi: data.filter(d => d.type === 'WIFI'),

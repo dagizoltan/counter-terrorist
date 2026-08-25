@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class FirewallAgent extends HTMLElement {
   connectedCallback() {
     this.fetchData();
@@ -35,17 +36,17 @@ class FirewallAgent extends HTMLElement {
       
       const res = await fetch('/api/agents/firewall/status', { headers });
       if (!res.ok) return;
-      const data = await res.json();
+      const data = await unwrap(res);
       
       const agentRes = await fetch('/api/agent/status', { headers });
-      const agentData = await agentRes.json();
+      const agentData = await unwrap(agentRes);
       const pid = agentData.firewall?.pid;
 
       // Retrieve metrics snapshot for direct blockedIps array from FirewallManager
       const metricsRes = await fetch('/api/metrics', { headers });
       let blockedIps = [];
       if (metricsRes.ok) {
-        const metrics = await metricsRes.json();
+        const metrics = await unwrap(metricsRes);
         if (metrics.firewall?.blockedIps && Array.isArray(metrics.firewall.blockedIps)) {
           blockedIps = metrics.firewall.blockedIps;
         }
@@ -71,7 +72,7 @@ class FirewallAgent extends HTMLElement {
       const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
       const res = await fetch('/api/network/logs', { headers });
       if (!res.ok) return;
-      const logs = await res.json();
+      const logs = await unwrap(res);
       this.updateTrafficUI(logs);
     } catch (e) {}
   }

@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 import { h, render } from '../../vendor/preact.js';
 import { useEffect, useState } from '../../vendor/preact-hooks.js';
 import htm from '../../vendor/htm.js';
@@ -14,7 +15,7 @@ export default function IntegrityIsland() {
     fetch("/api/audit/status", {
       headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
     })
-      .then(r => r.json())
+      .then(unwrap)
       .then(setStatus);
   }, []);
 
@@ -22,7 +23,7 @@ export default function IntegrityIsland() {
     setVerifying(true);
     try {
       const res = await fetch("/api/audit/verify", { method: "GET" });
-      const data = await res.json();
+      const data = await unwrap(res);
       setResult(data);
     } catch (e) {
       console.error(e);

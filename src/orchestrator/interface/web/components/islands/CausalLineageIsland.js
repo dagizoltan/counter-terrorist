@@ -1,6 +1,7 @@
-import { h, render } from '../../../vendor/preact.js';
-import { useState, useEffect } from '../../../vendor/preact-hooks.js';
-import htm from '../../../vendor/htm.js';
+import { h, render } from '../../vendor/preact.js';
+import { useState, useEffect } from '../../vendor/preact-hooks.js';
+import htm from '../../vendor/htm.js';
+import { unwrap } from './api.js';
 
 const html = htm.bind(h);
 
@@ -23,7 +24,7 @@ function CausalLineageIsland() {
             const res = await fetch("/api/forensics/graph", {
                 headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
             });
-            const data = await res.json();
+            const data = await unwrap(res);
             setGraph(data);
         } catch (e) {
             console.error("[CAUSAL] Failed to fetch graph", e);
@@ -70,11 +71,11 @@ function CausalLineageIsland() {
                             <span class="mono-xs text-slate-600 font-bold">${new Date(node.timestamp).toLocaleTimeString()}</span>
                         </div>
 
-                        ${node.children.length > 0 && html`
+                        ${(node.children?.length ?? 0) > 0 && html`
                             <div class="mt-4 pt-4 border-t border-white/[0.03] flex flex-col gap-2">
                                 <span class="eyebrow">Downstream_Effects:</span>
                                 <div class="flex flex-wrap gap-2">
-                                    ${node.children.map(childId => html`
+                                    ${(node.children ?? []).map(childId => html`
                                         <div class="px-3 py-1 bg-white/5 rounded mono-xs text-slate-400 border border-white/5 truncate max-w-[200px]">
                                             ${childId.split('-')[0]}
                                         </div>

@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 class WebhookManager extends HTMLElement {
   connectedCallback() {
     this.loadWebhooks();
@@ -25,7 +26,7 @@ class WebhookManager extends HTMLElement {
           },
           body: JSON.stringify({ name, url, type, enabled: true })
         });
-        const data = await res.json();
+        const data = await unwrap(res);
         if (data.error) {
           status.textContent = `ERROR: ${data.error}`;
           status.style.color = 'var(--danger)';
@@ -73,7 +74,7 @@ class WebhookManager extends HTMLElement {
       const res = await fetch('/api/notifications', {
          headers: csrf ? { 'X-CT-Token': csrf } : {}
       });
-      const webhooks = await res.json();
+      const webhooks = await unwrap(res);
 
       if (!webhooks || webhooks.length === 0) {
         container.innerHTML = `

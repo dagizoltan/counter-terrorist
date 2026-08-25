@@ -8,7 +8,7 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string, 
       '/components/islands/ReplayIsland.js',
       '/components/islands/BlockingLog.js',
       '/components/islands/ForensicVault.js',
-      '/routes/ui--forensics/islands/CausalLineageIsland.js'
+      '/components/islands/CausalLineageIsland.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
@@ -82,6 +82,20 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string, 
                   </button>
                   )}
                </footer>
+            </div>
+
+            {/* ReplayIsland is loaded by this page and the header advertises a
+                "Temporal Replay Hub", but the root element it mounts into was
+                never in the markup, so the island loaded and silently did
+                nothing. */}
+            <div class="col-span-12 t-panel glass-panel p-0 border-t-2 border-slate-800 flex flex-col overflow-hidden">
+               <header class="p-4 border-b border-white/5 bg-black/40 flex justify-between items-center">
+                  <h3 class="tactical-title text-sm uppercase tracking-widest text-slate-400">Temporal Replay</h3>
+                  <span class="eyebrow">Deterministic Event Reconstruction</span>
+               </header>
+               <div class="p-4 bg-black/20">
+                  <div id="forensic-replay-root"></div>
+               </div>
             </div>
          </div>
       </section>

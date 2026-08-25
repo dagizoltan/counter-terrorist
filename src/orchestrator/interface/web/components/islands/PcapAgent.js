@@ -2,6 +2,7 @@
  * Custom Element: PcapAgent
  * High-fidelity deep packet inspection and network capture controller.
  */
+import { unwrap } from "./api.js";
 class PcapAgent extends HTMLElement {
   constructor() {
     super();
@@ -67,7 +68,7 @@ class PcapAgent extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         const logs = Array.isArray(data) ? data : [];
         if (logs.length > 0) {
           this.packets = logs;
@@ -139,7 +140,7 @@ class PcapAgent extends HTMLElement {
           payload: { interface: iface, duration: 300, filename: `capture_${Date.now()}.pcap`, filter }
         })
       });
-      const data = await res.json();
+      const data = await unwrap(res);
       
       // Visual feedback in logs
       this.addPacket({

@@ -1,3 +1,4 @@
+import { unwrap } from "./api.js";
 import { h, render } from '../../vendor/preact.js';
 import { useEffect, useState } from '../../vendor/preact-hooks.js';
 import htm from '../../vendor/htm.js';
@@ -11,8 +12,8 @@ function SupplyChainIsland() {
   useEffect(() => {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
-    fetch("/api/supply-chain/sbom", { headers }).then(r => r.json()).then(setSbom);
-    fetch("/api/supply-chain/status", { headers }).then(r => r.json()).then(setStatus);
+    fetch("/api/supply-chain/sbom", { headers }).then(unwrap).then(setSbom);
+    fetch("/api/supply-chain/status", { headers }).then(unwrap).then(setStatus);
   }, []);
 
   if (!status) return html`

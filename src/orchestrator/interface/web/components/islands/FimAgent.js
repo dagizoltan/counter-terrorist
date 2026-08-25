@@ -2,6 +2,7 @@
  * Custom Element: FimAgent
  * File Integrity Monitoring guardian tracking unauthorized filesystem modifications.
  */
+import { unwrap } from "./api.js";
 class FimAgent extends HTMLElement {
   constructor() {
     super();
@@ -31,7 +32,7 @@ class FimAgent extends HTMLElement {
         headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await unwrap(res);
         const logs = Array.isArray(data) ? data : (data.items || []);
         const fimLogs = logs.filter(l => l.caller?.includes('fim') || l.type === 'FIM_ALERT' || l.type === 'DRIFT_PROCESS');
         if (fimLogs.length > 0) {
