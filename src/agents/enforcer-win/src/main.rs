@@ -48,7 +48,7 @@ async fn wfp_add_block_rule(ip: &str, port: Option<u16>) -> (bool, String) {
         let session = FWPM_SESSION0::default();
         let status = FwpmEngineOpen0(
             None,
-            1, // RPC_C_AUTHN_WINNT
+            10, // RPC_C_AUTHN_WINNT (10 / 0x0A)
             None,
             Some(&session),
             &mut engine_handle,
