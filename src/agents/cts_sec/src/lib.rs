@@ -46,9 +46,9 @@ pub unsafe extern "C" fn fast_serialize_msgpack(json_ptr: *const i8, out_len: *m
     }
 
     *out_len = buf.len();
-    let boxed_slice = buf.into_boxed_slice();
-    let ptr = boxed_slice.as_ptr() as *mut u8;
-    std::mem::forget(boxed_slice);
+    let mut buf = buf.into_boxed_slice();
+    let ptr = buf.as_mut_ptr();
+    std::mem::forget(buf);
     ptr
 }
 
@@ -362,9 +362,9 @@ pub unsafe extern "C" fn serialize_msgpack(json_ptr: *const i8, out_len: *mut us
     }
 
     *out_len = buf.len();
-    let boxed_slice = buf.into_boxed_slice();
-    let ptr = boxed_slice.as_ptr() as *mut u8;
-    std::mem::forget(boxed_slice);
+    let mut buf = buf.into_boxed_slice();
+    let ptr = buf.as_mut_ptr();
+    std::mem::forget(buf);
     ptr
 }
 
@@ -410,8 +410,8 @@ pub unsafe extern "C" fn free_string(ptr: *mut i8) {
 /// * `len` must be the same length returned by those functions.
 #[no_mangle]
 pub unsafe extern "C" fn free_buffer(ptr: *mut u8, len: usize) {
-    if !ptr.is_null() {
-        let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr, len));
+    if !ptr.is_null() && len > 0 {
+        let _ = Vec::from_raw_parts(ptr, len, len);
     }
 }
 
@@ -485,8 +485,8 @@ pub unsafe extern "C" fn create_sealed_memfd(name: *const i8, data: *const u8, l
     }
 
     // 4. Return the raw FD (ownership transferred to orchestrator)
-    std::mem::forget(file);
-    fd
+    use std::os::unix::io::IntoRawFd;
+    file.into_raw_fd()
 }
 
 #[cfg(test)]

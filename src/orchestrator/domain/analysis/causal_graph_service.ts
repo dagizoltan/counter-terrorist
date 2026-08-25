@@ -32,7 +32,7 @@ export class CausalGraphService extends BaseService {
     /**
      * Reconstructs the causal graph starting from a root PID or search term.
      */
-    async reconstructGraph(rootPid?: number, searchTerm?: string): Promise<Result<Map<string, CausalNode>>> {
+    async reconstructGraph(rootPid?: number, searchTerm?: string, maxNodes: number = 10000): Promise<Result<Map<string, CausalNode>>> {
         const nodes = new Map<string, CausalNode>();
 
         try {
@@ -41,6 +41,11 @@ export class CausalGraphService extends BaseService {
             const searchRes = await this.searchTool.search({ searchTerm });
             if (!searchRes.success) return err(searchRes.error);
             let records = searchRes.data;
+
+            // Enforce upper ceiling cap to prevent memory exhaustion
+            if (records.length > maxNodes) {
+                records = records.slice(0, maxNodes);
+            }
 
             if (rootPid) {
                 const includedPids = new Set<number>([rootPid]);
