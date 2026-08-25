@@ -14,13 +14,44 @@ class WsManager {
     connect() {
         if (this.ws) {
             this.ws.onclose = null;
-            this.ws.close();
+            this.ws.onmessage = null;
+            this.ws.onopen = null;
+            this.ws.onerror = null;
+            try { this.ws.close(); } catch (e) {}
         }
 
-        // Pass token via sub-protocol to avoid query param leakage
+        clearInterval(this.pingInterval);
+        clearTimeout(this.reconnectTimer);
+
+        // Refresh meta token in case session re-authenticated
+        this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const protocols = this.csrfToken ? [`cts-auth-${this.csrfToken}`] : [];
-        this.ws = new WebSocket(this.url, protocols);
         
+        try {
+            this.ws = new WebSocket(this.url, protocols);
+        } catch (e) {
+            console.error('[SovereignWS] WebSocket instantiation error:', e);
+            this.scheduleReconnect();
+            return;
+        }
+
+        this.ws.onopen = (event) => {
+            console.log('[SovereignWS] Multiplexed Connection Established');
+
+            // Start 20s heartbeat ping to keep connection alive through proxies
+            this.pingInterval = setInterval(() => {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    try { this.ws.send(JSON.stringify({ type: 'PING' })); } catch (e) {}
+                }
+            }, 20000);
+
+            for (const listener of this.listeners) {
+                if (listener.onopen) {
+                    try { listener.onopen(event); } catch (e) { console.error(e); }
+                }
+            }
+        };
+
         this.ws.onmessage = (event) => {
             for (const listener of this.listeners) {
                 if (listener.onmessage) {
@@ -29,25 +60,26 @@ class WsManager {
             }
         };
 
-        this.ws.onopen = (event) => {
-            console.log('[SovereignWS] Multiplexed Connection Established');
-            for (const listener of this.listeners) {
-                if (listener.onopen) {
-                    try { listener.onopen(event); } catch (e) { console.error(e); }
-                }
-            }
+        this.ws.onerror = (err) => {
+            console.warn('[SovereignWS] Socket Error:', err);
         };
 
         this.ws.onclose = (event) => {
-            console.warn('[SovereignWS] Connection Lost. Reconnecting in 5s...');
+            clearInterval(this.pingInterval);
+            console.warn('[SovereignWS] Connection Lost. Reconnecting in 3s...');
+
             for (const listener of this.listeners) {
                 if (listener.onclose) {
                     try { listener.onclose(event); } catch (e) { console.error(e); }
                 }
             }
-            clearTimeout(this.reconnectTimer);
-            this.reconnectTimer = setTimeout(() => this.connect(), 5000);
+            this.scheduleReconnect();
         };
+    }
+
+    scheduleReconnect() {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => this.connect(), 3000);
     }
 
     subscribe(fakeWs) {
