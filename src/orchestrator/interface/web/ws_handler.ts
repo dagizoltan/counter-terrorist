@@ -175,7 +175,7 @@ export function createWsHandler(role: string = "viewer") {
           meta.resetAt = now + 1000;
         } else {
           meta.count++;
-          if (meta.count > 10) {
+          if (meta.count > 50) {
             if (sharedLogging) sharedLogging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,

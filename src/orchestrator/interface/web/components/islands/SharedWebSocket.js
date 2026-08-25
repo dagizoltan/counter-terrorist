@@ -23,12 +23,15 @@ class WsManager {
         clearInterval(this.pingInterval);
         clearTimeout(this.reconnectTimer);
 
-        // Refresh meta token in case session re-authenticated
+        // Build WebSocket connection URL with CSRF/session token
         this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        const protocols = this.csrfToken ? [`cts-auth-${this.csrfToken}`] : [];
+        const wsUrl = new URL(this.url);
+        if (this.csrfToken) {
+            wsUrl.searchParams.set('token', this.csrfToken);
+        }
         
         try {
-            this.ws = new WebSocket(this.url, protocols);
+            this.ws = new WebSocket(wsUrl.toString());
         } catch (e) {
             console.error('[SovereignWS] WebSocket instantiation error:', e);
             this.scheduleReconnect();
