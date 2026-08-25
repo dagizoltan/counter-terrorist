@@ -23,6 +23,7 @@ class ScannerAgent extends HTMLElement {
       const res = await fetch('/api/agents/scanner/ledger', { headers });
       if (!res.ok) return;
       const ledger = await unwrap(res);
+      this.ledger = ledger;
       this.renderLedger(ledger);
     } catch (e) {
       console.error('Ledger fetch failed:', e);
@@ -30,7 +31,7 @@ class ScannerAgent extends HTMLElement {
   }
 
   renderLedger(ledger) {
-    const listEl = document.getElementById('scanner-ledger');
+    const listEl = this.querySelector('#scanner-ledger');
     if (!listEl) return;
 
     if (!ledger || ledger.length === 0) {
@@ -63,7 +64,7 @@ class ScannerAgent extends HTMLElement {
  
   async syncSignatures() {
     try {
-      const resultsEl = document.getElementById('scanner-results');
+      const resultsEl = this.querySelector('#scanner-results');
       if (resultsEl) {
         resultsEl.innerHTML = `
           <div class="flex flex-col items-center justify-center p-6 gap-4">
@@ -99,7 +100,7 @@ class ScannerAgent extends HTMLElement {
     this.render();
  
     try {
-      const resultsEl = document.getElementById('scanner-results');
+      const resultsEl = this.querySelector('#scanner-results');
       if (resultsEl) {
         resultsEl.innerHTML = `
           <div class="flex flex-col items-center justify-center p-6 gap-4">
@@ -213,6 +214,11 @@ class ScannerAgent extends HTMLElement {
               </div>
             `}
          </div>
+
+         <section class="flex flex-col gap-3">
+            <span class="eyebrow eyebrow--tick eyebrow--rule">Critical Artifact Ledger</span>
+            <div id="scanner-ledger" class="flex flex-col gap-2"></div>
+         </section>
       </div>
     `;
  
@@ -220,6 +226,8 @@ class ScannerAgent extends HTMLElement {
     if (btn && !this.scanning) {
        btn.onclick = () => this.runScan();
     }
+    // render() rewrites innerHTML, which drops the ledger; repaint it.
+    if (this.ledger) this.renderLedger(this.ledger);
   }
  
   setScanType(type) {

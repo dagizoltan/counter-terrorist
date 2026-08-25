@@ -12,8 +12,14 @@ function SupplyChainIsland() {
   useEffect(() => {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
     const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
-    fetch("/api/supply-chain/sbom", { headers }).then(unwrap).then(setSbom);
-    fetch("/api/supply-chain/status", { headers }).then(unwrap).then(setStatus);
+    fetch("/api/supply-chain/sbom", { headers })
+      .then(unwrap)
+      .then((d) => setSbom(Array.isArray(d) ? d : []))
+      .catch(() => setSbom([]));
+    fetch("/api/supply-chain/status", { headers })
+      .then(unwrap)
+      .then((d) => setStatus(d ?? {}))
+      .catch(() => setStatus({}));
   }, []);
 
   if (!status) return html`

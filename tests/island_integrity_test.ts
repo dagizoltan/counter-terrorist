@@ -121,24 +121,6 @@ Deno.test("every element ID an island looks up is actually created somewhere", a
   }
   await collect(WEB.replace(/\/$/, ""));
 
-  // Known gaps, kept visible rather than silently failing. Each of these is an
-  // island that loads but cannot fully wire itself up because the markup it
-  // expects does not exist. Fixing them needs page markup designed for the
-  // data, which is a product decision, not a mechanical one.
-  const KNOWN_GAPS = new Set([
-    // Guarded status lookups: the island renders its main body but cannot
-    // populate these extra readouts. Degrades quietly rather than throwing.
-    "AnonymizerController.js:vpn-protocol",
-    "AnonymizerController.js:vpn-region",
-    "AnonymizerController.js:vpn-status",
-    "AnonymizerController.js:vpn-rotation",
-    "ScannerAgent.js:scanner-ledger",
-    // Preact islands that mount by root id. No page loads either script, so
-    // they are dead code rather than broken UI.
-    "SupplyChainIsland.js:supply-chain-container",
-    "TacticalIntel.js:tactical-intel-root",
-  ]);
-
   const dangling: string[] = [];
   for (const name of islandFiles()) {
     const src = await Deno.readTextFile(`${ISLANDS}/${name}`);
@@ -146,9 +128,7 @@ Deno.test("every element ID an island looks up is actually created somewhere", a
       const id = m[1];
       const declared = src.includes(`id="${id}"`) || src.includes(`id='${id}'`) ||
         haystack.some((h) => h.includes(`id="${id}"`) || h.includes(`id='${id}'`));
-      if (!declared && !KNOWN_GAPS.has(`${name}:${id}`)) {
-        dangling.push(`${name}: #${id} is never created`);
-      }
+      if (!declared) dangling.push(`${name}: #${id} is never created`);
     }
   }
   assertEquals(dangling, [], `island(s) render into an element that does not exist:\n${dangling.join("\n")}`);
