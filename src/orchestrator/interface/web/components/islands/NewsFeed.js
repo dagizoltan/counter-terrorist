@@ -13,7 +13,31 @@ class NewsFeed extends HTMLElement {
 
   connectedCallback() {
     this.render();
+    this.fetchInitial();
     this.setupListeners();
+  }
+
+  async fetchInitial() {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/threats/feed', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const items = Array.isArray(data) ? data : (data.items || data.latest || []);
+        if (items.length > 0) {
+          this.news = items.map(item => ({
+            ...item,
+            severity: this.calculateSeverity(item.title),
+            category: this.detectCategory(item.title)
+          }));
+          this.render();
+        }
+      }
+    } catch (e) {
+      console.warn('[NEWS-FEED] Initial fetch failed, waiting for stream');
+    }
   }
 
   setupListeners() {
@@ -80,9 +104,15 @@ class NewsFeed extends HTMLElement {
  
     if (this.news.length === 0) {
       this.innerHTML = `
-        <div class="flex flex-col gap-6">
-           <div class="${isCompact ? 'p-6' : 'p-12'} text-center border border-dashed border-white/5 opacity-30 mono-xs uppercase tracking-widest italic">
-              Synchronizing with global intelligence feeds...
+        <div class="flex flex-col gap-4">
+           <div class="${isCompact ? 'p-4 rounded-xl' : 'p-6 rounded-2xl'} bg-black/40 border border-white/5 backdrop-blur-xl">
+              <div class="flex items-center gap-3 mb-2">
+                 <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+                 <span class="mono-xs text-primary font-black uppercase tracking-widest">Global Intelligence Feed Standby</span>
+              </div>
+              <p class="mono-xs text-slate-500 font-medium tracking-wide leading-relaxed">
+                 Awaiting dynamic threat telemetry ingest from OSINT providers (NVD, AlienVault, CISA).
+              </p>
            </div>
         </div>
       `;
