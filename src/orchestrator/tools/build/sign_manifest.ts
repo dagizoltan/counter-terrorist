@@ -2,8 +2,7 @@
  * Manifest Signing Tool
  * Uses the developer private key to sign sidecars.manifest.json.
  */
-import { dirname, resolve } from "@std/path";
-import { fromFileUrl } from "@std/path/from-file-url";
+import { dirname, resolve, fromFileUrl } from "@std/path";
 import { canonicalStringify } from "../../core/crypto_utils.ts";
 
 const scriptDir = dirname(fromFileUrl(import.meta.url));

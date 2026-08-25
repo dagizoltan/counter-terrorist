@@ -1,5 +1,4 @@
-import { dirname, join, resolve } from "@std/path";
-import { fromFileUrl } from "@std/path/from-file-url";
+import { dirname, join, resolve, fromFileUrl } from "@std/path";
 
 const scriptDir = dirname(fromFileUrl(import.meta.url));
 const manifestPath = resolve(scriptDir, "..", "..", "infrastructure", "runtime", "sidecars.manifest.json");
