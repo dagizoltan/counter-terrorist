@@ -19,12 +19,21 @@ class EnvironmentalSignals extends HTMLElement {
       });
       if (resp.ok) {
         const data = await resp.json();
-        this.signals = {
-          wifi: data.filter(d => d.type === 'WIFI'),
-          bluetooth: data.filter(d => d.type === 'BLUETOOTH'),
-          ethernet: data.filter(d => d.type === 'ETHERNET' || d.type === 'MESH'),
-          mesh: data.filter(d => d.type === 'MESH')
-        };
+        if (Array.isArray(data)) {
+          this.signals = {
+            wifi: data.filter(d => d.type === 'WIFI'),
+            bluetooth: data.filter(d => d.type === 'BLUETOOTH'),
+            ethernet: data.filter(d => d.type === 'ETHERNET' || d.type === 'MESH'),
+            mesh: data.filter(d => d.type === 'MESH')
+          };
+        } else if (data && typeof data === 'object') {
+          this.signals = {
+            wifi: Array.isArray(data.wifi) ? data.wifi : [],
+            bluetooth: Array.isArray(data.bluetooth) ? data.bluetooth : [],
+            ethernet: Array.isArray(data.ethernet) ? data.ethernet : [],
+            mesh: Array.isArray(data.mesh) ? data.mesh : []
+          };
+        }
       }
     } catch (e) {
       console.error('Failed to fetch environmental signals:', e);
