@@ -101,6 +101,38 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
   }
 
   /**
+   * Automated root CA key rotation harness.
+   * Performs an immediate automated rotation of the root CA key and re-issues all active node certificates.
+   */
+  async rotateRootCAKey(): Promise<Result<CertPair>> {
+    try {
+        const currentEntry = await this.kv.get<EncryptedCertPair>(this.CA_KEY);
+        if (currentEntry.value) {
+            await this.kv.set(["mesh", "pki", "prev_root_ca"], currentEntry.value);
+        }
+
+        const caResult = await this.generateSelfSignedCA();
+        if (!caResult.success) return caResult;
+        const newCa = caResult.data;
+
+        await this.kv.set(this.CA_KEY, await this.encryptCertPair(newCa));
+        await this.rotateAllNodeCerts();
+
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.AUDIT,
+            severity: LogSeverity.INFO,
+            caller: "PKI",
+            message: "Automated Root CA Key rotation and node cert re-issuance completed successfully."
+        });
+
+        return ok(newCa);
+    } catch (e) {
+        return err(e instanceof Error ? e : new Error(String(e)));
+    }
+  }
+
+  /**
    * SOV-P4: TPM-Resident Mode
    * Generates a node cert but keeps the key in hardware (via trustroot proxy).
    */
