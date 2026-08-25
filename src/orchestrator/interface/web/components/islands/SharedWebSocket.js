@@ -26,7 +26,7 @@ class WsManager {
         // Build WebSocket connection URL with CSRF/session token
         this.csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const wsUrl = new URL(this.url);
-        if (this.csrfToken) {
+        if (this.csrfToken && this.csrfToken !== 'undefined') {
             wsUrl.searchParams.set('token', this.csrfToken);
         }
         

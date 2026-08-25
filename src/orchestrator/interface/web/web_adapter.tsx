@@ -297,8 +297,8 @@ export class WebAdapter implements WebPort {
     // 0. AUTH MIDDLEWARE: Protect core resources
     this.app.use("*", (c, next) => {
         const path = c.req.path;
-        // Skip auth for static assets and login
-        if (path === "/login" || path === "/logout" || path.startsWith("/assets/") || path.startsWith("/vendor/") || path === "/style.css") {
+        // Skip auth for static assets, login, and dedicated WebSocket handler
+        if (path === "/login" || path === "/logout" || path === "/api/ws/events" || path.startsWith("/assets/") || path.startsWith("/vendor/") || path === "/style.css") {
             return next();
         }
         return this.security.auth()(c, next);
