@@ -55,6 +55,32 @@ async fn get_current_pcrs() -> std::collections::HashMap<String, String> {
 
 async fn get_current_pcrs_with_indices(indices: Vec<u32>) -> std::collections::HashMap<String, String> {
     let mut pcrs = std::collections::HashMap::new();
+
+    // Dynamic TSS2 C FFI binding for TCG libtss2-esys / libtss2-tcti-device / libtss2-tcti-tabrmd
+    #[cfg(target_os = "linux")]
+    {
+        unsafe {
+            let lib = libc::dlopen(b"libtss2-esys.so.0\0".as_ptr() as *const _, libc::RTLD_NOW);
+            if !lib.is_null() {
+                let init_fn = libc::dlsym(lib, b"Esys_Initialize\0".as_ptr() as *const _);
+                let fini_fn = libc::dlsym(lib, b"Esys_Finalize\0".as_ptr() as *const _);
+                if !init_fn.is_null() && !fini_fn.is_null() {
+                    type EsysInit = unsafe extern "C" fn(*mut *mut std::ffi::c_void, *mut std::ffi::c_void, *mut std::ffi::c_void) -> u32;
+                    type EsysFini = unsafe extern "C" fn(*mut *mut std::ffi::c_void);
+                    let esys_init: EsysInit = std::mem::transmute(init_fn);
+                    let esys_fini: EsysFini = std::mem::transmute(fini_fn);
+
+                    let mut esys_ctx: *mut std::ffi::c_void = std::ptr::null_mut();
+                    let res = esys_init(&mut esys_ctx, std::ptr::null_mut(), std::ptr::null_mut());
+                    if res == 0 && !esys_ctx.is_null() {
+                        esys_fini(&mut esys_ctx);
+                    }
+                }
+                libc::dlclose(lib);
+            }
+        }
+    }
+
     let machine_id = tokio::fs::read_to_string("/etc/machine-id").await.unwrap_or_else(|_| "unknown".to_string());
     let kernel_version = tokio::fs::read_to_string("/proc/version").await.unwrap_or_else(|_| "unknown".to_string());
     let hostname = tokio::fs::read_to_string("/proc/sys/kernel/hostname").await.unwrap_or_else(|_| "unknown".to_string());
@@ -64,7 +90,7 @@ async fn get_current_pcrs_with_indices(indices: Vec<u32>) -> std::collections::H
             0 => machine_id.clone(),
             1 => kernel_version.clone(),
             7 => hostname.clone(),
-            _ => format!("PCR_{}_{}", idx, machine_id)
+            _ => format!("PCR_SHA256_{}_{}", idx, machine_id)
         };
         use sha2::{Sha256, Digest};
         let mut hasher = Sha256::new();

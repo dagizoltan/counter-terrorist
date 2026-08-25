@@ -76,7 +76,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // BUG-20: Refactor Bpf management to use safe interior mutability
     // and 'static references for async tasks.
-    let bpf_instance = match Bpf::load(bpf_bytes) {
+    // CO-RE / BTF Loader Initialization: Uses BpfLoader for BTF relocations across Linux 5.4 to 6.x+
+    let bpf_instance = match aya::BpfLoader::new().load(bpf_bytes) {
         Ok(b) => b,
         Err(e) => {
             // SOV-06 FIX: Provide detailed diagnostic on BPF load failure
@@ -85,8 +86,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 if os_err.kind() == std::io::ErrorKind::PermissionDenied {
                     reason = "Permission Denied: Ensure CAP_SYS_ADMIN and CAP_BPF are set.".to_string();
                 }
-            } else if e.to_string().contains("BTF") {
-                reason = "BTF Error: Kernel lacks BTF support or /sys/kernel/btf/vmlinux is missing.".to_string();
+            } else if e.to_string().contains("BTF") || e.to_string().contains("relocation") {
+                reason = "BTF CO-RE Error: Kernel lacks BTF support or /sys/kernel/btf/vmlinux is missing.".to_string();
             }
             emit_response(None, false, reason).await;
             return run_dummy_mode().await;

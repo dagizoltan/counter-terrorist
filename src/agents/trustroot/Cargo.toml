@@ -14,3 +14,6 @@ rsa = "0.9"
 pkcs8 = { version = "0.10", features = ["std", "pem"] }
 sha2 = { workspace = true }
 hex = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
