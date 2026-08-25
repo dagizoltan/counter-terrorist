@@ -27,38 +27,27 @@ export const ThreatMapPage = (props: { status: any, csrfToken?: string, nonce?: 
         </div>
       </header>
 
-      {/* 02_Map_Theater */}
-      <div class="t-panel glass-panel p-0 border-t-2 border-slate-800 bg-black/40 overflow-hidden shadow-2xl relative min-h-[750px] mb-4 animate-in zoom-in-95 duration-1000">
-         <div class="absolute inset-0 z-0">
-            <threat-map></threat-map>
-         </div>
-         
-         {/* HUD_OVERLAYS */}
-         <div class="absolute top-8 left-8 z-10 pointer-events-none flex flex-col gap-4">
-            <div class="bg-black/80 border border-white/10 p-4 rounded-lg backdrop-blur-xl shadow-2xl">
-               <h4 class="eyebrow mb-4">Operational_Scope</h4>
-               <div class="flex flex-col gap-2">
-                  <div class="flex justify-between gap-4">
-                     <span class="mono text-[10px] text-slate-600">Active_Nodes:</span>
-                     <span class="mono text-[10px] text-white font-black tabular-nums">4,092</span>
-                  </div>
-                  <div class="flex justify-between gap-4">
-                     <span class="mono text-[10px] text-slate-600">Detection_Radius:</span>
-                     <span class="eyebrow" data-tone="strong">Global</span>
-                  </div>
-               </div>
-            </div>
-         </div>
+      {/* 02_Map_Theater
+          The panel takes its height from the map's own aspect ratio. The HUD
+          used to float over the plot at top-left and bottom-right; once the
+          panel stopped being a fixed 750px box those cards sat on top of the
+          geography (the vectoring card covered Australia) and duplicated the
+          legend the island already renders. They read as a footer strip now,
+          and the map surface carries only its own legend and count. */}
+      <div class="t-panel glass-panel p-0 border-t-2 border-slate-800 bg-black/40 overflow-hidden shadow-2xl mb-4 animate-in zoom-in-95 duration-1000">
+         <threat-map></threat-map>
 
-         <div class="absolute bottom-8 right-8 z-10 pointer-events-none">
-            <div class="bg-black/90 border border-danger/30 p-4 rounded-lg backdrop-blur-2xl shadow-[0_0_50px_rgba(var(--danger-rgb),0.1)]">
-               <div class="flex items-center gap-4 mb-4">
-                  <div class="indicator indicator--sm" data-state="crit" data-pulse="" aria-hidden="true"></div>
-                  <span class="eyebrow" data-tone="danger">Live Attack Vectoring</span>
-               </div>
-               <p class="mono text-[9px] text-slate-500 max-w-[200px]">Ingress events are localized using hardened local GeoIP resolution to preserve orchestrator anonymity.</p>
+         <footer class="map-hud">
+            <div class="map-hud__group">
+               <Eyebrow tick>Detection Radius</Eyebrow>
+               <span class="map-hud__value">Global</span>
             </div>
-         </div>
+            <p class="map-hud__note">
+               <span class="indicator indicator--sm" data-state="crit" data-pulse="" aria-hidden="true"></span>
+               Ingress events are localized with hardened local GeoIP resolution, to
+               preserve orchestrator anonymity.
+            </p>
+         </footer>
       </div>
 
       {/* 03_Regional_Stats */}
