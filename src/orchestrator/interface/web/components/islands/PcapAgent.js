@@ -54,9 +54,29 @@ class PcapAgent extends HTMLElement {
          </div>
       </div>
     `;
+    this.fetchInitial();
     this.connectWS();
     // Auto-initiate capture for real-time visibility
     setTimeout(() => this.startCapture(), 1000);
+  }
+
+  async fetchInitial() {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/network/logs', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const logs = Array.isArray(data) ? data : [];
+        if (logs.length > 0) {
+          this.packets = logs;
+          this.render();
+        }
+      }
+    } catch (e) {
+      console.warn('[PCAP-AGENT] Initial fetch failed');
+    }
   }
 
   connectWS() {
