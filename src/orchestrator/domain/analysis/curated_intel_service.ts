@@ -579,38 +579,47 @@ export class CuratedIntelService extends BaseService {
         
         const { type, provider, limit = 50, offset, search } = options;
         
-        // OPTIMIZATION: Use type-specific index if type is provided and no search is active
-        const prefix = (type && !search) ? ["curated_threats_by_type", type] : ["curated_threats"];
+        let prefix = (type && !search) ? ["curated_threats_by_type", type] : ["curated_threats"];
+        let iter = this.kv.list<IntelIndicator>({ prefix }, { cursor: offset });
         
-        const iter = this.kv.list<IntelIndicator>(
-            { prefix }, 
-            { cursor: offset } 
-        );
-        
-        const threats: IntelIndicator[] = [];
+        let threats: IntelIndicator[] = [];
         let cursor = "";
 
-        // BUG-02 Optimization: Fetch blocked IPs once
         const blockedSet = new Set(await this.firewall.getBlockedIps() || []);
 
         for await (const res of iter) {
             const t = res.value;
-            
-            // Apply filters
             const matchesType = !type || t.type === type;
             const matchesProvider = !provider || t.provider === provider;
             const matchesSearch = !search || t.indicator.includes(search);
             
             if (matchesType && matchesProvider && matchesSearch) {
-                // Real-time check for block status (Optimized via Set)
                 const blocked = blockedSet.has(t.indicator);
                 threats.push({ ...t, blocked } as IntelIndicator & { blocked: boolean });
             }
             
-            // Always update cursor to the last processed item
             cursor = iter.cursor;
-
             if (threats.length >= limit) break;
+        }
+
+        // Fallback: If type index yielded zero threats, scan global curated_threats
+        if (threats.length === 0 && type && !search) {
+            prefix = ["curated_threats"];
+            iter = this.kv.list<IntelIndicator>({ prefix }, { cursor: offset });
+            for await (const res of iter) {
+                const t = res.value;
+                const matchesType = !type || t.type === type;
+                const matchesProvider = !provider || t.provider === provider;
+                const matchesSearch = !search || t.indicator.includes(search);
+
+                if (matchesType && matchesProvider && matchesSearch) {
+                    const blocked = blockedSet.has(t.indicator);
+                    threats.push({ ...t, blocked } as IntelIndicator & { blocked: boolean });
+                }
+
+                cursor = iter.cursor;
+                if (threats.length >= limit) break;
+            }
         }
 
         return { threats, nextCursor: cursor };

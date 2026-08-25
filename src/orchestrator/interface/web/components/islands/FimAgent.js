@@ -20,7 +20,28 @@ class FimAgent extends HTMLElement {
          </div>
       </div>
     `;
+    this.fetchInitial();
     this.connectWS();
+  }
+
+  async fetchInitial() {
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+      const res = await fetch('/api/compliance/logs?limit=50', {
+        headers: csrfToken ? { 'X-CT-Token': csrfToken } : {}
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const logs = Array.isArray(data) ? data : (data.items || []);
+        const fimLogs = logs.filter(l => l.caller?.includes('fim') || l.type === 'FIM_ALERT' || l.type === 'DRIFT_PROCESS');
+        if (fimLogs.length > 0) {
+          this.alerts = fimLogs;
+          this.render();
+        }
+      }
+    } catch (e) {
+      console.warn('[FIM-AGENT] Initial fetch failed');
+    }
   }
 
   connectWS() {

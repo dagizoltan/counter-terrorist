@@ -41,12 +41,23 @@ class FirewallAgent extends HTMLElement {
       const agentData = await agentRes.json();
       const pid = agentData.firewall?.pid;
 
-      const lines = (data.stdout || '').split('\n').filter(l => l.trim());
-      const blockedIps = [];
-      for (const line of lines) {
-        const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
-        if (match && (line.includes('DROP') || line.includes('REJECT') || line.includes('DENY'))) {
-          blockedIps.push(match[1]);
+      // Retrieve metrics snapshot for direct blockedIps array from FirewallManager
+      const metricsRes = await fetch('/api/metrics', { headers });
+      let blockedIps = [];
+      if (metricsRes.ok) {
+        const metrics = await metricsRes.json();
+        if (metrics.firewall?.blockedIps && Array.isArray(metrics.firewall.blockedIps)) {
+          blockedIps = metrics.firewall.blockedIps;
+        }
+      }
+
+      if (blockedIps.length === 0 && data.stdout) {
+        const lines = (data.stdout || '').split('\n').filter(l => l.trim());
+        for (const line of lines) {
+          const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
+          if (match && (line.includes('DROP') || line.includes('REJECT') || line.includes('DENY'))) {
+            blockedIps.push(match[1]);
+          }
         }
       }
       this.updateUI({ blockedCount: blockedIps.length, blockedIps, pid });
