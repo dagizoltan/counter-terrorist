@@ -5,7 +5,7 @@
  *   Generator     : src/orchestrator/tools/build/build_css.ts
  *   Regenerate    : deno task build-css
  *
- * 520 utilities derived from 687 class names in use.
+ * 516 utilities derived from 687 class names in use.
  * -------------------------------------------------------------------------- */
 
 /* ============================================================================
@@ -1450,12 +1450,19 @@ body.auth-page {
 .threat-map {
   position: relative;
   width: 100%;
-  height: 100%;
-  min-height: 240px;
+  /* Match the cropped projection (360 x 140) so the SVG never letterboxes.
+     Sizing the box to the map, rather than fitting a 2:1 map into whatever
+     height the page happened to declare, is what removes the dead band the
+     legend used to float in. */
+  aspect-ratio: 360 / 140;
   background: var(--surface-inset);
   border-radius: var(--r-lg);
   overflow: hidden;
 }
+
+/* Where a page does pin the map to a fixed-height box, fill it instead of
+   letterboxing — the aspect-ratio above is the preferred path. */
+.threat-map--fill { aspect-ratio: auto; height: 100%; }
 
 .threat-map__canvas { width: 100%; height: 100%; display: block; }
 
@@ -1578,6 +1585,45 @@ body.auth-page {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Footer strip under the threat map. Replaces two cards that floated over the
+   plot itself — once the panel stopped being a fixed-height theater they sat
+   on top of the geography and duplicated the map's own legend. */
+.map-hud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  flex-wrap: wrap;
+  padding: var(--s-4) var(--s-5);
+  border-top: 1px solid var(--line-faint);
+  background: var(--surface-1);
+}
+
+.map-hud__group { display: flex; align-items: center; gap: var(--s-3); }
+
+.map-hud__value {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+
+.map-hud__note {
+  display: flex;
+  /* The note wraps to two lines at narrow widths; centring would float the
+     dot between them. Pin it to the first line. */
+  align-items: flex-start;
+  gap: var(--s-3);
+  max-width: 62ch;
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+
+.map-hud__note > .indicator { margin-top: 0.42em; }
 
 /* ============================================================================
  * 04 // MOTION
@@ -1781,7 +1827,6 @@ body.auth-page {
 .bg-black\/40 { background-color:hsl(225 40% 2% / 0.4); }
 .bg-black\/60 { background-color:hsl(225 40% 2% / 0.6); }
 .bg-black\/80 { background-color:hsl(225 40% 2% / 0.8); }
-.bg-black\/90 { background-color:hsl(225 40% 2% / 0.9); }
 .bg-blue-600 { background-color:var(--primary); }
 .bg-danger { background-color:var(--danger); }
 .bg-danger\/10 { background-color:hsl(var(--danger-hsl) / 0.1); }
@@ -2058,7 +2103,6 @@ body.auth-page {
 .min-h-\[500px\] { min-height:500px; }
 .min-h-\[600px\] { min-height:600px; }
 .min-h-\[700px\] { min-height:700px; }
-.min-h-\[750px\] { min-height:750px; }
 .min-h-\[800px\] { min-height:800px; }
 .min-w-0 { min-width:0; }
 .mix-blend-overlay { mix-blend-mode:overlay; }
@@ -2159,7 +2203,6 @@ body.auth-page {
 .shadow-\[0_0_20px_rgba\(var\(--danger-rgb\)\,0\.15\)\] { box-shadow:0 0 20px rgba(var(--danger-rgb),0.15); }
 .shadow-\[0_0_20px_rgba\(var\(--primary-rgb\)\,0\.15\)\] { box-shadow:0 0 20px rgba(var(--primary-rgb),0.15); }
 .shadow-\[0_0_40px_var\(--success-glow\)\] { box-shadow:0 0 40px var(--success-glow); }
-.shadow-\[0_0_50px_rgba\(var\(--danger-rgb\)\,0\.1\)\] { box-shadow:0 0 50px rgba(var(--danger-rgb),0.1); }
 .shadow-\[0_0_50px_rgba\(var\(--danger-rgb\)\,0\.8\)\] { box-shadow:0 0 50px rgba(var(--danger-rgb),0.8); }
 .shadow-\[0_0_5px_currentColor\] { box-shadow:0 0 5px currentColor; }
 .shadow-\[0_0_8px_currentColor\] { box-shadow:0 0 8px currentColor; }
@@ -2277,7 +2320,6 @@ body.auth-page {
 .w-px { width:1px; }
 .whitespace-pre-wrap { white-space:pre-wrap; }
 @media (min-width:1280px) { .xl\:grid-cols-3 { grid-template-columns:repeat(3,minmax(0,1fr)); } }
-.z-0 { z-index:0; }
 .z-10 { z-index:10; }
 .z-20 { z-index:20; }
 .z-\[10002\] { z-index:10002; }

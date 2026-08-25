@@ -20,8 +20,19 @@
 import { unwrap } from "./api.js";
 import { WORLD_PATH, project } from "./world-outline.js";
 
-const VIEW_W = 360;
-const VIEW_H = 180;
+/**
+ * Viewport crop, in the projection's own units (x = lon+180, y = 90-lat).
+ *
+ * The full projection is 360x180, but the poles are dead weight here:
+ * equirectangular smears Antarctica into a slab across the entire bottom
+ * eighth of the frame, and no threat indicator has ever resolved to it. The
+ * crop runs from lat +84 (northern tip of Greenland) to lat -56 (below Cape
+ * Horn), which covers every inhabited landmass and nothing else.
+ *
+ * It also fixes the fit: the uncropped 2:1 map was letterboxed inside a 1.4:1
+ * panel, leaving ~225px of dead space with the legend floating in it.
+ */
+const VIEW = { x: 0, y: 6, w: 360, h: 140 };
 
 class ThreatMap extends HTMLElement {
   constructor() {
@@ -46,7 +57,8 @@ class ThreatMap extends HTMLElement {
   renderShell() {
     this.innerHTML = `
       <div class="threat-map">
-        <svg class="threat-map__canvas" viewBox="0 0 ${VIEW_W} ${VIEW_H}"
+        <svg class="threat-map__canvas"
+             viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}"
              preserveAspectRatio="xMidYMid meet" role="img"
              aria-label="Global threat indicator map">
           <defs>
@@ -55,7 +67,7 @@ class ThreatMap extends HTMLElement {
                     stroke="var(--line-faint)" stroke-width="0.4"/>
             </pattern>
           </defs>
-          <rect width="${VIEW_W}" height="${VIEW_H}" fill="url(#tm-grid)"/>
+          <rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" fill="url(#tm-grid)"/>
           <path d="${WORLD_PATH}" class="threat-map__land"/>
           <g class="threat-map__plots"></g>
         </svg>
@@ -113,6 +125,9 @@ class ThreatMap extends HTMLElement {
     if (!this.plots || lat == null || lon == null) return;
     const { x, y } = project(lat, lon);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    // Outside the cropped viewport it would render pinned to the frame edge,
+    // reading as a detection that is not where it appears to be.
+    if (y < VIEW.y || y > VIEW.y + VIEW.h) return;
 
     this.threats.get(indicator)?.remove();
 
