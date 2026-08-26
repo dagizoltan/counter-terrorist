@@ -2,7 +2,8 @@
  * ProcessTree Island
  * High-density hierarchical visualization of kernel processes.
  */
-import { unwrap } from "./api.js";
+import { unwrap, apiSend } from "./api.js";
+import { bindActions } from "./actions.js";
 class ProcessTree extends HTMLElement {
   constructor() {
     super();
@@ -10,8 +11,39 @@ class ProcessTree extends HTMLElement {
     this.isScanning = false;
   }
 
+  get canTerminate() {
+    return this.getAttribute("role-name") === "admin";
+  }
+
   connectedCallback() {
+    bindActions(this, { terminate: (el) => this.terminate(el.dataset.pid, el.dataset.comm) });
     this.refresh();
+  }
+
+  /**
+   * SIGKILL one process, after forensics.
+   *
+   * The button that used to sit here posted to /api/processes/kill/:pid, which
+   * no route served, from an inline onclick the CSP refused — dead twice over,
+   * inside a wrapper that was invisible anyway. The route exists now and is
+   * admin-only; firewall.killProcess() dumps process forensics and writes an
+   * audit event before signalling.
+   */
+  async terminate(pid, comm) {
+    if (!pid || this.busy === pid) return;
+    if (!globalThis.confirm(`Execute SIGKILL on PID ${pid} (${comm || "unknown"})?\n\nForensics are captured first. This cannot be undone.`)) return;
+
+    this.busy = pid;
+    this.render();
+    try {
+      await apiSend(`/api/processes/kill/${encodeURIComponent(pid)}`, "POST");
+      this.error = null;
+    } catch (e) {
+      this.error = `Termination failed for PID ${pid}: ${e.message}`;
+    } finally {
+      this.busy = null;
+      await this.refresh();
+    }
   }
 
   async update() {
@@ -39,8 +71,13 @@ class ProcessTree extends HTMLElement {
   }
 
   render() {
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
+    const banner = this.error
+      ? `<div class="error-box" role="alert"><span class="danger-dot" aria-hidden="true"></span>${esc(this.error)}</div>`
+      : "";
+
     if (this.isScanning && this.processes.length === 0) {
-      this.innerHTML = `
+      this.innerHTML = banner + `
         <div class="flex flex-col items-center justify-center p-6 gap-4">
            <div class="w-12 h-12 border-2 border-primary border-t-transparent rounded-full"></div>
            <span class="eyebrow" data-tone="primary">Infiltrating_Process_Namespace...</span>
@@ -50,7 +87,7 @@ class ProcessTree extends HTMLElement {
     }
 
     if (!this.processes.length) {
-      this.innerHTML = `
+      this.innerHTML = banner + `
         <div class="p-6 text-center border border-dashed border-white/5 opacity-30 rounded">
            <span class="eyebrow">No_Execution_Lineage_Data_In_Buffer</span>
         </div>
@@ -62,7 +99,7 @@ class ProcessTree extends HTMLElement {
     const roots = this.processes.filter(p => p.ppid === 0 || !pids.has(p.ppid));
     roots.sort((a, b) => a.pid - b.pid);
 
-    this.innerHTML = `
+    this.innerHTML = banner + `
       <div class="space-y-0.5">
         ${roots.map(r => this.renderNode(r, 0)).join('')}
       </div>
@@ -110,6 +147,12 @@ class ProcessTree extends HTMLElement {
                  ${isProtected ? '<span class="status-pill active">SOVEREIGN</span>' : ''}
               </div>
               <span class="eyebrow">PPID: ${esc(node.ppid)}</span>
+              ${this.canTerminate && !isProtected ? `
+                <button type="button" class="btn btn--sm danger opacity-0 group-hover:opacity-100 transition-opacity"
+                        data-action="terminate" data-pid="${esc(node.pid)}" data-comm="${esc(node.comm)}"
+                        ${this.busy === String(node.pid) ? "disabled" : ""}>
+                  ${this.busy === String(node.pid) ? "…" : "Terminate"}
+                </button>` : ""}
            </div>
         </div>
         ${children.map(c => this.renderNode(c, depth + 1)).join('')}

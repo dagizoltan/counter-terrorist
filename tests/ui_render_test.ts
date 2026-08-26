@@ -235,3 +235,52 @@ Deno.test("every view forwards the CSP nonce to Layout", async () => {
       `refused by the CSP:\n${offenders.join("\n")}`,
   );
 });
+
+Deno.test("views do not hardcode a metric they cannot know", async () => {
+  // Fabricated readouts have been the most persistent defect in this console.
+  // Removed so far: "Trap Health 98.4%", four VPN cards reading
+  // WIREGUARD / EU-CENTRAL / MAXIMUM / "24m 12s", "LATENCY: 42ms",
+  // "Egress_Stability 99.9%", the sidebar trust meter's "99.9%" on every page,
+  // "Integrity_Hash: Verified_Secure", "Audit_Stability: 99.99%_STABLE", the
+  // Governance Ledger's "0.00% Tamper_Prob" / "1.4K" / "PASS GDPR/SOV" / "12
+  // Live_Rules", and the mesh page's green "VERIFIED" Byzantine consensus pill.
+  //
+  // Every one looked authoritative and none had a source. On a security
+  // console that is worse than a blank: it is an assurance nobody computed.
+  //
+  // The rule: a view may not ship a literal that looks like a live measurement.
+  // Placeholders are fine — an em dash, "—", "AWAITING" — because they do not
+  // claim anything. A real value has to arrive from an island at runtime.
+  const WEB_DIR = new URL("../src/orchestrator/interface/web/", import.meta.url);
+
+  // A number with a unit, or a verdict word, sitting alone between tags.
+  const MEASUREMENT = /(?:^|>)\s*(\d[\d.,]*\s*(?:%|K|M|ms|GB|MB|\/s)|VERIFIED|ESTABLISHED|BALANCED|OPTIMAL|MAXIMUM|NOMINAL|PASS|STABLE|SECURE)\s*(?:<|$)/;
+
+  const offenders: string[] = [];
+
+  async function scan(dir: URL) {
+    for await (const entry of Deno.readDir(dir)) {
+      const path = new URL(entry.name + (entry.isDirectory ? "/" : ""), dir);
+      if (entry.isDirectory) { await scan(path); continue; }
+      if (!entry.name.endsWith(".tsx")) continue;
+
+      const src = await Deno.readTextFile(path);
+      src.split("\n").forEach((line, i) => {
+        // A line that interpolates is deriving its value, not asserting one.
+        if (/>\s*\{/.test(line)) return;
+        // Comments explain the removals above; they are not markup.
+        if (/^\s*(\/\/|\/?\*|\{\/\*)/.test(line.trim())) return;
+        if (!MEASUREMENT.test(line)) return;
+        offenders.push(`${path.href.split("/web/")[1]}:${i + 1}  ${line.trim().slice(0, 88)}`);
+      });
+    }
+  }
+  await scan(WEB_DIR);
+
+  assertEquals(
+    offenders,
+    [],
+    `view(s) hardcoding a value that looks measured — render a placeholder and ` +
+      `let an island supply the real figure:\n${offenders.join("\n")}`,
+  );
+});

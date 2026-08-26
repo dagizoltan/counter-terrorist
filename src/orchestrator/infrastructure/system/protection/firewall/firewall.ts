@@ -455,6 +455,18 @@ export class FirewallManager implements FirewallPort {
     return await this.provider.lockdown();
   }
 
+  /**
+   * What the host is listening on.
+   *
+   * The console could open and close ports — arming a decoy does exactly that
+   * — but never had a way to report which ports were open, so the result of
+   * the control was invisible and an unintended listener could not be spotted.
+   */
+  async listListeningPorts() {
+    if (!this.provider.listListeningPorts) return [];
+    return await this.provider.listListeningPorts();
+  }
+
   async allowPort(port: number, protocol: "tcp" | "udp" = "tcp") {
     return await this.provider.allowPort(port, protocol);
   }

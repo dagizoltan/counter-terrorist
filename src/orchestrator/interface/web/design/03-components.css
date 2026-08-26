@@ -1180,6 +1180,15 @@ body.auth-page {
   min-width: 0;
 }
 
+/* Label row inside a stat cell: eyebrow on the left, state pill on the right. */
+.stat-cell__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
 .stat-cell__value {
   font-family: var(--font-mono);
   font-size: var(--t-xs);

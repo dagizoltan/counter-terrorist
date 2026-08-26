@@ -5,7 +5,7 @@
  *   Generator     : src/orchestrator/tools/build/build_css.ts
  *   Regenerate    : deno task build-css
  *
- * 489 utilities derived from 707 class names in use.
+ * 488 utilities derived from 707 class names in use.
  * -------------------------------------------------------------------------- */
 
 /* ============================================================================
@@ -1594,6 +1594,15 @@ body.auth-page {
   min-width: 0;
 }
 
+/* Label row inside a stat cell: eyebrow on the left, state pill on the right. */
+.stat-cell__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
 .stat-cell__value {
   font-family: var(--font-mono);
   font-size: var(--t-xs);
@@ -2237,7 +2246,6 @@ a.decoy-card__title:hover { color: var(--warning); }
 .border-danger\/40 { border-color:hsl(var(--danger-hsl) / 0.4); }
 .border-dashed { border-style:dashed; }
 .border-l { border-left:1px solid var(--line-faint); }
-.border-l-2 { border-left-width:2px; }
 .border-l-4 { border-left-width:4px; }
 .border-none { border:none; }
 .border-primary { border-color:var(--primary); }

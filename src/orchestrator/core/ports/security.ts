@@ -29,6 +29,19 @@ export interface FirewallPort {
   }>>;
   allowPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
   denyPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
+  /**
+   * Sockets this host is accepting connections on. Optional for the same
+   * reason as getEnforcementLedger: the test doubles implementing this port
+   * stay valid, and a provider that cannot enumerate reports nothing rather
+   * than something made up.
+   */
+  listListeningPorts?(): Promise<Array<{
+    port: number;
+    protocol: "tcp" | "udp";
+    address: string;
+    pid?: number;
+    process?: string;
+  }>>;
   setKv(kv: Deno.Kv): Promise<void>;
 }
 
