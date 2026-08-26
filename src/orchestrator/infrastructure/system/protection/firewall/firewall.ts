@@ -324,6 +324,57 @@ export class FirewallManager implements FirewallPort {
     return Promise.resolve(Array.from(this.blockedIps));
   }
 
+  /**
+   * The enforcement ledger: every active block with the record behind it.
+   *
+   * blockIp() and CuratedIntelService.commitIsolation() both write
+   * ["enforcement", ip] -> { reason, expiresAt, committedAt }, and the
+   * lifecycle audit re-verifies each entry as its TTL lapses, either extending
+   * it 24h or purging it. Nothing read any of that back: getBlockedIps()
+   * returns bare strings, and the metrics snapshot caps its copy at 20 — so
+   * the console could show an IP was blocked but never why, since when, or
+   * how long it has left.
+   *
+   * An in-memory block with no KV record is still reported, with a null
+   * record: it is enforced either way, and hiding it would under-report what
+   * the perimeter is actually doing.
+   */
+  async getEnforcementLedger(): Promise<Array<{
+    ip: string;
+    reason: string | null;
+    committedAt: number | null;
+    expiresAt: number | null;
+    persisted: boolean;
+  }>> {
+    const records = new Map<string, { reason?: string; expiresAt?: number; committedAt?: number }>();
+
+    if (this.kv) {
+      const iter = this.kv.list<{ reason?: string; expiresAt?: number; committedAt?: number }>({
+        prefix: ["enforcement"],
+      });
+      for await (const res of iter) {
+        const ip = String(res.key[1]);
+        // Same guard as hydration: a poisoned KV key must not reach the UI.
+        if (isValidIP(ip)) records.set(ip, res.value ?? {});
+      }
+    }
+
+    // Union of what is enforced in memory and what is on record, so neither a
+    // block that predates KV nor a record whose process restarted goes missing.
+    const ips = new Set<string>([...this.blockedIps, ...records.keys()]);
+
+    return [...ips].map((ip) => {
+      const record = records.get(ip);
+      return {
+        ip,
+        reason: record?.reason ?? null,
+        committedAt: record?.committedAt ?? null,
+        expiresAt: record?.expiresAt ?? null,
+        persisted: record !== undefined,
+      };
+    }).sort((a, b) => (b.committedAt ?? 0) - (a.committedAt ?? 0));
+  }
+
   async killProcess(pid: number) {
     broadcast({ 
         type: "AUDIT_EVENT", 

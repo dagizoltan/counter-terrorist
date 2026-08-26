@@ -190,3 +190,48 @@ Deno.test("a component's tone tokens never outrank the state that sets them", as
       `block or they will shadow [data-state]:\n${offenders.join("\n")}`,
   );
 });
+
+Deno.test("every view forwards the CSP nonce to Layout", async () => {
+  // Layout stamps props.nonce onto every <script> it emits. A view that
+  // renders <Layout> without passing it through emits script tags with no
+  // nonce — and under `script-src 'self' 'nonce-…' 'strict-dynamic'` the
+  // browser refuses every one of them.
+  //
+  // Seven views did exactly that: all six agent subpages (firewall, ebpf, fim,
+  // pcap, honeypot, mesh) and the generic agent detail page. Every island on
+  // those pages was refused at load — measured in Chromium, the firewall page
+  // logged ten "Refused to load the script" violations and rendered nine dead
+  // custom elements. They had no working JavaScript at all.
+  //
+  // Each of the seven already declared `nonce?: string` in its props. They
+  // just never forwarded it, which is precisely the kind of omission a types
+  // check cannot see and a page-load never announces.
+  const WEB_DIR = new URL("../src/orchestrator/interface/web/", import.meta.url);
+  const offenders: string[] = [];
+
+  async function scan(dir: URL) {
+    for await (const entry of Deno.readDir(dir)) {
+      const path = new URL(entry.name + (entry.isDirectory ? "/" : ""), dir);
+      if (entry.isDirectory) { await scan(path); continue; }
+      if (!entry.name.endsWith(".tsx")) continue;
+
+      const src = await Deno.readTextFile(path);
+      // Layout itself is where the nonce lands; it has no Layout of its own.
+      if (entry.name === "Layout.tsx") continue;
+
+      for (const match of src.matchAll(/<Layout\b[^>]*?>/gs)) {
+        if (match[0].includes("nonce")) continue;
+        const line = src.slice(0, match.index).split("\n").length;
+        offenders.push(`${path.href.split("/web/")[1]}:${line}`);
+      }
+    }
+  }
+  await scan(WEB_DIR);
+
+  assertEquals(
+    offenders,
+    [],
+    `view(s) rendering <Layout> without nonce — every script they emit will be ` +
+      `refused by the CSP:\n${offenders.join("\n")}`,
+  );
+});

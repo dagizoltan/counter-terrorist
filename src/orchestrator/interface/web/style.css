@@ -5,7 +5,7 @@
  *   Generator     : src/orchestrator/tools/build/build_css.ts
  *   Regenerate    : deno task build-css
  *
- * 512 utilities derived from 707 class names in use.
+ * 489 utilities derived from 707 class names in use.
  * -------------------------------------------------------------------------- */
 
 /* ============================================================================
@@ -836,6 +836,10 @@ li.eyebrow { display: list-item; }
   letter-spacing: 0.02em;
   transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
 }
+
+/* Inline filter fields sit in panel headers next to .btn--sm, so they need to
+   match its 24px height and stop stretching to the full row. */
+.input--sm { width: auto; min-width: 200px; height: 24px; padding: 0 var(--s-3); font-size: var(--t-micro); }
 
 .input:hover, .t-input:hover { border-color: var(--line-strong); }
 .input:focus, .t-input:focus { border-color: var(--primary); background: var(--surface-0); }
@@ -1816,6 +1820,183 @@ body.auth-page {
 
 .control-card__more { color: var(--text-3); font-style: italic; }
 
+/* ── Enforcement ledger ───────────────────────────────────────────────────
+   <block-list>. One row per active block: the address, the record behind it,
+   and how long it has left before the lifecycle audit re-verifies it. */
+.ledger { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.ledger__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.ledger__meta { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+
+.ledger-list { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, auto) auto;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--c-edge, var(--line));
+  background: var(--surface-2);
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.ledger-row:first-child { border-radius: var(--r-md) var(--r-md) 0 0; }
+.ledger-row:last-child { border-radius: 0 0 var(--r-md) var(--r-md); }
+.ledger-row:hover { background: var(--surface-3); }
+
+.ledger-row__id { display: inline-flex; align-items: center; gap: var(--s-3); min-width: 0; }
+
+.ledger-row__ip {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.ledger-row__facts { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+
+.ledger-row__ttl {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-row__when { display: flex; flex-direction: column; gap: var(--s-2); align-items: flex-end; text-align: right; }
+
+/* Below the deck the four columns cannot hold; stack them and let the action
+   sit under the facts rather than squeezing the address. */
+@media (max-width: 900px) {
+  .ledger-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--s-3); }
+  .ledger-row__when { align-items: flex-start; text-align: left; }
+}
+
+/* The card title links through to the decoy's detail page. */
+a.decoy-card__title { text-decoration: none; transition: color var(--dur-1) var(--ease); }
+a.decoy-card__title:hover { color: var(--warning); }
+
+/* ── Decoy detail ─────────────────────────────────────────────────────────
+   <decoy-detail>: one decoy, the sources it caught, and their transcripts. */
+.decoy-detail { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.decoy-detail__controls { display: flex; align-items: center; gap: var(--s-3); flex-shrink: 0; }
+
+.decoy-detail__desc { font-size: var(--t-xs); line-height: 1.5; color: var(--text-3); }
+
+.decoy-detail__row-actions { display: flex; align-items: center; gap: var(--s-2); justify-self: end; }
+
+/* Confirmation of an action that succeeded — the counterpart to .error-box. */
+.notice-box {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--success-edge);
+  border-radius: var(--r-md);
+  background: var(--success-wash);
+  font-size: var(--t-xs);
+  color: var(--text-2);
+}
+
+/* ── Session transcripts ──────────────────────────────────────────────────
+   Captured attacker input. Collapsed by default: a transcript runs to 16KB,
+   and an operator scanning a decoy wants the source and the size first. */
+.transcript-list { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.transcript {
+  min-width: 0;
+  border-left: 2px solid var(--line);
+  background: var(--surface-2);
+}
+
+.transcript[data-open="true"] { border-left-color: var(--warning-edge); }
+
+.transcript__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 14rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.transcript__head:hover { background: var(--surface-3); }
+.transcript[data-open="true"] > .transcript__head > .arrow-icon { transform: rotate(90deg); color: var(--warning); }
+
+.transcript__body {
+  max-height: 320px;
+  margin: 0;
+  padding: var(--s-4);
+  overflow: auto;
+  border-top: 1px solid var(--line-faint);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--text-2);
+  /* Attacker input is arbitrary bytes: never let it reflow the page. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .transcript__head { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--s-2); }
+}
+
+/* ── Threat table cells ───────────────────────────────────────────────────
+   The threat and artifact ledgers used ad-hoc type that bottomed out at
+   text-[5px] — smaller than any browser's minimum legible size, and the row
+   people are meant to read an IP address out of. These map the same
+   information onto the type ramp. */
+.cell-mono {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.cell-stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cell-stack > .cell-mono { font-size: var(--t-micro); color: var(--text-2); }
+
+.cell-score { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.cell-score > .cell-mono { flex-shrink: 0; width: 2.5rem; }
+.cell-score > .meter { flex: 1; min-width: 24px; }
+
+/* Row states carry the tone rather than an opacity/grayscale filter, which
+   dropped enforced rows to 40% opacity — below contrast minimums. */
+.t-table tbody tr.is-selected { background: var(--primary-wash); }
+.t-table tbody tr.is-enforced > td { color: var(--text-4); }
+.t-table tbody tr.is-enforced .cell-mono { color: var(--text-3); }
+
+.t-table td .empty-state { border: 0; background: transparent; }
+
 /* ============================================================================
  * 04 // MOTION
  *
@@ -2003,7 +2184,6 @@ body.auth-page {
 .appearance-none { appearance:none; }
 .backdrop-blur-2xl { backdrop-filter:blur(28px); -webkit-backdrop-filter:blur(28px); }
 .backdrop-blur-md { backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
-.backdrop-blur-sm { backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); }
 .backdrop-blur-xl { backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); }
 .bg-\[\#050505\] { background-color:#050505; }
 .bg-\[length\:100\%_2px\,3px_100\%\] { background-size:100% 2px,3px 100%; }
@@ -2012,7 +2192,6 @@ body.auth-page {
 .bg-\[radial-gradient\(circle_at_center\,_var\(--primary\)_0\%\,_transparent_70\%\)\] { background-image:radial-gradient(circle at center, var(--primary) 0%, transparent 70%); }
 .bg-\[radial-gradient\(circle_at_center\,var\(--primary-glow\)_0\%\,transparent_70\%\)\] { background-image:radial-gradient(circle at center,var(--primary-glow) 0%,transparent 70%); }
 .bg-\[size\:40px_40px\] { background-color:size:40px 40px; }
-.bg-black { background-color:var(--surface-0); }
 .bg-black\/10 { background-color:hsl(225 40% 2% / 0.1); }
 .bg-black\/20 { background-color:hsl(225 40% 2% / 0.2); }
 .bg-black\/40 { background-color:hsl(225 40% 2% / 0.4); }
@@ -2066,7 +2245,6 @@ body.auth-page {
 .border-primary\/20 { border-color:hsl(var(--primary-hsl) / 0.2); }
 .border-primary\/30 { border-color:hsl(var(--primary-hsl) / 0.3); }
 .border-primary\/40 { border-color:hsl(var(--primary-hsl) / 0.4); }
-.border-r { border-right:1px solid var(--line-faint); }
 .border-slate-700 { border-color:var(--text-4); }
 .border-slate-800 { border-color:var(--surface-3); }
 .border-success { border-color:var(--success); }
@@ -2077,11 +2255,8 @@ body.auth-page {
 .border-t-2 { border-top-width:2px; }
 .border-t-4 { border-top-width:4px; }
 .border-t-transparent { border-top-color:transparent; }
-.border-transparent { border-color:transparent; }
-.border-warning { border-color:var(--warning); }
 .border-warning\/10 { border-color:hsl(var(--warning-hsl) / 0.1); }
 .border-warning\/20 { border-color:hsl(var(--warning-hsl) / 0.2); }
-.border-warning\/30 { border-color:hsl(var(--warning-hsl) / 0.3); }
 .border-white\/\[0\.02\] { border-color:hsl(0 0% 100% / 0.02); }
 .border-white\/\[0\.03\] { border-color:hsl(0 0% 100% / 0.03); }
 .border-white\/\[0\.05\] { border-color:hsl(0 0% 100% / 0.05); }
@@ -2102,7 +2277,6 @@ body.auth-page {
 .container { width:100%; max-width:var(--content-max); margin-inline:auto; }
 .cursor-default { cursor:default; }
 .cursor-pointer { cursor:pointer; }
-.decoration-white\/20 { text-decoration-color:hsl(0 0% 100% / 0.2); }
 .disabled\:opacity-50:disabled,.disabled\:opacity-50[aria-disabled="true"] { opacity:0.5; }
 .divide-white\/10 > * + * { border-top-color:hsl(0 0% 100% / 0.1); }
 .divide-white\/5 > * + * { border-top-color:hsl(0 0% 100% / 0.05); }
@@ -2131,7 +2305,6 @@ body.auth-page {
 .gap-3 { gap:0.75rem; }
 .gap-4 { gap:1rem; }
 .gap-5 { gap:1.25rem; }
-.gap-6 { gap:1.5rem; }
 .grid { display:grid; }
 .grid-cols-1 { grid-template-columns:repeat(1,minmax(0,1fr)); }
 .grid-cols-12 { grid-template-columns:repeat(12,minmax(0,1fr)); }
@@ -2167,11 +2340,9 @@ body.auth-page {
 .group\/field { }
 .group\/item { }
 .h-\[100px\] { height:100px; }
-.h-\[1px\] { height:1px; }
 .h-\[350px\] { height:350px; }
 .h-\[400px\] { height:400px; }
 .h-\[42px\] { height:42px; }
-.h-\[440px\] { height:440px; }
 .h-\[500px\] { height:500px; }
 .h-\[550px\] { height:550px; }
 .h-\[600px\] { height:600px; }
@@ -2195,7 +2366,6 @@ body.auth-page {
 .hover\:bg-black\/80:hover { background-color:hsl(225 40% 2% / 0.8); }
 .hover\:bg-blue-500:hover { background-color:var(--primary); }
 .hover\:bg-danger\/5:hover { background-color:hsl(var(--danger-hsl) / 0.05); }
-.hover\:bg-primary\/20:hover { background-color:hsl(var(--primary-hsl) / 0.2); }
 .hover\:bg-slate-100:hover { background-color:var(--text-1); }
 .hover\:bg-white\/\[0\.01\]:hover { background-color:hsl(0 0% 100% / 0.01); }
 .hover\:bg-white\/\[0\.02\]:hover { background-color:hsl(0 0% 100% / 0.02); }
@@ -2204,7 +2374,6 @@ body.auth-page {
 .hover\:bg-white\/\[0\.05\]:hover { background-color:hsl(0 0% 100% / 0.05); }
 .hover\:border-danger\/30:hover { border-color:hsl(var(--danger-hsl) / 0.3); }
 .hover\:border-danger\/40:hover { border-color:hsl(var(--danger-hsl) / 0.4); }
-.hover\:border-primary:hover { border-color:var(--primary); }
 .hover\:border-primary\/20:hover { border-color:hsl(var(--primary-hsl) / 0.2); }
 .hover\:border-primary\/30:hover { border-color:hsl(var(--primary-hsl) / 0.3); }
 .hover\:border-primary\/40:hover { border-color:hsl(var(--primary-hsl) / 0.4); }
@@ -2246,7 +2415,6 @@ body.auth-page {
 .left-8 { left:2rem; }
 .line-clamp-1 { display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
 .line-clamp-3 { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; }
-.max-h-\[250px\] { max-height:250px; }
 .max-h-\[300px\] { max-height:300px; }
 .max-h-\[400px\] { max-height:400px; }
 .max-h-\[500px\] { max-height:500px; }
@@ -2269,10 +2437,8 @@ body.auth-page {
 .mb-6 { margin-bottom:1.5rem; }
 .min-h-\[200px\] { min-height:200px; }
 .min-h-\[300px\] { min-height:300px; }
-.min-h-\[400px\] { min-height:400px; }
 .min-h-\[500px\] { min-height:500px; }
 .min-h-\[600px\] { min-height:600px; }
-.min-h-\[700px\] { min-height:700px; }
 .min-h-\[800px\] { min-height:800px; }
 .min-w-0 { min-width:0; }
 .mix-blend-overlay { mix-blend-mode:overlay; }
@@ -2309,7 +2475,6 @@ body.auth-page {
 .overflow-x-auto { overflow-x:auto; }
 .overflow-y-auto { overflow-y:auto; }
 .p-0 { padding:0; }
-.p-1 { padding:0.25rem; }
 .p-1\.5 { padding:0.375rem; }
 .p-2 { padding:0.5rem; }
 .p-3 { padding:0.75rem; }
@@ -2335,14 +2500,12 @@ body.auth-page {
 .pt-5 { padding-top:1.25rem; }
 .pt-6 { padding-top:1.5rem; }
 .px-1 { padding-left:0.25rem; padding-right:0.25rem; }
-.px-1\.5 { padding-left:0.375rem; padding-right:0.375rem; }
 .px-12 { padding-left:3rem; padding-right:3rem; }
 .px-2 { padding-left:0.5rem; padding-right:0.5rem; }
 .px-3 { padding-left:0.75rem; padding-right:0.75rem; }
 .px-4 { padding-left:1rem; padding-right:1rem; }
 .px-5 { padding-left:1.25rem; padding-right:1.25rem; }
 .px-6 { padding-left:1.5rem; padding-right:1.5rem; }
-.py-0 { padding-top:0; padding-bottom:0; }
 .py-0\.5 { padding-top:0.125rem; padding-bottom:0.125rem; }
 .py-1 { padding-top:0.25rem; padding-bottom:0.25rem; }
 .py-12 { padding-top:3rem; padding-bottom:3rem; }
@@ -2362,7 +2525,6 @@ body.auth-page {
 .rounded { border-radius:var(--r-sm); }
 .rounded-full { border-radius:var(--r-pill); }
 .rounded-lg { border-radius:var(--r-lg); }
-.rounded-sm { border-radius:var(--r-sm); }
 .rounded-xl { border-radius:var(--r-xl); }
 .select-all { user-select:all; }
 .self-start { align-self:flex-start; }
@@ -2381,7 +2543,6 @@ body.auth-page {
 .shadow-inner { box-shadow:inset 0 1px 2px hsl(225 40% 2% / 0.4); }
 .shadow-lg { box-shadow:var(--elev-2); }
 .shadow-primary\/20 { box-shadow:0 0 0 1px hsl(var(--primary-hsl) / 0.2); }
-.shadow-xl { box-shadow:var(--elev-3); }
 .shrink-0 { flex-shrink:0; }
 .space-y-0\.5 > * + * { margin-top:0.125rem; }
 .space-y-1 > * + * { margin-top:0.25rem; }
@@ -2393,9 +2554,7 @@ body.auth-page {
 .text-\[10px\] { font-size:10px; }
 .text-\[11px\] { font-size:11px; }
 .text-\[12px\] { font-size:12px; }
-.text-\[5px\] { font-size:5px; }
 .text-\[6\.5px\] { font-size:6.5px; }
-.text-\[6px\] { font-size:6px; }
 .text-\[7\.5px\] { font-size:7.5px; }
 .text-\[7px\] { font-size:7px; }
 .text-\[8\.5px\] { font-size:8.5px; }
@@ -2431,7 +2590,6 @@ body.auth-page {
 .text-slate-800 { color:var(--surface-3); }
 .text-sm { font-size:var(--t-xs); }
 .text-success { color:var(--success); }
-.text-success\/40 { color:hsl(var(--success-hsl) / 0.4); }
 .text-warning { color:var(--warning); }
 .text-white { color:var(--text-1); }
 .text-white\/90 { color:hsl(0 0% 100% / 0.9); }
@@ -2462,10 +2620,12 @@ body.auth-page {
 .w-\[15\%\] { width:15%; }
 .w-\[16\%\] { width:16%; }
 .w-\[18\%\] { width:18%; }
+.w-\[19\%\] { width:19%; }
 .w-\[1px\] { width:1px; }
 .w-\[20\%\] { width:20%; }
 .w-\[3px\] { width:3px; }
 .w-\[40\%\] { width:40%; }
+.w-\[7\%\] { width:7%; }
 .w-\[8\%\] { width:8%; }
 .w-0\.5 { width:0.125rem; }
 .w-1 { width:0.25rem; }
@@ -2499,9 +2659,7 @@ body.auth-page {
 @media (min-width:768px) { .md\:grid-cols-4 { grid-template-columns:repeat(4,minmax(0,1fr)); } }
 @media (min-width:1024px) { .lg\:col-span-3 { grid-column:span 3/span 3; } }
 @media (min-width:1024px) { .lg\:col-span-4 { grid-column:span 4/span 4; } }
-@media (min-width:1024px) { .lg\:col-span-5 { grid-column:span 5/span 5; } }
 @media (min-width:1024px) { .lg\:col-span-6 { grid-column:span 6/span 6; } }
-@media (min-width:1024px) { .lg\:col-span-7 { grid-column:span 7/span 7; } }
 @media (min-width:1024px) { .lg\:col-span-8 { grid-column:span 8/span 8; } }
 @media (min-width:1024px) { .lg\:col-span-9 { grid-column:span 9/span 9; } }
 @media (min-width:1024px) { .lg\:flex-row { flex-direction:row; } }

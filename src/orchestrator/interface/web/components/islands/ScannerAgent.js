@@ -37,6 +37,10 @@ class ScannerAgent extends HTMLElement {
   }
 
   renderLedger(ledger) {
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
+    // item.score reaches a style attribute; a feed-supplied string there is a
+    // CSS injection, so clamp it to a number rather than only escaping it.
+    const score = (item) => Math.max(0, Math.min(100, Number(item.score) || 0));
     const listEl = this.querySelector('#scanner-ledger');
     if (!listEl) return;
 
@@ -57,10 +61,8 @@ class ScannerAgent extends HTMLElement {
         </div>
         <div class="flex items-center gap-4">
            <div class="flex flex-col items-end">
-              <span class="mono-xs text-slate-700 font-bold">${item.score}%</span>
-              <div class="w-12 h-1 bg-white/5 rounded-full mt-1">
-                 <div class="h-full bg-danger" style="width: ${item.score}%"></div>
-              </div>
+              <span class="mono-xs text-slate-700 font-bold">${esc(score(item))}%</span>
+              <span class="meter" data-state="crit" style="--value:${score(item)}%"></span>
            </div>
            <div class="dot danger"></div>
         </div>

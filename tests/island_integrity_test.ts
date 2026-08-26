@@ -209,3 +209,96 @@ Deno.test("island action names never collide with the shell's own", async () => 
     `island action name(s) shadowed by the shell's delegated handler:\n${collisions.join("\n")}`,
   );
 });
+
+Deno.test("islands escape the remote strings they write into innerHTML", async () => {
+  // Islands build markup as strings and assign it to innerHTML, so every value
+  // reaching a template has to be escaped on the way in. Several were not:
+  //
+  //   ThreatExplorer / ArtifactExplorer — indicator, provider, threatType and
+  //     the whole geo block, all straight from third-party threat feeds.
+  //   ProcessTree — node.comm, which is whatever a process called itself.
+  //   NetworkMap  — d.ip / d.mac / d.type, chosen by the neighbour on the wire.
+  //   NewsFeed    — item.title / item.summary, and item.link written directly
+  //     into an href, where a javascript: URL is script the CSP never sees as
+  //     inline.
+  //
+  // The CSP blocks an injected <script> and inline handlers, so this was not
+  // remote code execution — but style-src still allows 'unsafe-inline', and
+  // broken markup corrupts the view either way.
+  //
+  // Only template literals that actually build markup are checked: a template
+  // with no `<` in it is a Set key, an error string, or an SVG viewBox, and
+  // escaping those would be noise. Inside a markup template the rule has no
+  // exceptions — a constant costs nothing to escape, and an exception list is
+  // one more thing to get wrong.
+  const suspects: string[] = [];
+
+  /**
+   * Every backtick region in `src`, nested ones included, as [start, end).
+   *
+   * Nesting matters: an interpolation is judged by the INNERMOST template it
+   * sits in. `this.busy.has(\`block:${ip}\`)` appears inside a markup
+   * template, but its own template is a Set key with no markup in it.
+   */
+  function templateLiterals(src: string, base = 0): Array<[number, number]> {
+    const spans: Array<[number, number]> = [];
+    for (let i = 0; i < src.length; i++) {
+      if (src[i] !== "`" || src[i - 1] === "\\") continue;
+      let depth = 0;
+      let j = i + 1;
+      for (; j < src.length; j++) {
+        if (src[j] === "\\") { j++; continue; }
+        if (src[j] === "$" && src[j + 1] === "{") { depth++; j++; continue; }
+        if (src[j] === "}" && depth > 0) { depth--; continue; }
+        if (src[j] === "`" && depth === 0) break;
+      }
+      spans.push([base + i, base + j]);
+      spans.push(...templateLiterals(src.slice(i + 1, j), base + i + 1));
+      i = j;
+    }
+    return spans;
+  }
+
+  /** Innermost span containing `at`, or null. */
+  function innermost(spans: Array<[number, number]>, at: number): [number, number] | null {
+    let best: [number, number] | null = null;
+    for (const span of spans) {
+      if (at <= span[0] || at >= span[1]) continue;
+      if (!best || (span[1] - span[0]) < (best[1] - best[0])) best = span;
+    }
+    return best;
+  }
+
+  for (const name of islandFiles()) {
+    const src = await Deno.readTextFile(`${ISLANDS}/${name}`);
+    if (!/innerHTML\s*=/.test(src)) continue;
+    if (!/apiGet|apiSend|unwrap|fetch\(/.test(src)) continue;
+
+    const spans = templateLiterals(src);
+
+    for (const match of src.matchAll(/\$\{\s*([A-Za-z_$][\w$]*(?:\??\.[\w$]+)+)\s*\}/g)) {
+      const expr = match[1];
+      if (expr.startsWith("this.")) continue;
+
+      const span = innermost(spans, match.index);
+      // Not inside a template, or inside one that builds no markup.
+      if (!span || !/<[a-zA-Z/]/.test(src.slice(span[0], span[1]))) continue;
+
+      // A value declared as a literal in this same file is not remote data.
+      const root = expr.split(/[.?]/)[0];
+      if (new RegExp(`^const ${root}\\s*=\\s*[[{]`, "m").test(src)) continue;
+
+      const before = src.slice(Math.max(0, match.index - 24), match.index + match[0].length);
+      if (/\$\{\s*(?:esc|escapeHTML|globalThis\.escapeHTML|window\.escapeHTML)\s*\(/.test(before)) continue;
+
+      const line = src.slice(0, match.index).split("\n").length;
+      suspects.push(`${name}:${line}  \${${expr}}`);
+    }
+  }
+
+  assertEquals(
+    suspects,
+    [],
+    `unescaped interpolation(s) inside markup — wrap in the escape helper:\n${suspects.join("\n")}`,
+  );
+});

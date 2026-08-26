@@ -82,6 +82,9 @@ class ProcessTree extends HTMLElement {
    * pretending to work.
    */
   renderNode(node, depth) {
+    // node.comm is whatever the process called itself. A process named
+    // `<img src=x>` used to be written into the tree verbatim.
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
     const children = this.processes.filter(p => p.ppid === node.pid);
     children.sort((a, b) => a.pid - b.pid);
 
@@ -98,15 +101,15 @@ class ProcessTree extends HTMLElement {
         <div class="flex items-center group py-2 px-4 hover:bg-white/[0.03] cursor-default border-l border-white/[0.05]" 
              style="margin-left: ${paddingLeft}px; border-left-color: rgba(255,255,255,${lineOpacity})">
            <div class="flex items-center gap-4 w-full">
-              <span class="mono-xs font-black opacity-20 w-16 tabular-nums">[${node.pid}]</span>
+              <span class="mono-xs font-black opacity-20 w-16 tabular-nums">[${esc(node.pid)}]</span>
               <div class="flex items-center gap-4 flex-grow">
                  <span class="mono-sm font-black uppercase tracking-tight ${isGhost ? 'text-danger' : (isProtected ? 'text-primary' : 'text-white')}">
-                    ${node.comm}
+                    ${esc(node.comm)}
                  </span>
                  ${isGhost ? '<span class="status-pill error">UNLINKED_GHOST</span>' : ''}
                  ${isProtected ? '<span class="status-pill active">SOVEREIGN</span>' : ''}
               </div>
-              <span class="eyebrow">PPID: ${node.ppid}</span>
+              <span class="eyebrow">PPID: ${esc(node.ppid)}</span>
            </div>
         </div>
         ${children.map(c => this.renderNode(c, depth + 1)).join('')}

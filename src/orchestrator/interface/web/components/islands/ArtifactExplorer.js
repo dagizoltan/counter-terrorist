@@ -172,6 +172,20 @@ class ArtifactExplorer extends HTMLElement {
   }
 
   paint() {
+    // Artifact indicators, families and provider names all arrive from
+    // third-party feeds and were interpolated raw into innerHTML. Same defect
+    // as ThreatExplorer: the CSP blocks an injected script, but nothing
+    // stopped feed content from corrupting the table's markup.
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
+    // A feed row can arrive without a score or a timestamp. Rendering
+    // "undefined" and "Invalid Date" into the ledger is worse than saying so.
+    const score = (t) => Math.max(0, Math.min(100, Number(t.score) || 0));
+    const seen = (t) => {
+      const d = new Date(t.lastSeen);
+      return Number.isNaN(d.getTime())
+        ? "—"
+        : d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+    };
     const totalCount = Object.values(this.stats).reduce((a, b) => a + b, 0);
     const selectedCount = this.selectedHashes.size;
 
@@ -194,10 +208,10 @@ class ArtifactExplorer extends HTMLElement {
            
            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               ${Object.entries(this.stats).map(([name, count]) => `
-                <button type="button" data-action="setProvider" data-provider="${name}"
+                <button type="button" data-action="setProvider" data-provider="${esc(name)}"
                   class="flex flex-col gap-2 p-3 rounded-lg border transition-all text-left ${this.filter.provider === name ? 'bg-warning/20 border-warning shadow-lg shadow-warning/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
                   <div class="flex justify-between items-center">
-                     <span class="eyebrow truncate" data-tone="strong">${name}</span>
+                     <span class="eyebrow truncate" data-tone="strong">${esc(name)}</span>
                      <div class="w-1.5 h-1.5 rounded-full ${count > 0 ? 'bg-warning animate-pulse' : 'bg-slate-700'}"></div>
                   </div>
                   <span class="text-xl font-black text-white tabular-nums">${count.toLocaleString()}</span>
@@ -214,14 +228,14 @@ class ArtifactExplorer extends HTMLElement {
                     <span class="eyebrow">Binary_Forensic_Registry</span>
                     <span class="eyebrow">Artifact_DNA_Analysis_Active</span>
                  </div>
-                 ${this.filter.provider ? `<span class="status-pill warning active">${this.filter.provider}</span>` : ''}
+                 ${this.filter.provider ? `<span class="pill" data-state="warn">${esc(this.filter.provider)}</span>` : ''}
               </div>
               <div class="flex items-center gap-4">
                  <div class="relative group">
                     <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-warning transition-colors">
                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                     </div>
-                    <input type="text" value="${this.filter.search}" data-action="setSearch" data-on="input" 
+                    <input type="text" value="${esc(this.filter.search)}" data-action="setSearch" data-on="input" 
                       class="bg-black/80 border border-white/10 rounded-lg pl-5 pr-4 py-3 mono-xs text-white focus:border-warning outline-none transition-all w-64 shadow-2xl" 
                       placeholder="SEARCH_HASHES..." />
                  </div>
@@ -229,18 +243,18 @@ class ArtifactExplorer extends HTMLElement {
            </header>
 
            <div class="flex-grow overflow-y-auto custom-scrollbar">
-              <table class="w-full text-left border-collapse table-fixed">
-                 <thead class="sticky top-0 bg-black/40 backdrop-blur-md z-10 border-b border-white/5 shadow-xl text-[7px]">
+              <table class="t-table table-fixed">
+                 <thead>
                     <tr>
-                       <th class="p-1 w-8 text-center">
-                          <input type="checkbox" data-action="toggleSelectAll" data-on="change" 
-                            class="accent-warning w-2 h-2 rounded border-white/10 bg-black" />
+                       <th class="w-8 text-center">
+                          <input type="checkbox" data-action="toggleSelectAll" data-on="change"
+                            class="accent-warning" aria-label="Select every visible artifact" />
                        </th>
-                       <th class="eyebrow p-1 w-[40%]">Artifact_Indicator (SHA256/Pattern)</th>
-                       <th class="eyebrow p-1 w-[20%]">Malware_Family</th>
-                       <th class="eyebrow p-1 w-[12%]">Source</th>
-                       <th class="eyebrow p-1 w-[10%]">Risk</th>
-                       <th class="eyebrow p-1 w-[18%] text-right">Last_Observed</th>
+                       <th class="w-[40%]">Artifact indicator (SHA256 / pattern)</th>
+                       <th class="w-[20%]">Malware family</th>
+                       <th class="w-[12%]">Source</th>
+                       <th class="w-[12%]">Risk</th>
+                       <th class="w-[16%] text-right">Last observed</th>
                     </tr>
                  </thead>
                  <tbody class="divide-y divide-white/5">
@@ -254,36 +268,34 @@ class ArtifactExplorer extends HTMLElement {
                         });
                       
                       if (validArtifacts.length === 0 && !this.loading) {
-                        return `<tr><td colspan="6" class="eyebrow p-4 text-center opacity-20">No_Artifacts_Discovered</td></tr>`;
+                        return `<tr><td colspan="6"><div class="empty-state"><span class="eyebrow">No artifacts discovered</span></div></td></tr>`;
                       }
                       
                       return validArtifacts.map(t => `
-                         <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedHashes.has(t.indicator) ? 'bg-warning/5 border-warning/20' : 'hover:border-warning/10'} ${t.blocked ? 'opacity-40 grayscale-[0.5]' : ''}">
-                            <td class="p-1 text-center">
-                               <input type="checkbox" ${this.selectedHashes.has(t.indicator) ? 'checked' : ''} 
-                                 data-action="toggleSelect" data-on="change" data-indicator="${t.indicator}"
-                                 class="accent-warning w-2 h-2 rounded border-white/10 bg-black cursor-pointer" />
+                         <tr class="${this.selectedHashes.has(t.indicator) ? 'is-selected' : ''} ${t.blocked ? 'is-enforced' : ''}">
+                            <td class="text-center">
+                               <input type="checkbox" ${this.selectedHashes.has(t.indicator) ? 'checked' : ''}
+                                 data-action="toggleSelect" data-on="change" data-indicator="${esc(t.indicator)}"
+                                 class="accent-warning" aria-label="Select ${esc(t.indicator)}" />
                             </td>
-                            <td class="p-1 truncate">
-                               <span class="mono text-[8px] text-white tabular-nums">${t.indicator}</span>
+                            <td>
+                               <span class="cell-mono">${esc(t.indicator)}</span>
                             </td>
-                            <td class="p-1 truncate">
-                               <span class="eyebrow">${t.threatType}</span>
+                            <td>
+                               <span class="eyebrow">${esc(t.threatType)}</span>
                             </td>
-                            <td class="p-1">
-                               <span class="eyebrow">${t.provider}</span>
+                            <td>
+                               <span class="eyebrow">${esc(t.provider)}</span>
                             </td>
-                            <td class="p-1">
-                               <div class="flex items-center gap-1">
-                                  <span class="mono text-[6.5px] text-slate-400 tabular-nums">${t.score}</span>
-                                  <div class="flex-grow h-[1px] bg-white/5 overflow-hidden">
-                                     <div class="h-full ${t.score >= 85 ? 'bg-danger' : 'bg-warning'}" style="width: ${t.score}%"></div>
-                                  </div>
+                            <td>
+                               <div class="cell-score">
+                                  <span class="cell-mono">${esc(score(t))}</span>
+                                  <span class="meter" data-state="${score(t) >= 85 ? 'crit' : 'warn'}" style="--value:${score(t)}%"></span>
                                </div>
                             </td>
-                            <td class="p-1 text-right">
+                            <td class="text-right">
                                <span class="eyebrow">
-                                  ${new Date(t.lastSeen).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
+                                  ${esc(seen(t))}
                                </span>
                             </td>
                          </tr>

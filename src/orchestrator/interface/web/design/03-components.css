@@ -423,6 +423,10 @@ li.eyebrow { display: list-item; }
   transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
 }
 
+/* Inline filter fields sit in panel headers next to .btn--sm, so they need to
+   match its 24px height and stop stretching to the full row. */
+.input--sm { width: auto; min-width: 200px; height: 24px; padding: 0 var(--s-3); font-size: var(--t-micro); }
+
 .input:hover, .t-input:hover { border-color: var(--line-strong); }
 .input:focus, .t-input:focus { border-color: var(--primary); background: var(--surface-0); }
 .input::placeholder, .t-input::placeholder { color: var(--text-4); }
@@ -1401,3 +1405,180 @@ body.auth-page {
 }
 
 .control-card__more { color: var(--text-3); font-style: italic; }
+
+/* ── Enforcement ledger ───────────────────────────────────────────────────
+   <block-list>. One row per active block: the address, the record behind it,
+   and how long it has left before the lifecycle audit re-verifies it. */
+.ledger { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.ledger__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.ledger__meta { display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap; }
+
+.ledger-list { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, auto) auto;
+  align-items: center;
+  gap: var(--s-4);
+  min-width: 0;
+  padding: var(--s-3) var(--s-4);
+  border-left: 2px solid var(--c-edge, var(--line));
+  background: var(--surface-2);
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.ledger-row:first-child { border-radius: var(--r-md) var(--r-md) 0 0; }
+.ledger-row:last-child { border-radius: 0 0 var(--r-md) var(--r-md); }
+.ledger-row:hover { background: var(--surface-3); }
+
+.ledger-row__id { display: inline-flex; align-items: center; gap: var(--s-3); min-width: 0; }
+
+.ledger-row__ip {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.ledger-row__facts { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+
+.ledger-row__ttl {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-row__when { display: flex; flex-direction: column; gap: var(--s-2); align-items: flex-end; text-align: right; }
+
+/* Below the deck the four columns cannot hold; stack them and let the action
+   sit under the facts rather than squeezing the address. */
+@media (max-width: 900px) {
+  .ledger-row { grid-template-columns: minmax(0, 1fr) auto; row-gap: var(--s-3); }
+  .ledger-row__when { align-items: flex-start; text-align: left; }
+}
+
+/* The card title links through to the decoy's detail page. */
+a.decoy-card__title { text-decoration: none; transition: color var(--dur-1) var(--ease); }
+a.decoy-card__title:hover { color: var(--warning); }
+
+/* ── Decoy detail ─────────────────────────────────────────────────────────
+   <decoy-detail>: one decoy, the sources it caught, and their transcripts. */
+.decoy-detail { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.decoy-detail__controls { display: flex; align-items: center; gap: var(--s-3); flex-shrink: 0; }
+
+.decoy-detail__desc { font-size: var(--t-xs); line-height: 1.5; color: var(--text-3); }
+
+.decoy-detail__row-actions { display: flex; align-items: center; gap: var(--s-2); justify-self: end; }
+
+/* Confirmation of an action that succeeded — the counterpart to .error-box. */
+.notice-box {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--success-edge);
+  border-radius: var(--r-md);
+  background: var(--success-wash);
+  font-size: var(--t-xs);
+  color: var(--text-2);
+}
+
+/* ── Session transcripts ──────────────────────────────────────────────────
+   Captured attacker input. Collapsed by default: a transcript runs to 16KB,
+   and an operator scanning a decoy wants the source and the size first. */
+.transcript-list { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.transcript {
+  min-width: 0;
+  border-left: 2px solid var(--line);
+  background: var(--surface-2);
+}
+
+.transcript[data-open="true"] { border-left-color: var(--warning-edge); }
+
+.transcript__head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 14rem) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.transcript__head:hover { background: var(--surface-3); }
+.transcript[data-open="true"] > .transcript__head > .arrow-icon { transform: rotate(90deg); color: var(--warning); }
+
+.transcript__body {
+  max-height: 320px;
+  margin: 0;
+  padding: var(--s-4);
+  overflow: auto;
+  border-top: 1px solid var(--line-faint);
+  background: var(--surface-inset);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  line-height: 1.6;
+  color: var(--text-2);
+  /* Attacker input is arbitrary bytes: never let it reflow the page. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .transcript__head { grid-template-columns: auto minmax(0, 1fr); row-gap: var(--s-2); }
+}
+
+/* ── Threat table cells ───────────────────────────────────────────────────
+   The threat and artifact ledgers used ad-hoc type that bottomed out at
+   text-[5px] — smaller than any browser's minimum legible size, and the row
+   people are meant to read an IP address out of. These map the same
+   information onto the type ramp. */
+.cell-mono {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.cell-stack { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cell-stack > .cell-mono { font-size: var(--t-micro); color: var(--text-2); }
+
+.cell-score { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.cell-score > .cell-mono { flex-shrink: 0; width: 2.5rem; }
+.cell-score > .meter { flex: 1; min-width: 24px; }
+
+/* Row states carry the tone rather than an opacity/grayscale filter, which
+   dropped enforced rows to 40% opacity — below contrast minimums. */
+.t-table tbody tr.is-selected { background: var(--primary-wash); }
+.t-table tbody tr.is-enforced > td { color: var(--text-4); }
+.t-table tbody tr.is-enforced .cell-mono { color: var(--text-3); }
+
+.t-table td .empty-state { border: 0; background: transparent; }

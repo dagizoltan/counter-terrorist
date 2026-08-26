@@ -120,34 +120,47 @@ class NewsFeed extends HTMLElement {
       return;
     }
  
+    // Every field below is syndicated feed content. It was interpolated raw,
+    // including item.link straight into an href — where a javascript: or data:
+    // URL is a script the CSP does not see as inline.
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
+    const safeHref = (url) => {
+      try {
+        const parsed = new URL(String(url), globalThis.location.origin);
+        return (parsed.protocol === "http:" || parsed.protocol === "https:") ? parsed.href : "#";
+      } catch {
+        return "#";
+      }
+    };
+
     const gridClass = isDetailed ? 'flex flex-col space-y-6' : (isCompact ? 'space-y-3' : 'space-y-6');
  
     this.innerHTML = `
       <div class="${gridClass}">
         ${displayNews.map(item => `
-          <a href="${item.link}" target="_blank" class="block ${isCompact ? 'p-4 rounded-xl' : 'p-8 rounded-2xl'} bg-black/40 border border-white/5 hover:border-white/10 hover:bg-white/[0.03] group transition-all duration-300 relative overflow-hidden backdrop-blur-xl">
+          <a href="${esc(safeHref(item.link))}" target="_blank" rel="noopener noreferrer" class="block ${isCompact ? 'p-4 rounded-xl' : 'p-8 rounded-2xl'} bg-black/40 border border-white/5 hover:border-white/10 hover:bg-white/[0.03] group transition-all duration-300 relative overflow-hidden backdrop-blur-xl">
             <div class="flex justify-between items-start ${isCompact ? 'mb-2' : 'mb-6'}">
                <div class="flex items-center gap-4">
                   <div class="${isCompact ? 'p-1.5' : 'p-2.5'} rounded-lg border ${this.getSeverityStyles(item.severity, item.category)}">
                      ${this.getCategoryIcon(item.category)}
                   </div>
                   <div class="flex flex-col gap-0.5">
-                     <span class="eyebrow" style="${isCompact ? 'font-size: 7px;' : ''}">${this.formatLabel(item.source)}</span>
-                     <span class="eyebrow" style="font-size: 8px;">${new Date(item.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
+                     <span class="eyebrow">${esc(this.formatLabel(item.source))}</span>
+                     <span class="eyebrow">${esc(new Date(item.timestamp).toLocaleTimeString('en-GB', { hour12: false }))}</span>
                   </div>
                </div>
                <span class="status-pill ${item.severity === 'CRITICAL' ? 'danger' : item.severity === 'HIGH' ? 'warning' : 'neutral'} font-black uppercase tracking-[0.2em]">
-                  ${item.severity}
+                  ${esc(item.severity)}
                </span>
             </div>
  
             <h4 class="${isCompact ? 'text-sm mb-2' : 'text-xl mb-6'} font-black text-white uppercase tracking-tight leading-tight line-clamp-1 group-hover:translate-x-1 transition-all">
-               ${item.title.replace(/_/g, ' ')}
+               ${esc(item.title.replace(/_/g, ' '))}
             </h4>
             
             ${!isCompact ? `
               <p class="mono-xs text-slate-400 line-clamp-3 leading-relaxed mb-4 font-medium italic">
-                 ${item.summary.replace(/_/g, ' ')}
+                 ${esc(item.summary.replace(/_/g, ' '))}
               </p>
             ` : ''}
  
