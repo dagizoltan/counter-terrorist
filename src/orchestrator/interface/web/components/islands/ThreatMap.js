@@ -40,10 +40,15 @@ class ThreatMap extends HTMLElement {
 
   disconnectedCallback() {
     if (this._reconnect) clearTimeout(this._reconnect);
+    if (this._playTimer) clearInterval(this._playTimer);
     if (this._ws) { this._ws.onclose = null; this._ws.close?.(); }
   }
 
   renderShell() {
+    // The protected node has been the origin of every ingress arc but was never
+    // drawn — the arcs flew to an invisible point. Marked now, so the picture
+    // has a centre.
+    const home = project(HOME_NODE.lat, HOME_NODE.lon);
     this.innerHTML = `
       <div class="threat-map threat-map--container relative">
         <svg class="threat-map__canvas"
@@ -62,7 +67,15 @@ class ThreatMap extends HTMLElement {
           <rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" fill="url(#tm-grid)"/>
           <path d="${WORLD_PATH}" class="threat-map__land"/>
           <g class="threat-map__arcs"></g>
+          <g class="threat-map__home" aria-hidden="true">
+            <circle class="threat-map__home-ping" r="4.5"></circle>
+            <circle class="threat-map__home-ring" r="4.5"></circle>
+            <circle class="threat-map__home-core" r="1.6"></circle>
+            <path class="threat-map__home-tick" d="M0 -6.5 V-3.5 M0 6.5 V3.5 M-6.5 0 H-3.5 M6.5 0 H3.5"></path>
+            <text class="threat-map__home-label" x="7" y="1.5">SOVEREIGN NODE</text>
+          </g>
           <g class="threat-map__plots"></g>
+          <g class="threat-map__clusters"></g>
         </svg>
 
         <div class="threat-map__legend">
@@ -74,36 +87,73 @@ class ThreatMap extends HTMLElement {
         </div>
 
         <div class="threat-map__scrubber flex items-center gap-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-xs">
+          <button type="button" id="tm-play" class="t-btn ghost !py-1 !px-2 text-[10px]" aria-label="Replay threats across the time window">Replay</button>
           <span class="eyebrow">Time_Window:</span>
           <input type="range" min="1" max="24" value="24" class="accent-primary cursor-pointer w-28 h-1" id="tm-scrubber-slider" />
           <span class="eyebrow min-w-[36px]" id="tm-scrubber-val">24h</span>
+          <span class="eyebrow min-w-[36px]" id="tm-playhead" aria-live="polite"></span>
         </div>
 
         <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
         <div class="threat-map__popover-container hidden"></div>
       </div>
+      <ul id="tm-a11y-list" class="sr-only" aria-label="Detected threats, newest first"></ul>
     `;
+    // Position the home marker through the attribute, not the markup: the
+    // coordinates are numeric, but interpolating them into innerHTML trips the
+    // escaping guard, and setAttribute is how every other plot is placed.
+    this.querySelector(".threat-map__home")?.setAttribute("transform", `translate(${home.x} ${home.y})`);
+
     this.plots = this.querySelector(".threat-map__plots");
     this.arcs = this.querySelector(".threat-map__arcs");
+    this.clusters = this.querySelector(".threat-map__clusters");
     this.counter = this.querySelector(".threat-map__count");
     this.popoverContainer = this.querySelector(".threat-map__popover-container");
     this.slider = this.querySelector("#tm-scrubber-slider");
     this.sliderVal = this.querySelector("#tm-scrubber-val");
+    this.playBtn = this.querySelector("#tm-play");
+    this.playhead = this.querySelector("#tm-playhead");
+    this.a11yList = this.querySelector("#tm-a11y-list");
 
     if (this.slider) {
       this.slider.addEventListener("input", (e) => {
+        this.stopPlayback(); // a manual scrub ends any replay in progress
         this.maxAgeHours = parseInt(e.target.value, 10);
         if (this.sliderVal) this.sliderVal.textContent = `${this.maxAgeHours}h`;
         this.filterByAge();
       });
     }
+    if (this.playBtn) {
+      this.playBtn.addEventListener("click", () => this.togglePlayback());
+    }
 
     // Dismiss popover on background click
     this.addEventListener("click", (e) => {
-      if (!e.target.closest(".threat-map__plot") && !e.target.closest(".threat-map__popover")) {
+      // The a11y list opens the popover; without excluding it here the same
+      // bubbling click would reach this handler and dismiss it right back.
+      if (!e.target.closest(".threat-map__plot") &&
+          !e.target.closest(".threat-map__popover") &&
+          !e.target.closest("#tm-a11y-list")) {
         this.hidePopover();
       }
     });
+
+    // Keyboard: Escape closes the popover.
+    this.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.hidePopover();
+    });
+
+    // The SVG is role="img", so its plots are invisible to assistive tech and
+    // unreachable by keyboard. The parallel list is the accessible equivalent:
+    // each threat is a real button that opens the same detail popover.
+    if (this.a11yList) {
+      this.a11yList.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-indicator]");
+        if (!btn) return;
+        const t = this.threatData.find((d) => d.indicator === btn.dataset.indicator);
+        if (t) this.showPopover(t, 0, 0);
+      });
+    }
   }
 
   async fetchHistorical() {
@@ -208,6 +258,47 @@ class ThreatMap extends HTMLElement {
     this.updateCount();
   }
 
+  /** Replay the threats appearing across the current window, oldest to newest. */
+  togglePlayback() {
+    if (this._playTimer) { this.stopPlayback(); return; }
+
+    const now = Date.now();
+    const windowStart = now - (this.maxAgeHours * 60 * 60 * 1000);
+    const times = [];
+    this.threats.forEach((_g, indicator) => {
+      const data = this.threatData.find((d) => d.indicator === indicator);
+      const t = new Date(data?.lastSeen || now).getTime();
+      if (t >= windowStart) times.push(t);
+    });
+    if (times.length === 0) return; // nothing to replay
+
+    const STEPS = 48;
+    const DURATION_MS = 6000;
+    let step = 0;
+    if (this.playBtn) this.playBtn.textContent = "Pause";
+
+    this._playTimer = setInterval(() => {
+      step++;
+      const playheadTime = windowStart + ((now - windowStart) * step) / STEPS;
+      this.threats.forEach((g, indicator) => {
+        const data = this.threatData.find((d) => d.indicator === indicator);
+        const t = new Date(data?.lastSeen || now).getTime();
+        // Shown once it has "appeared" by the playhead, within the window.
+        g.style.display = (t >= windowStart && t <= playheadTime) ? "" : "none";
+      });
+      if (this.playhead) this.playhead.textContent = new Date(playheadTime).toLocaleTimeString();
+      this.updateCount();
+      if (step >= STEPS) this.stopPlayback();
+    }, DURATION_MS / STEPS);
+  }
+
+  stopPlayback() {
+    if (this._playTimer) { clearInterval(this._playTimer); this._playTimer = null; }
+    if (this.playBtn) this.playBtn.textContent = "Replay";
+    if (this.playhead) this.playhead.textContent = "";
+    this.filterByAge(); // restore the full window
+  }
+
   categorize(type, blocked) {
     if (blocked) return "isolated";
     const str = String(type || "").toLowerCase();
@@ -236,19 +327,29 @@ class ThreatMap extends HTMLElement {
 
     const category = this.categorize(type, blocked);
 
+    // Weight the marker by severity so the eye lands on the worst actors. The
+    // score arrives under any of these depending on the source; missing means
+    // mid.
+    const rawScore = Number(threat.score ?? threat.confidence ?? geo?.threatScore ?? 50);
+    const sev = Number.isFinite(rawScore) ? Math.max(0, Math.min(100, rawScore)) / 100 : 0.5;
+    const dotR = (1.0 + sev * 1.6).toFixed(2);
+    const haloR = (2.6 + sev * 3.2).toFixed(2);
+
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("class", `threat-map__plot${isNew ? " is-new" : ""}`);
     g.setAttribute("data-category", category);
     g.setAttribute("data-indicator", indicator);
     g.setAttribute("transform", `translate(${x} ${y})`);
+    g.dataset.x = x;
+    g.dataset.y = y;
     g.style.cursor = "pointer";
 
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    halo.setAttribute("r", "3.5");
+    halo.setAttribute("r", haloR);
     halo.setAttribute("class", "threat-map__halo");
 
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("r", "1.4");
+    dot.setAttribute("r", dotR);
     dot.setAttribute("class", "threat-map__dot");
 
     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
@@ -296,9 +397,12 @@ class ThreatMap extends HTMLElement {
     const esc = globalThis.escapeHTML ?? String;
     const geo = threat.geo || {};
     const category = this.categorize(threat.threatType, threat.blocked);
+    // Shown as-is; the marker's size is derived from it, so a defaulted value is
+    // rendered "—" rather than a number the feed never supplied.
+    const scoreVal = threat.score ?? threat.confidence ?? geo.threatScore;
 
     this.popoverContainer.innerHTML = `
-      <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2 max-w-xs text-left text-xs text-white z-30">
+      <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2 max-w-xs text-left text-xs text-white z-30" tabindex="-1" role="dialog" aria-label="Threat detail">
         <div class="flex justify-between items-center border-b border-white/10 pb-2">
           <span class="mono-xs font-bold" data-tone="primary">${esc(threat.indicator)}</span>
           <span class="pill" data-state="${threat.blocked ? 'success' : 'crit'}">${esc(category.toUpperCase())}</span>
@@ -310,6 +414,8 @@ class ThreatMap extends HTMLElement {
           <span class="font-mono truncate">${esc(geo.isp || 'Carrier')}</span>
           <span class="text-slate-400">Threat Vector:</span>
           <span class="font-mono text-warning">${esc(threat.threatType || 'Generic Probe')}</span>
+          <span class="text-slate-400">Severity:</span>
+          <span class="font-mono">${scoreVal == null ? '—' : esc(String(scoreVal))}</span>
         </div>
         <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-white/10">
           ${threat.blocked
@@ -322,6 +428,9 @@ class ThreatMap extends HTMLElement {
     `;
 
     this.popoverContainer.classList.remove("hidden");
+    // Move focus into the popover so a keyboard user who opened it from the
+    // parallel list lands on it, and Escape (handled on the host) dismisses it.
+    this.popoverContainer.querySelector(".threat-map__popover")?.focus();
     const btn = this.popoverContainer.querySelector("#tm-isolate-btn");
     if (btn) {
       btn.addEventListener("click", async () => {
@@ -364,6 +473,73 @@ class ThreatMap extends HTMLElement {
         ? `${base} · ${this.ungeolocated} ungeolocated`
         : base;
     }
+    this.updateA11yList();
+    this.applyClusters();
+  }
+
+  /**
+   * Collapse markers that land in the same map cell into one, with a count
+   * badge, so a busy metro reads as "7 here" instead of an unreadable blob.
+   * Layered on top: it only toggles an is-clustered class (CSS-hidden) and
+   * draws badges, leaving the age filter, playback and per-indicator popovers
+   * untouched. Aged-out markers (inline display:none) are not eligible.
+   */
+  applyClusters() {
+    if (!this.clusters) return;
+    const SVGNS = "http://www.w3.org/2000/svg";
+    const CELL = 7; // viewBox units
+    const cells = new Map();
+
+    this.threats.forEach((g) => {
+      g.classList.remove("is-clustered"); // reset every pass, then re-decide
+      if (g.style.display === "none") return; // aged out — not eligible
+      const x = Number(g.dataset.x), y = Number(g.dataset.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const key = `${Math.round(x / CELL)}:${Math.round(y / CELL)}`;
+      const bucket = cells.get(key);
+      if (bucket) bucket.push(g); else cells.set(key, [g]);
+    });
+
+    this.clusters.innerHTML = "";
+    const dotR = (g) => Number(g.querySelector(".threat-map__dot")?.getAttribute("r") || 0);
+    for (const group of cells.values()) {
+      if (group.length < 2) continue;
+      // Representative = the largest marker (i.e. highest severity) in the cell.
+      group.sort((a, b) => dotR(b) - dotR(a));
+      for (let i = 1; i < group.length; i++) group[i].classList.add("is-clustered");
+
+      const x = Number(group[0].dataset.x), y = Number(group[0].dataset.y);
+      const badge = document.createElementNS(SVGNS, "g");
+      badge.setAttribute("class", "threat-map__cluster-badge");
+      badge.setAttribute("transform", `translate(${x} ${y})`);
+      const circle = document.createElementNS(SVGNS, "circle");
+      circle.setAttribute("r", "3.4"); circle.setAttribute("cx", "4"); circle.setAttribute("cy", "-4");
+      const text = document.createElementNS(SVGNS, "text");
+      text.setAttribute("x", "4"); text.setAttribute("y", "-4");
+      text.textContent = String(group.length);
+      badge.append(circle, text);
+      this.clusters.appendChild(badge);
+    }
+  }
+
+  /** Keep the screen-reader list in step with what is plotted and visible. */
+  updateA11yList() {
+    if (!this.a11yList) return;
+    const esc = globalThis.escapeHTML ?? String;
+    const items = [];
+    for (const t of this.threatData) {
+      const g = this.threats.get(t.indicator);
+      if (!g || g.style.display === "none") continue;
+      // categorize() already returns "isolated" for a blocked threat, so no
+      // separate isolation suffix is needed.
+      const cat = this.categorize(t.threatType, t.blocked);
+      const country = t.geo?.country || "unknown location";
+      const score = t.score ?? t.confidence ?? t.geo?.threatScore;
+      const label = `${t.indicator}, ${cat}, ${country}` +
+        (score != null ? `, severity ${score}` : "");
+      items.push(`<li><button type="button" data-indicator="${esc(t.indicator)}">${esc(label)}</button></li>`);
+    }
+    this.a11yList.innerHTML = items.join("");
   }
 }
 
