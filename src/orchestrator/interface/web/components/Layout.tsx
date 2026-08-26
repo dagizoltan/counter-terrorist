@@ -124,7 +124,7 @@ export const Layout = (props: {
                   <Eyebrow>Operational Trust</Eyebrow>
                   <span class="trust-meter__value num" id="stat-trust-score">—</span>
                 </div>
-                <div class="meter" id="stat-trust-meter" data-state="idle" style="--value:0%"></div>
+                <div class="meter" id="stat-trust-meter" data-state="idle" data-value="0"></div>
               </div>
             </footer>
           </aside>
@@ -247,6 +247,39 @@ export const Layout = (props: {
 
             try { localStorage.setItem(TAB_KEY, tab); } catch (e) {}
           };
+
+          // ── Percentage bars ────────────────────────────────────────────
+          // An inline style attribute is refused under style-src 'self' — both
+          // in server-rendered markup and when written through innerHTML.
+          // CSSOM writes are not, so a bar carries its value as data-value and
+          // the custom property is set here. applyMeters is exposed so islands
+          // can call it after they re-render.
+          window.applyMeters = function (root) {
+            var scope = root || document;
+            var all = Array.prototype.slice.call(scope.querySelectorAll('[data-value]'));
+            if (scope.nodeType === 1 && scope.hasAttribute && scope.hasAttribute('data-value')) all.push(scope);
+            all.forEach(function (el) {
+              var v = Number(el.getAttribute('data-value'));
+              if (!isFinite(v)) return;
+              el.style.setProperty('--value', Math.max(0, Math.min(100, v)) + '%');
+            });
+          };
+          window.applyMeters();
+
+          // Islands re-render through innerHTML, so bars appear after this
+          // runs. Watching the tree keeps them filled without every island
+          // having to remember to call applyMeters itself.
+          new MutationObserver(function (records) {
+            for (var i = 0; i < records.length; i++) {
+              var added = records[i].addedNodes;
+              for (var j = 0; j < added.length; j++) {
+                var node = added[j];
+                if (node.nodeType !== 1) continue;
+                if (node.hasAttribute('data-value')) window.applyMeters(node.parentNode);
+                else if (node.querySelector && node.querySelector('[data-value]')) window.applyMeters(node);
+              }
+            }
+          }).observe(document.body, { childList: true, subtree: true });
 
           // ── Bind shell controls ────────────────────────────────────────
           // Not inline onclick attributes: the CSP sets a nonce on script-src,

@@ -113,7 +113,7 @@ class Blocklist extends HTMLElement {
     if (this.error) {
       body = `<div class="error-box" role="alert"><span class="danger-dot" aria-hidden="true"></span>${esc(this.error)}</div>`;
     } else if (this.entries === null) {
-      body = `<div class="ledger-list">${'<div class="skeleton" style="height:52px"></div>'.repeat(4)}</div>`;
+      body = `<div class="ledger-list">${'<div class="skeleton skeleton--wide"></div>'.repeat(4)}</div>`;
     } else if (total === 0) {
       body = `<div class="empty-state"><span class="eyebrow">Perimeter clear — no active blocks</span></div>`;
     } else if (entries.length === 0) {

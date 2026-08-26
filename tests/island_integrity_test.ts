@@ -223,7 +223,7 @@ Deno.test("islands escape the remote strings they write into innerHTML", async (
   //     inline.
   //
   // The CSP blocks an injected <script> and inline handlers, so this was not
-  // remote code execution — but style-src still allows 'unsafe-inline', and
+  // remote code execution — style-src no longer permits inline either — but
   // broken markup corrupts the view either way.
   //
   // Only template literals that actually build markup are checked: a template
@@ -353,5 +353,63 @@ Deno.test("every /api/ path an island calls is served by a route", async () => {
     [],
     `island(s) calling a path no route serves — the request 404s and the ` +
       `control reports nothing:\n${unserved.join("\n")}`,
+  );
+});
+
+Deno.test("nothing ships an inline style attribute, and the CSP forbids one", async () => {
+  // Measured in Chromium under `style-src 'self'`:
+  //
+  //   style="" in parsed HTML   -> BLOCKED
+  //   style="" via innerHTML    -> BLOCKED
+  //   el.style.setProperty()    -> APPLIED
+  //   class from external sheet -> APPLIED
+  //
+  // So the attribute had to go everywhere before the directive could be
+  // tightened: 39 sites in the views and 36 in the islands. Static ones became
+  // design-layer classes; dynamic ones became data-state (tone) or data-value
+  // (position, fill, opacity), applied through setProperty by the shell.
+  //
+  // Both halves are asserted together because either alone is a trap — a
+  // tightened header with one attribute left is a broken page, and a clean
+  // tree under a loose header invites the next one straight back in.
+  const security = await Deno.readTextFile(
+    new URL("../src/orchestrator/interface/web/middleware/security.ts", import.meta.url),
+  );
+  // Match inside the header string itself, not the prose around it: the
+  // comment above the directive discusses style-src by name and matched first.
+  const header = /"Content-Security-Policy",\s*`([^`]+)`/.exec(security);
+  if (!header) throw new Error("no Content-Security-Policy header found");
+  const directive = /style-src ([^;]+);/.exec(header[1]);
+  if (!directive) throw new Error("no style-src directive in the CSP header");
+  assertEquals(
+    directive[1].trim(),
+    "'self'",
+    "style-src must stay at 'self' — an inline style attribute is refused either way, " +
+      "so re-adding 'unsafe-inline' buys nothing and reopens the hole",
+  );
+
+  const offenders: string[] = [];
+  async function scan(dir: string) {
+    for await (const entry of Deno.readDir(dir)) {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory) { await scan(path); continue; }
+      if (!entry.name.endsWith(".tsx") && !entry.name.endsWith(".js")) continue;
+
+      const src = await Deno.readTextFile(path);
+      src.split("\n").forEach((line, i) => {
+        // Comments across these files discuss the attribute by name.
+        if (/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(line.trim())) return;
+        if (!/\sstyle\s*=\s*["'{]/.test(line)) return;
+        offenders.push(`${path.split("/web/")[1]}:${i + 1}`);
+      });
+    }
+  }
+  await scan(WEB.replace(/\/$/, ""));
+
+  assertEquals(
+    offenders,
+    [],
+    `inline style attribute(s) the CSP will refuse to apply — use a design-layer ` +
+      `class, or data-state / data-value:\n${offenders.join("\n")}`,
   );
 });

@@ -74,7 +74,7 @@ class ComplianceControls extends HTMLElement {
     } else if (!this.report) {
       body = `
         <div class="control-list">
-          ${"<div class=\"skeleton\" style=\"height:76px\"></div>".repeat(3)}
+          ${"<div class=\"skeleton skeleton--block\"></div>".repeat(3)}
         </div>`;
     } else if (controls.length === 0) {
       body = `<div class="empty-state"><span class="eyebrow">No controls mapped from the ledger</span></div>`;

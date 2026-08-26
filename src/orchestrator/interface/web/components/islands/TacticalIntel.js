@@ -54,11 +54,10 @@ function TacticalIntel() {
       ${intel.map((item) => {
         const isCritical = item.score >= 10;
         const isWarning = item.score >= 3;
-        const theme = isCritical ? 'danger' : isWarning ? 'warning' : 'primary';
-        const color = `var(--${theme})`;
+        const state = isCritical ? 'crit' : isWarning ? 'warn' : 'info';
 
         return html`
-          <div key=${item.source} class="t-panel glass-panel border-l-4 hover:bg-white/[0.02] p-5 mb-4" style="border-left-color: ${color}">
+          <div key=${item.source} class="t-panel glass-panel border-l-4 tone-edge hover:bg-white/[0.02] p-5 mb-4" data-state="${state}">
             <div class="flex justify-between items-start mb-5">
               <div class="flex flex-col gap-2">
                 <div class="eyebrow">Incursion_Vector</div>
@@ -66,21 +65,21 @@ function TacticalIntel() {
               </div>
               <div class="text-right flex flex-col items-end gap-2">
                 <div class="eyebrow">Tactical_Threat_Score</div>
-                <div class="mono-lg font-black tabular-nums tracking-widest" style="color: ${color}; text-shadow: 0 0 15px ${color}66">
+                <div class="mono-lg font-black tabular-nums tracking-widest tone-text" data-state="${state}">
                   ${item.score.toFixed(1)}
                 </div>
               </div>
             </div>
 
             ${item.remediation && html`
-              <div class="mb-5 p-4 rounded-lg border flex items-center gap-4 bg-black/60 hover:bg-black/80" style="border-color: ${color}33">
-                 <div class="p-4 bg-black/40 rounded border border-white/5" style="color: ${color}">
+              <div class="mb-5 p-4 rounded-lg border tone-border flex items-center gap-4 bg-black/60 hover:bg-black/80" data-state="${state}">
+                 <div class="p-4 bg-black/40 rounded border border-white/5 tone-text" data-state="${state}">
                     <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 00-2 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                  </div>
                  <div class="flex-grow">
                     <div class="flex items-center gap-4 mb-2">
-                       <span class="dot" style="background: ${color}"></span>
-                       <div class="eyebrow" style="color: ${color}">${item.remediation.tier}_NEUTRALIZATION_PROTOCOL</div>
+                       <span class="indicator" data-state="${state}"></span>
+                       <div class="eyebrow tone-text" data-state="${state}">${item.remediation.tier}_NEUTRALIZATION_PROTOCOL</div>
                     </div>
                     <div class="eyebrow leading-none mt-2 italic">${item.remediation.reason}</div>
                  </div>

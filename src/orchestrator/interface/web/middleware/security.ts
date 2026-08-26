@@ -33,13 +33,18 @@ export class SecurityMiddleware {
         // an isolated network the type silently fell back mid-session. The UI
         // is on system font stacks now, so both font origins are dropped.
         //
-        // 'unsafe-inline' remains only for style-src: ~95 inline style=""
-        // attributes across the islands still set dynamic values. Those are
-        // being migrated to data-state attributes (see StatusIndicator.js);
-        // once the count reaches zero this can go too.
+        // style-src is 'self' now: the count reached zero. Every static inline
+        // style became a design-layer class, and every dynamic one became a
+        // data-state (tone) or a data-value (position, fill, opacity) that the
+        // shell applies through setProperty.
+        //
+        // The distinction that made this possible, measured in Chromium under
+        // `style-src 'self'`: a style="" attribute is refused both in parsed
+        // markup and when written through innerHTML, but CSSOM writes and
+        // external stylesheets are not restricted at all.
         c.res.headers.set(
           "Content-Security-Policy",
-          `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests;`
+          `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws: wss:; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests;`
         );
         c.res.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
         c.res.headers.set("X-Frame-Options", "DENY");

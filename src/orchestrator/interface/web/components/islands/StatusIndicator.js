@@ -3,9 +3,10 @@
  *
  * Previously wrote its colour through inline `style="background: ...;
  * box-shadow: ..."` attributes built from a `var(--success)` string passed
- * around as a parameter. That is why `style-src 'unsafe-inline'` is still in
- * the CSP, and it meant the dot's treatment here could drift from every other
- * status dot in the console. State is now an attribute the stylesheet matches.
+ * around as a parameter. That meant this dot's treatment could drift from
+ * every other status dot in the console, and it was one of the attributes
+ * keeping 'unsafe-inline' in the CSP's style-src. State is an attribute the
+ * stylesheet matches now, and style-src is down to 'self'.
  */
 
 import { unwrap } from "./api.js";

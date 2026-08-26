@@ -117,7 +117,7 @@ class ListeningPorts extends HTMLElement {
     if (this.error && !this.data) {
       body = `<div class="error-box" role="alert"><span class="danger-dot" aria-hidden="true"></span>${esc(this.error)}</div>`;
     } else if (!this.data) {
-      body = `<div class="ledger-list">${'<div class="skeleton" style="height:44px"></div>'.repeat(5)}</div>`;
+      body = `<div class="ledger-list">${'<div class="skeleton skeleton--row"></div>'.repeat(5)}</div>`;
     } else if (total === 0) {
       body = `<div class="empty-state"><span class="eyebrow">Nothing is listening</span></div>`;
     } else if (ports.length === 0) {

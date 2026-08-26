@@ -3,7 +3,7 @@ import { jsx } from "hono/jsx";
 /**
  * Authentication view.
  *
- * Previously carried a 70-line inline <style> block plus 15 inline style=""
+ * Previously carried a 70-line inline <style> block plus 15 inline 
  * attributes — a fourth place where surface colours, radii and spacing were
  * defined, drifting from the three that already existed. All of it now comes
  * from the shared stylesheet; see the AUTHENTICATION VIEW block in

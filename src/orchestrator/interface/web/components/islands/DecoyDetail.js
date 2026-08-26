@@ -119,7 +119,7 @@ class DecoyDetail extends HTMLElement {
       return;
     }
     if (!this.data) {
-      this.innerHTML = `<div class="decoy-detail">${'<div class="skeleton" style="height:96px"></div>'.repeat(3)}</div>`;
+      this.innerHTML = `<div class="decoy-detail">${'<div class="skeleton skeleton--block"></div>'.repeat(3)}</div>`;
       return;
     }
 

@@ -216,7 +216,7 @@ class ThreatExplorer extends HTMLElement {
     // interpolated raw into innerHTML — indicator, provider, threatType, and
     // the whole geo block — so a feed entry containing markup was injected
     // into the operator's console verbatim. The CSP stops an injected script
-    // from executing, but style-src still allows 'unsafe-inline', and broken
+    // from executing, and style-src no longer allows inline either, but broken
     // markup corrupts the table regardless.
     const esc = globalThis.escapeHTML ?? ((v) => String(v));
     // A feed row can arrive without a score or a timestamp. Rendering
@@ -371,7 +371,7 @@ class ThreatExplorer extends HTMLElement {
                             <td>
                                <div class="cell-score">
                                   <span class="cell-mono">${esc(score(t))}</span>
-                                  <span class="meter" data-state="${score(t) >= 85 ? 'crit' : 'warn'}" style="--value:${score(t)}%"></span>
+                                  <span class="meter" data-state="${score(t) >= 85 ? 'crit' : 'warn'}" data-value="${score(t)}"></span>
                                </div>
                             </td>
                             <td>

@@ -59,7 +59,7 @@ class HoneypotChart extends HTMLElement {
            </div>
         </div>
         <div class="flex-grow relative min-h-[200px] bg-black/20 rounded-lg border border-white/5 p-4 overflow-hidden">
-           <div class="absolute inset-0 pointer-events-none opacity-5" style="background-image: linear-gradient(0deg, var(--warning) 1px, transparent 1px), linear-gradient(90deg, var(--warning) 1px, transparent 1px); background-size: 40px 40px;"></div>
+           <div class="absolute inset-0 pointer-events-none opacity-5 grid-overlay" data-state="warn"></div>
            <canvas class="w-full h-full relative z-10"></canvas>
         </div>
         <div class="mt-4 flex justify-between items-center opacity-40 border-t border-white/5 pt-4">

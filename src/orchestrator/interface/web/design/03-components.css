@@ -1591,3 +1591,129 @@ a.decoy-card__title:hover { color: var(--warning); }
 .t-table tbody tr.is-enforced .cell-mono { color: var(--text-3); }
 
 .t-table td .empty-state { border: 0; background: transparent; }
+
+/* ── Replacements for inline style attributes ─────────────────────────────
+   style="" is refused under `style-src 'self'` — both in server-rendered
+   markup and when written through innerHTML (verified in Chromium). Only
+   external stylesheets and CSSOM writes survive, so every static inline style
+   in the views moves here and the dynamic ones move to setProperty(). */
+
+/* Oversized page title used by the agent subpage headers. */
+.hero-title {
+  font-size: clamp(2.25rem, 5vw, 4rem);
+  line-height: 0.9;
+  letter-spacing: -0.07em;
+  font-weight: 900;
+  color: var(--text-1);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* The vertical accent slab beside those titles. Tone comes from data-state. */
+.hero-rule {
+  width: 12px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  background: var(--c, var(--primary));
+  box-shadow: 0 0 20px var(--c, var(--primary));
+}
+
+/* Section headings inside those pages, on the type ramp rather than ad-hoc rem. */
+.section-heading    { font-size: var(--t-lg); }
+.section-heading-sm { font-size: var(--t-md); }
+.section-heading-xs { font-size: var(--t-base); }
+
+/* Buttons that were `background:transparent; border-color:var(--border-subtle)`. */
+.btn--roomy, .t-btn.roomy { padding: var(--s-5) var(--s-7); height: auto; }
+
+/* Panels that were given a coloured left edge inline. */
+.panel--edge { border-left: 4px solid var(--c, var(--primary)); background: var(--surface-2); }
+
+/* Fixed-height scroll regions that were style="height:500px". */
+.stage-500 { height: 500px; }
+
+/* Radial wash behind the mesh/decoy hero panels. */
+.wash-radial { background: radial-gradient(circle at center, var(--c-wash, var(--primary-wash)), transparent 70%); }
+.wash-sunken { background: var(--surface-inset); }
+
+/* Staggered entrance: the delay is the item's index, not a free value. */
+.stagger-1 { animation-delay: 0.2s; }
+.stagger-2 { animation-delay: 0.4s; }
+.stagger-3 { animation-delay: 0.6s; }
+.stagger-4 { animation-delay: 0.8s; }
+.stagger-5 { animation-delay: 1s; }
+
+/* Text tinted by state, replacing inline `color: var(--…)` on a fixed set. */
+.tone-text { color: var(--c, var(--text-3)); }
+
+/* Skeleton heights, replacing style="height:NNpx" on loading placeholders. */
+.skeleton--row   { height: 44px; }
+.skeleton--wide  { height: 52px; }
+.skeleton--block { height: 96px; }
+
+/* A canvas or svg that fills its stage. */
+.canvas-fill { display: block; width: 100%; height: 100%; }
+
+/* Faint graph paper behind a chart. Tone follows --c like everything else. */
+.grid-overlay {
+  background-image:
+    linear-gradient(0deg, var(--c, var(--primary)) 1px, transparent 1px),
+    linear-gradient(90deg, var(--c, var(--primary)) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* The ring in an agent card animates its dash offset and colour together. */
+.ring-progress { transition: stroke-dashoffset var(--dur-3) var(--ease), stroke var(--dur-3) var(--ease); }
+
+/* Process tree rows indent by depth; five levels is as deep as it renders. */
+.tree-row { border-left: 1px solid var(--line-faint); }
+.tree-depth-0 { margin-left: 0; }
+.tree-depth-1 { margin-left: var(--s-7); }
+.tree-depth-2 { margin-left: calc(var(--s-7) * 2); }
+.tree-depth-3 { margin-left: calc(var(--s-7) * 3); }
+.tree-depth-4 { margin-left: calc(var(--s-7) * 4); }
+
+/* A horizontal bar whose fill comes from --value, like .meter but taller. */
+.bar {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--line-faint);
+  overflow: hidden;
+}
+.bar::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: var(--value, 0%);
+  border-radius: inherit;
+  background: var(--c, var(--primary));
+  transition: width var(--dur-3) var(--ease);
+}
+
+/* Tone-tinted surfaces, replacing computed `background:${color}` strings. */
+.tone-bg     { background: var(--c, var(--primary)); }
+.tone-border { border-color: var(--c-edge, var(--line)); }
+.tone-edge   { border-left-color: var(--c, var(--primary)); }
+.tone-chip   { background: var(--c-wash); color: var(--c); border-color: var(--c-edge); }
+
+/* One segment of a signal-strength bar. --value carries its opacity, applied
+   by the shell's meter helper — an inline style attribute would be refused. */
+.signal-seg { opacity: var(--value, 100%); }
+
+/* A marker on the forensic timeline. Its horizontal position rides on --value,
+   set by the shell's meter helper, because an inline `left:` would be refused. */
+.timeline__pin {
+  position: absolute;
+  left: var(--value, 0%);
+  width: 3px;
+  height: 24px;
+  border-radius: var(--r-pill);
+  background: var(--c, var(--warning));
+  box-shadow: 0 0 15px var(--c, var(--warning));
+  transition: height var(--dur-1) var(--ease), width var(--dur-1) var(--ease);
+}
+.timeline__pin:hover { height: 32px; width: 5px; }

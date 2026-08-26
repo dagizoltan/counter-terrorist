@@ -290,7 +290,7 @@ class ArtifactExplorer extends HTMLElement {
                             <td>
                                <div class="cell-score">
                                   <span class="cell-mono">${esc(score(t))}</span>
-                                  <span class="meter" data-state="${score(t) >= 85 ? 'crit' : 'warn'}" style="--value:${score(t)}%"></span>
+                                  <span class="meter" data-state="${score(t) >= 85 ? 'crit' : 'warn'}" data-value="${score(t)}"></span>
                                </div>
                             </td>
                             <td class="text-right">

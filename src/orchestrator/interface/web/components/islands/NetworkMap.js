@@ -207,15 +207,15 @@ class NetworkMap extends HTMLElement {
   renderAssetNode(d) {
     const isMesh = d.type === 'MESH';
     const isStale = d.state === 'stale';
-    const color = isMesh ? 'var(--primary)' : 'var(--warning)';
+    const state = isMesh ? 'info' : 'warn';
     
     return `
-      <div class="t-panel glass-panel border-l-4 p-4 group hover:bg-white/[0.02] transition-all" style="border-left-color: ${color}; ${isStale ? 'opacity: 0.5' : ''}">
+      <div class="t-panel glass-panel border-l-4 tone-edge p-4 group hover:bg-white/[0.02] transition-all ${isStale ? 'is-stale' : ''}" data-state="${state}">
         <div class="flex justify-between items-start mb-4">
           <div class="flex items-center gap-4">
-            <div class="w-2 h-2 rounded-full ${isStale ? 'bg-slate-600' : ''}" style="background: ${isStale ? '' : color}"></div>
+            <span class="indicator" data-state="${isStale ? 'idle' : state}"></span>
             <div class="flex flex-col">
-               <span class="eyebrow" style="font-size: 8px;">${isMesh ? 'SOVEREIGN_NODE' : 'ETHERNET_ASSET'}</span>
+               <span class="eyebrow" class="eyebrow">${isMesh ? 'SOVEREIGN_NODE' : 'ETHERNET_ASSET'}</span>
                <span class="mono-md font-black text-white italic truncate max-w-[150px]">${d.hostname || d.ip}</span>
             </div>
           </div>
@@ -223,7 +223,7 @@ class NetworkMap extends HTMLElement {
         </div>
         <div class="pt-4 border-t border-white/5 flex justify-between items-center">
           <span class="eyebrow">${esc(d.mac)}</span>
-          <span class="eyebrow" style="color: ${color}">${d.state || 'CONNECTED'}</span>
+          <span class="eyebrow tone-text" data-state="${state}">${d.state || 'CONNECTED'}</span>
         </div>
       </div>
     `;
@@ -239,7 +239,7 @@ class NetworkMap extends HTMLElement {
         <div class="flex items-center gap-4">
            <span class="eyebrow">${esc(d.type)}</span>
            <div class="w-10 h-1 bg-white/5 rounded-full overflow-hidden">
-              <div class="h-full bg-primary" style="width: ${d.signal || 0}%"></div>
+              <div class="h-full bg-primary" data-value="${Number(d.signal) || 0}"></div>
            </div>
         </div>
       </div>

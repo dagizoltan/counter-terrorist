@@ -130,8 +130,8 @@ class EnvironmentalSignals extends HTMLElement {
     if (isMesh) trustScore = 99; // Mesh nodes are verified
     trustScore = Math.max(10, Math.min(99, trustScore));
 
-    const themeColor = isWifi ? 'var(--primary)' : isBT ? 'var(--warning)' : 'var(--success)';
-    const trustColor = trustScore > 70 ? 'var(--success)' : trustScore > 40 ? 'var(--warning)' : 'var(--danger)';
+    const themeState = isWifi ? 'info' : isBT ? 'warn' : 'ok';
+    const trustState = trustScore > 70 ? 'ok' : trustScore > 40 ? 'warn' : 'crit';
     const trustStatus = trustScore > 70 ? 'Optimal' : trustScore > 40 ? 'Caution' : 'Untrusted';
     
     const meta = [];
@@ -163,12 +163,12 @@ class EnvironmentalSignals extends HTMLElement {
             </div>
           </div>
           <div class="flex flex-col items-end gap-2">
-            <span class="status-pill active font-black uppercase tracking-[0.2em]" style="background: ${trustColor}20; color: ${trustColor}; border-color: ${trustColor}40">
+            <span class="pill" data-state="${trustState}">
                ${trustStatus}
             </span>
             <div class="flex items-center gap-2">
                <span class="eyebrow">Trust_${trustScore}%</span>
-               <div class="w-1.5 h-1.5 rounded-full" style="background: ${trustColor}; box-shadow: 0 0 8px ${trustColor}"></div>
+               <span class="indicator" data-state="${trustState}"></span>
             </div>
           </div>
         </div>
@@ -195,10 +195,10 @@ class EnvironmentalSignals extends HTMLElement {
         <div class="bg-black/80 p-3 rounded-lg border border-white/5 mb-4">
           <div class="flex justify-between items-end mb-3">
              <span class="eyebrow">Signal_Magnitude</span>
-             <span class="mono text-[12px] font-black tabular-nums" style="color: ${themeColor}">${isBT ? (s.signal + ' dBm') : isMesh ? 'VFRD' : (s.signal + '%')}</span>
+             <span class="mono text-[12px] font-black tabular-nums tone-text" data-state="${themeState}">${isBT ? (s.signal + ' dBm') : isMesh ? 'VFRD' : (s.signal + '%')}</span>
           </div>
           <div class="h-1.5 bg-white/5 rounded-full overflow-hidden flex gap-1">
-             ${this.renderSignalBars(isMesh ? 100 : s.signal, themeColor)}
+             ${this.renderSignalBars(isMesh ? 100 : s.signal, themeState)}
           </div>
         </div>
 
@@ -223,13 +223,20 @@ class EnvironmentalSignals extends HTMLElement {
     return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>';
   }
 
-  renderSignalBars(signal, color) {
+  /**
+   * Signal strength as a row of segments.
+   *
+   * Each segment's opacity was an inline style, which `style-src 'self'`
+   * refuses. It rides on --value now, applied by the shell's meter helper;
+   * .signal-seg maps that to opacity.
+   */
+  renderSignalBars(signal, state) {
     const bars = 12;
     const activeBars = Math.ceil((signal < 0 ? (100 + signal) : signal) / (100 / bars));
     let html = '';
     for (let i = 0; i < bars; i++) {
         const opacity = i < activeBars ? (0.2 + (i / bars) * 0.8) : 0.03;
-        html += `<div class="flex-grow h-full transition-all duration-700" style="background: ${color}; opacity: ${opacity}"></div>`;
+        html += `<div class="flex-grow h-full transition-all duration-700 tone-bg signal-seg" data-state="${state}" data-value="${Math.round(opacity * 100)}"></div>`;
     }
     return html;
   }
