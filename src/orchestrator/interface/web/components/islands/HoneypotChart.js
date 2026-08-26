@@ -25,7 +25,28 @@ class HoneypotChart extends HTMLElement {
   }
 
   disconnectedCallback() {
-    clearInterval(this._interval);
+    // The field is `interval`, not `_interval` — the timer used to outlive the
+    // element and keep polling /api/stats/honeypot after the page moved on.
+    clearInterval(this.interval);
+  }
+
+  /**
+   * Canvas 2D cannot resolve a CSS custom property — `ctx.strokeStyle =
+   * 'var(--warning)'` is silently ignored and the context keeps its default
+   * black, so the whole chart drew black on a near-black panel and looked
+   * empty. These pull concrete values from the token layer instead. --warning
+   * itself is hsl(var(--warning-hsl)) (still nested), so the resolvable
+   * --warning-rgb triplet is used.
+   */
+  themeColors() {
+    const root = getComputedStyle(document.documentElement);
+    const rgb = root.getPropertyValue("--warning-rgb").trim() || "235, 165, 47";
+    return {
+      warning: `rgb(${rgb})`,
+      area: `rgba(${rgb}, 0.15)`,
+      glow: `rgba(${rgb}, 0.55)`,
+      floor: root.getPropertyValue("--surface-0").trim() || "hsl(225 22% 4%)",
+    };
   }
 
   async fetchData() {
@@ -87,6 +108,7 @@ class HoneypotChart extends HTMLElement {
     const drawHeight = this.canvas.clientHeight;
 
     const ctx = this.ctx;
+    const c = this.themeColors();
     ctx.clearRect(0, 0, drawWidth, drawHeight);
 
     if (this.data.length < 2) return;
@@ -123,16 +145,16 @@ class HoneypotChart extends HTMLElement {
     });
     ctx.lineTo(drawWidth, drawHeight);
     const grad = ctx.createLinearGradient(0, 0, 0, drawHeight);
-    grad.addColorStop(0, 'hsla(var(--warning-h), var(--warning-s), 40%, 0.15)');
+    grad.addColorStop(0, c.area);
     grad.addColorStop(1, 'transparent');
     ctx.fillStyle = grad;
     ctx.fill();
 
     // Draw Line with Glow
     ctx.shadowBlur = 20;
-    ctx.shadowColor = 'var(--warning-glow)';
+    ctx.shadowColor = c.glow;
     ctx.beginPath();
-    ctx.strokeStyle = 'var(--warning)';
+    ctx.strokeStyle = c.warning;
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -157,18 +179,18 @@ class HoneypotChart extends HTMLElement {
       const y = drawHeight - padding - (d.hits / maxHits) * (drawHeight - padding * 2);
       
       ctx.beginPath();
-      ctx.fillStyle = 'var(--bg)';
+      ctx.fillStyle = c.floor;
       ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.fill();
-      
+
       ctx.beginPath();
-      ctx.strokeStyle = 'var(--warning)';
+      ctx.strokeStyle = c.warning;
       ctx.lineWidth = 2;
       ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.stroke();
 
       ctx.beginPath();
-      ctx.fillStyle = 'var(--warning)';
+      ctx.fillStyle = c.warning;
       ctx.arc(x, y, 2.5, 0, Math.PI * 2);
       ctx.fill();
     });
