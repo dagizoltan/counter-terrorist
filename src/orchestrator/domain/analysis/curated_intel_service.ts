@@ -471,7 +471,10 @@ export class CuratedIntelService extends BaseService {
                         payload: { indicator: curated.indicator, source: source.name }
                     };
                     this.logging.log(foundLog);
-                    if (this.eventBus) await this.eventBus.emit("UI_BROADCAST", { type: "AUDIT_LOG", data: foundLog });
+                    if (this.eventBus) {
+                        await this.eventBus.emit("UI_BROADCAST", { type: "THREAT", data: curated });
+                        await this.eventBus.emit("UI_BROADCAST", { type: "AUDIT_LOG", data: foundLog });
+                    }
                 }
 
                 // AUTO-ISOLATION POLICY: 
@@ -594,7 +597,7 @@ export class CuratedIntelService extends BaseService {
             const matchesSearch = !search || t.indicator.includes(search);
             
             if (matchesType && matchesProvider && matchesSearch) {
-                if (t.type === "IP" && (!t.geo || t.geo.lat == null || t.geo.lon == null) && this.geoip) {
+                if (t.type === "IP" && this.geoip) {
                     const geoCandidate = await this.geoip.resolve(t.indicator);
                     if (geoCandidate) {
                         t.geo = {
@@ -626,7 +629,7 @@ export class CuratedIntelService extends BaseService {
                 const matchesSearch = !search || t.indicator.includes(search);
 
                 if (matchesType && matchesProvider && matchesSearch) {
-                    if (t.type === "IP" && (!t.geo || t.geo.lat == null || t.geo.lon == null) && this.geoip) {
+                    if (t.type === "IP" && this.geoip) {
                         const geoCandidate = await this.geoip.resolve(t.indicator);
                         if (geoCandidate) {
                             t.geo = {
