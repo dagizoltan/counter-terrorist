@@ -58,6 +58,11 @@ export const SidebarNav = ({ userRole }: { userRole?: string }) => (
         icon={<Icon><path d="M5 12.55a11 11 0 0 1 14.08 0" /><path d="M1.42 9a16 16 0 0 1 21.16 0" /><path d="M8.53 16.11a6 6 0 0 1 6.95 0" /><line x1="12" y1="20" x2="12.01" y2="20" /></Icon>}
       />
       <SidebarNavLink
+        href="/network/active"
+        label="Active Network"
+        icon={<Icon><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></Icon>}
+      />
+      <SidebarNavLink
         href="/agents"
         label="Agent Fleet"
         icon={<Icon><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" /><path d="M12 7v5l3 3" /></Icon>}
@@ -79,6 +84,11 @@ export const SidebarNav = ({ userRole }: { userRole?: string }) => (
         href="/intel/map"
         label="Global Threat Map"
         icon={<Icon><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" /><line x1="9" y1="3" x2="9" y2="18" /><line x1="15" y1="6" x2="15" y2="21" /></Icon>}
+      />
+      <SidebarNavLink
+        href="/intel/artifact-collections"
+        label="Artifact Collections"
+        icon={<Icon><rect width="20" height="5" x="2" y="3" rx="1" /><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></Icon>}
       />
     </SidebarNavGroup>
 
@@ -107,13 +117,28 @@ export const SidebarNav = ({ userRole }: { userRole?: string }) => (
         icon={<Icon><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Icon>}
       />
       <SidebarNavLink
-        href="/compliance"
+        href="/forensics/compliance"
         label="Compliance Center"
         icon={<Icon><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></Icon>}
       />
     </SidebarNavGroup>
 
     <SidebarNavGroup title="05 System">
+      <SidebarNavLink
+        href="/infrastructure"
+        label="Infrastructure Hub"
+        icon={<Icon><rect width="20" height="8" x="2" y="2" rx="2" /><rect width="20" height="8" x="2" y="14" rx="2" /><path d="M6 6h.01" /><path d="M6 18h.01" /></Icon>}
+      />
+      <SidebarNavLink
+        href="/infrastructure/mesh"
+        label="Mesh Topology"
+        icon={<Icon><circle cx="12" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9" /><path d="M12 12v3" /></Icon>}
+      />
+      <SidebarNavLink
+        href="/system/supply-chain"
+        label="Supply Chain"
+        icon={<Icon><path d="m7.5 4.27 9 5.15" /><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" /><path d="m3.3 7 8.7 5 8.7-5" /><path d="M12 22V12" /></Icon>}
+      />
       <SidebarNavLink
         href="/system/info"
         label="Platform Status"
