@@ -83,7 +83,7 @@ export const AuditPage = (props: { csrfToken?: string, nonce?: string, userRole?
                   </div>
                </div>
                <div class="flex gap-4">
-                  <button class="t-btn px-4 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Re-verify_Integrity</button>
+                  <button class="t-btn px-4 py-3 text-[10px] font-black uppercase tracking-widest" data-action="reload">Re-verify_Integrity</button>
                   {(props.userRole === "admin" || props.userRole === "operator") && (
                   <button class="t-btn primary px-4 py-3 text-[10px] font-black uppercase tracking-widest">Export_Evidence</button>
                   )}

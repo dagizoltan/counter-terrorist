@@ -32,7 +32,7 @@ export const ActiveNetworkPage = (props: { status: unknown, csrfToken?: string, 
                <p class="eyebrow">Live authoritative node interaction & local asset map</p>
             </div>
             <div class="flex gap-4">
-               <button type="button" class="t-btn px-4 py-3 text-[10px] font-black uppercase tracking-widest" onclick="location.reload()">Refresh Discovery</button>
+               <button type="button" class="t-btn px-4 py-3 text-[10px] font-black uppercase tracking-widest" data-action="reload">Refresh Discovery</button>
             </div>
           </header>
           <div class="bg-black/60 p-5 min-h-[600px] relative">

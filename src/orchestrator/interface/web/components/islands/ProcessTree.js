@@ -69,6 +69,18 @@ class ProcessTree extends HTMLElement {
     `;
   }
 
+  /**
+   * One process row.
+   *
+   * A "Terminate" button used to sit next to PPID. It was dead three ways: its
+   * wrapper carried opacity-0 with no hover rule to reveal it, its inline
+   * onclick was refused by the CSP, and it posted to /api/processes/kill/:pid,
+   * which no route serves. The capability exists — firewall.killProcess dumps
+   * process forensics and writes an audit event before signalling — but
+   * exposing arbitrary PID termination over HTTP is a decision for the
+   * operator, not a side effect of a UI fix. The button is gone rather than
+   * pretending to work.
+   */
   renderNode(node, depth) {
     const children = this.processes.filter(p => p.ppid === node.pid);
     children.sort((a, b) => a.pid - b.pid);
@@ -94,10 +106,7 @@ class ProcessTree extends HTMLElement {
                  ${isGhost ? '<span class="status-pill error">UNLINKED_GHOST</span>' : ''}
                  ${isProtected ? '<span class="status-pill active">SOVEREIGN</span>' : ''}
               </div>
-              <div class="opacity-0 flex items-center gap-4">
-                 <span class="eyebrow">PPID: ${node.ppid}</span>
-                 <button class="t-btn danger p-1 text-[8px] h-6 px-3" onclick="const csrf = document.querySelector('meta[name=\'csrf-token\']')?.content; confirm('Execute SIGKILL on PID ${node.pid}?') && fetch('/api/processes/kill/${node.pid}', {method:'POST', headers:{'X-CT-Token':csrf}}).then(() => location.reload())">Terminate</button>
-              </div>
+              <span class="eyebrow">PPID: ${node.ppid}</span>
            </div>
         </div>
         ${children.map(c => this.renderNode(c, depth + 1)).join('')}

@@ -2,7 +2,8 @@
  * Custom Element: AgentDetail
  * High-fidelity agent diagnostic and orchestration controller.
  */
-import { unwrap } from "./api.js";
+import { unwrap, apiSend } from "./api.js";
+import { bindActions } from "./actions.js";
 class AgentDetail extends HTMLElement {
   constructor() {
     super();
@@ -61,6 +62,17 @@ class AgentDetail extends HTMLElement {
       this.renderMetrics(name, agentData);
     } catch (e) {
       console.error('[AGENT_DETAIL] Failed to load agent details:', e);
+    }
+  }
+
+  /** Lift a firewall block, then refresh in place rather than reloading. */
+  async purgeBlockedIp(ip) {
+    if (!ip) return;
+    try {
+      await apiSend('/api/agents/firewall/unblock', 'POST', { ip });
+      await this.fetchStatus(this.agentName);
+    } catch (e) {
+      console.error('[AGENT-DETAIL] Unblock failed', e);
     }
   }
 
@@ -152,6 +164,11 @@ class AgentDetail extends HTMLElement {
     const container = document.getElementById('agent-metrics-container');
     if (!container) return;
 
+    // #agent-metrics-container sits outside <agent-detail> in the page, so the
+    // host element cannot delegate for it. bindActions is idempotent per host:
+    // repeat calls swap the handler map instead of stacking a listener.
+    bindActions(container, { purge: (el) => this.purgeBlockedIp(el.dataset.ip) });
+
     if (name === 'firewall') {
       const metrics = agentData.metrics || {};
       container.innerHTML = `
@@ -170,7 +187,7 @@ class AgentDetail extends HTMLElement {
                 ${(metrics.blockedIps || []).map(ip => `
                  <div class="p-4 bg-black/60 border border-white/5 flex items-center justify-between group hover:border-danger/40 rounded-lg">
                      <span class="eyebrow" data-tone="danger">${globalThis.escapeHTML(ip)}</span>
-                     <button onclick="const t=document.querySelector('meta[name=\\'csrf-token\\']')?.content; fetch('/api/agents/firewall/unblock', {method:'POST', headers:{'Content-Type':'application/json', 'X-CT-Token': t}, body:JSON.stringify({ip: '${globalThis.escapeHTML(ip)}'})}).then(() => location.reload())"
+                     <button type="button" data-action="purge" data-ip="${globalThis.escapeHTML(ip)}"
                              class="eyebrow opacity-0 group-hover:opacity-100 hover:text-white transition-opacity">PURGE</button>
                  </div>
                `).join('') || `

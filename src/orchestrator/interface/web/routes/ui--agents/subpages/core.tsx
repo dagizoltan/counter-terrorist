@@ -128,9 +128,9 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
             <div class="space-y-4">
                <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white rounded-lg transition-colors" />
                <div class="grid grid-cols-2 gap-4">
-                  <button type="button" onclick="const ip=document.getElementById('fw-block-input').value; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({ip}) }).then(() => location.reload())" class="t-btn danger w-full py-4 text-[10px] uppercase font-black tracking-widest">Block_IP</button>
+                  <button type="button" data-action="post" data-url="/api/agents/firewall/block" data-input="fw-block-input" data-field="ip" data-reload class="t-btn danger w-full py-4 text-[10px] uppercase font-black tracking-widest">Block_IP</button>
                   {props.userRole === "admin" && (
-                  <button type="button" onclick="if(confirm('Flush all rules?')) fetch('/api/agents/firewall/flush', { method: 'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content} }).then(() => location.reload())" class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest" style="background:transparent; border-color:var(--border-subtle);">Flush_All</button>
+                  <button type="button" data-action="post" data-url="/api/agents/firewall/flush" data-confirm="Flush all firewall rules?" data-reload class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest" style="background:transparent; border-color:var(--border-subtle);">Flush_All</button>
                   )}
                </div>
             </div>
@@ -195,8 +195,8 @@ export const EbpfPage = (props: { csrfToken?: string, nonce?: string, userRole?:
           {(props.userRole === "admin" || props.userRole === "operator") && (
           <div class="t-panel">
             <span class="metric-tag mb-4 block">LSM_Directives</span>
-            <button type="button" onclick="fetch('/api/agents/sentinel/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'HIDE_PID'})})" class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
-            <button type="button" onclick="fetch('/api/agents/sentinel/command', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}, body: JSON.stringify({type:'RESTRICT_NETWORK'})})" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
+            <button type="button" data-action="post" data-url="/api/agents/sentinel/command" data-body='{"type":"HIDE_PID"}' class="t-btn w-full mb-4" style="background:transparent; border-color:var(--border-subtle);">Hide_Orchestrator_PID</button>
+            <button type="button" data-action="post" data-url="/api/agents/sentinel/command" data-body='{"type":"RESTRICT_NETWORK"}' class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Lockdown_Kernel_IO</button>
           </div>
           )}
         </div>
@@ -280,7 +280,7 @@ export const MeshPage = (props: { status: MeshStatus, csrfToken?: string, nonce?
           <div class="t-panel">
              <span class="metric-tag mb-4 block">Control_Directives</span>
              <div class="space-y-4">
-                <button type="button" onclick="fetch('/api/mesh/resync', {method:'POST', headers: {'X-CT-Token': document.querySelector('meta[name=csrf-token]')?.content}})" class="t-btn w-full">Broadcast Resync</button>
+                <button type="button" data-action="post" data-url="/api/mesh/resync" class="t-btn w-full">Broadcast Resync</button>
                 {props.userRole === "admin" && (
                 <button type="button" class="t-btn w-full danger" style="background:transparent; border-color:var(--danger); color:var(--danger);">Isolate Local Node</button>
                 )}

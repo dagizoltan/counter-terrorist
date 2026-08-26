@@ -76,7 +76,7 @@ export const ForensicCenterPage = (props: { csrfToken?: string, nonce?: string, 
                </div>
                <footer class="p-4 border-t border-white/5 bg-black/40 flex flex-col gap-4">
                   {(props.userRole === "admin" || props.userRole === "operator") && (
-                  <button onclick="document.querySelector('forensic-vault').generateBundle()" class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest group/btn">
+                  <button data-action="invoke" data-target="forensic-vault" data-method="generateBundle" class="t-btn w-full py-4 text-[10px] font-black uppercase tracking-widest group/btn">
                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="mr-3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                      Generate Evidence Bundle
                   </button>

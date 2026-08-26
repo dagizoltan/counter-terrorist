@@ -1,4 +1,5 @@
 import { unwrap } from "./api.js";
+import { bindActions, preserveFocus } from "./actions.js";
 class ArtifactExplorer extends HTMLElement {
   constructor() {
     super();
@@ -15,6 +16,14 @@ class ArtifactExplorer extends HTMLElement {
   }
 
   async connectedCallback() {
+    // Delegated, because an inline onclick/oninput is refused under the CSP.
+    bindActions(this, {
+      syncArtifacts: () => this.syncArtifacts(),
+      setProvider: (el) => this.setProvider(el.dataset.provider),
+      setSearch: (el) => this.setSearch(el.value),
+      toggleSelectAll: () => this.toggleSelectAll(),
+      toggleSelect: (el) => this.toggleSelect(el.dataset.indicator),
+    });
     await this.fetchStats();
     await this.fetchArtifacts();
     this.connectWS();
@@ -157,6 +166,12 @@ class ArtifactExplorer extends HTMLElement {
   }
 
   render() {
+    // Re-render inside preserveFocus: the search field is replaced wholesale
+    // and would otherwise lose focus mid-word once the debounce fires.
+    preserveFocus(this, () => this.paint());
+  }
+
+  paint() {
     const totalCount = Object.values(this.stats).reduce((a, b) => a + b, 0);
     const selectedCount = this.selectedHashes.size;
 
@@ -170,7 +185,7 @@ class ArtifactExplorer extends HTMLElement {
                  <span class="eyebrow">Analysis_Priority: CRITICAL // Total: ${totalCount.toLocaleString()}</span>
               </div>
               <div class="flex gap-4">
-                 <button onclick="this.closest('artifact-explorer').syncArtifacts()" class="t-btn primary !py-2 !px-4 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
+                 <button type="button" data-action="syncArtifacts" class="t-btn primary !py-2 !px-4 group ${this.loading ? 'opacity-50 pointer-events-none' : ''}">
                     <svg class="transition-transform group-hover:rotate-180 duration-700 ${this.loading ? 'animate-spin' : ''}" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
                     <span class="eyebrow">Global_Artifact_Sync</span>
                  </button>
@@ -179,7 +194,7 @@ class ArtifactExplorer extends HTMLElement {
            
            <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
               ${Object.entries(this.stats).map(([name, count]) => `
-                <button onclick="this.closest('artifact-explorer').setProvider('${name}')" 
+                <button type="button" data-action="setProvider" data-provider="${name}"
                   class="flex flex-col gap-2 p-3 rounded-lg border transition-all text-left ${this.filter.provider === name ? 'bg-warning/20 border-warning shadow-lg shadow-warning/10' : 'bg-white/5 border-white/5 hover:border-white/20'}">
                   <div class="flex justify-between items-center">
                      <span class="eyebrow truncate" data-tone="strong">${name}</span>
@@ -206,7 +221,7 @@ class ArtifactExplorer extends HTMLElement {
                     <div class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-warning transition-colors">
                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
                     </div>
-                    <input type="text" value="${this.filter.search}" oninput="this.closest('artifact-explorer').setSearch(this.value)" 
+                    <input type="text" value="${this.filter.search}" data-action="setSearch" data-on="input" 
                       class="bg-black/80 border border-white/10 rounded-lg pl-5 pr-4 py-3 mono-xs text-white focus:border-warning outline-none transition-all w-64 shadow-2xl" 
                       placeholder="SEARCH_HASHES..." />
                  </div>
@@ -218,7 +233,7 @@ class ArtifactExplorer extends HTMLElement {
                  <thead class="sticky top-0 bg-black/40 backdrop-blur-md z-10 border-b border-white/5 shadow-xl text-[7px]">
                     <tr>
                        <th class="p-1 w-8 text-center">
-                          <input type="checkbox" onchange="this.closest('artifact-explorer').toggleSelectAll()" 
+                          <input type="checkbox" data-action="toggleSelectAll" data-on="change" 
                             class="accent-warning w-2 h-2 rounded border-white/10 bg-black" />
                        </th>
                        <th class="eyebrow p-1 w-[40%]">Artifact_Indicator (SHA256/Pattern)</th>
@@ -246,7 +261,7 @@ class ArtifactExplorer extends HTMLElement {
                          <tr class="hover:bg-white/[0.02] transition-all group border-l border-transparent ${this.selectedHashes.has(t.indicator) ? 'bg-warning/5 border-warning/20' : 'hover:border-warning/10'} ${t.blocked ? 'opacity-40 grayscale-[0.5]' : ''}">
                             <td class="p-1 text-center">
                                <input type="checkbox" ${this.selectedHashes.has(t.indicator) ? 'checked' : ''} 
-                                 onchange="this.closest('artifact-explorer').toggleSelect('${t.indicator}')"
+                                 data-action="toggleSelect" data-on="change" data-indicator="${t.indicator}"
                                  class="accent-warning w-2 h-2 rounded border-white/10 bg-black cursor-pointer" />
                             </td>
                             <td class="p-1 truncate">

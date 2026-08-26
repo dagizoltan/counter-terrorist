@@ -122,3 +122,71 @@ Deno.test("login surfaces auth errors accessibly", () => {
   assertStringIncludes(withError, "Invalid token");
   assert(!html(Login({})).includes("error-box"), "error box shown without an error");
 });
+
+Deno.test("a component's tone tokens never outrank the state that sets them", async () => {
+  // The whole colour system funnels through --c / --c-wash / --c-edge, set
+  // either by a state selector (.pill.ok, [data-state="ok"], .is-crit) or by a
+  // component's own default.
+  //
+  // .pill, .status-pill, .indicator and .btn each set their default --c inside
+  // the base rule, alongside display/padding/border. That is (0,1,0) — the
+  // same specificity as [data-state="ok"] — and it sits LATER in the file, so
+  // the default won every time. Every pill on every page rendered muted grey:
+  // PASS and FAIL alike, "Armed" decoys, the shell's own "Perimeter Armed"
+  // chip. Measured in Chromium, all of them came back rgb(118,128,147).
+  //
+  // The invariant: a rule that mixes tone tokens with ordinary properties is a
+  // component default, and a default at single-class specificity shadows the
+  // state that was meant to set it. Split the tokens into a :where() block, or
+  // give the selector enough specificity to mean it.
+  const css = await Deno.readTextFile(
+    new URL("../src/orchestrator/interface/web/design/03-components.css", import.meta.url),
+  );
+
+  /** Split on commas at depth 0, so :where(a, b) stays one part. */
+  const topLevelParts = (selector: string): string[] => {
+    const parts: string[] = [];
+    let depth = 0, current = "";
+    for (const ch of selector) {
+      if (ch === "(") depth++;
+      else if (ch === ")") depth--;
+      if (ch === "," && depth === 0) { parts.push(current); current = ""; continue; }
+      current += ch;
+    }
+    parts.push(current);
+    return parts.map((s) => s.trim()).filter(Boolean);
+  };
+
+  const offenders: string[] = [];
+  const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+  for (const match of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selector = match[1].trim();
+    const block = match[2];
+    if (selector.startsWith("@") || selector.startsWith(":root")) continue;
+    if (!/(^|[\s;])--c(-wash|-edge)?\s*:/.test(block)) continue;
+
+    // A rule that sets ONLY tone tokens is a state selector, which is exactly
+    // what is supposed to win. Only a default mixed into a component's own
+    // layout rule is at issue.
+    const setsOrdinaryProperty = block
+      .split(";")
+      .some((d) => /^\s*[a-z-]+\s*:/.test(d) && !/^\s*--/.test(d));
+    if (!setsOrdinaryProperty) continue;
+
+    for (const part of topLevelParts(selector)) {
+      if (part.includes(":where(")) continue;
+      const classes = part.match(/\.[A-Za-z0-9_-]+/g) ?? [];
+      // Two classes or an attribute already outrank [data-state="…"].
+      if (classes.length >= 2 || part.includes("[")) continue;
+      offenders.push(part);
+    }
+  }
+
+  assertEquals(
+    offenders,
+    [],
+    `tone token default(s) at class specificity — move them into a :where() ` +
+      `block or they will shadow [data-state]:\n${offenders.join("\n")}`,
+  );
+});
