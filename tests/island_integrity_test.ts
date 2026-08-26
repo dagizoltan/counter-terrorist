@@ -494,3 +494,21 @@ Deno.test("the threat map isolates through the CSRF helper and never fabricates 
     "un-geolocated threats must not be plotted at a fabricated location",
   );
 });
+
+Deno.test("the deception page surfaces the canary-token half of the grid", async () => {
+  // DeceptionGridService registers credential lures through CanaryService, but
+  // the page long showed only the honeypot port decoys, so a tripped lure was
+  // invisible. Guard the wiring: the page mounts the island and the route it
+  // reads exists.
+  const page = await Deno.readTextFile(`${WEB}routes/ui--agents--deception/page.tsx`);
+  assert(/<canary-tokens\b/.test(page), "deception page no longer mounts <canary-tokens>");
+  assert(
+    /["'`]\/components\/islands\/CanaryTokens\.js["'`]/.test(page),
+    "deception page no longer loads the CanaryTokens island",
+  );
+
+  const routes = new Set(
+    [...Deno.readDirSync(`${WEB}routes`)].filter((e) => e.isDirectory).map((e) => e.name),
+  );
+  assert(routes.has("api--agents--deception--canaries"), "missing API route api--agents--deception--canaries");
+});

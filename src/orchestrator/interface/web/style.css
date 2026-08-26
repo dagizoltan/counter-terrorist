@@ -5,7 +5,7 @@
  *   Generator     : src/orchestrator/tools/build/build_css.ts
  *   Regenerate    : deno task build-css
  *
- * 493 utilities derived from 755 class names in use.
+ * 493 utilities derived from 756 class names in use.
  * -------------------------------------------------------------------------- */
 
 /* ============================================================================
@@ -1741,6 +1741,9 @@ body.auth-page {
  * The decoy manifest and its controls (<deception-grid>).
  * ==========================================================================*/
 .decoy-grid { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+/* The credential-lure list, sibling of the decoy grid. */
+.canary-tokens { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
 
 .decoy-grid__head {
   display: flex;

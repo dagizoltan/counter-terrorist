@@ -1328,6 +1328,9 @@ body.auth-page {
  * ==========================================================================*/
 .decoy-grid { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
 
+/* The credential-lure list, sibling of the decoy grid. */
+.canary-tokens { display: flex; flex-direction: column; gap: var(--s-4); min-width: 0; }
+
 .decoy-grid__head {
   display: flex;
   align-items: center;
