@@ -158,7 +158,7 @@ class NetworkMap extends HTMLElement {
 
     if (root) {
       if (gateway) {
-        root.innerHTML = this.renderGatewayNode(gateway);
+        root.innerHTML = this.renderGatewayNode(gateway, esc);
       } else {
         root.innerHTML = `<div class="eyebrow p-4 border border-dashed border-white/10 rounded-lg opacity-30 italic text-center w-full max-w-md">Default_Gateway_Undetected</div>`;
       }
@@ -166,7 +166,7 @@ class NetworkMap extends HTMLElement {
 
     if (assets) {
       if (otherAssets.length > 0) {
-        assets.innerHTML = otherAssets.map(d => this.renderAssetNode(d)).join('');
+        assets.innerHTML = otherAssets.map(d => this.renderAssetNode(d, esc)).join('');
       } else {
         assets.innerHTML = `<div class="eyebrow col-span-full p-6 text-center opacity-20">No_Connected_Assets_Found</div>`;
       }
@@ -174,16 +174,16 @@ class NetworkMap extends HTMLElement {
 
     if (wifi) {
       const wifis = this.devices.filter(d => d.type === 'WIFI');
-      wifi.innerHTML = wifis.map(d => this.renderSignal(d)).join('');
+      wifi.innerHTML = wifis.map(d => this.renderSignal(d, esc)).join('');
     }
     
     if (bt) {
       const bts = this.devices.filter(d => d.type === 'BLUETOOTH');
-      bt.innerHTML = bts.map(d => this.renderSignal(d)).join('');
+      bt.innerHTML = bts.map(d => this.renderSignal(d, esc)).join('');
     }
   }
 
-  renderGatewayNode(d) {
+  renderGatewayNode(d, esc) {
     return `
       <div class="relative group">
          <div class="absolute -inset-4 bg-primary/10 rounded-lg blur-xl group-hover:bg-primary/20 transition-all"></div>
@@ -204,7 +204,7 @@ class NetworkMap extends HTMLElement {
     `;
   }
 
-  renderAssetNode(d) {
+  renderAssetNode(d, esc) {
     const isMesh = d.type === 'MESH';
     const isStale = d.state === 'stale';
     const state = isMesh ? 'info' : 'warn';
@@ -229,7 +229,7 @@ class NetworkMap extends HTMLElement {
     `;
   }
 
-  renderSignal(d) {
+  renderSignal(d, esc) {
     return `
       <div class="p-4 bg-black/40 border border-white/5 rounded flex justify-between items-center group hover:border-white/20 transition-colors">
         <div class="flex items-center gap-4">

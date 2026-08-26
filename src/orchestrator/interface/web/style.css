@@ -5,7 +5,7 @@
  *   Generator     : src/orchestrator/tools/build/build_css.ts
  *   Regenerate    : deno task build-css
  *
- * 484 utilities derived from 725 class names in use.
+ * 484 utilities derived from 733 class names in use.
  * -------------------------------------------------------------------------- */
 
 /* ============================================================================
@@ -1910,6 +1910,41 @@ a.decoy-card__title:hover { color: var(--warning); }
 .decoy-detail__desc { font-size: var(--t-xs); line-height: 1.5; color: var(--text-3); }
 
 .decoy-detail__row-actions { display: flex; align-items: center; gap: var(--s-2); justify-self: end; }
+
+/* ── Network participant detail ────────────────────────────────────────────
+   <network-detail>: one discovered participant, its telemetry, and the
+   operations aimed at it. Shares the panel/stat/ledger vocabulary; only the
+   layout wrappers and the operations grid are its own. */
+.network-detail { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.network-detail__controls { display: flex; align-items: center; gap: var(--s-3); flex-shrink: 0; }
+
+.network-detail__desc { font-size: var(--t-xs); line-height: 1.5; color: var(--text-3); }
+
+.network-detail__row-actions { display: flex; align-items: center; gap: var(--s-2); justify-self: end; }
+
+/* Signal strength: a row of equal segments whose opacity carries the reading,
+   set through --value by the shell's meter helper (an inline style is refused
+   by style-src 'self'). */
+.signal-track { display: flex; gap: 2px; height: 6px; min-width: 0; }
+.signal-track > .signal-seg { flex: 1 1 0; border-radius: 1px; }
+
+/* Operations tiles — planned probes, one per card. */
+.network-detail__ops {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--s-3);
+}
+.network-detail__op {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.network-detail__op-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
 
 /* Confirmation of an action that succeeded — the counterpart to .error-box. */
 .notice-box {

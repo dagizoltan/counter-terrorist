@@ -88,8 +88,6 @@ class EnvironmentalSignals extends HTMLElement {
   }
 
   renderSignals() {
-    // Discovery data: the device on the other end supplies these strings.
-    const esc = globalThis.escapeHTML ?? ((v) => String(v));
     let list = [];
     if (this.filter === 'ALL' || this.filter === 'WIFI') {
       list = list.concat((this.signals.wifi || []).map(s => ({ ...s, vector: 'WIFI' })));
@@ -117,6 +115,14 @@ class EnvironmentalSignals extends HTMLElement {
   }
 
   renderSignalCard(s) {
+    // The device on the other end supplies these strings. escapeHTML lives on
+    // the shell; this method is a sibling of render(), not nested inside it, so
+    // it must reach for the escaper itself — a stray reference to an `esc` that
+    // only existed in renderSignals() threw ReferenceError on the first card and
+    // took the whole matrix down with it, so a populated environment showed
+    // nothing at all.
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
+
     const isWifi = s.vector === 'WIFI';
     const isBT = s.vector === 'BT';
     const isFriend = s.vector === 'FRIEND';
@@ -202,16 +208,20 @@ class EnvironmentalSignals extends HTMLElement {
           </div>
         </div>
 
-        <!-- Action / Forensic Footer -->
-        <div class="pt-4 border-t border-white/5 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-all">
+        <!-- Action Footer: opens the single-target profile, the launch point
+             for per-participant operations. A plain anchor, because an inline
+             handler is refused under the CSP. -->
+        <a href="/network/neighbors/${encodeURIComponent(s.id || s.mac || '')}"
+           class="pt-4 border-t border-white/5 flex justify-between items-center opacity-40 group-hover:opacity-100 transition-all"
+           aria-label="Open target profile for ${esc(s.ssid || s.hostname || s.name || s.mac || 'entity')}">
            <div class="flex items-center gap-3">
               <div class="p-1.5 bg-white/5 rounded border border-white/10">
                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" class="text-slate-500"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               </div>
-              <span class="eyebrow">Forensic_Capture_Ready</span>
+              <span class="eyebrow">Open_Target_Profile</span>
            </div>
            <svg class="transition-transform group-hover:translate-x-1" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </div>
+        </a>
       </div>
     `;
   }
