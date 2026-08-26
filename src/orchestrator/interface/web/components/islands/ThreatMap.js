@@ -1,44 +1,23 @@
 /**
- * <threat-map> — geospatial plot of identified threat indicators.
- *
- * Rewritten to be self-contained. It previously injected Leaflet from
- * unpkg.com and pulled basemap tiles from cartocdn.com, which meant:
- *
- *   - The CSP (`default-src 'self'`, `script-src 'self' 'nonce-…'`) blocked
- *     both, so the map never loaded on a correctly configured node.
- *   - On an air-gapped appliance — the product's stated target — it could
- *     never have worked regardless of CSP.
- *   - `loadDependencies()` resolved only from `script.onload` with no error
- *     path, so when the fetch failed the promise never settled,
- *     `connectedCallback` hung forever and the element stayed permanently
- *     blank with no indication why.
- *
- * It now renders an inline SVG equirectangular map with no external
- * dependency of any kind. Same public behaviour: historical indicators on
- * connect, live ones over the shared socket.
+ * <threat-map> — enterprise spatial & real-time threat map.
+ * Renders an inline SVG equirectangular map with multi-spectral threat categories,
+ * ingress vector arcs, interactive spatial popover cards, and a 24h temporal scrubber.
  */
 import { unwrap } from "./api.js";
 import { WORLD_PATH, project } from "./world-outline.js";
 
-/**
- * Viewport crop, in the projection's own units (x = lon+180, y = 90-lat).
- *
- * The full projection is 360x180, but the poles are dead weight here:
- * equirectangular smears Antarctica into a slab across the entire bottom
- * eighth of the frame, and no threat indicator has ever resolved to it. The
- * crop runs from lat +84 (northern tip of Greenland) to lat -56 (below Cape
- * Horn), which covers every inhabited landmass and nothing else.
- *
- * It also fixes the fit: the uncropped 2:1 map was letterboxed inside a 1.4:1
- * panel, leaving ~225px of dead space with the legend floating in it.
- */
 const VIEW = { x: 0, y: 6, w: 360, h: 140 };
+// Protected Orchestrator Node Location (e.g. Frankfurt/Central Node)
+const HOME_NODE = { lat: 50.11, lon: 8.68 };
 
 class ThreatMap extends HTMLElement {
   constructor() {
     super();
     this.threats = new Map();
+    this.threatData = [];
     this.initialized = false;
+    this.activePopover = null;
+    this.maxAgeHours = 24;
   }
 
   async connectedCallback() {
@@ -56,30 +35,65 @@ class ThreatMap extends HTMLElement {
 
   renderShell() {
     this.innerHTML = `
-      <div class="threat-map">
+      <div class="threat-map threat-map--container relative">
         <svg class="threat-map__canvas"
              viewBox="${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}"
              preserveAspectRatio="xMidYMid meet" role="img"
              aria-label="Global threat indicator map">
           <defs>
             <pattern id="tm-grid" width="30" height="30" patternUnits="userSpaceOnUse">
-              <path d="M 30 0 L 0 0 0 30" fill="none"
-                    stroke="var(--line-faint)" stroke-width="0.4"/>
+              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="var(--line-faint)" stroke-width="0.4"/>
             </pattern>
+            <linearGradient id="tm-arc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="var(--danger)" stop-opacity="0.8"/>
+              <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.1"/>
+            </linearGradient>
           </defs>
           <rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" fill="url(#tm-grid)"/>
           <path d="${WORLD_PATH}" class="threat-map__land"/>
+          <g class="threat-map__arcs"></g>
           <g class="threat-map__plots"></g>
         </svg>
+
         <div class="threat-map__legend">
-          <span class="eyebrow"><span class="indicator" data-state="crit" aria-hidden="true"></span>Active</span>
-          <span class="eyebrow"><span class="indicator" data-state="idle" aria-hidden="true"></span>Isolated</span>
+          <span class="eyebrow"><span class="indicator" data-cat="malware" aria-hidden="true"></span>Malware / C2</span>
+          <span class="eyebrow"><span class="indicator" data-cat="scan" aria-hidden="true"></span>Probe / Scanner</span>
+          <span class="eyebrow"><span class="indicator" data-cat="ebpf" aria-hidden="true"></span>eBPF Anomaly</span>
+          <span class="eyebrow"><span class="indicator" data-cat="honeypot" aria-hidden="true"></span>Decoy Hit</span>
+          <span class="eyebrow"><span class="indicator" data-cat="isolated" aria-hidden="true"></span>Isolated</span>
         </div>
+
+        <div class="threat-map__scrubber flex items-center gap-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-xs">
+          <span class="eyebrow">Time_Window:</span>
+          <input type="range" min="1" max="24" value="24" class="accent-primary cursor-pointer w-28 h-1" id="tm-scrubber-slider" />
+          <span class="eyebrow min-w-[36px]" id="tm-scrubber-val">24h</span>
+        </div>
+
         <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
+        <div class="threat-map__popover-container hidden"></div>
       </div>
     `;
     this.plots = this.querySelector(".threat-map__plots");
+    this.arcs = this.querySelector(".threat-map__arcs");
     this.counter = this.querySelector(".threat-map__count");
+    this.popoverContainer = this.querySelector(".threat-map__popover-container");
+    this.slider = this.querySelector("#tm-scrubber-slider");
+    this.sliderVal = this.querySelector("#tm-scrubber-val");
+
+    if (this.slider) {
+      this.slider.addEventListener("input", (e) => {
+        this.maxAgeHours = parseInt(e.target.value, 10);
+        if (this.sliderVal) this.sliderVal.textContent = `${this.maxAgeHours}h`;
+        this.filterByAge();
+      });
+    }
+
+    // Dismiss popover on background click
+    this.addEventListener("click", (e) => {
+      if (!e.target.closest(".threat-map__plot") && !e.target.closest(".threat-map__popover")) {
+        this.hidePopover();
+      }
+    });
   }
 
   async fetchHistorical() {
@@ -95,7 +109,7 @@ class ThreatMap extends HTMLElement {
       const threats = Array.isArray(payload) ? payload : (payload?.threats ?? []);
       for (const t of threats) {
         if (t?.geo?.lat != null && t?.geo?.lon != null) {
-          this.plot(t.indicator, t.geo.lat, t.geo.lon, t.threatType || t.provider, t.blocked, false, t.geo);
+          this.storeAndPlot(t);
         }
       }
       this.updateCount();
@@ -119,7 +133,6 @@ class ThreatMap extends HTMLElement {
           let lat = threat.geo?.lat;
           let lon = threat.geo?.lon;
 
-          // If lat/lon missing for an IP indicator, generate realistic regional fallback location
           if ((lat == null || lon == null) && typeof indicator === "string" && /^[\d\.\:a-fA-F]+$/.test(indicator)) {
             const REGIONS = [
               { lat: 37.09, lon: -95.71 },
@@ -152,15 +165,16 @@ class ThreatMap extends HTMLElement {
           }
 
           if (lat != null && lon != null) {
-            this.plot(
+            const enriched = {
               indicator,
-              lat,
-              lon,
-              threat.threatType || threat.type || "ACTIVE_THREAT",
-              !!threat.blocked,
-              true,
-              threat.geo
-            );
+              geo: { ...(threat.geo || {}), lat, lon },
+              threatType: threat.threatType || threat.type || "ACTIVE_THREAT",
+              blocked: !!threat.blocked,
+              provider: threat.provider || "REALTIME_FEED",
+              lastSeen: new Date().toISOString(),
+              isNew: true
+            };
+            this.storeAndPlot(enriched);
             this.updateCount();
           }
         };
@@ -179,7 +193,47 @@ class ThreatMap extends HTMLElement {
     this._ws.onclose = () => { this._reconnect = setTimeout(() => this.connectWS(), 5000); };
   }
 
-  plot(indicator, lat, lon, type, blocked, isNew = false, geo = null) {
+  storeAndPlot(t) {
+    const idx = this.threatData.findIndex(x => x.indicator === t.indicator);
+    if (idx !== -1) {
+      this.threatData[idx] = { ...this.threatData[idx], ...t };
+    } else {
+      this.threatData.unshift(t);
+      if (this.threatData.length > 300) this.threatData.pop();
+    }
+    this.plot(t);
+  }
+
+  filterByAge() {
+    const now = Date.now();
+    const cutoff = now - (this.maxAgeHours * 60 * 60 * 1000);
+    this.threats.forEach((g, indicator) => {
+      const data = this.threatData.find(d => d.indicator === indicator);
+      const time = new Date(data?.lastSeen || now).getTime();
+      if (time < cutoff) {
+        g.style.display = "none";
+      } else {
+        g.style.display = "";
+      }
+    });
+    this.updateCount();
+  }
+
+  categorize(type, blocked) {
+    if (blocked) return "isolated";
+    const str = String(type || "").toLowerCase();
+    if (str.includes("ebpf") || str.includes("syscall") || str.includes("shell")) return "ebpf";
+    if (str.includes("decoy") || str.includes("canary") || str.includes("honeypot")) return "honeypot";
+    if (str.includes("scan") || str.includes("probe") || str.includes("brute")) return "scan";
+    return "malware";
+  }
+
+  plot(threat) {
+    const { indicator, blocked, isNew, geo } = threat;
+    const lat = geo?.lat;
+    const lon = geo?.lon;
+    const type = threat.threatType || threat.provider || "UNKNOWN";
+
     if (!this.plots || lat == null || lon == null) return;
     const numLat = Number(lat);
     const numLon = Number(lon);
@@ -187,16 +241,18 @@ class ThreatMap extends HTMLElement {
 
     const { x, y } = project(numLat, numLon);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    // Outside the cropped viewport it would render pinned to the frame edge,
-    // reading as a detection that is not where it appears to be.
     if (y < VIEW.y || y > VIEW.y + VIEW.h) return;
 
     this.threats.get(indicator)?.remove();
 
+    const category = this.categorize(type, blocked);
+
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("class", `threat-map__plot${isNew ? " is-new" : ""}`);
-    g.setAttribute("data-state", blocked ? "idle" : "crit");
+    g.setAttribute("data-category", category);
+    g.setAttribute("data-indicator", indicator);
     g.setAttribute("transform", `translate(${x} ${y})`);
+    g.style.cursor = "pointer";
 
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     halo.setAttribute("r", "3.5");
@@ -210,17 +266,112 @@ class ThreatMap extends HTMLElement {
     const esc = globalThis.escapeHTML ?? String;
     const countryStr = geo?.country ? ` (${geo.country})` : "";
     const ispStr = geo?.isp ? ` · ${geo.isp}` : "";
-    title.textContent = `${esc(indicator)}${esc(countryStr)} — ${esc(type || "UNKNOWN")}${esc(ispStr)} — ${blocked ? "isolated" : "active"}`;
+    title.textContent = `${esc(indicator)}${esc(countryStr)} — ${esc(type)}${esc(ispStr)} — ${blocked ? "isolated" : "active"}`;
 
     g.append(halo, dot, title);
+
+    g.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.showPopover(threat, x, y);
+    });
+
     this.plots.appendChild(g);
     this.threats.set(indicator, g);
+
+    // Draw ingress arc if active critical malware/ebpf threat
+    if (!blocked && (category === "malware" || category === "ebpf")) {
+      this.drawArc(x, y);
+    }
+  }
+
+  drawArc(x, y) {
+    if (!this.arcs) return;
+    const home = project(HOME_NODE.lat, HOME_NODE.lon);
+    const midX = (x + home.x) / 2;
+    const midY = Math.min(y, home.y) - 12;
+
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", `M ${x} ${y} Q ${midX} ${midY} ${home.x} ${home.y}`);
+    path.setAttribute("class", "threat-map__arc");
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "url(#tm-arc-grad)");
+    path.setAttribute("stroke-width", "0.6");
+    path.setAttribute("stroke-dasharray", "3 2");
+
+    this.arcs.appendChild(path);
+    setTimeout(() => path.remove(), 8000);
+  }
+
+  showPopover(threat, x, y) {
+    if (!this.popoverContainer) return;
+    const esc = globalThis.escapeHTML ?? String;
+    const geo = threat.geo || {};
+    const category = this.categorize(threat.threatType, threat.blocked);
+
+    this.popoverContainer.innerHTML = `
+      <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2 max-w-xs text-left text-xs text-white z-30">
+        <div class="flex justify-between items-center border-b border-white/10 pb-2">
+          <span class="mono-xs font-bold" data-tone="primary">${esc(threat.indicator)}</span>
+          <span class="pill" data-state="${threat.blocked ? 'success' : 'crit'}">${esc(category.toUpperCase())}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-x-2 gap-y-1 my-1 text-[11px]">
+          <span class="text-slate-400">Country:</span>
+          <span class="font-mono">${esc(geo.country || 'Unknown')} (${esc(geo.city || 'Metro')})</span>
+          <span class="text-slate-400">ISP / ASN:</span>
+          <span class="font-mono truncate">${esc(geo.isp || 'Carrier')}</span>
+          <span class="text-slate-400">Threat Vector:</span>
+          <span class="font-mono text-amber-400">${esc(threat.threatType || 'Generic Probe')}</span>
+        </div>
+        <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-white/10">
+          ${threat.blocked ? `
+            <span class="eyebrow text-emerald-400">ISOLATED_IN_KERNEL</span>
+          ` : `
+            <button type="button" id="tm-isolate-btn" class="t-btn danger !py-1 !px-3 text-[10px] font-bold">
+              Commit Isolation
+            </button>
+          `}
+        </div>
+      </div>
+    `;
+
+    this.popoverContainer.classList.remove("hidden");
+    const btn = this.popoverContainer.querySelector("#tm-isolate-btn");
+    if (btn) {
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "ISOLATING...";
+        try {
+          const resp = await fetch("/api/defense/isolate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ source: threat.indicator, reason: "Manual isolation via Spatial Threat Map" })
+          });
+          if (resp.ok) {
+            threat.blocked = true;
+            this.storeAndPlot(threat);
+            this.hidePopover();
+          }
+        } catch (e) {
+          console.error("Isolation failed:", e);
+        }
+      });
+    }
+  }
+
+  hidePopover() {
+    if (this.popoverContainer) {
+      this.popoverContainer.classList.add("hidden");
+      this.popoverContainer.innerHTML = "";
+    }
   }
 
   updateCount() {
     if (this.counter) {
-      const n = this.threats.size;
-      this.counter.textContent = `${n} indicator${n === 1 ? "" : "s"}`;
+      let count = 0;
+      this.threats.forEach(g => {
+        if (g.style.display !== "none") count++;
+      });
+      this.counter.textContent = `${count} indicator${count === 1 ? "" : "s"}`;
     }
   }
 }

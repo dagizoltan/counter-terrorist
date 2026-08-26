@@ -152,17 +152,34 @@ export class GeoIpService extends BaseService {
         const isps = ["Cloudflare", "DigitalOcean", "Akamai", "AWS", "Google", "Hetzner", "OVH", "M247", "Hostinger", "Linode"];
         const hash = this.hashString(ip);
 
+        const CITIES: Record<string, string[]> = {
+            "US": ["New York", "San Jose", "Ashburn", "Chicago", "Seattle", "Dallas"],
+            "DE": ["Frankfurt", "Berlin", "Munich", "Hamburg"],
+            "GB": ["London", "Manchester", "Slough"],
+            "NL": ["Amsterdam", "Rotterdam"],
+            "FR": ["Paris", "Marseille"],
+            "RU": ["Moscow", "Saint Petersburg"],
+            "CN": ["Beijing", "Shanghai", "Shenzhen"],
+            "JP": ["Tokyo", "Osaka"],
+            "SG": ["Singapore"],
+            "IN": ["Mumbai", "Bangalore"],
+            "AU": ["Sydney", "Melbourne"],
+            "BR": ["Sao Paulo", "Rio de Janeiro"]
+        };
+        const cityList = CITIES[country] || [`${country}_METRO`];
+        const city = cityList[(firstOctet + secondOctet + thirdOctet) % cityList.length];
+
         return {
             ip,
             country,
-            city: `${region}_NODE_${firstOctet}.${secondOctet}`,
+            city,
             asn: "AS" + (10000 + (hash % 50000)),
             isp: isps[hash % isps.length],
             lat: Math.max(-50, Math.min(75, baseLat + latOffset)),
             lon: Math.max(-170, Math.min(170, baseLon + lonOffset)),
             threatScore: 50 + (hash % 50),
             lastSeen: new Date().toISOString(),
-            tags: ["RIR_LOCATED", region]
+            tags: ["RIR_LOCATED", region, country]
         };
     }
 

@@ -1501,6 +1501,44 @@ body.auth-page {
 .threat-map__plot[data-state="idle"] { --c: var(--muted); }
 .threat-map__plot[data-state="crit"] { --c: var(--danger); }
 
+.threat-map .indicator[data-cat="malware"] { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+.threat-map .indicator[data-cat="scan"] { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+.threat-map .indicator[data-cat="ebpf"] { background: #a855f7; box-shadow: 0 0 8px #a855f7; }
+.threat-map .indicator[data-cat="honeypot"] { background: #06b6d4; box-shadow: 0 0 8px #06b6d4; }
+.threat-map .indicator[data-cat="isolated"] { background: var(--success); box-shadow: 0 0 8px var(--success); }
+
+.threat-map__plot[data-category="malware"] { --c: var(--danger); }
+.threat-map__plot[data-category="scan"] { --c: var(--warning); }
+.threat-map__plot[data-category="ebpf"] { --c: #a855f7; }
+.threat-map__plot[data-category="honeypot"] { --c: #06b6d4; }
+.threat-map__plot[data-category="isolated"] { --c: var(--success); }
+
+.threat-map__arc {
+  animation: ct-arc-dash 2s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes ct-arc-dash {
+  to { stroke-dashoffset: -10; }
+}
+
+.threat-map__scrubber {
+  position: absolute;
+  left: 50%;
+  bottom: var(--s-4);
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.threat-map__popover-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 30;
+  pointer-events: auto;
+}
+
 .threat-map__halo { fill: var(--c); opacity: 0.18; }
 .threat-map__dot { fill: var(--c); }
 .threat-map__plot.is-new .threat-map__halo { animation: ct-ping 1.8s var(--ease) 3; }
