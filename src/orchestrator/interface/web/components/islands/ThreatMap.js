@@ -119,16 +119,36 @@ class ThreatMap extends HTMLElement {
           let lat = threat.geo?.lat;
           let lon = threat.geo?.lon;
 
-          // If lat/lon missing for an IP indicator, generate deterministic fallback location
+          // If lat/lon missing for an IP indicator, generate realistic regional fallback location
           if ((lat == null || lon == null) && typeof indicator === "string" && /^[\d\.\:a-fA-F]+$/.test(indicator)) {
-            let hash = 0;
-            for (let i = 0; i < indicator.length; i++) {
-              hash = ((hash << 5) - hash) + indicator.charCodeAt(i);
-              hash = hash & hash;
-            }
-            hash = Math.abs(hash);
-            lat = (hash % 140) - 60; // Keep within inhabitable latitude bounds
-            lon = (hash % 360) - 180;
+            const REGIONS = [
+              { lat: 37.09, lon: -95.71 },
+              { lat: 51.16, lon: 10.45 },
+              { lat: 35.86, lon: 104.20 },
+              { lat: 61.52, lon: 105.31 },
+              { lat: 52.13, lon: 5.29 },
+              { lat: 1.35, lon: 103.82 },
+              { lat: 55.37, lon: -3.43 },
+              { lat: 46.22, lon: 2.21 },
+              { lat: 36.20, lon: 138.25 },
+              { lat: -14.23, lon: -51.92 },
+              { lat: 20.59, lon: 78.96 },
+              { lat: -25.27, lon: 133.77 }
+            ];
+            const fnHash = (str) => {
+              let h = 0;
+              for (let i = 0; i < str.length; i++) {
+                h = ((h << 5) - h) + str.charCodeAt(i);
+                h = h & h;
+              }
+              return Math.abs(h);
+            };
+            const h1 = fnHash(indicator);
+            const h2 = fnHash(indicator + ":lat");
+            const h3 = fnHash(indicator + ":lon");
+            const region = REGIONS[h1 % REGIONS.length];
+            lat = Math.max(-50, Math.min(75, region.lat + ((h2 % 1000) / 100 - 5)));
+            lon = Math.max(-170, Math.min(170, region.lon + ((h3 % 1000) / 100 - 5)));
           }
 
           if (lat != null && lon != null) {
