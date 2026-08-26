@@ -512,3 +512,31 @@ Deno.test("the deception page surfaces the canary-token half of the grid", async
   );
   assert(routes.has("api--agents--deception--canaries"), "missing API route api--agents--deception--canaries");
 });
+
+Deno.test("no island feeds a CSS variable to a canvas colour", async () => {
+  // Canvas 2D silently ignores `ctx.strokeStyle = 'var(--warning)'` and keeps
+  // its default black, so HoneypotChart drew its whole sparkline black on a
+  // near-black panel and the "Trap Engagements" chart looked empty. Canvas
+  // needs a concrete colour — resolve the token (e.g. the --*-rgb triplet)
+  // through getComputedStyle first.
+  const offenders: string[] = [];
+  for (const name of islandFiles()) {
+    const src = await Deno.readTextFile(`${ISLANDS}/${name}`);
+    const patterns = [
+      /(?:strokeStyle|fillStyle|shadowColor)\s*=\s*["'`][^"'`]*var\(/g,
+      /addColorStop\([^)]*\bvar\(/g,
+    ];
+    for (const re of patterns) {
+      for (const m of src.matchAll(re)) {
+        const line = src.slice(0, m.index).split("\n").length;
+        offenders.push(`${name}:${line}  ${m[0].slice(0, 60)}`);
+      }
+    }
+  }
+  assertEquals(
+    offenders,
+    [],
+    `canvas colour(s) set to a CSS variable the context cannot resolve — it ` +
+      `renders black:\n${offenders.join("\n")}`,
+  );
+});
