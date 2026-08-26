@@ -1,4 +1,4 @@
-import { unwrap } from "./api.js";
+import { apiGet } from "./api.js";
 class FirewallAgent extends HTMLElement {
   connectedCallback() {
     this.fetchData();
@@ -31,108 +31,38 @@ class FirewallAgent extends HTMLElement {
 
   async fetchData() {
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
-      
-      const res = await fetch('/api/agents/firewall/status', { headers });
-      if (!res.ok) return;
-      const data = await unwrap(res);
-      
-      const agentRes = await fetch('/api/agent/status', { headers });
-      const agentData = await unwrap(agentRes);
-      const pid = agentData.firewall?.pid;
-
-      // Retrieve metrics snapshot for direct blockedIps array from FirewallManager
-      const metricsRes = await fetch('/api/metrics', { headers });
-      let blockedIps = [];
-      if (metricsRes.ok) {
-        const metrics = await unwrap(metricsRes);
-        if (metrics.firewall?.blockedIps && Array.isArray(metrics.firewall.blockedIps)) {
-          blockedIps = metrics.firewall.blockedIps;
-        }
-      }
-
-      if (blockedIps.length === 0 && data.stdout) {
-        const lines = (data.stdout || '').split('\n').filter(l => l.trim());
-        for (const line of lines) {
-          const match = line.match(/(\d+\.\d+\.\d+\.\d+)/);
-          if (match && (line.includes('DROP') || line.includes('REJECT') || line.includes('DENY'))) {
-            blockedIps.push(match[1]);
-          }
-        }
-      }
-      this.updateUI({ blockedCount: blockedIps.length, blockedIps, pid });
-      this.fetchTraffic();
-    } catch (e) {}
+      const agentData = await apiGet('/api/agent/status');
+      this.updateUI({ pid: agentData.firewall?.pid });
+    } catch (e) { /* the PID tile simply stays as it is */ }
+    this.fetchTraffic();
   }
 
   async fetchTraffic() {
     try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-      const headers = csrfToken ? { 'X-CT-Token': csrfToken } : {};
-      const res = await fetch('/api/network/logs', { headers });
-      if (!res.ok) return;
-      const logs = await unwrap(res);
-      this.updateTrafficUI(logs);
-    } catch (e) {}
+      this.updateTrafficUI(await apiGet('/api/network/logs'));
+    } catch (e) { /* the feed keeps its last frame */ }
   }
 
+  /**
+   * The PID tile, and nothing else.
+   *
+   * This used to also render #fw-blocked-list. It built that list from
+   * metrics.firewall.blockedIps — which emitMetrics caps at .slice(0, 20) —
+   * and, when that came back empty, by running /(\d+\.\d+\.\d+\.\d+)/ over
+   * the raw iptables stdout on any line containing DROP/REJECT/DENY. It
+   * truncated past 20 blocks, could not see an IPv6 block at all, and had no
+   * way to show why an address was blocked or when it lapses.
+   *
+   * <block-list> reads /api/agents/firewall/blocklist instead, which returns
+   * the enforcement records themselves. See islands/Blocklist.js.
+   */
   updateUI(firewall) {
     const pidEl = document.getElementById('fw-pid');
     if (pidEl) pidEl.textContent = firewall.pid ? `PID_${firewall.pid}` : 'OFFLINE';
 
     const countEl = document.getElementById('fw-blocked-count');
-    if (countEl) countEl.textContent = firewall.blockedCount?.toString() || '0';
-
-    const listEl = document.getElementById('fw-blocked-list');
-    if (listEl && firewall.blockedIps) {
-      if (firewall.blockedIps.length === 0) {
-        listEl.innerHTML = `
-          <div class="p-5 text-center t-panel glass-panel border-dashed opacity-50">
-            <span class="eyebrow italic">No Active Blocks Detected</span>
-          </div>
-        `;
-      } else {
-        // SEC-03: DOM-based XSS Hardening.
-        // Transitioning from innerHTML template strings to safe DOM construction for dynamic content.
-        listEl.innerHTML = '';
-        (firewall.blockedIps || []).forEach(ip => {
-          const item = document.createElement('div');
-          item.className = "flex justify-between items-center p-4 bg-black/40 border border-white/5 group hover:border-danger/30 rounded transition-colors";
-
-          const info = document.createElement('div');
-          info.className = "flex flex-col gap-1";
-          info.innerHTML = `<span class="eyebrow">Target Address</span>`;
-          const ipSpan = document.createElement('span');
-          ipSpan.className = "mono-sm font-black text-danger uppercase tracking-widest";
-          ipSpan.textContent = ip;
-          info.appendChild(ipSpan);
-
-          const actions = document.createElement('div');
-          actions.className = "flex items-center gap-6";
-          const releaseBtn = document.createElement('button');
-          releaseBtn.className = "opacity-0 group-hover:opacity-100 mono-xs font-black uppercase text-slate-500 hover:text-white decoration-white/20 tracking-widest transition-opacity";
-          releaseBtn.textContent = "Release IP";
-          releaseBtn.onclick = () => {
-              const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-              fetch('/api/agents/firewall/unblock', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'X-CT-Token': csrfToken || '' },
-                  body: JSON.stringify({ ip })
-              }).then(() => location.reload());
-          };
-
-          const statusDiv = document.createElement('div');
-          statusDiv.className = "flex items-center gap-3";
-          statusDiv.innerHTML = `<div class="dot danger"></div><span class="eyebrow" data-tone="danger">Quarantined</span>`;
-
-          actions.appendChild(releaseBtn);
-          actions.appendChild(statusDiv);
-          item.appendChild(info);
-          item.appendChild(actions);
-          listEl.appendChild(item);
-        });
-      }
+    if (countEl && typeof firewall.blockedCount === 'number') {
+      countEl.textContent = String(firewall.blockedCount);
     }
   }
 

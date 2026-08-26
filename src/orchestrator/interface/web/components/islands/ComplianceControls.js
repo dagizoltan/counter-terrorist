@@ -89,7 +89,7 @@ class ComplianceControls extends HTMLElement {
         <header class="control-panel__head">
           <span class="eyebrow eyebrow--tick">Active Frameworks</span>
           <div class="control-panel__meta">
-            ${this.report ? `<span class="eyebrow"><span class="num">${passing}</span>&nbsp;of&nbsp;<span class="num">${controls.length}</span>&nbsp;passing</span>` : ""}
+            ${this.report ? `<span class="eyebrow"><span class="num">${passing}</span>&nbsp;of&nbsp;<span class="num">${esc(controls.length)}</span>&nbsp;passing</span>` : ""}
             ${this.canExport ? `
               <button type="button" class="btn btn--sm" data-action="exportBundle" ${this.exporting ? "disabled" : ""}>
                 ${this.exporting ? "Signing…" : "Generate Audit Bundle"}

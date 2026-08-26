@@ -138,6 +138,10 @@ class NetworkMap extends HTMLElement {
   }
 
   render() {
+
+    // Discovery data: a neighbour on the wire chooses these strings.
+
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
     if (!this.isBaseRendered) return;
 
     const root = this.querySelector('#gateway-root');
@@ -191,7 +195,7 @@ class NetworkMap extends HTMLElement {
                <span class="eyebrow" data-tone="primary">CORE_GATEWAY</span>
                <h4 class="mono-lg font-black text-white italic select-all">${d.hostname || d.ip}</h4>
                <div class="flex gap-4 pt-4 mt-4 border-t border-white/5 w-full justify-center">
-                  <span class="eyebrow">${d.mac}</span>
+                  <span class="eyebrow">${esc(d.mac)}</span>
                   <span class="mono-xs text-primary font-black">${d.state || 'ACTIVE'}</span>
                </div>
             </div>
@@ -215,10 +219,10 @@ class NetworkMap extends HTMLElement {
                <span class="mono-md font-black text-white italic truncate max-w-[150px]">${d.hostname || d.ip}</span>
             </div>
           </div>
-          <div class="status-pill ${isMesh ? 'active primary' : 'bg-warning/10 border-warning/20'}">${d.ip}</div>
+          <div class="status-pill ${isMesh ? 'active primary' : 'bg-warning/10 border-warning/20'}">${esc(d.ip)}</div>
         </div>
         <div class="pt-4 border-t border-white/5 flex justify-between items-center">
-          <span class="eyebrow">${d.mac}</span>
+          <span class="eyebrow">${esc(d.mac)}</span>
           <span class="eyebrow" style="color: ${color}">${d.state || 'CONNECTED'}</span>
         </div>
       </div>
@@ -233,7 +237,7 @@ class NetworkMap extends HTMLElement {
            <span class="eyebrow truncate max-w-[120px]">${d.ssid || d.hostname || d.mac}</span>
         </div>
         <div class="flex items-center gap-4">
-           <span class="eyebrow" style="font-size: 7px;">${d.type}</span>
+           <span class="eyebrow">${esc(d.type)}</span>
            <div class="w-10 h-1 bg-white/5 rounded-full overflow-hidden">
               <div class="h-full bg-primary" style="width: ${d.signal || 0}%"></div>
            </div>

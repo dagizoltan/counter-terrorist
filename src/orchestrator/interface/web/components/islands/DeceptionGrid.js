@@ -107,10 +107,10 @@ class DeceptionGrid extends HTMLElement {
         return `
           <article class="decoy-card" data-state="${m.active ? "warn" : "idle"}">
             <header class="decoy-card__head">
-              <span class="decoy-card__title">
+              <a class="decoy-card__title" href="/agents/deception/${encodeURIComponent(m.id)}">
                 <span class="indicator"${m.active ? ' data-pulse=""' : ""} aria-hidden="true"></span>
                 ${esc(m.name)}
-              </span>
+              </a>
               <span class="eyebrow">Port ${esc(String(m.port))}</span>
             </header>
 

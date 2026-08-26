@@ -11,7 +11,7 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
   const isEbpf = agent.name === 'ebpf';
 
   return (
-    <Layout title={`Agent Detail: ${agent.name}`} islandPaths={islandPaths} csrfToken={props.csrfToken}>
+    <Layout title={`Agent Detail: ${agent.name}`} islandPaths={islandPaths} csrfToken={props.csrfToken} nonce={props.nonce}>
       {/* HEADER: Identity & Actions */}
       <header class="flex justify-between items-end mb-5 border-b border-white/5 pb-5">
         <div class="flex items-center gap-4">

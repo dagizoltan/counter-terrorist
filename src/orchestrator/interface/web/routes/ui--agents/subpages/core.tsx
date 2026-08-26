@@ -2,7 +2,7 @@ import { jsx as _jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
-  <Layout title="Perimeter Defense // Firewall & Tunnel" islandPaths={['/components/islands/FirewallAgent.js', '/components/islands/AnonymizerController.js', '/components/islands/VpnAgent.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
+  <Layout title="Perimeter Defense // Firewall & Tunnel" islandPaths={['/components/islands/FirewallAgent.js', '/components/islands/AnonymizerController.js', '/components/islands/VpnAgent.js', '/components/islands/Blocklist.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
     <header class="flex justify-between items-end mb-5">
       <div class="flex items-center gap-4">
         <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-danger/40 text-slate-500 hover:text-danger group transition-all">
@@ -126,25 +126,25 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
           <div class="t-panel glass-panel border-t-2 border-slate-700">
             <span class="metric-tag mb-4 block">Perimeter_Controls</span>
             <div class="space-y-4">
-               <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white rounded-lg transition-colors" />
+               <input id="fw-block-input" type="text" placeholder="TARGET_IP_ADDR" class="input" />
                <div class="grid grid-cols-2 gap-4">
                   <button type="button" data-action="post" data-url="/api/agents/firewall/block" data-input="fw-block-input" data-field="ip" data-reload class="t-btn danger w-full py-4 text-[10px] uppercase font-black tracking-widest">Block_IP</button>
                   {props.userRole === "admin" && (
-                  <button type="button" data-action="post" data-url="/api/agents/firewall/flush" data-confirm="Flush all firewall rules?" data-reload class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest" style="background:transparent; border-color:var(--border-subtle);">Flush_All</button>
+                  <button type="button" data-action="post" data-url="/api/agents/firewall/flush" data-confirm="Flush all firewall rules?" data-reload class="t-btn w-full py-4 text-[10px] uppercase font-black tracking-widest ghost">Flush_All</button>
                   )}
                </div>
             </div>
           </div>
           )}
         </div>
-        <div class="col-span-12 lg:col-span-8 t-panel glass-panel p-0 overflow-hidden border-t-2 border-danger/30">
-          <header class="p-4 border-b border-white/5 bg-black/40 backdrop-blur-md flex justify-between items-center">
-             <h3 class="tactical-title text-xl tracking-widest uppercase">Active Quarantine Ledger</h3>
-             <span class="mono-xs text-slate-500 tracking-widest">REAL_TIME_SYNC</span>
-          </header>
-          <div id="fw-blocked-list" class="p-4 space-y-4 h-[440px] overflow-y-auto bg-black/40 custom-scrollbar">
-             <div class="eyebrow p-4 text-center animate-pulse">Synchronizing_Ruleset...</div>
-          </div>
+
+        {/* The ledger was a div that FirewallAgent.js filled from
+            metrics.firewall.blockedIps — capped at 20 by emitMetrics — or, when
+            that was empty, from a regex over raw iptables stdout. It showed bare
+            addresses and nothing else. <block-list> reads the enforcement
+            records themselves: reason, age, and TTL. */}
+        <div class="col-span-12 lg:col-span-8 t-panel glass-panel border-t-2 border-danger/30">
+          <block-list role-name={props.userRole}></block-list>
         </div>
       </div>
 
@@ -165,7 +165,7 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
 );
 
 export const EbpfPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
-    <Layout title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
+    <Layout title="Kernel Guardian" islandPaths={['/components/islands/EbpfAgent.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       <header class="flex justify-between items-end mb-5">
         <div class="flex items-center gap-4">
           <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-primary/40 text-slate-500 hover:text-primary group">
@@ -215,19 +215,19 @@ export const EbpfPage = (props: { csrfToken?: string, nonce?: string, userRole?:
 
 
   export const FimPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
-    <Layout title="File Integrity Monitor" islandPaths={['/components/islands/FimAgent.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
+    <Layout title="File Integrity Monitor" islandPaths={['/components/islands/FimAgent.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
         <div class="t-panel">FIM UI Placeholder</div>
     </Layout>
   );
 
   export const PcapPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
-    <Layout title="Packet Capture" islandPaths={['/components/islands/PcapAgent.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
+    <Layout title="Packet Capture" islandPaths={['/components/islands/PcapAgent.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
         <div class="t-panel">PCAP UI Placeholder</div>
     </Layout>
   );
 
   export const HoneypotPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => (
-    <Layout title="Honeypot Console" islandPaths={['/components/islands/HoneypotAgent.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
+    <Layout title="Honeypot Console" islandPaths={['/components/islands/HoneypotAgent.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
         <div class="t-panel">Honeypot UI Placeholder</div>
     </Layout>
   );
@@ -245,7 +245,7 @@ interface MeshStatus {
 }
 
 export const MeshPage = (props: { status: MeshStatus, csrfToken?: string, nonce?: string, userRole?: string }) => (
-  <Layout title="Mesh Fabric" islandPaths={['/components/islands/VpnAgent.js', '/components/islands/MeshHeatmap.js']} csrfToken={props.csrfToken} userRole={props.userRole}>
+  <Layout title="Mesh Fabric" islandPaths={['/components/islands/VpnAgent.js', '/components/islands/MeshHeatmap.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
     <header class="flex justify-between items-end mb-5">
       <div class="flex items-center gap-4">
         <a href="/agents" class="w-16 h-16 flex items-center justify-center bg-white/5 border border-white/5 hover:border-success/40 text-slate-500 hover:text-success group">

@@ -14,6 +14,19 @@ export interface FirewallPort {
   flushRules(): Promise<CommandResult>;
   sendCommand?(name: string, cmd: string | Record<string, unknown>): Promise<CommandResult>;
   getBlockedIps(): Promise<string[]>;
+  /**
+   * Active blocks with the enforcement record behind each one: why it was
+   * committed, when, and when its TTL lapses. Optional so the many test
+   * doubles implementing this port stay valid — a provider without it simply
+   * has no ledger to read, and callers fall back to getBlockedIps().
+   */
+  getEnforcementLedger?(): Promise<Array<{
+    ip: string;
+    reason: string | null;
+    committedAt: number | null;
+    expiresAt: number | null;
+    persisted: boolean;
+  }>>;
   allowPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
   denyPort(port: number, protocol?: "tcp" | "udp"): Promise<CommandResult>;
   setKv(kv: Deno.Kv): Promise<void>;

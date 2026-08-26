@@ -88,6 +88,8 @@ class EnvironmentalSignals extends HTMLElement {
   }
 
   renderSignals() {
+    // Discovery data: the device on the other end supplies these strings.
+    const esc = globalThis.escapeHTML ?? ((v) => String(v));
     let list = [];
     if (this.filter === 'ALL' || this.filter === 'WIFI') {
       list = list.concat((this.signals.wifi || []).map(s => ({ ...s, vector: 'WIFI' })));
@@ -156,7 +158,7 @@ class EnvironmentalSignals extends HTMLElement {
               ${this.getVectorIconSmall(s.vector)}
             </div>
             <div class="flex flex-col gap-1">
-              <span class="eyebrow">${s.vector} // ${s.mac?.toUpperCase() || 'UNKNOWN_ADDR'}</span>
+              <span class="eyebrow">${esc(s.vector)} // ${esc(s.mac?.toUpperCase() || 'UNKNOWN_ADDR')}</span>
               <span class="mono text-[9px] font-black text-slate-400 uppercase tracking-tighter">${s.vendor || 'Unknown_Manufacturer'}</span>
             </div>
           </div>
@@ -183,8 +185,8 @@ class EnvironmentalSignals extends HTMLElement {
         <div class="grid grid-cols-3 gap-3 mb-5">
           ${meta.map(m => `
             <div class="bg-black/60 border border-white/5 p-3 rounded-lg flex flex-col gap-1">
-               <span class="eyebrow">${m.label}</span>
-               <span class="eyebrow truncate">${m.value}</span>
+               <span class="eyebrow">${esc(m.label)}</span>
+               <span class="eyebrow truncate">${esc(m.value)}</span>
             </div>
           `).join('')}
         </div>
