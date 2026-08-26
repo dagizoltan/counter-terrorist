@@ -152,10 +152,10 @@ class AgentCardIsland extends HTMLElement {
                <circle cx="32" cy="32" r="18" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="4" />
                <circle class="agent-ring" cx="32" cy="32" r="18" fill="none" stroke="var(--success)" stroke-width="4" 
                   stroke-dasharray="113.1" stroke-dashoffset="113.1" stroke-linecap="round" 
-                  style="transition: stroke-dashoffset 1s ease, stroke 1s ease;" />
+                  class="ring-progress" />
             </svg>
             <div class="absolute inset-0 flex items-center justify-center">
-               <span class="agent-value text-sm font-black tracking-tighter" style="color:var(--success);">0</span>
+               <span class="agent-value text-sm font-black tracking-tighter accent-success">0</span>
             </div>
          </div>
          

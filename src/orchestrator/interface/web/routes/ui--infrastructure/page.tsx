@@ -123,9 +123,7 @@ export const SysInfoPage = (props: { status: ApplicationStatus, csrfToken?: stri
                     <span class="text-7xl font-black text-white tabular-nums tracking-tighter leading-none">{Math.round(((metrics?.memory.used || 0) / (metrics?.memory.total || 1)) * 100)}</span>
                     <span class="text-2xl font-black text-slate-600 mb-2 uppercase">%</span>
                  </div>
-                 <div class="h-3 bg-white/5 w-full rounded-full overflow-hidden shadow-inner">
-                    <div class="h-full bg-primary shadow-[0_0_15px_rgba(var(--primary-rgb),0.5)] transition-all duration-1000" style={{ width: `${((metrics?.memory.used || 0) / (metrics?.memory.total || 1)) * 100}%` }}></div>
-                 </div>
+                 <div class="meter" data-state="info" data-value={Math.round(((metrics?.memory.used || 0) / (metrics?.memory.total || 1)) * 100)}></div>
               </div>
 
               <div class="flex flex-col gap-4">

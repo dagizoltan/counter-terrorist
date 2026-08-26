@@ -125,9 +125,8 @@ class TimelineIsland extends HTMLElement {
       markersEl.innerHTML = critEvents.slice(0, 50).map(e => {
         const ts = new Date(e.timestamp).getTime();
         const pct = Math.max(0, Math.min(100, ((ts - (now - windowMs)) / windowMs) * 100));
-        const theme = (e.type === 'CRITICAL' || e.severity >= 8) ? 'danger' : 'warning';
-        const color = `var(--${theme})`;
-        return `<div class="absolute w-[3px] h-6 rounded-full hover:h-8 hover:w-[5px]" style="left:${pct}%; background:${color}; box-shadow:0 0 15px ${color}" title="${this.escape(e.message)}"></div>`;
+        const state = (e.type === 'CRITICAL' || e.severity >= 8) ? 'crit' : 'warn';
+        return `<div class="timeline__pin" data-state="${state}" data-value="${pct}" title="${this.escape(e.message)}"></div>`;
       }).join('');
     }
   }
@@ -170,7 +169,7 @@ class TimelineIsland extends HTMLElement {
   renderEvent(ev) {
     const isCritical = ev.type === 'CRITICAL' || ev.severity >= 8;
     const isWarning = ev.type === 'BLOCK' || ev.type === 'WARN' || (ev.severity >= 5 && ev.severity < 8);
-    const theme = isCritical ? 'danger' : (isWarning ? 'warning' : 'primary');
+    const state = isCritical ? 'crit' : (isWarning ? 'warn' : 'info');
     
     const ts = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString([], {hour12:false, hour:'2-digit', minute:'2-digit', second:'2-digit'}) : '00:00:00';
     let nodeName = 'LOCAL_NODE';
@@ -185,7 +184,7 @@ class TimelineIsland extends HTMLElement {
     }
 
     return `
-      <div class="t-panel glass-panel border-l-4 group hover:bg-white/[0.03] p-4 mb-4" style="border-left-color: var(--${theme})">
+      <div class="t-panel glass-panel border-l-4 tone-edge group hover:bg-white/[0.03] p-4 mb-4" data-state="${state}">
         <div class="flex justify-between items-start mb-4">
            <div class="flex items-center gap-4">
               <div class="flex flex-col gap-1">
@@ -201,7 +200,7 @@ class TimelineIsland extends HTMLElement {
                  </div>
               </div>
            </div>
-           <div class="status-pill ${theme}">${this.escape(ev.type || 'EVENT')}</div>
+           <span class="pill" data-state="${state}">${this.escape(ev.type || 'EVENT')}</span>
         </div>
         <h4 class="text-xl font-bold text-white uppercase tracking-tighter mb-4 leading-tight">${this.escape(msg)}</h4>
         ${ev.data ? `

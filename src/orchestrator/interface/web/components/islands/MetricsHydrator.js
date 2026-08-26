@@ -76,6 +76,10 @@ class MetricsHydrator extends HTMLElement {
       this.setText('stat-trust-score', `${clamped}%`);
       const meter = document.getElementById('stat-trust-meter');
       if (meter) {
+        // Keep the attribute and the custom property in step: the shell's
+        // meter helper reads data-value, so leaving it stale would let a
+        // later pass reset a bar this island had already filled.
+        meter.dataset.value = String(clamped);
         meter.style.setProperty('--value', `${clamped}%`);
         meter.dataset.state = clamped >= 90 ? 'ok' : clamped >= 60 ? 'warn' : 'crit';
       }

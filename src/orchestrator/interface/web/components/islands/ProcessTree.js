@@ -130,13 +130,14 @@ class ProcessTree extends HTMLElement {
     
     const theme = isGhost ? 'danger' : (isProtected ? 'primary' : 'slate');
     
-    const paddingLeft = depth * 32;
-    const lineOpacity = Math.max(0.05, 0.3 - depth * 0.05);
+    // Indentation is a depth class rather than an inline margin: a style
+    // attribute is refused under `style-src 'self'`, and depth is a small
+    // fixed set.
+    const depthClass = `tree-depth-${Math.min(depth, 4)}`;
 
     return `
       <div class="flex flex-col">
-        <div class="flex items-center group py-2 px-4 hover:bg-white/[0.03] cursor-default border-l border-white/[0.05]" 
-             style="margin-left: ${paddingLeft}px; border-left-color: rgba(255,255,255,${lineOpacity})">
+        <div class="flex items-center group py-2 px-4 hover:bg-white/[0.03] cursor-default tree-row ${depthClass}">
            <div class="flex items-center gap-4 w-full">
               <span class="mono-xs font-black opacity-20 w-16 tabular-nums">[${esc(node.pid)}]</span>
               <div class="flex items-center gap-4 flex-grow">

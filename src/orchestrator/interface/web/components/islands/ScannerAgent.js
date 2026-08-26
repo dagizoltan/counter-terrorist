@@ -62,7 +62,7 @@ class ScannerAgent extends HTMLElement {
         <div class="flex items-center gap-4">
            <div class="flex flex-col items-end">
               <span class="mono-xs text-slate-700 font-bold">${esc(score(item))}%</span>
-              <span class="meter" data-state="crit" style="--value:${score(item)}%"></span>
+              <span class="meter" data-state="crit" data-value="${score(item)}"></span>
            </div>
            <div class="dot danger"></div>
         </div>
@@ -137,15 +137,14 @@ class ScannerAgent extends HTMLElement {
       
       if (resultsEl) {
         const isClean = result.success && !result.threatsFound;
-        const theme = isClean ? 'success' : 'danger';
-        const color = `var(--${theme})`;
+        const state = isClean ? 'ok' : 'crit';
         
         resultsEl.innerHTML = `
-          <div class="t-panel glass-panel border-l-4 animate-in zoom-in duration-500" style="border-left-color: ${color}">
+          <div class="t-panel glass-panel border-l-4 tone-edge animate-in zoom-in duration-500" data-state="${state}">
              <div class="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
                 <div class="flex items-center gap-4">
-                   <div class="dot active" style="background: ${color}"></div>
-                   <h4 class="mono-sm font-black uppercase tracking-widest" style="color: ${color}">
+                   <div class="indicator" data-state="${state}" data-pulse=""></div>
+                   <h4 class="mono-sm font-black uppercase tracking-widest tone-text" data-state="${state}">
                      ${isClean ? 'AUDIT_COMPLETE // CLEAN' : 'ANOMALY_DETECTED // CRITICAL'}
                    </h4>
                 </div>

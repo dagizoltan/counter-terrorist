@@ -179,12 +179,12 @@ class PcapAgent extends HTMLElement {
 
     container.innerHTML = this.packets.map(p => {
       const isSystem = p.direction === 'SYSTEM';
-      const color = isSystem ? 'var(--primary)' : (p.direction === 'INBOUND' ? 'var(--primary)' : 'var(--warning)');
+      const state = (isSystem || p.direction === 'INBOUND') ? 'info' : 'warn';
       
       return `
         <div class="flex items-center gap-4 p-4 border-b border-white/[0.03] hover:bg-white/[0.02] group animate-in fade-in slide-in-from-right-2 duration-300">
           <div class="flex items-center gap-3 w-20">
-             <span class="eyebrow" style="color: ${color}">${(p.direction || 'IN').slice(0, 3)}</span>
+             <span class="eyebrow tone-text" data-state="${state}">${(p.direction || 'IN').slice(0, 3)}</span>
              <div class="w-1 h-1 rounded-full ${isSystem ? 'bg-primary' : (p.direction === 'INBOUND' ? 'bg-primary' : 'bg-warning')} shadow-[0_0_5px_currentColor]"></div>
           </div>
           

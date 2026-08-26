@@ -19,7 +19,7 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1"><path d="m15 18-6-6 6-6"/></svg>
           </a>
           <div class="flex flex-col gap-2">
-            <h1 style="font-size:4rem; line-height:0.9; letter-spacing:-0.07em; font-weight:900; color:white; margin:0; text-transform:uppercase;">{agent.name}</h1>
+            <h1 class="hero-title">{agent.name}</h1>
             <div class="flex items-center gap-4">
               <div class="flex items-center gap-2">
                 <span class={`dot ${agent.status === 'ACTIVE' || agent.status === 'RUNNING' ? 'active' : 'danger'}`}></span>
@@ -39,15 +39,15 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
       {/* OPERATIONAL SUMMARY BAR */}
       <div class="grid grid-cols-4 gap-4 mb-5">
          {[
-           { label: 'Process_ID', value: '...', id: `agent-pid-${agent.name}`, icon: 'PID', colorVar: 'var(--text-muted)' },
-           { label: 'Security_Level', value: '...', id: `agent-priv-${agent.name}`, icon: 'SEC', colorVar: 'var(--primary)' },
-           { label: 'Health_Metric', value: '...', id: `agent-health-${agent.name}`, icon: 'HTH', colorVar: 'var(--success)' },
-           { label: 'Kernel_State', value: 'Verified', id: `agent-state-${agent.name}`, icon: 'SYS', colorVar: 'var(--text-muted)' }
+           { label: 'Process_ID', value: '...', id: `agent-pid-${agent.name}`, icon: 'PID', tone: 'idle' },
+           { label: 'Security_Level', value: '...', id: `agent-priv-${agent.name}`, icon: 'SEC', tone: 'info' },
+           { label: 'Health_Metric', value: '...', id: `agent-health-${agent.name}`, icon: 'HTH', tone: 'ok' },
+           { label: 'Kernel_State', value: 'Verified', id: `agent-state-${agent.name}`, icon: 'SYS', tone: 'idle' }
          ].map(stat => (
            <div class="t-panel">
               <div class="flex justify-between items-start mb-4">
                  <span class="eyebrow">{stat.label}</span>
-                 <span class="mono text-[9px] font-black opacity-20 tracking-tighter" style={`color:${stat.colorVar}`}>{stat.icon}_BLOCK</span>
+                 <span class="mono text-[9px] font-black opacity-20 tracking-tighter tone-text" data-state={stat.tone}>{stat.icon}_BLOCK</span>
               </div>
               <span id={stat.id} class="text-3xl font-black text-white tracking-tighter truncate uppercase tabular-nums">WAIT...</span>
            </div>
@@ -60,7 +60,7 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
           <section class="t-panel p-0 overflow-hidden">
              <header class="p-4 border-b border-white/5 flex justify-between items-center bg-black/20">
                 <div class="flex items-center gap-4">
-                   <h2 class="tactical-title" style="font-size:1.1rem;">01_FORENSIC_STREAM</h2>
+                   <h2 class="tactical-title" >01_FORENSIC_STREAM</h2>
                    <div class="px-3 py-1 bg-primary/10 border border-primary/30 text-primary text-[9px] font-black tracking-widest uppercase">Live_Audit</div>
                 </div>
              </header>
@@ -82,8 +82,8 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
 
         {/* COMMAND & CONTROL SIDEBAR */}
         <div class="col-span-4 space-y-4">
-          <section class="t-panel" style="border-left: 4px solid var(--primary); background: hsla(var(--bg-h), var(--bg-s), 4%, 0.4);">
-             <h2 class="tactical-title mb-5 pb-4 border-b border-white/5 flex items-center justify-between" style="font-size:1rem;">
+          <section class="t-panel panel--edge"  data-state="info">
+             <h2 class="tactical-title mb-5 pb-4 border-b border-white/5 flex items-center justify-between" >
                 COMMAND_INTERFACE
                 <span class="dot active"></span>
              </h2>
@@ -97,11 +97,11 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
                           Tunnel_Control
                        </p>
                        <div class="grid grid-cols-2 gap-4">
-                          <button type="button" id="btn-vpn-connect-main" class="t-btn" style="padding:1rem;">Link_Tunnel</button>
-                          <button type="button" id="btn-vpn-disconnect-main" class="t-btn danger" style="padding:1rem;">Sever_Link</button>
+                          <button type="button" id="btn-vpn-connect-main" class="t-btn" >Link_Tunnel</button>
+                          <button type="button" id="btn-vpn-disconnect-main" class="t-btn danger" >Sever_Link</button>
                        </div>
                     </div>
-                    <button type="button" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Rotate_Identity_Keys</button>
+                    <button type="button" class="t-btn w-full ghost">Rotate_Identity_Keys</button>
                   </div>
                 )}
 
@@ -115,24 +115,24 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
                        <div class="space-y-4">
                           <input id="block-ip-input-main" type="text" placeholder="TARGET_IP_ADDR" class="w-full bg-black/60 border border-white/10 p-4 mono text-[11px] focus:border-danger outline-none text-white" />
                           <div class="grid grid-cols-2 gap-4">
-                             <button type="button" id="btn-firewall-block-main" class="t-btn danger" style="padding:1rem;">Execute_Block</button>
-                             <button type="button" id="btn-firewall-unblock-main" class="t-btn" style="padding:1rem; background:transparent; border-color:var(--border-subtle);">Pardon_IP</button>
+                             <button type="button" id="btn-firewall-block-main" class="t-btn danger" >Execute_Block</button>
+                             <button type="button" id="btn-firewall-unblock-main" class="t-btn ghost">Pardon_IP</button>
                           </div>
                        </div>
                     </div>
-                    <button type="button" id="btn-firewall-flush-main" class="t-btn danger w-full" style="background:transparent; border-color:var(--danger); color:var(--danger);">Flush_Global_Ruleset</button>
+                    <button type="button" id="btn-firewall-flush-main" class="t-btn danger w-full ghost">Flush_Global_Ruleset</button>
                   </div>
                 )}
 
                 <div class="space-y-4 pt-5 border-t border-white/5">
-                   <button type="button" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Export_Compliance_Report</button>
-                   <button type="button" class="t-btn w-full" style="background:transparent; border-color:var(--border-subtle);">Verification_Challenge</button>
+                   <button type="button" class="t-btn w-full ghost">Export_Compliance_Report</button>
+                   <button type="button" class="t-btn w-full ghost">Verification_Challenge</button>
                 </div>
              </div>
           </section>
 
           <section class="t-panel">
-             <h2 class="tactical-title mb-5 pb-4 border-b border-white/5" style="font-size:0.9rem;">AGENT_MANIFEST</h2>
+             <h2 class="tactical-title mb-5 pb-4 border-b border-white/5" >AGENT_MANIFEST</h2>
              <div id={`agent-caps-${agent.name}`} class="flex gap-2 flex-wrap mb-5">
                 <div class="h-6 w-20 bg-white/5"></div>
                 <div class="h-6 w-20 bg-white/5"></div>

@@ -175,7 +175,7 @@ export const Dashboard = (props: {
 
             <TacticalPanel title="Intervention Force">
               <Metric label="Strike Readiness" value={interventionForce} unit="%" status={armed ? "ok" : "warn"} />
-              <div class="meter" data-state={armed ? "ok" : "warn"} style={`--value:${interventionForce}%`}></div>
+              <div class="meter" data-state={armed ? "ok" : "warn"} data-value={interventionForce}></div>
               <div class="metric__foot flex justify-between items-center">
                 <Eyebrow>Strike State</Eyebrow>
                 <StatusPill status={armed ? "ok" : "warn"} label={armed ? "Armed" : "Standby"} dot />

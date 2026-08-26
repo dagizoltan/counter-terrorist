@@ -33,11 +33,11 @@ function SupplyChainIsland() {
       <div class="flex justify-between items-center mb-5">
          <div>
             <div class="metric-tag mb-2">Integrity_Assurance</div>
-            <h3 class="tactical-title" style="font-size:1.5rem;">SUPPLY_CHAIN_HEALTH</h3>
+            <h3 class="tactical-title text-2xl">SUPPLY_CHAIN_HEALTH</h3>
          </div>
          <div class="text-right">
             <div class="text-5xl font-black text-white tabular-nums">${status.score}%</div>
-            <div class="metric-tag mt-2" style="color:var(--success);">Health_Score</div>
+            <div class="metric-tag mt-2 accent-success">Health_Score</div>
          </div>
       </div>
 
