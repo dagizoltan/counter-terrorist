@@ -40,6 +40,7 @@ class ThreatMap extends HTMLElement {
 
   disconnectedCallback() {
     if (this._reconnect) clearTimeout(this._reconnect);
+    if (this._playTimer) clearInterval(this._playTimer);
     if (this._ws) { this._ws.onclose = null; this._ws.close?.(); }
   }
 
@@ -85,9 +86,11 @@ class ThreatMap extends HTMLElement {
         </div>
 
         <div class="threat-map__scrubber flex items-center gap-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-xs">
+          <button type="button" id="tm-play" class="t-btn ghost !py-1 !px-2 text-[10px]" aria-label="Replay threats across the time window">Replay</button>
           <span class="eyebrow">Time_Window:</span>
           <input type="range" min="1" max="24" value="24" class="accent-primary cursor-pointer w-28 h-1" id="tm-scrubber-slider" />
           <span class="eyebrow min-w-[36px]" id="tm-scrubber-val">24h</span>
+          <span class="eyebrow min-w-[36px]" id="tm-playhead" aria-live="polite"></span>
         </div>
 
         <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
@@ -105,13 +108,19 @@ class ThreatMap extends HTMLElement {
     this.popoverContainer = this.querySelector(".threat-map__popover-container");
     this.slider = this.querySelector("#tm-scrubber-slider");
     this.sliderVal = this.querySelector("#tm-scrubber-val");
+    this.playBtn = this.querySelector("#tm-play");
+    this.playhead = this.querySelector("#tm-playhead");
 
     if (this.slider) {
       this.slider.addEventListener("input", (e) => {
+        this.stopPlayback(); // a manual scrub ends any replay in progress
         this.maxAgeHours = parseInt(e.target.value, 10);
         if (this.sliderVal) this.sliderVal.textContent = `${this.maxAgeHours}h`;
         this.filterByAge();
       });
+    }
+    if (this.playBtn) {
+      this.playBtn.addEventListener("click", () => this.togglePlayback());
     }
 
     // Dismiss popover on background click
@@ -222,6 +231,47 @@ class ThreatMap extends HTMLElement {
       }
     });
     this.updateCount();
+  }
+
+  /** Replay the threats appearing across the current window, oldest to newest. */
+  togglePlayback() {
+    if (this._playTimer) { this.stopPlayback(); return; }
+
+    const now = Date.now();
+    const windowStart = now - (this.maxAgeHours * 60 * 60 * 1000);
+    const times = [];
+    this.threats.forEach((_g, indicator) => {
+      const data = this.threatData.find((d) => d.indicator === indicator);
+      const t = new Date(data?.lastSeen || now).getTime();
+      if (t >= windowStart) times.push(t);
+    });
+    if (times.length === 0) return; // nothing to replay
+
+    const STEPS = 48;
+    const DURATION_MS = 6000;
+    let step = 0;
+    if (this.playBtn) this.playBtn.textContent = "Pause";
+
+    this._playTimer = setInterval(() => {
+      step++;
+      const playheadTime = windowStart + ((now - windowStart) * step) / STEPS;
+      this.threats.forEach((g, indicator) => {
+        const data = this.threatData.find((d) => d.indicator === indicator);
+        const t = new Date(data?.lastSeen || now).getTime();
+        // Shown once it has "appeared" by the playhead, within the window.
+        g.style.display = (t >= windowStart && t <= playheadTime) ? "" : "none";
+      });
+      if (this.playhead) this.playhead.textContent = new Date(playheadTime).toLocaleTimeString();
+      this.updateCount();
+      if (step >= STEPS) this.stopPlayback();
+    }, DURATION_MS / STEPS);
+  }
+
+  stopPlayback() {
+    if (this._playTimer) { clearInterval(this._playTimer); this._playTimer = null; }
+    if (this.playBtn) this.playBtn.textContent = "Replay";
+    if (this.playhead) this.playhead.textContent = "";
+    this.filterByAge(); // restore the full window
   }
 
   categorize(type, blocked) {
