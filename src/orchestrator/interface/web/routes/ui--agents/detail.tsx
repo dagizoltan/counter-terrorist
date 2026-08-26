@@ -138,16 +138,13 @@ export const AgentDetailPage = (props: { agent: { name: string; status: string; 
                 <div class="h-6 w-20 bg-white/5"></div>
              </div>
              
-             <div class="space-y-4">
-                <div class="flex justify-between items-center">
-                   <span class="eyebrow">Integrity_Hash</span>
-                   <span class="eyebrow italic" data-tone="success">Verified_Secure</span>
-                </div>
-                <div class="flex justify-between items-center">
-                   <span class="eyebrow">Audit_Stability</span>
-                   <span class="mono text-[10px] font-black text-white italic">99.99%_STABLE</span>
-                </div>
-             </div>
+             {/* Two rows sat here claiming "Integrity_Hash: Verified_Secure" and
+                 "Audit_Stability: 99.99%_STABLE". Both were literals with no
+                 data behind them — nothing per-agent in /api/agent/status
+                 reports either, and AgentDetail.js never touched them. A
+                 security console asserting an integrity check it never ran is
+                 worse than showing nothing, so they are gone until there is a
+                 real per-agent integrity signal to render. */}
           </section>
         </div>
       </div>

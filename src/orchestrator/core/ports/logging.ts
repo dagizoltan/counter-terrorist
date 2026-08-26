@@ -36,9 +36,42 @@ export interface LogEntry {
   fromAudit?: boolean;
 }
 
+/**
+ * One packet-level record in the perimeter traffic ledger.
+ *
+ * Declared alongside LogEntry because the two travel the same port: a logger
+ * that fronts a network-log repository accepts both, and the caller has to be
+ * able to say which one it means.
+ */
+export interface NetworkLogEntry {
+  direction: "INBOUND" | "OUTBOUND";
+  source: string;
+  destination: string;
+  protocol: string;
+  /** Bytes observed; 0 when the record is an enforcement action, not a packet. */
+  length: number;
+  action: "ALLOW" | "BLOCK" | "SHADOW";
+  timestamp?: string;
+  metadata?: unknown;
+}
+
 export interface LoggingPort {
   enableGlobalIntercept(): void;
   log(entry: LogEntry): Promise<void>;
+  /**
+   * Record traffic in the perimeter ledger.
+   *
+   * This exists because log() used to route by sniffing the entry's shape —
+   * `"direction" in entry && entry.source && entry.destination`. Both real
+   * callers (blockIp and shadowBanIp) nested those fields under `payload`, so
+   * the test was false every time and every enforcement action was silently
+   * diverted to the generic log. The traffic panel showed one hardcoded row
+   * from seedForensics() and nothing else, for the life of the product.
+   *
+   * Optional: a plain logger has no ledger behind it, and a caller that only
+   * has a LoggingPort should degrade rather than fail.
+   */
+  logNetwork?(entry: NetworkLogEntry): Promise<void>;
   getRecentLogs(limit?: number): Promise<LogEntry[]>;
   // Legacy support
   logLegacy(message: string, severity?: LogSeverity | SyslogSeverity, source?: string, payload?: unknown): Promise<void>;

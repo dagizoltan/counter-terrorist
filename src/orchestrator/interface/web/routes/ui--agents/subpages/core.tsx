@@ -24,12 +24,6 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
           </div>
         </div>
       </div>
-      <div class="flex items-center gap-4">
-         <div class="flex flex-col items-end">
-            <span class="eyebrow">Egress_Stability</span>
-            <span class="text-2xl font-black text-success italic">99.9%</span>
-         </div>
-      </div>
     </header>
     
     {/* ANONYMIZER (VPN) SECTION */}
@@ -39,22 +33,12 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
          <h2 class="eyebrow">01_IDENTITY_CAMOUFLAGE_ROUTING</h2>
       </div>
       
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-        {[
-          { id: 'vpn-protocol', label: 'Tunnel_Protocol', value: 'WIREGUARD', theme: 'primary', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' },
-          { id: 'vpn-region', label: 'Egress_Region', value: 'EU-CENTRAL', theme: 'primary', icon: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M3.6 9h16.8 M3.6 15h16.8 M11.5 3a17 17 0 0 0 0 18 M12.5 3a17 17 0 0 1 0 18' },
-          { id: 'vpn-status', label: 'Stealth_Level', value: 'MAXIMUM', theme: 'warning', icon: 'M12 2v20M2 12h20' },
-          { id: 'vpn-rotation', label: 'Next_Rotation', value: '24m 12s', theme: 'success', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
-        ].map(card => (
-          <div class="t-panel glass-panel p-4 border-t-2 transition-all hover:bg-white/[0.03] group" style={`border-top-color: var(--${card.theme})`}>
-            <div class="flex justify-between items-start mb-4">
-              <span class="eyebrow">{card.label}</span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-20 group-hover:opacity-100 transition-opacity"><path d={card.icon}/></svg>
-            </div>
-            <span id={card.id} class="text-2xl font-black text-white tracking-tighter uppercase">{card.value}</span>
-          </div>
-        ))}
-      </div>
+      {/* Four cards reading WIREGUARD / EU-CENTRAL / MAXIMUM / 24m 12s used to
+          sit here. They were literals, and they duplicated the ids the
+          anonymizer island renders — the island scopes its updates with
+          this.querySelector, so these never changed while the real readouts
+          sat below them. <anonymizer-controller> now carries the only copy,
+          fed by the vpn telemetry in the metrics payload. */}
 
       <div class="grid grid-cols-12 gap-4">
         <div class="col-span-12 lg:col-span-4">
@@ -74,9 +58,11 @@ export const FirewallPage = (props: { csrfToken?: string, nonce?: string, userRo
                 <span class="dot active"></span>
                 <span class="eyebrow">Active_Camouflage_Telemetry</span>
               </div>
+              {/* A hardcoded "LATENCY: 42ms" sat here that nothing ever
+                  updated. Real egress latency is the current node's ping,
+                  which <anonymizer-controller> reports from telemetry. */}
               <div class="flex items-center gap-3">
-                 <span class="mono-xs text-slate-700 font-bold">LATENCY: <span id="vpn-latency">42ms</span></span>
-                 <div class="status-pill active">LIVE_FEED</div>
+                 <div class="pill" data-state="ok" data-dot="live">Live feed</div>
               </div>
             </header>
             <div class="flex-grow p-5 relative overflow-hidden flex items-center justify-center min-h-[300px]">

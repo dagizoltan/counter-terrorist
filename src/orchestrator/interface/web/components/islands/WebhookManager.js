@@ -1,4 +1,4 @@
-import { unwrap } from "./api.js";
+import { unwrap, apiSend } from "./api.js";
 class WebhookManager extends HTMLElement {
   connectedCallback() {
     this.loadWebhooks();
@@ -51,16 +51,22 @@ class WebhookManager extends HTMLElement {
     if (!btn) return;
     btn.addEventListener('click', async () => {
       btn.textContent = 'TESTING...';
+      btn.disabled = true;
       try {
-        const csrf = document.querySelector('meta[name="csrf-token"]')?.content;
-        // Trigger a test notification through the audit system
-        await fetch('/api/infrastructure/system/protection/firewall/status', {
-           headers: csrf ? { 'X-CT-Token': csrf } : {}
-        });
-        btn.textContent = 'TEST SENT';
-        setTimeout(() => btn.textContent = 'TEST_ALL', 2000);
-      } catch {
+        // Was a fetch of /api/infrastructure/system/protection/firewall/status,
+        // a path no route serves, followed by 'TEST SENT' unconditionally — a
+        // 404 resolves, so the catch never ran and the button always claimed
+        // success. This delivers a real test payload and reports the count.
+        const r = await apiSend('/api/notifications/test', 'POST');
+        btn.textContent = r.total === 0
+          ? 'NO WEBHOOKS'
+          : `${r.delivered}/${r.total} DELIVERED`;
+      } catch (e) {
         btn.textContent = 'FAILED';
+        console.error('[WEBHOOKS] Test dispatch failed', e);
+      } finally {
+        btn.disabled = false;
+        setTimeout(() => btn.textContent = 'TEST_ALL', 3000);
       }
     });
   }

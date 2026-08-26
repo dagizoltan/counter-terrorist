@@ -73,6 +73,10 @@ export interface SystemMetrics {
         interface: string;
         available: boolean;
         mode?: string;
+        rotations?: number;
+        lastRotation?: string;
+        status?: string;
+        currentNode?: { country: string; ip: string; ping: string; protocol: string } | null;
     };
     geo: {
         topCountries: string[];
@@ -373,7 +377,13 @@ export class MetricsService extends BaseService {
                     active: vpnConnected || (meshNodes.filter(n => n.verified && (Date.now() - n.lastSeen < 600000)).length > 0),
                     interface: vpnConnected ? "wg0" : "Sovereign Mesh (mTLS)",
                     available: !!this.vpnAvailable,
-                    mode: this.anonymization.getMode(),
+                    // Only getMode() used to be published, so the console could
+                    // show which mode was selected but nothing about the
+                    // identity actually in use: the Protocol, Egress Region and
+                    // Next Rotation tiles read currentNode/rotations, which
+                    // were never in the payload, and sat at their placeholders
+                    // permanently. getTelemetry() carries mode too.
+                    ...this.anonymization.getTelemetry(),
                 },
                 geo: {
                     topCountries: Array.from(new Set(Object.values(this.geoIp.getCache()).map(c => c.country))).slice(0, 5),

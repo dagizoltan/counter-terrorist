@@ -122,9 +122,9 @@ export const Layout = (props: {
               <div class="trust-meter">
                 <div class="trust-meter__row">
                   <Eyebrow>Operational Trust</Eyebrow>
-                  <span class="trust-meter__value num" id="stat-trust-score">99.9%</span>
+                  <span class="trust-meter__value num" id="stat-trust-score">—</span>
                 </div>
-                <div class="meter" data-state="info" style="--value:99.9%"></div>
+                <div class="meter" id="stat-trust-meter" data-state="idle" style="--value:0%"></div>
               </div>
             </footer>
           </aside>

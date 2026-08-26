@@ -27,6 +27,25 @@ export class NetworkLogService extends BaseService implements LoggingPort {
     this.logging.setKv(kv);
   }
 
+  /**
+   * Record traffic in the perimeter ledger.
+   *
+   * Callers say what they mean here. log() used to decide by sniffing the
+   * entry — `"direction" in entry && entry.source && entry.destination` — and
+   * both firewall writers nested those fields under `payload`, so the test was
+   * false every time and every block and shadow-ban was quietly filed as a
+   * generic log line instead. The traffic panel showed a single seeded row.
+   */
+  async logNetwork(entry: NetworkLogEntry) {
+    await this.repo.save(entry);
+  }
+
+  /**
+   * Diagnostic logging, plus the legacy flat-shaped network entry.
+   *
+   * The shape check stays for callers that still hand a bare NetworkLogEntry
+   * to log(); new callers should use logNetwork().
+   */
   async log(entry: import("@core/ports/logging.ts").LogEntry | NetworkLogEntry) {
     if ("direction" in entry && entry.source && entry.destination) {
         await this.repo.save(entry as NetworkLogEntry);

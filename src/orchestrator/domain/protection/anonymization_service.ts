@@ -102,6 +102,7 @@ export class AnonymizationService extends BaseService {
             caller: "ANONYMIZER",
             message: `Switching stealth mode: ${this.mode} -> ${newMode}`
         });
+        this.announce(`Stealth mode ${this.mode} → ${newMode}`);
         this.mode = newMode;
         
         if (this.rotationInterval) clearInterval(this.rotationInterval);
@@ -176,6 +177,10 @@ export class AnonymizationService extends BaseService {
                 caller: "orchestrator:domain:protection:anonymization",
                 message: "identity rotation complete"
             });
+            this.announce(
+                `Identity rotated → ${selected.country} (${selected.protocol}, ${selected.ping}ms)`,
+                LogSeverity.SUCCESS,
+            );
             return ok(undefined);
         } catch (e) {
             const error = e instanceof Error ? e : new Error(String(e));
@@ -186,6 +191,7 @@ export class AnonymizationService extends BaseService {
                 caller: "ANONYMIZER",
                 message: `Rotation failed for ${this.mode}: ${error.message}`
             });
+            this.announce(`Rotation failed: ${error.message}`, LogSeverity.ERROR);
             return err(error);
         }
     }
@@ -242,6 +248,15 @@ export class AnonymizationService extends BaseService {
         return this.mode;
     }
 
+    /**
+     * Everything the console needs to describe the current identity.
+     *
+     * This has always returned the right shape and was never called by
+     * anything: MetricsService published only getMode(), so the Protocol and
+     * Egress Region tiles read an undefined `currentNode` and showed "—", and
+     * Next Rotation read an undefined `rotations` and sat on "INITIALIZING"
+     * forever. It is part of the metrics payload now.
+     */
     getTelemetry() {
         return {
             mode: this.mode,
@@ -251,9 +266,25 @@ export class AnonymizationService extends BaseService {
             currentNode: this.currentNode ? {
                 country: this.currentNode.country,
                 ip: this.currentNode.ip,
-                ping: `${this.currentNode.ping}ms`
+                ping: `${this.currentNode.ping}ms`,
+                protocol: this.currentNode.protocol
             } : null
         };
+    }
+
+    /**
+     * Surface an identity event to the console.
+     *
+     * AnonymizerController listens for ANONYMIZER_LOG, which nothing in the
+     * codebase emitted — the Operation Log panel read "Awaiting_Identity_Logs"
+     * from first paint to shutdown. Mode changes and rotations are exactly
+     * what it was built to show.
+     */
+    private announce(message: string, severity: LogSeverity = LogSeverity.INFO) {
+        this.eventBus?.emit("UI_BROADCAST", {
+            type: "ANONYMIZER_LOG",
+            data: { message, severity, timestamp: new Date().toISOString() }
+        }).catch(() => { /* the ledger entry above is the durable record */ });
     }
 
     protected override async onShutdown(): Promise<Result<void>> {

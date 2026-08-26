@@ -120,23 +120,19 @@ export class FirewallManager implements FirewallPort {
         } 
     });
 
-    if (this.networkLogs) {
-        await this.networkLogs.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.INFO,
-            caller: "orchestrator:infra:system:protection:firewall",
-            message: "Firewall network log entry",
-            payload: {
-                direction: "INBOUND",
-                source: ip,
-                destination: "LOCAL",
-                protocol: "ANY",
-                length: 0,
-                action: "BLOCK"
-            }
-        });
-    }
+    // The perimeter ledger, via the method that means it. This used to call
+    // log() with direction/source/destination nested under `payload`, which
+    // the service's shape check never matched — so no block ever reached the
+    // traffic record.
+    await this.networkLogs?.logNetwork?.({
+        timestamp: new Date().toISOString(),
+        direction: "INBOUND",
+        source: ip,
+        destination: "LOCAL",
+        protocol: "ANY",
+        length: 0,
+        action: "BLOCK"
+    });
 
     if (meshManager) {
       meshManager.broadcastBlock(ip).catch(err => {
@@ -250,23 +246,15 @@ export class FirewallManager implements FirewallPort {
         } 
     });
     
-    if (this.networkLogs) {
-        await this.networkLogs.log({
-            timestamp: new Date().toISOString(),
-            type: LogType.AUDIT,
-            severity: LogSeverity.INFO,
-            caller: "orchestrator:infra:system:protection:firewall",
-            message: "Firewall shadow ban network log entry",
-            payload: {
-                direction: "INBOUND",
-                source: ip,
-                destination: "LOCAL",
-                protocol: "ANY",
-                length: 0,
-                action: "SHADOW"
-            }
-        });
-    }
+    await this.networkLogs?.logNetwork?.({
+        timestamp: new Date().toISOString(),
+        direction: "INBOUND",
+        source: ip,
+        destination: "LOCAL",
+        protocol: "ANY",
+        length: 0,
+        action: "SHADOW"
+    });
 
     if (meshManager) {
       meshManager.broadcastBlock(ip).catch(err => {
