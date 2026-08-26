@@ -86,21 +86,42 @@ export class GeoIpService extends BaseService {
     private deterministicMock(ip: string): TacticalIntel {
         // Senior Architect Note: Deterministic hashing ensures consistency 
         // across agent restarts without external API calls (OpSec).
-        const hash = this.hashString(ip);
-        const countries = ["US", "DE", "CN", "RU", "NL", "SG", "GB", "FR"];
+        const COUNTRY_CENTROIDS: Array<{ code: string; lat: number; lon: number }> = [
+            { code: "US", lat: 37.09, lon: -95.71 },
+            { code: "DE", lat: 51.16, lon: 10.45 },
+            { code: "CN", lat: 35.86, lon: 104.20 },
+            { code: "RU", lat: 61.52, lon: 105.31 },
+            { code: "NL", lat: 52.13, lon: 5.29 },
+            { code: "SG", lat: 1.35, lon: 103.82 },
+            { code: "GB", lat: 55.37, lon: -3.43 },
+            { code: "FR", lat: 46.22, lon: 2.21 },
+            { code: "JP", lat: 36.20, lon: 138.25 },
+            { code: "BR", lat: -14.23, lon: -51.92 },
+            { code: "IN", lat: 20.59, lon: 78.96 },
+            { code: "AU", lat: -25.27, lon: 133.77 }
+        ];
+
+        const hash1 = this.hashString(ip);
+        const hash2 = this.hashString(ip + ":lat_jitter");
+        const hash3 = this.hashString(ip + ":lon_jitter");
+
+        const target = COUNTRY_CENTROIDS[hash1 % COUNTRY_CENTROIDS.length];
+        const latJitter = ((hash2 % 1000) / 100 - 5); // -5.0 to +5.0 degrees offset
+        const lonJitter = ((hash3 % 1000) / 100 - 5); // -5.0 to +5.0 degrees offset
+
         const isps = ["Cloudflare", "DigitalOcean", "Akamai", "AWS", "Google", "Hetzner", "OVH"];
-        
+
         return {
             ip,
-            country: countries[hash % countries.length],
-            city: "TACTICAL_NODE_" + (hash % 100),
-            asn: "AS" + (10000 + (hash % 50000)),
-            isp: isps[hash % isps.length],
-            lat: (hash % 180) - 90,
-            lon: (hash % 360) - 180,
-            threatScore: hash % 100,
+            country: target.code,
+            city: "TACTICAL_NODE_" + (hash1 % 100),
+            asn: "AS" + (10000 + (hash1 % 50000)),
+            isp: isps[hash1 % isps.length],
+            lat: Math.max(-50, Math.min(75, target.lat + latJitter)),
+            lon: Math.max(-170, Math.min(170, target.lon + lonJitter)),
+            threatScore: hash1 % 100,
             lastSeen: new Date().toISOString(),
-            tags: (hash % 10 > 7) ? ["BOTNET", "SCANNER"] : ["OBSERVED"]
+            tags: (hash1 % 10 > 7) ? ["BOTNET", "SCANNER"] : ["OBSERVED"]
         };
     }
 
