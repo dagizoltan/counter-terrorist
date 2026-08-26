@@ -302,3 +302,56 @@ Deno.test("islands escape the remote strings they write into innerHTML", async (
     `unescaped interpolation(s) inside markup — wrap in the escape helper:\n${suspects.join("\n")}`,
   );
 });
+
+Deno.test("every /api/ path an island calls is served by a route", async () => {
+  // Three separate controls have shipped pointing at a URL with nothing behind
+  // it, and every one of them looked like it worked:
+  //
+  //   the deception toggle posted to /agents/deception/api/:id/toggle;
+  //   the process tree's Terminate posted to /api/processes/kill/:pid;
+  //   the webhook "TEST_ALL" button still fetches
+  //     /api/infrastructure/system/protection/firewall/status
+  //     and then sets its label to "TEST SENT" regardless — a 404 resolves,
+  //     it does not throw, so the catch block never runs.
+  //
+  // Route folders map to paths by convention: api--a--b--[c] serves
+  // /api/a/b/:c. That makes the whole surface checkable from disk.
+  const routes = [...Deno.readDirSync(`${WEB}routes`)]
+    .filter((e) => e.isDirectory && e.name.startsWith("api--"))
+    .map((e) =>
+      "/api/" + e.name.slice("api--".length).split("--")
+        .map((seg) => (seg.startsWith("[") ? ":param" : seg)).join("/")
+    );
+
+  /** A call matches a route when every segment lines up, `:param` and `${…}` matching anything. */
+  const isServed = (call: string) => {
+    const callSegs = call.replace(/\/+$/, "").split("/");
+    return routes.some((route) => {
+      const routeSegs = route.split("/");
+      if (routeSegs.length !== callSegs.length) return false;
+      return routeSegs.every((r, i) =>
+        r === callSegs[i] || r === ":param" || callSegs[i].includes("${")
+      );
+    });
+  };
+
+  const unserved: string[] = [];
+  for (const name of islandFiles()) {
+    const src = (await Deno.readTextFile(`${ISLANDS}/${name}`))
+      // Drop comments: the api.js docblock cites /api/x as an example.
+      .replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+    for (const match of src.matchAll(/["'`](\/api\/[^"'`?\s]*)/g)) {
+      if (isServed(match[1])) continue;
+      const line = src.slice(0, match.index).split("\n").length;
+      unserved.push(`${name}:${line}  ${match[1]}`);
+    }
+  }
+
+  assertEquals(
+    unserved,
+    [],
+    `island(s) calling a path no route serves — the request 404s and the ` +
+      `control reports nothing:\n${unserved.join("\n")}`,
+  );
+});

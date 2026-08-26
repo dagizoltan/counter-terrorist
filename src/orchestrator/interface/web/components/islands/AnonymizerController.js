@@ -30,11 +30,14 @@ class AnonymizerController extends HTMLElement {
           const regionEl = this.querySelector('#vpn-region');
           const statusEl = this.querySelector('#vpn-status');
           const rotationEl = this.querySelector('#vpn-rotation');
+          const latencyEl = this.querySelector('#vpn-latency');
 
           if (protocolEl && vpn.currentNode) protocolEl.textContent = vpn.currentNode.protocol || 'WIREGUARD';
           if (regionEl && vpn.currentNode) regionEl.textContent = vpn.currentNode.country || 'GLOBAL';
           if (statusEl) statusEl.textContent = vpn.mode === 'OFF' ? 'DIRECT' : (vpn.mode === 'TOR' ? 'CRITICAL' : 'OPTIMAL');
           if (rotationEl) rotationEl.textContent = vpn.rotations > 0 ? `${vpn.rotations} ROTATIONS` : 'INITIALIZING';
+          // The real figure, replacing a hardcoded "42ms" on the page.
+          if (latencyEl) latencyEl.textContent = vpn.currentNode?.ping || '—';
         }
         if (payload.type === 'ANONYMIZER_LOG' || payload.type === 'ANONYMIZER_UPDATE') {
           this.addLog(payload);
@@ -44,10 +47,13 @@ class AnonymizerController extends HTMLElement {
   }
 
   addLog(entry) {
+    // UI_BROADCAST delivers { type, data }, so the fields sit under `data`.
+    // Top level is still read first for any direct emitter.
+    const d = entry.data ?? {};
     this.logs.unshift({
-      timestamp: entry.timestamp || new Date().toISOString(),
-      message: entry.message || entry.data?.message || 'Identity rotated',
-      severity: entry.severity || 'info'
+      timestamp: entry.timestamp || d.timestamp || new Date().toISOString(),
+      message: entry.message || d.message || 'Identity rotated',
+      severity: entry.severity || d.severity || 'info'
     });
     if (this.logs.length > 50) this.logs.pop();
     this.renderLogs();
@@ -72,6 +78,10 @@ class AnonymizerController extends HTMLElement {
            <div class="stat-cell">
               <span class="eyebrow">Rotation</span>
               <span class="stat-cell__value" id="vpn-rotation">—</span>
+           </div>
+           <div class="stat-cell">
+              <span class="eyebrow">Egress Latency</span>
+              <span class="stat-cell__value" id="vpn-latency">—</span>
            </div>
         </div>
 

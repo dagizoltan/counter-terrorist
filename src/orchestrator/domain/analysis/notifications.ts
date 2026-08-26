@@ -73,6 +73,68 @@ export class NotificationService extends BaseService {
         return this.webhooks;
     }
 
+    /**
+     * Deliver a clearly-labelled test payload to every enabled webhook, and
+     * report per-webhook what happened.
+     *
+     * The console's "TEST_ALL" button had no endpoint behind it: it fetched
+     * /api/infrastructure/system/protection/firewall/status — a path no route
+     * serves — and then set its label to "TEST SENT" regardless, because a 404
+     * resolves rather than throwing. It reported success every time and tested
+     * nothing.
+     *
+     * notify() cannot serve this: it drops anything that is not CRITICAL,
+     * LEDGER_TAMPER or DRIFT, and dressing a test up as CRITICAL would page
+     * whoever is on the other end.
+     */
+    async sendTest(): Promise<Array<{ name: string; delivered: boolean; error?: string }>> {
+        const results: Array<{ name: string; delivered: boolean; error?: string }> = [];
+
+        for (const webhook of this.webhooks) {
+            if (!webhook.enabled) {
+                results.push({ name: webhook.name, delivered: false, error: "disabled" });
+                continue;
+            }
+            try {
+                await this.dispatch(webhook, {
+                    type: "TEST",
+                    message: "Counter-Terrorist test notification. No action required.",
+                    data: { sentAt: new Date().toISOString() },
+                });
+                results.push({ name: webhook.name, delivered: true });
+            } catch (e) {
+                results.push({ name: webhook.name, delivered: false, error: e instanceof Error ? e.message : String(e) });
+            }
+        }
+
+        return results;
+    }
+
+    /**
+     * Send one event to one webhook. Throws so callers can report the failure;
+     * notify() swallows and logs, sendTest() surfaces it to the operator.
+     */
+    private async dispatch(webhook: WebhookConfig, event: { type: string; message: string; data?: unknown }) {
+        // Re-validate and resolve at send time to prevent DNS rebinding.
+        const urlCheck = await validateWebhookUrlAsync(webhook.url);
+        if (!urlCheck.valid || !urlCheck.resolvedIp) {
+            throw new Error(urlCheck.reason || "URL validation failed");
+        }
+
+        let body: unknown = event;
+        if (webhook.type === "slack") {
+            body = { text: `*[${event.type}]* ${event.message}\n\`\`\`${JSON.stringify(event.data || {}, null, 2)}\`\`\`` };
+        } else if (webhook.type === "discord") {
+            body = { content: `**[${event.type}]** ${event.message}\n\`\`\`json\n${JSON.stringify(event.data || {}, null, 2)}\n\`\`\`` };
+        }
+
+        await safeFetch(webhook.url, urlCheck.resolvedIp, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+    }
+
     async notify(event: { type: string; message: string; data?: any }) {
         if (event.type !== "CRITICAL" && event.type !== "LEDGER_TAMPER" && !event.type.startsWith("DRIFT")) {
             return; // Only notify on critical, ledger tampering, or drift events

@@ -67,6 +67,20 @@ class MetricsHydrator extends HTMLElement {
   }
 
   updateMetrics(m) {
+    // The sidebar trust meter was the literal "99.9%" in Layout.tsx, with a
+    // matching hardcoded --value on its bar, on every page in the console.
+    // audit.integrityScore is the real figure and was already in this payload.
+    if (typeof m.integrityScore === 'number' || typeof m.audit?.integrityScore === 'number') {
+      const score = typeof m.integrityScore === 'number' ? m.integrityScore : m.audit.integrityScore;
+      const clamped = Math.max(0, Math.min(100, score));
+      this.setText('stat-trust-score', `${clamped}%`);
+      const meter = document.getElementById('stat-trust-meter');
+      if (meter) {
+        meter.style.setProperty('--value', `${clamped}%`);
+        meter.dataset.state = clamped >= 90 ? 'ok' : clamped >= 60 ? 'warn' : 'crit';
+      }
+    }
+
     if (m.vpn) {
       this.updateStatus('stat-vpn-status', m.vpn.active ? 'ENCRYPTED' : 'OFFLINE');
       this.updateStatus('stat-anon-mode', m.vpn.mode ?? 'OFFLINE');
