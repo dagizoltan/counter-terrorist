@@ -320,11 +320,11 @@ class ThreatMap extends HTMLElement {
           <span class="text-slate-400">ISP / ASN:</span>
           <span class="font-mono truncate">${esc(geo.isp || 'Carrier')}</span>
           <span class="text-slate-400">Threat Vector:</span>
-          <span class="font-mono text-amber-400">${esc(threat.threatType || 'Generic Probe')}</span>
+          <span class="font-mono text-warning">${esc(threat.threatType || 'Generic Probe')}</span>
         </div>
         <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-white/10">
           ${threat.blocked ? `
-            <span class="eyebrow text-emerald-400">ISOLATED_IN_KERNEL</span>
+            <span class="eyebrow text-success">ISOLATED_IN_KERNEL</span>
           ` : `
             <button type="button" id="tm-isolate-btn" class="t-btn danger !py-1 !px-3 text-[10px] font-bold">
               Commit Isolation

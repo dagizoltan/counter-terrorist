@@ -1120,6 +1120,39 @@ body.auth-page {
   background: color-mix(in srgb, var(--surface-1) 88%, transparent);
 }
 
+/* Interactive variant of the map. Its own stacking context so the popover's
+   z-index resolves against the map, not whatever the page nests it in. */
+.threat-map--container { isolation: isolate; }
+
+/* Attack arcs are decorative — pointer-events off so a plot underneath stays
+   clickable. The <path>s carry their own fill/stroke attributes. */
+.threat-map__arcs { pointer-events: none; }
+
+/* Time-window scrubber, pinned top-left opposite the indicator count. */
+.threat-map__scrubber {
+  position: absolute;
+  left: var(--s-4);
+  top: var(--s-4);
+  z-index: 10;
+}
+
+/* Overlay holding the detail popover, centred over the map. Transparent to
+   pointer events so a background click still dismisses it; the card re-enables
+   them. `.hidden` (utility) collapses it — declared here at higher specificity
+   so it wins regardless of layer order. */
+.threat-map__popover-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-4);
+  pointer-events: none;
+  z-index: 20;
+}
+.threat-map__popover-container.hidden { display: none; }
+.threat-map__popover { pointer-events: auto; }
+
 @media (prefers-reduced-motion: reduce) {
   .threat-map__plot.is-new .threat-map__halo { animation: none; }
 }
