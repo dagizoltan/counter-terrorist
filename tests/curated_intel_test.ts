@@ -1,6 +1,7 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { stub } from "@std/testing/mock";
 import { CuratedIntelService } from "@domain/analysis/curated_intel_service.ts";
+import { GeoIpService } from "@domain/analysis/geoip_service.ts";
 import { LoggingPort, LogEntry, FirewallPort, ConfigurationPort, CommandResult } from "@core/ports.ts";
 
 class MockLoggingPort implements LoggingPort {
@@ -75,6 +76,47 @@ Deno.test("CuratedIntelService - Ingestion and Scoring", async () => {
 
     } finally {
         fetchStub.restore();
+        await service.shutdown();
+        kv.close();
+    }
+});
+
+Deno.test("CuratedIntelService - GeoIP Location Enrichment on getThreats", async () => {
+    const logging = new MockLoggingPort();
+    const firewall = new MockFirewallPort();
+    const config = new MockConfig();
+    const geoip = new GeoIpService(logging);
+    const service = new CuratedIntelService(logging, firewall, config, geoip);
+    const kv = await Deno.openKv(":memory:");
+
+    try {
+        await service.start(kv);
+
+        // Save an IP threat in KV WITHOUT geo data
+        const threat = {
+            indicator: "198.51.100.42",
+            type: "IP",
+            provider: "TestProvider",
+            score: 75,
+            confidence: 80,
+            threatType: "Test Threat",
+            firstSeen: new Date().toISOString(),
+            lastSeen: new Date().toISOString(),
+            ttl: 24
+        };
+        await kv.set(["curated_threats", "198.51.100.42"], threat);
+
+        // Fetch threats with type=IP and provider=TestProvider
+        const result = await service.getThreats({ type: "IP", provider: "TestProvider" });
+        assertEquals(result.threats.length, 1);
+        const fetched = result.threats[0];
+        assertEquals(fetched.indicator, "198.51.100.42");
+        assertExists(fetched.geo);
+        assertExists(fetched.geo.lat);
+        assertExists(fetched.geo.lon);
+        assertExists(fetched.geo.country);
+        assertExists(fetched.geo.isp);
+    } finally {
         await service.shutdown();
         kv.close();
     }

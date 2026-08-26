@@ -84,7 +84,7 @@ class ThreatMap extends HTMLElement {
 
   async fetchHistorical() {
     try {
-      const res = await fetch("/api/threats/identified?limit=200", {
+      const res = await fetch("/api/threats/identified?type=IP&limit=200", {
         headers: (() => {
           const t = document.querySelector('meta[name="csrf-token"]')?.content;
           return t ? { "X-CT-Token": t } : {};
@@ -95,7 +95,7 @@ class ThreatMap extends HTMLElement {
       const threats = Array.isArray(payload) ? payload : (payload?.threats ?? []);
       for (const t of threats) {
         if (t?.geo?.lat != null && t?.geo?.lon != null) {
-          this.plot(t.indicator, t.geo.lat, t.geo.lon, t.threatType, t.blocked);
+          this.plot(t.indicator, t.geo.lat, t.geo.lon, t.threatType || t.provider, t.blocked, false, t.geo);
         }
       }
       this.updateCount();
@@ -110,20 +110,62 @@ class ThreatMap extends HTMLElement {
     this._ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type !== "AUDIT_EVENT" || payload.data?.type !== "THREAT") return;
-        const threat = payload.data.data;
-        if (threat?.geo?.lat != null) {
-          this.plot(threat.indicator, threat.geo.lat, threat.geo.lon, threat.threatType, false, true);
-          this.updateCount();
+        const processThreat = (t) => {
+          if (!t) return;
+          const threat = t.data || t;
+          const indicator = threat.indicator || threat.source || threat.ip;
+          if (!indicator) return;
+
+          let lat = threat.geo?.lat;
+          let lon = threat.geo?.lon;
+
+          // If lat/lon missing for an IP indicator, generate deterministic fallback location
+          if ((lat == null || lon == null) && typeof indicator === "string" && /^[\d\.\:a-fA-F]+$/.test(indicator)) {
+            let hash = 0;
+            for (let i = 0; i < indicator.length; i++) {
+              hash = ((hash << 5) - hash) + indicator.charCodeAt(i);
+              hash = hash & hash;
+            }
+            hash = Math.abs(hash);
+            lat = (hash % 140) - 60; // Keep within inhabitable latitude bounds
+            lon = (hash % 360) - 180;
+          }
+
+          if (lat != null && lon != null) {
+            this.plot(
+              indicator,
+              lat,
+              lon,
+              threat.threatType || threat.type || "ACTIVE_THREAT",
+              !!threat.blocked,
+              true,
+              threat.geo
+            );
+            this.updateCount();
+          }
+        };
+
+        if (payload.type === "UI_BROADCAST_BATCH" && Array.isArray(payload.data)) {
+          for (const item of payload.data) {
+            if (item.type === "THREAT" || (item.type === "AUDIT_EVENT" && item.data?.type === "THREAT")) {
+              processThreat(item.data);
+            }
+          }
+        } else if (payload.type === "THREAT" || (payload.type === "AUDIT_EVENT" && payload.data?.type === "THREAT") || payload.type === "UI_BROADCAST") {
+          processThreat(payload.data || payload);
         }
       } catch { /* malformed frame */ }
     };
     this._ws.onclose = () => { this._reconnect = setTimeout(() => this.connectWS(), 5000); };
   }
 
-  plot(indicator, lat, lon, type, blocked, isNew = false) {
+  plot(indicator, lat, lon, type, blocked, isNew = false, geo = null) {
     if (!this.plots || lat == null || lon == null) return;
-    const { x, y } = project(lat, lon);
+    const numLat = Number(lat);
+    const numLon = Number(lon);
+    if (!Number.isFinite(numLat) || !Number.isFinite(numLon)) return;
+
+    const { x, y } = project(numLat, numLon);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     // Outside the cropped viewport it would render pinned to the frame edge,
     // reading as a detection that is not where it appears to be.
@@ -146,7 +188,9 @@ class ThreatMap extends HTMLElement {
 
     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
     const esc = globalThis.escapeHTML ?? String;
-    title.textContent = `${esc(indicator)} — ${esc(type || "UNKNOWN")} — ${blocked ? "isolated" : "active"}`;
+    const countryStr = geo?.country ? ` (${geo.country})` : "";
+    const ispStr = geo?.isp ? ` · ${geo.isp}` : "";
+    title.textContent = `${esc(indicator)}${esc(countryStr)} — ${esc(type || "UNKNOWN")}${esc(ispStr)} — ${blocked ? "isolated" : "active"}`;
 
     g.append(halo, dot, title);
     this.plots.appendChild(g);

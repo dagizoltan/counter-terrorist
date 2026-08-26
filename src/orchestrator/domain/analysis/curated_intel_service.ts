@@ -588,12 +588,25 @@ export class CuratedIntelService extends BaseService {
         const blockedSet = new Set(await this.firewall.getBlockedIps() || []);
 
         for await (const res of iter) {
-            const t = res.value;
+            const t = { ...res.value };
             const matchesType = !type || t.type === type;
             const matchesProvider = !provider || t.provider === provider;
             const matchesSearch = !search || t.indicator.includes(search);
             
             if (matchesType && matchesProvider && matchesSearch) {
+                if (t.type === "IP" && (!t.geo || t.geo.lat == null || t.geo.lon == null) && this.geoip) {
+                    const geoCandidate = await this.geoip.resolve(t.indicator);
+                    if (geoCandidate) {
+                        t.geo = {
+                            country: geoCandidate.country || "unknown",
+                            isp: geoCandidate.isp || "unknown",
+                            asn: geoCandidate.asn || "unknown",
+                            isBulletproof: t.geo?.isBulletproof ?? false,
+                            lat: geoCandidate.lat,
+                            lon: geoCandidate.lon
+                        };
+                    }
+                }
                 const blocked = blockedSet.has(t.indicator);
                 threats.push({ ...t, blocked } as IntelIndicator & { blocked: boolean });
             }
@@ -607,12 +620,25 @@ export class CuratedIntelService extends BaseService {
             prefix = ["curated_threats"];
             iter = this.kv.list<IntelIndicator>({ prefix }, { cursor: offset });
             for await (const res of iter) {
-                const t = res.value;
+                const t = { ...res.value };
                 const matchesType = !type || t.type === type;
                 const matchesProvider = !provider || t.provider === provider;
                 const matchesSearch = !search || t.indicator.includes(search);
 
                 if (matchesType && matchesProvider && matchesSearch) {
+                    if (t.type === "IP" && (!t.geo || t.geo.lat == null || t.geo.lon == null) && this.geoip) {
+                        const geoCandidate = await this.geoip.resolve(t.indicator);
+                        if (geoCandidate) {
+                            t.geo = {
+                                country: geoCandidate.country || "unknown",
+                                isp: geoCandidate.isp || "unknown",
+                                asn: geoCandidate.asn || "unknown",
+                                isBulletproof: t.geo?.isBulletproof ?? false,
+                                lat: geoCandidate.lat,
+                                lon: geoCandidate.lon
+                            };
+                        }
+                    }
                     const blocked = blockedSet.has(t.indicator);
                     threats.push({ ...t, blocked } as IntelIndicator & { blocked: boolean });
                 }
