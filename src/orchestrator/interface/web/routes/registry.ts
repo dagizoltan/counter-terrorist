@@ -133,7 +133,32 @@ async function loadRouteModules(prefix: "ui" | "api", services: ServiceContainer
       continue;
     }
   }
+  // Register static routes before parametric ones. Hono 4.3.7 resolves by
+  // registration order, not by specificity, so a `/agents/:name` registered
+  // before `/agents/deception` swallows the literal path — its handler looks up
+  // an agent named "deception", finds none, and 404s. Routes were being
+  // registered in Deno.readDir order, so which one won was down to filesystem
+  // iteration order and flipped whenever a sibling directory was added.
+  result.sort((a, b) => compareRoutePaths(a.path, b.path));
   return result;
+}
+
+/**
+ * Orders route paths so a static segment always registers before a parametric
+ * one at the point they diverge: `/a/b` before `/a/:x`. Same-kind segments sort
+ * lexically; a shorter path sorts before a longer one that shares its prefix.
+ */
+function compareRoutePaths(a: string, b: string): number {
+  const as = a.split("/");
+  const bs = b.split("/");
+  const n = Math.min(as.length, bs.length);
+  for (let i = 0; i < n; i++) {
+    const ap = as[i].startsWith(":");
+    const bp = bs[i].startsWith(":");
+    if (ap !== bp) return ap ? 1 : -1;
+    if (as[i] !== bs[i]) return as[i] < bs[i] ? -1 : 1;
+  }
+  return as.length - bs.length;
 }
 
 async function loadRouteModule(folderName: string, services: ServiceContainer, getStatus: () => Promise<unknown>): Promise<RouteEntry | undefined> {
