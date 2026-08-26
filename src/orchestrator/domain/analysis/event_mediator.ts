@@ -12,6 +12,7 @@ import { ScannerIntegration } from "./mediators/ScannerIntegration.ts";
 
 import type { ProcessTracker } from "./process_tracker.ts";
 import type { CanaryService } from "@domain/protection/canary_service.ts";
+import type { GeoIpService } from "./geoip_service.ts";
 
 type SidecarEvent = Record<string, unknown>;
 
@@ -129,9 +130,15 @@ export class EventMediator extends BaseService {
             });
         }, 30000);
 
-        this.eventBus?.on("UI_BROADCAST", (msg: unknown) => {
+        this.eventBus?.on("UI_BROADCAST", async (msg: unknown) => {
             if (typeof msg === "object" && msg !== null) {
-                this.broadcast(msg as BroadcastData);
+                // A THREAT with no location is enriched here, at the one point
+                // every threat source fans out to the UI, so shadow-ban and
+                // behavioural detections get the same provisional geo the
+                // curated feed already carries. The client used to invent
+                // coordinates for these; now they come from the one resolver.
+                const enriched = await this.enrichThreatGeo(msg as BroadcastData);
+                this.broadcast(enriched);
             }
         });
 
@@ -280,5 +287,65 @@ export class EventMediator extends BaseService {
      */
     broadcastEvent(event: BroadcastData) {
         this.broadcast(event);
+    }
+
+    private geoIp?: GeoIpService;
+
+    /** Lazily pulled from the locator: geoIp may register after the mediator. */
+    private async resolveGeoIp(): Promise<GeoIpService | undefined> {
+        if (this.geoIp) return this.geoIp;
+        try {
+            const { serviceLocator } = await import("@core/service_locator.ts");
+            if (serviceLocator.has("geoIp")) {
+                this.geoIp = serviceLocator.get("geoIp") as GeoIpService;
+            }
+        } catch { /* locator not ready */ }
+        return this.geoIp;
+    }
+
+    /**
+     * Attach a location to a THREAT frame that lacks one, resolved from the same
+     * provisional GeoIP service the historical feed uses. Non-THREAT frames,
+     * already-located ones, and non-IP indicators (domains, hashes) pass
+     * through untouched — the client tallies those as ungeolocated rather than
+     * plotting a guess.
+     */
+    async enrichThreatGeo(msg: BroadcastData): Promise<BroadcastData> {
+        const m = msg as Record<string, unknown>;
+        if (m.type !== "THREAT") return msg;
+
+        const data = m.data as Record<string, unknown> | undefined;
+        if (!data || typeof data !== "object") return msg;
+
+        const geo = data.geo as Record<string, unknown> | undefined;
+        if (geo && typeof geo.lat === "number" && typeof geo.lon === "number") return msg;
+
+        const indicator = data.indicator ?? data.source ?? data.ip ?? data.src_ip;
+        if (typeof indicator !== "string" || !/^[\d.]+$|^[0-9a-fA-F:]+$/.test(indicator)) return msg;
+
+        const geoIp = await this.resolveGeoIp();
+        if (!geoIp) return msg;
+
+        try {
+            const intel = await geoIp.lookup(indicator);
+            if (typeof intel?.lat !== "number" || typeof intel?.lon !== "number") return msg;
+            return {
+                ...m,
+                data: {
+                    ...data,
+                    geo: {
+                        ...(geo ?? {}),
+                        country: intel.country,
+                        city: intel.city,
+                        isp: intel.isp,
+                        asn: intel.asn,
+                        lat: intel.lat,
+                        lon: intel.lon,
+                    },
+                },
+            } as BroadcastData;
+        } catch {
+            return msg;
+        }
     }
 }
