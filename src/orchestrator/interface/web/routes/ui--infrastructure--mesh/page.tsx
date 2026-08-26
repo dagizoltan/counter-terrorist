@@ -67,21 +67,24 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce
                  <h3 class="tactical-title text-xl tracking-widest uppercase">Consensus State</h3>
                  <p class="eyebrow">Byzantine Fault Tolerance</p>
               </div>
-              <div class="status-pill success active tracking-widest">VERIFIED</div>
+              {/* Was a hardcoded green "VERIFIED". Now computed from the node
+                  counts in the metrics payload against a 2/3+1 quorum. */}
+              <span class="pill" id="stat-mesh-consensus" data-state="idle">AWAITING</span>
             </div>
             
             <div class="flex flex-col gap-4 mb-5">
               <div class="flex justify-between items-center p-4 bg-black/60 border border-white/5 rounded-lg group/item transition-colors hover:border-success/30">
                 <span class="eyebrow group-hover/item:text-success transition-colors">Quorum Status</span>
-                <span id="stat-mesh-quorum" class="mono-md font-black text-success tracking-widest uppercase italic">ESTABLISHED</span>
+                <span id="stat-mesh-quorum" class="mono-md font-black text-success tracking-widest uppercase italic">—</span>
               </div>
+              {/* "Identity Weights: BALANCED" and "Net Partition: NONE" were
+                  literals. The mesh metrics payload carries activeNodes,
+                  totalNodes and selfId — nothing about weighting or partition
+                  detection — so there is no honest value to render for either
+                  until the mesh reports one. Quorum, which is derivable, stays. */}
               <div class="flex justify-between items-center p-4 bg-black/60 border border-white/5 rounded-lg group/item transition-colors hover:border-primary/30">
-                <span class="eyebrow group-hover/item:text-primary transition-colors">Identity Weights</span>
-                <span class="mono-md font-black text-white tracking-widest uppercase">BALANCED</span>
-              </div>
-              <div class="flex justify-between items-center p-4 bg-black/60 border border-white/5 rounded-lg group/item transition-colors hover:border-success/30">
-                <span class="eyebrow group-hover/item:text-success transition-colors">Net Partition</span>
-                <span class="mono-md font-black text-success tracking-widest uppercase">NONE</span>
+                <span class="eyebrow group-hover/item:text-primary transition-colors">Quorum Threshold</span>
+                <span id="stat-mesh-quorum-needed" class="mono-md font-black text-white tracking-widest uppercase">—</span>
               </div>
             </div>
 
@@ -90,7 +93,7 @@ export const MeshTopologyPage = (props: { status: any, csrfToken?: string, nonce
                   <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                </div>
                <p class="eyebrow leading-loose italic relative z-10">
-                 Sovereign nodes are currently synchronizing state via mTLS. Consensus threshold is maintained at <span class="text-success">2/3 + 1</span>.
+                 Sovereign nodes synchronize state via mTLS. The consensus threshold is <span class="text-success">2/3 + 1</span> of known nodes.
                </p>
             </div>
           </div>

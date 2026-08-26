@@ -3,7 +3,7 @@ import { Layout } from "@interface/components/Layout.tsx";
 
 export const AuditPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
-    <Layout title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
+    <Layout title="Governance Ledger // Sovereign Overwatch" islandPaths={['/components/islands/BlockingLog.js', '/components/islands/LedgerSummary.js']} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       {/* 01_Unified_Page_Header */}
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
@@ -11,63 +11,18 @@ export const AuditPage = (props: { csrfToken?: string, nonce?: string, userRole?
           <h1 class="tactical-title text-4xl">Governance_Ledger</h1>
           <span class="subtitle">Authoritative Compliance & Enforcement History // Root_Node_Authority</span>
         </div>
-        <div class="flex items-center gap-4">
-           <div class="flex items-center gap-4 bg-primary/10 border border-primary/30 px-4 py-4 rounded-full backdrop-blur-xl">
-              <span class="dot active"></span>
-              <span class="eyebrow" data-tone="primary">Ledger_Synchronized</span>
-           </div>
-        </div>
+
       </header>
 
-      {/* 02_Audit_Integrity_Summary */}
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-5">
-        <div class="t-panel glass-panel border-l-2 border-primary group py-4 px-4">
-          <div class="flex justify-between items-center mb-4">
-            <span class="eyebrow">Ledger_Integrity</span>
-            <div class="flex items-center gap-2">
-              <span class="dot active"></span>
-              <span class="eyebrow" data-tone="success">Verified</span>
-            </div>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black tabular-nums tracking-tighter">0.00%</span>
-            <span class="eyebrow">Tamper_Prob</span>
-          </div>
-        </div>
+      {/* 02_Audit_Integrity_Summary
+          Four tiles used to sit here as literals: "Verified / 0.00% Tamper_Prob",
+          "1.4K Enforcement_Blocks", "STRICT / PASS GDPR/SOV" and "12 Live_Rules".
+          Nothing wrote to any of them — a forensic page asserting a tamper
+          probability it never computed. <ledger-summary> reads the audit chain,
+          its verification result, the compliance mapping and the live firewall
+          rule count. */}
+      <ledger-summary></ledger-summary>
 
-        <div class="t-panel glass-panel border-l-2 border-primary group py-4 px-4">
-          <div class="flex justify-between items-center mb-4">
-             <span class="eyebrow">Historical_Records</span>
-             <div class="dot active"></div>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black tabular-nums tracking-tighter" id="audit-record-count">1.4K</span>
-            <span class="eyebrow">Enforcement_Blocks</span>
-          </div>
-        </div>
-
-        <div class="t-panel glass-panel border-l-2 border-primary group py-4 px-4">
-          <div class="flex justify-between items-center mb-4">
-             <span class="eyebrow">Compliance_Status</span>
-             <span class="status-pill active primary">STRICT</span>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black tabular-nums text-success tracking-tighter">PASS</span>
-            <span class="eyebrow">GDPR/SOV</span>
-          </div>
-        </div>
-
-        <div class="t-panel glass-panel border-l-2 border-primary group py-4 px-4">
-          <div class="flex justify-between items-center mb-4">
-             <span class="eyebrow">Active_Policies</span>
-             <div class="dot active"></div>
-          </div>
-          <div class="flex items-baseline gap-2">
-            <span class="text-3xl font-black tabular-nums tracking-tighter">12</span>
-            <span class="eyebrow">Live_Rules</span>
-          </div>
-        </div>
-      </div>
 
       {/* 03_Primary_Log_Table */}
       <section>

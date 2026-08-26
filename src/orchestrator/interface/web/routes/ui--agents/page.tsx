@@ -124,7 +124,7 @@ export const AgentsPage = (props: { status: ApplicationStatus, csrfToken?: strin
             
             <div class="p-4 bg-black/20 min-h-[500px] overflow-x-auto custom-scrollbar relative">
                <div class="absolute inset-0 pointer-events-none opacity-[0.03] bg-[radial-gradient(circle_at_center,_var(--primary)_0%,_transparent_70%)]"></div>
-               <process-tree></process-tree>
+               <process-tree role-name={props.userRole}></process-tree>
             </div>
             
             <footer class="p-4 border-t border-white/5 bg-black/10 flex justify-between items-center">

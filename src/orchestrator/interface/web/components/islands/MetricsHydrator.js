@@ -94,6 +94,20 @@ class MetricsHydrator extends HTMLElement {
       this.setText('stat-mesh-nodes-large', meshActive.toString());
       this.setText('stat-mesh-total', meshTotal.toString());
       this.updateStatus('stat-mesh-quorum', meshActive > 0 ? 'ESTABLISHED' : 'PENDING');
+
+      // Consensus state was a hardcoded green "VERIFIED" pill on the mesh page,
+      // under the heading "Byzantine Fault Tolerance", with nothing behind it.
+      // The payload carries activeNodes and totalNodes, which is exactly what a
+      // 2/3+1 quorum is computed from — so compute it.
+      const quorumNeeded = meshTotal > 0 ? Math.floor((meshTotal * 2) / 3) + 1 : 0;
+      const el = document.getElementById('stat-mesh-consensus');
+      if (el) {
+        const single = meshTotal <= 1;
+        const holds = meshActive >= quorumNeeded;
+        el.textContent = single ? 'SINGLE NODE' : holds ? 'VERIFIED' : 'DEGRADED';
+        el.dataset.state = single ? 'idle' : holds ? 'ok' : 'crit';
+      }
+      this.setText('stat-mesh-quorum-needed', meshTotal > 1 ? `${meshActive}/${quorumNeeded} of ${meshTotal}` : '—');
     }
 
     if (m.node) {

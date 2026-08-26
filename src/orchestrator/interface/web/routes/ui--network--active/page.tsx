@@ -8,7 +8,8 @@ import { Layout } from "@interface/components/Layout.tsx";
 export const ActiveNetworkPage = (props: { status: unknown, csrfToken?: string, nonce?: string, userRole?: string }) => {
   return (
     <Layout title="Active Network // Sovereign Mesh" islandPaths={[
-      '/components/islands/NetworkMap.js'
+      '/components/islands/NetworkMap.js',
+      '/components/islands/ListeningPorts.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
@@ -40,6 +41,15 @@ export const ActiveNetworkPage = (props: { status: unknown, csrfToken?: string, 
           </div>
         </div>
       </div>
+
+      {/* The console could open and close ports from the day it shipped —
+          arming a decoy calls allowPort — but nothing reported which ports
+          were actually open, so the result of the control was invisible. */}
+      <section>
+        <div class="t-panel glass-panel">
+          <listening-ports role-name={props.userRole}></listening-ports>
+        </div>
+      </section>
     </Layout>
   );
 };
