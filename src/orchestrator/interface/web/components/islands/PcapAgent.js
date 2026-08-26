@@ -3,6 +3,7 @@
  * High-fidelity deep packet inspection and network capture controller.
  */
 import { unwrap } from "./api.js";
+import { bindActions } from "./actions.js";
 class PcapAgent extends HTMLElement {
   constructor() {
     super();
@@ -11,6 +12,8 @@ class PcapAgent extends HTMLElement {
   }
 
   connectedCallback() {
+    // Delegated, because an inline onclick is refused under the CSP.
+    bindActions(this, { startCapture: () => this.startCapture() });
     this.innerHTML = `
       <div class="space-y-4">
          <div class="grid grid-cols-12 gap-4">
@@ -29,7 +32,7 @@ class PcapAgent extends HTMLElement {
                   <input id="pcap-filter" type="text" class="t-input w-full" placeholder="tcp port 80 or udp" />
                </div>
                <div class="flex items-end">
-                  <button id="btn-start-pcap" onclick="this.closest('pcap-agent').startCapture()" class="t-btn primary h-[42px] px-4 font-black uppercase tracking-widest">Start_Capture</button>
+                  <button type="button" id="btn-start-pcap" data-action="startCapture" class="t-btn primary h-[42px] px-4 font-black uppercase tracking-widest">Start_Capture</button>
                </div>
             </div>
             

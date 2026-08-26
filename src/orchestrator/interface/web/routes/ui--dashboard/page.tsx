@@ -79,7 +79,7 @@ export const Dashboard = (props: {
         <TacticalSectionTitle label="Strategic Core Telemetry" />
 
         <div class="grid grid-cols-12 gap-4 stagger">
-          <TacticalPanel class="col-span-12 md:col-span-2 lg:col-span-3">
+          <TacticalPanel class="col-span-12 md:col-span-6 lg:col-span-3">
             <Metric label="System Integrity" value={integrity} unit="%" status={integrity === 100 ? "ok" : "warn"} large>
               <StatusPill
                 status={audit?.hardwareVerified ? "ok" : "warn"}
@@ -88,19 +88,19 @@ export const Dashboard = (props: {
             </Metric>
           </TacticalPanel>
 
-          <TacticalPanel class="col-span-12 md:col-span-2 lg:col-span-3">
+          <TacticalPanel class="col-span-12 md:col-span-6 lg:col-span-3">
             <Metric label="Load Factor" value={node?.cpu?.load ?? 0} unit="% CPU" large>
               <Eyebrow tone="success">{node?.uptime || "Active"}</Eyebrow>
             </Metric>
           </TacticalPanel>
 
-          <TacticalPanel class="col-span-12 md:col-span-2 lg:col-span-3">
+          <TacticalPanel class="col-span-12 md:col-span-6 lg:col-span-3">
             <Metric label="Threat Feed" value={threats?.totalIngested ?? 0} unit="indicators" large>
               <span class="indicator" data-state="ok" data-pulse="" aria-hidden="true"></span>
             </Metric>
           </TacticalPanel>
 
-          <TacticalPanel class="col-span-12 md:col-span-2 lg:col-span-3" accent="crit">
+          <TacticalPanel class="col-span-12 md:col-span-6 lg:col-span-3" accent="crit">
             <Metric label="Enforcement" value={firewall?.blockedCount ?? 0} unit="blocked" status="crit" large>
               <StatusPill status="crit" label="Strict" />
             </Metric>

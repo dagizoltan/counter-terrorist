@@ -141,3 +141,71 @@ Deno.test("the CSP declares no external origins", async () => {
   const externals = [...csp.matchAll(/https?:\/\/[^\s;]+/g)].map((m) => m[0]);
   assertEquals(externals, [], `CSP still allows external origin(s): ${externals.join(", ")}`);
 });
+
+Deno.test("nothing renders an inline event handler, view or island", async () => {
+  // The CSP is `script-src 'self' 'nonce-…' 'strict-dynamic'`. A nonce makes
+  // the browser ignore 'unsafe-inline', so inline handlers are refused
+  // outright — verified in Chromium, which logs "Refused to execute inline
+  // event handler".
+  //
+  // Two rounds of these were found. First the views: the sidebar toggle, the
+  // forensic aside tabs, and 12 action buttons across 7 pages. Then — after a
+  // page-load sweep came back clean — another 24 inside island template
+  // strings: every filter tab on the threat and artifact explorers, the
+  // scanner's mode buttons, the pcap start button, "Terminate" on the process
+  // tree, "Purge" on the agent detail.
+  //
+  // The second round hid because Chromium reports the refusal when the
+  // handler would RUN, not when the attribute is parsed. Loading the page
+  // logged nothing; the controls just did nothing when clicked. So this test
+  // has to read the island sources, which is what it does — .tsx and .js
+  // alike.
+  //
+  // Use data-action: the delegated handler in Layout.tsx for views,
+  // bindActions() from islands/actions.js for islands.
+  const offenders: string[] = [];
+
+  async function scan(dir: string) {
+    for await (const entry of Deno.readDir(dir)) {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory) { await scan(path); continue; }
+      if (!entry.name.endsWith(".tsx") && !entry.name.endsWith(".js")) continue;
+      const src = await Deno.readTextFile(path);
+      src.split("\n").forEach((line, i) => {
+        // An inline handler ATTRIBUTE: whitespace, on<name>, then a quoted or
+        // braced value. This deliberately does not match `el.onclick = () =>`,
+        // a property assignment from script, which the CSP permits; nor
+        // `data-on="change"`, where `on` is not preceded by whitespace.
+        if (/\son[a-z]+\s*=\s*["'{]/.test(line) && !/addEventListener/.test(line)) {
+          offenders.push(`${path.split("/web/")[1]}:${i + 1}`);
+        }
+      });
+    }
+  }
+  await scan(WEB.replace(/\/$/, ""));
+
+  assertEquals(offenders, [], `inline event handler(s) the CSP will refuse to run:\n${offenders.join("\n")}`);
+});
+
+Deno.test("island action names never collide with the shell's own", async () => {
+  // Two delegated listeners read data-action: the shell's, on document (see
+  // Layout.tsx), and each island's, on its host (islands/actions.js). The
+  // shell's whitelist is what keeps them apart. An island that named an action
+  // "post" or "reload" would have both fire — the island's method AND a stray
+  // fetch or a page reload on top of it.
+  const SHELL_ACTIONS = ["reload", "post", "invoke", "call"];
+
+  const collisions: string[] = [];
+  for (const name of islandFiles()) {
+    const src = await Deno.readTextFile(`${ISLANDS}/${name}`);
+    for (const m of src.matchAll(/data-action="([A-Za-z][A-Za-z0-9_]*)"/g)) {
+      if (SHELL_ACTIONS.includes(m[1])) collisions.push(`${name}: data-action="${m[1]}"`);
+    }
+  }
+
+  assertEquals(
+    collisions,
+    [],
+    `island action name(s) shadowed by the shell's delegated handler:\n${collisions.join("\n")}`,
+  );
+});

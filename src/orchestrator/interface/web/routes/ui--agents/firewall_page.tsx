@@ -66,7 +66,7 @@ export const FirewallPage = (props: { status: unknown, csrfToken?: string, nonce
                       </div>
                       <button 
                         type="button"
-                        onclick="const ip=document.getElementById('fw-block-input').value; const t=document.querySelector('meta[name=\'csrf-token\']')?.content; fetch('/api/agents/firewall/block', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CT-Token': t}, body: JSON.stringify({ip}) })"
+                        data-action="post" data-url="/api/agents/firewall/block" data-input="fw-block-input" data-field="ip"
                         class="t-btn danger w-full py-4 font-black uppercase tracking-[0.4em] group/btn"
                       >
                         Enforce_Block

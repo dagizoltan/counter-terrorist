@@ -603,7 +603,27 @@ async function main() {
   const rules: string[] = [];
   const unresolved: string[] = [];
 
-  for (const cls of [...used].sort()) {
+  /**
+   * Emission order matters, because min-width media queries stack: at 1280px
+   * the sm, md, lg and xl blocks all match, so the last one in the file wins.
+   *
+   * Sorting class names alphabetically put `md:` after `lg:` — so on a wide
+   * screen `.md\:col-span-2` silently overrode `.lg\:col-span-4`, and every
+   * `lg:` layout override on the site resolved to its `md:` value instead.
+   * Unprefixed rules come first, then breakpoints in ascending width.
+   */
+  const breakpointRank = (cls: string): number => {
+    const prefix = splitVariants(cls).slice(0, -1).find((v) => v in BREAKPOINTS);
+    if (!prefix) return 0;
+    return parseInt(BREAKPOINTS[prefix], 10);
+  };
+
+  const ordered = [...used].sort((a, b) => {
+    const rank = breakpointRank(a) - breakpointRank(b);
+    return rank !== 0 ? rank : a.localeCompare(b);
+  });
+
+  for (const cls of ordered) {
     if (owned.has(cls)) continue;      // semantic layer already defines it
     const css = emit(cls);
     if (css) rules.push(css);

@@ -77,10 +77,15 @@ li.eyebrow { display: list-item; }
 /* ── INDICATOR (dot) ─────────────────────────────────────────────────────
  * Replaces `.dot`, `.danger-dot`, `.status-dot` and ~20 inline
  * `w-1.5 h-1.5 bg-* rounded-full` copies at 6 different diameters.       */
+/* Token defaults sit behind :where() so they carry zero specificity. Declared
+   on the base selector they were (0,1,0) and, being later in the file, beat
+   the global [data-state="…"] block — every indicator, pill and button that
+   took its tone from data-state rendered muted grey instead. */
+:where(.indicator, .dot, .status-dot) { --c: var(--muted); }
+
 .indicator,
 .dot,
 .status-dot {
-  --c: var(--muted);
   position: relative;
   display: inline-block;
   flex-shrink: 0;
@@ -138,11 +143,14 @@ li.eyebrow { display: list-item; }
  *
  * The default now sits behind :where() (zero specificity), so any explicit
  * state class beats it regardless of source order.                       */
-.pill,
-.status-pill {
+:where(.pill, .status-pill) {
   --c: var(--muted);
   --c-wash: var(--muted-wash);
   --c-edge: var(--muted-edge);
+}
+
+.pill,
+.status-pill {
   display: inline-flex;
   align-items: center;
   gap: var(--s-2);
@@ -240,6 +248,11 @@ li.eyebrow { display: list-item; }
  * body text. Metrics are now a real component: tabular, tight, upright. */
 .metric { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
 
+/* Grid rows stretch their items to the tallest cell. When a panel holds only a
+   metric, centre it rather than leaving it pinned to the top under a column of
+   dead space. */
+.panel > .metric:only-child { flex: 1; justify-content: center; }
+
 .metric__value {
   display: flex;
   align-items: baseline;
@@ -313,11 +326,14 @@ li.eyebrow { display: list-item; }
  * itself was never positioned, so the overlay escaped to the nearest
  * positioned ancestor and swept across unrelated parts of the page on hover.
  * The sheen is gone; the button is positioned regardless.                */
-.btn,
-.t-btn {
+:where(.btn, .t-btn) {
   --c: var(--primary);
   --c-wash: var(--primary-wash);
   --c-edge: var(--primary-edge);
+}
+
+.btn,
+.t-btn {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -1002,6 +1018,7 @@ body.auth-page {
  * Replaces the h-[400px] / h-[600px] / min-h-[300px] literals that were
  * scattered across the views at eight different values.                  */
 .panel-stage { position: relative; min-width: 0; overflow: hidden; }
+.panel-stage--xs { height: 132px; }
 .panel-stage--sm { height: 200px; }
 .panel-stage--md { height: 300px; }
 .panel-stage--lg { height: 420px; }
@@ -1210,3 +1227,177 @@ body.auth-page {
 }
 
 .map-hud__note > .indicator { margin-top: 0.42em; }
+
+/* ============================================================================
+ * DECEPTION GRID
+ * The decoy manifest and its controls (<deception-grid>).
+ * ==========================================================================*/
+.decoy-grid { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.decoy-grid__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+
+.decoy-grid__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--s-4);
+}
+
+.decoy-grid__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line-faint);
+}
+
+/* One decoy. data-state carries armed (warn) vs dormant (idle), so the card,
+   its dot and its pill all read from the same source. */
+.decoy-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line-faint);
+  border-top: 2px solid var(--c-edge, var(--line));
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  transition: border-color var(--dur-1) var(--ease), background-color var(--dur-1) var(--ease);
+}
+
+.decoy-card:hover { background: var(--surface-3); }
+
+.decoy-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  min-width: 0;
+}
+
+.decoy-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decoy-card__desc {
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--text-3);
+  min-height: 2.2em;
+}
+
+.decoy-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-top: auto;
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--line-faint);
+}
+
+/* ── Compliance controls ──────────────────────────────────────────────────
+   <compliance-controls>. Same shape as the decoy grid: data-state on the card
+   drives its edge, its pill and its dot from one source. */
+.control-panel { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
+
+.control-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--line-faint);
+}
+
+.control-panel__meta { display: flex; align-items: center; gap: var(--s-4); flex-shrink: 0; }
+
+.control-panel__origin {
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+
+.control-panel__bundle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--success-edge);
+  border-radius: var(--r-md);
+  background: var(--success-wash);
+  min-width: 0;
+}
+
+.control-panel__bundle > code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+
+.control-list { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+
+.control-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  min-width: 0;
+  padding: var(--s-4);
+  border: 1px solid var(--line-faint);
+  border-left: 2px solid var(--c-edge, var(--line));
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  transition: background-color var(--dur-1) var(--ease);
+}
+
+.control-card:hover { background: var(--surface-3); }
+
+.control-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.control-card__id { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+
+.control-card__title {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  letter-spacing: var(--track-tight);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.control-card__desc { font-size: var(--t-xs); line-height: 1.5; color: var(--text-3); }
+
+.control-card__evidence { display: flex; flex-direction: column; gap: var(--s-2); min-width: 0; }
+
+.control-card__evidence > li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  color: var(--text-4);
+  overflow-wrap: anywhere;
+}
+
+.control-card__more { color: var(--text-3); font-style: italic; }

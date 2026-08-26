@@ -1,4 +1,5 @@
 import { unwrap } from "./api.js";
+import { bindActions } from "./actions.js";
 class ScannerAgent extends HTMLElement {
   constructor() {
     super();
@@ -7,6 +8,11 @@ class ScannerAgent extends HTMLElement {
   }
  
   connectedCallback() {
+    // Delegated, because an inline onclick is refused under the CSP.
+    bindActions(this, {
+      setScanType: (el) => this.setScanType(el.dataset.value),
+      syncSignatures: () => this.syncSignatures(),
+    });
     this.render();
     this.fetchLedger();
     this.interval = setInterval(() => this.fetchLedger(), 30000);
@@ -181,16 +187,15 @@ class ScannerAgent extends HTMLElement {
                   <p class="eyebrow">Deep signature scan & vulnerability discovery</p>
                </div>
                 <div class="flex gap-4">
-                   <div class="flex gap-4 p-1 bg-black/60 border border-white/10 rounded-lg">
+                   <div class="tab-group" role="group" aria-label="Scan profile">
                       ${['STANDARD', 'MALWARE', 'ROOTKIT'].map(type => `
-                         <button class="px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${this.scanType === type ? 'bg-primary text-black' : 'text-slate-500 hover:text-slate-300'}" 
-                                 onclick="this.closest('scanner-agent').setScanType('${type}')">
+                         <button type="button" class="mode-btn" data-action="setScanType" data-value="${type}"
+                                 aria-pressed="${this.scanType === type}">
                             ${type}
                          </button>
                       `).join('')}
                    </div>
-                   <button class="t-btn px-4 py-2 text-[9px] font-black uppercase tracking-widest border border-primary/20 hover:bg-primary/5" 
-                           onclick="this.closest('scanner-agent').syncSignatures()">
+                   <button type="button" class="btn btn--sm" data-action="syncSignatures">
                       Sync_Tactical_Signatures
                    </button>
                 </div>

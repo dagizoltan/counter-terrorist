@@ -1,4 +1,5 @@
 import { unwrap } from "./api.js";
+import { bindActions } from "./actions.js";
 class EnvironmentalSignals extends HTMLElement {
   constructor() {
     super();
@@ -7,6 +8,8 @@ class EnvironmentalSignals extends HTMLElement {
   }
 
   async connectedCallback() {
+    // Delegated, because an inline onclick is refused under the CSP.
+    bindActions(this, { setFilter: (el) => this.setFilter(el.dataset.value) });
     await this.fetchSignals();
     this.render();
     this.startAutoRefresh();
@@ -60,11 +63,16 @@ class EnvironmentalSignals extends HTMLElement {
     this.innerHTML = `
       <div class="flex flex-col gap-4 animate-in fade-in duration-1000">
         <!-- TACTICAL SELECTOR -->
-        <div class="flex gap-2 p-1 bg-black/40 border border-white/5 rounded-lg self-start backdrop-blur-xl">
-          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'ALL' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('ALL')">All Signals (${wifiCount + btCount + ethCount})</button>
-          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'WIFI' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('WIFI')">WiFi APs (${wifiCount})</button>
-          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'BT' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('BT')">Bluetooth (${btCount})</button>
-          <button class="px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] transition-all ${this.filter === 'FRIENDS' ? 'bg-primary text-black shadow-lg shadow-primary/20' : 'text-slate-500 hover:text-slate-300'}" onclick="this.closest('environmental-signals').setFilter('FRIENDS')">Friends (${ethCount})</button>
+        <div class="tab-group self-start" role="group" aria-label="Signal filter">
+          ${[
+            ["ALL", `All Signals (${wifiCount + btCount + ethCount})`],
+            ["WIFI", `WiFi APs (${wifiCount})`],
+            ["BT", `Bluetooth (${btCount})`],
+            ["FRIENDS", `Friends (${ethCount})`],
+          ].map(([value, label]) => `
+            <button type="button" class="mode-btn" data-action="setFilter" data-value="${value}"
+                    aria-pressed="${this.filter === value}">${label}</button>
+          `).join("")}
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">

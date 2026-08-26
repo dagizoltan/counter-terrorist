@@ -45,7 +45,6 @@ export const Layout = (props: {
                 aria-expanded="true"
                 aria-controls="main-sidebar"
                 aria-label="Toggle navigation rail"
-                onclick="window.toggleSidebar()"
               >
                 <svg id="sidebar-toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
               </button>
@@ -83,7 +82,7 @@ export const Layout = (props: {
                   aria-selected="true"
                   aria-controls="sidebar-tab-logs"
                   title="Live telemetry"
-                  onclick="window.switchSidebarTab('logs')"
+                  data-tab="logs"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M21 12H3" /><path d="M21 6H3" /><path d="M21 18H3" /><path d="M10 6v12" /></svg>
                 </button>
@@ -95,7 +94,7 @@ export const Layout = (props: {
                   aria-selected="false"
                   aria-controls="sidebar-tab-integrity"
                   title="System integrity"
-                  onclick="window.switchSidebarTab('integrity')"
+                  data-tab="integrity"
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
                 </button>
@@ -248,6 +247,113 @@ export const Layout = (props: {
 
             try { localStorage.setItem(TAB_KEY, tab); } catch (e) {}
           };
+
+          // ── Bind shell controls ────────────────────────────────────────
+          // Not inline onclick attributes: the CSP sets a nonce on script-src,
+          // which makes the browser ignore 'unsafe-inline' and refuse every
+          // inline event handler ("Refused to execute inline event handler").
+          // This block carries the nonce, so listeners bound here do run.
+          (function bindShell() {
+            var toggle = document.getElementById('sidebar-toggle-btn');
+            if (toggle) toggle.addEventListener('click', function () { window.toggleSidebar(); });
+
+            document.querySelectorAll('[data-tab]').forEach(function (btn) {
+              btn.addEventListener('click', function () {
+                window.switchSidebarTab(btn.getAttribute('data-tab'));
+              });
+            });
+          })();
+
+          // ── Declarative actions ────────────────────────────────────────
+          // One delegated listener for the simple button actions that used to
+          // be written as inline onclick attributes — every one of which the
+          // CSP refused to run. Markup declares intent:
+          //
+          //   data-action="reload"
+          //   data-action="post"  data-url="/api/…"
+          //                       [data-body='{"type":"X"}']
+          //                       [data-input="element-id" data-field="ip"]
+          //                       [data-confirm="Are you sure?"]
+          //                       [data-reload]
+          //   data-action="invoke" data-target="forensic-vault" data-method="…"
+          //   data-action="call"   data-fn="globalFunctionName"
+          //
+          // The CSRF token is attached here, so no call site can forget it —
+          // one of them already did, and would have been rejected 403.
+          document.addEventListener('click', function (event) {
+            var el = event.target.closest && event.target.closest('[data-action]');
+            if (!el) return;
+
+            var action = el.getAttribute('data-action');
+            // Islands use data-action too, routed by their own delegated
+            // listener (islands/actions.js) to a method on the element. Their
+            // action names are verbs — setFilter, toggleSelect, purge, morph —
+            // so an explicit whitelist keeps the two systems from overlapping.
+            if (['reload', 'post', 'invoke', 'call'].indexOf(action) === -1) return;
+
+            if (action === 'reload') {
+              event.preventDefault();
+              return location.reload();
+            }
+
+            if (action === 'invoke') {
+              event.preventDefault();
+              var target = document.querySelector(el.getAttribute('data-target') || '');
+              var method = el.getAttribute('data-method');
+              if (target && method && typeof target[method] === 'function') target[method]();
+              return;
+            }
+
+            if (action === 'call') {
+              event.preventDefault();
+              var fn = window[el.getAttribute('data-fn')];
+              if (typeof fn === 'function') fn();
+              return;
+            }
+
+            if (action !== 'post') return;
+            event.preventDefault();
+
+            var confirmText = el.getAttribute('data-confirm');
+            if (confirmText && !confirm(confirmText)) return;
+
+            var url = el.getAttribute('data-url');
+            if (!url) return;
+
+            var body = null;
+            var raw = el.getAttribute('data-body');
+            if (raw) {
+              try { body = JSON.parse(raw); } catch (e) { body = null; }
+            }
+
+            var inputId = el.getAttribute('data-input');
+            if (inputId) {
+              var input = document.getElementById(inputId);
+              var field = el.getAttribute('data-field') || 'value';
+              if (!input || !input.value) return;
+              body = body || {};
+              body[field] = input.value;
+            }
+
+            var token = document.querySelector('meta[name="csrf-token"]');
+            var headers = { 'X-CT-Token': token ? token.content : '' };
+            if (body) headers['Content-Type'] = 'application/json';
+
+            el.disabled = true;
+            fetch(url, {
+              method: 'POST',
+              headers: headers,
+              body: body ? JSON.stringify(body) : undefined
+            }).then(function (res) {
+              if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+              if (el.hasAttribute('data-reload')) location.reload();
+            }).catch(function (e) {
+              console.error('[action] ' + url + ' failed:', e.message);
+              if (window.showToast) window.showToast(url + ' failed: ' + e.message, 'error');
+            }).finally(function () {
+              el.disabled = false;
+            });
+          });
 
           // ── Restore persisted shell state ──────────────────────────────
           // Runs inline so the rail is already in its stored position before
