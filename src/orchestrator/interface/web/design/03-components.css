@@ -1094,6 +1094,19 @@ body.auth-page {
 /* The protected node — the origin of every ingress arc, drawn so the map has a
    centre. Primary, and distinct from the danger-toned threats around it. The
    steady ring marks it; a separate ping radiates so the marker never fades. */
+/* Proximity clustering: markers sharing a cell collapse behind one
+   representative, and a count badge names the density. */
+.threat-map__clusters { pointer-events: none; }
+.threat-map__plot.is-clustered { display: none; }
+.threat-map__cluster-badge circle { fill: var(--surface-0); stroke: var(--danger); stroke-width: 0.4; }
+.threat-map__cluster-badge text {
+  fill: var(--text-1);
+  font-size: 3.2px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
 .threat-map__home { pointer-events: none; }
 .threat-map__home-ring { fill: none; stroke: var(--primary); stroke-width: 0.5; opacity: 0.9; }
 .threat-map__home-core { fill: var(--primary); }

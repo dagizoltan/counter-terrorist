@@ -75,6 +75,7 @@ class ThreatMap extends HTMLElement {
             <text class="threat-map__home-label" x="7" y="1.5">SOVEREIGN NODE</text>
           </g>
           <g class="threat-map__plots"></g>
+          <g class="threat-map__clusters"></g>
         </svg>
 
         <div class="threat-map__legend">
@@ -105,6 +106,7 @@ class ThreatMap extends HTMLElement {
 
     this.plots = this.querySelector(".threat-map__plots");
     this.arcs = this.querySelector(".threat-map__arcs");
+    this.clusters = this.querySelector(".threat-map__clusters");
     this.counter = this.querySelector(".threat-map__count");
     this.popoverContainer = this.querySelector(".threat-map__popover-container");
     this.slider = this.querySelector("#tm-scrubber-slider");
@@ -338,6 +340,8 @@ class ThreatMap extends HTMLElement {
     g.setAttribute("data-category", category);
     g.setAttribute("data-indicator", indicator);
     g.setAttribute("transform", `translate(${x} ${y})`);
+    g.dataset.x = x;
+    g.dataset.y = y;
     g.style.cursor = "pointer";
 
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -470,6 +474,52 @@ class ThreatMap extends HTMLElement {
         : base;
     }
     this.updateA11yList();
+    this.applyClusters();
+  }
+
+  /**
+   * Collapse markers that land in the same map cell into one, with a count
+   * badge, so a busy metro reads as "7 here" instead of an unreadable blob.
+   * Layered on top: it only toggles an is-clustered class (CSS-hidden) and
+   * draws badges, leaving the age filter, playback and per-indicator popovers
+   * untouched. Aged-out markers (inline display:none) are not eligible.
+   */
+  applyClusters() {
+    if (!this.clusters) return;
+    const SVGNS = "http://www.w3.org/2000/svg";
+    const CELL = 7; // viewBox units
+    const cells = new Map();
+
+    this.threats.forEach((g) => {
+      g.classList.remove("is-clustered"); // reset every pass, then re-decide
+      if (g.style.display === "none") return; // aged out — not eligible
+      const x = Number(g.dataset.x), y = Number(g.dataset.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+      const key = `${Math.round(x / CELL)}:${Math.round(y / CELL)}`;
+      const bucket = cells.get(key);
+      if (bucket) bucket.push(g); else cells.set(key, [g]);
+    });
+
+    this.clusters.innerHTML = "";
+    const dotR = (g) => Number(g.querySelector(".threat-map__dot")?.getAttribute("r") || 0);
+    for (const group of cells.values()) {
+      if (group.length < 2) continue;
+      // Representative = the largest marker (i.e. highest severity) in the cell.
+      group.sort((a, b) => dotR(b) - dotR(a));
+      for (let i = 1; i < group.length; i++) group[i].classList.add("is-clustered");
+
+      const x = Number(group[0].dataset.x), y = Number(group[0].dataset.y);
+      const badge = document.createElementNS(SVGNS, "g");
+      badge.setAttribute("class", "threat-map__cluster-badge");
+      badge.setAttribute("transform", `translate(${x} ${y})`);
+      const circle = document.createElementNS(SVGNS, "circle");
+      circle.setAttribute("r", "3.4"); circle.setAttribute("cx", "4"); circle.setAttribute("cy", "-4");
+      const text = document.createElementNS(SVGNS, "text");
+      text.setAttribute("x", "4"); text.setAttribute("y", "-4");
+      text.textContent = String(group.length);
+      badge.append(circle, text);
+      this.clusters.appendChild(badge);
+    }
   }
 
   /** Keep the screen-reader list in step with what is plotted and visible. */
