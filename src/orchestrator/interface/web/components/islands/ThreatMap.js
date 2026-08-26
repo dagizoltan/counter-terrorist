@@ -44,6 +44,10 @@ class ThreatMap extends HTMLElement {
   }
 
   renderShell() {
+    // The protected node has been the origin of every ingress arc but was never
+    // drawn — the arcs flew to an invisible point. Marked now, so the picture
+    // has a centre.
+    const home = project(HOME_NODE.lat, HOME_NODE.lon);
     this.innerHTML = `
       <div class="threat-map threat-map--container relative">
         <svg class="threat-map__canvas"
@@ -62,6 +66,13 @@ class ThreatMap extends HTMLElement {
           <rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" fill="url(#tm-grid)"/>
           <path d="${WORLD_PATH}" class="threat-map__land"/>
           <g class="threat-map__arcs"></g>
+          <g class="threat-map__home" aria-hidden="true">
+            <circle class="threat-map__home-ping" r="4.5"></circle>
+            <circle class="threat-map__home-ring" r="4.5"></circle>
+            <circle class="threat-map__home-core" r="1.6"></circle>
+            <path class="threat-map__home-tick" d="M0 -6.5 V-3.5 M0 6.5 V3.5 M-6.5 0 H-3.5 M6.5 0 H3.5"></path>
+            <text class="threat-map__home-label" x="7" y="1.5">SOVEREIGN NODE</text>
+          </g>
           <g class="threat-map__plots"></g>
         </svg>
 
@@ -83,6 +94,11 @@ class ThreatMap extends HTMLElement {
         <div class="threat-map__popover-container hidden"></div>
       </div>
     `;
+    // Position the home marker through the attribute, not the markup: the
+    // coordinates are numeric, but interpolating them into innerHTML trips the
+    // escaping guard, and setAttribute is how every other plot is placed.
+    this.querySelector(".threat-map__home")?.setAttribute("transform", `translate(${home.x} ${home.y})`);
+
     this.plots = this.querySelector(".threat-map__plots");
     this.arcs = this.querySelector(".threat-map__arcs");
     this.counter = this.querySelector(".threat-map__count");
@@ -236,6 +252,14 @@ class ThreatMap extends HTMLElement {
 
     const category = this.categorize(type, blocked);
 
+    // Weight the marker by severity so the eye lands on the worst actors. The
+    // score arrives under any of these depending on the source; missing means
+    // mid.
+    const rawScore = Number(threat.score ?? threat.confidence ?? geo?.threatScore ?? 50);
+    const sev = Number.isFinite(rawScore) ? Math.max(0, Math.min(100, rawScore)) / 100 : 0.5;
+    const dotR = (1.0 + sev * 1.6).toFixed(2);
+    const haloR = (2.6 + sev * 3.2).toFixed(2);
+
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("class", `threat-map__plot${isNew ? " is-new" : ""}`);
     g.setAttribute("data-category", category);
@@ -244,11 +268,11 @@ class ThreatMap extends HTMLElement {
     g.style.cursor = "pointer";
 
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    halo.setAttribute("r", "3.5");
+    halo.setAttribute("r", haloR);
     halo.setAttribute("class", "threat-map__halo");
 
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("r", "1.4");
+    dot.setAttribute("r", dotR);
     dot.setAttribute("class", "threat-map__dot");
 
     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
@@ -296,6 +320,9 @@ class ThreatMap extends HTMLElement {
     const esc = globalThis.escapeHTML ?? String;
     const geo = threat.geo || {};
     const category = this.categorize(threat.threatType, threat.blocked);
+    // Shown as-is; the marker's size is derived from it, so a defaulted value is
+    // rendered "—" rather than a number the feed never supplied.
+    const scoreVal = threat.score ?? threat.confidence ?? geo.threatScore;
 
     this.popoverContainer.innerHTML = `
       <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2 max-w-xs text-left text-xs text-white z-30">
@@ -310,6 +337,8 @@ class ThreatMap extends HTMLElement {
           <span class="font-mono truncate">${esc(geo.isp || 'Carrier')}</span>
           <span class="text-slate-400">Threat Vector:</span>
           <span class="font-mono text-warning">${esc(threat.threatType || 'Generic Probe')}</span>
+          <span class="text-slate-400">Severity:</span>
+          <span class="font-mono">${scoreVal == null ? '—' : esc(String(scoreVal))}</span>
         </div>
         <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-white/10">
           ${threat.blocked

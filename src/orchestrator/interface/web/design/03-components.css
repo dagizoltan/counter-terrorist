@@ -1091,6 +1091,30 @@ body.auth-page {
 .threat-map__dot { fill: var(--c); }
 .threat-map__plot.is-new .threat-map__halo { animation: ct-ping 1.8s var(--ease) 3; }
 
+/* The protected node — the origin of every ingress arc, drawn so the map has a
+   centre. Primary, and distinct from the danger-toned threats around it. The
+   steady ring marks it; a separate ping radiates so the marker never fades. */
+.threat-map__home { pointer-events: none; }
+.threat-map__home-ring { fill: none; stroke: var(--primary); stroke-width: 0.5; opacity: 0.9; }
+.threat-map__home-core { fill: var(--primary); }
+.threat-map__home-tick { stroke: var(--primary); stroke-width: 0.5; opacity: 0.8; }
+.threat-map__home-ping {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 0.4;
+  transform-origin: center;
+  transform-box: fill-box;
+  animation: ct-ping 3.2s var(--ease) infinite;
+}
+.threat-map__home-label {
+  fill: var(--primary);
+  font-size: 3.4px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  dominant-baseline: middle;
+}
+@media (prefers-reduced-motion: reduce) { .threat-map__home-ping { animation: none; opacity: 0; } }
+
 /* Category identity. The plotted dot and the legend swatch share one hue per
    category, so the map reads as the legend promises — until now every dot took
    the default --danger and the five categories were visually indistinguishable.
