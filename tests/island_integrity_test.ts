@@ -413,3 +413,62 @@ Deno.test("nothing ships an inline style attribute, and the CSP forbids one", as
       `class, or data-state / data-value:\n${offenders.join("\n")}`,
   );
 });
+
+Deno.test("an island method escapes with an esc that is actually in scope", async () => {
+  // EnvironmentalSignals.renderSignalCard() called esc() while the only esc in
+  // the file was a const inside a *sibling* method, renderSignals(). It threw
+  // ReferenceError on the first card, so the neighbours grid rendered every
+  // discovered network as nothing at all — an empty environment looked
+  // identical to a populated one. The convention is: a method either declares
+  // `const esc = …` itself or takes esc as a parameter. This holds the line.
+  // A class-method header, not a control-flow head: `if (…) {` / `for (…) {`
+  // share the shape, so the keywords are excluded or every method that happens
+  // to contain an `if` using esc() would be mis-attributed.
+  const KEYWORD = /^(?:if|for|while|switch|catch|return|function|else|do|with|await|typeof|new|throw|case|of|in)$/;
+  const methodHead = /\n[ \t]{2,}(?:async[ \t]+)?(?:get[ \t]+|set[ \t]+|\*[ \t]*)?([A-Za-z_$][\w$]*)[ \t]*\(([^)]*)\)[ \t]*\{/g;
+  const offenders: string[] = [];
+
+  for (const name of islandFiles()) {
+    const src = await Deno.readTextFile(`${ISLANDS}/${name}`);
+    // A module-level esc would be visible to every method.
+    if (/^(?:export\s+)?(?:const|let|var|function)\s+esc\b/m.test(src)) continue;
+
+    const heads: Array<{ name: string; params: string; headStart: number; bodyStart: number }> = [];
+    for (const m of src.matchAll(methodHead)) {
+      if (KEYWORD.test(m[1])) continue;
+      heads.push({ name: m[1], params: m[2], headStart: m.index!, bodyStart: m.index! + m[0].length });
+    }
+    for (let i = 0; i < heads.length; i++) {
+      const body = src.slice(heads[i].bodyStart, heads[i + 1]?.headStart ?? src.length);
+      if (!/\besc\(/.test(body)) continue;
+      const declared = /\b(?:const|let|var)\s+esc\b/.test(body);
+      const param = /\besc\b/.test(heads[i].params);
+      if (!declared && !param) offenders.push(`${name}: ${heads[i].name}()`);
+    }
+  }
+
+  assertEquals(
+    offenders,
+    [],
+    `island method(s) calling esc() with no esc in scope — a ReferenceError that ` +
+      `blanks the whole panel on first render:\n${offenders.join("\n")}`,
+  );
+});
+
+Deno.test("the neighbours grid links each signal to a served detail route", async () => {
+  // The grid is the entry point for per-participant work: every card opens a
+  // target profile. If that link or its route goes away, the grid becomes a
+  // dead end again.
+  const grid = await Deno.readTextFile(`${ISLANDS}/EnvironmentalSignals.js`);
+  assert(
+    /href=\{?["'`]\/network\/neighbors\//.test(grid) ||
+      /["'`]\/network\/neighbors\/\$\{/.test(grid),
+    "the signals grid no longer links a card to /network/neighbors/<id>",
+  );
+
+  const routes = new Set(
+    [...Deno.readDirSync(`${WEB}routes`)].filter((e) => e.isDirectory).map((e) => e.name),
+  );
+  assert(routes.has("ui--network--neighbors--[id]"), "missing UI route ui--network--neighbors--[id]");
+  assert(routes.has("api--network--neighbors--[id]"), "missing API route api--network--neighbors--[id]");
+});
