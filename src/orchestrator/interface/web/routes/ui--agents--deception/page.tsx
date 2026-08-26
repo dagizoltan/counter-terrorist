@@ -32,6 +32,7 @@ export const HoneypotsPage = (props: {
       islandPaths={[
         "/components/islands/DeceptionGrid.js",
         "/components/islands/HoneypotChart.js",
+        "/components/islands/CanaryTokens.js",
       ]}
       csrfToken={props.csrfToken}
       nonce={props.nonce}
@@ -81,6 +82,15 @@ export const HoneypotsPage = (props: {
             role-name={props.userRole}
             modules={JSON.stringify(modules)}
           ></deception-grid>
+        </TacticalPanel>
+      </section>
+
+      {/* The credential-lure half of the grid. The service has always
+          registered these canary tokens; nothing surfaced them until now, so a
+          tripped lure was invisible. See islands/CanaryTokens.js. */}
+      <section>
+        <TacticalPanel title="Credential Lures" flush>
+          <canary-tokens role-name={props.userRole}></canary-tokens>
         </TacticalPanel>
       </section>
     </Layout>
