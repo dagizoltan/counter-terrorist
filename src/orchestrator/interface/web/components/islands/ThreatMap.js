@@ -96,6 +96,7 @@ class ThreatMap extends HTMLElement {
         <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
         <div class="threat-map__popover-container hidden"></div>
       </div>
+      <ul id="tm-a11y-list" class="sr-only" aria-label="Detected threats, newest first"></ul>
     `;
     // Position the home marker through the attribute, not the markup: the
     // coordinates are numeric, but interpolating them into innerHTML trips the
@@ -110,6 +111,7 @@ class ThreatMap extends HTMLElement {
     this.sliderVal = this.querySelector("#tm-scrubber-val");
     this.playBtn = this.querySelector("#tm-play");
     this.playhead = this.querySelector("#tm-playhead");
+    this.a11yList = this.querySelector("#tm-a11y-list");
 
     if (this.slider) {
       this.slider.addEventListener("input", (e) => {
@@ -125,10 +127,31 @@ class ThreatMap extends HTMLElement {
 
     // Dismiss popover on background click
     this.addEventListener("click", (e) => {
-      if (!e.target.closest(".threat-map__plot") && !e.target.closest(".threat-map__popover")) {
+      // The a11y list opens the popover; without excluding it here the same
+      // bubbling click would reach this handler and dismiss it right back.
+      if (!e.target.closest(".threat-map__plot") &&
+          !e.target.closest(".threat-map__popover") &&
+          !e.target.closest("#tm-a11y-list")) {
         this.hidePopover();
       }
     });
+
+    // Keyboard: Escape closes the popover.
+    this.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") this.hidePopover();
+    });
+
+    // The SVG is role="img", so its plots are invisible to assistive tech and
+    // unreachable by keyboard. The parallel list is the accessible equivalent:
+    // each threat is a real button that opens the same detail popover.
+    if (this.a11yList) {
+      this.a11yList.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-indicator]");
+        if (!btn) return;
+        const t = this.threatData.find((d) => d.indicator === btn.dataset.indicator);
+        if (t) this.showPopover(t, 0, 0);
+      });
+    }
   }
 
   async fetchHistorical() {
@@ -375,7 +398,7 @@ class ThreatMap extends HTMLElement {
     const scoreVal = threat.score ?? threat.confidence ?? geo.threatScore;
 
     this.popoverContainer.innerHTML = `
-      <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2 max-w-xs text-left text-xs text-white z-30">
+      <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2 max-w-xs text-left text-xs text-white z-30" tabindex="-1" role="dialog" aria-label="Threat detail">
         <div class="flex justify-between items-center border-b border-white/10 pb-2">
           <span class="mono-xs font-bold" data-tone="primary">${esc(threat.indicator)}</span>
           <span class="pill" data-state="${threat.blocked ? 'success' : 'crit'}">${esc(category.toUpperCase())}</span>
@@ -401,6 +424,9 @@ class ThreatMap extends HTMLElement {
     `;
 
     this.popoverContainer.classList.remove("hidden");
+    // Move focus into the popover so a keyboard user who opened it from the
+    // parallel list lands on it, and Escape (handled on the host) dismisses it.
+    this.popoverContainer.querySelector(".threat-map__popover")?.focus();
     const btn = this.popoverContainer.querySelector("#tm-isolate-btn");
     if (btn) {
       btn.addEventListener("click", async () => {
@@ -443,6 +469,27 @@ class ThreatMap extends HTMLElement {
         ? `${base} · ${this.ungeolocated} ungeolocated`
         : base;
     }
+    this.updateA11yList();
+  }
+
+  /** Keep the screen-reader list in step with what is plotted and visible. */
+  updateA11yList() {
+    if (!this.a11yList) return;
+    const esc = globalThis.escapeHTML ?? String;
+    const items = [];
+    for (const t of this.threatData) {
+      const g = this.threats.get(t.indicator);
+      if (!g || g.style.display === "none") continue;
+      // categorize() already returns "isolated" for a blocked threat, so no
+      // separate isolation suffix is needed.
+      const cat = this.categorize(t.threatType, t.blocked);
+      const country = t.geo?.country || "unknown location";
+      const score = t.score ?? t.confidence ?? t.geo?.threatScore;
+      const label = `${t.indicator}, ${cat}, ${country}` +
+        (score != null ? `, severity ${score}` : "");
+      items.push(`<li><button type="button" data-indicator="${esc(t.indicator)}">${esc(label)}</button></li>`);
+    }
+    this.a11yList.innerHTML = items.join("");
   }
 }
 
