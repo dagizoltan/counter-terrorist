@@ -35,7 +35,7 @@ export const ThreatMapPage = (props: { status: any, csrfToken?: string, nonce?: 
           legend the island already renders. They read as a footer strip now,
           and the map surface carries only its own legend and count. */}
       <div class="t-panel glass-panel p-0 border-t-2 border-slate-800 bg-black/40 overflow-hidden shadow-2xl mb-4 animate-in zoom-in-95 duration-1000">
-         <threat-map></threat-map>
+         <threat-map role-name={props.userRole}></threat-map>
 
          <footer class="map-hud">
             <div class="map-hud__group">

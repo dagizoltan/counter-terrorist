@@ -1091,6 +1091,17 @@ body.auth-page {
 .threat-map__dot { fill: var(--c); }
 .threat-map__plot.is-new .threat-map__halo { animation: ct-ping 1.8s var(--ease) 3; }
 
+/* Category identity. The plotted dot and the legend swatch share one hue per
+   category, so the map reads as the legend promises — until now every dot took
+   the default --danger and the five categories were visually indistinguishable.
+   Four sit on the semantic palette; the decoy hue is the one map-local colour,
+   deception having no equivalent in the four-token system. */
+.threat-map__plot[data-category="malware"],  .threat-map__legend .indicator[data-cat="malware"]  { --c: var(--danger); }
+.threat-map__plot[data-category="scan"],      .threat-map__legend .indicator[data-cat="scan"]      { --c: var(--warning); }
+.threat-map__plot[data-category="ebpf"],      .threat-map__legend .indicator[data-cat="ebpf"]      { --c: var(--primary); }
+.threat-map__plot[data-category="honeypot"],  .threat-map__legend .indicator[data-cat="honeypot"]  { --c: hsl(280 60% 62%); }
+.threat-map__plot[data-category="isolated"],  .threat-map__legend .indicator[data-cat="isolated"]  { --c: var(--success); }
+
 @keyframes ct-ping {
   0%   { opacity: 0.5; transform: scale(0.4); }
   100% { opacity: 0;   transform: scale(2.4); }

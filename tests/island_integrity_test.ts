@@ -472,3 +472,25 @@ Deno.test("the neighbours grid links each signal to a served detail route", asyn
   assert(routes.has("ui--network--neighbors--[id]"), "missing UI route ui--network--neighbors--[id]");
   assert(routes.has("api--network--neighbors--[id]"), "missing API route api--network--neighbors--[id]");
 });
+
+Deno.test("the threat map isolates through the CSRF helper and never fabricates location", async () => {
+  const src = await Deno.readTextFile(`${ISLANDS}/ThreatMap.js`);
+
+  // The isolate POST must carry the CSRF token. A raw fetch to it omitted
+  // X-CT-Token and the route rejected it 403; apiSend attaches the token.
+  assert(
+    /apiSend\(\s*["'`]\/api\/defense\/isolate/.test(src),
+    "isolate should POST via apiSend so the CSRF token is sent",
+  );
+  assert(
+    !/\bfetch\(\s*["'`]\/api\/defense\/isolate/.test(src),
+    "isolate must not use a raw fetch — it would 403 with no CSRF token",
+  );
+
+  // A threat with no resolved location is tallied, never hashed to one of a
+  // table of regions and plotted as if the feed had located it.
+  assert(
+    !/region\.(lat|lon)\s*\+/.test(src),
+    "un-geolocated threats must not be plotted at a fabricated location",
+  );
+});

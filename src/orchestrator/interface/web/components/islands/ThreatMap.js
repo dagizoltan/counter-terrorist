@@ -3,7 +3,7 @@
  * Renders an inline SVG equirectangular map with multi-spectral threat categories,
  * ingress vector arcs, interactive spatial popover cards, and a 24h temporal scrubber.
  */
-import { unwrap } from "./api.js";
+import { unwrap, apiSend } from "./api.js";
 import { WORLD_PATH, project } from "./world-outline.js";
 
 const VIEW = { x: 0, y: 6, w: 360, h: 140 };
@@ -18,6 +18,16 @@ class ThreatMap extends HTMLElement {
     this.initialized = false;
     this.activePopover = null;
     this.maxAgeHours = 24;
+    // Threats that arrive without a resolvable location. They used to be hashed
+    // to a random region and plotted as if real; now they are counted, not
+    // invented — see connectWS().
+    this.ungeolocated = 0;
+  }
+
+  /** Isolation is an admin/operator action; the route rejects viewers. */
+  get canOperate() {
+    const role = this.getAttribute("role-name");
+    return role === "admin" || role === "operator";
   }
 
   async connectedCallback() {
@@ -130,53 +140,32 @@ class ThreatMap extends HTMLElement {
           const indicator = threat.indicator || threat.source || threat.ip;
           if (!indicator) return;
 
-          let lat = threat.geo?.lat;
-          let lon = threat.geo?.lon;
+          const lat = threat.geo?.lat;
+          const lon = threat.geo?.lon;
 
-          if ((lat == null || lon == null) && typeof indicator === "string" && /^[\d\.\:a-fA-F]+$/.test(indicator)) {
-            const REGIONS = [
-              { lat: 37.09, lon: -95.71 },
-              { lat: 51.16, lon: 10.45 },
-              { lat: 35.86, lon: 104.20 },
-              { lat: 61.52, lon: 105.31 },
-              { lat: 52.13, lon: 5.29 },
-              { lat: 1.35, lon: 103.82 },
-              { lat: 55.37, lon: -3.43 },
-              { lat: 46.22, lon: 2.21 },
-              { lat: 36.20, lon: 138.25 },
-              { lat: -14.23, lon: -51.92 },
-              { lat: 20.59, lon: 78.96 },
-              { lat: -25.27, lon: 133.77 }
-            ];
-            const fnHash = (str) => {
-              let h = 0;
-              for (let i = 0; i < str.length; i++) {
-                h = ((h << 5) - h) + str.charCodeAt(i);
-                h = h & h;
-              }
-              return Math.abs(h);
-            };
-            const h1 = fnHash(indicator);
-            const h2 = fnHash(indicator + ":lat");
-            const h3 = fnHash(indicator + ":lon");
-            const region = REGIONS[h1 % REGIONS.length];
-            lat = Math.max(-50, Math.min(75, region.lat + ((h2 % 1000) / 100 - 5)));
-            lon = Math.max(-170, Math.min(170, region.lon + ((h3 % 1000) / 100 - 5)));
-          }
-
-          if (lat != null && lon != null) {
-            const enriched = {
-              indicator,
-              geo: { ...(threat.geo || {}), lat, lon },
-              threatType: threat.threatType || threat.type || "ACTIVE_THREAT",
-              blocked: !!threat.blocked,
-              provider: threat.provider || "REALTIME_FEED",
-              lastSeen: new Date().toISOString(),
-              isNew: true
-            };
-            this.storeAndPlot(enriched);
+          // A threat with no resolved location is not placed on the map. It used
+          // to be hashed to one of a dozen hard-coded regions and jittered, so a
+          // dot on Kansas could be an adversary the feed never located — the
+          // operator could not tell a real geolocation from an invented one.
+          // Server-side GeoIP enrichment (follow-up) is what will put these back
+          // on the map with real coordinates; until then they are tallied.
+          if (lat == null || lon == null) {
+            this.ungeolocated++;
             this.updateCount();
+            return;
           }
+
+          const enriched = {
+            indicator,
+            geo: { ...(threat.geo || {}), lat, lon },
+            threatType: threat.threatType || threat.type || "ACTIVE_THREAT",
+            blocked: !!threat.blocked,
+            provider: threat.provider || "REALTIME_FEED",
+            lastSeen: new Date().toISOString(),
+            isNew: true
+          };
+          this.storeAndPlot(enriched);
+          this.updateCount();
         };
 
         if (payload.type === "UI_BROADCAST_BATCH" && Array.isArray(payload.data)) {
@@ -323,13 +312,11 @@ class ThreatMap extends HTMLElement {
           <span class="font-mono text-warning">${esc(threat.threatType || 'Generic Probe')}</span>
         </div>
         <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-white/10">
-          ${threat.blocked ? `
-            <span class="eyebrow text-success">ISOLATED_IN_KERNEL</span>
-          ` : `
-            <button type="button" id="tm-isolate-btn" class="t-btn danger !py-1 !px-3 text-[10px] font-bold">
-              Commit Isolation
-            </button>
-          `}
+          ${threat.blocked
+            ? `<span class="eyebrow text-success">ISOLATED_IN_KERNEL</span>`
+            : this.canOperate
+              ? `<button type="button" id="tm-isolate-btn" class="t-btn danger !py-1 !px-3 text-[10px] font-bold">Commit Isolation</button>`
+              : `<span class="eyebrow">Operator role required to isolate</span>`}
         </div>
       </div>
     `;
@@ -341,18 +328,19 @@ class ThreatMap extends HTMLElement {
         btn.disabled = true;
         btn.textContent = "ISOLATING...";
         try {
-          const resp = await fetch("/api/defense/isolate", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ source: threat.indicator, reason: "Manual isolation via Spatial Threat Map" })
+          // apiSend carries the CSRF token the isolate route requires; a raw
+          // fetch here omitted X-CT-Token and the POST was rejected 403.
+          await apiSend("/api/defense/isolate", "POST", {
+            source: threat.indicator,
+            reason: "Manual isolation via Spatial Threat Map",
           });
-          if (resp.ok) {
-            threat.blocked = true;
-            this.storeAndPlot(threat);
-            this.hidePopover();
-          }
+          threat.blocked = true;
+          this.storeAndPlot(threat);
+          this.hidePopover();
         } catch (e) {
           console.error("Isolation failed:", e);
+          btn.disabled = false;
+          btn.textContent = "Commit Isolation";
         }
       });
     }
@@ -371,7 +359,10 @@ class ThreatMap extends HTMLElement {
       this.threats.forEach(g => {
         if (g.style.display !== "none") count++;
       });
-      this.counter.textContent = `${count} indicator${count === 1 ? "" : "s"}`;
+      const base = `${count} indicator${count === 1 ? "" : "s"}`;
+      this.counter.textContent = this.ungeolocated > 0
+        ? `${base} · ${this.ungeolocated} ungeolocated`
+        : base;
     }
   }
 }
