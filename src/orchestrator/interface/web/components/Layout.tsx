@@ -221,12 +221,27 @@ export const Layout = (props: {
             }
           }
 
+          function safeStorageGet(key, fallback) {
+            try {
+              var v = localStorage.getItem(key);
+              return v !== null ? v : fallback;
+            } catch (e) {
+              return fallback;
+            }
+          }
+
+          function safeStorageSet(key, value) {
+            try {
+              localStorage.setItem(key, value);
+            } catch (e) {}
+          }
+
           window.toggleSidebar = function () {
             var rail = document.getElementById('main-sidebar');
             if (!rail) return;
             var collapsed = !rail.classList.contains('collapsed');
             applyRailState(collapsed);
-            try { localStorage.setItem(RAIL_KEY, collapsed ? 'true' : 'false'); } catch (e) {}
+            safeStorageSet(RAIL_KEY, collapsed ? 'true' : 'false');
           };
 
           // ── Forensic aside tabs ────────────────────────────────────────
@@ -245,7 +260,7 @@ export const Layout = (props: {
               btn.setAttribute('aria-selected', on ? 'true' : 'false');
             });
 
-            try { localStorage.setItem(TAB_KEY, tab); } catch (e) {}
+            safeStorageSet(TAB_KEY, tab);
           };
 
           // ── Percentage bars ────────────────────────────────────────────
@@ -393,12 +408,8 @@ export const Layout = (props: {
           // first paint; the previous build restored it after the grid had
           // been laid out at full width, which flashed on every navigation.
           (function restore() {
-            var collapsed = false;
-            var tab = 'logs';
-            try {
-              collapsed = localStorage.getItem(RAIL_KEY) === 'true';
-              tab = localStorage.getItem(TAB_KEY) || 'logs';
-            } catch (e) {}
+            var collapsed = safeStorageGet(RAIL_KEY, 'false') === 'true';
+            var tab = safeStorageGet(TAB_KEY, 'logs');
             applyRailState(collapsed);
             window.switchSidebarTab(tab);
           })();
