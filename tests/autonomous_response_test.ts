@@ -2,6 +2,7 @@ import { assertEquals, assertExists } from "@std/assert";
 import { AutonomousResponseEngine, ThreatEvent } from "@domain/orchestration/autonomous_response.ts";
 import { PolicyEngine } from "@domain/orchestration/policy_engine.ts";
 import { ThreatResponseSaga } from "@domain/orchestration/sagas/threat_response_saga.ts";
+import { AutopilotService } from "@domain/orchestration/autopilot_service.ts";
 import { LoggingPort, LogEntry } from "@core/ports.ts";
 
 class MockLoggingPort implements LoggingPort {
@@ -112,4 +113,16 @@ Deno.test("AutonomousResponseEngine - State Exhaustion Protection", async () => 
     } finally {
         engine.shutdown();
     }
+});
+
+Deno.test("AutopilotService - getTacticalIntelligence is safe before the engine is initialized", () => {
+    // Regression: setServices() is never called on the wired autopilot, so
+    // onInit() builds no engine. getTacticalIntelligence() must return an
+    // empty set rather than dereferencing an undefined engine, which crashed
+    // /api/autopilot/intelligence and the metrics rollup with
+    // "Cannot read properties of undefined (reading 'getTacticalIntelligence')".
+    const autopilot = new AutopilotService();
+    const intel = autopilot.getTacticalIntelligence();
+    assertEquals(Array.isArray(intel), true);
+    assertEquals(intel.length, 0);
 });
