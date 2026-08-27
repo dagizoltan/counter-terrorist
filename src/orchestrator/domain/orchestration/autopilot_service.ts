@@ -64,8 +64,15 @@ export class AutopilotService extends BaseService {
 
   /**
    * Exposes real-time threat intelligence from the response engine.
+   *
+   * The engine is only constructed in `onInit()` once `setServices()` has
+   * supplied its dependencies. Until then (or if the autopilot was never
+   * wired) there is no engine and hence no intelligence to report, so return
+   * an empty set rather than dereferencing an undefined engine — this keeps
+   * `/api/autopilot/intelligence` and the metrics rollup crash-free.
    */
-  getTacticalIntelligence() {
+  getTacticalIntelligence(): ReturnType<AutonomousResponseEngine["getTacticalIntelligence"]> {
+    if (!this.engine) return [];
     return this.engine.getTacticalIntelligence();
   }
 
