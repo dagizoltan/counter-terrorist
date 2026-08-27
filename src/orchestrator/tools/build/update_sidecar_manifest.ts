@@ -27,7 +27,10 @@ async function sha256File(filePath: string): Promise<string> {
 }
 
 async function main() {
-  console.log("🔧 Updating sidecar manifest hashes...");
+  const isQuiet = Deno.args.includes("--quiet") || Deno.args.includes("-q");
+  if (!isQuiet) {
+    console.log("🔧 Updating sidecar manifest hashes...");
+  }
 
   const manifestText = await Deno.readTextFile(manifestPath);
   const manifest = JSON.parse(manifestText) as Record<string, unknown>;
@@ -49,10 +52,10 @@ async function main() {
         try {
           const currentHash = await sha256File(binaryPath);
           if (archEntry.hash !== currentHash) {
-            console.log(`- ${name} (${arch}): hash updated (${archEntry.hash?.slice(0, 8) || "none"} -> ${currentHash.slice(0, 8)})`);
+            if (!isQuiet) console.log(`- ${name} (${arch}): hash updated (${archEntry.hash?.slice(0, 8) || "none"} -> ${currentHash.slice(0, 8)})`);
             archEntry.hash = currentHash;
             updated = true;
-          } else {
+          } else if (!isQuiet) {
             console.log(`- ${name} (${arch}): hash unchanged`);
           }
         } catch (error) {
@@ -64,10 +67,10 @@ async function main() {
       try {
         const currentHash = await sha256File(binaryPath);
         if (entry.hash !== currentHash) {
-          console.log(`- ${name}: hash updated (${entry.hash?.slice(0, 8) || "none"} -> ${currentHash.slice(0, 8)})`);
+          if (!isQuiet) console.log(`- ${name}: hash updated (${entry.hash?.slice(0, 8) || "none"} -> ${currentHash.slice(0, 8)})`);
           entry.hash = currentHash;
           updated = true;
-        } else {
+        } else if (!isQuiet) {
           console.log(`- ${name}: hash unchanged`);
         }
       } catch (error) {
@@ -80,8 +83,8 @@ async function main() {
 
   if (updated) {
     await Deno.writeTextFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
-    console.log(`✅ Updated ${manifestPath}`);
-  } else {
+    if (!isQuiet) console.log(`✅ Updated ${manifestPath}`);
+  } else if (!isQuiet) {
     console.log("✅ No manifest changes needed.");
   }
 }
