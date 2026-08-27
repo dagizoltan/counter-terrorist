@@ -1077,11 +1077,39 @@ threat-map { display: block; }
 
 .threat-map__canvas { width: 100%; height: 100%; display: block; }
 
+/* Ocean depth tokens for the map (radial gradient stops). Derived from the
+   surface scale so they follow the theme. */
+.threat-map { --tm-ocean-hi: var(--surface-2); --tm-ocean-lo: var(--surface-0); }
+
+/* Ocean plate — filled by the radial depth gradient defined in the island. */
+.threat-map__ocean { fill: url(#tm-ocean); }
+
+/* Faint geographic graticule (meridians / parallels), behind the land. */
+.threat-map__graticule {
+  fill: none;
+  stroke: var(--line-faint);
+  stroke-width: 0.18;
+  opacity: 0.5;
+}
+
 .threat-map__land {
   fill: var(--surface-3);
-  stroke: var(--line);
-  stroke-width: 0.4;
+  /* A cool coastline highlight + a whisper of glow lift the landmasses off the
+     ocean without the flat graph-paper look. */
+  stroke: color-mix(in srgb, var(--primary) 34%, var(--line));
+  stroke-width: 0.22;
   stroke-linejoin: round;
+  filter: drop-shadow(0 0 0.5px color-mix(in srgb, var(--primary) 45%, transparent));
+}
+
+/* Interior country borders — present but quiet, so they inform without
+   competing with the threat markers. */
+.threat-map__borders {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 0.18;
+  stroke-linejoin: round;
+  opacity: 0.55;
 }
 
 /* Structural hook: the group every plotted indicator is appended into. */
@@ -1177,8 +1205,28 @@ threat-map { display: block; }
 .threat-map--container { isolation: isolate; }
 
 /* Attack arcs are decorative — pointer-events off so a plot underneath stays
-   clickable. The <path>s carry their own fill/stroke attributes. */
+   clickable. Each active threat draws a faint full route with a bright dash
+   travelling source → sovereign node along it (a "tracer"). */
 .threat-map__arcs { pointer-events: none; }
+.threat-map__arc-base {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 0.28;
+  opacity: 0.12;
+}
+.threat-map__arc {
+  fill: none;
+  stroke-width: 0.9;
+  stroke-linecap: round;
+  stroke-dasharray: 5 95; /* pathLength=100, so 5% dash travels a 95% gap */
+}
+@keyframes tm-arc-travel { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .threat-map__arc { animation: tm-arc-travel 2s var(--ease) infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .threat-map__arc { stroke-dasharray: none; opacity: 0.5; }
+}
 
 /* Time-window scrubber, pinned top-left opposite the indicator count. */
 .threat-map__scrubber {

@@ -17,7 +17,15 @@
  * filter.
  */
 import { unwrap, apiSend } from "./api.js";
-import { WORLD_PATH, project } from "./world-outline.js";
+import { LAND_PATH, BORDERS_PATH, project } from "./world-outline.js";
+
+/** Faint lat/lon graticule across the cropped view (meridians/parallels 20°). */
+function graticulePath(viewTop, viewBottom) {
+  const seg = [];
+  for (let lon = -160; lon <= 160; lon += 20) { const x = lon + 180; seg.push(`M${x} ${viewTop}V${viewBottom}`); }
+  for (let lat = -60; lat <= 80; lat += 20) { const y = 90 - lat; seg.push(`M0 ${y}H360`); }
+  return seg.join("");
+}
 
 const VIEW = { x: 0, y: 6, w: 360, h: 140 };
 // Protected Orchestrator Node Location (e.g. Frankfurt/Central Node)
@@ -92,16 +100,23 @@ class ThreatMap extends HTMLElement {
              preserveAspectRatio="xMidYMid meet" role="img"
              aria-label="Global threat indicator map">
           <defs>
-            <pattern id="tm-grid" width="30" height="30" patternUnits="userSpaceOnUse">
-              <path d="M 30 0 L 0 0 0 30" fill="none" stroke="var(--line-faint)" stroke-width="0.4"/>
-            </pattern>
+            <radialGradient id="tm-ocean" cx="50%" cy="42%" r="75%">
+              <stop offset="0%" stop-color="var(--tm-ocean-hi)"/>
+              <stop offset="100%" stop-color="var(--tm-ocean-lo)"/>
+            </radialGradient>
             <linearGradient id="tm-arc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="var(--danger)" stop-opacity="0.8"/>
-              <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.1"/>
+              <stop offset="0%" stop-color="var(--danger)" stop-opacity="0.9"/>
+              <stop offset="100%" stop-color="var(--primary)" stop-opacity="0.15"/>
             </linearGradient>
+            <filter id="tm-land-glow" x="-4%" y="-4%" width="108%" height="108%">
+              <feGaussianBlur stdDeviation="0.7" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
           </defs>
-          <rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" fill="url(#tm-grid)"/>
-          <path d="${WORLD_PATH}" class="threat-map__land"/>
+          <rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" class="threat-map__ocean" fill="url(#tm-ocean)"/>
+          <path d="${graticulePath(VIEW.y, VIEW.y + VIEW.h)}" class="threat-map__graticule"/>
+          <path d="${LAND_PATH}" class="threat-map__land"/>
+          <path d="${BORDERS_PATH}" class="threat-map__borders"/>
           <g class="threat-map__arcs"></g>
           <g class="threat-map__home" aria-hidden="true">
             <circle class="threat-map__home-ping" r="4.5"></circle>
@@ -448,17 +463,25 @@ class ThreatMap extends HTMLElement {
 
   drawArc(x, y) {
     if (!this.arcs) return;
+    const SVGNS = "http://www.w3.org/2000/svg";
     const home = project(HOME_NODE.lat, HOME_NODE.lon);
-    const midX = (x + home.x) / 2, midY = Math.min(y, home.y) - 12;
-    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", `M ${x} ${y} Q ${midX} ${midY} ${home.x} ${home.y}`);
-    path.setAttribute("class", "threat-map__arc");
-    path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "url(#tm-arc-grad)");
-    path.setAttribute("stroke-width", "0.6");
-    path.setAttribute("stroke-dasharray", "3 2");
-    this.arcs.appendChild(path);
-    setTimeout(() => path.remove(), 8000);
+    // Bow the curve away from the straight line, more for longer shots — reads
+    // as a great-circle-style trajectory rather than a flat chord.
+    const dist = Math.hypot(home.x - x, home.y - y);
+    const midX = (x + home.x) / 2, midY = Math.min(y, home.y) - Math.min(26, 6 + dist * 0.28);
+    const d = `M ${x} ${y} Q ${midX} ${midY} ${home.x} ${home.y}`;
+
+    // Faint full route, then a bright dash that travels source → node (CSS).
+    const base = document.createElementNS(SVGNS, "path");
+    base.setAttribute("d", d); base.setAttribute("class", "threat-map__arc-base");
+    const comet = document.createElementNS(SVGNS, "path");
+    comet.setAttribute("d", d);
+    comet.setAttribute("class", "threat-map__arc");
+    comet.setAttribute("pathLength", "100");
+    comet.setAttribute("stroke", "url(#tm-arc-grad)");
+
+    this.arcs.append(base, comet);
+    setTimeout(() => { base.remove(); comet.remove(); }, 8000);
   }
 
   /** Shared isolation call — used by the popover and the bulk action. */
