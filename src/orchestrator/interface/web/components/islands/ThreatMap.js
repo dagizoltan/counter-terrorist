@@ -139,6 +139,9 @@ class ThreatMap extends HTMLElement {
           <button type="button" class="tm-legend-btn" data-est-toggle aria-pressed="true">
             <span class="indicator indicator--est" aria-hidden="true"></span>Estimated location
           </button>
+          <button type="button" class="tm-legend-btn" id="tm-heatmap-toggle" aria-pressed="false">
+            <span class="indicator indicator--heat" aria-hidden="true"></span>Density Heatmap
+          </button>
         </div>
 
         <div class="threat-map__scrubber flex items-center gap-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-xs">
@@ -217,7 +220,7 @@ class ThreatMap extends HTMLElement {
     });
     this.playBtn?.addEventListener("click", () => this.togglePlayback());
 
-    // Category / estimated filters.
+    // Category / estimated filters & Heatmap toggle.
     this.querySelectorAll("[data-cat-toggle]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const cat = btn.dataset.catToggle;
@@ -227,6 +230,13 @@ class ThreatMap extends HTMLElement {
         btn.classList.toggle("is-off", !this.activeCategories.has(cat));
         this.applyFilters();
       });
+    });
+
+    this.querySelector("#tm-heatmap-toggle")?.addEventListener("click", (e) => {
+      const active = e.currentTarget.getAttribute("aria-pressed") === "true";
+      e.currentTarget.setAttribute("aria-pressed", String(!active));
+      e.currentTarget.classList.toggle("is-off", active);
+      this.plots?.classList.toggle("show-heatmap", !active);
     });
     this.querySelector("[data-est-toggle]")?.addEventListener("click", (e) => {
       this.showEstimated = !this.showEstimated;
