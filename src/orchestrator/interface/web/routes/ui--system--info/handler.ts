@@ -1,8 +1,3 @@
-import { Context } from "hono";
-import { jsx } from "hono/jsx";
+import { renderPage } from "../_render.ts";
 
-export const handler = async (c: Context) => {
-  const { SystemInfoPage } = await import("./page.tsx");
-  const { status, csrfToken, nonce, hostname, userRole } = c.get("uiContext");
-  return c.html(jsx(SystemInfoPage, { status, csrfToken, nonce, hostname, userRole }) as unknown as string);
-};
+export const handler = renderPage(() => import("./page.tsx"), "SystemInfoPage");
