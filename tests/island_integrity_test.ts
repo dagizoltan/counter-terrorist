@@ -540,3 +540,18 @@ Deno.test("no island feeds a CSS variable to a canvas colour", async () => {
       `renders black:\n${offenders.join("\n")}`,
   );
 });
+
+Deno.test("the threat map distinguishes estimated locations from precise ones", async () => {
+  // Real attribution and a continent-level RIR guess must never look alike. The
+  // island reads the server's precision flag, stamps it on each marker, filters
+  // on it, and — for an estimate — reports the region rather than inventing a
+  // country/city.
+  const src = await Deno.readTextFile(`${ISLANDS}/ThreatMap.js`);
+  assert(/data-precision/.test(src), "markers must carry a data-precision hint for styling");
+  assert(/geo\??\.precision/.test(src), "island must read the server-supplied precision");
+  assert(/["'`]estimated["'`]/.test(src), "island must special-case estimated locations");
+  // The legend is a live category filter, not a static key.
+  assert(/data-cat-toggle/.test(src), "legend categories must be toggleable filters");
+  // The estimated popover branch reports the region, never a fabricated country.
+  assert(/geo\.region/.test(src), "estimated detail must show the region, not a made-up country");
+});

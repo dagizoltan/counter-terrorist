@@ -1,7 +1,14 @@
 /**
  * <threat-map> — enterprise spatial & real-time threat map.
- * Renders an inline SVG equirectangular map with multi-spectral threat categories,
- * ingress vector arcs, interactive spatial popover cards, and a 24h temporal scrubber.
+ * Renders an inline SVG equirectangular map with multi-spectral threat
+ * categories, ingress vector arcs, interactive spatial popover cards, a 24h
+ * temporal scrubber, a clickable category filter, and a live region breakdown.
+ *
+ * Location trust is first-class: a threat's geo carries a `precision`
+ * ("city" | "country" | "estimated"). Estimated points — continent-level RIR
+ * guesses from the server when no GeoIP database is provisioned — are drawn
+ * hollow and dashed, counted separately, and never dressed up as precise. A
+ * threat with no location at all is tallied, never invented.
  */
 import { unwrap, apiSend } from "./api.js";
 import { WORLD_PATH, project } from "./world-outline.js";
@@ -9,6 +16,14 @@ import { WORLD_PATH, project } from "./world-outline.js";
 const VIEW = { x: 0, y: 6, w: 360, h: 140 };
 // Protected Orchestrator Node Location (e.g. Frankfurt/Central Node)
 const HOME_NODE = { lat: 50.11, lon: 8.68 };
+const CATEGORIES = ["malware", "scan", "ebpf", "honeypot", "isolated"];
+const CATEGORY_LABEL = {
+  malware: "Malware / C2",
+  scan: "Probe / Scanner",
+  ebpf: "eBPF Anomaly",
+  honeypot: "Decoy Hit",
+  isolated: "Isolated",
+};
 
 class ThreatMap extends HTMLElement {
   constructor() {
@@ -22,6 +37,9 @@ class ThreatMap extends HTMLElement {
     // to a random region and plotted as if real; now they are counted, not
     // invented — see connectWS().
     this.ungeolocated = 0;
+    // Filter state: every category on, estimated points shown.
+    this.activeCategories = new Set(CATEGORIES);
+    this.showEstimated = true;
   }
 
   /** Isolation is an admin/operator action; the route rejects viewers. */
@@ -49,6 +67,11 @@ class ThreatMap extends HTMLElement {
     // drawn — the arcs flew to an invisible point. Marked now, so the picture
     // has a centre.
     const home = project(HOME_NODE.lat, HOME_NODE.lon);
+    const legendItems = CATEGORIES.map((cat) =>
+      `<button type="button" class="tm-legend-btn" data-cat-toggle="${cat}" aria-pressed="true">
+         <span class="indicator" data-cat="${cat}" aria-hidden="true"></span>${CATEGORY_LABEL[cat]}
+       </button>`
+    ).join("");
     this.innerHTML = `
       <div class="threat-map threat-map--container relative">
         <svg class="threat-map__canvas"
@@ -78,12 +101,11 @@ class ThreatMap extends HTMLElement {
           <g class="threat-map__clusters"></g>
         </svg>
 
-        <div class="threat-map__legend">
-          <span class="eyebrow"><span class="indicator" data-cat="malware" aria-hidden="true"></span>Malware / C2</span>
-          <span class="eyebrow"><span class="indicator" data-cat="scan" aria-hidden="true"></span>Probe / Scanner</span>
-          <span class="eyebrow"><span class="indicator" data-cat="ebpf" aria-hidden="true"></span>eBPF Anomaly</span>
-          <span class="eyebrow"><span class="indicator" data-cat="honeypot" aria-hidden="true"></span>Decoy Hit</span>
-          <span class="eyebrow"><span class="indicator" data-cat="isolated" aria-hidden="true"></span>Isolated</span>
+        <div class="threat-map__legend" role="group" aria-label="Filter threats by category">
+          ${legendItems}
+          <button type="button" class="tm-legend-btn" data-est-toggle aria-pressed="true">
+            <span class="indicator indicator--est" aria-hidden="true"></span>Estimated location
+          </button>
         </div>
 
         <div class="threat-map__scrubber flex items-center gap-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-xs">
@@ -97,6 +119,7 @@ class ThreatMap extends HTMLElement {
         <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
         <div class="threat-map__popover-container hidden"></div>
       </div>
+      <div class="threat-map__stats" aria-live="polite"></div>
       <ul id="tm-a11y-list" class="sr-only" aria-label="Detected threats, newest first"></ul>
     `;
     // Position the home marker through the attribute, not the markup: the
@@ -108,6 +131,7 @@ class ThreatMap extends HTMLElement {
     this.arcs = this.querySelector(".threat-map__arcs");
     this.clusters = this.querySelector(".threat-map__clusters");
     this.counter = this.querySelector(".threat-map__count");
+    this.statsEl = this.querySelector(".threat-map__stats");
     this.popoverContainer = this.querySelector(".threat-map__popover-container");
     this.slider = this.querySelector("#tm-scrubber-slider");
     this.sliderVal = this.querySelector("#tm-scrubber-val");
@@ -125,6 +149,27 @@ class ThreatMap extends HTMLElement {
     }
     if (this.playBtn) {
       this.playBtn.addEventListener("click", () => this.togglePlayback());
+    }
+
+    // Category / estimated filter — the legend is a live control, not a key.
+    this.querySelectorAll("[data-cat-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const cat = btn.dataset.catToggle;
+        if (this.activeCategories.has(cat)) this.activeCategories.delete(cat);
+        else this.activeCategories.add(cat);
+        btn.setAttribute("aria-pressed", String(this.activeCategories.has(cat)));
+        btn.classList.toggle("is-off", !this.activeCategories.has(cat));
+        this.applyFilters();
+      });
+    });
+    const estBtn = this.querySelector("[data-est-toggle]");
+    if (estBtn) {
+      estBtn.addEventListener("click", () => {
+        this.showEstimated = !this.showEstimated;
+        estBtn.setAttribute("aria-pressed", String(this.showEstimated));
+        estBtn.classList.toggle("is-off", !this.showEstimated);
+        this.applyFilters();
+      });
     }
 
     // Dismiss popover on background click
@@ -197,8 +242,8 @@ class ThreatMap extends HTMLElement {
           // to be hashed to one of a dozen hard-coded regions and jittered, so a
           // dot on Kansas could be an adversary the feed never located — the
           // operator could not tell a real geolocation from an invented one.
-          // Server-side GeoIP enrichment (follow-up) is what will put these back
-          // on the map with real coordinates; until then they are tallied.
+          // The server's GeoIP enrichment now attaches real (or region-level
+          // estimated) coordinates; anything still unresolved is tallied.
           if (lat == null || lon == null) {
             this.ungeolocated++;
             this.updateCount();
@@ -243,17 +288,39 @@ class ThreatMap extends HTMLElement {
     this.plot(t);
   }
 
+  /** A plot is hidden if it aged out (inline display) or a filter excludes it. */
+  isHidden(g) {
+    return g.style.display === "none" || g.classList.contains("is-filtered");
+  }
+
+  precisionOf(threat) {
+    return threat.geo?.precision || (threat.geo?.provisional ? "estimated" : "precise");
+  }
+
+  passesFilter(threat) {
+    const cat = this.categorize(threat.threatType || threat.provider, threat.blocked);
+    if (!this.activeCategories.has(cat)) return false;
+    if (this.precisionOf(threat) === "estimated" && !this.showEstimated) return false;
+    return true;
+  }
+
+  /** Re-apply category / estimated filters to every plotted marker. */
+  applyFilters() {
+    this.threats.forEach((g, indicator) => {
+      const data = this.threatData.find((d) => d.indicator === indicator);
+      if (!data) return;
+      g.classList.toggle("is-filtered", !this.passesFilter(data));
+    });
+    this.updateCount();
+  }
+
   filterByAge() {
     const now = Date.now();
     const cutoff = now - (this.maxAgeHours * 60 * 60 * 1000);
     this.threats.forEach((g, indicator) => {
       const data = this.threatData.find(d => d.indicator === indicator);
       const time = new Date(data?.lastSeen || now).getTime();
-      if (time < cutoff) {
-        g.style.display = "none";
-      } else {
-        g.style.display = "";
-      }
+      g.style.display = time < cutoff ? "none" : "";
     });
     this.updateCount();
   }
@@ -326,6 +393,7 @@ class ThreatMap extends HTMLElement {
     this.threats.get(indicator)?.remove();
 
     const category = this.categorize(type, blocked);
+    const precision = this.precisionOf(threat);
 
     // Weight the marker by severity so the eye lands on the worst actors. The
     // score arrives under any of these depending on the source; missing means
@@ -338,11 +406,13 @@ class ThreatMap extends HTMLElement {
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("class", `threat-map__plot${isNew ? " is-new" : ""}`);
     g.setAttribute("data-category", category);
+    g.setAttribute("data-precision", precision);
     g.setAttribute("data-indicator", indicator);
     g.setAttribute("transform", `translate(${x} ${y})`);
     g.dataset.x = x;
     g.dataset.y = y;
     g.style.cursor = "pointer";
+    if (!this.passesFilter(threat)) g.classList.add("is-filtered");
 
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     halo.setAttribute("r", haloR);
@@ -354,9 +424,11 @@ class ThreatMap extends HTMLElement {
 
     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
     const esc = globalThis.escapeHTML ?? String;
-    const countryStr = geo?.country ? ` (${geo.country})` : "";
+    const place = geo?.city || geo?.country || geo?.region || "";
+    const placeStr = place ? ` (${place})` : "";
     const ispStr = geo?.isp ? ` · ${geo.isp}` : "";
-    title.textContent = `${esc(indicator)}${esc(countryStr)} — ${esc(type)}${esc(ispStr)} — ${blocked ? "isolated" : "active"}`;
+    const estStr = precision === "estimated" ? " [estimated]" : "";
+    title.textContent = `${esc(indicator)}${esc(placeStr)} — ${esc(type)}${esc(ispStr)}${esc(estStr)} — ${blocked ? "isolated" : "active"}`;
 
     g.append(halo, dot, title);
 
@@ -397,26 +469,40 @@ class ThreatMap extends HTMLElement {
     const esc = globalThis.escapeHTML ?? String;
     const geo = threat.geo || {};
     const category = this.categorize(threat.threatType, threat.blocked);
+    const precision = this.precisionOf(threat);
+    const estimated = precision === "estimated";
     // Shown as-is; the marker's size is derived from it, so a defaulted value is
     // rendered "—" rather than a number the feed never supplied.
     const scoreVal = threat.score ?? threat.confidence ?? geo.threatScore;
 
+    // Honest location line: an estimate reports its region and says so; a real
+    // lookup reports country/city. Nothing invents a country it does not have.
+    const locLabel = estimated ? "Region (est.)" : "Location";
+    const locValue = estimated
+      ? `${esc(geo.region || "Unknown region")}`
+      : `${esc(geo.country || "Unknown")}${geo.city ? " (" + esc(geo.city) + ")" : ""}`;
+    const ispValue = geo.isp ? esc(geo.isp) : (estimated ? "—" : "Carrier");
+    const precisionBadge = estimated
+      ? `<span class="pill" data-state="idle">ESTIMATED</span>`
+      : `<span class="pill" data-state="info">${esc(String(precision).toUpperCase())}</span>`;
+
     this.popoverContainer.innerHTML = `
       <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2 max-w-xs text-left text-xs text-white z-30" tabindex="-1" role="dialog" aria-label="Threat detail">
-        <div class="flex justify-between items-center border-b border-white/10 pb-2">
+        <div class="flex justify-between items-center border-b border-white/10 pb-2 gap-2">
           <span class="mono-xs font-bold" data-tone="primary">${esc(threat.indicator)}</span>
-          <span class="pill" data-state="${threat.blocked ? 'success' : 'crit'}">${esc(category.toUpperCase())}</span>
+          <span class="flex items-center gap-1.5">${precisionBadge}<span class="pill" data-state="${threat.blocked ? 'success' : 'crit'}">${esc(category.toUpperCase())}</span></span>
         </div>
         <div class="grid grid-cols-2 gap-x-2 gap-y-1 my-1 text-[11px]">
-          <span class="text-slate-400">Country:</span>
-          <span class="font-mono">${esc(geo.country || 'Unknown')} (${esc(geo.city || 'Metro')})</span>
+          <span class="text-slate-400">${esc(locLabel)}:</span>
+          <span class="font-mono">${locValue}</span>
           <span class="text-slate-400">ISP / ASN:</span>
-          <span class="font-mono truncate">${esc(geo.isp || 'Carrier')}</span>
+          <span class="font-mono truncate">${ispValue}${geo.asn ? " · " + esc(geo.asn) : ""}</span>
           <span class="text-slate-400">Threat Vector:</span>
           <span class="font-mono text-warning">${esc(threat.threatType || 'Generic Probe')}</span>
           <span class="text-slate-400">Severity:</span>
           <span class="font-mono">${scoreVal == null ? '—' : esc(String(scoreVal))}</span>
         </div>
+        ${estimated ? `<p class="text-[10px] text-slate-500 leading-tight">Continent-level estimate from RIR allocation — provision a local GeoIP database for precise attribution.</p>` : ""}
         <div class="flex justify-end gap-2 mt-2 pt-2 border-t border-white/10">
           ${threat.blocked
             ? `<span class="eyebrow text-success">ISOLATED_IN_KERNEL</span>`
@@ -465,16 +551,57 @@ class ThreatMap extends HTMLElement {
   updateCount() {
     if (this.counter) {
       let count = 0;
-      this.threats.forEach(g => {
-        if (g.style.display !== "none") count++;
+      let estimated = 0;
+      this.threats.forEach((g, indicator) => {
+        if (this.isHidden(g)) return;
+        count++;
+        const data = this.threatData.find((d) => d.indicator === indicator);
+        if (data && this.precisionOf(data) === "estimated") estimated++;
       });
-      const base = `${count} indicator${count === 1 ? "" : "s"}`;
-      this.counter.textContent = this.ungeolocated > 0
-        ? `${base} · ${this.ungeolocated} ungeolocated`
-        : base;
+      const parts = [`${count} indicator${count === 1 ? "" : "s"}`];
+      if (estimated > 0) parts.push(`${estimated} est.`);
+      if (this.ungeolocated > 0) parts.push(`${this.ungeolocated} ungeolocated`);
+      this.counter.textContent = parts.join(" · ");
     }
     this.updateA11yList();
     this.applyClusters();
+    this.updateStats();
+  }
+
+  /**
+   * Live region breakdown from what is actually plotted and visible — the panel
+   * that replaced three hard-coded "12% / 64% / 31%" cards the page used to ship.
+   * A precise point counts under its country; an estimate under its region.
+   */
+  updateStats() {
+    if (!this.statsEl) return;
+    const esc = globalThis.escapeHTML ?? String;
+    let located = 0, estimated = 0;
+    const regions = new Map();
+    this.threats.forEach((g, indicator) => {
+      if (this.isHidden(g)) return;
+      const data = this.threatData.find((d) => d.indicator === indicator);
+      if (!data) return;
+      const geo = data.geo || {};
+      if (this.precisionOf(data) === "estimated") {
+        estimated++;
+        bump(regions, geo.region || "Unknown region");
+      } else {
+        located++;
+        bump(regions, geo.country || geo.region || "Unknown");
+      }
+    });
+    const top = [...regions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const chips = top
+      .map(([name, n]) => `<span class="tm-region">${esc(name)}<b>${n}</b></span>`)
+      .join("");
+    this.statsEl.innerHTML = `
+      <span class="tm-stat"><b>${located}</b> located</span>
+      <span class="tm-stat tm-stat--est"><b>${estimated}</b> estimated</span>
+      <span class="tm-stat tm-stat--muted"><b>${this.ungeolocated}</b> ungeolocated</span>
+      <span class="tm-stat-sep" aria-hidden="true"></span>
+      ${chips || `<span class="tm-stat tm-stat--muted">No located indicators yet</span>`}
+    `;
   }
 
   /**
@@ -482,7 +609,7 @@ class ThreatMap extends HTMLElement {
    * badge, so a busy metro reads as "7 here" instead of an unreadable blob.
    * Layered on top: it only toggles an is-clustered class (CSS-hidden) and
    * draws badges, leaving the age filter, playback and per-indicator popovers
-   * untouched. Aged-out markers (inline display:none) are not eligible.
+   * untouched. Hidden markers (aged out or filtered) are not eligible.
    */
   applyClusters() {
     if (!this.clusters) return;
@@ -492,7 +619,7 @@ class ThreatMap extends HTMLElement {
 
     this.threats.forEach((g) => {
       g.classList.remove("is-clustered"); // reset every pass, then re-decide
-      if (g.style.display === "none") return; // aged out — not eligible
+      if (this.isHidden(g)) return; // aged out or filtered — not eligible
       const x = Number(g.dataset.x), y = Number(g.dataset.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       const key = `${Math.round(x / CELL)}:${Math.round(y / CELL)}`;
@@ -529,18 +656,25 @@ class ThreatMap extends HTMLElement {
     const items = [];
     for (const t of this.threatData) {
       const g = this.threats.get(t.indicator);
-      if (!g || g.style.display === "none") continue;
+      if (!g || this.isHidden(g)) continue;
       // categorize() already returns "isolated" for a blocked threat, so no
       // separate isolation suffix is needed.
       const cat = this.categorize(t.threatType, t.blocked);
-      const country = t.geo?.country || "unknown location";
+      const est = this.precisionOf(t) === "estimated";
+      const place = est
+        ? `${t.geo?.region || "unknown region"} (estimated)`
+        : (t.geo?.country || "unknown location");
       const score = t.score ?? t.confidence ?? t.geo?.threatScore;
-      const label = `${t.indicator}, ${cat}, ${country}` +
+      const label = `${t.indicator}, ${cat}, ${place}` +
         (score != null ? `, severity ${score}` : "");
       items.push(`<li><button type="button" data-indicator="${esc(t.indicator)}">${esc(label)}</button></li>`);
     }
     this.a11yList.innerHTML = items.join("");
   }
+}
+
+function bump(map, key) {
+  map.set(key, (map.get(key) || 0) + 1);
 }
 
 customElements.define("threat-map", ThreatMap);

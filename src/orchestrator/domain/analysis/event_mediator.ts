@@ -341,6 +341,9 @@ export class EventMediator extends BaseService {
                         asn: intel.asn,
                         lat: intel.lat,
                         lon: intel.lon,
+                        precision: intel.precision,
+                        provisional: intel.provisional,
+                        region: intel.region,
                     },
                 },
             } as BroadcastData;
