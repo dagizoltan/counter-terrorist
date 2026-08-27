@@ -1,1 +1,0 @@
-src/orchestrator/tools/ops/start.sh

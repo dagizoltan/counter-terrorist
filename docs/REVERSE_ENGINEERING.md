@@ -2,21 +2,34 @@
 
 ## System Architecture
 
-The Sovereign/Counter-Terrorist system is a multi-tier security orchestrator designed for high-integrity environments (Ubuntu Linux primary, with experimental macOS/Windows support).
+The Sovereign / Counter-Terrorist system is a multi-tier security orchestrator designed for high-integrity environments (Ubuntu Linux primary, with full platform parity across macOS and Windows).
 
 ### 1. The Orchestrator (Deno Brain)
-- **Runtime**: Deno with Unstable KV for persistence.
-- **Web Interface**: Hono-based API and React/JSX frontend.
-- **Role**: Serves as the "Brain," managing mesh discovery, policy enforcement, and sidecar lifecycle.
-- **Security**: Implements a zero-trust model where all system interactions are mediated through the `SystemExecutor` and whitelisted IPC.
+- **Runtime**: Deno with Unstable KV for persistence and cryptographic state isolation.
+- **Web Interface**: Hono-based API and React/JSX Web Components frontend with WebSocket multiplexing.
+- **7-Phase Boot Sequence**: Strictly ordered lifecycle:
+  1. `initCore`: Storage & KV verification.
+  2. `Hardening`: Cryptographic secret entropy & TPM unsealing.
+  3. `TPM/System`: System lifecycle & hardware attestation.
+  4. `Infrastructure`: mTLS Mesh & peer gossip.
+  5. `AppManager/Registry`: Sidecar spawner & daemon management.
+  6. `ServiceOrchestrator`: Domain DDD dependency injection & command bus routing.
+  7. `Finalization`: Web adapter server initialization & TLS listener.
+- **Security**: Implements a zero-trust model where all OS executions are strictly gated through `SystemExecutor` path jails and whitelisted IPC protocols.
 
-### 2. Sidecars (Rust Enforcement)
-High-performance agents written in Rust for low-level system operations:
-- **Sentinel**: eBPF/XDP kernel-level observability and firewalling.
-- **Enforcer**: Process-level remediation (Kill, SIGSTOP, Forensic Dump).
-- **Analyzer**: Multi-vector threat scanning (Malware, Rootkits, Shellcode).
-- **Trustroot**: Hardware-rooted identity and secret management via TPM 2.0.
-- **Decoy**: Distributed honeypots and deception traps.
+### 2. Sidecars (Rust Agent Fleet)
+High-performance native system agents written in Rust for kernel-level monitoring and OS-native enforcement:
+- **Sentinel (`sentinel`)**: eBPF/LSM kernel telemetry, kprobe hooks (`execve`, `ptrace`, `connect`, `openat`), and PID quiet mode (`AgentCommand::TrustPid`).
+- **Sentinel Darwin (`sentinel-darwin`)**: Native C FFI bindings to Apple Endpoint Security Framework (`es_message_t`, `es_client_t`).
+- **Enforcer (`enforcer`)**: Linux process remediation (SIGKILL, SIGSTOP, cgroups isolation, memory dumping).
+- **Enforcer Win (`enforcer-win`)**: Windows Filtering Platform (WFP) driver integration (`FwpmEngineOpen0`, `FwpmFilterAdd0`) for native kernel packet blocking.
+- **Telemetry Win (`telemetry-win`)**: ETW (Event Tracing for Windows) syscall and process telemetry ingestion.
+- **Analyzer (`analyzer`)**: Multi-vector malware, rootkit (`rkhunter`), and signature analysis engine (`clamscan`).
+- **Trustroot (`trustroot`)**: Hardware TPM 2.0 PCR attestation, sealed secret unsealing via TCG TSS2 C FFI bindings.
+- **Decoy (`decoy`)**: Deception traps (SSH, Redis, HTTP honeypots) with automated threat scoring.
+- **Watchfile (`watchfile`)**: `inotify` kernel filesystem integrity monitoring (FIM).
+- **Netcap (`netcap`)**: Raw socket PCAP network inspection and flow tracking.
+- **Tunnel (`tunnel`)**: WireGuard VPN tunnel lifecycle manager.
 
 ## Identified Security Risks & Mitigations
 

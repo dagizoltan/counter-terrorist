@@ -48,7 +48,8 @@
     "@std/encoding/": "jsr:@std/encoding@^0.224.0/",
     "@std/testing/": "jsr:@std/testing@^0.224.0/",
     "@std/testing/mock": "jsr:@std/testing@^0.224.0/mock",
-    "@std/async/": "jsr:@std/async@^0.224.0/",
+    "@std/async": "jsr:@std/async@^1.0.0",
+    "@std/async/": "jsr:@std/async@^1.0.0/",
     "@interface/routes/": "./src/orchestrator/interface/web/routes/"
   }
 }

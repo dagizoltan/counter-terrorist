@@ -531,7 +531,8 @@ export class AuditService extends BaseService {
                 const verification = await this.verifier.verifyChain(50);
                 if (!verification.valid) {
                     const isDev = this.config?.getBoolean("CTS_DEV_MODE", false) || this.config?.getEnv("ENVIRONMENT") !== "production";
-                    if (isDev) {
+                    const allowHeal = this.config?.getBoolean("HEAL_DEV_AUDIT_LEDGER", false) || Deno.env.get("HEAL_DEV_AUDIT_LEDGER") === "true";
+                    if (isDev && allowHeal) {
                         this.logging.log({
                             timestamp: new Date().toISOString(),
                             type: LogType.AUDIT,
