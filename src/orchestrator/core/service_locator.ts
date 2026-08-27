@@ -36,6 +36,7 @@ export interface AnalysisServices {
   "networkDiscovery": import("../domain/analysis/network_discovery.ts").NetworkDiscoveryService;
   "lifecycle": import("../domain/analysis/lifecycle_service.ts").LifecycleService;
   "autonomousAutopilot": import("../domain/analysis/autonomous_autopilot_service.ts").AutonomousAutopilotService;
+  "activeSocketService": import("../domain/analysis/active_socket_service.ts").ActiveSocketService;
 }
 
 export interface SecurityServices {
