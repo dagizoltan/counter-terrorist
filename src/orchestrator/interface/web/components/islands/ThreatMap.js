@@ -1,14 +1,20 @@
 /**
  * <threat-map> — enterprise spatial & real-time threat map.
- * Renders an inline SVG equirectangular map with multi-spectral threat
- * categories, ingress vector arcs, interactive spatial popover cards, a 24h
- * temporal scrubber, a clickable category filter, and a live region breakdown.
  *
- * Location trust is first-class: a threat's geo carries a `precision`
- * ("city" | "country" | "estimated"). Estimated points — continent-level RIR
- * guesses from the server when no GeoIP database is provisioned — are drawn
- * hollow and dashed, counted separately, and never dressed up as precise. A
- * threat with no location at all is tallied, never invented.
+ * An inline-SVG equirectangular map of inbound adversary infrastructure, built
+ * entirely on real fields the threat records already carry — nothing on it is
+ * invented:
+ *   • category (malware / scan / eBPF / decoy / isolated), severity-weighted;
+ *   • location precision (city / country / estimated) — an estimated point is a
+ *     continent-level RIR guess, drawn hollow/dashed and counted apart, never
+ *     dressed up as precise; a threat with no location at all is only tallied;
+ *   • feed provenance (which intel source flagged the IP) and confidence;
+ *   • hosting ASN (populated once an ASN database is provisioned).
+ *
+ * Operator tooling: a clickable legend + region/source breakdown that filter the
+ * map, a search box, zoom & pan, temporal analytics (ingress sparkline, rate,
+ * live freshness), and CSRF-safe isolation — single or bulk over the current
+ * filter.
  */
 import { unwrap, apiSend } from "./api.js";
 import { WORLD_PATH, project } from "./world-outline.js";
@@ -24,6 +30,7 @@ const CATEGORY_LABEL = {
   honeypot: "Decoy Hit",
   isolated: "Isolated",
 };
+const ZOOM_MIN = 0.55, ZOOM_MAX = 6;
 
 class ThreatMap extends HTMLElement {
   constructor() {
@@ -31,15 +38,22 @@ class ThreatMap extends HTMLElement {
     this.threats = new Map();
     this.threatData = [];
     this.initialized = false;
-    this.activePopover = null;
     this.maxAgeHours = 24;
-    // Threats that arrive without a resolvable location. They used to be hashed
-    // to a random region and plotted as if real; now they are counted, not
+    // Threats that arrive without a resolvable location are counted, not
     // invented — see connectWS().
     this.ungeolocated = 0;
-    // Filter state: every category on, estimated points shown.
+    // Unified filter state.
     this.activeCategories = new Set(CATEGORIES);
     this.showEstimated = true;
+    this.activeSource = null; // feed provenance filter
+    this.activeRegion = null; // region/country filter
+    this.searchTerm = "";
+    // Zoom / pan viewport (a mutable copy of the base view).
+    this.view = { ...VIEW };
+    this.pan = null;
+    // Telemetry.
+    this.lastEventTs = 0;
+    this.wsState = "offline";
   }
 
   /** Isolation is an admin/operator action; the route rejects viewers. */
@@ -54,18 +68,17 @@ class ThreatMap extends HTMLElement {
     this.renderShell();
     await this.fetchHistorical();
     this.connectWS();
+    this._telemetryTimer = setInterval(() => this.updateTelemetry(), 1000);
   }
 
   disconnectedCallback() {
     if (this._reconnect) clearTimeout(this._reconnect);
     if (this._playTimer) clearInterval(this._playTimer);
+    if (this._telemetryTimer) clearInterval(this._telemetryTimer);
     if (this._ws) { this._ws.onclose = null; this._ws.close?.(); }
   }
 
   renderShell() {
-    // The protected node has been the origin of every ingress arc but was never
-    // drawn — the arcs flew to an invisible point. Marked now, so the picture
-    // has a centre.
     const home = project(HOME_NODE.lat, HOME_NODE.lon);
     const legendItems = CATEGORIES.map((cat) =>
       `<button type="button" class="tm-legend-btn" data-cat-toggle="${cat}" aria-pressed="true">
@@ -111,7 +124,7 @@ class ThreatMap extends HTMLElement {
         <div class="threat-map__scrubber flex items-center gap-3 px-3 py-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-xs">
           <button type="button" id="tm-play" class="t-btn ghost !py-1 !px-2 text-[10px]" aria-label="Replay threats across the time window">Replay</button>
           <span class="eyebrow">Time_Window:</span>
-          <input type="range" min="1" max="24" value="24" class="accent-primary cursor-pointer w-28 h-1" id="tm-scrubber-slider" />
+          <input type="range" min="1" max="24" value="24" class="accent-primary cursor-pointer w-28 h-1" id="tm-scrubber-slider" aria-label="Time window in hours" />
           <span class="eyebrow min-w-[36px]" id="tm-scrubber-val">24h</span>
           <span class="eyebrow min-w-[36px]" id="tm-playhead" aria-live="polite"></span>
         </div>
@@ -119,14 +132,29 @@ class ThreatMap extends HTMLElement {
         <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
         <div class="threat-map__popover-container hidden"></div>
       </div>
+
+      <div class="threat-map__toolbar">
+        <span class="tm-search-wrap">
+          <input type="search" id="tm-search" class="tm-search" placeholder="Search IP / country / source…" aria-label="Search threats" />
+        </span>
+        <div class="tm-filters" id="tm-active-filters"></div>
+        <div class="threat-map__telemetry" aria-live="polite">
+          <span class="tm-live" data-state="offline"><span class="tm-live-dot" aria-hidden="true"></span><span id="tm-live-label">offline</span></span>
+          <span class="tm-rate"><b id="tm-rate-val">0</b> in last 1h</span>
+          <svg class="tm-spark" id="tm-spark" viewBox="0 0 60 16" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <button type="button" class="tm-reset-view" id="tm-reset-view" hidden>Reset view</button>
+        </div>
+        <button type="button" class="tm-bulk" id="tm-bulk" hidden></button>
+      </div>
+
       <div class="threat-map__stats" aria-live="polite"></div>
       <ul id="tm-a11y-list" class="sr-only" aria-label="Detected threats, newest first"></ul>
     `;
-    // Position the home marker through the attribute, not the markup: the
-    // coordinates are numeric, but interpolating them into innerHTML trips the
-    // escaping guard, and setAttribute is how every other plot is placed.
+    // Numeric coords go through setAttribute, not innerHTML, to keep the escaping
+    // guard honest.
     this.querySelector(".threat-map__home")?.setAttribute("transform", `translate(${home.x} ${home.y})`);
 
+    this.svg = this.querySelector(".threat-map__canvas");
     this.plots = this.querySelector(".threat-map__plots");
     this.arcs = this.querySelector(".threat-map__arcs");
     this.clusters = this.querySelector(".threat-map__clusters");
@@ -138,20 +166,24 @@ class ThreatMap extends HTMLElement {
     this.playBtn = this.querySelector("#tm-play");
     this.playhead = this.querySelector("#tm-playhead");
     this.a11yList = this.querySelector("#tm-a11y-list");
+    this.searchInput = this.querySelector("#tm-search");
+    this.activeFiltersEl = this.querySelector("#tm-active-filters");
+    this.bulkBtn = this.querySelector("#tm-bulk");
+    this.liveEl = this.querySelector(".tm-live");
+    this.liveLabel = this.querySelector("#tm-live-label");
+    this.rateVal = this.querySelector("#tm-rate-val");
+    this.spark = this.querySelector("#tm-spark");
+    this.resetViewBtn = this.querySelector("#tm-reset-view");
 
-    if (this.slider) {
-      this.slider.addEventListener("input", (e) => {
-        this.stopPlayback(); // a manual scrub ends any replay in progress
-        this.maxAgeHours = parseInt(e.target.value, 10);
-        if (this.sliderVal) this.sliderVal.textContent = `${this.maxAgeHours}h`;
-        this.filterByAge();
-      });
-    }
-    if (this.playBtn) {
-      this.playBtn.addEventListener("click", () => this.togglePlayback());
-    }
+    this.slider?.addEventListener("input", (e) => {
+      this.stopPlayback();
+      this.maxAgeHours = parseInt(e.target.value, 10);
+      if (this.sliderVal) this.sliderVal.textContent = `${this.maxAgeHours}h`;
+      this.filterByAge();
+    });
+    this.playBtn?.addEventListener("click", () => this.togglePlayback());
 
-    // Category / estimated filter — the legend is a live control, not a key.
+    // Category / estimated filters.
     this.querySelectorAll("[data-cat-toggle]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const cat = btn.dataset.catToggle;
@@ -162,43 +194,47 @@ class ThreatMap extends HTMLElement {
         this.applyFilters();
       });
     });
-    const estBtn = this.querySelector("[data-est-toggle]");
-    if (estBtn) {
-      estBtn.addEventListener("click", () => {
-        this.showEstimated = !this.showEstimated;
-        estBtn.setAttribute("aria-pressed", String(this.showEstimated));
-        estBtn.classList.toggle("is-off", !this.showEstimated);
-        this.applyFilters();
-      });
-    }
+    this.querySelector("[data-est-toggle]")?.addEventListener("click", (e) => {
+      this.showEstimated = !this.showEstimated;
+      e.currentTarget.setAttribute("aria-pressed", String(this.showEstimated));
+      e.currentTarget.classList.toggle("is-off", !this.showEstimated);
+      this.applyFilters();
+    });
 
-    // Dismiss popover on background click
+    // Search.
+    this.searchInput?.addEventListener("input", (e) => {
+      this.searchTerm = String(e.target.value || "").trim().toLowerCase();
+      this.applyFilters();
+    });
+
+    // Bulk isolation over the current filter.
+    this.bulkBtn?.addEventListener("click", () => this.bulkIsolateVisible());
+
+    // Zoom & pan.
+    this.setupZoomPan();
+    this.resetViewBtn?.addEventListener("click", () => this.resetView());
+
+    // Dismiss popover on background click (but not from the a11y list, which
+    // opens it).
     this.addEventListener("click", (e) => {
-      // The a11y list opens the popover; without excluding it here the same
-      // bubbling click would reach this handler and dismiss it right back.
       if (!e.target.closest(".threat-map__plot") &&
           !e.target.closest(".threat-map__popover") &&
           !e.target.closest("#tm-a11y-list")) {
         this.hidePopover();
       }
     });
+    this.addEventListener("keydown", (e) => { if (e.key === "Escape") this.hidePopover(); });
 
-    // Keyboard: Escape closes the popover.
-    this.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") this.hidePopover();
+    // The SVG is role="img"; the parallel list is the accessible equivalent.
+    this.a11yList?.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-indicator]");
+      if (!btn) return;
+      const t = this.threatData.find((d) => d.indicator === btn.dataset.indicator);
+      if (t) this.showPopover(t, 0, 0);
     });
 
-    // The SVG is role="img", so its plots are invisible to assistive tech and
-    // unreachable by keyboard. The parallel list is the accessible equivalent:
-    // each threat is a real button that opens the same detail popover.
-    if (this.a11yList) {
-      this.a11yList.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-indicator]");
-        if (!btn) return;
-        const t = this.threatData.find((d) => d.indicator === btn.dataset.indicator);
-        if (t) this.showPopover(t, 0, 0);
-      });
-    }
+    this.updateStats();
+    this.updateTelemetry();
   }
 
   async fetchHistorical() {
@@ -213,9 +249,7 @@ class ThreatMap extends HTMLElement {
       const payload = await unwrap(res);
       const threats = Array.isArray(payload) ? payload : (payload?.threats ?? []);
       for (const t of threats) {
-        if (t?.geo?.lat != null && t?.geo?.lon != null) {
-          this.storeAndPlot(t);
-        }
+        if (t?.geo?.lat != null && t?.geo?.lon != null) this.storeAndPlot(t);
       }
       this.updateCount();
     } catch (e) {
@@ -226,6 +260,8 @@ class ThreatMap extends HTMLElement {
   connectWS() {
     if (typeof SharedWebSocket !== "function") return;
     this._ws = new SharedWebSocket();
+    this.wsState = "connecting";
+    this._ws.onopen = () => { this.wsState = "live"; this.updateTelemetry(); };
     this._ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
@@ -234,123 +270,110 @@ class ThreatMap extends HTMLElement {
           const threat = t.data || t;
           const indicator = threat.indicator || threat.source || threat.ip;
           if (!indicator) return;
-
           const lat = threat.geo?.lat;
           const lon = threat.geo?.lon;
-
-          // A threat with no resolved location is not placed on the map. It used
-          // to be hashed to one of a dozen hard-coded regions and jittered, so a
-          // dot on Kansas could be an adversary the feed never located — the
-          // operator could not tell a real geolocation from an invented one.
-          // The server's GeoIP enrichment now attaches real (or region-level
-          // estimated) coordinates; anything still unresolved is tallied.
-          if (lat == null || lon == null) {
-            this.ungeolocated++;
-            this.updateCount();
-            return;
-          }
-
-          const enriched = {
+          this.lastEventTs = Date.now();
+          this.wsState = "live";
+          // No resolved location → tallied, never invented. Server-side GeoIP
+          // enrichment attaches real (or region-estimated) coordinates.
+          if (lat == null || lon == null) { this.ungeolocated++; this.updateCount(); return; }
+          this.storeAndPlot({
             indicator,
             geo: { ...(threat.geo || {}), lat, lon },
             threatType: threat.threatType || threat.type || "ACTIVE_THREAT",
-            blocked: !!threat.blocked,
             provider: threat.provider || "REALTIME_FEED",
+            confidence: threat.confidence ?? threat.score,
+            blocked: !!threat.blocked,
             lastSeen: new Date().toISOString(),
-            isNew: true
-          };
-          this.storeAndPlot(enriched);
+            isNew: true,
+          });
           this.updateCount();
         };
-
         if (payload.type === "UI_BROADCAST_BATCH" && Array.isArray(payload.data)) {
           for (const item of payload.data) {
-            if (item.type === "THREAT" || (item.type === "AUDIT_EVENT" && item.data?.type === "THREAT")) {
-              processThreat(item.data);
-            }
+            if (item.type === "THREAT" || (item.type === "AUDIT_EVENT" && item.data?.type === "THREAT")) processThreat(item.data);
           }
         } else if (payload.type === "THREAT" || (payload.type === "AUDIT_EVENT" && payload.data?.type === "THREAT") || payload.type === "UI_BROADCAST") {
           processThreat(payload.data || payload);
         }
       } catch { /* malformed frame */ }
     };
-    this._ws.onclose = () => { this._reconnect = setTimeout(() => this.connectWS(), 5000); };
+    this._ws.onclose = () => {
+      this.wsState = "reconnecting";
+      this.updateTelemetry();
+      this._reconnect = setTimeout(() => this.connectWS(), 5000);
+    };
   }
 
   storeAndPlot(t) {
-    const idx = this.threatData.findIndex(x => x.indicator === t.indicator);
-    if (idx !== -1) {
-      this.threatData[idx] = { ...this.threatData[idx], ...t };
-    } else {
+    const idx = this.threatData.findIndex((x) => x.indicator === t.indicator);
+    if (idx !== -1) this.threatData[idx] = { ...this.threatData[idx], ...t };
+    else {
       this.threatData.unshift(t);
       if (this.threatData.length > 300) this.threatData.pop();
     }
     this.plot(t);
   }
 
-  /** A plot is hidden if it aged out (inline display) or a filter excludes it. */
-  isHidden(g) {
-    return g.style.display === "none" || g.classList.contains("is-filtered");
+  isHidden(g) { return g.style.display === "none" || g.classList.contains("is-filtered"); }
+  precisionOf(t) { return t.geo?.precision || (t.geo?.provisional ? "estimated" : "precise"); }
+  sourceOf(t) { return t.provider || t.geo?.provider || "Unknown"; }
+  regionKeyOf(t) {
+    const geo = t.geo || {};
+    return this.precisionOf(t) === "estimated" ? (geo.region || "Unknown region") : (geo.country || geo.region || "Unknown");
   }
 
-  precisionOf(threat) {
-    return threat.geo?.precision || (threat.geo?.provisional ? "estimated" : "precise");
-  }
-
-  passesFilter(threat) {
-    const cat = this.categorize(threat.threatType || threat.provider, threat.blocked);
+  passesFilter(t) {
+    const cat = this.categorize(t.threatType || t.provider, t.blocked);
     if (!this.activeCategories.has(cat)) return false;
-    if (this.precisionOf(threat) === "estimated" && !this.showEstimated) return false;
+    if (this.precisionOf(t) === "estimated" && !this.showEstimated) return false;
+    if (this.activeSource && this.sourceOf(t) !== this.activeSource) return false;
+    if (this.activeRegion && this.regionKeyOf(t) !== this.activeRegion) return false;
+    if (this.searchTerm) {
+      const hay = [t.indicator, t.geo?.country, t.geo?.city, t.geo?.region, t.provider, t.geo?.asn, t.geo?.isp]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(this.searchTerm)) return false;
+    }
     return true;
   }
 
-  /** Re-apply category / estimated filters to every plotted marker. */
   applyFilters() {
     this.threats.forEach((g, indicator) => {
       const data = this.threatData.find((d) => d.indicator === indicator);
-      if (!data) return;
-      g.classList.toggle("is-filtered", !this.passesFilter(data));
+      if (data) g.classList.toggle("is-filtered", !this.passesFilter(data));
     });
     this.updateCount();
   }
 
   filterByAge() {
     const now = Date.now();
-    const cutoff = now - (this.maxAgeHours * 60 * 60 * 1000);
+    const cutoff = now - this.maxAgeHours * 3600 * 1000;
     this.threats.forEach((g, indicator) => {
-      const data = this.threatData.find(d => d.indicator === indicator);
-      const time = new Date(data?.lastSeen || now).getTime();
-      g.style.display = time < cutoff ? "none" : "";
+      const data = this.threatData.find((d) => d.indicator === indicator);
+      g.style.display = new Date(data?.lastSeen || now).getTime() < cutoff ? "none" : "";
     });
     this.updateCount();
   }
 
-  /** Replay the threats appearing across the current window, oldest to newest. */
   togglePlayback() {
     if (this._playTimer) { this.stopPlayback(); return; }
-
     const now = Date.now();
-    const windowStart = now - (this.maxAgeHours * 60 * 60 * 1000);
-    const times = [];
+    const windowStart = now - this.maxAgeHours * 3600 * 1000;
+    let any = false;
     this.threats.forEach((_g, indicator) => {
       const data = this.threatData.find((d) => d.indicator === indicator);
-      const t = new Date(data?.lastSeen || now).getTime();
-      if (t >= windowStart) times.push(t);
+      if (new Date(data?.lastSeen || now).getTime() >= windowStart) any = true;
     });
-    if (times.length === 0) return; // nothing to replay
-
-    const STEPS = 48;
-    const DURATION_MS = 6000;
+    if (!any) return;
+    const STEPS = 48, DURATION_MS = 6000;
     let step = 0;
     if (this.playBtn) this.playBtn.textContent = "Pause";
-
     this._playTimer = setInterval(() => {
       step++;
       const playheadTime = windowStart + ((now - windowStart) * step) / STEPS;
       this.threats.forEach((g, indicator) => {
         const data = this.threatData.find((d) => d.indicator === indicator);
         const t = new Date(data?.lastSeen || now).getTime();
-        // Shown once it has "appeared" by the playhead, within the window.
         g.style.display = (t >= windowStart && t <= playheadTime) ? "" : "none";
       });
       if (this.playhead) this.playhead.textContent = new Date(playheadTime).toLocaleTimeString();
@@ -363,7 +386,7 @@ class ThreatMap extends HTMLElement {
     if (this._playTimer) { clearInterval(this._playTimer); this._playTimer = null; }
     if (this.playBtn) this.playBtn.textContent = "Replay";
     if (this.playhead) this.playhead.textContent = "";
-    this.filterByAge(); // restore the full window
+    this.filterByAge();
   }
 
   categorize(type, blocked) {
@@ -377,27 +400,17 @@ class ThreatMap extends HTMLElement {
 
   plot(threat) {
     const { indicator, blocked, isNew, geo } = threat;
-    const lat = geo?.lat;
-    const lon = geo?.lon;
-    const type = threat.threatType || threat.provider || "UNKNOWN";
-
+    const lat = geo?.lat, lon = geo?.lon, type = threat.threatType || threat.provider || "UNKNOWN";
     if (!this.plots || lat == null || lon == null) return;
-    const numLat = Number(lat);
-    const numLon = Number(lon);
+    const numLat = Number(lat), numLon = Number(lon);
     if (!Number.isFinite(numLat) || !Number.isFinite(numLon)) return;
-
     const { x, y } = project(numLat, numLon);
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     if (y < VIEW.y || y > VIEW.y + VIEW.h) return;
 
     this.threats.get(indicator)?.remove();
-
     const category = this.categorize(type, blocked);
     const precision = this.precisionOf(threat);
-
-    // Weight the marker by severity so the eye lands on the worst actors. The
-    // score arrives under any of these depending on the source; missing means
-    // mid.
     const rawScore = Number(threat.score ?? threat.confidence ?? geo?.threatScore ?? 50);
     const sev = Number.isFinite(rawScore) ? Math.max(0, Math.min(100, rawScore)) / 100 : 0.5;
     const dotR = (1.0 + sev * 1.6).toFixed(2);
@@ -409,49 +422,34 @@ class ThreatMap extends HTMLElement {
     g.setAttribute("data-precision", precision);
     g.setAttribute("data-indicator", indicator);
     g.setAttribute("transform", `translate(${x} ${y})`);
-    g.dataset.x = x;
-    g.dataset.y = y;
+    g.dataset.x = x; g.dataset.y = y;
     g.style.cursor = "pointer";
     if (!this.passesFilter(threat)) g.classList.add("is-filtered");
 
     const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    halo.setAttribute("r", haloR);
-    halo.setAttribute("class", "threat-map__halo");
-
+    halo.setAttribute("r", haloR); halo.setAttribute("class", "threat-map__halo");
     const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("r", dotR);
-    dot.setAttribute("class", "threat-map__dot");
+    dot.setAttribute("r", dotR); dot.setAttribute("class", "threat-map__dot");
 
     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
     const esc = globalThis.escapeHTML ?? String;
     const place = geo?.city || geo?.country || geo?.region || "";
     const placeStr = place ? ` (${place})` : "";
-    const ispStr = geo?.isp ? ` · ${geo.isp}` : "";
+    const srcStr = threat.provider ? ` · ${threat.provider}` : "";
     const estStr = precision === "estimated" ? " [estimated]" : "";
-    title.textContent = `${esc(indicator)}${esc(placeStr)} — ${esc(type)}${esc(ispStr)}${esc(estStr)} — ${blocked ? "isolated" : "active"}`;
-
+    title.textContent = `${esc(indicator)}${esc(placeStr)} — ${esc(type)}${esc(srcStr)}${esc(estStr)} — ${blocked ? "isolated" : "active"}`;
     g.append(halo, dot, title);
 
-    g.addEventListener("click", (e) => {
-      e.stopPropagation();
-      this.showPopover(threat, x, y);
-    });
-
+    g.addEventListener("click", (e) => { e.stopPropagation(); this.showPopover(threat, x, y); });
     this.plots.appendChild(g);
     this.threats.set(indicator, g);
-
-    // Draw ingress arc if active critical malware/ebpf threat
-    if (!blocked && (category === "malware" || category === "ebpf")) {
-      this.drawArc(x, y);
-    }
+    if (!blocked && (category === "malware" || category === "ebpf")) this.drawArc(x, y);
   }
 
   drawArc(x, y) {
     if (!this.arcs) return;
     const home = project(HOME_NODE.lat, HOME_NODE.lon);
-    const midX = (x + home.x) / 2;
-    const midY = Math.min(y, home.y) - 12;
-
+    const midX = (x + home.x) / 2, midY = Math.min(y, home.y) - 12;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", `M ${x} ${y} Q ${midX} ${midY} ${home.x} ${home.y}`);
     path.setAttribute("class", "threat-map__arc");
@@ -459,29 +457,36 @@ class ThreatMap extends HTMLElement {
     path.setAttribute("stroke", "url(#tm-arc-grad)");
     path.setAttribute("stroke-width", "0.6");
     path.setAttribute("stroke-dasharray", "3 2");
-
     this.arcs.appendChild(path);
     setTimeout(() => path.remove(), 8000);
   }
 
-  showPopover(threat, x, y) {
+  /** Shared isolation call — used by the popover and the bulk action. */
+  async isolate(indicator) {
+    // apiSend carries the CSRF token the isolate route requires.
+    await apiSend("/api/defense/isolate", "POST", {
+      source: indicator,
+      reason: "Manual isolation via Spatial Threat Map",
+    });
+    const t = this.threatData.find((d) => d.indicator === indicator);
+    if (t) { t.blocked = true; this.plot(t); }
+  }
+
+  showPopover(threat, _x, _y) {
     if (!this.popoverContainer) return;
     const esc = globalThis.escapeHTML ?? String;
     const geo = threat.geo || {};
     const category = this.categorize(threat.threatType, threat.blocked);
     const precision = this.precisionOf(threat);
     const estimated = precision === "estimated";
-    // Shown as-is; the marker's size is derived from it, so a defaulted value is
-    // rendered "—" rather than a number the feed never supplied.
     const scoreVal = threat.score ?? threat.confidence ?? geo.threatScore;
-
-    // Honest location line: an estimate reports its region and says so; a real
-    // lookup reports country/city. Nothing invents a country it does not have.
     const locLabel = estimated ? "Region (est.)" : "Location";
     const locValue = estimated
       ? `${esc(geo.region || "Unknown region")}`
       : `${esc(geo.country || "Unknown")}${geo.city ? " (" + esc(geo.city) + ")" : ""}`;
+    const asnValue = geo.asn ? esc(geo.asn) : "—";
     const ispValue = geo.isp ? esc(geo.isp) : (estimated ? "—" : "Carrier");
+    const source = threat.provider ? esc(threat.provider) : "—";
     const precisionBadge = estimated
       ? `<span class="pill" data-state="idle">ESTIMATED</span>`
       : `<span class="pill" data-state="info">${esc(String(precision).toUpperCase())}</span>`;
@@ -495,11 +500,13 @@ class ThreatMap extends HTMLElement {
         <div class="grid grid-cols-2 gap-x-2 gap-y-1 my-1 text-[11px]">
           <span class="text-slate-400">${esc(locLabel)}:</span>
           <span class="font-mono">${locValue}</span>
+          <span class="text-slate-400">Source Feed:</span>
+          <span class="font-mono truncate">${source}</span>
           <span class="text-slate-400">ISP / ASN:</span>
-          <span class="font-mono truncate">${ispValue}${geo.asn ? " · " + esc(geo.asn) : ""}</span>
+          <span class="font-mono truncate">${ispValue} · ${asnValue}</span>
           <span class="text-slate-400">Threat Vector:</span>
           <span class="font-mono text-warning">${esc(threat.threatType || 'Generic Probe')}</span>
-          <span class="text-slate-400">Severity:</span>
+          <span class="text-slate-400">Confidence:</span>
           <span class="font-mono">${scoreVal == null ? '—' : esc(String(scoreVal))}</span>
         </div>
         ${estimated ? `<p class="text-[10px] text-slate-500 leading-tight">Continent-level estimate from RIR allocation — provision a local GeoIP database for precise attribution.</p>` : ""}
@@ -512,46 +519,90 @@ class ThreatMap extends HTMLElement {
         </div>
       </div>
     `;
-
     this.popoverContainer.classList.remove("hidden");
-    // Move focus into the popover so a keyboard user who opened it from the
-    // parallel list lands on it, and Escape (handled on the host) dismisses it.
     this.popoverContainer.querySelector(".threat-map__popover")?.focus();
     const btn = this.popoverContainer.querySelector("#tm-isolate-btn");
     if (btn) {
       btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        btn.textContent = "ISOLATING...";
-        try {
-          // apiSend carries the CSRF token the isolate route requires; a raw
-          // fetch here omitted X-CT-Token and the POST was rejected 403.
-          await apiSend("/api/defense/isolate", "POST", {
-            source: threat.indicator,
-            reason: "Manual isolation via Spatial Threat Map",
-          });
-          threat.blocked = true;
-          this.storeAndPlot(threat);
-          this.hidePopover();
-        } catch (e) {
-          console.error("Isolation failed:", e);
-          btn.disabled = false;
-          btn.textContent = "Commit Isolation";
-        }
+        btn.disabled = true; btn.textContent = "ISOLATING...";
+        try { await this.isolate(threat.indicator); this.updateCount(); this.hidePopover(); }
+        catch (e) { console.error("Isolation failed:", e); btn.disabled = false; btn.textContent = "Commit Isolation"; }
       });
     }
   }
 
   hidePopover() {
-    if (this.popoverContainer) {
-      this.popoverContainer.classList.add("hidden");
-      this.popoverContainer.innerHTML = "";
+    if (this.popoverContainer) { this.popoverContainer.classList.add("hidden"); this.popoverContainer.innerHTML = ""; }
+  }
+
+  /** The threats currently visible (not aged out, not filtered, not clustered-away). */
+  visibleThreats() {
+    const out = [];
+    this.threats.forEach((g, indicator) => {
+      if (this.isHidden(g)) return;
+      const data = this.threatData.find((d) => d.indicator === indicator);
+      if (data) out.push(data);
+    });
+    return out;
+  }
+
+  /** Bulk-isolate every visible, not-yet-isolated indicator (operator only). */
+  async bulkIsolateVisible() {
+    if (!this.canOperate || !this.bulkBtn) return;
+    const targets = this.visibleThreats().filter((t) => !t.blocked);
+    if (targets.length === 0) return;
+    if (this.bulkBtn.dataset.armed !== "1") {
+      // Two-step confirm so a filtered mass-isolation is never one stray click.
+      this.bulkBtn.dataset.armed = "1";
+      this.bulkBtn.textContent = `Confirm: isolate ${targets.length}`;
+      this.bulkBtn.classList.add("is-armed");
+      clearTimeout(this._bulkArm);
+      this._bulkArm = setTimeout(() => this.updateBulkButton(), 4000);
+      return;
     }
+    this.bulkBtn.dataset.armed = "0";
+    this.bulkBtn.disabled = true;
+    this.bulkBtn.textContent = `Isolating ${targets.length}…`;
+    let ok = 0;
+    for (const t of targets) { try { await this.isolate(t.indicator); ok++; } catch (e) { console.error("bulk isolate failed", t.indicator, e); } }
+    this.bulkBtn.disabled = false;
+    this.bulkBtn.classList.remove("is-armed");
+    this.updateCount();
+    console.info(`[ThreatMap] bulk isolated ${ok}/${targets.length}`);
+  }
+
+  updateBulkButton() {
+    if (!this.bulkBtn) return;
+    const filtered = this.activeSource || this.activeRegion || this.searchTerm ||
+      this.activeCategories.size < CATEGORIES.length || !this.showEstimated;
+    const targets = this.canOperate ? this.visibleThreats().filter((t) => !t.blocked) : [];
+    this.bulkBtn.dataset.armed = "0";
+    this.bulkBtn.classList.remove("is-armed");
+    if (filtered && this.canOperate && targets.length > 0) {
+      this.bulkBtn.hidden = false;
+      this.bulkBtn.textContent = `Isolate all visible (${targets.length})`;
+    } else {
+      this.bulkBtn.hidden = true;
+    }
+  }
+
+  setFilter(kind, value) {
+    // Toggle a source/region filter; clicking the active one clears it.
+    if (kind === "source") this.activeSource = this.activeSource === value ? null : value;
+    if (kind === "region") this.activeRegion = this.activeRegion === value ? null : value;
+    this.applyFilters();
+  }
+
+  clearFilter(kind) {
+    if (kind === "source") this.activeSource = null;
+    if (kind === "region") this.activeRegion = null;
+    if (kind === "search") { this.searchTerm = ""; if (this.searchInput) this.searchInput.value = ""; }
+    this.applyFilters();
   }
 
   updateCount() {
     if (this.counter) {
-      let count = 0;
-      let estimated = 0;
+      let count = 0, estimated = 0;
       this.threats.forEach((g, indicator) => {
         if (this.isHidden(g)) return;
         count++;
@@ -566,75 +617,189 @@ class ThreatMap extends HTMLElement {
     this.updateA11yList();
     this.applyClusters();
     this.updateStats();
+    this.updateActiveFilters();
+    this.updateBulkButton();
+    this.updateTelemetry(); // keep the rate/sparkline live as data arrives
   }
 
-  /**
-   * Live region breakdown from what is actually plotted and visible — the panel
-   * that replaced three hard-coded "12% / 64% / 31%" cards the page used to ship.
-   * A precise point counts under its country; an estimate under its region.
-   */
+  /** Region + source breakdown, both clickable to filter, from visible markers. */
   updateStats() {
     if (!this.statsEl) return;
     const esc = globalThis.escapeHTML ?? String;
-    let located = 0, estimated = 0;
-    const regions = new Map();
-    this.threats.forEach((g, indicator) => {
-      if (this.isHidden(g)) return;
-      const data = this.threatData.find((d) => d.indicator === indicator);
-      if (!data) return;
+    let located = 0, estimated = 0, anyAsn = false;
+    const regions = new Map(), sources = new Map(), asns = new Map();
+    for (const data of this.visibleThreats()) {
       const geo = data.geo || {};
-      if (this.precisionOf(data) === "estimated") {
-        estimated++;
-        bump(regions, geo.region || "Unknown region");
-      } else {
-        located++;
-        bump(regions, geo.country || geo.region || "Unknown");
-      }
-    });
-    const top = [...regions.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const chips = top
-      .map(([name, n]) => `<span class="tm-region">${esc(name)}<b>${n}</b></span>`)
+      if (this.precisionOf(data) === "estimated") { estimated++; } else { located++; }
+      bump(regions, this.regionKeyOf(data));
+      bump(sources, this.sourceOf(data));
+      if (geo.asn) { anyAsn = true; bump(asns, geo.asn); }
+    }
+    const topChips = (map, kind, active) => [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4)
+      .map(([name, n]) => `<button type="button" class="${kind === "region" ? "tm-region" : "tm-source"}${active === name ? " is-active" : ""}" data-filter="${kind}" data-value="${esc(name)}">${esc(name)}<b>${n}</b></button>`)
       .join("");
+    const asnLine = anyAsn
+      ? `<span class="tm-stat-sep" aria-hidden="true"></span><span class="tm-stat tm-stat--muted">Top ASN</span>` +
+        [...asns.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, n]) => `<span class="tm-region">${esc(name)}<b>${n}</b></span>`).join("")
+      : "";
     this.statsEl.innerHTML = `
       <span class="tm-stat"><b>${located}</b> located</span>
       <span class="tm-stat tm-stat--est"><b>${estimated}</b> estimated</span>
       <span class="tm-stat tm-stat--muted"><b>${this.ungeolocated}</b> ungeolocated</span>
       <span class="tm-stat-sep" aria-hidden="true"></span>
-      ${chips || `<span class="tm-stat tm-stat--muted">No located indicators yet</span>`}
+      ${topChips(regions, "region", this.activeRegion) || `<span class="tm-stat tm-stat--muted">No located indicators yet</span>`}
+      ${sources.size ? `<span class="tm-stat-sep" aria-hidden="true"></span><span class="tm-stat tm-stat--muted">Sources</span>${topChips(sources, "source", this.activeSource)}` : ""}
+      ${asnLine}
     `;
+    this.statsEl.querySelectorAll("[data-filter]").forEach((el) => {
+      el.addEventListener("click", () => this.setFilter(el.dataset.filter, el.dataset.value));
+    });
   }
 
-  /**
-   * Collapse markers that land in the same map cell into one, with a count
-   * badge, so a busy metro reads as "7 here" instead of an unreadable blob.
-   * Layered on top: it only toggles an is-clustered class (CSS-hidden) and
-   * draws badges, leaving the age filter, playback and per-indicator popovers
-   * untouched. Hidden markers (aged out or filtered) are not eligible.
-   */
+  /** Chips for the active source/region/search filters, each removable. */
+  updateActiveFilters() {
+    if (!this.activeFiltersEl) return;
+    const esc = globalThis.escapeHTML ?? String;
+    const chips = [];
+    if (this.activeSource) chips.push(`<button type="button" class="tm-filter-chip" data-clear="source">source: ${esc(this.activeSource)} ✕</button>`);
+    if (this.activeRegion) chips.push(`<button type="button" class="tm-filter-chip" data-clear="region">region: ${esc(this.activeRegion)} ✕</button>`);
+    if (this.searchTerm) chips.push(`<button type="button" class="tm-filter-chip" data-clear="search">search: ${esc(this.searchTerm)} ✕</button>`);
+    this.activeFiltersEl.innerHTML = chips.join("");
+    this.activeFiltersEl.querySelectorAll("[data-clear]").forEach((el) => {
+      el.addEventListener("click", () => this.clearFilter(el.dataset.clear));
+    });
+  }
+
+  updateTelemetry() {
+    // Live status + freshness.
+    if (this.liveEl && this.liveLabel) {
+      const since = this.lastEventTs ? Math.round((Date.now() - this.lastEventTs) / 1000) : null;
+      const state = this.wsState === "live" ? "ok" : this.wsState === "reconnecting" ? "warn" : this.wsState === "connecting" ? "warn" : "idle";
+      this.liveEl.setAttribute("data-state", state);
+      this.liveLabel.textContent = this.wsState === "live"
+        ? (since == null ? "live" : `live · ${fmtAgo(since)}`)
+        : this.wsState;
+    }
+    // Ingress rate over the trailing hour, from real lastSeen timestamps.
+    const hourAgo = Date.now() - 3600 * 1000;
+    let inHour = 0;
+    for (const t of this.threatData) if (new Date(t.lastSeen || 0).getTime() >= hourAgo) inHour++;
+    if (this.rateVal) this.rateVal.textContent = String(inHour);
+    this.renderSparkline();
+  }
+
+  /** Ingress volume across the current window, bucketed from lastSeen. */
+  renderSparkline() {
+    if (!this.spark) return;
+    const now = Date.now();
+    const windowMs = this.maxAgeHours * 3600 * 1000;
+    const BUCKETS = 24;
+    const counts = new Array(BUCKETS).fill(0);
+    for (const t of this.threatData) {
+      const age = now - new Date(t.lastSeen || now).getTime();
+      if (age < 0 || age > windowMs) continue;
+      const b = Math.min(BUCKETS - 1, Math.floor(((windowMs - age) / windowMs) * BUCKETS));
+      counts[b]++;
+    }
+    const max = Math.max(1, ...counts);
+    const pts = counts.map((c, i) => {
+      const x = (i / (BUCKETS - 1)) * 60;
+      const y = 16 - (c / max) * 15 - 0.5;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+    // Stroke/fill come from CSS (.tm-spark polyline) — a presentation attribute
+    // cannot resolve a CSS variable, so setting stroke here would render black.
+    this.spark.innerHTML = `<polyline points="${pts}"/>`;
+  }
+
+  // ── Zoom & pan ────────────────────────────────────────────────────────────
+  setupZoomPan() {
+    if (!this.svg) return;
+    this.svg.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 0.85 : 1.18;
+      const p = this.svgPoint(e);
+      this.zoomAt(p.x, p.y, factor);
+    }, { passive: false });
+    this.svg.addEventListener("pointerdown", (e) => {
+      if (e.target.closest(".threat-map__plot")) return; // let a marker take the click
+      this.pan = { x: e.clientX, y: e.clientY, view: { ...this.view } };
+      this.svg.setPointerCapture?.(e.pointerId);
+      this.svg.classList.add("is-panning");
+    });
+    this.svg.addEventListener("pointermove", (e) => {
+      if (!this.pan) return;
+      const rect = this.svg.getBoundingClientRect();
+      const dx = ((e.clientX - this.pan.x) / rect.width) * this.view.w;
+      const dy = ((e.clientY - this.pan.y) / rect.height) * this.view.h;
+      this.view.x = this.pan.view.x - dx;
+      this.view.y = this.pan.view.y - dy;
+      this.clampView();
+      this.applyView();
+    });
+    const end = (e) => { this.pan = null; this.svg.classList.remove("is-panning"); this.svg.releasePointerCapture?.(e.pointerId); };
+    this.svg.addEventListener("pointerup", end);
+    this.svg.addEventListener("pointercancel", end);
+  }
+
+  svgPoint(e) {
+    const rect = this.svg.getBoundingClientRect();
+    return {
+      x: this.view.x + ((e.clientX - rect.left) / rect.width) * this.view.w,
+      y: this.view.y + ((e.clientY - rect.top) / rect.height) * this.view.h,
+    };
+  }
+
+  zoomAt(cx, cy, factor) {
+    const newW = VIEW.w * clampZoom(this.view.w * factor / VIEW.w);
+    const scale = newW / this.view.w;
+    this.view.w = newW;
+    this.view.h = this.view.h * scale;
+    // Keep the point under the cursor stationary.
+    this.view.x = cx - (cx - this.view.x) * scale;
+    this.view.y = cy - (cy - this.view.y) * scale;
+    this.clampView();
+    this.applyView();
+  }
+
+  clampView() {
+    this.view.w = Math.min(VIEW.w, Math.max(VIEW.w / ZOOM_MAX, this.view.w));
+    this.view.h = Math.min(VIEW.h, Math.max(VIEW.h / ZOOM_MAX, this.view.h));
+    this.view.x = Math.min(VIEW.x + VIEW.w - this.view.w, Math.max(VIEW.x, this.view.x));
+    this.view.y = Math.min(VIEW.y + VIEW.h - this.view.h, Math.max(VIEW.y, this.view.y));
+  }
+
+  applyView() {
+    this.svg?.setAttribute("viewBox", `${this.view.x} ${this.view.y} ${this.view.w} ${this.view.h}`);
+    const zoomed = this.view.w < VIEW.w - 0.5;
+    if (this.resetViewBtn) this.resetViewBtn.hidden = !zoomed;
+  }
+
+  resetView() {
+    this.view = { ...VIEW };
+    this.applyView();
+  }
+
   applyClusters() {
     if (!this.clusters) return;
     const SVGNS = "http://www.w3.org/2000/svg";
-    const CELL = 7; // viewBox units
+    const CELL = 7;
     const cells = new Map();
-
     this.threats.forEach((g) => {
-      g.classList.remove("is-clustered"); // reset every pass, then re-decide
-      if (this.isHidden(g)) return; // aged out or filtered — not eligible
+      g.classList.remove("is-clustered");
+      if (this.isHidden(g)) return;
       const x = Number(g.dataset.x), y = Number(g.dataset.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       const key = `${Math.round(x / CELL)}:${Math.round(y / CELL)}`;
       const bucket = cells.get(key);
       if (bucket) bucket.push(g); else cells.set(key, [g]);
     });
-
     this.clusters.innerHTML = "";
     const dotR = (g) => Number(g.querySelector(".threat-map__dot")?.getAttribute("r") || 0);
     for (const group of cells.values()) {
       if (group.length < 2) continue;
-      // Representative = the largest marker (i.e. highest severity) in the cell.
       group.sort((a, b) => dotR(b) - dotR(a));
       for (let i = 1; i < group.length; i++) group[i].classList.add("is-clustered");
-
       const x = Number(group[0].dataset.x), y = Number(group[0].dataset.y);
       const badge = document.createElementNS(SVGNS, "g");
       badge.setAttribute("class", "threat-map__cluster-badge");
@@ -649,7 +814,6 @@ class ThreatMap extends HTMLElement {
     }
   }
 
-  /** Keep the screen-reader list in step with what is plotted and visible. */
   updateA11yList() {
     if (!this.a11yList) return;
     const esc = globalThis.escapeHTML ?? String;
@@ -657,24 +821,20 @@ class ThreatMap extends HTMLElement {
     for (const t of this.threatData) {
       const g = this.threats.get(t.indicator);
       if (!g || this.isHidden(g)) continue;
-      // categorize() already returns "isolated" for a blocked threat, so no
-      // separate isolation suffix is needed.
       const cat = this.categorize(t.threatType, t.blocked);
       const est = this.precisionOf(t) === "estimated";
-      const place = est
-        ? `${t.geo?.region || "unknown region"} (estimated)`
-        : (t.geo?.country || "unknown location");
+      const place = est ? `${t.geo?.region || "unknown region"} (estimated)` : (t.geo?.country || "unknown location");
+      const src = t.provider ? `, ${t.provider}` : "";
       const score = t.score ?? t.confidence ?? t.geo?.threatScore;
-      const label = `${t.indicator}, ${cat}, ${place}` +
-        (score != null ? `, severity ${score}` : "");
+      const label = `${t.indicator}, ${cat}, ${place}${src}` + (score != null ? `, severity ${score}` : "");
       items.push(`<li><button type="button" data-indicator="${esc(t.indicator)}">${esc(label)}</button></li>`);
     }
     this.a11yList.innerHTML = items.join("");
   }
 }
 
-function bump(map, key) {
-  map.set(key, (map.get(key) || 0) + 1);
-}
+function bump(map, key) { map.set(key, (map.get(key) || 0) + 1); }
+function clampZoom(z) { return Math.min(1, Math.max(1 / ZOOM_MAX, z)); }
+function fmtAgo(s) { return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.floor(s / 60)}m ago` : `${Math.floor(s / 3600)}h ago`; }
 
 customElements.define("threat-map", ThreatMap);

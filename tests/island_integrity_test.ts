@@ -555,3 +555,25 @@ Deno.test("the threat map distinguishes estimated locations from precise ones", 
   // The estimated popover branch reports the region, never a fabricated country.
   assert(/geo\.region/.test(src), "estimated detail must show the region, not a made-up country");
 });
+
+Deno.test("the threat map exposes provenance, search, zoom and bulk isolation safely", async () => {
+  const src = await Deno.readTextFile(`${ISLANDS}/ThreatMap.js`);
+  // Feed provenance and a source filter, both from the real `provider` field.
+  assert(/tm-source/.test(src) && /data-filter=/.test(src), "source breakdown must be a filter");
+  assert(/sourceOf\s*\(/.test(src), "island must derive the feed provenance");
+  // Search and zoom/pan operator tooling.
+  assert(/id="tm-search"/.test(src) && /searchTerm/.test(src), "search box must filter the map");
+  assert(/setupZoomPan|applyView/.test(src), "map must support zoom/pan");
+  // Bulk isolation must reuse the CSRF-safe helper, never a second raw fetch.
+  assert(/bulkIsolateVisible/.test(src), "bulk isolation entry point missing");
+  assert(
+    (src.match(/apiSend\(\s*["'`]\/api\/defense\/isolate/g) ?? []).length >= 1,
+    "isolation (single and bulk) must go through apiSend",
+  );
+  assert(
+    !/\bfetch\(\s*["'`]\/api\/defense\/isolate/.test(src),
+    "isolation must never use a raw fetch — it would 403 with no CSRF token",
+  );
+  // Bulk isolation is a mutation; it must be gated on operator role and confirmed.
+  assert(/canOperate/.test(src) && /armed/.test(src), "bulk isolation must be operator-gated and confirmed");
+});

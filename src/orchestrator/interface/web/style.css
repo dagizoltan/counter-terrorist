@@ -5,7 +5,7 @@
  *   Generator     : src/orchestrator/tools/build/build_css.ts
  *   Regenerate    : deno task build-css
  *
- * 493 utilities derived from 766 class names in use.
+ * 493 utilities derived from 780 class names in use.
  * -------------------------------------------------------------------------- */
 
 /* ============================================================================
@@ -1689,8 +1689,78 @@ threat-map { display: block; }
 .tm-stat--est b { color: var(--warning); }
 .tm-stat--muted, .tm-stat--muted b { color: var(--muted); }
 .tm-stat-sep { flex: 1 1 var(--s-6); min-width: var(--s-4); }
-.tm-region { display: inline-flex; align-items: baseline; gap: 0.4em; color: var(--text-2); }
-.tm-region b { color: var(--text-1); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Region & source breakdown chips double as filter buttons. */
+.tm-region, .tm-source {
+  display: inline-flex; align-items: baseline; gap: 0.4em;
+  border: 1px solid transparent; background: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: var(--t-micro); letter-spacing: var(--track-label);
+  text-transform: uppercase; color: var(--text-2); padding: 1px var(--s-2); border-radius: 999px;
+}
+.tm-region:hover, .tm-source:hover { color: var(--text-1); border-color: var(--line); }
+.tm-region:focus-visible, .tm-source:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.tm-region.is-active, .tm-source.is-active {
+  border-color: var(--primary); color: var(--text-1);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+}
+.tm-region b, .tm-source b { color: var(--text-1); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Operator toolbar below the map: search, active-filter chips, telemetry, bulk. */
+.threat-map__toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4) 0;
+}
+.tm-search-wrap { flex: 1 1 220px; min-width: 150px; }
+.tm-search {
+  width: 100%; box-sizing: border-box; padding: var(--s-2) var(--s-3);
+  background: var(--surface-2); color: var(--text-1);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  font-family: var(--font-mono); font-size: var(--t-micro);
+}
+.tm-search::placeholder { color: var(--text-3); }
+.tm-search:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+.tm-filters { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.tm-filter-chip {
+  border: 1px solid var(--primary); background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--text-1); font-family: var(--font-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); padding: 2px var(--s-2); border-radius: 999px; cursor: pointer;
+}
+.tm-filter-chip:hover { background: color-mix(in srgb, var(--primary) 24%, transparent); }
+.tm-filter-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+.threat-map__telemetry {
+  margin-left: auto; display: inline-flex; align-items: center; gap: var(--s-3);
+  padding: var(--s-2) var(--s-3); border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface-1); font-family: var(--font-mono); font-size: var(--t-micro);
+  letter-spacing: var(--track-label); color: var(--text-2);
+}
+.tm-live { display: inline-flex; align-items: center; gap: 0.4em; text-transform: uppercase; }
+.tm-live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex: none; }
+.tm-live[data-state="ok"] .tm-live-dot { background: var(--success); box-shadow: 0 0 5px var(--success); }
+.tm-live[data-state="warn"] .tm-live-dot { background: var(--warning); }
+.tm-live[data-state="idle"] .tm-live-dot { background: var(--muted); }
+.tm-rate b { color: var(--text-1); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tm-spark { width: 60px; height: 16px; display: block; }
+.tm-spark polyline { fill: none; stroke: var(--primary); stroke-width: 1; stroke-linejoin: round; }
+.tm-reset-view {
+  border: 1px solid var(--line); background: none; color: var(--text-2);
+  font-family: var(--font-mono); font-size: var(--t-micro); padding: 1px var(--s-2);
+  border-radius: var(--r-sm); cursor: pointer;
+}
+.tm-reset-view:hover { color: var(--text-1); border-color: var(--primary); }
+
+.tm-bulk {
+  border: 1px solid var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger); font-family: var(--font-mono); font-size: var(--t-micro); font-weight: 600;
+  letter-spacing: var(--track-label); text-transform: uppercase;
+  padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); cursor: pointer;
+}
+.tm-bulk:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+.tm-bulk.is-armed { background: var(--danger); color: var(--surface-0); }
+.tm-bulk:disabled { opacity: 0.6; cursor: default; }
+
+/* Zoom & pan on the map canvas. */
+.threat-map__canvas { touch-action: none; }
+.threat-map__canvas.is-panning { cursor: grabbing; }
 
 /* ── TIMELINE ────────────────────────────────────────────────────────────
  * Forensic event timeline. The island owns this subtree; it previously
