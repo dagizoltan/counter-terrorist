@@ -1,6 +1,6 @@
 import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
-import { Eyebrow, StatusPill, TacticalPanel } from "@interface/components/Tactical.tsx";
+import { Eyebrow } from "@interface/components/Tactical.tsx";
 
 /**
  * Global Threat Map Page
@@ -44,30 +44,11 @@ export const ThreatMapPage = (props: { status: any, csrfToken?: string, nonce?: 
             </div>
             <p class="map-hud__note">
                <span class="indicator indicator--sm" data-state="crit" data-pulse="" aria-hidden="true"></span>
-               Ingress events are localized with hardened local GeoIP resolution, to
-               preserve orchestrator anonymity.
+               Ingress IPs resolve against a local GeoIP database when one is
+               provisioned; otherwise they are shown as region-level estimates.
+               No lookups ever leave the node.
             </p>
          </footer>
-      </div>
-
-      {/* 03_Regional_Stats */}
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-         {[
-            { region: 'North America', status: 'Optimal', state: 'ok', load: '12%' },
-            { region: 'Eurasia', status: 'Warning', state: 'warn', load: '64%' },
-            { region: 'Asia Pacific', status: 'Stable', state: 'ok', load: '31%' }
-         ].map(r => (
-            <TacticalPanel accent={r.state}>
-               <div class="flex justify-between items-center mb-4">
-                  <Eyebrow>{r.region}</Eyebrow>
-                  <StatusPill status={r.state} label={r.status} dot />
-               </div>
-               <div class="flex justify-between items-end">
-                  <span class="metric__value num">{r.load}</span>
-                  <Eyebrow>Ingress Density</Eyebrow>
-               </div>
-            </TacticalPanel>
-         ))}
       </div>
 
     </Layout>

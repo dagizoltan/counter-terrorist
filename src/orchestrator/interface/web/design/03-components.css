@@ -1054,6 +1054,10 @@ body.auth-page {
  * its library from unpkg.com and its tiles from cartocdn.com — both blocked
  * by this console's CSP, and both unavailable on an air-gapped node.
  * ==========================================================================*/
+/* The custom element is block so the map and the stats strip below it span the
+   panel width (a bare custom element is inline by default). */
+threat-map { display: block; }
+
 .threat-map {
   position: relative;
   width: 100%;
@@ -1204,6 +1208,75 @@ body.auth-page {
 @media (prefers-reduced-motion: reduce) {
   .threat-map__plot.is-new .threat-map__halo { animation: none; }
 }
+
+/* Location precision. An estimated point is a continent-level RIR guess, not a
+   real geolocation — drawn hollow and dashed so it never reads as precise, and
+   its halo damped so precise threats dominate the eye. */
+.threat-map__plot[data-precision="estimated"] .threat-map__dot {
+  fill: color-mix(in srgb, var(--c) 22%, transparent);
+  stroke: var(--c);
+  stroke-width: 0.4;
+  stroke-dasharray: 0.9 0.9;
+}
+.threat-map__plot[data-precision="estimated"] .threat-map__halo { opacity: 0.08; }
+
+/* Category / estimated filter. Hides a marker without touching the inline
+   display the age filter and playback drive, so the two never fight. */
+.threat-map__plot.is-filtered { display: none; }
+
+/* The legend is a live control now, not a static key. */
+.threat-map__legend { pointer-events: auto; }
+.tm-legend-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: opacity 0.15s var(--ease), color 0.15s var(--ease);
+}
+.tm-legend-btn:hover { color: var(--text-1); }
+.tm-legend-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.tm-legend-btn.is-off { opacity: 0.32; }
+.tm-legend-btn.is-off .indicator { filter: grayscale(1); }
+
+/* Hollow swatch for the estimated-location toggle. */
+.indicator--est {
+  background: transparent;
+  border: 1px dashed var(--muted);
+}
+
+/* Live region breakdown below the map — the panel that replaced three
+   hard-coded "12% / 64% / 31%" cards the page used to ship. */
+.threat-map__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-3);
+  border-top: 1px solid var(--line);
+}
+.tm-stat { display: inline-flex; align-items: baseline; gap: 0.35em; }
+.tm-stat b { color: var(--text-1); font-size: 1.15em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tm-stat--est b { color: var(--warning); }
+.tm-stat--muted, .tm-stat--muted b { color: var(--muted); }
+.tm-stat-sep { flex: 1 1 var(--s-6); min-width: var(--s-4); }
+.tm-region { display: inline-flex; align-items: baseline; gap: 0.4em; color: var(--text-2); }
+.tm-region b { color: var(--text-1); font-weight: 700; font-variant-numeric: tabular-nums; }
 
 /* ── TIMELINE ────────────────────────────────────────────────────────────
  * Forensic event timeline. The island owns this subtree; it previously
