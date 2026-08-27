@@ -43,7 +43,7 @@ export class EventMediator extends BaseService {
     private syscallBatch: SidecarEvent[] = [];
     private networkBatch: SidecarEvent[] = [];
     private readonly BATCH_THRESHOLD = 50;
-    private readonly MAX_QUEUE_DEPTH = 1000;
+    private readonly MAX_QUEUE_DEPTH = 5000;
     private batchTimer?: number;
 
     protected override async onInit(): Promise<Result<void>> {

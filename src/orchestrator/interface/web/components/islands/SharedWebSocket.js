@@ -8,6 +8,7 @@ class WsManager {
         this.listeners = new Set();
         this.ws = null;
         this.reconnectTimer = null;
+        this.reconnectAttempts = 0;
         this.connect();
     }
 
@@ -40,6 +41,7 @@ class WsManager {
 
         this.ws.onopen = (event) => {
             console.log('[SovereignWS] Multiplexed Connection Established');
+            this.reconnectAttempts = 0;
 
             // Start 20s heartbeat ping to keep connection alive through proxies
             this.pingInterval = setInterval(() => {
@@ -82,7 +84,13 @@ class WsManager {
 
     scheduleReconnect() {
         clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+        // Exponential backoff: base 1s, doubling up to max 30s, with randomized ±20% jitter
+        this.reconnectAttempts++;
+        const baseDelay = Math.min(30000, 1000 * Math.pow(2, Math.min(this.reconnectAttempts - 1, 5)));
+        const jitter = (Math.random() * 0.4 - 0.2) * baseDelay;
+        const delay = Math.max(1000, Math.floor(baseDelay + jitter));
+        console.warn(`[SovereignWS] Connection Lost. Reconnecting in ${(delay / 1000).toFixed(1)}s (Attempt ${this.reconnectAttempts})...`);
+        this.reconnectTimer = setTimeout(() => this.connect(), delay);
     }
 
     subscribe(fakeWs) {
