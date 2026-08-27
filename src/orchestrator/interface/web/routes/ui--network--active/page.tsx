@@ -9,7 +9,8 @@ export const ActiveNetworkPage = (props: { status: unknown, csrfToken?: string, 
   return (
     <Layout title="Active Network // Sovereign Mesh" islandPaths={[
       '/components/islands/NetworkMap.js',
-      '/components/islands/ListeningPorts.js'
+      '/components/islands/ListeningPorts.js',
+      '/components/islands/ActiveSockets.js'
     ]} csrfToken={props.csrfToken} nonce={props.nonce} userRole={props.userRole}>
       
       <header class="page-header animate-in fade-in slide-in-from-top-4 duration-700">
@@ -41,6 +42,13 @@ export const ActiveNetworkPage = (props: { status: unknown, csrfToken?: string, 
           </div>
         </div>
       </div>
+
+      {/* Active Socket Inspection & Real-Time Connection Isolation */}
+      <section class="mb-4">
+        <div class="t-panel glass-panel mb-4">
+          <active-sockets role-name={props.userRole}></active-sockets>
+        </div>
+      </section>
 
       {/* The console could open and close ports from the day it shipped —
           arming a decoy calls allowPort — but nothing reported which ports

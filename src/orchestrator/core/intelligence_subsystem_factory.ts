@@ -1,6 +1,6 @@
 import {
     GeoIpService, ForensicService, CuratedIntelService, NewsSignalService,
-    NetworkDiscoveryService, IncidentService, ComplianceService
+    NetworkDiscoveryService, IncidentService, ComplianceService, ActiveSocketService
 } from "@domain/index.ts";
 import { ConfigurationPort, ProtectionPort, LoggingPort, ExecutorPort } from "@core/ports.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
@@ -24,6 +24,7 @@ export class IntelligenceSubsystemFactory {
         curatedIntel: import("@domain/index.ts").CuratedIntelService;
         news: import("@domain/index.ts").NewsSignalService;
         networkDiscovery: import("@domain/index.ts").NetworkDiscoveryService;
+        activeSocketService: import("@domain/index.ts").ActiveSocketService;
         incidents: import("@domain/index.ts").IncidentService;
         compliance: import("@domain/index.ts").ComplianceService;
     } {
@@ -36,9 +37,10 @@ export class IntelligenceSubsystemFactory {
             svc.setMesh(mesh);
             return svc;
         });
+        const activeSocketService = this.createServiceDelegate(health, "ActiveSocketService", () => new ActiveSocketService(this.logging, geoIp, curatedIntel));
         const incidents = this.createServiceDelegate(health, "Incidents", () => new IncidentService(this.kv, this.logging));
         const compliance = this.createServiceDelegate(health, "Compliance", () => new ComplianceService(this.auditService, this.kv, processTracker));
 
-        return { geoIp, forensicService, curatedIntel, news, networkDiscovery, incidents, compliance };
+        return { geoIp, forensicService, curatedIntel, news, networkDiscovery, activeSocketService, incidents, compliance };
     }
 }

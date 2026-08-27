@@ -41,6 +41,7 @@ export { CuratedIntelService } from "./analysis/curated_intel_service.ts";
 export { NewsSignalService } from "./analysis/news_signal_service.ts";
 export { NetworkDiscoveryService } from "./analysis/network_discovery.ts";
 export { NetworkLogService } from "./analysis/network_log_service.ts";
+export { ActiveSocketService } from "./analysis/active_socket_service.ts";
 export { IncidentService } from "./analysis/incident_service.ts";
 export { ComplianceService } from "./analysis/compliance_service.ts";
 export { TacticalIntelIngestor as TacticalIntelService } from "./analysis/tactical_intel_ingestor.ts";
