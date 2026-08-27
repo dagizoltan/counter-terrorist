@@ -1,11 +1,13 @@
 /**
  * gen_world_outline — bakes the threat map's world geometry.
  *
- * Converts Natural Earth 50m (from the world-atlas TopoJSON package) into
- * equirectangular SVG paths and writes them as a static module:
- *   LAND_PATH    — filled land (crisp 50m coastlines)
- *   BORDERS_PATH — interior country borders (stroked; topojson mesh, so
- *                  coastlines are not redrawn)
+ * Converts Natural Earth 10m countries (from the world-atlas TopoJSON package)
+ * into per-country equirectangular SVG paths, keyed by ISO 3166-1 alpha-2, and
+ * writes them as a static module. One dataset does three jobs: rendered filled
+ * it is the land; stroked it gives coastlines and country borders; and keyed by
+ * ISO it lets the map tint each country by how many threats it is hosting (a
+ * choropleth). Territories with no alpha-2 code (disputed / uncoded) are kept
+ * under an empty key so no landmass goes missing.
  *
  * This runs OFF the critical path. Its output is committed, so the console
  * itself carries no mapping dependency, makes no network request, and works on
@@ -13,26 +15,24 @@
  * could not offer.
  *
  * Regenerate (needs npm, one-off):
- *   npm i --no-save world-atlas topojson-client
- *   node src/orchestrator/tools/build/gen_world_outline.mjs 0.18 \
+ *   npm i --no-save world-atlas topojson-client world-countries
+ *   node src/orchestrator/tools/build/gen_world_outline.mjs 0.2 \
  *        src/orchestrator/interface/web/components/islands/world-outline.js
  *
  * The tolerance argument (Douglas-Peucker, projected units) trades fidelity
- * against path size. 0.18 on 50m gives crisp coastlines that hold up under the
- * map's zoom without bloating the bundle.
+ * against size. 10m detail explodes below ~0.2, so 0.2 is the sweet spot:
+ * crisp coastlines and every small nation, without bloating the bundle.
  *
  * Natural Earth is public domain: naturalearthdata.com/about/terms-of-use
  */
 import fs from "node:fs";
 import { createRequire } from "node:module";
-import { feature, mesh } from "topojson-client";
+import { feature } from "topojson-client";
 
 const require = createRequire(import.meta.url);
-const topo = JSON.parse(fs.readFileSync(require.resolve("world-atlas/countries-50m.json"), "utf8"));
-const land = feature(topo, topo.objects.land);
-// Interior borders only: an arc shared by two different countries. Coastlines
-// (shared with the outside) are excluded, so borders never double the land.
-const borders = mesh(topo, topo.objects.countries, (a, b) => a !== b);
+const topo = JSON.parse(fs.readFileSync(require.resolve("world-atlas/countries-10m.json"), "utf8"));
+const worldCountries = JSON.parse(fs.readFileSync(require.resolve("world-countries/countries.json"), "utf8"));
+const numToAlpha2 = new Map(worldCountries.map((c) => [String(Number(c.ccn3)), c.cca2]));
 
 const WORLD = { width: 360, height: 180 };
 const px = (lon) => (lon + 180);
@@ -101,41 +101,35 @@ function ring(coords, tol) {
   return pieces.filter(Boolean).join("");
 }
 
-/** Open polyline — for borders. Not closed, not filled. */
-function line(coords, tol) {
-  const projected = coords.map(([lon, lat]) => [px(lon), py(lat)]);
-  const segments = splitAtAntimeridian(projected);
-  return segments.map((seg) => {
-    if (seg.length < 2) return "";
-    const pts = dp(seg, tol);
-    if (pts.length < 2) return "";
-    return "M" + pts.map(([x, y]) => `${round(x)} ${round(y)}`).join("L");
-  }).filter(Boolean).join("");
-}
-
-function polygons(geom, out, tol) {
+function countryPath(geom, tol) {
+  const out = [];
   if (geom.type === "Polygon") out.push(...geom.coordinates.map((r) => ring(r, tol)));
   else if (geom.type === "MultiPolygon") for (const poly of geom.coordinates) out.push(...poly.map((r) => ring(r, tol)));
-}
-function lines(geom, out, tol) {
-  if (geom.type === "LineString") out.push(line(geom.coordinates, tol));
-  else if (geom.type === "MultiLineString") for (const l of geom.coordinates) out.push(line(l, tol));
+  return out.filter(Boolean).join("");
 }
 
-const TOL = Number(process.argv[2] ?? 0.18);
-const landParts = [];
-for (const f of land.features) polygons(f.geometry, landParts, TOL);
-const landPath = landParts.filter(Boolean).join("");
+const TOL = Number(process.argv[2] ?? 0.2);
 
-const borderParts = [];
-lines(borders, borderParts, TOL);
-const bordersPath = borderParts.filter(Boolean).join("");
+// [iso2, path] pairs. Uncoded territories go under "" so they still draw.
+const rows = [];
+let mapped = 0, uncoded = 0, bytes = 0;
+for (const geom of topo.objects.countries.geometries) {
+  const iso2 = numToAlpha2.get(String(Number(geom.id))) ?? "";
+  const d = countryPath(feature(topo, geom).geometry, TOL);
+  if (!d) continue;
+  rows.push([iso2, d]);
+  bytes += d.length;
+  if (iso2) mapped++; else uncoded++;
+}
+rows.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+
+const body = rows.map(([iso, d]) => `  ["${iso}", "${d}"]`).join(",\n");
 
 const out = `/**
  * World geometry for the threat map, equirectangular projection.
  *
  * GENERATED — do not edit by hand.
- *   Source     : Natural Earth 50m, via the world-atlas TopoJSON package
+ *   Source     : Natural Earth 10m countries, via the world-atlas TopoJSON package
  *   Generator  : src/orchestrator/tools/build/gen_world_outline.mjs
  *   Simplified : Douglas-Peucker, tolerance ${TOL} projected units
  *
@@ -145,8 +139,9 @@ const out = `/**
  *   y = 90 - lat   (0..180)
  * so plotting an indicator is arithmetic, not a library.
  *
- *   LAND_PATH    — filled land (crisp 50m coastlines)
- *   BORDERS_PATH — interior country borders (stroked)
+ * COUNTRIES is [ISO-3166-1 alpha-2, SVG path] pairs — filled it is the land,
+ * stroked it draws coastlines and borders, and keyed by ISO it drives the
+ * per-country threat choropleth. Uncoded territories sit under "".
  *
  * Natural Earth is public domain (naturalearthdata.com/about/terms-of-use).
  */
@@ -158,16 +153,11 @@ export function project(lat, lon) {
   return { x: Number(lon) + 180, y: 90 - Number(lat) };
 }
 
-export const LAND_PATH =
-  "${landPath}";
-
-export const BORDERS_PATH =
-  "${bordersPath}";
-
-// Back-compat alias for the previous land-only export.
-export const WORLD_PATH = LAND_PATH;
+/** @type {ReadonlyArray<readonly [string, string]>} */
+export const COUNTRIES = [
+${body}
+];
 `;
 
 fs.writeFileSync(process.argv[3], out);
-console.log(`land rings: ${landParts.filter(Boolean).length}  land: ${(landPath.length / 1024).toFixed(1)}KB  ` +
-  `borders: ${(bordersPath.length / 1024).toFixed(1)}KB  tol: ${TOL}`);
+console.log(`countries: ${rows.length} (${mapped} ISO-coded, ${uncoded} uncoded)  paths: ${(bytes / 1024).toFixed(0)}KB  tol: ${TOL}`);

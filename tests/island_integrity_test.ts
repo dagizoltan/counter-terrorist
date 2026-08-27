@@ -577,3 +577,21 @@ Deno.test("the threat map exposes provenance, search, zoom and bulk isolation sa
   // Bulk isolation is a mutation; it must be gated on operator role and confirmed.
   assert(/canOperate/.test(src) && /armed/.test(src), "bulk isolation must be operator-gated and confirmed");
 });
+
+Deno.test("the threat map tints countries by density without over-claiming", async () => {
+  const src = await Deno.readTextFile(`${ISLANDS}/ThreatMap.js`);
+  // Countries render per-ISO shapes and a choropleth drives a --heat tint.
+  assert(/data-iso=/.test(src), "countries must be keyed by ISO for the choropleth");
+  assert(/updateChoropleth/.test(src), "choropleth entry point missing");
+  assert(/setProperty\(["'`]--heat/.test(src), "choropleth must tint via a --heat property");
+  // An estimated threat carries no country, so it must not light a shape.
+  assert(
+    /precisionOf\([^)]*\)\s*===\s*["'`]estimated["'`]\)\s*continue/.test(src),
+    "choropleth must skip estimated threats (they have no country to justify a tint)",
+  );
+
+  // The world geometry stays static and offline — no runtime map fetch.
+  const geo = await Deno.readTextFile(`${ISLANDS}/world-outline.js`);
+  assert(/export const COUNTRIES/.test(geo), "world geometry must export the per-country dataset");
+  assert(!/\bfetch\(|import\(/.test(geo), "world geometry must not fetch or dynamically import at runtime");
+});

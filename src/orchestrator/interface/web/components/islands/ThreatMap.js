@@ -17,7 +17,7 @@
  * filter.
  */
 import { unwrap, apiSend } from "./api.js";
-import { LAND_PATH, BORDERS_PATH, project } from "./world-outline.js";
+import { COUNTRIES, project } from "./world-outline.js";
 
 /** Faint lat/lon graticule across the cropped view (meridians/parallels 20°). */
 function graticulePath(viewTop, viewBottom) {
@@ -93,6 +93,12 @@ class ThreatMap extends HTMLElement {
          <span class="indicator" data-cat="${cat}" aria-hidden="true"></span>${CATEGORY_LABEL[cat]}
        </button>`
     ).join("");
+    // One path per country: filled it is the land, stroked it draws coastlines
+    // and borders, and keyed by ISO it takes a threat-density tint. Geometry is
+    // static generated data (numbers + a 2-letter code), not remote input.
+    const countriesMarkup = COUNTRIES.map(([iso, d]) =>
+      `<path class="threat-map__country" data-iso="${iso}" d="${d}"></path>`
+    ).join("");
     this.innerHTML = `
       <div class="threat-map threat-map--container relative">
         <svg class="threat-map__canvas"
@@ -115,8 +121,7 @@ class ThreatMap extends HTMLElement {
           </defs>
           <rect x="${VIEW.x}" y="${VIEW.y}" width="${VIEW.w}" height="${VIEW.h}" class="threat-map__ocean" fill="url(#tm-ocean)"/>
           <path d="${graticulePath(VIEW.y, VIEW.y + VIEW.h)}" class="threat-map__graticule"/>
-          <path d="${LAND_PATH}" class="threat-map__land"/>
-          <path d="${BORDERS_PATH}" class="threat-map__borders"/>
+          <g class="threat-map__countries">${countriesMarkup}</g>
           <g class="threat-map__arcs"></g>
           <g class="threat-map__home" aria-hidden="true">
             <circle class="threat-map__home-ping" r="4.5"></circle>
@@ -145,6 +150,11 @@ class ThreatMap extends HTMLElement {
         </div>
 
         <div class="threat-map__count eyebrow" aria-live="polite">0 indicators</div>
+        <div class="threat-map__heat-legend" hidden>
+          <span class="eyebrow">Threat density</span>
+          <span class="tm-heat-scale" aria-hidden="true"></span>
+          <span class="eyebrow tm-heat-max" id="tm-heat-max">0</span>
+        </div>
         <div class="threat-map__popover-container hidden"></div>
       </div>
 
@@ -174,6 +184,14 @@ class ThreatMap extends HTMLElement {
     this.arcs = this.querySelector(".threat-map__arcs");
     this.clusters = this.querySelector(".threat-map__clusters");
     this.counter = this.querySelector(".threat-map__count");
+    // Index the country shapes by ISO for the choropleth.
+    this.countryEls = new Map();
+    this.querySelectorAll(".threat-map__country[data-iso]").forEach((el) => {
+      if (el.dataset.iso) this.countryEls.set(el.dataset.iso, el);
+    });
+    this.heatedIso = new Set();
+    this.heatLegend = this.querySelector(".threat-map__heat-legend");
+    this.heatMaxEl = this.querySelector("#tm-heat-max");
     this.statsEl = this.querySelector(".threat-map__stats");
     this.popoverContainer = this.querySelector(".threat-map__popover-container");
     this.slider = this.querySelector("#tm-scrubber-slider");
@@ -640,9 +658,38 @@ class ThreatMap extends HTMLElement {
     this.updateA11yList();
     this.applyClusters();
     this.updateStats();
+    this.updateChoropleth();
     this.updateActiveFilters();
     this.updateBulkButton();
     this.updateTelemetry(); // keep the rate/sparkline live as data arrives
+  }
+
+  /**
+   * Tint each country by how many visible threats it hosts (a choropleth).
+   * Only located threats count — an estimate carries no country, so it never
+   * lights a shape it can't justify. Intensity is a sqrt scale of count/max so
+   * one loud country doesn't wash the rest to nothing.
+   */
+  updateChoropleth() {
+    if (!this.countryEls) return;
+    const counts = new Map();
+    for (const data of this.visibleThreats()) {
+      if (this.precisionOf(data) === "estimated") continue;
+      const iso = String(data.geo?.country || "").toUpperCase();
+      if (iso && this.countryEls.has(iso)) counts.set(iso, (counts.get(iso) || 0) + 1);
+    }
+    const max = Math.max(1, ...counts.values());
+    // Clear countries that are no longer hot.
+    for (const iso of this.heatedIso) {
+      if (!counts.has(iso)) this.countryEls.get(iso)?.style.removeProperty("--heat");
+    }
+    this.heatedIso = new Set(counts.keys());
+    for (const [iso, n] of counts) {
+      const t = 0.18 + 0.82 * Math.sqrt(n / max);
+      this.countryEls.get(iso)?.style.setProperty("--heat", t.toFixed(3));
+    }
+    if (this.heatLegend) this.heatLegend.hidden = counts.size === 0;
+    if (this.heatMaxEl) this.heatMaxEl.textContent = counts.size ? String(Math.max(...counts.values())) : "0";
   }
 
   /** Region + source breakdown, both clickable to filter, from visible markers. */

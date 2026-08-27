@@ -5,7 +5,7 @@
  *   Generator     : src/orchestrator/tools/build/build_css.ts
  *   Regenerate    : deno task build-css
  *
- * 493 utilities derived from 783 class names in use.
+ * 493 utilities derived from 786 class names in use.
  * -------------------------------------------------------------------------- */
 
 /* ============================================================================
@@ -1491,9 +1491,9 @@ threat-map { display: block; }
 
 .threat-map__canvas { width: 100%; height: 100%; display: block; }
 
-/* Ocean depth tokens for the map (radial gradient stops). Derived from the
-   surface scale so they follow the theme. */
-.threat-map { --tm-ocean-hi: var(--surface-2); --tm-ocean-lo: var(--surface-0); }
+/* Map tokens: ocean depth (radial gradient stops) and the choropleth "hot"
+   colour. Derived from the palette so they follow the theme. */
+.threat-map { --tm-ocean-hi: var(--surface-2); --tm-ocean-lo: var(--surface-0); --tm-hot: var(--danger); }
 
 /* Ocean plate — filled by the radial depth gradient defined in the island. */
 .threat-map__ocean { fill: url(#tm-ocean); }
@@ -1506,25 +1506,43 @@ threat-map { display: block; }
   opacity: 0.5;
 }
 
-.threat-map__land {
-  fill: var(--surface-3);
-  /* A cool coastline highlight + a whisper of glow lift the landmasses off the
-     ocean without the flat graph-paper look. */
-  stroke: color-mix(in srgb, var(--primary) 34%, var(--line));
-  stroke-width: 0.22;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 0.5px color-mix(in srgb, var(--primary) 45%, transparent));
+/* Countries: one path each. Filled it is the land; stroked it draws coastlines
+   and borders; tinted by --heat it is the threat-density choropleth. The group
+   carries a single glow pass so the whole silhouette lifts off the ocean. */
+.threat-map__countries {
+  filter: drop-shadow(0 0 0.5px color-mix(in srgb, var(--primary) 38%, transparent));
 }
+.threat-map__country {
+  fill: color-mix(in srgb, var(--surface-3), var(--tm-hot) calc(var(--heat, 0) * 62%));
+  stroke: color-mix(in srgb, var(--primary) 28%, var(--line));
+  stroke-width: 0.13;
+  stroke-linejoin: round;
+  transition: fill 0.4s var(--ease);
+}
+@media (prefers-reduced-motion: reduce) { .threat-map__country { transition: none; } }
 
-/* Interior country borders — present but quiet, so they inform without
-   competing with the threat markers. */
-.threat-map__borders {
-  fill: none;
-  stroke: var(--line);
-  stroke-width: 0.18;
-  stroke-linejoin: round;
-  opacity: 0.55;
+/* Choropleth scale, shown only while at least one country is lit. */
+.threat-map__heat-legend {
+  position: absolute;
+  right: var(--s-4);
+  bottom: var(--s-4);
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
 }
+.threat-map__heat-legend[hidden] { display: none; }
+.tm-heat-scale {
+  width: 46px;
+  height: 7px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: linear-gradient(to right, var(--surface-3), var(--tm-hot));
+}
+.tm-heat-max { min-width: 12px; text-align: right; }
 
 /* Structural hook: the group every plotted indicator is appended into. */
 .threat-map__plots { pointer-events: auto; }
