@@ -168,8 +168,9 @@ class ActiveSockets extends HTMLElement {
             ${s.geo?.country ? ` · ${esc(s.geo.country)}` : ""}
             ${s.threatScore ? ` · Threat Score: ${esc(s.threatScore)}` : ""}
           </span>
-          <span class="ledger-row__ttl">
-            ${s.process ? `Process: ${esc(s.process)}` : "Process: Unattributed"} ${s.pid ? `(PID ${esc(s.pid)})` : ""}
+          <span class="ledger-row__ttl flex items-center gap-1.5">
+            ${s.process ? `<span class="pill" data-state="info">${esc(s.process)}</span>` : `<span class="pill" data-state="idle">Unattributed</span>`}
+            ${s.pid ? `PID ${esc(s.pid)}` : ""}
           </span>
         </div>
 

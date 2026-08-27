@@ -90,10 +90,46 @@ export class ActiveSocketService extends BaseService {
     return sockets;
   }
 
+  private async getInodeProcMap(): Promise<Map<string, { pid: number; comm: string }>> {
+    const map = new Map<string, { pid: number; comm: string }>();
+    try {
+      for await (const entry of Deno.readDir("/proc")) {
+        if (!entry.isDirectory || !/^\d+$/.test(entry.name)) continue;
+        const pid = parseInt(entry.name, 10);
+        let comm = "";
+        try {
+          comm = (await Deno.readTextFile(`/proc/${pid}/comm`)).trim();
+        } catch {
+          continue;
+        }
+
+        try {
+          for await (const fdEntry of Deno.readDir(`/proc/${pid}/fd`)) {
+            try {
+              const link = await Deno.readLink(`/proc/${pid}/fd/${fdEntry.name}`);
+              if (link.startsWith("socket:[")) {
+                const inode = link.substring(8, link.length - 1);
+                map.set(inode, { pid, comm });
+              }
+            } catch {
+              // Ignore unreadable fd symlinks
+            }
+          }
+        } catch {
+          // Ignore unreadable /proc/[pid]/fd directories
+        }
+      }
+    } catch {
+      // Ignore top-level /proc read error
+    }
+    return map;
+  }
+
   private async parseProcNetSockets(): Promise<ActiveSocket[]> {
     const sockets: ActiveSocket[] = [];
     const tcpContent = await Deno.readTextFile("/proc/net/tcp").catch(() => "");
     const tcp6Content = await Deno.readTextFile("/proc/net/tcp6").catch(() => "");
+    const inodeMap = await this.getInodeProcMap();
 
     const STATE_MAP: Record<string, ActiveSocket["state"]> = {
       "01": "ESTABLISHED",
@@ -108,15 +144,18 @@ export class ActiveSocketService extends BaseService {
       const lines = content.split("\n").slice(1);
       for (const line of lines) {
         const parts = line.trim().split(/\s+/);
-        if (parts.length < 4) continue;
+        if (parts.length < 10) continue;
 
         const local = parseHexAddr(parts[1], isV6);
         const remote = parseHexAddr(parts[2], isV6);
         const hexState = parts[3];
         const state = STATE_MAP[hexState] || "UNKNOWN";
+        const inode = parts[9];
 
         // Ignore LISTEN here as listening-ports handles LISTEN
         if (state === "LISTEN" || !remote.ip || remote.ip === "0.0.0.0" || remote.ip === "::") continue;
+
+        const procInfo = inode ? inodeMap.get(inode) : undefined;
 
         sockets.push({
           localIp: local.ip,
@@ -125,6 +164,8 @@ export class ActiveSocketService extends BaseService {
           remotePort: remote.port,
           protocol: "tcp",
           state,
+          pid: procInfo?.pid,
+          process: procInfo?.comm,
         });
       }
     };
