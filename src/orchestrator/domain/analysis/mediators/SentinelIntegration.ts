@@ -72,6 +72,16 @@ export class SentinelIntegration {
                 }
             }
 
+            if (syscall === "connect" || syscall === "sys_connect") {
+                this.broadcast({
+                    type: "SOCKET_FLOW",
+                    severity: LogSeverity.INFO,
+                    message: `eBPF Socket Flow: ${comm} (PID: ${pid}) initiated connection`,
+                    data: { ...event, comm, pid, syscall }
+                });
+                await this.eventBus.emit("SOCKET_FLOW", { ...event, comm, pid, syscall });
+            }
+
             if (type !== "EBPF_SYSCALL") {
                 this.broadcast({
                     type,

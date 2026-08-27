@@ -56,6 +56,26 @@ export class AutonomousResponseEngine extends BaseService {
     }
 
     /**
+     * Evaluates high-risk active socket flow telemetry and triggers automated perimeter isolation.
+     */
+    async evaluateSocketFlow(flow: { remoteIp: string; threatScore?: number; process?: string; pid?: number }): Promise<Result<void>> {
+        if (!flow.remoteIp || typeof flow.threatScore !== "number" || flow.threatScore < 85) {
+            return ok(undefined);
+        }
+
+        const threatEvent: ThreatEvent = {
+            source: flow.remoteIp,
+            type: "HIGH_RISK_SOCKET_FLOW",
+            severity: flow.threatScore,
+            description: `Automated Response: High-risk socket flow detected from ${flow.remoteIp} (Process: ${flow.process || "unattributed"}, PID: ${flow.pid || "unknown"}) with Threat Score ${flow.threatScore}`,
+            data: flow as Record<string, unknown>,
+            timestamp: new Date().toISOString()
+        };
+
+        return await this.evaluate(threatEvent);
+    }
+
+    /**
      * Ingests a threat event and determines the required remediation tier.
      */
     async evaluate(event: ThreatEvent): Promise<Result<void>> {

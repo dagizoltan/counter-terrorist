@@ -1178,6 +1178,19 @@ threat-map { display: block; }
 }
 @media (prefers-reduced-motion: reduce) { .threat-map__home-ping { animation: none; opacity: 0; } }
 
+/* Density heatmap filter layer for threat map plots */
+.threat-map__plots.show-heatmap .threat-map__halo {
+  opacity: 0.75;
+  filter: blur(4px);
+  transform: scale(2.5);
+  transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
+}
+
+.indicator--heat {
+  background: linear-gradient(135deg, var(--danger), var(--warning), var(--primary));
+  box-shadow: 0 0 6px var(--danger);
+}
+
 /* Category identity. The plotted dot and the legend swatch share one hue per
    category, so the map reads as the legend promises — until now every dot took
    the default --danger and the five categories were visually indistinguishable.
