@@ -957,6 +957,7 @@ class ThreatMap extends HTMLElement {
     this.svg?.setAttribute("viewBox", `${this.view.x} ${this.view.y} ${this.view.w} ${this.view.h}`);
     const zoomed = this.view.w < VIEW.w - 0.5;
     if (this.resetViewBtn) this.resetViewBtn.hidden = !zoomed;
+    this.applyClusters();
   }
 
   resetView() {
@@ -967,7 +968,10 @@ class ThreatMap extends HTMLElement {
   applyClusters() {
     if (!this.clusters) return;
     const SVGNS = "http://www.w3.org/2000/svg";
-    const CELL = 2.5;
+    const zoomLevel = VIEW.w / (this.view.w || VIEW.w);
+    // Dynamic cell granularity: when zoomed out (zoomLevel ~ 1), CELL is ~6.0.
+    // As operator zooms in (zoomLevel up to 6), CELL shrinks smoothly to ~0.6, breaking clusters into discrete sharp markers.
+    const CELL = Math.max(0.6, 6.0 / Math.pow(zoomLevel, 1.15));
     const cells = new Map();
     this.threats.forEach((g) => {
       g.classList.remove("is-clustered");
