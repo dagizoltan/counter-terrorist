@@ -1,39 +1,61 @@
 import { assertEquals, assert } from "@std/assert";
-import { EventMediator } from "../src/orchestrator/domain/events/event_mediator.ts";
-import { EventBus } from "../src/orchestrator/domain/events/event_bus.ts";
-import { MockLogging } from "./mocks.ts";
+import { EventMediator } from "../src/orchestrator/domain/analysis/event_mediator.ts";
+import { EventBus } from "../src/orchestrator/domain/analysis/events.ts";
+import { LoggingPort } from "../src/orchestrator/core/ports.ts";
+
+class MockLogging implements LoggingPort {
+  async log() {}
+  async shutdown() {}
+  setConfig() {}
+  setKv() {}
+  enableGlobalIntercept() {}
+}
 
 Deno.test("Phase 3 - High-Frequency Telemetry Load Testing (50,000 events/sec batching & backpressure)", async () => {
-  const eventBus = new EventBus();
   const logging = new MockLogging();
-  const mediator = new EventMediator(eventBus, logging);
+  const eventBus = new EventBus(logging);
+  const mediator = new EventMediator(eventBus, () => {}, logging);
 
   await mediator.init();
 
   let batchCount = 0;
   let totalEventsReceived = 0;
 
-  mediator.subscribe("UI_BROADCAST_BATCH", (event: any) => {
+  eventBus.on("EBPF_SYSCALL_BATCH", (event: any) => {
     batchCount++;
-    if (Array.isArray(event.events)) {
-      totalEventsReceived += event.events.length;
+    if (Array.isArray(event)) {
+      totalEventsReceived += event.length;
     }
   });
 
   const TOTAL_EVENTS = 50000;
   const startTime = performance.now();
 
-  // Fuzz WebSocket batching pipeline under extreme event volume
-  for (let i = 0; i < TOTAL_EVENTS; i++) {
-    mediator.emit("LOG", {
-      type: "SYSTEM_EVENT",
-      seq: i,
-      payload: `Telemetry log event stream payload chunk ${i}`
-    });
-  }
+  // Simulate sidecar sending telemetry to SentinelIntegration
+  const mockCommandPort = {
+    onEvent: (sidecar: string, handler: (data: unknown) => Promise<void>) => {
+      if (sidecar === "sentinel") {
+        (async () => {
+          for (let i = 0; i < TOTAL_EVENTS; i++) {
+            await handler({
+              data: {
+                type: "SYSCALL_EVENT",
+                pid: 1000 + (i % 10),
+                comm: "telemetry_test",
+                syscall: "sys_enter_openat",
+                seq: i
+              }
+            });
+          }
+        })();
+      }
+    }
+  };
+
+  mediator.wireSidecars(mockCommandPort as any);
 
   // Force timer tick / flush for remaining buffered telemetry
-  await new Promise((resolve) => setTimeout(resolve, 150));
+  await new Promise((resolve) => setTimeout(resolve, 1100));
 
   const duration = performance.now() - startTime;
   const eventsPerSec = (TOTAL_EVENTS / (duration / 1000));

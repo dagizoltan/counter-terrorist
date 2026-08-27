@@ -92,10 +92,11 @@ deno task provision-integrity
 ```
 
 ### Step 5: Execute System Test Suite
-Execute the full integration and property-based test suite (210+ test cases):
+Execute the full integration and property-based test suite (280+ test cases):
 ```bash
 deno test --allow-all --unstable-kv --no-check tests/
 ```
+Note: Deno import mappings for `@std/async` use `jsr:@std/async@^1.0.0` in `deno.json`.
 
 ### Step 6: Start the System
 - **Development Mode (with live reload):**

@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { EventBus } from "../src/orchestrator/domain/analysis/events.ts";
 import { LoggingPort, LogType, LogSeverity } from "../src/orchestrator/core/ports.ts";
-import { delay } from "@std/async/delay";
+import { delay } from "@std/async";
 
 const mockLogging: LoggingPort = {
     log: () => Promise.resolve(),

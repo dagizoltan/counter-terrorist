@@ -2,7 +2,7 @@ import { assertEquals } from "@std/assert";
 import { AuditService } from "../src/orchestrator/domain/analysis/audit.ts";
 import { AuditVerifier } from "../src/orchestrator/domain/analysis/audit_verifier.ts";
 import { LoggingPort } from "../src/orchestrator/core/ports.ts";
-import { delay } from "@std/async/delay";
+import { delay } from "@std/async";
 
 const mockLogging: LoggingPort = {
     log: () => Promise.resolve(),

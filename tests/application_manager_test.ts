@@ -34,7 +34,7 @@ Deno.test("ApplicationManager - Seed Forensics logic", async () => {
             reportIncident: async () => { reported = true; }
         },
         networkLogs: {
-            log: async () => {}
+            logNetwork: async () => {}
         }
     } as any;
 
