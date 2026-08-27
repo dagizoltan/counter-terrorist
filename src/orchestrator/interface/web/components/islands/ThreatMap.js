@@ -247,10 +247,10 @@ class ThreatMap extends HTMLElement {
     this.setupZoomPan();
     this.resetViewBtn?.addEventListener("click", () => this.resetView());
 
-    // Dismiss popover on background click (but not from the a11y list, which
-    // opens it).
+    // Dismiss popover on background click (but not from the a11y list or cluster badges).
     this.addEventListener("click", (e) => {
       if (!e.target.closest(".threat-map__plot") &&
+          !e.target.closest(".threat-map__cluster-badge") &&
           !e.target.closest(".threat-map__popover") &&
           !e.target.closest("#tm-a11y-list")) {
         this.hidePopover();
@@ -572,6 +572,105 @@ class ThreatMap extends HTMLElement {
     }
   }
 
+  showClusterPopover(threats, _x, _y) {
+    if (!this.popoverContainer) return;
+    const esc = globalThis.escapeHTML ?? String;
+
+    const itemsHtml = threats.map((threat) => {
+      const geo = threat.geo || {};
+      const category = this.categorize(threat.threatType, threat.blocked);
+      const precision = this.precisionOf(threat);
+      const estimated = precision === "estimated";
+      const locValue = estimated
+        ? esc(geo.region || "Unknown region")
+        : `${esc(geo.country || "Unknown")}${geo.city ? " (" + esc(geo.city) + ")" : ""}`;
+      const scoreVal = threat.score ?? threat.confidence ?? geo.threatScore ?? "—";
+      const source = threat.provider ? esc(threat.provider) : "—";
+
+      return `
+        <div class="flex items-center justify-between gap-2 p-2 rounded bg-white/5 border border-white/10 text-[11px]" data-cluster-item="${esc(threat.indicator)}">
+          <div class="flex flex-col gap-0.5 min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="font-mono font-bold text-white truncate">${esc(threat.indicator)}</span>
+              <span class="pill" data-state="${threat.blocked ? 'success' : 'crit'}">${esc(category.toUpperCase())}</span>
+            </div>
+            <div class="text-slate-400 text-[10px] truncate">
+              ${locValue} · ${source} · Score: ${esc(String(scoreVal))}
+            </div>
+          </div>
+          <div class="flex-shrink-0">
+            ${threat.blocked
+              ? `<span class="eyebrow text-success text-[9px]">ISOLATED</span>`
+              : this.canOperate
+                ? `<button type="button" class="t-btn danger !py-0.5 !px-2 text-[9px] font-bold" data-cluster-isolate="${esc(threat.indicator)}">Isolate</button>`
+                : `<span class="eyebrow text-[9px]">View only</span>`}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    const unblockedCount = threats.filter(t => !t.blocked).length;
+    const countLabel = esc(String(threats.length));
+
+    this.popoverContainer.innerHTML = `
+      <div class="threat-map__popover bg-black/90 backdrop-blur-xl border border-primary/30 p-4 rounded-xl shadow-2xl flex flex-col gap-2.5 max-w-sm text-left text-xs text-white z-30" tabindex="-1" role="dialog" aria-label="Threat cluster details">
+        <div class="flex justify-between items-center border-b border-white/10 pb-2 gap-2">
+          <span class="mono-xs font-bold text-primary">Cluster (${countLabel} indicators)</span>
+          ${this.canOperate && unblockedCount > 0
+            ? `<button type="button" id="tm-cluster-isolate-all" class="t-btn danger !py-0.5 !px-2 text-[10px] font-bold">Isolate All (${esc(String(unblockedCount))})</button>`
+            : ""}
+        </div>
+        <div class="flex flex-col gap-1.5 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+          ${itemsHtml}
+        </div>
+      </div>
+    `;
+
+    this.popoverContainer.classList.remove("hidden");
+    this.popoverContainer.querySelector(".threat-map__popover")?.focus();
+
+    // Bind individual isolate buttons
+    this.popoverContainer.querySelectorAll("[data-cluster-isolate]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const ind = btn.dataset.clusterIsolate;
+        btn.disabled = true;
+        btn.textContent = "...";
+        try {
+          await this.isolate(ind);
+          this.updateCount();
+          const itemEl = this.popoverContainer.querySelector(`[data-cluster-item="${CSS.escape(ind)}"]`);
+          if (itemEl) {
+            const btnWrap = itemEl.querySelector("div:last-child");
+            if (btnWrap) btnWrap.innerHTML = `<span class="eyebrow text-success text-[9px]">ISOLATED</span>`;
+          }
+        } catch (e) {
+          console.error("Cluster isolate item failed:", e);
+          btn.disabled = false;
+          btn.textContent = "Isolate";
+        }
+      });
+    });
+
+    // Bind Isolate All button
+    const isolateAllBtn = this.popoverContainer.querySelector("#tm-cluster-isolate-all");
+    if (isolateAllBtn) {
+      isolateAllBtn.addEventListener("click", async () => {
+        isolateAllBtn.disabled = true;
+        isolateAllBtn.textContent = "Isolating...";
+        const unblocked = threats.filter(t => !t.blocked);
+        for (const t of unblocked) {
+          try {
+            await this.isolate(t.indicator);
+          } catch (e) {
+            console.error("Cluster isolate all item failed:", t.indicator, e);
+          }
+        }
+        this.updateCount();
+        this.showClusterPopover(threats, _x, _y);
+      });
+    }
+  }
+
   hidePopover() {
     if (this.popoverContainer) { this.popoverContainer.classList.add("hidden"); this.popoverContainer.innerHTML = ""; }
   }
@@ -603,9 +702,24 @@ class ThreatMap extends HTMLElement {
     }
     this.bulkBtn.dataset.armed = "0";
     this.bulkBtn.disabled = true;
-    this.bulkBtn.textContent = `Isolating ${targets.length}…`;
+
+    // Parallel isolation batching (5 requests concurrently)
+    const BATCH_SIZE = 5;
     let ok = 0;
-    for (const t of targets) { try { await this.isolate(t.indicator); ok++; } catch (e) { console.error("bulk isolate failed", t.indicator, e); } }
+    for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+      const chunk = targets.slice(i, i + BATCH_SIZE);
+      this.bulkBtn.textContent = `Isolating ${i + 1}-${Math.min(i + BATCH_SIZE, targets.length)} of ${targets.length}…`;
+      await Promise.all(
+        chunk.map(async (t) => {
+          try {
+            await this.isolate(t.indicator);
+            ok++;
+          } catch (e) {
+            console.error("bulk isolate failed", t.indicator, e);
+          }
+        })
+      );
+    }
     this.bulkBtn.disabled = false;
     this.bulkBtn.classList.remove("is-armed");
     this.updateCount();
@@ -874,12 +988,20 @@ class ThreatMap extends HTMLElement {
       const badge = document.createElementNS(SVGNS, "g");
       badge.setAttribute("class", "threat-map__cluster-badge");
       badge.setAttribute("transform", `translate(${x} ${y})`);
+      badge.style.cursor = "pointer";
       const circle = document.createElementNS(SVGNS, "circle");
       circle.setAttribute("r", "3.4"); circle.setAttribute("cx", "4"); circle.setAttribute("cy", "-4");
       const text = document.createElementNS(SVGNS, "text");
       text.setAttribute("x", "4"); text.setAttribute("y", "-4");
       text.textContent = String(group.length);
       badge.append(circle, text);
+
+      const groupThreats = group.map((g) => this.threatData.find((d) => d.indicator === g.dataset.indicator)).filter(Boolean);
+      badge.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.showClusterPopover(groupThreats, x, y);
+      });
+
       this.clusters.appendChild(badge);
     }
   }
