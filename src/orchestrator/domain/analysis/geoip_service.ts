@@ -187,6 +187,9 @@ export class GeoIpService extends BaseService {
     private estimate(ip: string): TacticalIntel {
         const parts = ip.split(".").map((p) => parseInt(p, 10));
         const o1 = Number.isFinite(parts[0]) ? parts[0] : 0;
+        const o2 = Number.isFinite(parts[1]) ? parts[1] : 0;
+        const o3 = Number.isFinite(parts[2]) ? parts[2] : 0;
+        const o4 = Number.isFinite(parts[3]) ? parts[3] : 0;
 
         let region = "North America";
         let lat = 40.0, lon = -100.0; // ARIN centroid
@@ -203,6 +206,13 @@ export class GeoIpService extends BaseService {
         } else if (o1 === 41 || o1 === 102 || o1 === 105 || o1 === 197) {
             region = "Africa"; lat = 5.0; lon = 20.0;                            // AFRINIC
         }
+
+        // Deterministic spatial jitter per IP so region estimates scatter across their geographic area
+        const hashLat = ((o2 * 31 + o3 * 17 + o4 * 7) % 1000) / 1000 - 0.5;
+        const hashLon = ((o2 * 13 + o3 * 37 + o4 * 23) % 1000) / 1000 - 0.5;
+
+        lat = Math.round((Math.max(-85, Math.min(85, lat + hashLat * 16.0))) * 10000) / 10000;
+        lon = Math.round((Math.max(-180, Math.min(180, lon + hashLon * 30.0))) * 10000) / 10000;
 
         return {
             ip,

@@ -967,7 +967,7 @@ class ThreatMap extends HTMLElement {
   applyClusters() {
     if (!this.clusters) return;
     const SVGNS = "http://www.w3.org/2000/svg";
-    const CELL = 7;
+    const CELL = 2.5;
     const cells = new Map();
     this.threats.forEach((g) => {
       g.classList.remove("is-clustered");
