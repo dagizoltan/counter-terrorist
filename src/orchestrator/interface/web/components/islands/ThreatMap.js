@@ -177,7 +177,8 @@ class ThreatMap extends HTMLElement {
     `;
     // Numeric coords go through setAttribute, not innerHTML, to keep the escaping
     // guard honest.
-    this.querySelector(".threat-map__home")?.setAttribute("transform", `translate(${home.x} ${home.y})`);
+    const s = this.getMarkerScale().toFixed(3);
+    this.querySelector(".threat-map__home")?.setAttribute("transform", `translate(${home.x} ${home.y}) scale(${s})`);
 
     this.svg = this.querySelector(".threat-map__canvas");
     this.plots = this.querySelector(".threat-map__plots");
@@ -454,7 +455,8 @@ class ThreatMap extends HTMLElement {
     g.setAttribute("data-category", category);
     g.setAttribute("data-precision", precision);
     g.setAttribute("data-indicator", indicator);
-    g.setAttribute("transform", `translate(${x} ${y})`);
+    const s = this.getMarkerScale().toFixed(3);
+    g.setAttribute("transform", `translate(${x} ${y}) scale(${s})`);
     g.dataset.x = x; g.dataset.y = y;
     g.style.cursor = "pointer";
     if (!this.passesFilter(threat)) g.classList.add("is-filtered");
@@ -953,11 +955,27 @@ class ThreatMap extends HTMLElement {
     this.view.y = Math.min(VIEW.y + VIEW.h - this.view.h, Math.max(VIEW.y, this.view.y));
   }
 
+  getMarkerScale() {
+    const zoomLevel = VIEW.w / (this.view.w || VIEW.w);
+    return Math.max(0.2, 1 / Math.pow(zoomLevel, 0.8));
+  }
+
   applyView() {
     this.svg?.setAttribute("viewBox", `${this.view.x} ${this.view.y} ${this.view.w} ${this.view.h}`);
     const zoomed = this.view.w < VIEW.w - 0.5;
     if (this.resetViewBtn) this.resetViewBtn.hidden = !zoomed;
     this.applyClusters();
+
+    const s = this.getMarkerScale().toFixed(3);
+    this.plots?.querySelectorAll(".threat-map__plot").forEach((g) => {
+      const x = g.dataset.x, y = g.dataset.y;
+      if (x != null && y != null) g.setAttribute("transform", `translate(${x} ${y}) scale(${s})`);
+    });
+    const homeEl = this.querySelector(".threat-map__home");
+    if (homeEl) {
+      const home = project(HOME_NODE.lat, HOME_NODE.lon);
+      homeEl.setAttribute("transform", `translate(${home.x} ${home.y}) scale(${s})`);
+    }
   }
 
   resetView() {
@@ -991,7 +1009,9 @@ class ThreatMap extends HTMLElement {
       const x = Number(group[0].dataset.x), y = Number(group[0].dataset.y);
       const badge = document.createElementNS(SVGNS, "g");
       badge.setAttribute("class", "threat-map__cluster-badge");
-      badge.setAttribute("transform", `translate(${x} ${y})`);
+      badge.dataset.x = String(x); badge.dataset.y = String(y);
+      const s = this.getMarkerScale().toFixed(3);
+      badge.setAttribute("transform", `translate(${x} ${y}) scale(${s})`);
       badge.style.cursor = "pointer";
       const circle = document.createElementNS(SVGNS, "circle");
       circle.setAttribute("r", "3.4"); circle.setAttribute("cx", "4"); circle.setAttribute("cy", "-4");
