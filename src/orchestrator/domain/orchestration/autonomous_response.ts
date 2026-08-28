@@ -129,7 +129,8 @@ export class AutonomousResponseEngine extends BaseService {
     private decayScores() {
         // Iterate over a snapshot of entries to safely handle deletions
         for (const [source, score] of Array.from(this.scores.entries())) {
-            const newScore = Math.max(0, score - 1);
+            const currentScore = Number.isFinite(score) ? score : 0;
+            const newScore = Math.max(0, currentScore - 1);
 
             if (newScore === 0) {
                 this.scores.delete(source);

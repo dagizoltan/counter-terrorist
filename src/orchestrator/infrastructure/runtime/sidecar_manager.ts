@@ -674,7 +674,7 @@ export class SidecarManager implements CommandPort {
 
     let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
     try {
-      await prevLock;
+      await prevLock.catch(() => {});
       writer = child.stdin.getWriter();
 
       if (name === "sentinel" || name === "netcap") {

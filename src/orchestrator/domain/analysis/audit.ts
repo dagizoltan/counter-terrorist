@@ -67,6 +67,8 @@ type KvWatchable = {
 
 function sanitizeDataForAudit(obj: unknown, depth = 0, seen = new WeakSet<object>()): unknown {
     if (depth > 6) return "[Truncated: Max Depth]";
+    if (typeof obj === "bigint") return obj.toString() + "n";
+    if (typeof obj === "symbol") return obj.toString();
     if (obj === null || typeof obj !== "object") return obj;
     if (seen.has(obj as object)) return "[Circular]";
     seen.add(obj as object);

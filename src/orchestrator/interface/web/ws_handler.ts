@@ -192,7 +192,7 @@ export function createWsHandler(role: string = "viewer") {
       try {
         if (typeof event.data !== "string") throw new Error("Payload must be a string");
         const payload = JSON.parse(event.data);
-        if (payload.type === "PING") {
+        if (payload && typeof payload === "object" && payload.type === "PING") {
           ws.send(JSON.stringify({ type: "PONG", timestamp: new Date().toISOString() }));
         }
       } catch (_e) {

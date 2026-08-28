@@ -67,7 +67,11 @@ export async function unwrap(res) {
 export async function apiGet(url, init = {}) {
   const res = await fetch(url, { ...init, headers: apiHeaders(init.headers) });
   if (!res.ok) {
-    const err = new Error(`${res.status} ${res.statusText} for ${url}`);
+    const unwrapped = await unwrap(res).catch(() => null);
+    const msg = (unwrapped && typeof unwrapped === "object" && (unwrapped.message || unwrapped.error))
+      ? String(unwrapped.message || unwrapped.error)
+      : `${res.status} ${res.statusText} for ${url}`;
+    const err = new Error(msg);
     err.status = res.status;
     throw err;
   }
@@ -83,7 +87,11 @@ export async function apiSend(url, method, body, init = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   if (!res.ok) {
-    const err = new Error(`${res.status} ${res.statusText} for ${url}`);
+    const unwrapped = await unwrap(res).catch(() => null);
+    const msg = (unwrapped && typeof unwrapped === "object" && (unwrapped.message || unwrapped.error))
+      ? String(unwrapped.message || unwrapped.error)
+      : `${res.status} ${res.statusText} for ${url}`;
+    const err = new Error(msg);
     err.status = res.status;
     throw err;
   }
