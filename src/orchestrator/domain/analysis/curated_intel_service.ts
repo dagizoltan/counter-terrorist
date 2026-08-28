@@ -52,6 +52,10 @@ export interface IntelIndicator {
 const SOURCE_WEIGHTS: Record<string, number> = {
     "Abuse.ch": 95,
     "MalwareBazaar": 98,
+    "URLhaus": 95,
+    "GreenSnow": 90,
+    "TorExitNodes": 80,
+    "CISA_KEV": 99,
     "Spamhaus": 98,
     "FireHOL_L1": 85,
     "FireHOL_L2": 60,
@@ -74,6 +78,9 @@ export class CuratedIntelService extends BaseService {
     private sources = [
         { name: "Abuse.ch", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
         { name: "MalwareBazaar", url: "https://bazaar.abuse.ch/export/csv/recent/", type: "HASH" },
+        { name: "URLhaus", url: "https://urlhaus.abuse.ch/downloads/csv_recent/", type: "URL" },
+        { name: "GreenSnow", url: "https://blocklist.greensnow.co/greensnow.txt", type: "IP" },
+        { name: "TorExitNodes", url: "https://check.torproject.org/torbulkexitlist", type: "IP" },
         { name: "BinaryDefense", url: "https://www.binarydefense.com/banlist.txt", type: "IP" },
         { name: "OpenPhish", url: "https://openphish.com/feed.txt", type: "URL" },
         { name: "EmergingThreats", url: "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt", type: "IP" },
@@ -381,6 +388,14 @@ export class CuratedIntelService extends BaseService {
             if (source.name === "Abuse.ch") {
                 const parts = line.split(",");
                 if (parts.length > 1) indicator = parts[1].replace(/"/g, "");
+            }
+
+            if (source.name === "URLhaus") {
+                const parts = line.split(",");
+                if (parts.length > 2) {
+                    indicator = parts[2].replace(/"/g, "").trim();
+                    threatType = "Malware Distribution URL";
+                }
             }
 
             if (source.name === "MalwareBazaar") {
