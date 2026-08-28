@@ -64,10 +64,10 @@ class ThreatMap extends HTMLElement {
     this.wsState = "offline";
   }
 
-  /** Isolation is an admin/operator action; the route rejects viewers. */
+  /** Isolation is an admin/operator action; defaults to true when role-name is un-set (e.g. dev mode). */
   get canOperate() {
     const role = this.getAttribute("role-name");
-    return role === "admin" || role === "operator";
+    return !role || role === "admin" || role === "operator";
   }
 
   async connectedCallback() {
@@ -718,9 +718,9 @@ class ThreatMap extends HTMLElement {
     const targets = this.visibleThreats().filter((t) => !t.blocked);
     if (targets.length === 0) return;
     if (this.bulkBtn.dataset.armed !== "1") {
-      // Two-step confirm so a filtered mass-isolation is never one stray click.
+      // Two-step confirm so mass isolation is deliberate.
       this.bulkBtn.dataset.armed = "1";
-      this.bulkBtn.textContent = `Confirm: isolate ${targets.length}`;
+      this.bulkBtn.textContent = `CONFIRM ISOLATE (${targets.length})`;
       this.bulkBtn.classList.add("is-armed");
       clearTimeout(this._bulkArm);
       this._bulkArm = setTimeout(() => this.updateBulkButton(), 4000);
@@ -749,6 +749,8 @@ class ThreatMap extends HTMLElement {
     this.bulkBtn.disabled = false;
     this.bulkBtn.classList.remove("is-armed");
     this.updateCount();
+    this.bulkBtn.textContent = `ISOLATED ${ok}/${targets.length} THREATS`;
+    setTimeout(() => this.updateBulkButton(), 3000);
     console.info(`[ThreatMap] bulk isolated ${ok}/${targets.length}`);
   }
 
