@@ -313,6 +313,7 @@ class ThreatMap extends HTMLElement {
 
   connectWS() {
     if (typeof SharedWebSocket !== "function") return;
+    if (this._reconnect) { clearTimeout(this._reconnect); this._reconnect = null; }
     this._ws = new SharedWebSocket();
     this.wsState = "connecting";
     this._ws.onopen = () => { this.wsState = "live"; this.updateTelemetry(); };

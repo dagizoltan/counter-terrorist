@@ -93,7 +93,7 @@ export class ActiveSocketService extends BaseService {
   private async getInodeProcMap(): Promise<Map<string, { pid: number; comm: string }>> {
     const map = new Map<string, { pid: number; comm: string }>();
     try {
-      for await (const entry of Deno.readDir("/proc")) {
+      for await (const entry of Deno.readDir("/proc").catch(() => [])) {
         if (!entry.isDirectory || !/^\d+$/.test(entry.name)) continue;
         const pid = parseInt(entry.name, 10);
         let comm = "";
@@ -104,7 +104,7 @@ export class ActiveSocketService extends BaseService {
         }
 
         try {
-          for await (const fdEntry of Deno.readDir(`/proc/${pid}/fd`)) {
+          for await (const fdEntry of Deno.readDir(`/proc/${pid}/fd`).catch(() => [])) {
             try {
               const link = await Deno.readLink(`/proc/${pid}/fd/${fdEntry.name}`);
               if (link.startsWith("socket:[")) {

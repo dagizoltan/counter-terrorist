@@ -143,9 +143,10 @@ export class GeoIpService extends BaseService {
         }
         if (!rec) return null;
 
+        if (typeof rec !== "object") return null;
         const country = pick(rec, ["country", "iso_code"]) ?? pick(rec, ["country", "country_code"]) ?? "";
         const city = pick(rec, ["city", "names", "en"]) ?? "";
-        const loc = (rec.location ?? {}) as Record<string, unknown>;
+        const loc = (rec.location && typeof rec.location === "object" ? rec.location : {}) as Record<string, unknown>;
         const lat = typeof loc.latitude === "number" ? loc.latitude : null;
         const lon = typeof loc.longitude === "number" ? loc.longitude : null;
         if (lat === null || lon === null) return null; // a record with no coordinates is not plottable

@@ -249,7 +249,7 @@ export function validatePath(p: string, jailPrefixes?: string[]): boolean {
         const jailBoundary = normalizedJail.endsWith("/") ? normalizedJail : normalizedJail + "/";
         const pathToCheck = resolvedP.endsWith("/") ? resolvedP : resolvedP + "/";
 
-        return pathToCheck.startsWith(jailBoundary);
+        return pathToCheck.startsWith(jailBoundary) || resolvedP === normalizedJail;
     });
     if (!isInside) return false;
   }

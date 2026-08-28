@@ -30,6 +30,7 @@ const EnvBoolean = (defaultValue: boolean) =>
   z.preprocess((raw) => {
     if (raw === undefined || raw === null) return defaultValue;
     if (typeof raw === "boolean") return raw;
+    if (typeof raw !== "string" && typeof raw !== "number") return defaultValue;
     const normalized = String(raw).trim().toLowerCase();
     if (TRUTHY.has(normalized)) return true;
     if (FALSY.has(normalized)) return false;
