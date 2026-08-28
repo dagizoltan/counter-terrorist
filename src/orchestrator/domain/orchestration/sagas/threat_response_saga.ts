@@ -245,7 +245,15 @@ export class ThreatResponseSaga {
         } else {
             const pid = parseInt(source);
             if (!isNaN(pid)) {
-                (this.deps.firewall as unknown as { dumpProcess?: (pid: number, path: string) => Promise<void> }).dumpProcess?.(pid, `./volume/storage/forensics/dump_${pid}_${Date.now()}`).catch(() => {});
+                this.deps.forensics.captureProcessForensics(pid).catch((e) => {
+                    this.deps.logging.log({
+                        timestamp: new Date().toISOString(),
+                        type: LogType.GENERIC,
+                        severity: LogSeverity.WARNING,
+                        caller: "orchestrator:saga:threat_response:watch",
+                        message: `Failed to capture process forensics for PID ${pid}: ${(e as Error).message}`
+                    });
+                });
             }
         }
         return ok(undefined);
