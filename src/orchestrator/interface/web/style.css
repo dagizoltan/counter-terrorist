@@ -1837,6 +1837,17 @@ threat-map { display: block; }
 .tm-bulk.is-armed { background: var(--danger); color: var(--surface-0); }
 .tm-bulk:disabled { opacity: 0.6; cursor: default; }
 
+.tm-autoblock-btn {
+  border-color: var(--warning);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+.tm-autoblock-btn.is-enabled {
+  border-color: var(--success);
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
 /* Zoom & pan on the map canvas. */
 .threat-map__canvas { touch-action: none; }
 .threat-map__canvas.is-panning { cursor: grabbing; }
