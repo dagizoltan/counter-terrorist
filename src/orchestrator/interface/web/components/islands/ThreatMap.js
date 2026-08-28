@@ -172,6 +172,7 @@ class ThreatMap extends HTMLElement {
           <svg class="tm-spark" id="tm-spark" viewBox="0 0 60 16" preserveAspectRatio="none" aria-hidden="true"></svg>
           <button type="button" class="tm-reset-view" id="tm-reset-view" hidden>Reset view</button>
         </div>
+        <button type="button" class="tm-bulk tm-autoblock-btn" id="tm-autoblock">Auto-Block Ingress: OFF</button>
         <button type="button" class="tm-bulk" id="tm-bulk" hidden></button>
       </div>
 
@@ -206,6 +207,8 @@ class ThreatMap extends HTMLElement {
     this.searchInput = this.querySelector("#tm-search");
     this.activeFiltersEl = this.querySelector("#tm-active-filters");
     this.bulkBtn = this.querySelector("#tm-bulk");
+    this.autoBlockBtn = this.querySelector("#tm-autoblock");
+    this.autoBlockEnabled = false;
     this.liveEl = this.querySelector(".tm-live");
     this.liveLabel = this.querySelector("#tm-live-label");
     this.rateVal = this.querySelector("#tm-rate-val");
@@ -251,8 +254,15 @@ class ThreatMap extends HTMLElement {
       this.applyFilters();
     });
 
-    // Bulk isolation over the current filter.
+    // Bulk isolation and auto-block toggle.
     this.bulkBtn?.addEventListener("click", () => this.bulkIsolateVisible());
+    this.autoBlockBtn?.addEventListener("click", () => {
+      this.autoBlockEnabled = !this.autoBlockEnabled;
+      if (this.autoBlockBtn) {
+        this.autoBlockBtn.textContent = `Auto-Block Ingress: ${this.autoBlockEnabled ? "ON" : "OFF"}`;
+        this.autoBlockBtn.classList.toggle("is-enabled", this.autoBlockEnabled);
+      }
+    });
 
     // Zoom & pan.
     this.setupZoomPan();
@@ -321,16 +331,20 @@ class ThreatMap extends HTMLElement {
           // No resolved location → tallied, never invented. Server-side GeoIP
           // enrichment attaches real (or region-estimated) coordinates.
           if (lat == null || lon == null) { this.ungeolocated++; this.updateCount(); return; }
+          const isBlocked = !!threat.blocked;
           this.storeAndPlot({
             indicator,
             geo: { ...(threat.geo || {}), lat, lon },
             threatType: threat.threatType || threat.type || "ACTIVE_THREAT",
             provider: threat.provider || "REALTIME_FEED",
             confidence: threat.confidence ?? threat.score,
-            blocked: !!threat.blocked,
+            blocked: isBlocked,
             lastSeen: new Date().toISOString(),
             isNew: true,
           });
+          if (!isBlocked && this.autoBlockEnabled && this.canOperate) {
+            this.isolate(indicator).catch((e) => console.error("Auto-block failed for", indicator, e));
+          }
           this.updateCount();
         };
         if (payload.type === "UI_BROADCAST_BATCH" && Array.isArray(payload.data)) {
@@ -740,14 +754,12 @@ class ThreatMap extends HTMLElement {
 
   updateBulkButton() {
     if (!this.bulkBtn) return;
-    const filtered = this.activeSource || this.activeRegion || this.searchTerm ||
-      this.activeCategories.size < CATEGORIES.length || !this.showEstimated;
     const targets = this.canOperate ? this.visibleThreats().filter((t) => !t.blocked) : [];
     this.bulkBtn.dataset.armed = "0";
     this.bulkBtn.classList.remove("is-armed");
-    if (filtered && this.canOperate && targets.length > 0) {
+    if (this.canOperate && targets.length > 0) {
       this.bulkBtn.hidden = false;
-      this.bulkBtn.textContent = `Isolate all visible (${targets.length})`;
+      this.bulkBtn.textContent = `Isolate All Open Threats (${targets.length})`;
     } else {
       this.bulkBtn.hidden = true;
     }
