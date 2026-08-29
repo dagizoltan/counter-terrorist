@@ -278,7 +278,7 @@ export class SystemExecutor implements ExecutorPort {
         finalArgs = ["-n", cmd, ...args];
     }
 
-    let timeoutId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     let child: Deno.ChildProcess | undefined;
 
     try {

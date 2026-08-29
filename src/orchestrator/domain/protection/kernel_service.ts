@@ -16,7 +16,7 @@ export interface KernelHardeningStatus {
 export class KernelService extends BaseService {
     private lastHardened: string = "";
     private logging: LoggingPort;
-    private metricsInterval?: number;
+    private metricsInterval?: ReturnType<typeof setInterval>;
 
     constructor(
         private executor: ExecutorPort,

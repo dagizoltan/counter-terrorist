@@ -156,7 +156,7 @@ export class ServiceInitializer {
             tpm,
             policy,
             health,
-            metrics: operational.metrics as DecentralizedMetricsService,
+            metrics: (operational as any).metrics as DecentralizedMetricsService,
             mediator: operational.mediator,
             behavioral: security.behavioral,
             geoIp: intelligence.geoIp,

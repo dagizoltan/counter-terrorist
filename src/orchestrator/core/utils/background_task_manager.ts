@@ -8,7 +8,7 @@ import { HealthService } from "@domain/analysis/health_service.ts";
  */
 export class BackgroundTaskManager {
     private activeTasks: Set<string> = new Set();
-    private scheduledTasks: Map<string, number> = new Map();
+    private scheduledTasks: Map<string, ReturnType<typeof setInterval>> = new Map();
 
     constructor(
         private logging: LoggingPort,
@@ -54,7 +54,7 @@ export class BackgroundTaskManager {
     /**
      * Executes a task repeatedly with a fixed interval.
      */
-    schedule(name: string, intervalMs: number, task: () => Promise<void>): number {
+    schedule(name: string, intervalMs: number, task: () => Promise<void>): ReturnType<typeof setInterval> {
         if (this.scheduledTasks.has(name)) {
             clearInterval(this.scheduledTasks.get(name));
         }

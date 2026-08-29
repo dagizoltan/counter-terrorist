@@ -28,7 +28,7 @@ export class NetworkDiscoveryService extends BaseService {
     private discovery: import("./real_discovery.ts").RealDiscovery | import("./mock_discovery.ts").MockDiscovery | null = null;
     private selfId: string = "LOCAL_NODE";
     private mesh?: MeshPort;
-    private intervalId: number | null = null;
+    private intervalId: ReturnType<typeof setInterval> | null = null;
     private isScanning = false;
 
     constructor(private logging: LoggingService, private executor: ExecutorPort) {
@@ -101,7 +101,7 @@ export class NetworkDiscoveryService extends BaseService {
         if (!this.discovery) {
             try {
                const { RealDiscovery } = await import("./real_discovery.ts");
-               this.discovery = new RealDiscovery(this.executor);
+               this.discovery = new RealDiscovery(this.executor as any);
             } catch (e) {
                this.logging.log({
                    timestamp: new Date().toISOString(),
@@ -131,6 +131,7 @@ export class NetworkDiscoveryService extends BaseService {
                         
                         this.devices.set(mac, {
                             ...device,
+                            id: mac,
                             mac,
                             vendor: isSelf ? "Sovereign-Ghost" : (existing?.vendor || "Local_Asset"),
                             isMeshNode: isSelf || (existing?.isMeshNode || false),
@@ -184,7 +185,7 @@ export class NetworkDiscoveryService extends BaseService {
                 // 3. Mesh Integration (Verified Peers)
                 if (this.mesh) {
                     const nodes = this.mesh.getNodes();
-                    nodes.forEach((node) => {
+                    nodes.forEach((node: any) => {
                         const mac = (node.id || "").toLowerCase();
                         if (!mac) return;
 

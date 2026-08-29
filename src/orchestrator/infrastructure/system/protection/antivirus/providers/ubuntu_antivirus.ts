@@ -17,7 +17,7 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
     const res = await this.sidecar.sendCommand("analyzer", { type: "ScanPath", path });
     return {
       success: res.success,
-      threatsFound: res.data?.threats_found || false,
+      threatsFound: Boolean(res.data?.threats_found),
       message: res.stdout || res.stderr || "",
       timestamp: new Date().toISOString()
     };
@@ -38,6 +38,7 @@ export class UbuntuAntivirusProvider implements AntivirusProvider {
     }
 
     const res = await this.sidecar.sendCommand("analyzer", { type: "Quarantine", path });
-    return { success: res.success, message: res.stdout || res.stderr || "", target: res.data?.target };
+    const target = typeof res.data?.target === "string" ? res.data.target : undefined;
+    return { success: res.success, message: res.stdout || res.stderr || "", target };
   }
 }

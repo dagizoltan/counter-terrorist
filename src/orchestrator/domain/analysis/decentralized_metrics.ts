@@ -11,14 +11,14 @@ export interface MetricUpdatePayload {
 
 export class DecentralizedMetricsService extends BaseService {
     private metrics: Map<string, Record<string, unknown>> = new Map();
-    private interval?: number;
+    private interval?: ReturnType<typeof setInterval>;
 
     constructor(
         eventBus: EventBus,
         private logging: LoggingPort
     ) {
         super();
-        this.setEventBus(eventBus);
+        this.setEventBus(eventBus as any);
 
         this.eventBus!.on("METRIC_UPDATE", (data: MetricUpdatePayload) => {
             if (data && data.domain) {

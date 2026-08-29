@@ -92,35 +92,41 @@ export class ActiveSocketService extends BaseService {
 
   private async getInodeProcMap(): Promise<Map<string, { pid: number; comm: string }>> {
     const map = new Map<string, { pid: number; comm: string }>();
+    let procEntries: Deno.DirEntry[] = [];
     try {
-      for await (const entry of Deno.readDir("/proc").catch(() => [])) {
-        if (!entry.isDirectory || !/^\d+$/.test(entry.name)) continue;
-        const pid = parseInt(entry.name, 10);
-        let comm = "";
-        try {
-          comm = (await Deno.readTextFile(`/proc/${pid}/comm`)).trim();
-        } catch {
-          continue;
-        }
+      for await (const entry of Deno.readDir("/proc")) procEntries.push(entry);
+    } catch {
+      return map;
+    }
 
+    for (const entry of procEntries) {
+      if (!entry.isDirectory || !/^\d+$/.test(entry.name)) continue;
+      const pid = parseInt(entry.name, 10);
+      let comm = "";
+      try {
+        comm = (await Deno.readTextFile(`/proc/${pid}/comm`)).trim();
+      } catch {
+        continue;
+      }
+
+      let fdEntries: Deno.DirEntry[] = [];
+      try {
+        for await (const fdEntry of Deno.readDir(`/proc/${pid}/fd`)) fdEntries.push(fdEntry);
+      } catch {
+        continue;
+      }
+
+      for (const fdEntry of fdEntries) {
         try {
-          for await (const fdEntry of Deno.readDir(`/proc/${pid}/fd`).catch(() => [])) {
-            try {
-              const link = await Deno.readLink(`/proc/${pid}/fd/${fdEntry.name}`);
-              if (link.startsWith("socket:[")) {
-                const inode = link.substring(8, link.length - 1);
-                map.set(inode, { pid, comm });
-              }
-            } catch {
-              // Ignore unreadable fd symlinks
-            }
+          const link = await Deno.readLink(`/proc/${pid}/fd/${fdEntry.name}`);
+          if (link.startsWith("socket:[")) {
+            const inode = link.substring(8, link.length - 1);
+            map.set(inode, { pid, comm });
           }
         } catch {
-          // Ignore unreadable /proc/[pid]/fd directories
+          // Ignore unreadable fd symlinks
         }
       }
-    } catch {
-      // Ignore top-level /proc read error
     }
     return map;
   }

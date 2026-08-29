@@ -17,10 +17,10 @@ export interface ScheduledTask {
 export class LifecycleService extends BaseService {
     private tasks: ScheduledTask[] = [];
     private customTasks: (() => Promise<void>)[] = [];
-    private timerId?: number;
+    private timerId?: ReturnType<typeof setInterval>;
     private kv?: Deno.Kv;
-    private shadowTimer?: number;
-    private lkgTimer?: number;
+    private shadowTimer?: ReturnType<typeof setInterval>;
+    private lkgTimer?: ReturnType<typeof setInterval>;
     private policyEngine?: import("../orchestration/policy_engine.ts").PolicyEngine;
 
     constructor(private commands: CommandPort, private logging: LoggingPort) {

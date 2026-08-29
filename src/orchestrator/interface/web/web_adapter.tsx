@@ -19,8 +19,13 @@ import { ErrorPage, NotFoundPage } from "./components/Errors.tsx";
  * WebAdapter
  * The primary ingress controller for the Security Orchestrator.
  */
+type EnvironmentVariables = {
+  wsReject?: string;
+  wsRole?: string;
+};
+
 export class WebAdapter implements WebPort {
-  private app: Hono;
+  private app: Hono<{ Variables: EnvironmentVariables }>;
   private security: SecurityMiddleware;
   private meshAuth?: MeshAuthPort;
   private server?: Deno.HttpServer;
@@ -51,7 +56,7 @@ export class WebAdapter implements WebPort {
 
     this.meshAuth = services.meshAuth;
     this.security = new SecurityMiddleware(services, masterToken);
-    this.app = new Hono();
+    this.app = new Hono<{ Variables: EnvironmentVariables }>();
   }
 
   private async initialize() {
@@ -111,7 +116,7 @@ export class WebAdapter implements WebPort {
       return c.html(jsx(NotFoundPage, {}) as any, 404);
     });
 
-    await registerRoutes(this.app, this.services, this.security, statusAggregator);
+    await registerRoutes(this.app as any, this.services, this.security, statusAggregator);
 
     // The Deno adapter calls Deno.upgradeWebSocket(c.req.raw) BEFORE awaiting the
     // events factory. Any request read that happens inside an async factory therefore
@@ -448,13 +453,7 @@ export class WebAdapter implements WebPort {
         port,
         cert: nodeCert.cert,
         key: nodeCert.key,
-        // SEC-03 Hardening: Enforce Modern TLS Standards
-        // These options ensure only TLS 1.3 and AEAD-only ciphers are used.
-        // @ts-ignore: TLS options extension in Deno
-        minVersion: "tls1.3",
-        // @ts-ignore: TLS options extension in Deno
-        ciphers: ["TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384", "TLS_CHACHA20_POLY1305_SHA256"]
-      }, this.app.fetch);
+      } as any, this.app.fetch);
     } else {
       console.log(`\n🚀 [TACTICAL CONSOLE ACTIVE] http://localhost:${port}\n`);
       loggingService.log({

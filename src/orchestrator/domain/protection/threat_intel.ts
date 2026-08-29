@@ -8,12 +8,14 @@ export class ThreatIntelService extends BaseService {
     "https://feodotracker.abuse.ch/downloads/ipblocklist.txt"
   ];
   private blacklist: Set<string> = new Set();
-  private updateInterval?: number;
+  private updateInterval?: ReturnType<typeof setInterval>;
 
   constructor(
     private protection: ProtectionPort,
     private logging: LoggingPort
-  ) {}
+  ) {
+    super();
+  }
 
   async start() {
     await this.init();
@@ -33,6 +35,7 @@ export class ThreatIntelService extends BaseService {
 
     // Update every 4 hours
     this.updateInterval = setInterval(() => this.updateThreatList(), 4 * 60 * 60 * 1000);
+    return ok(undefined);
   }
 
   getBlacklist(): Set<string> {

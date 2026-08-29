@@ -13,7 +13,7 @@ import { BaseService } from "@core/base_service.ts";
 export class SystemLifecycleService extends BaseService {
     private isShuttingDown = false;
     private signalListeners: Map<Deno.Signal, () => Promise<void>> = new Map();
-    private lkgInterval?: number;
+    private lkgInterval?: ReturnType<typeof setInterval>;
 
     constructor(
         private logging: LoggingPort,
@@ -24,7 +24,7 @@ export class SystemLifecycleService extends BaseService {
     }
 
     protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
-        return { success: true, data: undefined };
+        return ok(undefined);
     }
 
     protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {

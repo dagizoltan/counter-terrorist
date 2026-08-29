@@ -48,7 +48,7 @@ export class CausalGraphService extends BaseService {
                 // We sort by timestamp to ensure we see parents before children
                 const sortedRecords = [...records].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
                 for (const r of sortedRecords) {
-                    if (r.ppid && includedPids.has(r.ppid)) {
+                    if (typeof r.ppid === "number" && includedPids.has(r.ppid)) {
                         includedPids.add(r.pid);
                     }
                 }
@@ -77,7 +77,7 @@ export class CausalGraphService extends BaseService {
             const pathIndex = new Map<string, CausalNode[]>();
 
             for (const n of allNodes) {
-                if (n.record.ppid) {
+                if (typeof n.record.ppid === "number") {
                     let list = ppidIndex.get(n.record.ppid);
                     if (!list) { list = []; ppidIndex.set(n.record.ppid, list); }
                     list.push(n);

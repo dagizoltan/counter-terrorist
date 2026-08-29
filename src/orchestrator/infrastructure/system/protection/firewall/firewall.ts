@@ -14,7 +14,7 @@ export class FirewallManager implements FirewallPort {
   private config?: ConfigurationPort;
 
   private eventBus?: EventBusPort;
-  private metricsInterval?: number;
+  private metricsInterval?: ReturnType<typeof setInterval>;
 
   constructor(private provider: FirewallProvider, private networkLogs?: LoggingPort) {
       this.metricsInterval = setInterval(() => this.emitMetrics(), 15000);

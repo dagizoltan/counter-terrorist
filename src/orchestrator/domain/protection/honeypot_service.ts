@@ -112,8 +112,8 @@ export class HoneypotService extends BaseService {
     return err(new Error(`Module ${id} not found`));
   }
 
-  private morphInterval?: number;
-  private metricsInterval?: number;
+  private morphInterval?: ReturnType<typeof setInterval>;
+  private metricsInterval?: ReturnType<typeof setInterval>;
 
   protected override async onInit(): Promise<Result<void>> {
     const res = await this.start();

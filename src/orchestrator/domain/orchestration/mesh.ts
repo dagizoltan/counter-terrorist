@@ -31,8 +31,8 @@ export type MeshNode = z.infer<typeof MeshNodeSchema>;
  */
 export class MeshManager extends BaseService implements MeshPort {
   private nodes: Map<string, MeshNode> = new Map();
-  private discoveryInterval: number | null = null;
-  private metricsInterval: number | null = null;
+  private discoveryInterval: ReturnType<typeof setInterval> | null = null;
+  private metricsInterval: ReturnType<typeof setInterval> | null = null;
   private mdnsListener: Deno.DatagramConn | null = null;
   private nodeCert: { cert: string, key: string } | null = null;
   private nodeId: string = "";
@@ -659,7 +659,7 @@ export class MeshManager extends BaseService implements MeshPort {
    * @param priority If true, the message will bypass normal gossip queues
    */
   async broadcast(payload: Record<string, unknown>, priority: boolean = false): Promise<Result<void>> {
-    if (!this.isInitialized) return ok(undefined);
+    if (!this.initialized) return ok(undefined);
     const verifiedNodes = Array.from(this.nodes.values()).filter((n: MeshNode) => {
         if (!n.verified) return false;
         if (this.chaosEngine.shouldPartition(n.id)) return false;

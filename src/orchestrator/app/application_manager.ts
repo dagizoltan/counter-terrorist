@@ -74,7 +74,7 @@ export class ApplicationManager {
         const { command: sm, platformInfo } = services;
         const daemons = ["decoy", "watchfile", "netcap", "analyzer", "tunnel"];
 
-        if (platformInfo.name === "linux" || platformInfo.name === "ubuntu") {
+        if ((platformInfo.name as string) === "linux" || (platformInfo.name as string) === "ubuntu") {
             daemons.push("enforcer");
         }
 

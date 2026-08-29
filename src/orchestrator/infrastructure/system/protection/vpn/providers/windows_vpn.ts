@@ -24,7 +24,8 @@ export class WindowsVpnProvider implements VpnProvider {
     const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS" });
     if (!res.success) return false;
     if (interfaceName) {
-        return res.data?.active === true || res.data?.active_interfaces?.includes(interfaceName);
+        const activeIfaces = Array.isArray(res.data?.active_interfaces) ? (res.data.active_interfaces as string[]) : [];
+        return res.data?.active === true || activeIfaces.includes(interfaceName);
     }
     return res.data?.active === true;
   }

@@ -20,7 +20,7 @@ export interface MeshPort {
  * Periodically changes the system's defensive posture to confuse attackers.
  */
 export class MorphingService extends BaseService {
-    private intervalId?: number;
+    private intervalId?: ReturnType<typeof setInterval>;
     private logging: LoggingPort;
 
     private ffi?: MorphingFfi;

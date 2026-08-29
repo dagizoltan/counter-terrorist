@@ -17,7 +17,7 @@ export interface ThreatInfo {
  */
 export class TacticalIntelIngestor extends BaseService {
     private kv: Deno.Kv | null = null;
-    private sources = [
+    private sources: Array<{ name: string; url: string; type: "IP" | "DOMAIN" | "URL" }> = [
         { name: "FeodoTracker", url: "https://feodotracker.abuse.ch/downloads/ipblocklist.csv", type: "IP" },
         { name: "BinaryDefense", url: "https://www.binarydefense.com/banlist.txt", type: "IP" },
         { name: "OpenPhish", url: "https://openphish.com/feed.txt", type: "URL" },
@@ -30,7 +30,7 @@ export class TacticalIntelIngestor extends BaseService {
         super();
     }
 
-    private intervalId?: number;
+    private intervalId?: ReturnType<typeof setInterval>;
 
     protected override async onInit(): Promise<Result<void>> {
         await this.start();
