@@ -145,6 +145,7 @@ export class ServiceInitializer {
             curatedIntel: intelligence.curatedIntel,
             news: intelligence.news,
             networkDiscovery: intelligence.networkDiscovery,
+            activeSocketService: intelligence.activeSocketService,
             networkLogs: networkLog,
             provisioning,
             integrity: operational.integrity,
