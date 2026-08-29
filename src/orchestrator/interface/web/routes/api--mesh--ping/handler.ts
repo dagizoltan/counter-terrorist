@@ -9,7 +9,9 @@ export const handlerFactory = (services: ServiceContainer) => async (c: Context)
   const address = (c.env as any)?.remoteAddr?.hostname || "unknown";
 
   if (ts && sig) {
-      const isValid = await services.mesh.verifySignature({ target: address, ts: parseInt(ts) }, sig);
+      const parsedTs = parseInt(ts, 10);
+      if (isNaN(parsedTs)) return c.json({ error: "Invalid Timestamp" }, 400);
+      const isValid = await services.mesh.verifySignature({ target: address, ts: parsedTs }, sig);
       if (!isValid) {
           return c.json({ error: "Unauthorized Probe" }, 401);
       }

@@ -25,7 +25,7 @@ import { MacosAntivirusProvider } from "./antivirus/providers/macos_antivirus.ts
 
 export function createFirewallManager(sidecar: SidecarManager, executor: SystemExecutor, platform: PlatformInfo, networkLogs: LoggingPort): FirewallManager {
   if (platform.name === "windows") {
-    return new FirewallManager(new WindowsFirewallProvider(sidecar), networkLogs);
+    return new FirewallManager(new WindowsFirewallProvider(sidecar, executor), networkLogs);
   }
   if (platform.name === "macos") {
     return new FirewallManager(new MacosFirewallProvider(sidecar), networkLogs);
