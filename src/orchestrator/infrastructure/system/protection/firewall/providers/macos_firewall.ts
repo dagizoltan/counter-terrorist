@@ -51,7 +51,7 @@ export class MacosFirewallProvider implements FirewallProvider {
    *   tcp4  0 0  *.22   *.*   LISTEN
    */
   async listListeningPorts(): Promise<ListeningPort[]> {
-    const res = await this.executor.execute("netstat", ["-anv"]).catch(() => null);
+    const res = await this.sidecar.getExecutor().execute("netstat", ["-anv"]).catch(() => null);
     if (!res?.success || !res.stdout) return [];
 
     const ports: ListeningPort[] = [];

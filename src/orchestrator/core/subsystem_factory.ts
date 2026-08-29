@@ -68,7 +68,7 @@ export class SubsystemFactory {
     async initProtection(platformInfo: PlatformInfo, config: EnvConfigProvider) {
         const networkLogRepo = new KvNetworkLogRepository(this.kv);
         const networkLog = new NetworkLogService(networkLogRepo, this.logging);
-        const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo as unknown as InfraPlatformInfo, networkLog);
+        const rawProtection = createProtection(this.sidecarManager, this.executor, platformInfo as unknown as InfraPlatformInfo, networkLog as unknown as LoggingPort);
         await rawProtection.firewall.setKv(this.kv);
         const protection = new ProtectionAdapter(rawProtection);
         if ("setConfig" in rawProtection.firewall && typeof rawProtection.firewall.setConfig === "function") {

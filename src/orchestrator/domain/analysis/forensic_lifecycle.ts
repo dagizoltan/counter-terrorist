@@ -9,7 +9,7 @@ import { Result, ok } from "@core/result.ts";
  */
 export class ForensicArtifactLifecycleManager extends BaseService {
     private storageDir = "./volume/storage/forensics";
-    private quotaIntervalId?: number;
+    private quotaIntervalId?: ReturnType<typeof setInterval>;
 
     constructor(private logging: LoggingPort, private config: ConfigurationPort) {
         super();
@@ -74,7 +74,7 @@ export class ForensicArtifactLifecycleManager extends BaseService {
                 type: LogType.GENERIC,
                 severity: LogSeverity.ERROR,
                 caller: "FORENSICS:QUOTA",
-                message: `Quota enforcement failed: ${e.message}`
+                message: `Quota enforcement failed: ${(e as Error).message}`
             });
         }
     }

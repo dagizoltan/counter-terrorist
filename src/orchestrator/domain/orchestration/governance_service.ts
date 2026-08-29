@@ -1,6 +1,7 @@
 import { BaseService } from "@core/base_service.ts";
 import { MeshManager } from "./mesh.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { Result, ok } from "@core/result.ts";
 
 
 export interface Vote {
@@ -26,7 +27,7 @@ export interface Proposal {
  */
 export class GovernanceService extends BaseService {
     private proposals: Map<string, Proposal> = new Map();
-    private cleanupInterval?: number;
+    private cleanupInterval?: ReturnType<typeof setInterval>;
 
     constructor(
         private mesh: MeshManager,
@@ -36,18 +37,18 @@ export class GovernanceService extends BaseService {
         super();
     }
 
-    protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
+    protected override async onInit(): Promise<Result<void>> {
         // Periodically cleanup expired proposals to prevent memory leak
         this.cleanupInterval = setInterval(() => this.cleanupProposals(), 3600000); // 1 hour
-        return { success: true, data: undefined };
+        return ok(undefined);
     }
 
-    protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {
+    protected override async onShutdown(): Promise<Result<void>> {
         if (this.cleanupInterval) {
             clearInterval(this.cleanupInterval);
             this.cleanupInterval = undefined;
         }
-        return { success: true, data: undefined };
+        return ok(undefined);
     }
 
     private cleanupProposals() {

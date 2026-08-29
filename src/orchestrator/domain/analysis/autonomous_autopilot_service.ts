@@ -17,7 +17,7 @@ export class AutonomousAutopilotService extends BaseService {
         super();
     }
 
-    private intervalId?: number;
+    private intervalId?: ReturnType<typeof setInterval>;
 
     /**
      * Continuously monitors the correlation engine for breaches.

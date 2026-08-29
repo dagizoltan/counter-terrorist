@@ -88,7 +88,7 @@ export class MeshConsensusManager {
                     signature
                 });
 
-                if (res && res.approved && res.signature) {
+                if (res && res.approved && typeof res.signature === "string") {
                     const isValid = await this.mesh.verifySignature(res.payload, res.signature, node.id);
                     if (isValid) {
                         if (kv && typeof kv.atomic === "function") {
@@ -120,7 +120,7 @@ export class MeshConsensusManager {
                     type: LogType.GENERIC,
                     severity: LogSeverity.WARNING,
                     caller: "MESH:QUORUM",
-                    message: `Async vote delivery failed for node ${node.id}: ${e.message}`
+                    message: `Async vote delivery failed for node ${node.id}: ${(e as Error).message}`
                 });
             }
         });
@@ -164,7 +164,7 @@ export class MeshConsensusManager {
                         type: LogType.GENERIC,
                         severity: LogSeverity.ERROR,
                         caller: "MESH:QUORUM:WATCH",
-                        message: `Consensus watcher failed: ${e.message}`
+                        message: `Consensus watcher failed: ${(e as Error).message}`
                     });
                     resolve(false);
                 }

@@ -155,7 +155,7 @@ export class MeshAuthService extends BaseService implements MeshAuthPort {
       const keyId = `node-key-${nodeId}`;
       const res = await this.tpm.signProxy(keyId, data);
 
-      if (res.success && res.data?.signature) {
+      if (res.success && typeof res.data?.signature === "string") {
           return ok(res.data.signature);
       }
       return err(new Error(`Proxy signing failed: ${res.stderr}`));

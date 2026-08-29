@@ -19,7 +19,7 @@ export type Middleware = (event: SystemEvent, next: () => void | Promise<void>) 
 
 export class EventBus implements EventBusPort {
   private handlers: ((event: SystemEvent<EventName>) => void | Promise<void>)[] = [];
-  private keyedListeners: Map<string, Handler<EventName>[]> = new Map();
+  private keyedListeners: Map<string, Handler<any>[]> = new Map();
   private middleware: Middleware[] = [];
   private pendingHandlers: Set<Promise<void>> = new Set();
 
@@ -64,13 +64,13 @@ export class EventBus implements EventBusPort {
     return () => this.unsubscribe(handler as unknown as Handler<EventName>);
   }
 
-  unsubscribe(handler: Handler<EventName>) {
+  unsubscribe(handler: any) {
     // Remove from main handlers
-    this.handlers = this.handlers.filter(h => (h as unknown as Handler<EventName>) !== handler);
+    this.handlers = this.handlers.filter(h => h !== handler);
 
     // Remove from all keyed listeners
     for (const [event, listeners] of this.keyedListeners.entries()) {
-      const filtered = listeners.filter(l => l !== (handler as unknown as Handler<typeof event>));
+      const filtered = listeners.filter(l => l !== handler);
       if (filtered.length !== listeners.length) {
         if (filtered.length === 0) {
           this.keyedListeners.delete(event);
@@ -81,7 +81,7 @@ export class EventBus implements EventBusPort {
     }
   }
 
-  on<T extends EventName>(event: T, callback: Handler<T>): () => void {
+  on<T extends EventName>(event: T, callback: any): () => void {
     if (!this.keyedListeners.has(event)) {
       this.keyedListeners.set(event, []);
     }
@@ -122,12 +122,12 @@ export class EventBus implements EventBusPort {
                 message: `Middleware chain failed: ${e instanceof Error ? e.message : String(e)}`
             });
             // CRITICAL FIX: Ensure event still flows even if middleware chain crashes
-            await this.finalizePublish(event, event.data);
+            await this.finalizePublish(event, (event.data || {}) as any);
         }
         return;
     }
 
-    await this.finalizePublish(event, validatedData);
+    await this.finalizePublish(event, (validatedData || {}) as any);
   }
 
   private async runMiddleware<T extends EventName>(index: number, event: SystemEvent<T>) {
@@ -137,7 +137,7 @@ export class EventBus implements EventBusPort {
     }
 
     // SOV-05 STABILITY: Added timeout for middleware to prevent chain deadlocks
-    let timeoutId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutMs = 5000;
 
     try {
@@ -157,7 +157,7 @@ export class EventBus implements EventBusPort {
             caller: "EVENTBUS:MIDDLEWARE",
             message: `Middleware ${index} failed: ${e instanceof Error ? e.message : String(e)}. Forcing finalization.`
         });
-        this.finalizePublish(event, event.data);
+        this.finalizePublish(event, (event.data || {}) as any);
     } finally {
         if (timeoutId) clearTimeout(timeoutId);
     }
@@ -169,10 +169,10 @@ export class EventBus implements EventBusPort {
 
     // SOV-05 STABILITY: Standardize metadata for recursion detection
     if (validatedData && typeof validatedData === "object") {
-        validatedData.fromEventBus = true;
+        (validatedData as any).fromEventBus = true;
         // SOV-07: Ensure correlationId is propagated in validatedData for future hooks
-        if (!validatedData.correlationId) {
-            validatedData.correlationId = event.correlationId;
+        if (!(validatedData as any).correlationId) {
+            (validatedData as any).correlationId = event.correlationId;
         }
     }
 
@@ -227,7 +227,7 @@ export class EventBus implements EventBusPort {
             const res = fn();
             if (!(res instanceof Promise)) return;
 
-            let timeoutId: number | undefined;
+            let timeoutId: ReturnType<typeof setTimeout> | undefined;
             try {
                 const timeoutPromise = new Promise((_, reject) => {
                     timeoutId = setTimeout(() => reject(new Error(`Handler timeout after ${timeoutMs}ms`)), timeoutMs);

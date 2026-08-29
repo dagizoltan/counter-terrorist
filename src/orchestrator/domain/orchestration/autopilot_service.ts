@@ -194,7 +194,7 @@ export class AutopilotService extends BaseService {
         
         const anomalyResult = await this.services!.playbook.executeBehavioralAudit(pid, comm, syscall, args || []);
         
-        if (anomalyResult.success && anomalyResult.data === "BLOCK_SYSCALL") {
+        if (typeof anomalyResult === "object" && anomalyResult.success && anomalyResult.data === "BLOCK_SYSCALL") {
             await this.services!.kernelService.blockSyscall(pid, syscall);
         }
 

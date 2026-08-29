@@ -59,7 +59,7 @@ export class TPMManager implements TpmPort {
         const { index, auth } = this.getIndexForSecret(secretName);
         const res = await this.sidecar.sendCommand("trustroot", { type: "Unseal", index, auth });
         
-        if (res.success && res.data?.data) {
+        if (res.success && typeof res.data?.data === "string") {
             this.logging.log({
                 timestamp: new Date().toISOString(),
                 type: LogType.AUDIT,
@@ -192,7 +192,7 @@ export class TPMManager implements TpmPort {
         }
 
         const res = await this.sidecar.sendCommand("trustroot", { type: "Sign", data });
-        return res.data?.signature || "";
+        return typeof res.data?.signature === "string" ? res.data.signature : "";
     }
 
     async verify(data: string, signature: string): Promise<boolean> {
@@ -252,7 +252,7 @@ export class TPMManager implements TpmPort {
 
     async nvRead(index: string, auth?: string): Promise<string | null> {
         const res = await this.sidecar.sendCommand("trustroot", { type: "NvRead", index, auth });
-        if (res.success && res.data?.data) {
+        if (res.success && typeof res.data?.data === "string") {
             return res.data.data;
         }
         return null;

@@ -25,8 +25,9 @@ export class MeshGossipManager {
         this.gossipCache.add(payloadHash);
 
         // Audit 4.4: Gossip Hop Count / TTL to prevent broadcast storms.
-        payload.hops = (payload.hops as number || 0) + 1;
-        if (payload.hops > 5) return ok(undefined);
+        const hops = (typeof payload.hops === "number" ? payload.hops : 0) + 1;
+        payload.hops = hops;
+        if (hops > 5) return ok(undefined);
 
         const verifiedNodes = nodes.filter(n => n.verified);
         const MAX_GOSSIP_CONCURRENCY = 16;

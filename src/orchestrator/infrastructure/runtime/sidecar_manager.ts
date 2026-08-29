@@ -38,8 +38,8 @@ export class SidecarManager implements CommandPort {
   private cleanupHandler: (() => Promise<void>) | null = null;
   private isShuttingDown: boolean = false;
   private defaultInterface: string | null = null;
-  private rotationInterval?: number;
-  private backoffTimers: Set<number> = new Set();
+  private rotationInterval?: ReturnType<typeof setInterval>;
+  private backoffTimers: Set<ReturnType<typeof setTimeout>> = new Set();
   private manifestPromise: Promise<void> | null = null;
   private initialized = false;
 
@@ -647,7 +647,7 @@ export class SidecarManager implements CommandPort {
     const isHighPriority = ["KillProcess", "BlockIp", "QuarantineProcess", "DumpProcess", "LOCKDOWN", "ENFORCE_PID"].includes(type);
     const timeoutMs = isHighPriority ? 5000 : 60000;
 
-    let timeoutHandle: number | undefined;
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<CommandResult>((resolve) => {
       timeoutHandle = setTimeout(() => {
         this.ipc.removeWaiter(name, id);

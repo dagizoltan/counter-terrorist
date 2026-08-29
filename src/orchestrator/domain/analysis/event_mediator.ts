@@ -37,14 +37,14 @@ export class EventMediator extends BaseService {
     private fimIntegration: FimIntegration;
     private networkIntegration: NetworkIntegration;
     private scannerIntegration: ScannerIntegration;
-    private learningTimeout: number | null = null;
+    private learningTimeout: ReturnType<typeof setTimeout> | null = null;
 
     // Performance: High-volume event batching & Backpressure Throttling
     private syscallBatch: SidecarEvent[] = [];
     private networkBatch: SidecarEvent[] = [];
     private readonly BATCH_THRESHOLD = 50;
     private readonly MAX_QUEUE_DEPTH = 5000;
-    private batchTimer?: number;
+    private batchTimer?: ReturnType<typeof setInterval>;
 
     protected override async onInit(): Promise<Result<void>> {
         // Lazy resolution of dependencies via Service Locator to prevent God Object coupling
@@ -99,8 +99,8 @@ export class EventMediator extends BaseService {
     ) {
         super();
         this.logger = logger;
-        this.setEventBus(eventBusPort);
-        this.eventBus = eventBusPort;
+        this.setEventBus(eventBusPort as any);
+        this.eventBus = eventBusPort as any;
         this.behavioral = behavioral || new BehavioralAnalyzer();
         if (kv) {
             this.behavioral.setKv(kv).catch(err => this.logger.log({

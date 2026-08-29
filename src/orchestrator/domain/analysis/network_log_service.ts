@@ -62,8 +62,9 @@ export class NetworkLogService extends BaseService implements LoggingPort {
     return ok(undefined);
   }
 
-  override async shutdown(): Promise<Result<void>> {
-    return await super.shutdown();
+  override async shutdown(): Promise<any> {
+    await super.shutdown();
+    return ok(undefined);
   }
 
   async getRecent(limit: number = 100) {

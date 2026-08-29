@@ -20,7 +20,8 @@ export class UbuntuVpnProvider implements VpnProvider {
 
   async isConnected(interfaceName: string = "wg0"): Promise<boolean> {
     const res = await this.sidecar.sendCommand("tunnel", { type: "GET_STATUS", payload: {} });
-    return res.success && (res.data?.active === true || res.data?.active_interfaces?.includes(interfaceName));
+    const activeIfaces = Array.isArray(res.data?.active_interfaces) ? (res.data.active_interfaces as string[]) : [];
+    return res.success && (res.data?.active === true || activeIfaces.includes(interfaceName));
   }
 
   async getStatus(): Promise<unknown> {

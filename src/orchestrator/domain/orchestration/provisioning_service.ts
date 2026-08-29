@@ -73,7 +73,7 @@ export class ProvisioningService extends BaseService {
         ]);
 
         if (scanResult.success && scanResult.data) {
-            const hosts = scanResult.data as { ip: string, port: number }[];
+            const hosts = scanResult.data as unknown as { ip: string, port: number }[];
             for (const host of hosts) {
                 if (!this.targets.has(host.ip)) {
                     this.targets.set(host.ip, {

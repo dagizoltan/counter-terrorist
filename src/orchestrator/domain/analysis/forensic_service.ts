@@ -1,6 +1,6 @@
 import { AuditService } from "./audit.ts";
 import { BaseService } from "@core/base_service.ts";
-import { LoggingPort, LogSeverity, LogType, MeshAuthPort } from "../../core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, MeshAuthPort, ConfigurationPort } from "../../core/ports.ts";
 import { Result, ok } from "../../core/result.ts";
 import { ProcessTracker } from "./process_tracker.ts";
 import { computeStreamHash } from "../../core/crypto_utils.ts";

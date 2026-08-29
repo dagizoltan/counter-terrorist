@@ -39,7 +39,7 @@ export class BaselineService extends BaseService {
   private baselineFileMap = new Map<string, string>();
   private baselinePortSet = new Set<string>();
   private baselineProcessSet = new Set<string>();
-  private monitorInterval?: number;
+  private monitorInterval?: ReturnType<typeof setInterval>;
 
   constructor(
     private kv: Deno.Kv,
@@ -372,7 +372,7 @@ export class BaselineService extends BaseService {
 
   protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
     await this.restoreBaseline();
-    return { success: true, data: undefined };
+    return ok(undefined);
   }
 
   protected override async onShutdown(): Promise<import("../../core/result.ts").Result<void>> {

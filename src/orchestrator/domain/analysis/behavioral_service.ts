@@ -19,7 +19,7 @@ export interface SuspiciousIp {
 
 export class BehavioralService extends BaseService {
   private history: BoundedMap<string, IpHistory> = new BoundedMap(1000);
-  private metricsInterval?: number;
+  private metricsInterval?: ReturnType<typeof setInterval>;
   private analyzer = new BehavioralAnalyzer();
   private readonly MAX_HISTORY = 10;
 
