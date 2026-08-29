@@ -40,13 +40,15 @@ Each primary summary is backed by a numbered folder of detailed documents.
 
 ### Executive & Engineering Guides
 - `REVERSE_ENGINEERING_AND_BUILD_GUIDE.md` — system architecture, Rust agents, IPC mechanics, and local build/startup playbook.
-- `UI_DESIGN_SYSTEM.md` — console design system: tokens, components, the state vocabulary, motion, and the generated stylesheet build.
+- `ARCHITECTURE_DEEP_DIVE.md` — deep technical breakdown of C-ABI IPC ring buffers, SIMD routines, EventMediator batching, and KV state management.
+- `BUG_LIST_2026.md` — classified bug list, security audit findings, resolved vulnerabilities, and platform technical debt inventory.
+- `SYSTEM_AUDIT_REPORT.md` — comprehensive system-wide security posture and quality verification report (281 passing tests).
 - `EXECUTIVE_EVALUATION_AND_VALUATION.md` — CISO evaluation, reliability guarantees, IP valuation ($2.5M–$5.0M), and risk assessment matrix.
+- `UI_DESIGN_SYSTEM.md` — console design system: tokens, components, the state vocabulary, motion, and the generated stylesheet build.
 - `CODE_REVIEW_REPORT.md` — architectural code review and security posture assessment.
 - `FEATURE_MATRIX.md` — matrix of supported system features and agent capabilities.
 - `ISSUES_REPORT.md` — historical security issue and remediation tracking log.
 - `ROADMAP.md` — platform implementation and architectural phase progression roadmap.
-- `SYSTEM_AUDIT_REPORT.md` — comprehensive system-wide security audit report.
 
 ## How to use this folder
 Follow the numbered summaries in order. After each summary, use the matching numbered folder for detailed implementation, architecture, and handover support.

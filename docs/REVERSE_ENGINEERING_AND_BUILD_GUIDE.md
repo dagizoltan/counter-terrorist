@@ -32,22 +32,25 @@ The Counter-Terrorist Security Orchestrator (v7.1-PRODUCTION) employs a multi-ti
 
 ### 1. Deno Orchestrator (`src/orchestrator/`)
 - **App Engine (`SovereignApp`):** Initializes via a strict 7-phase boot sequence.
-- **Domain Services:** Autonomous response, behavioral anomaly scoring, threat intelligence syncing, deception morphing, and forensic causal graph generation.
-- **CommandBus Decoupling (`command_bus.ts`):** Decouples web adapters from domain services using strongly-typed command dispatchers.
-- **State Persistence:** State and audit records persist in Deno KV (`./volume/storage/orchestrator.db`).
+- **Domain Services:** Autonomous response, behavioral anomaly scoring, threat intelligence syncing, deception morphing, active network socket monitoring (`ActiveSocketService`), and forensic causal graph generation.
+- **EventMediator (`event_mediator.ts`):** Buffers high-volume telemetry (`MAX_QUEUE_DEPTH = 5000`) and periodically flushes batches every 100ms. Enriches incoming threat indicators with GeoIP coordinates (`enrichThreatGeo`).
+- **State Persistence:** Persistent storage layer (`kv_store.ts` & `kv_repository.ts`) built on Deno KV with Optimistic Concurrency Control (OCC) and randomized exponential backoff jitter. Supports read-only execution modes during `FORENSIC_RESTRICTED` state.
 
-### 2. Rust System Sidecars (`src/agents/`)
-- **`sentinel`:** eBPF/LSM Linux kernel tracer built with Tokio. Implements in-kernel `TRUSTED_PIDS` HashMap ("Quiet Mode") to suppress redundant sidecar telemetry at kernel level.
+### 2. Core C-ABI IPC & Security Libraries (`src/agents/cts_ipc` & `src/agents/cts_sec`)
+- **`cts_ipc`:** Zero-copy lock-free ring buffer in shared memory (`/dev/shm`) using atomic head/tail pointers (`AtomicU32`), MessagePack serialization, Ed25519 signature validation, and multi-byte XOR obfuscation keys (`CTS_MESH_SECRET`).
+- **`cts_sec`:**
+  - AVX2/NEON SIMD-accelerated string/memory XOR morphing routines.
+  - Sealed memory file creation (`create_sealed_memfd`) utilizing `SYS_memfd_create` and `F_ADD_SEALS` (`F_SEAL_WRITE`) to execute agent binaries directly from memory, preventing TOCTOU file tampering on disk.
+
+### 3. Native System Agents (`src/agents/`)
+- **`sentinel`:** eBPF/LSM Linux kernel tracer built with `aya` (BpfLoader CO-RE/BTF relocations). Maintains an in-kernel `TRUSTED_PIDS` HashMap ("Quiet Mode") to suppress redundant sidecar telemetry overhead at the kernel boundary.
 - **`analyzer`:** Syscall sequence anomaly scoring (15-min TTL sliding window) and kernel integrity attestation (inspects taint flags, lockdown mode, and unmanaged kernel modules).
-- **`enforcer` & `enforcer-win`:** Low-level network filtering (eBPF/iptables/WFP) and emergency process containment (`cap_net_admin`, `cap_kill`).
+- **`enforcer` & `enforcer-win`:** Low-level network filtering (eBPF/iptables on Linux, native Windows Filtering Platform `FWPM_LAYER_INBOUND_IPPACKET_V4` on Windows) and emergency process containment (`cap_net_admin`, `cap_kill`).
 - **`netcap`:** High-throughput network packet capture and raw socket inspection (`cap_net_raw`).
-- **`trustroot`:** Hardware Root-of-Trust and Virtual TPM manager. Enforces mandatory NVRAM authorization passwords for Seal/Unseal and attestation operations.
-- **`watchfile`:** eBPF/fanotify file integrity monitor detecting unauthorized mutations in protected path trees.
+- **`trustroot`:** Hardware Root-of-Trust manager using TCG TSS2 C FFI bindings (`libtss2-esys`) for physical TPM 2.0 chips and cloud vTPMs (AWS Nitro/Azure) with PCR bank sealing/unsealing.
+- **`watchfile`:** eBPF/fanotify file integrity monitor detecting unauthorized mutations in protected directory trees.
 - **`tunnel`:** Encrypted mesh overlay and WireGuard VPN lifecycle controller.
-- **`decoy`:** High-interaction deception grid honeypot node.
-- **`cts_ipc` & `cts_sec` (Core C-ABI Libraries):**
-  - **`cts_ipc`:** Zero-copy lock-free ring buffer in shared memory (`/dev/shm`) utilizing `AtomicU32` head/tail pointers and `0600` permissions.
-  - **`cts_sec`:** AVX2/NEON SIMD-accelerated JSON stringifier for fast deterministic canonicalization, and sealed `memfd` execution (`memfd_create`) to execute sidecar binaries directly from memory, eliminating TOCTOU disk tampering attacks.
+- **`decoy`:** High-interaction deception grid honeypot node supporting interactive SSH/Redis/HTTP banners.
 
 ---
 
@@ -92,11 +95,10 @@ deno task provision-integrity
 ```
 
 ### Step 5: Execute System Test Suite
-Execute the full integration and property-based test suite (280+ test cases):
+Execute the full integration and property-based test suite (281 test cases):
 ```bash
 deno test --allow-all --unstable-kv --no-check tests/
 ```
-Note: Deno import mappings for `@std/async` use `jsr:@std/async@^1.0.0` in `deno.json`.
 
 ### Step 6: Start the System
 - **Development Mode (with live reload):**
