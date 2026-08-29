@@ -1,95 +1,83 @@
-# Counter-Terrorist: Extensive Bug List & Security Audit (v7.0-PRODUCTION)
+# Counter-Terrorist: Comprehensive Bug List & Security Audit (v7.1-PRODUCTION)
 
-This document categorizes identified bugs, security vulnerabilities, and stability issues discovered during the reverse-engineering and audit of the Counter-Terrorist (v7.0-PRODUCTION-STABLE) codebase.
+This document categorizes identified bugs, security vulnerabilities, stability fixes, and remaining platform technical debt in the Counter-Terrorist codebase.
 
-## 🔴 CRITICAL SEVERITY
+---
+
+## 🔴 CRITICAL SEVERITY (RESOLVED)
 
 ### 1. Memory Safety: Sidecar Binary OOM
 - **Domain**: Infrastructure (Sidecar Management)
 - **Status**: ✅ **FIXED**
-- **Description**: The `digestStream` implementation in `SidecarManager.ts` collected all binary chunks into a single `Uint8Array` before hashing. This would cause an Out-Of-Memory (OOM) crash when processing large agent binaries or updates.
-- **Impact**: Denial of Service (DoS) during boot or rotation.
+- **Description**: The `digestStream` implementation in `SidecarManager.ts` collected all binary chunks into a single memory buffer before hashing. This caused Out-Of-Memory (OOM) crashes on large binary streams.
+- **Remediation**: Implemented streaming SHA-256 chunk digesting.
 
-### 2. Integrity: Forensic Chain "Fail-Open"
+### 2. Integrity: Forensic Chain Fail-Open
 - **Domain**: Domain (Audit/Analysis)
 - **Status**: ✅ **FIXED**
-- **Description**: If `AuditService.ts` detected ledger tampering during the boot sequence (`restoreChainHead`), it logged an error but allowed the system to continue booting in a potentially compromised state.
-- **Impact**: Cryptographic integrity bypass; malicious state could persist.
+- **Description**: Ledger tampering detected during boot (`restoreChainHead`) logged an error but permitted startup in a compromised state.
+- **Remediation**: System auto-heals dev boundary or locks system into `FORENSIC_RESTRICTED` mode.
 
 ### 3. Jailing: Path Extraction Logic Flaw
 - **Domain**: Infrastructure (Security Jailing)
 - **Status**: ✅ **FIXED**
-- **Description**: `extractPathsFromJson` in `SystemExecutor.ts` utilized `Object.entries` on objects but failed to recurse into arrays. Malicious paths hidden inside JSON arrays (common in sidecar IPC) would bypass jail validation.
-- **Impact**: Jailbreak via crafted IPC payloads.
+- **Description**: `extractPathsFromJson` in `SystemExecutor.ts` failed to recurse into JSON arrays, allowing malicious paths inside arrays to bypass jail checks.
+- **Remediation**: Added deep recursive array traversal to path extraction logic.
 
 ---
 
-## 🟠 HIGH SEVERITY
+## 🟠 HIGH SEVERITY (RESOLVED)
 
 ### 4. TOCTOU: Sidecar Deployment Race
 - **Domain**: Infrastructure (Runtime)
 - **Status**: ✅ **FIXED**
-- **Description**: Sidecar binaries were verified at their source location *before* being moved to the secure `/var/lib/cts/bin/` directory. An attacker could replace the binary between verification and execution.
-- **Impact**: Execution of unverified/malicious native code.
+- **Description**: Sidecar binaries were verified at source *before* being copied to execution locations.
+- **Remediation**: Binaries are written into sealed anonymous memory (`SYS_memfd_create` with `F_SEAL_WRITE`) prior to execution.
 
-### 5. Deadlock: EventBus Middleware Hanging
-- **Domain**: Domain (Analysis/Events)
+### 5. Stream Locking Race: Concurrent Sidecar StdIn Writers
+- **Domain**: Infrastructure (Sidecar IPC)
 - **Status**: ✅ **FIXED**
-- **Description**: The `EventBus` middleware chain lacked execution timeouts. If a middleware failed to call `next()` or hung (e.g., due to a blocking I/O operation), the entire system event propagation would stop.
-- **Impact**: System-wide hang; loss of real-time monitoring and defense.
+- **Description**: Concurrent commands dispatched to `SidecarManager.rawSendCommand` threw `TypeError: The stream is already locked` when acquiring `child.stdin.getWriter()`.
+- **Remediation**: Implemented per-sidecar `stdinLocks` mutex queue serializing `stdin` stream access.
 
-### 6. Logic Gap: Ghost Implementations
-- **Domain**: Architecture
+### 6. Native Security: Atomic Pointer Alignment & Memfd FD Leaks (SEC-R01..SEC-R04)
+- **Domain**: Native Rust Core (`cts_ipc` & `cts_sec`)
 - **Status**: ✅ **FIXED**
-- **Description**: Several core features described in "Milestone 4" have been fully integrated:
-    - `ProvisioningService`: Now correctly instantiated via `SubsystemFactory` and started in `SovereignApp.startSubsystems()`.
-    - `verifyFullChain`: Implemented in `AuditVerifier` and delegated from `AuditService`.
-- **Impact**: Operational parity with system design specifications.
-
-### 7. Security: TPM Index Mapping Collision
-- **Domain**: Infrastructure (TPM)
-- **Status**: ✅ **FIXED**
-- **Description**: `TPMManager.getIndexForSecret` has been refactored to use a strict mapping of secrets to unique indices. It now throws an explicit error for unknown secrets instead of defaulting to the `MESH_SECRET` index, preventing unintentional overwriting of hardware-sealed data.
-- **Impact**: Neutralized collision risk for hardware-rooted secrets.
+- **Description**: Raw slice allocator metadata corruption and memfd file descriptor leaks under high-concurrency C-ABI calls.
+- **Remediation**: Enforced `AtomicU32` pointer alignment checks in `cts_ipc` and eliminated memfd leaks using `OwnedFd`.
 
 ---
 
-## 🟡 MEDIUM SEVERITY
+## 🟡 MEDIUM SEVERITY (RESOLVED)
 
-### 8. Resource Management: Missing Cleanup
-- **Domain**: Domain (Lifecycle)
+### 7. Performance: UI Telemetry Batching Overhead
+- **Domain**: Domain (Analysis / EventMediator)
 - **Status**: ✅ **FIXED**
-- **Description**: A comprehensive audit and refactoring of background services was conducted. All core services (e.g., `IntegrityService`, `MorphingService`, `BehavioralService`, `ProcessTracker`, `NewsSignalService`) now implement `onShutdown()` or `shutdown()` methods that explicitly clear `setInterval` and `setTimeout` timers, ensuring hermeticity during system termination and tests.
-- **Impact**: Neutralized resource leaks; stable lifecycle transitions.
+- **Description**: High-frequency eBPF syscalls overwhelmed WebSocket broadcast queues and UI rendering threads.
+- **Remediation**: `EventMediator.ts` buffers telemetry in `syscallBatch` and `networkBatch` queues up to `MAX_QUEUE_DEPTH = 5000` with 100ms periodic flushes.
 
-### 9. Stability: NaN/Infinity in Metrics
-- **Domain**: Domain (Analysis)
+### 8. Reliability: Self-Referential Audit Log Suppression
+- **Domain**: Infrastructure (Logging)
 - **Status**: ✅ **FIXED**
-- **Description**: `HealthService.ts` and `BehavioralAnalyzer.ts` performed division operations for CPU utilization and entropy without checking for zero-deltas or missing samples.
-- **Impact**: Dashboard display corruption; incorrect behavioral verdicts.
+- **Description**: Audit event persistence triggered secondary audit log events, resulting in unbounded log recursion.
+- **Remediation**: Added `orchestrator:domain:analysis:audit` to `ignoredSources` in `LoggingService`.
 
-### 10. Reliability: Jittery Gossip
-- **Domain**: Domain (Mesh)
+### 9. Stability: NaN/Infinity in Autonomous Threat Scoring
+- **Domain**: Domain (Autonomous Response)
 - **Status**: ✅ **FIXED**
-- **Description**: Mesh gossip broadcasts (Blocks, Lockdowns) were "fire-and-forget". In a high-latency or jittery network, critical security signals could be lost.
-- **Impact**: Inconsistent mesh-wide defensive state.
-
-### 11. Persistence: Unbounded KV Growth
-- **Domain**: Infrastructure (Persistence)
-- **Status**: ✅ **FIXED**
-- **Description**: `AuditDelta` objects and `NewsItem` signals now utilize explicit TTLs (`expireIn`) during KV insertion. Audit deltas are retained for 30 days, while news signals are purged after 48 hours, preventing linear disk growth.
-- **Impact**: Automated storage lifecycle management; prevented long-term disk exhaustion.
+- **Description**: Non-integer or negative severity inputs polluted threat evaluation scores with `NaN`.
+- **Remediation**: Validated severity inputs using `Math.floor` and capped score decay algorithms.
 
 ---
 
-## 🔵 LOW SEVERITY / TECH DEBT
+## 🔵 LOW SEVERITY / PLATFORM TECHNICAL DEBT
 
-### 12. Cross-Platform: macOS/Windows Stubs
-- **Domain**: Infrastructure (Platform)
+### 10. Platform Parity: macOS & Windows Non-Linux Stubs
+- **Domain**: Infrastructure (Platform Parity)
+- **Status**: ℹ️ **PARTIALLY RESOLVED / DOCUMENTED**
+- **Description**: Deep Linux kernel introspection features (eBPF LSM, `fanotify`, `AppArmor`) rely on Linux kernel APIs. Windows uses native WFP filtering (`enforcer-win`), while macOS uses Apple Endpoint Security Framework (`sentinel-darwin`) with fallback proxy stubs.
+
+### 11. Process Stealth: Unprivileged PID Cloaking
+- **Domain**: Native Kernel Introspection
 - **Status**: ℹ️ **DOCUMENTED**
-- **Description**: Many core security features (eBPF, AppArmor, Jailing) are Linux-specific. The macOS and Windows implementations use "Limited/Mock" stubs that do not provide equivalent security guarantees.
-
-### 13. UI: Batching Overhead
-- **Domain**: Interface (Web)
-- **Status**: ℹ️ **OPTIMIZED**
-- **Description**: `EventMediator.ts` batches syscalls, but the UI still receives individual `UI_BROADCAST` events for every audit log entry, causing high WebSocket traffic during scans.
+- **Description**: `HIDE_CONFIG` eBPF map hides PIDs from kernel directory enumeration (`/proc`), but requires `CAP_BPF` / `CAP_SYS_ADMIN` privileges at boot.

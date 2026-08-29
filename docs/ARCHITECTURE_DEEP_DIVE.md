@@ -1,77 +1,51 @@
-# Architecture Deep Dive: Sovereign Security Orchestrator
+# 🔬 System Architecture & Deep Dive Reference
 
-## 1. System Overview
-The Sovereign system is an autonomous security orchestrator built with a "Defense in Depth" philosophy. It leverages Deno's secure runtime for the control plane and native Rust sidecars for high-performance system enforcement.
+## Overview & Paradigm
 
-### 1.1 Three-Tier Architecture
-- **Web Interface (Hono/JSX)**: The management ingress providing a tactical dashboard and real-time telemetry via WebSockets.
-- **Orchestrator Core (Deno)**: The "Brain" implementing Domain-Driven Design (DDD). It coordinates between various security domains (Identity, Protection, Analysis, Engine).
-- **Enforcement Agents (Rust Sidecars)**: Low-level native processes that interface with the OS (eBPF, Netlink, UFW, TPM).
+The Counter-Terrorist Security Orchestrator is an autonomous, real-time threat detection, deception, and automated response engine. It is built on a hybrid architecture:
+1. **Deno / TypeScript (DDD Engine):** High-level orchestration, state management, API routes, CommandBus dispatching, event correlation, and web user interfaces.
+2. **Native Rust Sidecars (Ring 0 / Low-Level Introspection):** eBPF kernel probes, fanotify file integrity monitors, raw packet capture (`netcap`), hardware TPM 2.0 attestation (`trustroot`), and native network filtering (`enforcer` & `enforcer-win`).
 
-## 2. Execution Flows
+---
 
-### 2.1 Boot Sequence (Critical Path)
-The `SovereignApp` boot sequence is a multi-phase initialization designed to ensure system integrity before enabling network interfaces.
+## Data Plane & Data Flows
 
-```mermaid
-graph TD
-    A[index.ts] --> B[SovereignApp.boot]
-    B --> C[Phase 1: initCore - Logging, KV, Executor, SidecarManager]
-    C --> D[Phase 2: Configuration Validation & Hardening]
-    D --> E[Phase 3: TPM & System Lifecycle Initialization]
-    E --> F[Phase 4: Infrastructure - Mesh, Health, EventBus]
-    F --> G[Phase 5: Domain Service Orchestration]
-    G --> H[Phase 6: Operational Layer - Web & Metrics]
-    H --> I[Phase 7: Drop Capabilities & Finalize]
+### 1. Zero-Copy Shared Memory IPC (`cts_ipc`)
+Sidecar telemetry is transmitted via ring buffers in shared memory (`/dev/shm`):
+- **Ring Buffer Layout:** `[0..4]` Head (`AtomicU32`), `[4..8]` Tail (`AtomicU32`), `[8..12]` Capacity (`u32`), `[16..]` Message Payload.
+- **Security:** Ed25519 payload signatures (`verify_ed25519`), multi-byte XOR obfuscation (`CTS_MESH_SECRET`), and sealed memory execution (`SYS_memfd_create` with `F_SEAL_WRITE`).
+
+```
+┌─────────────────────┐      /dev/shm Ring Buffer      ┌─────────────────────────┐
+│ Rust Agent          ├───────────────────────────────►│ Deno SidecarManager     │
+│ (sentinel/watchfile)│  Atomic Head/Tail + Ed25519    │ (EventMediator Batcher) │
+└─────────────────────┘                                └────────────┬────────────┘
+                                                                    │
+                                                                    ▼
+                                                       ┌─────────────────────────┐
+                                                       │ EventBus / UI Broadcast │
+                                                       └─────────────────────────┘
 ```
 
-### 2.2 Request Lifecycle
-All API requests undergo strict mediation through the `WebAdapter` pipeline.
+### 2. EventMediator & Telemetry Batching (`EventMediator.ts`)
+- **Backpressure & Load-Shedding:** High-frequency syscalls (`sentinel`) and network logs (`netcap`) are queued up to `MAX_QUEUE_DEPTH = 5000`.
+- **Periodic Flush:** Batches are dispatched to the `EventBus` every 100ms (`EBPF_SYSCALL_BATCH`, `NETWORK_LOG_BATCH`).
+- **Provisional Geo Enrichment:** `UI_BROADCAST` threats missing spatial coordinates are dynamically enriched with GeoIP metadata before WebSocket broadcast.
 
-1. **Deception Check**: Requests hitting honey-routes are trapped before auth.
-2. **Hardened Headers**: CSP, HSTS, and Frame-Options applied.
-3. **Authentication**: Session cookie, Bearer token, or API Key validation.
-4. **CSRF Enforcement**: `X-CT-Token` check for mutation methods.
-5. **Domain Execution**: Controller invokes relevant Domain Service (e.g., `ForensicService`).
-6. **Sidecar IPC**: Domain Service sends validated JSON commands via `SystemExecutor`.
-7. **Audit Trail**: Sensitive actions are cryptographically signed and logged to the forensic ledger.
+### 3. Active Network Socket & Process Attribution (`ActiveSocketService.ts`)
+- Enumerates TCP/UDP socket inodes via `/proc/net/tcp` and `/proc/net/udp`.
+- Resolves socket inodes to process PIDs and executable names via `/proc/[pid]/fd`.
+- Links remote socket endpoints to GeoIP coordinates and Autonomous Response triggers.
 
-## 3. Dependency Mapping
-The system uses a `ServiceContainer` for dependency injection, ensuring components are decoupled and testable.
+---
 
-| Domain | Key Services | Responsibility |
-| :--- | :--- | :--- |
-| **Identity** | `MeshAuth`, `Session`, `ApiKeys` | mTLS, RBAC, and Token management. |
-| **Protection** | `Firewall`, `Vpn`, `Honeypot`, `Canary` | Active defense and deception. |
-| **Analysis** | `Audit`, `Forensics`, `ProcessTracker` | Observability and evidence collection. |
-| **Engine** | `Autopilot`, `Playbook`, `Policy` | Autonomous response and orchestration. |
+## State Persistence & Ledger Integrity
 
-## 4. Trust Boundaries & Isolation
+### 1. Deno KV & Optimistic Concurrency Control
+- State and audit deltas persist in `./volume/storage/orchestrator.db`.
+- `KvRepository` implements Optimistic Concurrency Control (OCC) using atomic transaction checks (`kv.atomic().check(...)`) with randomized exponential backoff jitter.
+- Enforces strict read-only mode (`FORENSIC_RESTRICTED`) when system integrity tampering is detected.
 
-### 4.1 Internal IPC (Shared Memory & Stdio)
-Communication between Deno and Rust sidecars uses a tiered approach:
-- **Shared Memory Data Plane**: High-frequency telemetry uses a Zero-Copy Ring Buffer in `/dev/shm` with SIMD-accelerated obfuscation.
-- **Control Plane**: Stdio pipes or shared memory slots for command-and-control.
-- **Validation**: `validateRequest` and `validateResponse` schemas (Zod) enforce strict structural integrity.
-- **Tiered Timeouts**: High-priority remediation commands (e.g., `KillProcess`, `BlockIp`) timeout in 5 seconds to prevent orchestrator blocking, while standard commands allow 60 seconds.
-- **Jailing**: `SystemExecutor` enforces mandatory path jailing for all sidecar commands.
-
-### 4.2 Mesh Connectivity (mTLS)
-Node-to-node communication is secured via a private PKI.
-- **Root CA**: Generated and stored securely in Deno KV (optionally sealed to TPM).
-- **Node Certs**: Each node possesses a unique X.509 certificate signed by the Mesh Root.
-- **HMAC Signatures**: Mesh gossip payloads are signed with `MESH_SECRET` to prevent tampering.
-
-## 5. Scalability Considerations
-- **Event Bus**: Utilizes `safelyExecute` with async handlers to prevent listener-blocking.
-- **Metrics Collection**: Staggered cycles (5s, 15s, 30s) reduce periodic resource spikes.
-- **Deno KV**: Handles state persistence with optimistic concurrency.
-
-## 6. Critical Path Analysis: Autopilot Remediation
-1. **Trigger**: `Sentinel` (Rust) emits a `SYSCALL_EVENT` via stdout.
-2. **Ingestion**: `SidecarManager` parses JSON and emits a Deno event.
-3. **Mediation**: `EventMediator` processes syscall and calculates behavioral anomaly score.
-4. **Evaluation**: `AutopilotService` receives `EBPF_CRITICAL` event.
-5. **Policy**: `PolicyEngine` maps threat score to `BLOCK` action.
-6. **Enforcement**: `ProtectionAdapter` instructs `Sentinel` to block the malicious PID/IP.
-7. **Audit**: The entire chain is logged to the forensic ledger.
+### 2. Cryptographic Audit Ledger (`AuditService.ts`)
+- SHA-256 hash-chained WORM (Write Once Read Many) log sequence.
+- Dev-mode auto-healing boundary (`healDevChainBoundary`) detects legacy/corrupted KV audit heads during startup and inserts a secure boundary marker without stopping execution.
