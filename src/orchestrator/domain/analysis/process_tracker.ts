@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType, SyslogSeverity } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, SyslogSeverity, EventBusPort } from "@core/ports.ts";
 import { ProcessPort } from "@domain/ports/process_port.ts";
 import { CommandPort } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
@@ -43,7 +43,7 @@ export class ProcessTracker extends BaseService {
         return ok(undefined);
     }
 
-    override setEventBus(eventBus: any) {
+    override setEventBus(eventBus: EventBusPort) {
         super.setEventBus(eventBus);
     }
 

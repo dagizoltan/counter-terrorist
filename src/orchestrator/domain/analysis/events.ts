@@ -1,17 +1,10 @@
-import { LoggingPort, LogSeverity, LogType, EventBusPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, EventBusPort, SystemEventEnvelope } from "@core/ports.ts";
 import { validateEvent, EventName, EventRegistry } from "@core/event_schema.ts";
 import { z } from "npm:zod";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT" | "METRIC_UPDATE" | "SIDECAR_ALERT" | "UI_BROADCAST";
 
-export interface SystemEvent<T extends EventName = string> {
-  type: T;
-  message: string;
-  timestamp: string;
-  data: unknown;
-  correlationId?: string;
-  fromAudit?: boolean;
-}
+export type SystemEvent<T extends EventName = EventName> = SystemEventEnvelope<T>;
 
 export type Handler<T extends EventName> = (data: T extends keyof EventRegistry ? EventRegistry[T] : unknown, event: SystemEvent<T>) => void | Promise<void>;
 
