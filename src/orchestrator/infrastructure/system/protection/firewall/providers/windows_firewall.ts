@@ -1,10 +1,11 @@
 import { FirewallProvider } from "../firewall.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
+import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { ListeningPort } from "../../interfaces.ts";
 import { CommandResult } from "@core/ports.ts";
 
 export class WindowsFirewallProvider implements FirewallProvider {
-  constructor(private sidecar: SidecarManager) {}
+  constructor(private sidecar: SidecarManager, private executor: SystemExecutor) {}
 
   async blockIp(ip: string): Promise<CommandResult> {
     return await this.sidecar.sendCommand("enforcer-win", { type: "AddBlockRule", ip });
