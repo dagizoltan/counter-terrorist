@@ -155,6 +155,10 @@ export class WebAdapter implements WebPort {
         }
       }
 
+      if (c.get("wsReject")) {
+        return await next();
+      }
+
       let role: string | null = null;
 
       // Extract token from query params, subprotocol, or authorization header

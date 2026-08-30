@@ -102,15 +102,6 @@ export class EventMediator extends BaseService {
         this.setEventBus(eventBusPort as any);
         this.eventBus = eventBusPort as any;
         this.behavioral = behavioral || new BehavioralAnalyzer();
-        if (kv) {
-            this.behavioral.setKv(kv).catch(err => this.logger.log({
-                timestamp: new Date().toISOString(),
-                type: LogType.GENERIC,
-                severity: LogSeverity.ERROR,
-                caller: "event_mediator",
-                message: `Failed to set KV for behavioral: ${err.message}`
-            }));
-        }
 
         this.sentinelIntegration = new SentinelIntegration(eventBusPort, this.behavioral, logger, broadcast, this.flushBatches.bind(this), this.syscallBatch);
         this.fimIntegration = new FimIntegration(eventBusPort, logger, broadcast);
