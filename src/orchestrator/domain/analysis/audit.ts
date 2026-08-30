@@ -658,26 +658,35 @@ export class AuditService extends BaseService {
                 continue;
             }
 
-            if (event.type === "CHECKPOINT" && event.prevHash === "TRUNCATED" && this.tpm) {
-                if (!event.hwSignature) {
-                     this.logging.log({
-                        timestamp: new Date().toISOString(),
-                        type: LogType.AUDIT,
-                        severity: LogSeverity.ERROR,
-                        caller: "orchestrator:domain:analysis:audit",
-                        message: `Rejected unsigned CHECKPOINT ${event.id} as a truncation boundary.`
-                    }).catch(err => this.safeLogAuditError("Background task failure", err));
-                    continue;
-                }
-                const isValid = await this.tpm.verify(event.hash, event.hwSignature);
-                if (!isValid) {
+            // A truncation boundary resets this node's chain head to a value the sender
+            // chose, so it is only ever acceptable with a verified hardware signature.
+            // Gating the whole check on `this.tpm` meant a node running without a TPM —
+            // a documented, supported deployment (`hardwareVerified: false`) — accepted an
+            // entirely UNSIGNED checkpoint and adopted it as its new chain root. The
+            // self-computed `expectedHash` above proves nothing here: it is an unkeyed
+            // digest over fields the sender controls. Fail closed instead.
+            if (event.prevHash === "TRUNCATED") {
+                const reject = (reason: string) => {
                     this.logging.log({
                         timestamp: new Date().toISOString(),
                         type: LogType.AUDIT,
                         severity: LogSeverity.ERROR,
                         caller: "orchestrator:domain:analysis:audit",
-                        message: `Rejected CHECKPOINT ${event.id} with INVALID hardware signature.`
+                        message: `Rejected truncation boundary ${event.id}: ${reason}`
                     }).catch(err => this.safeLogAuditError("Background task failure", err));
+                };
+
+                if (!this.tpm) {
+                    reject("no hardware root of trust is available to verify it");
+                    continue;
+                }
+                if (!event.hwSignature) {
+                    reject("CHECKPOINT carries no hardware signature");
+                    continue;
+                }
+                const isValid = await this.tpm.verify(event.hash, event.hwSignature);
+                if (!isValid) {
+                    reject("hardware signature is INVALID");
                     continue;
                 }
             }

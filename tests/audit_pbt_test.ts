@@ -1,4 +1,4 @@
-import fc from "npm:fast-check";
+import fc from "fast-check";
 import { assertEquals, assertExists } from "@std/assert";
 import { AuditService, AuditEvent, AuditDelta } from "../src/orchestrator/domain/analysis/audit.ts";
 import { AuditVerifier } from "../src/orchestrator/domain/analysis/audit_verifier.ts";

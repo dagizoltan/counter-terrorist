@@ -2,7 +2,7 @@ import { assertEquals } from "@std/assert";
 import { MeshGossipManager } from "../src/orchestrator/domain/orchestration/mesh/gossip_manager.ts";
 import { MeshNode } from "../src/orchestrator/domain/orchestration/mesh.ts";
 import { LoggingPort, LogEntry } from "@core/ports.ts";
-import * as fc from "npm:fast-check";
+import * as fc from "fast-check";
 
 class MockLoggingPort implements LoggingPort {
     logs: LogEntry[] = [];

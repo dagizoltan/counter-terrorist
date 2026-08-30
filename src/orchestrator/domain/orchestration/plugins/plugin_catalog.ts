@@ -3,8 +3,6 @@ import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { FirewallManager } from "@infrastructure/system/protection/firewall/firewall.ts";
 import { PcapManager } from "@infrastructure/system/protection/pcap/pcap.ts";
 import { HoneypotPlugin } from "./honeypot.ts";
-import { SshHoneypotPlugin } from "./ssh_honeypot.ts";
-import { RedisHoneypotPlugin } from "./redis_honeypot.ts";
 import { FirewallPlugin } from "./firewall_plugin.ts";
 import { VpnPlugin } from "./vpn_plugin.ts";
 import { MeshPlugin } from "./mesh_plugin.ts";

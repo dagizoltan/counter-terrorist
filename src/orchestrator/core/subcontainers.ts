@@ -1,8 +1,4 @@
 import {
-  AuditService,
-  NotificationService,
-  BaselineService,
-  ProcessTracker,
   SessionService,
   ApiKeysService,
   HoneypotService,
@@ -27,13 +23,11 @@ import {
   KernelService,
   ForensicService,
   PlaybookService,
-  CovertChannelService,
   LedgerService,
   HealthService,
   EventMediator,
   BehavioralService,
   GeoIpService,
-  ShadowService,
   PolicyEngine,
   RateLimitService,
   CorrelationService

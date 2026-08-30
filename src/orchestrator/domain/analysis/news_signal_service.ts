@@ -1,5 +1,5 @@
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { Result, ok, err } from "@core/result.ts";
+import { Result, ok } from "@core/result.ts";
 import { BaseService } from "@core/base_service.ts";
 import { CircuitBreaker } from "../../core/utils/resilience.ts";
 

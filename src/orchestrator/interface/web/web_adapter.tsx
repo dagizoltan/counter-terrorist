@@ -1,8 +1,8 @@
 import { jsx } from "hono/jsx";
-import { Hono, Context } from "hono";
+import { Hono } from "hono";
 import { serveStatic, upgradeWebSocket } from "hono/deno";
 import { getCookie } from "hono/cookie";
-import { WebPort, ApplicationStatus, TpmPort } from "@core/ports.ts";
+import { WebPort, ApplicationStatus } from "@core/ports.ts";
 import { AppError } from "@core/errors.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { createWsHandler } from "./ws_handler.ts";
@@ -52,7 +52,7 @@ export class WebAdapter implements WebPort {
         caller: "orchestrator:interface:web",
         message: `Master token configured (masked): ${masked} (len=${masterToken.length})`
       }).catch(() => {});
-    } catch {}
+    } catch { /* the masked-token debug line is never worth failing construction over */ }
 
     this.meshAuth = services.meshAuth;
     this.security = new SecurityMiddleware(services, masterToken);

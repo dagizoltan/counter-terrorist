@@ -2,7 +2,6 @@ import { ok } from "@core/result.ts";
 import { LoggingPort, LogSeverity, LogType, ConfigurationPort } from "@core/ports.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { secureCompare } from "@infrastructure/system/validation.ts";
-import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { BaseService } from "@core/base_service.ts";
 
 /**
@@ -129,7 +128,21 @@ export class SystemLifecycleService extends BaseService {
                 const sig = s as Deno.Signal;
                 Deno.addSignalListener(sig, wrapper);
                 this.signalListeners.set(sig, wrapper);
-            } catch {}
+            } catch (e) {
+                // Swallowing this silently hid a real operational failure: with no
+                // SIGTERM handler the node is killed outright by `deno task stop` and by
+                // systemd, so the audit queue is never flushed, sidecars are never asked
+                // to stop and /dev/shm segments are left behind. Registration can
+                // legitimately fail (an unsupported platform, a restricted sandbox), so
+                // this is still not fatal — but it must be visible.
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.ACTIVITY,
+                    severity: LogSeverity.WARNING,
+                    caller: "LIFECYCLE:SYSTEM",
+                    message: `Could not register ${s} handler — graceful shutdown is unavailable: ${e instanceof Error ? e.message : String(e)}`
+                }).catch(() => {});
+            }
         });
     }
 
@@ -138,7 +151,8 @@ export class SystemLifecycleService extends BaseService {
      */
     unregisterSignalHandlers() {
         for (const [sig, handler] of this.signalListeners.entries()) {
-            try { Deno.removeSignalListener(sig, handler); } catch {}
+            // Best-effort: the listener may already be gone if the runtime tore it down.
+            try { Deno.removeSignalListener(sig, handler); } catch { /* already removed */ }
         }
         this.signalListeners.clear();
     }

@@ -1,4 +1,4 @@
-import fc from "npm:fast-check";
+import fc from "fast-check";
 import { assertEquals, assertGreaterOrEqual } from "@std/assert";
 import { RateLimitService } from "../src/orchestrator/domain/identity/rate_limit.ts";
 

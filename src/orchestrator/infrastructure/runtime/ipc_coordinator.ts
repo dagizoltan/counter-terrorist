@@ -40,8 +40,13 @@ export class IpcCoordinator {
             const shmemPtr = this.ffi.createShmem(shmemPath, 1024 * 1024);
             const cmdShmemPtr = this.ffi.createShmem(cmdShmemPath, 64 * 1024);
 
-            // SEC-06 Hardening: Enforce strict 0600 permissions on all IPC segments (Audit 15.2)
-            // Prevents unprivileged local users from sniffing security telemetry in /dev/shm
+            // These two paths are the shared_memory crate's *flink* files, not the data
+            // segments. Each holds only the generated os_id (e.g. "/shmem_8F1F38E6…") of
+            // the real POSIX segment, which the crate creates separately at
+            // /dev/shm/<os_id> and which is already mode 0600. Tightening the flink files
+            // still removes a needless disclosure of that id, but it is not what keeps
+            // telemetry unreadable — the segment's own mode is. Do not rely on this call
+            // as the control protecting IPC payloads.
             try {
                 await Deno.chmod(shmemPath, 0o600);
                 await Deno.chmod(cmdShmemPath, 0o600);
@@ -124,7 +129,21 @@ export class IpcCoordinator {
     emitEvent(name: string, data: SidecarResponse) {
         const handlers = this.eventHandlers.get(name) || [];
         for (const handler of handlers) {
-            handler(data);
+            // One throwing handler used to abort the loop and unwind into the caller's
+            // parser try/catch, which logged the failure as "Malformed IPC JSON" — a
+            // misleading diagnostic — and silently denied the event to every handler
+            // registered after it. Isolate each handler instead.
+            try {
+                handler(data);
+            } catch (e) {
+                this.logging.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "orchestrator:infra:runtime:ipc_coordinator",
+                    message: `[${name}] IPC event handler threw: ${e instanceof Error ? e.message : String(e)}`
+                }).catch(() => {});
+            }
         }
     }
 }

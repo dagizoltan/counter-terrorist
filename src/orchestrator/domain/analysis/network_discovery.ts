@@ -1,6 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 import { LoggingPort as LoggingService, LogSeverity, LogType, ExecutorPort, MeshPort } from "@core/ports.ts";
-import { Result, ok, err } from "@core/result.ts";
+import { Result, ok } from "@core/result.ts";
 
 export interface NetworkDevice {
     id: string;

@@ -1,5 +1,4 @@
 import { Context, Next } from "hono";
-import { AppError } from "@core/errors.ts";
 
 /**
  * apiConsistencyMiddleware

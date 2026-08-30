@@ -1,9 +1,8 @@
-import { LoggingPort, LogSeverity, LogType, SyslogSeverity, EventBusPort } from "@core/ports.ts";
+import { LoggingPort, LogSeverity, LogType, EventBusPort } from "@core/ports.ts";
 import { ProcessPort } from "@domain/ports/process_port.ts";
 import { CommandPort } from "@core/ports.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "../../core/result.ts";
-import { EventBus } from "./events.ts";
 
 export interface ProcessNode {
     pid: number;

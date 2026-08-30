@@ -19,6 +19,10 @@ const METADATA_MARKER = new Uint8Array([
   0xab, 0xcd, 0xef, 0x4d, 0x61, 0x78, 0x4d, 0x69, 0x6e, 0x64, 0x2e, 0x63, 0x6f, 0x6d,
 ]); // "\xab\xcd\xefMaxMind.com"
 const DATA_SECTION_SEPARATOR = 16;
+/** Deepest pointer/container nesting a well-formed record needs; beyond this the file is corrupt. */
+const MAX_DECODE_DEPTH = 64;
+/** Largest map/array a city, country or ASN record plausibly holds. */
+const MAX_CONTAINER_ENTRIES = 4096;
 
 export interface MmdbMetadata {
   nodeCount: number;
@@ -167,7 +171,18 @@ export class MmdbReader {
   // block. metaBase carries that base (0 = normal data-section mode).
   private metaBase = 0;
 
-  private decode(offset: number): { value: unknown; next: number } {
+  private decode(offset: number, depth = 0): { value: unknown; next: number } {
+    // A .mmdb is third-party data (DB-IP, IP2Location, MaxMind) that the operator
+    // provisions onto the box, so a malformed or hostile file must not be able to take
+    // the process down. Pointers are unvalidated offsets: a self-referential or cyclic
+    // one recursed until the stack blew, and nested containers can be arbitrarily deep.
+    if (depth > MAX_DECODE_DEPTH) {
+      throw new Error("mmdb: decode nesting exceeded — malformed database");
+    }
+    if (offset < 0 || offset >= this.buf.length) {
+      throw new Error("mmdb: decode offset outside the file — malformed database");
+    }
+
     const ctrl = this.buf[offset];
     let type = ctrl >> 5;
     let cursor = offset + 1;
@@ -178,7 +193,7 @@ export class MmdbReader {
       cursor += 1;
     }
 
-    if (type === 1) return this.decodePointer(ctrl, cursor);
+    if (type === 1) return this.decodePointer(ctrl, cursor, depth);
 
     // Size from the low 5 bits, with the extended-size ladder.
     let size = ctrl & 0x1f;
@@ -194,16 +209,16 @@ export class MmdbReader {
       case 3: return { value: this.view.getFloat64(cursor), next: cursor + size }; // double (size 8)
       case 4: return { value: this.buf.slice(cursor, cursor + size), next: cursor + size }; // bytes
       case 5: case 6: case 9: case 10: return { value: this.readUint(cursor, size), next: cursor + size };
-      case 7: return this.decodeMap(cursor, size);
+      case 7: return this.decodeMap(cursor, size, depth);
       case 8: return { value: this.readInt32(cursor, size), next: cursor + size };
-      case 11: return this.decodeArray(cursor, size);
+      case 11: return this.decodeArray(cursor, size, depth);
       case 14: return { value: size !== 0, next: cursor }; // boolean
       case 15: return { value: this.view.getFloat32(cursor), next: cursor + size }; // float (size 4)
       default: return { value: null, next: cursor + size };
     }
   }
 
-  private decodePointer(ctrl: number, cursor: number): { value: unknown; next: number } {
+  private decodePointer(ctrl: number, cursor: number, depth: number): { value: unknown; next: number } {
     const pSize = (ctrl >> 3) & 0x3;
     let target: number;
     let next: number;
@@ -223,27 +238,35 @@ export class MmdbReader {
       next = cursor + 4;
     }
     const base = this.metaBase || this.dataSectionStart;
-    const { value } = this.decode(base + target);
+    const { value } = this.decode(base + target, depth + 1);
     return { value, next };
   }
 
-  private decodeMap(cursor: number, size: number): { value: MmdbRecord; next: number } {
+  private decodeMap(cursor: number, size: number, depth: number): { value: MmdbRecord; next: number } {
+    // `size` comes from the extended-size ladder and reaches ~16.8M, so a corrupt
+    // control byte otherwise turns one lookup into millions of out-of-range reads.
+    if (size > MAX_CONTAINER_ENTRIES) {
+      throw new Error(`mmdb: implausible map size ${size} — malformed database`);
+    }
     const out: MmdbRecord = {};
     let c = cursor;
     for (let i = 0; i < size; i++) {
-      const k = this.decode(c);
-      const v = this.decode(k.next);
+      const k = this.decode(c, depth + 1);
+      const v = this.decode(k.next, depth + 1);
       out[String(k.value)] = v.value;
       c = v.next;
     }
     return { value: out, next: c };
   }
 
-  private decodeArray(cursor: number, size: number): { value: unknown[]; next: number } {
+  private decodeArray(cursor: number, size: number, depth: number): { value: unknown[]; next: number } {
+    if (size > MAX_CONTAINER_ENTRIES) {
+      throw new Error(`mmdb: implausible array size ${size} — malformed database`);
+    }
     const out: unknown[] = [];
     let c = cursor;
     for (let i = 0; i < size; i++) {
-      const v = this.decode(c);
+      const v = this.decode(c, depth + 1);
       out.push(v.value);
       c = v.next;
     }

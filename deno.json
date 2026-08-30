@@ -32,6 +32,7 @@
     "hono/jsx": "npm:/hono@4.3.7/jsx",
     "hono/jsx/jsx-runtime": "npm:/hono@4.3.7/jsx/jsx-runtime",
     "zod": "npm:zod@^4.4.1",
+    "fast-check": "npm:fast-check@^4.8.0",
     "@core/": "./src/orchestrator/core/",
     "@domain/": "./src/orchestrator/domain/",
     "@infrastructure/": "./src/orchestrator/infrastructure/",

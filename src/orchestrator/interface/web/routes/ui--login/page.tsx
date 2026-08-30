@@ -1,4 +1,3 @@
-import { jsx } from "hono/jsx";
 
 /**
  * Authentication view.

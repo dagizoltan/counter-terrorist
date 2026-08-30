@@ -1,4 +1,4 @@
-import fc from "npm:fast-check";
+import fc from "fast-check";
 import { assertEquals, assertNotEquals } from "@std/assert";
 import { SystemExecutor } from "../src/orchestrator/infrastructure/system/system_executor.ts";
 

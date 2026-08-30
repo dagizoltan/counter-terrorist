@@ -1,34 +1,15 @@
-import { WebAdapter } from "@orchestrator/interface/web/web_adapter.tsx";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { AuditService } from "@domain/analysis/audit.ts";
-import { NotificationService } from "@domain/analysis/notifications.ts";
-import { 
-    EventBus, MeshAuthService, MeshManager,
-    BaselineService, CuratedIntelService,
-    DecentralizedMetricsService,
-    PlaybookService, MorphingService,
-    ChaosEngine, SupplyChainService,
-    ShadowService, CovertChannelService,
-    LedgerService, HealthService, EventMediator,
-    WatchdogService,
-    CorrelationService, ViewModelService,
-    DeceptionGridService, IntegrityService,
-    LsmLearningService
-} from "@domain/index.ts";
+import { HealthService, WatchdogService } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { load } from "@std/dotenv";
-import { ServiceContainer, PlatformInfo } from "@core/container.ts";
+import { ServiceContainer } from "@core/container.ts";
 import { LogSeverity, LogType, ConfigurationPort, FirewallPort, VpnPort } from "@core/ports.ts";
 import { Service } from "@core/base_service.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
-import { broadcast, initBroadcaster } from "@interface/ws_handler.ts";
-import { getPlatformInfo } from "@infrastructure/system/platform.ts";
-import { bootstrap, camouflage } from "./bootstrapper.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { loadConfig } from "@core/config_schema.ts";
-import { setMeshManager } from "@domain/orchestration/mesh.ts";
-import { setMetricsService } from "@domain/analysis/metrics_service.ts";
 import { ServiceRegistry, ShutdownPriority } from "@core/registry.ts";
 import { serviceLocator } from "@core/service_locator.ts";
 
@@ -38,7 +19,6 @@ import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 
 // Infrastructure Providers
 import { KvAuditRepository } from "@infrastructure/persistence/kv/kv_audit_repository.ts";
-import { WormRepository } from "@domain/repositories/worm_repository.ts";
 
 import { ApplicationManager } from "./application_manager.ts";
 import { LifecycleManager } from "./lifecycle_manager.ts";

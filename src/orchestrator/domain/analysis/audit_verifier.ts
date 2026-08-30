@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType, TpmPort } from "@core/ports.ts";
+import { LoggingPort, TpmPort } from "@core/ports.ts";
 import { AuditRepository } from "../repositories/audit_repository.ts";
 import { AuditEvent } from "./audit.ts";
 import { computeHash } from "@core/crypto_utils.ts";

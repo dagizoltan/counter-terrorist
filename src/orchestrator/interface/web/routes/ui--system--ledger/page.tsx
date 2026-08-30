@@ -1,4 +1,3 @@
-import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 
 export const AuditPage = (props: { csrfToken?: string, nonce?: string, userRole?: string }) => {

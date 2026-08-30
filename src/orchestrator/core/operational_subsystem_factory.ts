@@ -1,11 +1,18 @@
 import {
-    MorphingService, ChaosEngine, SupplyChainService,
-    ShadowService, CovertChannelService, LedgerService,
-    ViewModelService, EventMediator, IntegrityService,
-    LsmLearningService, BaselineService, DeceptionGridService
+    MorphingService,
+    ChaosEngine,
+    SupplyChainService,
+    ShadowService,
+    CovertChannelService,
+    LedgerService,
+    ViewModelService,
+    EventMediator,
+    IntegrityService,
+    LsmLearningService,
+    BaselineService,
+    DeceptionGridService
 } from "@domain/index.ts";
 import { BehavioralAnalyzer } from "@domain/analysis/behavioral_analyzer.ts";
-import { AuditVerifier } from "@domain/analysis/audit_verifier.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { LoggingPort, EventBusPort, TpmPort } from "@core/ports.ts";

@@ -2,7 +2,6 @@ import { ok } from "@core/result.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { BaseService } from "@core/base_service.ts";
 import { retry } from "../../core/utils/resilience.ts";
-import { ResourceExhaustedError } from "../../core/errors.ts";
 
 interface RateLimitState {
   count: number;

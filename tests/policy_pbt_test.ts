@@ -1,7 +1,7 @@
 import { assertEquals } from "@std/assert";
 import { PolicyEngine } from "@domain/orchestration/policy_engine.ts";
 import { LoggingPort, LogEntry } from "@core/ports.ts";
-import * as fc from "npm:fast-check";
+import * as fc from "fast-check";
 
 class MockLoggingPort implements LoggingPort {
     logs: LogEntry[] = [];

@@ -1,4 +1,4 @@
-import * as fc from "npm:fast-check";
+import * as fc from "fast-check";
 import { assertEquals } from "@std/assert";
 import { validateRequest, SidecarName } from "../src/orchestrator/infrastructure/system/validation.ts";
 

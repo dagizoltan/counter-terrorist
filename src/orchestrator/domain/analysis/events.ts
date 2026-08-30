@@ -1,6 +1,5 @@
 import { LoggingPort, LogSeverity, LogType, EventBusPort, SystemEventEnvelope } from "@core/ports.ts";
 import { validateEvent, EventName, EventRegistry } from "@core/event_schema.ts";
-import { z } from "npm:zod";
 
 export type EventType = "INFO" | "WARN" | "BLOCK" | "CRITICAL" | "DRIFT_PORT" | "DRIFT_PROCESS" | "THREAT" | "HONEYPOT" | "EBPF_CRITICAL" | "EBPF_SYSCALL" | "EBPF_STRAY_SHELL" | "EMERGENCY" | "DEBUG" | "AUDIT_EVENT" | "EXFIL_ALERT" | "METRIC_UPDATE" | "SIDECAR_ALERT" | "UI_BROADCAST";
 
@@ -15,6 +14,15 @@ export class EventBus implements EventBusPort {
   private keyedListeners: Map<string, Handler<any>[]> = new Map();
   private middleware: Middleware[] = [];
   private pendingHandlers: Set<Promise<void>> = new Set();
+  // Events already dispatched to handlers.
+  //
+  // The middleware chain has two paths that finalize: the innermost `next()` when the
+  // chain runs to completion, and the error/timeout fallbacks. A middleware that calls
+  // next() and then throws — or simply outlives the 5s chain timeout, which is exactly
+  // what that timeout exists for — hit both, and every handler received the event twice.
+  // On this bus that means duplicated audit entries, double-counted threat scores and
+  // response sagas firing twice. Finalization is idempotent per event now.
+  private finalized: WeakSet<object> = new WeakSet();
 
   constructor(private logging: LoggingPort) {}
 
@@ -125,7 +133,7 @@ export class EventBus implements EventBusPort {
 
   private async runMiddleware<T extends EventName>(index: number, event: SystemEvent<T>) {
     if (index >= this.middleware.length) {
-        this.finalizePublish(event, event.data as T extends keyof EventRegistry ? EventRegistry[T] : unknown);
+        await this.finalizePublish(event, event.data as T extends keyof EventRegistry ? EventRegistry[T] : unknown);
         return;
     }
 
@@ -150,13 +158,17 @@ export class EventBus implements EventBusPort {
             caller: "EVENTBUS:MIDDLEWARE",
             message: `Middleware ${index} failed: ${e instanceof Error ? e.message : String(e)}. Forcing finalization.`
         });
-        this.finalizePublish(event, (event.data || {}) as any);
+        await this.finalizePublish(event, (event.data || {}) as any);
     } finally {
         if (timeoutId) clearTimeout(timeoutId);
     }
   }
 
   private async finalizePublish<T extends EventName>(event: SystemEvent<T>, validatedData: T extends keyof EventRegistry ? EventRegistry[T] : unknown) {
+    // At most one dispatch per event, whichever finalization path arrives first.
+    if (this.finalized.has(event)) return;
+    this.finalized.add(event);
+
     const type = event.type as string;
     const message = event.message;
 

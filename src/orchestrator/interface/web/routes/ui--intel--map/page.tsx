@@ -1,4 +1,3 @@
-import { jsx } from "hono/jsx";
 import { Layout } from "@interface/components/Layout.tsx";
 import { Eyebrow } from "@interface/components/Tactical.tsx";
 

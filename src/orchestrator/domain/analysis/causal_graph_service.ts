@@ -1,6 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok, err } from "@core/result.ts";
-import { LoggingPort, LogType, LogSeverity } from "@core/ports.ts";
+import { LoggingPort } from "@core/ports.ts";
 import { ForensicSearchTool, ForensicRecord } from "../../tools/ops/forensic_query.ts";
 
 export interface CausalNode {

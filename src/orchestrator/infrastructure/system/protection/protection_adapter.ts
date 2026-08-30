@@ -1,5 +1,4 @@
 import { CommandResult, ProtectionPort, AntivirusPort, FirewallPort, VpnPort, PersistencePort, PcapPort, RkhunterPort } from "@core/ports.ts";
-import { createProtection } from "./index.ts";
 
 export class ProtectionAdapter implements ProtectionPort {
   private protection: ProtectionPort;
