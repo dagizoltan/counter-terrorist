@@ -81,6 +81,14 @@ async function registerUiRoutes(app: Hono, services: ServiceContainer, security:
     if (publicPaths.has(c.req.path)) {
       return next();
     }
+    // `basePath("/")` plus `use("*")` matches every path, so this console gate was also
+    // running over /api/* — which registerApiRoutes then gates again from each route's
+    // own authRoles. It is redundant there, and actively wrong for any role outside the
+    // console triple: an authenticated mesh_peer was rejected 403 on every mesh
+    // endpoint before its route's own check ever ran.
+    if (c.req.path.startsWith("/api/")) {
+      return next();
+    }
     return security.requireRole("admin", "operator", "viewer")(c, next);
   });
 
@@ -102,10 +110,13 @@ async function registerApiRoutes(app: Hono, services: ServiceContainer, security
     const extraMiddleware = route.module.middlewareFactory?.(services, security) ?? [];
     const middleware = [] as Array<any>;
 
+    // Route-specific auth middleware runs BEFORE the role check, because that is what
+    // establishes the role the check reads. With the order reversed, meshAuth could
+    // never grant `mesh_peer` in time — requireRole had already rejected the request.
+    middleware.push(...extraMiddleware);
     if (authRoles) {
       middleware.push(security.requireRole(...authRoles));
     }
-    middleware.push(...extraMiddleware);
 
     for (const method of methods) {
       const routeFn = (api as any)[method.toLowerCase()];

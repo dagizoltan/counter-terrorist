@@ -309,6 +309,16 @@ export class WebAdapter implements WebPort {
         if (path === "/login" || path === "/logout" || path.startsWith("/assets/") || path.startsWith("/vendor/") || path === "/style.css") {
             return next();
         }
+        // Mesh endpoints carry their own gate: every /api/mesh route mounts meshAuth,
+        // which authenticates a peer by pre-shared secret or verified signature and
+        // otherwise falls through to this same auth() — so nothing here is left open.
+        // Running the global pass first pre-empted that gate entirely: a correctly
+        // signed peer was rejected 401 before meshAuth ever ran, which made every
+        // gossip sync, audit sync and lockdown propagation between nodes fail.
+        // `route_registration_test.ts` asserts that every /api/mesh route mounts it.
+        if (path.startsWith("/api/mesh/")) {
+            return next();
+        }
         return this.security.auth()(c, next);
     });
 

@@ -483,6 +483,8 @@ export function secureCompareBytes(a: Uint8Array, b: Uint8Array): boolean {
 }
 
 const SCANNER_JAIL = ["/home/", "/var/www/", "./volume/", "/var/lib/cts/", "/tmp/"];
+/** Where a sidecar may legitimately be pointed at a config file on disk. */
+const SYSTEM_JAILS_FOR_SIDECARS = ["/etc/wireguard/", "/var/lib/cts/", "./volume/"];
 
 // Shared Zod Primitives
 const IdSchema = z.string().nullable().optional();
@@ -592,14 +594,41 @@ const SentinelRequestSchema = z.object({
     return true;
 }, { message: "Missing required fields for sentinel command" });
 
+/** TPM NV indices are hex handles; TPMManager allocates them from a fixed map. */
+const NvIndexSchema = z.string().regex(/^0x[0-9a-fA-F]{1,8}$/, "NV index must be a hex handle");
+
+// As with tunnel: the agent deserializes index/data/node_id and the schema checked none
+// of them. trustroot is a *virtual* TPM that stores state as JSON keyed by `index`, so an
+// odd index only creates an odd key — contained, not injectable. Bounding it anyway keeps
+// the sealed-secret store from being addressed by arbitrary strings, and caps payload size.
 const TrustrootRequestSchema = z.object({
     id: IdSchema,
-    type: z.enum(["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert", "GenerateProxyKey", "SignProxy", "WipeSecrets"])
+    type: z.enum(["Seal", "Unseal", "Sign", "Verify", "GetPcrs", "NvDefine", "NvWrite", "NvRead", "QuoteIdentity", "GenerateSelfSignedCA", "IssueNodeCert", "GenerateProxyKey", "SignProxy", "WipeSecrets"]),
+    index: NvIndexSchema.optional(),
+    data: z.string().max(65536).optional(),
+    signature: z.string().max(8192).optional(),
+    auth: z.string().max(256).optional(),
+    size: z.number().int().positive().max(65536).optional(),
+    node_id: z.string().max(256).optional(),
+    keyId: z.string().max(256).optional(),
+    indices: z.array(z.number().int().min(0).max(31)).max(32).optional(),
+    pcrs: z.record(z.string(), z.string().max(256)).optional()
 });
 
+// The tunnel agent deserializes `payload.interface` and `payload.config_path`, but the
+// schema validated neither — the only sidecar schema that checked nothing beyond its
+// command type. Nothing reaches a shell today (the agent spawns `wg` with an argv, and
+// the CONNECT path only formats a message), so this is closing the gap rather than an
+// exploit: the orchestrator should be the first validator, not the agent's own
+// deny-list.
 const TunnelRequestSchema = z.object({
     id: IdSchema,
-    type: z.enum(["CONNECT", "DISCONNECT", "GET_STATUS"])
+    type: z.enum(["CONNECT", "DISCONNECT", "GET_STATUS"]),
+    payload: z.object({
+        // WireGuard caps interface names at 15 characters.
+        interface: InterfaceSchema.max(15).optional(),
+        config_path: PathSchema(SYSTEM_JAILS_FOR_SIDECARS).optional()
+    }).optional()
 });
 
 const SentinelDarwinRequestSchema = z.object({

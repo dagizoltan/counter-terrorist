@@ -125,7 +125,12 @@ export class LifecycleService extends BaseService {
     }
 
     public addCustomTask(task: () => Promise<void>) { this.customTasks.push(task); }
-    public async rotateSovereignKeys() {
-        await this.commands.sendCommand("tunnel", { type: "RotateKeys", id: crypto.randomUUID() });
-    }
 }
+
+// `rotateSovereignKeys()` used to live here, sending { type: "RotateKeys" } to the tunnel
+// agent. Nothing called it, and it could not have worked from either end: RotateKeys is
+// absent from TunnelRequestSchema, so sendCommand rejected it as a security violation,
+// and the agent's VpnCommand enum has no such variant either. Since the result was
+// discarded, any future caller would have gotten a silent no-op while believing keys had
+// rotated. Removed rather than left as a trap — reinstate it together with agent support
+// if VPN key rotation is wanted.
