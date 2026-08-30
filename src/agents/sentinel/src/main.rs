@@ -4,7 +4,6 @@ use cts_ipc::models::{AgentCommand, AgentResponse};
 use chrono::Utc;
 use tokio::io::{self, AsyncReadExt};
 use std::error::Error;
-use std::ops::DerefMut;
 use std::sync::Arc;
 use parking_lot::Mutex;
 use once_cell::sync::Lazy;
@@ -114,12 +113,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut buf = {
             let mut bpf = bpf_arc.lock();
 
-            // Safety: bpf_arc is leaked and thus the underlying Bpf instance has a 'static lifetime.
-            // We cast the guard-bound reference to 'static to allow moving maps into async tasks.
-            // The Mutex still ensures exclusive access during the open() call.
-            let bpf_extended: &'static mut Bpf = unsafe { &mut *(bpf.deref_mut() as *mut Bpf) };
-
-            let map = match bpf_extended.map_mut("EVENTS") {
+            let map = match bpf.take_map("EVENTS") {
                 Some(m) => m,
                 None => {
                     emit_response(None, false, "EVENTS map not found. Falling back to dummy mode.".to_string()).await;

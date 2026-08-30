@@ -309,11 +309,12 @@ pub struct LandlockPathRule {
 /// Applies a simple Landlock restriction to the current process.
 pub fn apply_landlock<P: AsRef<Path>>(path: P) -> anyhow::Result<()> {
     let abi = ABI::V1;
+    let canonical_path = std::fs::canonicalize(&path).unwrap_or_else(|_| path.as_ref().to_path_buf());
     let ruleset = Ruleset::default()
         .handle_access(AccessFs::from_all(abi))?
         .create()?;
 
-    let path_handle = File::open(path)?;
+    let path_handle = File::open(canonical_path)?;
     let ruleset = ruleset.add_rule(PathBeneath::new(path_handle, AccessFs::from_all(abi)))?;
     ruleset.restrict_self()?;
     info!("Applied Landlock restriction");
@@ -435,7 +436,8 @@ pub fn apply_granular_landlock(rules: &[LandlockPathRule]) -> anyhow::Result<()>
             access |= AccessFs::ReadFile;
         }
 
-        let path_handle = match File::open(&rule.path) {
+        let canonical_path = std::fs::canonicalize(&rule.path).unwrap_or_else(|_| Path::new(&rule.path).to_path_buf());
+        let path_handle = match File::open(&canonical_path) {
             Ok(h) => h,
             Err(e) => {
                 warn!("Failed to open Landlock rule path {}: {:?}", rule.path, e);
