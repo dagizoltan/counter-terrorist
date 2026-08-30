@@ -1,6 +1,5 @@
 import { HealthService } from "../analysis/health_service.ts";
 import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
-import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "../../core/result.ts";
 

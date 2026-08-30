@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType } from "@core/ports.ts";
+import { LoggingPort, LogSeverity } from "@core/ports.ts";
 import { NetworkLogRepository, NetworkLogEntry } from "../repositories/network_log_repository.ts";
 import { BaseService } from "@core/base_service.ts";
 import { Result, ok } from "../../core/result.ts";

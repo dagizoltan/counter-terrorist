@@ -1,4 +1,4 @@
-import { LoggingPort, LogType, LogSeverity, CommandPort, EventBusPort } from "../../core/ports.ts";
+import { LoggingPort, LogType, LogSeverity, CommandPort } from "../../core/ports.ts";
 
 export type SubsystemStatus = "BOOTING" | "OPERATIONAL" | "DEGRADED" | "FAILED";
 

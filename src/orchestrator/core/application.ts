@@ -1,4 +1,4 @@
-import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, WebPort, AuditPort, NotificationPort, EventBusPort, LogSeverity, LogType } from "./ports.ts";
+import { PluginRegistryPort, PluginFactoryPort, PlatformPort, StartupPort, CommandPort, ProtectionPort, LoggingPort, BaselinePort, MeshPort, MeshAuthPort, ConfigurationPort, AuditPort, NotificationPort, EventBusPort } from "./ports.ts";
 
 export interface ApplicationDependencies {
   startup: StartupPort;

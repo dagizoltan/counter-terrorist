@@ -1,7 +1,7 @@
 import { ServiceContainer, PlatformInfo } from "@core/container.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
 import { NotificationService } from "@domain/analysis/notifications.ts";
-import { EventBus, MeshManager, HealthService, WatchdogService, DecentralizedMetricsService, setMetricsService } from "@domain/index.ts";
+import { EventBus, MeshManager, HealthService, WatchdogService, setMetricsService } from "@domain/index.ts";
 import { TPMManager } from "@infrastructure/system/protection/tpm/tpm_manager.ts";
 import { loggingService } from "@infrastructure/system/logging.ts";
 import { AuditService } from "@domain/analysis/audit.ts";

@@ -1,4 +1,4 @@
-import { Hono, Context, Next } from "hono";
+import { Hono, Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
 import { SecurityMiddleware } from "../middleware/security.ts";
 

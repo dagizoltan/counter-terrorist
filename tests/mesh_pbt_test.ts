@@ -3,7 +3,7 @@ import { stub } from "@std/testing/mock";
 import { MeshManager, MeshNode } from "@domain/orchestration/mesh.ts";
 import { LoggingPort, LogEntry, ConfigurationPort, MeshAuthPort, AuditPort } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";
-import * as fc from "npm:fast-check";
+import * as fc from "fast-check";
 
 class MockLoggingPort implements LoggingPort {
     logs: LogEntry[] = [];

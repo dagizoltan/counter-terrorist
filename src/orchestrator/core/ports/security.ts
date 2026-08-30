@@ -1,4 +1,4 @@
-import { CommandResult, TpmPort, ExecutorPort } from "./infrastructure.ts";
+import { CommandResult } from "./infrastructure.ts";
 
 export interface FirewallPort {
   blockIp(ip: string): Promise<CommandResult>;

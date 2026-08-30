@@ -1,4 +1,3 @@
-import { jsx } from "hono/jsx";
 
 export const ErrorPage = ({ title, message, details, actionLabel, actionUrl }: { title: string, message: string, details?: string, actionLabel: string, actionUrl: string }) => (
     <html lang="en">

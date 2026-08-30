@@ -1,5 +1,4 @@
 import { computeHash } from "../../core/crypto_utils.ts";
-import { LogSeverity, LogType } from "../../core/ports.ts";
 
 /**
  * Sovereign Forensic Ledger Verification Tool (v1.0)

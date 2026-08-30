@@ -1,32 +1,21 @@
-import { ServiceContainer, PlatformInfo } from "./container.ts";
+import { PlatformInfo } from "./container.ts";
 import { ConfigurationPort, EventBusPort, TpmPort } from "./ports.ts";
 import { ProtectionPort } from "./ports/security.ts";
 import {
-    BaselineService, ProcessTracker, SessionService, ApiKeysService,
-    EventBus, MeshAuthService, ForensicService, MeshManager,
-    DecentralizedMetricsService,
-    PlaybookService, BehavioralService,
-    ShadowProtocolService, GeoIpService, AnonymizationService,
-    CuratedIntelService, DeceptionGridService, MorphingService,
-    ChaosEngine, SupplyChainService, HoneypotService,
-    CanaryService, AutopilotService, KernelService,
-    GovernanceService, ShadowService, CovertChannelService,
-    ProvisioningService, NetworkDiscoveryService, NetworkLogService,
-    IncidentService, ComplianceService, NewsSignalService,
-    LedgerService, HealthService, EventMediator,
-    WatchdogService, RateLimitService, TacticalIntelService,
-    CorrelationService, PolicyEngine, AutoBlockService
+    ProcessTracker,
+    MeshAuthService,
+    MeshManager,
+    NetworkLogService,
+    HealthService,
+    CorrelationService
 } from "@domain/index.ts";
 import { EnvConfigProvider } from "@infrastructure/config/env_config_provider.ts";
-import { KvSessionRepository } from "@infrastructure/persistence/kv/kv_session_repository.ts";
 import { KvNetworkLogRepository } from "@infrastructure/persistence/kv/kv_network_log_repository.ts";
 import { createProtection } from "@infrastructure/system/protection/index.ts";
 import { PlatformInfo as InfraPlatformInfo } from "@infrastructure/system/platform.ts";
 import { ProtectionAdapter } from "@infrastructure/system/protection/protection_adapter.ts";
 import { LinuxProcessProvider, MacOSProcessProvider, WindowsProcessProvider } from "@infrastructure/system/process_provider.ts";
 import { LoggingPort, LogType, LogSeverity } from "./ports/logging.ts";
-import { LifecycleService } from "@domain/analysis/lifecycle_service.ts";
-import { AutonomousAutopilotService } from "@domain/analysis/autonomous_autopilot_service.ts";
 import { SystemExecutor } from "@infrastructure/system/system_executor.ts";
 import { SidecarManager } from "@infrastructure/runtime/sidecar_manager.ts";
 import { AuditService } from "@domain/analysis/audit.ts";

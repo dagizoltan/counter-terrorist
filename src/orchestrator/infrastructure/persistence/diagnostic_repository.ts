@@ -1,4 +1,4 @@
-import { LoggingPort, LogSeverity, LogType, LogEntry } from "@core/ports.ts";
+import { LogEntry } from "@core/ports.ts";
 import { TimelineRepository } from "./repositories/timeline_repository.ts";
 
 /**

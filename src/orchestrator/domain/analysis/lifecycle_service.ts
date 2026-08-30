@@ -1,7 +1,6 @@
 import { BaseService } from "@core/base_service.ts";
 import { LoggingPort, LogSeverity, LogType, CommandPort } from "@core/ports.ts";
 import { Result, ok } from "@core/result.ts";
-import { TACTICAL_CONSTANTS } from "@core/constants.ts";
 import { secureRandomInt } from "../../core/crypto_utils.ts";
 
 export interface ScheduledTask {

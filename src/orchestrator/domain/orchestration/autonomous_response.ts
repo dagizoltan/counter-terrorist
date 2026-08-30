@@ -1,6 +1,6 @@
 import { PolicyEngine, RemediationAction } from "./policy_engine.ts";
 import { LogType, LogSeverity, LoggingPort } from "@core/ports.ts";
-import { Result, ok, err } from "@core/result.ts";
+import { Result, ok } from "@core/result.ts";
 import { ThreatResponseSaga } from "./sagas/threat_response_saga.ts";
 
 export type RemediationTier = RemediationAction;
@@ -18,7 +18,6 @@ export interface ThreatEvent {
  * AutonomousResponseEngine
  * Tiered automated defense logic that escalates based on behavioral scoring.
  */
-import { SubsystemFactory } from "@core/subsystem_factory.ts";
 
 import { BaseService } from "@core/base_service.ts";
 import { BoundedMap } from "../../core/utils/collections.ts";

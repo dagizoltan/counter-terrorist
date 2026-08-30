@@ -91,7 +91,8 @@ export class AutopilotService extends BaseService {
       this.unsubscribers.forEach(u => u());
       this.unsubscribers = [];
       if (this.lureProcess) {
-          try { this.lureProcess.kill(); } catch {}
+          // Already exited, or we never had permission to signal it.
+          try { this.lureProcess.kill(); } catch { /* process already gone */ }
           this.lureProcess = null;
       }
       this.services.logging.log({

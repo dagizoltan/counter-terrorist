@@ -4,12 +4,10 @@ import { LoggingPort, LogSeverity, LogType, ConfigurationPort, MeshAuthPort, Tpm
 import type { AuditEvent as DomainAuditEvent } from "../analysis/audit.ts";
 import { Result, ok, err } from "@core/result.ts";
 import { TACTICAL_CONSTANTS } from "@core/constants.ts";
-import { retry, CircuitBreaker } from "../../core/utils/resilience.ts";
 import { AuditService } from "../analysis/audit.ts";
 import { z } from "zod";
 import { ServiceLocatorPort } from "../../core/ports.ts";
 import { MeshChaosEngine } from "./chaos_engine.ts";
-import { BloomFilter } from "../../core/cache.ts";
 import { MeshGossipManager } from "./mesh/gossip_manager.ts";
 import { MeshConsensusManager } from "./mesh/consensus_manager.ts";
 import { secureRandomInt, canonicalStringify } from "../../core/crypto_utils.ts";

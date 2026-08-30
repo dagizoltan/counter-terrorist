@@ -1,4 +1,3 @@
-import { jsx } from "hono/jsx";
 
 /**
  * Shared page furniture for the console.

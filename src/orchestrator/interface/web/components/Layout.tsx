@@ -1,4 +1,3 @@
-import { jsx } from "hono/jsx";
 import { SidebarNav } from "./SidebarNav.tsx";
 import { GlobalHeader } from "./GlobalHeader.tsx";
 import { Eyebrow } from "./Tactical.tsx";

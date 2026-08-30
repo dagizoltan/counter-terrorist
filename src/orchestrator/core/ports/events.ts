@@ -1,4 +1,4 @@
-import { z } from "npm:zod";
+import { z } from "zod";
 import type { EventName, EventRegistry } from "@core/event_schema.ts";
 
 export type EventData<T extends EventName> = T extends keyof EventRegistry
