@@ -2,9 +2,12 @@ import { Context } from "hono";
 import { ServiceContainer } from "@core/container.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { isValidIP, isCriticalInfrastructure } from "@infrastructure/system/validation.ts";
+import { resolveClientIp } from "../../middleware/security.ts";
 
 export const handlerFactory = (services: ServiceContainer) => async (c: Context) => {
-  const peerIp = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || (c.env as (Record<string, unknown> & { remoteAddr?: { hostname: string } }))?.remoteAddr?.hostname || "unknown";
+  // Resolved through the trusted-proxy list: a peer that picks its own X-Forwarded-For
+  // gets a fresh bucket per request and the 100/s gossip limiter stops limiting.
+  const peerIp = resolveClientIp(c, services.config.getEnv("TRUSTED_PROXIES") || "");
   const result = await services.rateLimit.checkLimit(`mesh_sync:${peerIp}`, 100, 1000);
   if (!result.allowed) {
       return c.json({

@@ -63,9 +63,15 @@ pub unsafe extern "C" fn fast_morph(data: *mut u8, len: usize, key: *const u8, k
     let slice = std::slice::from_raw_parts_mut(data, len);
     let key_slice = std::slice::from_raw_parts(key, key_len);
 
+    // The SIMD paths broadcast a single vector-width block of the key across every
+    // chunk, so they only reproduce the canonical `key[i % key_len]` schedule when the
+    // key is exactly one vector wide. Gating on `>=` instead of `==` meant a longer key
+    // (the generated MESH_SECRET is 44 bytes) obfuscated with a 44-byte rolling schedule
+    // on the agent side and de-obfuscated with a 32-byte one here, corrupting every
+    // message. Anything that is not exactly one vector wide takes the scalar path.
     #[cfg(target_arch = "x86_64")]
     {
-        if is_x86_feature_detected!("avx2") && key_len >= 32 {
+        if is_x86_feature_detected!("avx2") && key_len == 32 {
             xor_avx2(slice, key_slice);
             return;
         }
@@ -73,7 +79,7 @@ pub unsafe extern "C" fn fast_morph(data: *mut u8, len: usize, key: *const u8, k
 
     #[cfg(target_arch = "aarch64")]
     {
-        if key_len >= 16 {
+        if key_len == 16 {
             xor_neon(slice, key_slice);
             return;
         }
@@ -213,6 +219,21 @@ pub unsafe extern "C" fn shmem_read(shmem_ptr: *mut Shmem, out_buf: *mut u8, max
     len as i32
 }
 
+/// Clamps the ring-buffer capacity stored in the shared mapping's header to the size
+/// of the mapping we actually hold.
+///
+/// The header lives in memory any process with access to the `/dev/shm` segment can
+/// write, so the value must never be trusted as a bound on its own. Returns `None`
+/// when the segment is too small to hold a ring or the declared capacity does not fit.
+fn validated_capacity(slice: &[u8], declared: u32) -> Option<u32> {
+    let usable = slice.len().checked_sub(16)?;
+    let max = u32::try_from(usable).unwrap_or(u32::MAX);
+    if declared == 0 || declared > max {
+        return None;
+    }
+    Some(declared)
+}
+
 /// SOV-M4: Zero-Copy Ring Buffer Pull
 /// Returns a pointer to the next message and its length.
 /// Returns 0 if no message is available.
@@ -233,14 +254,23 @@ pub unsafe extern "C" fn shmem_ring_pull(shmem_ptr: *mut Shmem, out_len: *mut u3
 
     let head = (*head_ptr).load(Ordering::Acquire);
     let tail = (*tail_ptr).load(Ordering::Acquire);
-    let capacity = *cap_ptr;
+
+    // `capacity` lives in the shared mapping, so a corrupted or hostile producer
+    // controls it. Every bound below is expressed against it, so it has to be clamped
+    // to the mapping we actually own first: without this a forged capacity yields a
+    // pointer past the end of the segment and an `out_len` of nearly 4 GiB, which the
+    // caller then reads as heap memory.
+    let capacity = match validated_capacity(slice, *cap_ptr) {
+        Some(c) => c,
+        None => return std::ptr::null(),
+    };
 
     if head == tail { return std::ptr::null(); }
 
     let data_offset = 16;
 
-    // Safety check: ensure current tail + 4 is within capacity
-    if tail + 4 > capacity { return std::ptr::null(); }
+    // Safety check: ensure current tail + 4 is within capacity (checked to avoid wrap).
+    if tail.checked_add(4).is_none_or(|end| end > capacity) { return std::ptr::null(); }
 
     let mut len_bytes = [0u8; 4];
     len_bytes.copy_from_slice(&slice[data_offset + tail as usize..data_offset + tail as usize + 4]);
@@ -261,7 +291,13 @@ pub unsafe extern "C" fn shmem_ring_pull(shmem_ptr: *mut Shmem, out_len: *mut u3
         }
     }
 
-    if msg_len == 0 || msg_len > capacity - 4 || effective_tail + 4 + msg_len > capacity {
+    if msg_len == 0
+        || msg_len > capacity - 4
+        || effective_tail
+            .checked_add(4)
+            .and_then(|v| v.checked_add(msg_len))
+            .is_none_or(|end| end > capacity)
+    {
         return std::ptr::null();
     }
 
@@ -287,13 +323,21 @@ pub unsafe extern "C" fn shmem_ring_commit(shmem_ptr: *mut Shmem) {
 
     let head = (*head_ptr).load(Ordering::Acquire);
     let tail = (*tail_ptr).load(Ordering::Acquire);
-    let capacity = *cap_ptr;
+
+    // Same reasoning as `shmem_ring_pull`: clamp the in-band capacity to the real
+    // mapping before using it as a bound, and use checked arithmetic so a corrupted
+    // tail cannot wrap past the guard and index out of the slice (which would panic,
+    // and this crate is built with `panic = "abort"`).
+    let capacity = match validated_capacity(slice, *cap_ptr) {
+        Some(c) => c,
+        None => return,
+    };
 
     if head == tail { return; }
 
     let data_offset = 16;
 
-    if tail + 4 > capacity { return; }
+    if tail.checked_add(4).is_none_or(|end| end > capacity) { return; }
 
     let mut len_bytes = [0u8; 4];
     len_bytes.copy_from_slice(&slice[data_offset + tail as usize..data_offset + tail as usize + 4]);
@@ -304,12 +348,15 @@ pub unsafe extern "C" fn shmem_ring_commit(shmem_ptr: *mut Shmem) {
         if capacity < 4 { return; }
         len_bytes.copy_from_slice(&slice[data_offset..data_offset + 4]);
         let wrapped_msg_len = u32::from_le_bytes(len_bytes);
-        if wrapped_msg_len != 0 && wrapped_msg_len != 0xFFFFFFFF && 4 + wrapped_msg_len <= capacity {
+        if wrapped_msg_len != 0
+            && wrapped_msg_len != 0xFFFFFFFF
+            && wrapped_msg_len.checked_add(4).is_some_and(|end| end <= capacity)
+        {
             (*tail_ptr).store(4 + wrapped_msg_len, Ordering::Release);
         }
-    } else {
-        if tail + 4 + msg_len <= capacity {
-            (*tail_ptr).store(tail + 4 + msg_len, Ordering::Release);
+    } else if let Some(next) = tail.checked_add(4).and_then(|v| v.checked_add(msg_len)) {
+        if next <= capacity {
+            (*tail_ptr).store(next, Ordering::Release);
         }
     }
 }
@@ -325,7 +372,9 @@ pub unsafe extern "C" fn shmem_write(shmem_ptr: *mut Shmem, data: *const u8, len
     let shmem = &mut *shmem_ptr;
     let slice = shmem.as_slice_mut();
 
-    if slice.len() < 8 || len + 8 > slice.len() { return false; }
+    // `len` comes straight from the caller; `len + 8` overflows usize for a hostile
+    // value and wraps the guard open, so the addition is checked.
+    if slice.len() < 8 || len.checked_add(8).is_none_or(|end| end > slice.len()) { return false; }
 
     let mut current_len_bytes = [0u8; 4];
     current_len_bytes.copy_from_slice(&slice[0..4]);
@@ -513,5 +562,42 @@ mod tests {
             assert!(out_len > 0);
             free_buffer(ptr, out_len);
         }
+    }
+
+    /// `fast_morph` must always agree with the canonical `data[i] ^= key[i % key_len]`
+    /// schedule that the agent side (`cts_ipc`) uses, for every key length — the SIMD
+    /// paths only tile correctly at exactly one vector width.
+    fn reference_morph(data: &[u8], key: &[u8]) -> Vec<u8> {
+        data.iter().enumerate().map(|(i, b)| b ^ key[i % key.len()]).collect()
+    }
+
+    #[test]
+    fn test_fast_morph_matches_rolling_key_schedule() {
+        let plain: Vec<u8> = (0..=255u8).chain(0..100u8).collect();
+
+        // 44 is the length of the MESH_SECRET that `deno task setup` generates, and the
+        // length that used to take the AVX2 path and corrupt every message.
+        for key_len in [1usize, 7, 15, 16, 17, 31, 32, 33, 44, 64, 100] {
+            let key: Vec<u8> = (0..key_len).map(|i| (i as u8).wrapping_mul(7).wrapping_add(3)).collect();
+
+            let mut buf = plain.clone();
+            unsafe { fast_morph(buf.as_mut_ptr(), buf.len(), key.as_ptr(), key.len()) };
+            assert_eq!(buf, reference_morph(&plain, &key), "morph mismatch for key_len {}", key_len);
+
+            // XOR is an involution: morphing twice must recover the plaintext, which is
+            // what the agent/orchestrator obfuscation round trip relies on.
+            unsafe { fast_morph(buf.as_mut_ptr(), buf.len(), key.as_ptr(), key.len()) };
+            assert_eq!(buf, plain, "round trip failed for key_len {}", key_len);
+        }
+    }
+
+    #[test]
+    fn test_validated_capacity_rejects_forged_header() {
+        let slice = [0u8; 1024];
+        assert_eq!(validated_capacity(&slice, 1008), Some(1008));
+        assert_eq!(validated_capacity(&slice, 1009), None, "capacity past the mapping");
+        assert_eq!(validated_capacity(&slice, u32::MAX), None, "forged capacity");
+        assert_eq!(validated_capacity(&slice, 0), None, "uninitialised capacity");
+        assert_eq!(validated_capacity(&[0u8; 8], 4), None, "segment too small for a header");
     }
 }

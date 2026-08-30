@@ -10,6 +10,16 @@ export interface CommandPolicy {
   maxArgs?: number;
   blockedStrings?: string[];
   schema?: z.ZodSchema<string[]>;
+  /**
+   * Set when `schema` is an exact-shape allow-list that fully specifies the permitted
+   * argument strings, including any shell metacharacters they legitimately contain.
+   *
+   * SystemExecutor otherwise applies a blanket metacharacter scan on top of the schema.
+   * That is the right default — arguments are never passed through a shell — but for
+   * `sh -c` it rejected the very literals the schema had just authorised, which made
+   * the whole command unreachable.
+   */
+  schemaOwnsArgumentValidation?: boolean;
 }
 
 export const SYSTEM_JAILS = [
@@ -399,16 +409,32 @@ export const COMMAND_POLICIES: Record<string, CommandPolicy> = {
   "/var/lib/cts/scripts/update_comm.sh": { schema: z.array(z.string().regex(/^(\[[a-z0-9/:]+\]|[0-9]+)$/)).max(2) },
   "/var/lib/cts/scripts/secure_spawn.sh": { schema: z.array(z.string().regex(/^[a-z0-9,._+\-/]+$/)).max(4) },
   "cat": { schema: z.array(z.string().regex(/^[a-zA-Z0-9_\/.\-]+$/)).max(1) },
-  "sh": { schema: z.array(z.string()).max(2).superRefine((args, ctx) => {
-      if (args[0] !== "-c") ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Only sh -c is allowed" });
-      const command = args[1] || "";
+  "sh": {
+    // The two literal shapes below are the entire permitted surface for `sh -c`; nothing
+    // outside them reaches a shell. See `schemaOwnsArgumentValidation`.
+    schemaOwnsArgumentValidation: true,
+    schema: z.array(z.string()).max(2).superRefine((args, ctx) => {
+      if (args.length !== 2 || args[0] !== "-c") {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Only sh -c <command> is allowed" });
+          return;
+      }
+      const command = args[1];
       // SEC-06 Hardening: Refined shell regex to allow escaped single quotes in profiles
       const isCommUpdate = /^echo '[^']+' > \/proc\/[0-9]+\/comm$/.test(command);
-      const isProfileWrite = /^echo '(.|\n)*' > \/var\/lib\/cts\/tmp\/cts-profile-[a-z0-9-]+\.profile$/.test(command);
+      // KernelService writes AppArmor profiles with a leading `umask 077 &&` so the file
+      // is never briefly world-readable. The optional prefix is part of the allowed
+      // shape; without it this branch never matched and profile deployment always failed.
+      // The body may only be quote-free text or the POSIX escape `'\''` that
+      // KernelService emits. `(.|\n)*` also accepted a body that closed the quote and
+      // opened a second redirect ("echo 'x' > /etc/passwd && echo 'y' > <profile>"),
+      // which the caller's escaping already prevented but the policy should not have
+      // allowed through on its own.
+      const isProfileWrite = /^(umask 077 && )?echo '(?:[^']|'\\'')*' > \/var\/lib\/cts\/tmp\/cts-profile-[a-zA-Z0-9._-]+\.profile$/.test(command);
       if (!isCommUpdate && !isProfileWrite) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Unauthorized sh command pattern" });
       }
-  })},
+    })
+  },
   "rm": { schema: z.array(z.string()).max(2).superRefine((args, ctx) => {
       const paths = args.filter(a => !a.startsWith("-"));
       for (const p of paths) {

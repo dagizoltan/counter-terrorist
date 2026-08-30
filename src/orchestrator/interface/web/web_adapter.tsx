@@ -7,7 +7,7 @@ import { AppError } from "@core/errors.ts";
 import { loggingService, LogSeverity, LogType } from "@infrastructure/system/logging.ts";
 import { createWsHandler } from "./ws_handler.ts";
 import { ServiceContainer } from "@core/container.ts";
-import { SecurityMiddleware } from "./middleware/security.ts";
+import { SecurityMiddleware, resolveClientIp } from "./middleware/security.ts";
 import { uiContext } from "./middleware/ui_context.ts";
 import { apiConsistencyMiddleware } from "./middleware/api_consistency.ts";
 import { registerRoutes } from "./routes/registry.ts";
@@ -187,7 +187,7 @@ export class WebAdapter implements WebPort {
       }
 
       if (!role) {
-        const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+        const ip = resolveClientIp(c, this.services.config.getEnv("TRUSTED_PROXIES") || "");
         loggingService.log({
           timestamp: new Date().toISOString(),
           type: LogType.AUDIT,
@@ -280,7 +280,7 @@ export class WebAdapter implements WebPort {
       const honeyRoutes = this.services.honeypot.getDecoyRoutes();
       honeyRoutes.forEach(route => {
         this.app.get(route, async (c) => {
-          const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+          const ip = resolveClientIp(c, this.services.config.getEnv("TRUSTED_PROXIES") || "");
           loggingService.log({
             timestamp: new Date().toISOString(),
             type: LogType.AUDIT,
@@ -338,7 +338,7 @@ export class WebAdapter implements WebPort {
       }
 
       if (this.services.networkLogs) {
-        const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "127.0.0.1";
+        const ip = resolveClientIp(c, this.services.config.getEnv("TRUSTED_PROXIES") || "");
         await this.services.networkLogs.log({
             direction: "INBOUND",
             source: ip,

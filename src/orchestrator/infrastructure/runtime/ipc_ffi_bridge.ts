@@ -93,8 +93,12 @@ export class IpcFfiBridge {
         let len = outLenPtr[0];
         if (len === 0) return null;
 
-        // Create a view directly into shared memory (Zero-Copy)
-        let view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgPtr, len));
+        // Copy out of the mapping before touching the bytes. De-obfuscating the shared
+        // view in place mutated the producer's buffer: any later `return null` left the
+        // message un-committed but already XORed, so the next pull read the same slot,
+        // XORed it a second time and scrambled it for good — and the tail never advanced,
+        // so the ring wedged and every subsequent event was dropped.
+        let view = new Uint8Array(Deno.UnsafePointerView.getArrayBuffer(msgPtr, len)).slice();
 
         // SEC-03: Shared Memory IPC Hardening - SIMD-accelerated Obfuscation
         if (obfuscationKey && obfuscationKey.length > 0) {
@@ -135,12 +139,20 @@ export class IpcFfiBridge {
         if (jsonPtr) {
             const jsonStr = Deno.UnsafePointerView.getCString(jsonPtr);
             this.ffi.symbols.free_string(jsonPtr);
-
-            // Commit only after successful deserialization
             this.ffi.symbols.shmem_ring_commit(ptr);
             return jsonStr;
         }
 
+        // A message we cannot decode is never going to become decodable, so commit past
+        // it. Leaving it in place stalled the tail permanently and starved the ring.
+        this.logging.log({
+            timestamp: new Date().toISOString(),
+            type: LogType.DEBUG,
+            severity: LogSeverity.WARNING,
+            caller: "orchestrator:infra:runtime:ipc_ffi_bridge",
+            message: `Discarding undecodable shared-memory event (${len} bytes)`
+        }).catch(() => {});
+        this.ffi.symbols.shmem_ring_commit(ptr);
         return null;
     }
 

@@ -132,7 +132,11 @@ export class ApiKeysService extends BaseService {
    */
   async listApiKeys(): Promise<ApiKeyMetadata[]> {
     // BUG-1.2 FIX: Use a more efficient list operation to avoid N+1 KV lookups
-    return await this.hashRepo.list();
+    // The stored record carries the per-key salt alongside the metadata, and this list
+    // is serialised straight out of GET /api/admin/api-keys — project down to the public
+    // fields so the salt never leaves the process.
+    const stored = await this.hashRepo.list() as Array<ApiKeyMetadata & { salt?: string }>;
+    return stored.map(({ id, name, role, createdAt, lastUsed }) => ({ id, name, role, createdAt, lastUsed }));
   }
 
   /**

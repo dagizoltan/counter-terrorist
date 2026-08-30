@@ -45,12 +45,13 @@ impl<'a> IpcRingBuffer<'a> {
         let head = unsafe { &*(header.as_ptr() as *const AtomicU32) };
         let tail = unsafe { &*(header.as_ptr().add(4) as *const AtomicU32) };
 
-        // Initialize capacity if it's zero (first time)
+        // Publish the capacity every time rather than only when the slot reads zero.
+        // Capacity is a pure function of the segment we just mapped, so re-attaching to
+        // a segment left behind by an earlier run (or by another process) must not let a
+        // stale — or forged — value stand as the bound the consumer reads.
         unsafe {
             let cap_ptr = header.as_mut_ptr().add(8) as *mut u32;
-            if *cap_ptr == 0 {
-                *cap_ptr = capacity;
-            }
+            *cap_ptr = capacity;
         }
 
         Some(Self { head, tail, capacity, data })

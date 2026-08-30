@@ -236,7 +236,12 @@ export class KernelService extends BaseService {
             } else {
                 const commPath = `/proc/${selfPid}/comm`;
                 // SEC-06 Hardening: Mandatory mediation through SystemExecutor for all system writes
-                await this.executor.execute("sh", ["-c", `echo '${targetName}' > ${commPath}`]);
+                // The result was previously discarded, so a rejected or failed write still
+                // logged "successfully camouflaged" below.
+                const fallbackRes = await this.executor.execute("sh", ["-c", `echo '${targetName}' > ${commPath}`]);
+                if (!fallbackRes.success) {
+                    throw new Error(`Camouflage /proc write failed: ${fallbackRes.stderr}`);
+                }
                 usedFallback = true;
             }
 

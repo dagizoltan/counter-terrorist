@@ -7,6 +7,29 @@ import { secureCompare } from "@infrastructure/system/validation.ts";
 import { ActorContext } from "@domain/analysis/audit.ts";
 
 /**
+ * Resolves the client IP, honouring X-Forwarded-For only when the immediate peer is a
+ * configured trusted proxy.
+ *
+ * Anything that keys security state on the client — rate limiters, blacklists, audit
+ * actors — has to go through this. Reading the header directly lets a caller pick a
+ * fresh identity per request simply by changing it, which silently disables whatever
+ * limit is keyed on the result.
+ */
+export function resolveClientIp(c: Context, trustedProxies: string): string {
+  const directIp = (c.env as { remoteAddr?: { hostname?: string } } | undefined)?.remoteAddr?.hostname;
+  const forwardedFor = c.req.header("X-Forwarded-For");
+
+  if (forwardedFor && directIp) {
+    const trusted = trustedProxies.split(",").map((p) => p.trim()).filter(Boolean);
+    if (trusted.includes(directIp)) {
+      return forwardedFor.split(",")[0]?.trim() || directIp;
+    }
+  }
+
+  return directIp || "unknown";
+}
+
+/**
  * Security Middleware Factory
  * Encapsulates all authentication and authorization logic.
  */
@@ -84,17 +107,7 @@ export class SecurityMiddleware {
    * Securely extracts the client IP, preventing spoofing unless from a trusted proxy.
    */
   private getClientIp(c: Context): string {
-    const directIp = (c.env as any)?.remoteAddr?.hostname;
-    const forwardedFor = c.req.header("X-Forwarded-For");
-
-    if (forwardedFor) {
-        const trustedProxies = this.services.config.getEnv("TRUSTED_PROXIES")?.split(",").map(p => p.trim()) || [];
-        if (directIp && trustedProxies.includes(directIp)) {
-            return forwardedFor.split(",")[0]?.trim() || directIp;
-        }
-    }
-
-    return directIp || "unknown";
+    return resolveClientIp(c, this.services.config.getEnv("TRUSTED_PROXIES") || "");
   }
 
   public auth() {
@@ -232,11 +245,32 @@ export class SecurityMiddleware {
     return async (c: Context, next: Next) => {
       const signature = c.req.header("X-Mesh-Signature");
       const psk = c.req.header("X-Mesh-Secret");
-      
-      if (meshSecret && (signature || (psk && await secureCompare(psk, meshSecret)))) {
+
+      if (meshSecret && psk && await secureCompare(psk, meshSecret)) {
         c.set("role", "mesh_peer");
         return next();
       }
+
+      // A bare X-Mesh-Signature header used to be enough to be granted the mesh_peer
+      // role, with nothing ever checking the signature at this layer. Only /api/mesh/sync
+      // verifies it in its handler; /api/mesh/nodes and /api/mesh/resync do not, so any
+      // unauthenticated caller who set the header could read the peer topology and drive
+      // a mesh-wide resync. Verify it here instead of trusting its presence.
+      if (meshSecret && signature) {
+        const payload = await c.req.json().catch(() => null);
+        if (payload !== null && await this.services.mesh?.verifySignature(payload, signature)) {
+          c.set("role", "mesh_peer");
+          return next();
+        }
+        loggingService.log({
+          timestamp: new Date().toISOString(),
+          type: LogType.AUDIT,
+          severity: LogSeverity.WARNING,
+          caller: "orchestrator:interface:web:middleware:security",
+          message: `[SECURITY] REJECTED: Unverifiable X-Mesh-Signature on ${c.req.path} from ${this.getClientIp(c)}`
+        });
+      }
+
       return this.auth()(c, next);
     };
   }

@@ -4,7 +4,10 @@ import { ServiceContainer } from "@core/container.ts";
 export const handlerFactory = (_services: ServiceContainer) => async (c: Context) => {
   const name = c.req.param("name");
 
-  if (name.includes("..") || name.includes("/") || name.includes("\\")) {
+  // Allow-list rather than deny-list. The old check only rejected traversal, so a name
+  // containing a double quote broke out of the quoted filename in the Content-Disposition
+  // header below and let the caller append header parameters of their choosing.
+  if (!/^[A-Za-z0-9._-]{1,255}$/.test(name) || name.includes("..")) {
       return c.json({ error: "Invalid filename" }, 400);
   }
 
