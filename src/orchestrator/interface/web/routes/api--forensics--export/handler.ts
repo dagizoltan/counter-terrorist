@@ -12,7 +12,15 @@ export const handlerFactory = (_services: ServiceContainer) => {
         return c.text("# Network Intelligence Report\nNo data available yet.", 404);
       }
     }
-    const limit = c.req.query("limit") ? parseInt(c.req.query("limit")!) : 1000;
+    // Clamped: the raw query value went straight into the bundle size, so `?limit=1e9`
+    // built an unbounded evidence bundle in memory and a non-numeric value passed NaN
+    // through to the service.
+    const DEFAULT_LIMIT = 1000;
+    const MAX_LIMIT = 10000;
+    const requested = parseInt(c.req.query("limit") ?? "", 10);
+    const limit = Number.isFinite(requested)
+      ? Math.min(Math.max(requested, 1), MAX_LIMIT)
+      : DEFAULT_LIMIT;
     return c.json(await _services.forensicService.generateEvidenceBundle(limit));
   };
 };

@@ -4,6 +4,15 @@ import { BaseService } from "@core/base_service.ts";
 import { retry } from "../../core/utils/resilience.ts";
 import { ResourceExhaustedError } from "../../core/errors.ts";
 
+interface RateLimitState {
+  count: number;
+  resetAt: number;
+  /** How much of `count` has already been pushed to KV. */
+  synced: number;
+  /** The write currently in flight for this key, if any. */
+  inflight: Promise<void> | null;
+}
+
 export interface RateLimitStatus {
   allowed: boolean;
   count: number;
@@ -17,8 +26,18 @@ export interface RateLimitStatus {
  */
 export class RateLimitService extends BaseService {
   private readonly PREFIX = ["security", "ratelimit"];
-  // SEC-08: In-memory tier to mitigate Deno KV lock contention
-  private memoryTier: Map<string, { count: number, resetAt: number }> = new Map();
+  // SEC-08: In-memory tier to mitigate Deno KV lock contention.
+  //
+  // `synced` is how much of `count` has already been pushed to KV, so a sync only ever
+  // sends the delta. Pushing the running total on every request instead made the
+  // persisted counter ~189x the real request count over a 500-request window, and issued
+  // one KV transaction per request past the halfway mark — write amplification that
+  // peaked exactly when the node was under flood.
+  //
+  // Note: the allow/deny decision is still taken purely from this node's own count. The
+  // KV tier records the counts but is not read back, so the limit is per-node, not
+  // mesh-wide, despite the class comment.
+  private memoryTier: Map<string, RateLimitState> = new Map();
   private syncTimer?: any;
 
   constructor(private kv: Deno.Kv) {
@@ -27,7 +46,7 @@ export class RateLimitService extends BaseService {
 
   protected override async onInit(): Promise<import("../../core/result.ts").Result<void>> {
     // Periodically flush memory tier to KV
-    this.syncTimer = setInterval(() => this.flushMemoryTier(), 5000);
+    this.syncTimer = setInterval(() => { void this.flushMemoryTier(); }, 5000);
     return { success: true, data: undefined };
   }
 
@@ -37,8 +56,10 @@ export class RateLimitService extends BaseService {
     return ok(undefined);
   }
 
-  private async flushMemoryTier() {
+  private async flushMemoryTier(): Promise<void> {
       const now = Date.now();
+      const pending: Promise<void>[] = [];
+
       for (const [key, state] of this.memoryTier.entries()) {
           // If window expired, just clean up
           if (now > state.resetAt) {
@@ -46,25 +67,63 @@ export class RateLimitService extends BaseService {
               continue;
           }
 
-          // SEC-08 Hardening: Atomically extract and sync the current count
-          // We clear the local count to avoid exponential over-counting.
-          const countToSync = state.count;
-          state.count = 0;
-
-          // Asynchronously sync to KV.
-          this.syncToKv(key, countToSync, state.resetAt).catch((e) => {
-              // Re-add to memory tier if sync failed to avoid losing counts
-              const currentState = this.memoryTier.get(key);
-              if (currentState) currentState.count += countToSync;
-          });
+          // Push only what has not been pushed yet. `count` is left intact so the
+          // in-window decision keeps seeing the true local total.
+          pending.push((async () => {
+              // Let any in-flight write settle first, then push whatever is still
+              // outstanding. Without this, shutdown could return before the last counts
+              // reached KV.
+              await state.inflight?.catch(() => {});
+              await this.syncKey(key, state);
+          })());
       }
+
+      await Promise.allSettled(pending);
   }
 
-  private async syncToKv(key: string, delta: number, resetAt: number) {
-      if (delta === 0) return;
+  /**
+   * Pushes this key's unsynced delta to KV.
+   *
+   * Advances `synced` optimistically and rolls it back if the write ultimately fails, so
+   * a failed sync loses no counts and a successful one is never counted twice.
+   */
+  private syncKey(key: string, state: RateLimitState): Promise<void> {
+      // One in-flight write per key. Firing a fresh transaction on every request past the
+      // threshold made concurrent atomics on the same key fight each other, so the
+      // optimistic `.check` failed and counts were dropped once the retry budget ran out.
+      // Whatever is missed here is picked up by the next threshold crossing or by the
+      // periodic flush.
+      if (state.inflight) return state.inflight;
+
+      const delta = state.count - state.synced;
+      if (delta <= 0) return Promise.resolve();
+
+      state.synced = state.count;
+      const write = this.syncToKv(key, delta, state.resetAt)
+          .then(() => {})
+          .catch(() => {
+              // Give the delta back so it is retried, but only while this is still the
+              // live state for the key: the window may have rolled over (or the entry may
+              // have been evicted) while the write was in flight, and the replacement
+              // state must not inherit the old window's counts.
+              if (this.memoryTier.get(key) === state) {
+                  state.synced = Math.max(0, state.synced - delta);
+              }
+          })
+          .finally(() => {
+              if (state.inflight === write) state.inflight = null;
+          });
+
+      state.inflight = write;
+      return write;
+  }
+
+  /** Adds `delta` to the persisted counter for this key. */
+  private async syncToKv(key: string, delta: number, resetAt: number): Promise<number> {
+      if (delta === 0) return 0;
       const fullKey = [...this.PREFIX, key];
 
-      await retry(async () => {
+      return await retry(async () => {
           const entry = await this.kv.get<{ count: number; resetAt: number }>(fullKey);
           const now = Date.now();
 
@@ -85,6 +144,7 @@ export class RateLimitService extends BaseService {
             .commit();
 
           if (!res.ok) throw new Error("KV contention during sync");
+          return newState.count;
       }, { maxAttempts: 3, baseDelayMs: 20 });
   }
 
@@ -100,7 +160,7 @@ export class RateLimitService extends BaseService {
     // 1. Check memory tier first (fast path)
     let state = this.memoryTier.get(key);
     if (!state || now > state.resetAt) {
-        state = { count: 0, resetAt: now + windowMs };
+        state = { count: 0, resetAt: now + windowMs, synced: 0, inflight: null };
     }
     state.count++;
     this.memoryTier.set(key, state);
@@ -121,11 +181,9 @@ export class RateLimitService extends BaseService {
 
         // SEC-08 Hardening: Threshold-Triggered Sync
         // If we reach 50% of the limit, or violate it, sync immediately to KV
-        // to close the distributed bypass window.
-        const countToSync = state.count;
-        // Don't clear local count, just mark it as "syncing" or similar
-        // For simplicity in this implementation, we just sync and the tests expect the total count
-        this.syncToKv(key, countToSync, state.resetAt).catch(() => {});
+        // to close the distributed bypass window. Fire-and-forget: the hot path must not
+        // wait on KV.
+        void this.syncKey(key, state);
     }
 
     // 2. Return status based on memory tier.

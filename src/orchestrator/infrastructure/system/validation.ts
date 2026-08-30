@@ -100,38 +100,119 @@ export function isValidWebhookUrl(url: string): { valid: boolean; reason?: strin
  * Checks if an IP address is private, loopback, or otherwise unauthorized for webhooks.
  */
 export function isPrivateIp(ip: string): boolean {
-  if (ip === "localhost" || ip === "127.0.0.1" || ip === "0.0.0.0" || ip === "::1" || ip === "[::1]" || ip === "[::]") {
+  // URL.hostname keeps the brackets on an IPv6 literal ("[fe80::1]"), so every check
+  // below has to run against the unbracketed form. Matching on the raw value let
+  // https://[fe80::1]/, https://[::ffff:127.0.0.1]/ and https://[0:0:0:0:0:0:0:1]/ walk
+  // straight past the webhook SSRF guard.
+  const host = ip.startsWith("[") && ip.endsWith("]") ? ip.slice(1, -1) : ip;
+
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") {
     return true;
   }
 
-  if (ip === "169.254.169.254" || ip.startsWith("169.254.")) {
+  if (host.startsWith("169.254.")) {
     return true;
   }
 
-  // H-02: Enhanced SSRF protection for IPv6 and IPv4-mapped addresses
-  const lowerIp = ip.toLowerCase();
-  if (lowerIp === "::" || lowerIp === "::1" || lowerIp.startsWith("fe8") || lowerIp.startsWith("fc") || lowerIp.startsWith("fd")) {
-    return true;
-  }
+  const lowerIp = host.toLowerCase();
 
-  // Handle IPv4-mapped IPv6 (::ffff:192.168.1.1)
-  if (lowerIp.startsWith("::ffff:")) {
-      const ipv4Part = lowerIp.substring(7);
-      return isPrivateIp(ipv4Part);
-  }
-
-  const ipv4Match = ip.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  const ipv4Match = host.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
     const [, a, b] = ipv4Match.map(Number);
+    if (a === 127) return true;
     if (a === 10) return true;
     if (a === 172 && b >= 16 && b <= 31) return true;
     if (a === 192 && b === 168) return true;
     if (a === 100 && b >= 64 && b <= 127) return true;
     if (a === 198 && (b === 18 || b === 19)) return true;
     if (a === 0) return true;
+    return false;
+  }
+
+  // Only classify as IPv6 when the value actually is one. The old prefix tests ran on
+  // any string, so ordinary hostnames beginning "fc"/"fd" were reported private.
+  //
+  // IPv4-mapped forms are handled by the full parser rather than by string-slicing after
+  // "::ffff:": the URL parser rewrites "[::ffff:127.0.0.1]" to "[::ffff:7f00:1]", and a
+  // textual shortcut left that hex spelling unclassified.
+  if (!lowerIp.includes(":")) return false;
+
+  return isPrivateIpv6(lowerIp);
+}
+
+/**
+ * Classifies an unbracketed, lower-cased IPv6 literal as private/unroutable.
+ * Covers loopback (::1), unspecified (::), link-local (fe80::/10) and unique-local
+ * (fc00::/7) — including their fully expanded spellings.
+ */
+function isPrivateIpv6(addr: string): boolean {
+  const groups = expandIpv6(addr);
+  if (!groups) {
+    // Unparseable: fall back to the conservative textual prefixes rather than allowing it.
+    return addr === "::" || addr === "::1" || /^f[cd]/.test(addr) || /^fe[89ab]/.test(addr);
+  }
+
+  if (groups.every((g) => g === 0)) return true;                       // ::
+  if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) return true; // ::1
+
+  const first = groups[0];
+  if ((first & 0xfe00) === 0xfc00) return true;  // fc00::/7  unique-local
+  if ((first & 0xffc0) === 0xfe80) return true;  // fe80::/10 link-local
+
+  // IPv4-mapped (::ffff:a.b.c.d) and IPv4-compatible forms carry the address in the
+  // last two groups.
+  if (groups.slice(0, 5).every((g) => g === 0) && (groups[5] === 0xffff || groups[5] === 0)) {
+    const a = groups[6] >> 8, b = groups[6] & 0xff, c = groups[7] >> 8, d = groups[7] & 0xff;
+    if (a !== 0 || b !== 0 || c !== 0 || d !== 0) {
+      return isPrivateIp(`${a}.${b}.${c}.${d}`);
+    }
   }
 
   return false;
+}
+
+/** Expands an IPv6 literal (with optional "::" and trailing dotted-quad) to 8 groups. */
+function expandIpv6(addr: string): number[] | null {
+  let text = addr;
+
+  // Strip a zone id ("fe80::1%eth0").
+  const zone = text.indexOf("%");
+  if (zone !== -1) text = text.slice(0, zone);
+
+  // A trailing dotted-quad becomes two hex groups.
+  const dotted = text.match(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (dotted) {
+    const octets = dotted.slice(1).map(Number);
+    if (octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) return null;
+    const hi = ((octets[0] << 8) | octets[1]).toString(16);
+    const lo = ((octets[2] << 8) | octets[3]).toString(16);
+    text = text.slice(0, dotted.index) + `${hi}:${lo}`;
+  }
+
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+
+  const parse = (part: string): number[] | null => {
+    if (part === "") return [];
+    const out: number[] = [];
+    for (const g of part.split(":")) {
+      if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+      out.push(parseInt(g, 16));
+    }
+    return out;
+  };
+
+  const head = parse(halves[0]);
+  if (head === null) return null;
+
+  if (halves.length === 1) return head.length === 8 ? head : null;
+
+  const tail = parse(halves[1]);
+  if (tail === null) return null;
+
+  const fill = 8 - head.length - tail.length;
+  if (fill < 0) return null;
+  return [...head, ...new Array(fill).fill(0), ...tail];
 }
 
 /**
@@ -156,7 +237,16 @@ export async function validateWebhookUrlAsync(url: string): Promise<{ valid: boo
   }
 
   try {
-    const ips = await Deno.resolveDns(hostname, "A");
+    // Both families, not just A: a name with only — or additionally — an AAAA record
+    // pointing at fe80::/fc00::/::1 used to skip the check entirely, since an A-only
+    // lookup either threw (and was reported as a resolution failure) or returned the
+    // one public address while the request could still be made over IPv6.
+    const [a, aaaa] = await Promise.all([
+      Deno.resolveDns(hostname, "A").catch(() => [] as string[]),
+      Deno.resolveDns(hostname, "AAAA").catch(() => [] as string[]),
+    ]);
+    const ips = [...a, ...aaaa];
+
     if (ips.length === 0) {
       return { valid: false, reason: "Could not resolve hostname" };
     }
@@ -432,16 +522,38 @@ const EnforcerRequestSchema = z.object({
     return true;
 }, { message: "Missing required fields for enforcer command" });
 
+/**
+ * PCAP output paths are jailed to the capture directories.
+ *
+ * The previous check only inspected the trailing path component, so
+ * "../../../etc/cron.d/evil" passed (basename "evil") and netcap — which hands the
+ * string straight to File::create while holding CAP_NET_RAW — would happily create it.
+ * Both the basename and the full resolved path are checked now.
+ */
+const PCAP_JAIL = ["./volume/storage/captures/", "./volume/storage/forensics/", "/var/lib/cts/captures/", "/var/lib/cts/forensics/"];
+
+const PcapFilenameSchema = z.string().refine(f => {
+    const basename = f.split("/").pop()?.split("\\").pop() || "";
+    if (!SAFE_FILENAME_REGEX.test(basename) || basename === "." || basename === "..") return false;
+    // A bare filename (no separator) is written relative to the agent's own cwd.
+    if (!f.includes("/") && !f.includes("\\")) return true;
+    return validatePath(f, PCAP_JAIL);
+}, { message: "Unsafe PCAP filename" });
+
+// netcap reads its arguments from a nested `payload` object; the pcap providers send
+// them flat. Accept either spelling and validate whichever one is present, so neither
+// caller can smuggle an unvalidated filename through the shape the schema ignores.
 const NetcapRequestSchema = z.object({
     id: IdSchema,
     type: z.enum(["StartCapture", "StopCapture", "GetStatus"]),
     interface: InterfaceSchema.optional(),
     duration: z.number().min(1).max(3600).optional(),
-    filename: z.string().optional().refine(f => {
-        if (!f) return true;
-        const basename = f.split("/").pop()?.split("\\").pop() || "";
-        return SAFE_FILENAME_REGEX.test(basename);
-    }, { message: "Unsafe PCAP filename" })
+    filename: PcapFilenameSchema.optional(),
+    payload: z.object({
+        interface: InterfaceSchema.optional(),
+        duration: z.number().min(1).max(3600).optional(),
+        filename: PcapFilenameSchema.optional()
+    }).optional()
 });
 
 const DecoyRequestSchema = z.object({

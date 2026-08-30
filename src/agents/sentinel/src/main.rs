@@ -110,18 +110,26 @@ async fn main() -> Result<(), anyhow::Error> {
     // Handle Perf Events
     // SOV-06 Hardening: Open perf buffers while holding the lock.
     for cpu_id in aya::util::online_cpus()? {
-        let mut buf = {
+        // `bpf_arc` is a parking_lot Mutex, which is not async-aware. The guard used to
+        // stay alive across the `.await`s below — and `run_dummy_mode()` never returns,
+        // so taking that branch held the eBPF lock for the life of the process and every
+        // later map command (BlockIp, TrustPid, …) deadlocked on it. Release the guard
+        // before awaiting anything.
+        let map = {
             let mut bpf = bpf_arc.lock();
+            bpf.take_map("EVENTS")
+        };
 
-            let map = match bpf.take_map("EVENTS") {
-                Some(m) => m,
-                None => {
-                    emit_response(None, false, "EVENTS map not found. Falling back to dummy mode.".to_string()).await;
-                    return run_dummy_mode().await;
-                }
-            };
+        let map = match map {
+            Some(m) => m,
+            None => {
+                emit_response(None, false, "EVENTS map not found. Falling back to dummy mode.".to_string()).await;
+                return run_dummy_mode().await;
+            }
+        };
+
+        let mut buf = {
             let mut perf_array = PerfEventArray::try_from(map)?;
-
             perf_array.open(cpu_id, None)?
         };
 
@@ -131,7 +139,15 @@ async fn main() -> Result<(), anyhow::Error> {
                 match buf.read_events(&mut buffers) {
                     Ok(events) => {
                         for data in buffers.iter().take(events.read) {
-                            if let Some(event) = SyscallEvent::read_from(&data[..std::mem::size_of::<SyscallEvent>()]) {
+                            // A perf record shorter than the struct (a truncated sample, or
+                            // a kernel program built against a different layout) used to
+                            // index straight past the end of the buffer. This crate builds
+                            // with `panic = "abort"`, so that slice panic took the whole
+                            // sentinel down instead of dropping one malformed event.
+                            let Some(raw) = data.get(..std::mem::size_of::<SyscallEvent>()) else {
+                                continue;
+                            };
+                            if let Some(event) = SyscallEvent::read_from(raw) {
                                 // BUG-6.1 FIX: Support ARM64 (AArch64) syscall IDs
                                 let syscall = if cfg!(target_arch = "x86_64") {
                                     match event.syscall_id {
@@ -229,6 +245,16 @@ async fn main() -> Result<(), anyhow::Error> {
             _ = tokio::time::sleep(std::time::Duration::from_millis(50)) => 0,
         };
         buffer.extend_from_slice(&byte_buf[..n]);
+
+        // Without a ceiling, a stream that never yields a parseable frame (no newline,
+        // no valid MessagePack) grows this buffer without bound until the agent is OOM
+        // killed. Commands are small; anything past the cap is unrecoverable framing.
+        const MAX_STDIN_BUFFER: usize = 1024 * 1024;
+        if buffer.len() > MAX_STDIN_BUFFER {
+            eprintln!("[sentinel] stdin frame exceeded {} bytes, resetting buffer", MAX_STDIN_BUFFER);
+            buffer.clear();
+            continue;
+        }
 
         while !buffer.is_empty() {
             // Try MessagePack first
@@ -587,6 +613,16 @@ async fn run_dummy_mode() -> Result<(), anyhow::Error> {
             Err(_) => break,
         };
         buffer.extend_from_slice(&byte_buf[..n]);
+
+        // Without a ceiling, a stream that never yields a parseable frame (no newline,
+        // no valid MessagePack) grows this buffer without bound until the agent is OOM
+        // killed. Commands are small; anything past the cap is unrecoverable framing.
+        const MAX_STDIN_BUFFER: usize = 1024 * 1024;
+        if buffer.len() > MAX_STDIN_BUFFER {
+            eprintln!("[sentinel] stdin frame exceeded {} bytes, resetting buffer", MAX_STDIN_BUFFER);
+            buffer.clear();
+            continue;
+        }
 
         while !buffer.is_empty() {
             // Try MessagePack first

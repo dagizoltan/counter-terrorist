@@ -1,5 +1,6 @@
 import { Context } from "hono";
 import { jsx } from "hono/jsx";
+import { resolveClientIp } from "../../middleware/security.ts";
 
 export const loginHandler = async (c: Context) => {
   const { Login } = await import("./page.tsx");
@@ -8,7 +9,10 @@ export const loginHandler = async (c: Context) => {
 };
 
 export const postLoginHandler = (deps: any) => async (c: Context) => {
-  const ip = c.req.header("X-Forwarded-For")?.split(",")[0]?.trim() || (c.env as any)?.remoteAddr?.hostname || "unknown";
+  // Keyed on the trusted-proxy-resolved peer, not on raw X-Forwarded-For. Trusting the
+  // header here let anyone reset the 10-per-minute login limiter on every attempt just
+  // by incrementing it, which left the token brute-forceable at full request rate.
+  const ip = resolveClientIp(c, deps.config.getEnv("TRUSTED_PROXIES") || "");
   const rateLimit = await deps.checkLoginRateLimit(ip);
   if (!rateLimit.allowed) {
     return c.json({ error: "Too many login attempts", retryAfterMs: rateLimit.retryAfterMs }, 429);
@@ -36,9 +40,17 @@ export const postLoginHandler = (deps: any) => async (c: Context) => {
 
   // ConfigurationPort has no getSessionTTL; SESSION_TTL_HOURS is a validated schema key.
   const ttlHours = deps.config.getNumber("SESSION_TTL_HOURS", 24);
-  c.header("Set-Cookie", `session_token=${session.id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${ttlHours * 3600}`);
+  // The console is served over TLS unless DISABLE_HTTPS is set, so the session cookie
+  // is marked Secure: without it the browser will attach it to any plaintext request to
+  // the same host, which is exactly what a downgrade attempt is looking for.
+  c.header("Set-Cookie", `session_token=${session.id}; Path=/; HttpOnly; SameSite=Strict; ${cookieSecurityAttrs(deps)}Max-Age=${ttlHours * 3600}`);
   return c.redirect("/dashboard");
 };
+
+/** `Secure; ` unless the node is explicitly configured to serve plain HTTP. */
+function cookieSecurityAttrs(deps: { config: { getEnv: (k: string) => string | undefined } }): string {
+  return deps.config.getEnv("DISABLE_HTTPS") === "true" ? "" : "Secure; ";
+}
 
 export const logoutHandler = (deps: any) => async (c: Context) => {
   const { getCookie } = await import("hono/cookie");
@@ -46,6 +58,6 @@ export const logoutHandler = (deps: any) => async (c: Context) => {
   if (sessionId) {
     await deps.sessionService.revokeSession(sessionId);
   }
-  c.header("Set-Cookie", "session_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0");
+  c.header("Set-Cookie", `session_token=; Path=/; HttpOnly; SameSite=Strict; ${cookieSecurityAttrs(deps)}Max-Age=0`);
   return c.redirect("/login");
 };

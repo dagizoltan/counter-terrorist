@@ -178,9 +178,19 @@ async fn handle_netcap_command(cmd_val: serde_json::Value, capture_handle: Arc<M
                 }
             },
             "StartCapture" => {
-                let interface = cmd_val["payload"]["interface"].as_str().unwrap_or("eth0").to_string();
-                let filename = cmd_val["payload"]["filename"].as_str().map(|s| s.to_string());
-                let duration = cmd_val["payload"]["duration"].as_u64().unwrap_or(0);
+                // The pcap providers send interface/filename/duration at the top level
+                // while the autopilot nests them under `payload`. Reading only the nested
+                // spelling meant every provider-initiated capture silently fell back to
+                // eth0 with no writer, so `startCapture(iface, duration, filename)`
+                // produced no file at all. Accept both, preferring the nested form.
+                let field = |key: &str| -> serde_json::Value {
+                    let nested = &cmd_val["payload"][key];
+                    if nested.is_null() { cmd_val[key].clone() } else { nested.clone() }
+                };
+
+                let interface = field("interface").as_str().unwrap_or("eth0").to_string();
+                let filename = field("filename").as_str().map(|s| s.to_string());
+                let duration = field("duration").as_u64().unwrap_or(0);
                 
                 let mut handle = capture_handle.lock().await;
                 if let Some(h) = handle.as_ref() {

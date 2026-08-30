@@ -50,6 +50,37 @@ export class SystemExecutor implements ExecutorPort {
     "/tmp/"
   ];
 
+  /**
+   * The only commands that may be authorised by basename when given as a path.
+   *
+   * Sidecar binaries are legitimately resolved to a path ("./src/agents/target/release/
+   * analyzer", "/opt/cts/bin/enforcer") whose basename is what the whitelist names.
+   * Everything else must match the whitelist exactly: matching any path by basename
+   * meant "/tmp/attacker/ls" or "/tmp/attacker/systemctl" was accepted as whitelisted
+   * and executed, which also defeated the point of pinning the /var/lib/cts/scripts
+   * entries by absolute path.
+   */
+  private static readonly PATH_RESOLVABLE_COMMANDS = [
+    "analyzer", "enforcer", "decoy", "netcap", "sentinel", "watchfile", "trustroot",
+    "tunnel", "sentinel-darwin", "telemetry-win", "enforcer-win", "ebpf"
+  ];
+
+  private isWhitelisted(cmd: string): boolean {
+    if (SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) return true;
+
+    // A bare name (no separator) is resolved through PATH by Deno.Command; matching it
+    // against the whitelist by name is exactly right. A value carrying a separator names
+    // a specific file, so only the sidecar binaries may be recognised by basename.
+    if (!cmd.includes("/") && !cmd.includes("\\")) {
+      return SystemExecutor.WHITELISTED_COMMANDS.includes(path.basename(cmd));
+    }
+
+    // findBinary appends ".exe" on Windows, so compare against the stem.
+    const baseCmd = path.basename(cmd).replace(/\.exe$/i, "");
+    return SystemExecutor.PATH_RESOLVABLE_COMMANDS.includes(baseCmd) &&
+           SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd);
+  }
+
   private validateArguments(cmd: string, args: string[]): { valid: boolean; reason?: string } {
     const baseCmd = path.basename(cmd);
     const policy = COMMAND_POLICIES[cmd] || COMMAND_POLICIES[baseCmd];
@@ -83,8 +114,13 @@ export class SystemExecutor implements ExecutorPort {
             }
         }
 
-        // Context-aware Shell Metacharacter Protection
-        if (!((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
+        // Context-aware Shell Metacharacter Protection.
+        // Skipped where the policy's schema is itself an exact-shape allow-list of the
+        // full argument strings (currently only `sh`), because this blanket scan would
+        // otherwise reject the literals that schema has just authorised.
+        const schemaOwnsValidation = policy.schemaOwnsArgumentValidation === true;
+        if (!schemaOwnsValidation &&
+            !((baseCmd === "sentinel" || baseCmd === "ebpf" || baseCmd === "analyzer") && arg.startsWith("{"))) {
             if (/[;&|><`$!]/.test(arg)) {
                 return { valid: false, reason: `Security Violation: Shell metacharacter detected in command arguments.` };
             }
@@ -220,7 +256,7 @@ export class SystemExecutor implements ExecutorPort {
 
   executeAsync(cmd: string, args: string[] = []): Promise<void> {
     const baseCmd = path.basename(cmd);
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+    if (!this.isWhitelisted(cmd)) {
         throw new Error(`Security Violation: Command '${cmd}' is not in the system whitelist.`);
     }
 
@@ -251,7 +287,7 @@ export class SystemExecutor implements ExecutorPort {
   async execute(cmd: string, args: string[] = [], timeoutMs: number = 30000): Promise<CommandResult & { stdout: string; stderr: string }> {
     const baseCmd = path.basename(cmd);
     // Security: Whitelist validation
-    if (!SystemExecutor.WHITELISTED_COMMANDS.includes(baseCmd) && !SystemExecutor.WHITELISTED_COMMANDS.includes(cmd)) {
+    if (!this.isWhitelisted(cmd)) {
         return {
             success: false,
             stdout: "",
