@@ -61,6 +61,20 @@ export class EventMediator extends BaseService {
             this.fimIntegration.setCanaryService(canaryService);
         }
 
+        if (this.kv && this.behavioral) {
+            try {
+                await this.behavioral.setKv(this.kv);
+            } catch (err) {
+                await this.logger.log({
+                    timestamp: new Date().toISOString(),
+                    type: LogType.GENERIC,
+                    severity: LogSeverity.ERROR,
+                    caller: "event_mediator",
+                    message: `Failed to set KV for behavioral: ${(err as Error).message}`
+                });
+            }
+        }
+
         return ok(undefined);
     }
 

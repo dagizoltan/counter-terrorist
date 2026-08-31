@@ -150,6 +150,18 @@ async fn main() -> anyhow::Result<()> {
 
                 if metadata.vers != libc::FANOTIFY_METADATA_VERSION { break; }
 
+                // RAII Guard to ensure metadata.fd is closed under all exit paths
+                struct FdGuard(RawFd);
+                impl Drop for FdGuard {
+                    fn drop(&mut self) {
+                        if self.0 >= 0 {
+                            unsafe { libc::close(self.0); }
+                        }
+                    }
+                }
+
+                let _fd_guard = FdGuard(metadata.fd);
+
                 let pid = metadata.pid;
                 let comm = get_comm(pid);
                 let path = get_path(metadata.fd);
@@ -186,8 +198,6 @@ async fn main() -> anyhow::Result<()> {
                     });
                 }
 
-                // Close the fd provided by fanotify
-                unsafe { libc::close(metadata.fd); }
                 offset += metadata.event_len as usize;
             }
         }

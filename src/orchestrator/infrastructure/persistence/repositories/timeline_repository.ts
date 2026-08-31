@@ -9,13 +9,19 @@ export class TimelineRepository<T extends { id: string; timestamp: string | numb
     this.checkWritePermission();
     const ts = typeof data.timestamp === "string" ? new Date(data.timestamp).getTime() : data.timestamp;
     
-    // Atomic set + counter increment
-    const res = await this.kv.atomic()
-        .set([this.prefix, ts, id], data)
-        .mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(1n) })
-        .commit();
+    // Atomic set + counter increment with retry loop for OCC collisions
+    const maxRetries = 5;
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const res = await this.kv.atomic()
+          .set([this.prefix, ts, id], data)
+          .mutate({ type: "sum", key: ["stats", this.prefix, "count"], value: new Deno.KvU64(1n) })
+          .commit();
+
+      if (res.ok) return;
+      await new Promise(r => setTimeout(r, Math.min(100 * Math.pow(2, attempt), 1000)));
+    }
     
-    if (!res.ok) throw new Error(`Failed to set timeline entry for ${id}`);
+    throw new Error(`Failed to set timeline entry for ${id} after retries`);
   }
 
   async setMany(items: { id: string, data: T }[]): Promise<void> {

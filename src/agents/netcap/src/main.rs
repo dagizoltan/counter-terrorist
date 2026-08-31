@@ -266,7 +266,7 @@ async fn handle_netcap_command(cmd_val: serde_json::Value, capture_handle: Arc<M
                                     let mut ethertype = u16::from_be_bytes([initialized_buf[12], initialized_buf[13]]);
                                     let mut payload_offset = 14;
 
-                                    if ethertype == 0x8100 && n > 18 {
+                                    if ethertype == 0x8100 && n >= 18 {
                                         ethertype = u16::from_be_bytes([initialized_buf[16], initialized_buf[17]]);
                                         payload_offset = 18;
                                     }

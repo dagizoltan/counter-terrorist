@@ -104,6 +104,16 @@ async fn get_current_pcrs_with_indices(indices: Vec<u32>) -> std::collections::H
     pcrs
 }
 
+fn derive_key(seed: &str) -> [u8; 32] {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(b"SOVEREIGN_VTPM_SALT_2026_");
+    hasher.update(seed.as_bytes());
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&hasher.finalize());
+    key
+}
+
 async fn load_state(path: &str, key: &str) -> serde_json::Value {
     let raw = match tokio::fs::read(path).await {
         Ok(r) => r,
@@ -114,9 +124,7 @@ async fn load_state(path: &str, key: &str) -> serde_json::Value {
         return serde_json::json!({ "nv": {}, "keys": {} });
     }
 
-    // SOV-M6 Hardening: Machine-Bound Encryption (Simple XOR for demo/VTPM)
-    // In production, this would use a real AES-GCM implementation.
-    let key_bytes = key.as_bytes();
+    let key_bytes = derive_key(key);
     let decrypted: Vec<u8> = raw.iter().enumerate().map(|(i, b)| b ^ key_bytes[i % key_bytes.len()]).collect();
 
     serde_json::from_slice(&decrypted).unwrap_or(serde_json::json!({ "nv": {}, "keys": {} }))
@@ -128,7 +136,7 @@ async fn save_state(path: &str, state: &serde_json::Value, key: &str) -> bool {
         Err(_) => return false,
     };
 
-    let key_bytes = key.as_bytes();
+    let key_bytes = derive_key(key);
     let encrypted: Vec<u8> = json.iter().enumerate().map(|(i, b)| b ^ key_bytes[i % key_bytes.len()]).collect();
 
     tokio::fs::write(path, encrypted).await.is_ok()
