@@ -1,0 +1,7 @@
+Router Model:
+Firmware Version:
+DNS Settings:
+Port Forwarding Rules:
+Remote Access (Enabled/Disabled):
+Admin Users:
+WiFi Clients List:
