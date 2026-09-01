@@ -39,6 +39,13 @@ impl<'a> IpcRingBuffer<'a> {
     pub fn new(slice: &'a mut [u8]) -> Option<Self> {
         if slice.len() < 32 { return None; }
 
+        // Check 4-byte pointer alignment for AtomicU32 head/tail pointers
+        let ptr = slice.as_ptr() as usize;
+        if ptr % std::mem::align_of::<AtomicU32>() != 0 {
+            error!("Shared memory buffer slice is unaligned for AtomicU32");
+            return None;
+        }
+
         let capacity = (slice.len() - 16) as u32;
         let (header, data) = slice.split_at_mut(16);
 
@@ -406,13 +413,13 @@ pub fn apply_granular_landlock(rules: &[LandlockPathRule]) -> anyhow::Result<()>
         let mut access = BitFlags::from_flag(AccessFs::ReadFile);
         for sc in &rule.syscalls {
             match sc.as_str() {
-                "read" | "open" | "openat" | "stat" | "access" => {
+                "read" | "open" | "openat" | "openat2" | "stat" | "statx" | "access" | "faccessat" | "fstatat" => {
                     access |= AccessFs::ReadFile | AccessFs::ReadDir;
                 }
-                "write" | "truncate" | "chmod" | "chown" => {
+                "write" | "truncate" | "ftruncate" | "chmod" | "fchmod" | "fchmodat" | "chown" | "fchown" | "fchownat" => {
                     access |= AccessFs::WriteFile;
                 }
-                "execute" | "execve" => {
+                "execute" | "execve" | "execveat" => {
                     access |= AccessFs::Execute;
                 }
                 "mkdir" | "mkdirat" => {
