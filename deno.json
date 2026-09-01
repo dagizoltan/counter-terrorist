@@ -18,7 +18,8 @@
     "doctor": "deno run -A --unstable-kv src/orchestrator/tools/ops/cts_doctor.ts",
     "install-sovereign": "deno run -A src/orchestrator/tools/ops/installer.ts",
     "provision-integrity": "deno run -A src/orchestrator/tools/provision_integrity.ts",
-    "package": "deno run --allow-run --allow-read --allow-write --allow-net src/orchestrator/tools/build/package.ts"
+    "package": "deno run --allow-run --allow-read --allow-write --allow-net src/orchestrator/tools/build/package.ts",
+    "test:integration": "deno test --allow-all --unstable-kv tests/integration/"
   },
   "compilerOptions": {
     "jsx": "react-jsx",
